@@ -68,8 +68,8 @@
     "dependencies": {
         "@cratis/arc": "1.0.0",
         "@cratis/arc.react": "1.0.0",
-        "mobx": "^6.15.3",
-        "mobx-react": "^9.2.1",
+        "mobx": "^7.0.3",
+        "mobx-react": "^10.0.2",
         "rxjs": "^7.8.2",
         "tsyringe": "^4.10.0"
     },

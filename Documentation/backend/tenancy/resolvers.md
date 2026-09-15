@@ -2,14 +2,18 @@
 
 Arc resolves tenant IDs through pluggable strategies. Each request is evaluated by the configured resolver, and the resulting tenant ID becomes the active tenant context for the request lifecycle.
 
-## Built-In Resolvers
+## Built-in resolvers
+
+Code below is configuration fragments for an existing `ArcApplicationBuilder` or `WebApplicationBuilder`; import `Cratis.Arc` and `Cratis.Arc.Tenancy`. Register before `Build()` and activate the resulting app with `UseCratisArc()`. The separate `IHostBuilder.AddCratisArcCore(...)` overload is for generic-host wiring, not these builders.
+
+All resolvers **select**, rather than authorize, a tenant. Validate membership against the authenticated principal and authoritative data before using tenant-scoped storage. Caller-controlled headers, query strings, and hosts are not membership evidence; claim-based selection is only as trustworthy as the authentication that supplied the claim.
 
 ### Header Resolver (Default)
 
 Resolves the tenant ID from an HTTP header.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseHeaderTenancy("X-Custom-Tenant");
 });
@@ -22,7 +26,7 @@ Default header name: `x-cratis-tenant-id`
 Resolves the tenant ID from a query string parameter.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseQueryTenancy("tenant");
 });
@@ -35,7 +39,7 @@ Default parameter name: `tenantId`
 Resolves the tenant ID from a claim on the authenticated user.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseClaimTenancy("tenant_id");
 });
@@ -48,7 +52,7 @@ Default claim type: `tenant_id`
 Resolves the tenant ID from the subdomain of a configured base domain, and falls back to the configured HTTP header for every host that does not carry one.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseSubdomainTenancy("myapp.com", "X-Custom-Tenant");
 });
@@ -58,16 +62,16 @@ A host carries a tenant only when it is **exactly one label in front of the base
 
 The number of labels in a host is never used to decide whether it carries a tenant, so the following all fall back to the header:
 
-| Host | Resolved tenant |
-|---|---|
-| `acme.myapp.com` | `acme` |
-| `myapp.com` (the base domain itself) | the header |
-| `acme.staging.myapp.com` (more than one label) | the header |
-| `10.0.0.5`, `[::1]` (IP literals) | the header |
-| `otherapp.com` (an unrelated domain) | the header |
-| `evil-myapp.com` (ends with the same text, no label boundary) | the header |
-| `acme.myapp.com.evil.com` (base domain in the middle) | the header |
-| `*.myapp.com`, `user@acme.myapp.com`, `a_b.myapp.com` (not a DNS label) | the header |
+| Host                                                                    | Resolved tenant |
+| ----------------------------------------------------------------------- | --------------- |
+| `acme.myapp.com`                                                        | `acme`          |
+| `myapp.com` (the base domain itself)                                    | the header      |
+| `acme.staging.myapp.com` (more than one label)                          | the header      |
+| `10.0.0.5`, `[::1]` (IP literals)                                       | the header      |
+| `otherapp.com` (an unrelated domain)                                    | the header      |
+| `evil-myapp.com` (ends with the same text, no label boundary)           | the header      |
+| `acme.myapp.com.evil.com` (base domain in the middle)                   | the header      |
+| `*.myapp.com`, `user@acme.myapp.com`, `a_b.myapp.com` (not a DNS label) | the header      |
 
 Hosts are normalized before matching, so a trailing dot, a port, mixed casing and an internationalized name all resolve the same tenant: `ACME.MyApp.com.`, `acme.myapp.com:5000` and `acme.myapp.com` all resolve `acme`, and `münchen.myapp.com` resolves the punycode label `xn--mnchen-3ya` — the same tenant as `xn--mnchen-3ya.myapp.com`.
 
@@ -94,19 +98,19 @@ Failing to start is deliberate. Without a base domain no host would ever resolve
 
 #### The resolved tenant must be a DNS label
 
-The resolved label becomes the Chronicle namespace and part of the database name, so it is required to be a valid letter-digit-hyphen label — up to 63 characters, starting and ending with a letter or digit. Anything else falls back to the header rather than travelling on as a tenant ID.
+The resolved label can become part of a MongoDB database name or, with optional Chronicle integration, an event-store namespace, so it is required to be a valid letter-digit-hyphen label — up to 63 characters, starting and ending with a letter or digit. Anything else falls back to the header rather than travelling on as a tenant ID.
 
 #### One domain, many spellings
 
 Hosts are matched after IDNA compatibility mapping, which is what lets `münchen.myapp.com` and `xn--mnchen-3ya.myapp.com` be the same tenant. The same mapping means several byte sequences are **the same host**, and all resolve the tenant `admin`:
 
-| Written as | Why it is the same |
-|---|---|
-| `admin.myapp.com` | the canonical spelling |
-| `ａdmin.myapp.com` | fullwidth Latin letters map to ASCII |
-| `admin.myapp.com.` | a root-anchored name |
-| `admin。myapp.com`, `admin．myapp.com`, `admin｡myapp.com` | U+3002, U+FF0E and U+FF61 are label separators |
-| `ad<ZWSP>min.myapp.com` | zero width space, soft hyphen, byte order mark and word joiner are ignorable |
+| Written as                                                | Why it is the same                                                           |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `admin.myapp.com`                                         | the canonical spelling                                                       |
+| `ａdmin.myapp.com`                                        | fullwidth Latin letters map to ASCII                                         |
+| `admin.myapp.com.`                                        | a root-anchored name                                                         |
+| `admin。myapp.com`, `admin．myapp.com`, `admin｡myapp.com` | U+3002, U+FF0E and U+FF61 are label separators                               |
+| `ad<ZWSP>min.myapp.com`                                   | zero width space, soft hyphen, byte order mark and word joiner are ignorable |
 
 This is IDNA working as specified — browsers resolve these the same way — so Arc does not reject them. Be aware of the consequence: **a WAF, ingress or router that matches the literal `Host` string sees a different value than Arc does.** If something upstream makes decisions per tenant host, normalize the host there too, or make the decision from Arc's resolved tenant rather than from the raw header.
 
@@ -119,7 +123,7 @@ Every host that does not carry a tenant falls back to `HttpHeader`, and that hea
 Resolves every request to one configured tenant ID.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseFixedTenancy("acme");
 });
@@ -129,15 +133,15 @@ Default tenant ID: `development`
 
 The tenant ID is returned regardless of the request and regardless of the hosting environment, which makes this the
 resolver for a single-tenant deployment: one deployment, one tenant, decided at configuration time rather than per
-request. Because the resolved tenant drives the Chronicle namespace and the Arc MongoDB database, a fixed tenant is a
-deployment-wide data-isolation decision - review it before promoting a configuration.
+request. When the relevant integrations are enabled, the resolved tenant drives the Chronicle namespace or Arc MongoDB database. A fixed tenant is a
+deployment-wide data-isolation decision — review it before promoting a configuration.
 
 ### Development Resolver
 
 The same behavior as the Fixed resolver, under its original name.
 
 ```csharp
-builder.AddCratisArcCore(options =>
+builder.AddCratisArc(options =>
 {
     options.UseDevelopmentTenancy("my-test-tenant");
 });
@@ -148,4 +152,3 @@ Default tenant ID: `development`
 Despite the name, this resolver has never consulted `IHostEnvironment` - it returns the configured tenant ID in every
 environment, production included. Prefer `UseFixedTenancy` when the fixed tenant is a deployment constant rather than a
 local-development convenience; `UseDevelopmentTenancy` remains supported and configures the same tenant ID.
-

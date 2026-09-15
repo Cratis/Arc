@@ -11,6 +11,8 @@ In a database-backed Arc slice, model the relationship the same way you would in
 
 ## Do it
 
+These are fragments of the [standalone MongoDB book lesson](/arc/tutorial/books-and-relationships/); use its domain declarations, imports, replica-set configuration, and generated proxies. Neither the relationship nor the live query requires Chronicle.
+
 **For an owns-a-list relationship, keep the child keyed to its parent.** A book belongs to an author, so the `Book` read model carries `AuthorId`:
 
 ```csharp
@@ -25,12 +27,13 @@ public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 No attribute marks the identity — by convention the `Id` property is the read model's identity. Arc sorts the query method's parameters by type: `authorId` is data, so it becomes a query parameter; `IMongoCollection<Book>` is a service, so it's injected. The generated proxy takes the data parameter:
 
 ```tsx
-const [books] = BooksForAuthor.use(authorId);
+// authorId is the generated Guid value, not String(author.id).
+const [books] = BooksForAuthor.use({ authorId });
 ```
 
-Because the query returns `Observe(...)`, it stays live. Add a book for that author and the row updates without polling.
+With MongoDB change streams configured, `Observe(...)` publishes updated data. The filter does not enforce parent existence; use server validation and database constraints for that separate requirement. Add a book for that author and the row updates without polling.
 
-For a list-with-details screen, let the author list call `AllAuthors.use()` and each row call `BooksForAuthor.use(author.id)`. That keeps each slice small: the author slice owns authors, the book slice owns books, and the screen composes their generated proxies.
+For a list-with-details screen, let the author list call `AllAuthors.use()` and each row call `BooksForAuthor.use({ authorId: author.id })`. That keeps each slice small: the author slice owns authors, the book slice owns books, and the screen composes their generated proxies.
 
 ## See also
 

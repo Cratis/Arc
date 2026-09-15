@@ -5,24 +5,22 @@ It provides an encapsulation that feels more natural to a React application.
 
 ## HTTP Headers
 
-Identity requests automatically include any HTTP headers provided by the `httpHeadersCallback` configured in the [Arc](./arc.md). This is particularly useful for including authentication cookies or other headers needed for identity verification and retrieval.
+Identity fetches include `httpHeadersCallback` headers configured through [Arc](./arc.md). Use this for Authorization or application headers, not a browser `Cookie` header. Cookies are browser-managed. Identity details are untrusted UI cache data; authorization belongs on the server.
 
 ## Identity provider context
 
-To use the identity system you need to provide the identity context for your application.
+`<Arc>` already supplies an identity provider. Use a separate provider only for deliberate configuration, such as a generated details constructor; render it beneath Arc and explicitly preserve any headers you need. Identity request settings are global, so nested providers are not independent authenticated sessions.
 
-At the top level of your application, typically in your `App.tsx` file you would add the provider by doing the following:
+For the default identity shape, use the provider already included in your top-level `Arc`:
 
-```typescript
-import { IdentityProvider } from '@cratis/arc.react/identity';
+```tsx
+import { Arc } from '@cratis/arc.react';
 
-export const App = () => {
-    return (
-        <IdentityProvider>
-            {/* ... your app content ... */}
-        </IdentityProvider>
-    );
-};
+export const App = () => (
+    <Arc>
+        <main>Your application content</main>
+    </Arc>
+);
 ```
 
 This context can then be used anywhere by consuming the React context directly:
@@ -33,19 +31,15 @@ import { IdentityProviderContext } from '@cratis/arc.react/identity';
 export const SomeComponent = () => {
     return (
         <IdentityProviderContext.Consumer>
-            {({ details }) => {
-                const actualDetails = details as Identity;
-                return (
-                    <h1>{actualDetails.firstName} {actualDetails.firstName}</h1>
-                );
-            }}
+            {({ identity, isLoading }) => (
+                <h1>{isLoading ? 'Loading…' : identity.name}</h1>
+            )}
         </IdentityProviderContext.Consumer>
     );
 };
 ```
 
-> Note: As you can see, the `details` type will be of type `any` in the context. This means that if your type is
-> a specific type, you'll need to cast it to that type before using it.
+> The raw context shape is `{ identity, detailsConstructor, isLoading, clearIdentity }`. Details live at `value.identity.details`, not `value.details`. The default generic details type is `object`; prefer a typed `useIdentity` consumer.
 
 ### Refreshing
 
@@ -59,15 +53,12 @@ import { IdentityProviderContext } from '@cratis/arc.react/identity';
 export const SomeComponent = () => {
     return (
         <IdentityProviderContext.Consumer>
-            {(identity) => {
-                const actualDetails = identity.details as Identity;
-                return (
-                    <h1>{actualDetails.firstName} {actualDetails.firstName}</h1>
-
-                    {/* Refresh button */}
-                    <button onClick={() => identity.refresh()}>Refresh identity</button>
-                );
-            }}
+            {({ identity }) => (
+                <>
+                    <h1>{identity.name}</h1>
+                    <button onClick={() => void identity.refresh()}>Refresh identity</button>
+                </>
+            )}
         </IdentityProviderContext.Consumer>
     );
 };
@@ -84,7 +75,7 @@ export const Home = () => {
     const identity = useIdentity();
 
     return (
-        <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+        <h3>User: {identity.name}</h3>
     );
 };
 ```
@@ -92,7 +83,7 @@ export const Home = () => {
 The `useIdentity()` hook returns the context which holds a property called `details`. This details property is what the backend
 returned to the ingress middleware.
 
-By default, if not specified, the type of the details is `any`. You can change this by passing it a generic argument with
+By default, if not specified, the type of the details is `object`. You can change this by passing it a generic argument with
 the exact shape of what's expected:
 
 ```typescript
@@ -105,6 +96,8 @@ type Identity = {
 
 export const Home = () => {
     const identity = useIdentity<Identity>();
+    if (identity.isLoading) return <p>Loading…</p>;
+    if (!identity.isSet || !identity.details) return <p>No identity details.</p>;
 
     return (
         <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
@@ -112,11 +105,13 @@ export const Home = () => {
 };
 ```
 
+The generic describes the expected payload; it does not make optional backend details present. Guard details even after loading finishes, or supply the [deliberate defaults](#default-details-value) shown below.
+
 ## Has the identity arrived yet?
 
 The identity is fetched from the backend, which means there is a moment - short, but real - where your
 application is rendering and nobody knows who the user is yet. `isSet` cannot tell you about that
-moment: it reads `false` both *before* the first request has answered and *after* it answered that
+moment: it reads `false` both _before_ the first request has answered and _after_ it answered that
 nobody is signed in.
 
 That is what `isLoading` is for. It is on the object `useIdentity()` returns and it separates the two:
@@ -172,7 +167,7 @@ if (!identity.isInRole('Admin')) {
 ```
 
 Before the identity request answers, an administrator holds no roles yet - so this renders "Access
-denied", then swaps to the panel a moment later. Every signed-in user sees the rejection flash by on
+denied," then swaps to the panel a moment later. Every signed-in user sees the rejection flash by on
 every load. There are three outcomes here, not two, and a guard has to say something about all of
 them.
 
@@ -193,13 +188,13 @@ export const Admin = () => (
 );
 ```
 
-| Prop | Type | What it does |
-| --- | --- | --- |
-| `roles` | `string[]` | Roles that grant access - the identity needs any one of them |
-| `allow` | `(details, identity) => boolean` | Predicate deciding access from the identity's details |
-| `children` | `ReactNode` | Rendered when the caller is authenticated and allowed |
-| `whileLoading` | `ReactNode` | Rendered while the identity is still being resolved. Defaults to nothing |
-| `forbidden` | `ReactNode` | Rendered for an anonymous caller, or an authenticated one that is not allowed. Defaults to nothing |
+| Prop           | Type                             | What it does                                                                                       |
+| -------------- | -------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `roles`        | `string[]`                       | Roles that grant access - the identity needs any one of them                                       |
+| `allow`        | `(details, identity) => boolean` | Predicate deciding access from the identity's details                                              |
+| `children`     | `ReactNode`                      | Rendered when the caller is authenticated and allowed                                              |
+| `whileLoading` | `ReactNode`                      | Rendered while the identity is still being resolved. Defaults to nothing                           |
+| `forbidden`    | `ReactNode`                      | Rendered for an anonymous caller, or an authenticated one that is not allowed. Defaults to nothing |
 
 At least one of `roles` and `allow` has to be there; the type system says so, and the component denies
 at runtime if `undefined` gets past it anyway. Supply both and both must pass.
@@ -273,50 +268,69 @@ and warns on the console for the ones that are configuration mistakes:
 
 ## Type-safe identity with complex types
 
-If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by providing a constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
+If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by giving `<Arc>` a `detailsType` constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
 
-First, define your identity details class:
+First, define your identity details class with an `@field` decorator on every property that should be deserialized:
 
 ```typescript
-import { Guid } from '@cratis/fundamentals';
+import { Guid, field } from '@cratis/fundamentals';
 
 class UserIdentityDetails {
-    userId: Guid = Guid.empty;
-    firstName: string = '';
-    lastName: string = '';
+    @field(Guid)
+    userId!: Guid;
+
+    @field(String)
+    firstName!: string;
+
+    @field(String)
+    lastName!: string;
 }
 ```
 
-Then, configure the `IdentityProvider` with the details type:
+> [!IMPORTANT]
+> A details type with no `@field` decorators cannot be deserialized into. `JsonSerializer.deserializeFromInstance()` only copies members declared with `@field` - an undecorated class would silently construct an empty instance and discard everything the server sent. Cratis detects this case and passes the raw payload through unchanged instead of blanking it (with a console warning), but the fix is always to decorate every property you expect to read.
+
+Then, configure `<Arc>` with the details type. This is the primary form - `<Arc>` forwards it to the `IdentityProvider` it mounts internally, deserialization happens once, and every `useIdentity()` call anywhere in the tree gets the typed result for free:
 
 ```typescript
-import { IdentityProvider } from '@cratis/arc.react/identity';
+import { Arc } from '@cratis/arc.react';
 
 export const App = () => {
     return (
-        <IdentityProvider detailsType={UserIdentityDetails}>
+        <Arc detailsType={UserIdentityDetails}>
             {/* ... your app content ... */}
-        </IdentityProvider>
+        </Arc>
     );
 };
 ```
 
-Finally, use the `useIdentity()` hook with the constructor:
+If you wire `IdentityProvider` directly instead of using `<Arc>` - see [Identity provider context](#identity-provider-context) - it accepts the same `detailsType` prop.
+
+Now a plain `useIdentity()` already returns typed details:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
-import { Guid } from '@cratis/fundamentals';
 
-class UserIdentityDetails {
-    userId: Guid = Guid.empty;
-    firstName: string = '';
-    lastName: string = '';
-}
+export const Home = () => {
+    const identity = useIdentity<UserIdentityDetails>();
+    // identity.details.userId is a proper Guid instance with all its methods
+    return (
+        <>
+            <h3>User ID: {identity.details.userId.toString()}</h3>
+            <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+        </>
+    );
+};
+```
+
+You only need to pass the constructor to `useIdentity()` itself when the provider was **not** configured with a `detailsType` - for example, a shared component that has to work whether or not the hosting application set one up:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
 
 export const Home = () => {
     const identity = useIdentity(UserIdentityDetails);
 
-    // Now identity.details.userId is a proper Guid instance with all its methods
     return (
         <h3>User ID: {identity.details.userId.toString()}</h3>
         <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
@@ -324,7 +338,9 @@ export const Home = () => {
 };
 ```
 
-This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateTime`, and other custom types are properly instantiated rather than being plain JSON objects.
+It is safe to supply both. `useIdentity(UserIdentityDetails)` recognizes when `<Arc>`/`IdentityProvider` already deserialized the payload with that exact type and hands back the existing instance rather than deserializing it a second time - which would be destructive, not merely wasteful, for nested temporal values and concept types.
+
+This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateOnly`, and other `@field`-decorated custom types are properly instantiated rather than being plain JSON objects.
 
 ## Refreshing with hook
 
@@ -343,10 +359,10 @@ export const Home = () => {
     const identity = useIdentity<Identity>();
 
     return (
-        <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
-
-        {/* Refresh button */}
-        <button onClick={() => identity.refresh()}>Refresh identity</button>
+        <>
+            <h3>User: {identity.details?.firstName} {identity.details?.lastName}</h3>
+            <button onClick={() => void identity.refresh()}>Refresh identity</button>
+        </>
     );
 };
 ```
@@ -362,14 +378,14 @@ When a user logs out, you can clear the client-side identity state and remove th
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
 
-export const LogoutButton = () => {
+export const ClearIdentityCacheButton = () => {
     const identity = useIdentity();
 
     const handleLogout = () => {
         identity.clearIdentity();
     };
 
-    return <button onClick={handleLogout}>Log out</button>;
+    return <button onClick={handleLogout}>Clear identity cache</button>;
 };
 ```
 
@@ -378,14 +394,13 @@ Calling `clearIdentity()` does two things:
 1. Removes the `.cratis-identity` cookie.
 2. Resets the identity context to its initial unset state (`isSet` becomes `false`, `details` is reset).
 
-> Note: If your application uses observable queries that require authentication, you should also call
-> `reconnectQueries()` from the [Arc context](./arc.md#reconnecting-queries) after clearing identity
-> so that transport connections are re-established without the old credentials.
+> Clearing this cache is not logout: authentication cookies, tokens, and server sessions remain unchanged. Complete real sign-out through your authentication system first, then clear identity and [reconnect queries](./arc.md#reconnecting-queries). Reconnection uses current browser credentials and does not purge cached query data.
 
 ## Default details value
 
-If you don't provide one, it will default to an empty object, `{}`.
-This is especially useful when working in local development and the cookie has not been provided
+The provider starts with an empty details object, `{}`, while identity is unset. A resolved identity can still carry `null` or missing details; there is no unconditional empty-object fallback. A loading check alone does not make details safe to dereference.
+
+Supply a typed default for display placeholders. It is used while identity is unset and when resolved details are absent; it does not fill individual missing fields or establish authentication.
 
 The default value can be provided as an argument to the `useIdentity()` hook:
 
@@ -413,21 +428,25 @@ When using the type-safe overload with a constructor, the default value is provi
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
-import { Guid } from '@cratis/fundamentals';
+import { Guid, field } from '@cratis/fundamentals';
 
 class UserIdentityDetails {
-    userId: Guid = Guid.empty;
-    firstName: string = '';
-    lastName: string = '';
-}
+    @field(Guid)
+    userId!: Guid;
 
+    @field(String)
+    firstName!: string;
+
+    @field(String)
+    lastName!: string;
+}
 export const Home = () => {
     const defaultDetails: UserIdentityDetails = {
         userId: Guid.empty,
         firstName: '[N/A]',
         lastName: '[N/A]'
     };
-    
+
     const identity = useIdentity(UserIdentityDetails, defaultDetails);
 
     return (
@@ -436,3 +455,5 @@ export const Home = () => {
 };
 ```
 
+> [!NOTE]
+> The default value is used as-is and is never run through deserialization - pass it already in its final, typed shape (as shown above, a plain object literal satisfying the class shape is enough). This matters because deserializing it would be redundant at best, and destructive at worst for nested temporal values and concept types.

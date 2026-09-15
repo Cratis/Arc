@@ -1,197 +1,96 @@
-# Proxy Generation
+---
+title: Consume generated proxies
+description: Use backend-generated command and query contracts from React without a hand-written API client.
+---
 
-Cratis Arc automatically generates TypeScript proxies for your backend commands and queries, providing seamless integration between your React frontend and backend APIs.
+A backend change should produce a compiler error where your frontend needs updating, not a surprise in production. Arc generates TypeScript command, query, and model types from discovered endpoints. Rebuild the backend, then update your consumers; never edit generated files.
 
-> **Setup and Configuration**: For detailed information about setting up proxy generation, configuration options, and build integration, see the [Backend Proxy Generation](../../backend/proxy-generation/index.md) documentation.
+You get completion for command fields and query arguments, typed responses, and compiler-guided repairs after a backend rename. The generated modules also give you concrete contracts to navigate instead of hand-maintained request shapes.
 
-## Type Safety and IntelliSense
+## Set up the frontend
 
-One of the key benefits of the generated proxies is compile-time type safety. Your IDE will provide:
-
-- **IntelliSense**: Auto-completion for all available commands and queries
-- **Type Checking**: Compile-time verification of parameter types and return values  
-- **Refactoring Support**: Automatic updates when backend APIs change
-- **Navigation**: Go-to-definition support for exploring generated types
-
-This eliminates the need to reference Swagger documentation or manually write API integration code, as everything is generated and type-safe directly in your TypeScript codebase.
-
-## Frontend Usage
-
-Once proxy generation is configured in your backend projects, you'll get automatically generated TypeScript proxies that provide compile-time type safety and intellisense support for all your commands and queries.
-
-### Prerequisites
-
-Install the base [`@cratis/arc`](https://www.npmjs.com/package/@cratis/arc) NPM package in your React project, as the generated proxies inherit from and leverage types found in this package:
+Current generated command and query modules import both `@cratis/arc` and `@cratis/arc.react`, even when you call them imperatively. Install their dependencies in your React app:
 
 ```bash
-npm install @cratis/arc
+npm install @cratis/fundamentals @cratis/arc @cratis/arc.react react react-dom
 ```
 
-## Commands
+Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the canonical [backend proxy-generation reference](../../backend/proxy-generation/index.md).
 
-Commands represent actions you want to perform and correspond to **HttpPost** operations on your backend controllers. The generated proxies inherit from the `Command` type found in `@cratis/arc/commands` and provide type-safe access to all command parameters.
+## Commands use your application services
 
-Arc supports both backend command styles and generates equivalent TypeScript proxies for each:
+Arc is a standalone CQRS framework. A command can call an ordinary service and return a response; it does not need events or `IEventLog`.
 
-- [Controller-based commands](../../backend/commands/controller-based.md)
-- [Model-bound commands](../../backend/commands/model-bound/index.md)
-
-### Example Generated Command
-
-For a backend controller action like this:
+This backend fragment assumes your application implements and registers `IAccountService`. The interface is application-owned, not an Arc API:
 
 ```csharp
-[Route("/api/accounts/debit")]
-public class DebitAccounts : Controller
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Concepts;
+
+public record AccountName(string Value) : ConceptAs<string>(Value)
 {
-    [HttpPost]
-    public Task OpenDebitAccount([FromBody] OpenDebitAccount create)
-    {
-        // Implementation...
-    }
+    public static readonly AccountName NotSet = new(string.Empty);
 }
-```
 
-You'll get a generated TypeScript command that flattens all parameters (from route, query string, and body) into properties:
+public record AccountBalance(decimal Value) : ConceptAs<decimal>(Value)
+{
+    public static readonly AccountBalance NotSet = new(0m);
+}
 
-```typescript
-import { OpenDebitAccount } from './generated/commands';
+public interface IAccountService
+{
+    Task<Guid> Open(AccountName name, AccountBalance initialBalance);
+}
 
-const command = new OpenDebitAccount();
-// Set properties and execute
-```
-
-For a model-bound command like this:
-
-```csharp
 [Command]
-public record OpenDebitAccount(string Name, decimal InitialBalance)
+public record OpenDebitAccount(AccountName Name, AccountBalance InitialBalance)
 {
-    public Task Handle(IEventLog eventLog)
-    {
-        // Implementation...
-        return Task.CompletedTask;
+    public Task<Guid> Handle(IAccountService accounts) =>
+        accounts.Open(Name, InitialBalance);
+}
+```
+
+The named concepts keep account names and balances distinct in backend signatures. Their generated client properties use `string` and `number`, so the form does not need to construct concept objects. Keep each concept in its own file when organizing your application.
+
+After generation, use the proxy from a React component. This consumer fragment assumes its generated import path is `./generated/OpenDebitAccount`:
+
+```tsx
+import { OpenDebitAccount } from './generated/OpenDebitAccount';
+
+export function OpenAccountButton() {
+    const [command] = OpenDebitAccount.use({
+        name: 'Primary account',
+        initialBalance: 500
+    });
+
+    async function open() {
+        const result = await command.execute();
+        if (result.isSuccess) {
+            console.log(String(result.response));
+        }
     }
+
+    return <button onClick={() => void open()}>Open account</button>;
 }
 ```
 
-You'll get a generated TypeScript command with the same command name and strongly typed properties:
+An ordinary C# `Guid` response remains a supported response and maps to Fundamentals `Guid`. The [Chronicle integration](../../backend/chronicle/commands/index.md) adds optional event-sourcing behavior; it does not redefine generic Arc responses.
 
-```typescript
-import { OpenDebitAccount } from './generated/commands';
+The command hook returns `[command, setValues, clearValues]`. Set required content explicitly. The setter edits properties; it does not reset the change-tracking baseline. See [data binding](./commands/data-binding.md).
 
-const command = new OpenDebitAccount();
-command.name = 'Primary account';
-command.initialBalance = 500;
-```
+## Queries follow the backend result shape
 
-The generated command automatically handles route parameters, query string arguments, and request body serialization.
+Both [controller-based](../../backend/queries/controller-based/index.md) and [model-bound](../../backend/queries/model-bound/index.md) endpoints generate proxies. Parameterized queries emit a `NameParameters` interface. Query hooks return tuples, not model objects; read the first tuple element's `.data`.
 
-For detailed information on using commands in React, see the [Commands documentation](./commands/index.md).
+- Ordinary `.use()` returns `[result, perform, setSorting]`.
+- Observable enumerable `.use()` returns `[result, setSorting]`.
+- Observable single-model `.use()` returns `[result]`.
+- Only enumerable proxies expose `.useWithPaging()`, `.useSuspenseWithPaging()`, and, for observables, `.useChangeStream()`.
 
-## Queries
+See [query usage](./queries/usage.md) for argument positions and the complete tuple matrix. Results expose `isPerforming`, `isReady`, `isAuthorized`, `isValid`, `hasExceptions`, and `exceptionMessages`; they do not expose an `error` or `isLoading` property.
 
-Queries represent data retrieval operations that correspond to **HttpGet** operations on your backend controllers. They can return either single items or collections and support parameters from routes or query strings.
+## Live and Suspense consumers
 
-Arc supports both backend query styles and generates equivalent TypeScript query proxies for each:
+Observable proxies subscribe to an emitting backend source. MongoDB observation is one option; Chronicle is another optional integration. A database write does not become a live notification without that source wiring. Both [SSE and WebSocket](./queries/observable-query-multiplexing.md) support direct and shared-hub modes.
 
-- [Controller-based queries](../../backend/queries/controller-based/index.md)
-- [Model-bound queries](../../backend/queries/model-bound/index.md)
-
-### Example Generated Query
-
-For a backend controller action like this:
-
-```csharp
-[HttpGet]
-public IEnumerable<DebitAccount> AllAccounts()
-{
-    // Get data and return
-}
-```
-
-You'll get a generated TypeScript query that provides a React hook via the `.use()` method:
-
-```typescript
-import { AllAccounts } from './generated/queries';
-
-const MyComponent = () => {
-    const [result, perform] = AllAccounts.use();
-
-    // result is of type `QueryResultWithState<DebitAccount[]>`
-    // Contains: data, isPerforming, error, etc.
-
-    return (
-        <div>
-            {result.isPerforming && <span>Loading...</span>}
-            {result.data?.map(account => <div key={account.id}>{account.name}</div>)}
-        </div>
-    );
-};
-```
-
-For a model-bound query like this:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection)
-        => collection.Find(_ => true).ToList();
-}
-```
-
-You'll get a generated TypeScript query proxy with the same ergonomic hook pattern:
-
-```typescript
-import { GetAllAccounts } from './generated/queries';
-
-const MyComponent = () => {
-    const [result, perform] = GetAllAccounts.use();
-
-    return (
-        <div>
-            {result.isPerforming && <span>Loading...</span>}
-            {result.data?.map(account => <div key={account.id}>{account.name}</div>)}
-        </div>
-    );
-};
-```
-
-The return type `QueryResultWithState<>` provides additional metadata about the query state, including whether the query is currently executing (`isPerforming`), making it easy to implement loading indicators and error handling.
-
-### Suspense Hooks on Proxies
-
-Every generated query proxy also exposes `useSuspense()` and `useSuspenseWithPaging()` static methods. These forward to `useSuspenseQuery` / `useSuspenseObservableQuery` and are designed for use inside `QueryBoundary` (or a `<Suspense>` + `QueryErrorBoundary` pair), where the component suspends while data loads and any server-side errors are propagated to the boundary.
-
-```typescript
-import { AllAccounts } from './generated/queries';
-
-function AccountList() {
-    // Component suspends until the query resolves
-    const [result, perform] = AllAccounts.useSuspense();
-
-    return (
-        <ul>
-            {result.data.map(account => <li key={account.id}>{account.name}</li>)}
-        </ul>
-    );
-}
-```
-
-See [Suspense Queries](./queries/suspense-queries.md) for full documentation and error handling patterns.
-
-### Observable Queries
-
-Observable queries provide real-time updates to your React components, typically using WebSockets for live data synchronization.
-
-> **Backend Setup**: To learn how to implement observable queries on the backend, see [Controller-based Observable Queries](../../backend/queries/controller-based/observable-queries.md) and [Model-bound Observable Queries](../../backend/queries/model-bound/observable-queries.md).
-
-Observable queries are generated the same way as regular queries, but they don't provide a manual `perform` method in the returned tuple. Instead, they automatically subscribe to updates and re-render your React components when the underlying data changes, providing a transparent and seamless real-time experience.
-
-## Generated File Structure
-
-The proxy generator maintains your backend folder structure while generating TypeScript files based on the namespaces of your source files. Each namespace segment typically becomes a subfolder in the generated output.
-
-For detailed information about configuring the output structure, including how to skip namespace segments and customize the generated folder hierarchy, see the [Backend Proxy Generation Configuration](../../backend/proxy-generation/configuration.md) section.
-
+All generated queries expose `.useSuspense()`. Suspense handles initial waiting and selected failures, not every unsuccessful result: keep validation/readiness handling in the component. Read [Suspense limitations](./queries/suspense-queries.md) before adding an error boundary or retry control.

@@ -16,9 +16,22 @@ public static class ParameterInfoExtensions
     /// </summary>
     /// <param name="parameterInfo">Parameter to convert.</param>
     /// <returns>Converted <see cref="RequestParameterDescriptor"/>.</returns>
+    /// <remarks>
+    /// <c>Nullable&lt;T&gt;</c> is unwrapped before anything else is derived from the type — see the model-bound
+    /// twin, <see cref="Cratis.Arc.ProxyGenerator.ModelBound.QueryExtensions"/>, for why a nullable enum left
+    /// wrapped ends up emitted as a bogus type reflecting <c>Nullable&lt;T&gt;</c>'s own properties. Optionality
+    /// already comes from <see cref="IsOptional(ParameterInfo)"/>/<see cref="ParameterInfo.HasDefaultValue"/>, not
+    /// from the parameter's CLR type, so unwrapping here cannot change whether the parameter is treated as optional.
+    /// </remarks>
     public static RequestParameterDescriptor ToRequestParameterDescriptor(this ParameterInfo parameterInfo)
     {
         var paramType = parameterInfo.ParameterType;
+
+        if (paramType.IsNullable())
+        {
+            paramType = paramType.GetGenericArguments()[0];
+        }
+
         var isEnumerable = paramType.IsEnumerableOfPrimitiveOrConcept();
 
         if (isEnumerable)

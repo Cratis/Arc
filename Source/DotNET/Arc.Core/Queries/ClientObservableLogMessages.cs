@@ -34,6 +34,9 @@ internal static partial class ClientObservableLogMessages
     [LoggerMessage(LogLevel.Debug, "Received null-item. Waiting for next")]
     internal static partial void ObservableReceivedNullItem(this ILogger<IClientObservable> logger);
 
+    [LoggerMessage(LogLevel.Trace, "Observed document is unavailable — forwarding null to the client")]
+    internal static partial void ObservableForwardingNullItem(this ILogger<IClientObservable> logger);
+
     [LoggerMessage(LogLevel.Warning, "Error while processing item from server. Canceling the connection")]
     internal static partial void EnumerableObservableError(this ILogger<IClientObservable> logger, Exception ex);
 

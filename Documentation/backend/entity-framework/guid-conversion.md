@@ -1,96 +1,40 @@
-# GUID Conversion
+---
+title: Guid conversion
+description: Distinguish Guid value conversion from migration column declarations.
+---
 
-The GUID conversion feature provides automatic handling of `Guid` properties in Entity Framework Core, ensuring consistent storage and optimal database compatibility across different database providers.
+A .NET `Guid` and a SQL column declaration are different contracts. Arc's Guid conversion changes the value sent to SQLite; it does not tune indexes, collations, or every EF provider.
 
-## What it does
+## Model conversion
 
-The GUID conversion automatically configures Entity Framework Core to handle properties of type `Guid` using the most appropriate database representation for each provider:
-
-1. **PostgreSQL**: Stores as native `uuid` type for optimal performance and storage efficiency
-2. **SQL Server**: Stores as `uniqueidentifier` type with proper formatting
-3. **SQLite**: Stores as `CHAR(36)` with proper string formatting
-4. **Other providers**: Uses provider-specific optimizations when available
-
-This automatic configuration ensures that GUIDs are stored in the most efficient format for each database while maintaining compatibility and performance.
-
-## Why it's important
-
-Using GUID conversion provides several key benefits:
-
-- **Cross-Database Compatibility**: Consistent GUID handling across different database providers
-- **Performance Optimization**: Uses native GUID types when available for better query performance
-- **Storage Efficiency**: Optimizes storage format for each database provider
-- **Automatic Configuration**: No need for manual configuration of GUID properties
-- **Index Performance**: Ensures GUIDs are stored in formats that support efficient indexing
-
-## Model Usage
-
-Your entity models can use `Guid` properties directly without any special configuration:
+`BaseDbContext` calls `ApplyGuidConversion` for relevant model types. For manual configuration, this is an `OnModelCreating` fragment with `Cratis.Arc.EntityFrameworkCore` and `Microsoft.EntityFrameworkCore` imported:
 
 ```csharp
-public class Customer
-{
-    public Guid Id { get; set; }
-    public Guid TenantId { get; set; }
-    public string Name { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-
-public class Order
-{
-    public Guid Id { get; set; }
-    public Guid CustomerId { get; set; }
-    public Guid ProductId { get; set; }
-    public decimal Amount { get; set; }
-}
+modelBuilder.Entity<Customer>()
+    .Property(customer => customer.Id)
+    .AsGuid(Database.GetDatabaseType());
 ```
 
-The conversion will automatically:
+Here `Customer.Id` is a `Guid` property and `Database` belongs to the context.
 
-- Configure all `Guid` properties to use the optimal storage format for your database provider
-- Ensure proper indexing capabilities for GUID-based primary and foreign keys
-- Handle conversion between .NET `Guid` instances and database-specific representations
+| Database | What `AsGuid(databaseType)` adds |
+| --- | --- |
+| SQLite | A `Guid` → string converter using `ToString("D")`, with `Guid.Parse` on reads |
+| PostgreSQL | No additional conversion for a plain Guid; the EF provider supplies its mapping |
+| SQL Server | No additional conversion for a plain Guid; the EF provider supplies its mapping |
 
-## Manual Configuration
+For a Guid-backed concept, `AsGuid` delegates to `AsConcept`. SQLite uses string storage for that converter too. Ordinary `ConceptAs<Guid>` identifiers remain valid in standalone Arc applications.
 
-If you're not using the [`BaseDbContext`](./base-db-context.md), you can manually apply GUID conversion in your `DbContext`:
+## Migration declarations
 
-```csharp
-using Cratis.Arc.EntityFrameworkCore;
+`GuidColumn` and `AddGuidColumn` select these SQL type names independently of the model converter:
 
-public class StoreDbContext(DbContextOptions options) : DbContext(options)
-{
-    public DbSet<Customer> Customers { get; set; }
+| PostgreSQL | SQL Server | SQLite |
+| --- | --- | --- |
+| `UUID` | `UNIQUEIDENTIFIER` | `BLOB` |
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        var entityTypes = modelBuilder.Model.GetEntityTypes();
-        modelBuilder.ApplyGuidConversion(entityTypes, Database.GetDatabaseType());
-        base.OnModelCreating(modelBuilder);
-    }
-}
-```
+The SQLite migration helper therefore declares `BLOB` even though `AsGuid` supplies strings. Do not interpret the helper as a `CHAR(36)` declaration or as binary serialization. Review generated migrations and test existing-data compatibility before changing a schema or representation.
 
-> Note: This is automatically configured for you when using the [`BaseDbContext`](./base-db-context.md).
+Arc's built-in database detection covers the three providers above. Other EF providers may have their own Guid support, but Arc does not supply MySQL/Oracle optimization or collation guarantees.
 
-## How it works
-
-The conversion system uses reflection to:
-
-1. Identify all properties in your entities that are of type `Guid`
-2. Apply the `.AsGuid()` extension method to configure optimal storage for the current database provider
-3. Ensure proper value conversion and comparison for change tracking
-
-The conversion is handled by the `GuidConversion.ApplyGuidConversion()` extension method, which automatically discovers and configures all GUID properties in your model.
-
-## Database Provider Specifics
-
-The GUID conversion adapts to different database providers:
-
-- **PostgreSQL (Npgsql)**: Uses native `uuid` type for optimal performance
-- **SQL Server**: Uses `uniqueidentifier` with proper collation settings
-- **SQLite**: Uses `CHAR(36)` with hyphenated string format
-- **MySQL/MariaDB**: Uses `CHAR(36)` with appropriate character set
-- **Oracle**: Uses `RAW(16)` for binary storage efficiency
-
-This provider-specific optimization ensures the best performance and storage characteristics for your chosen database.
+See [common column types](./common-column-types.md) and [concept conversion](./concept-as-conversion.md) for related contracts.

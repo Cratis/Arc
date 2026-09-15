@@ -24,7 +24,7 @@ Pre-built components with standardized spacing, sizing, and layout patterns ensu
 
 ### Automatic Theme Adaptation
 
-All components use CSS variables that automatically update based on the current Storybook theme. Switch between dark and light modes seamlessly without any additional code.
+Story components use CSS variables that follow the current Storybook theme. Switching between dark and light mode updates those variables.
 
 ### Reusable Patterns
 
@@ -49,15 +49,21 @@ import '@cratis/arc.react/stories/styles.css';
 Then import the components you need in your story files:
 
 ```tsx
-import { StoryContainer, StorySection, StoryGrid, StoryBadge, StoryDivider } from '@cratis/arc.react/stories';
+import {
+    StoryContainer,
+    StorySection,
+    StoryGrid,
+    StoryBadge,
+    StoryDivider,
+} from '@cratis/arc.react/stories';
 
 export const MyStory: Story = {
-  render: () => (
-    <StoryContainer size="md" asCard>
-      <h1>My Component</h1>
-      <MyComponent />
-    </StoryContainer>
-  ),
+    render: () => (
+        <StoryContainer size='md' asCard>
+            <h1>My Component</h1>
+            <MyComponent />
+        </StoryContainer>
+    ),
 };
 ```
 

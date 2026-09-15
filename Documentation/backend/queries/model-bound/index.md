@@ -1,98 +1,79 @@
-# Model Bound Queries
+---
+title: Model-bound queries
+description: Keep a query with the read model it returns, without writing a controller.
+---
 
-For a more lightweight approach, queries can be their own performers. This is achieved by adorning your read model record with the `[ReadModel]` attribute and implementing static methods for query operations directly on the record type.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
+
+When a screen needs a list of accounts, you should not need a controller just to forward a database call. Put a static method on the returned model and mark the model with `[ReadModel]`. Arc discovers the query and generates its HTTP endpoint and TypeScript proxy.
+
+A read model is the shape you serve. It can come from MongoDB, EF Core, a service, or in-memory data. **Neither `[ReadModel]` nor a database query requires Chronicle or event sourcing.**
+
+## Model account identities and names
+
+Cratis applications conventionally give domain values their own types. `AccountId` says which kind of identity a method accepts; `AccountName` is not interchangeable with an address or another string. The C# compiler can catch accidental swaps before the application runs. Define shared concepts once in the feature and reuse them in its commands and read models:
 
 ```csharp
-[ReadModel]  // The ReadModel attribute is needed
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+using System;
+using Cratis.Concepts;
+
+namespace Banking.Accounts;
+
+public record AccountId(Guid Value) : ConceptAs<Guid>(Value)
 {
-    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection)
-    {
-        return collection.Find(_ => true).ToList();
-    }
+    public static readonly AccountId NotSet = new(Guid.Empty);
+    public static AccountId New() => new(Guid.NewGuid());
+    public static implicit operator AccountId(Guid value) => new(value);
+}
+
+public record AccountName(string Value) : ConceptAs<string>(Value)
+{
+    public static readonly AccountName NotSet = new(string.Empty);
+    public static implicit operator AccountName(string value) => new(value);
 }
 ```
 
-> **Note**: If you're using the Cratis Arc [proxy generator](../../proxy-generation/index.md), the method name
-> will become the query name for the generated TypeScript file and class.
+These are standalone domain concepts, not Chronicle event-source identities. Arc and its MongoDB integration handle their underlying wire/storage values, and the proxy generator maps them to the corresponding TypeScript value types. The C# domain distinctions are not automatically branded TypeScript types.
 
-## Key Features
+This is a modeling convention, not a requirement imposed by `[ReadModel]`. Add a `ConceptValidator<T>` when an invariant should follow a value wherever Arc validates it. See [concepts and serialization](../../mongodb/concepts.md) and the [validation tutorial](/arc/tutorial/validation/).
 
-Model-bound queries provide a streamlined approach to querying by:
+## Start with one read
 
-- **Co-locating queries with data models** - Keeping query logic close to the data it operates on
-- **Eliminating controller boilerplate** - No need for separate controller classes
-- **Automatic dependency injection** - Dependencies are resolved and injected automatically
-- **Simple static method pattern** - Clean, straightforward method signatures
-- **Full async support** - Methods can be asynchronous for database operations
-- **Multiple query methods** - A single read model can have many query operations
-- **Flexible return types** - Support for collections, single objects, and observables
-- **Built-in authorization** - Use standard ASP.NET Core authorization attributes
-
-## When to Use Model-Bound Queries
-
-Model-bound queries are ideal when you:
-
-- Want to keep query logic close to your data models
-- Prefer a more functional approach with static methods
-- Don't need complex routing scenarios
-- Want to minimize boilerplate controller code
-- Have straightforward query operations without complex middleware requirements
-- Are building simple CRUD-style APIs
-
-## Key Requirements
-
-The `[ReadModel]` attribute is required on your record type, and static methods must:
-
-- Be `public` and `static`
-- Can have any descriptive name for the query operation
-- Can take dependencies as parameters (injected via dependency injection)
-- Can be async by returning `Task<T>`
-- Should return the record itself, collections of the record type, or custom result types
-- Can be observable by returning `ISubject<T>` (do not combine with `Task<T>`)
-
-## Related Topics
-
-- [Static Methods](static-methods.md) - Understanding the method requirements and patterns
-- [Dependency Injection](dependency-injection.md) - Method-level dependency injection for services and repositories
-- [Query Arguments](query-arguments.md) - How to handle parameters and input validation
-- [Return Types](return-types.md) - Different ways to return data from your queries
-- [Authorization](authorization.md) - Securing your query methods with roles and policies
-
-## Basic Async Example
-
-Model-bound queries support asynchronous operations:
+Use the concepts above in an Arc host with [the MongoDB provider configured](../../mongodb/getting-started.md) and an `IMongoCollection<DebitAccount>` available from DI. The following is the complete read-model declaration, not a complete host. Later pages show alternative declarations of this same model; do not add all of them as duplicate types.
 
 ```csharp
+using System.Collections.Generic;
+using Cratis.Arc.Queries.ModelBound;
+using MongoDB.Driver;
+
+namespace Banking.Accounts;
+
 [ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 {
-    public static async Task<IEnumerable<DebitAccount>> GetAllAccountsAsync(IMongoCollection<DebitAccount> collection)
-    {
-        var result = await collection.FindAsync(_ => true);
-        return result.ToList();
-    }
-}
-```
-
-## Multiple Query Methods
-
-A single read model can contain multiple query methods for different operations:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection) =>
+    [Path("/api/accounts")]
+    public static IEnumerable<DebitAccount> AllAccounts(IMongoCollection<DebitAccount> collection) =>
         collection.Find(_ => true).ToList();
-
-    public static DebitAccount GetAccountById(AccountId id, IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Id == id).FirstOrDefault();
-
-    public static IEnumerable<DebitAccount> GetAccountsByOwner(CustomerId ownerId, IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Owner == ownerId).ToList();
 }
 ```
 
-> **Note**: The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types for your query methods,
-> making them strongly typed on the frontend as well.
+`GET /api/accounts` now returns a [query result envelope](../query-pipeline.md#query-result-metadata) whose `data` is the account list. The explicit path makes this example independent of namespace-routing configuration. `AllAccounts` becomes the generated query class name; its fully qualified query name is `Banking.Accounts.DebitAccount.AllAccounts`.
+
+This unprotected teaching example is suitable only for public data or a local sandbox. Before exposing account data, add [authorization](authorization.md).
+
+## What Arc discovers
+
+Use a non-generic static method returning **the declaring read-model type**, a collection of that type, or one of its [supported wrappers](return-types.md). Public methods are the recommended declaration style.
+
+For example, a method on `DebitAccount` returning `IEnumerable<DebitAccount>` qualifies. A method there returning `AccountSummary`, `int`, or `PagedResult<DebitAccount>` does not. Put a summary query on an `[ReadModel] AccountSummary` instead, or choose a [controller](../controller-based/index.md). Compiling a method is not proof that Arc discovers an endpoint for it.
+
+`Task<T>` can wrap a supported result, including `ISubject<T>`. Query dependencies are method parameters resolved by type; caller arguments are the other parameters. See [static methods](static-methods.md) and [dependency injection](dependency-injection.md).
+
+## Grow the query in order
+
+1. Add [scalar arguments](query-arguments.md) and [validation](../validation.md).
+2. Protect the query with [Arc authentication and role checks](authorization.md); do not assume ASP.NET policies run in the model-bound evaluator.
+3. Return `IQueryable<DebitAccount>` for [paging and sorting](paging.md).
+4. Return a supported stream for [observable updates](observable-queries.md).
+5. Consume the generated proxy in [React queries](../../../frontend/react/queries/index.md).

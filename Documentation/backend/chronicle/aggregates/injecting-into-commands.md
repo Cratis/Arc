@@ -1,238 +1,63 @@
 ---
 title: Aggregate roots in commands
-description: Take an aggregate root as a Handle() dependency — Arc resolves it from the command's key, rehydrates it from its event stream, and commits what it applies.
+description: Resolve aggregates by the command's input identity, await mutations, and choose an explicit or automatic commit boundary.
 ---
 
-A command takes an aggregate root the same way it takes a read model: declare it as a parameter. Arc resolves it from the event source id in the [Command Context](../../commands/command-context.md), supplied by [Resolving EventSourceId](../resolving-event-source-id.md).
+With the Chronicle integration registered, Arc discovers `IAggregateRoot` implementations and registers them as command-scoped services. Declare one as a `Handle()` parameter: Arc reads the command-context event source id and calls `IAggregateRootFactory.Get<T>()` to rehydrate it before invoking your handler.
 
-For when to reach for an aggregate root rather than a read model, see the [Aggregates overview](./index.md).
+## Inject and await a mutation
 
-## Overview
-
-Arc automatically registers every aggregate root type as a **command-scoped** service. Resolving one reads the event source id from the current command context and rehydrates the instance from that entity's event stream, so `Handle()` receives an aggregate whose state already reflects its history.
-
-## Automatic Registration
-
-Aggregate roots are automatically discovered and registered when you configure Arc.
-
-This will scan for all aggregate root types and register them with the dependency injection container.
-
-## Taking Dependencies on Aggregate Roots
-
-You can inject aggregate roots directly into your commands through the Handle method signature:
+This command fragment uses the complete `Order` implementation from [Defining an aggregate root](./defining-an-aggregate-root.md):
 
 ```csharp
-public record AddItemToOrderCommand([Key] Guid OrderId, Guid ProductId, int Quantity, decimal Price)
-{
-    public object Handle(Order order, ILogger<AddItemToOrderCommand> logger)
-    {
-        order.AddItem(ProductId, Quantity, Price);
+using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Keys;
 
-        // The changes are automatically tracked and will be committed
-        // when the command handler completes successfully
-        return new ItemAddedToOrder { ProductId = ProductId, Quantity = Quantity, Price = Price };
+[Command]
+public record AddItemToOrder([Key] Guid OrderId, Guid ProductId, int Quantity)
+{
+    public async Task<AggregateRootCommitResult> Handle(Order order)
+    {
+        await order.AddItem(ProductId, Quantity);
+        return await order.Commit();
     }
 }
 ```
 
-## Event Source ID Resolution
+The aggregate applies its own events. Do not return copies of those events from `Handle()`, and do not ignore a mutation's `Task`.
 
-The aggregate root resolution depends entirely on the event source ID being available in the command context. [Resolving EventSourceId](../resolving-event-source-id.md) supplies this value through the [Command Context Values](../../commands/command-context.md#command-context-values) pipeline. The resolution process works as follows:
+This example explicitly commits because `Order` reports errors through `Failed(...)`. It returns immediately afterward: explicit commit finalizes the shared command unit of work. Automatic completion does not collect private aggregate failure lists. Read [the commit limitation](./defining-an-aggregate-root.md#automatic-completion-and-its-current-limitation) before changing this to a `Task`-only handler.
 
-1. **Command Context Lookup**: The system retrieves the event source ID from the current `CommandContext`
-2. **Validation**: If no event source ID is found, an `UnableToResolveAggregateRootFromCommandContext` exception is thrown
-3. **Factory Invocation**: The `IAggregateRootFactory.Get<T>()` method is called with the resolved event source ID
-4. **Instance Return**: The loaded aggregate root instance is returned
+## Which identity loads the aggregate
 
-### Event Source ID Requirements
+[Command identity resolution](../resolving-event-source-id.md) happens before dependency construction:
 
-For aggregate root resolution to work, the command must provide an event source ID through one of these methods:
+- `ICanProvideEventSourceId` takes precedence.
+- Otherwise, use one unambiguous `EventSourceId`, `EventSourceId<T>`-derived, or Chronicle `[Key]` property.
+- A keyless creation command receives a generated identity and can resolve a new aggregate with no history.
+- A declared but unusable identity, such as `EventSourceId.Unspecified`, cannot resolve an aggregate and produces `UnableToResolveAggregateRootFromCommandContext`.
 
-- Implement `ICanProvideEventSourceId`
-- Have a property of type `EventSourceId`
-- Have a property marked with `[Key]` attribute
-- Be part of a tuple that contains an `EventSourceId`
+A returned tuple identity arrives **after** the aggregate has loaded. It can select the target of returned events, but cannot retarget that aggregate's history or enrolled events. Generate or supply the identity before resolution when a creation command needs an injected aggregate and a known id.
 
-## Example Usage
+## Multiple aggregates
 
-### Basic Command Handler
+Automatic injection selects one identity, not one CLR type. Different aggregate types can each resolve under that identity. Repeated resolution of the same type in a command shares its scoped instance.
+
+For a second identity, use the factory explicitly. This is a lookup fragment inside an asynchronous handler; it does not commit or define a transfer operation:
 
 ```csharp
-public record CreateUserCommand(EventSourceId UserId, string Email, string Name)
-{
-    public UserCreated Handle(User user)
-    {
-        // The 'user' aggregate root is automatically loaded using the UserId
-        // from the command as the event source ID
-
-        user.Create(Email, Name);
-
-        return new UserCreated
-        {
-            Email = Email,
-            Name = Name
-        };
-    }
-}
+var destination = await aggregateRootFactory.Get<Account>(destinationId);
 ```
 
-### Update Command Handler
+Here `aggregateRootFactory` is an `IAggregateRootFactory`, `destinationId` is an `EventSourceId`, and `Account` is your aggregate type. Factory loading does not replace the command context used by an aggregate's injected read-model dependencies. Make cross-source transaction and failure handling explicit rather than assuming multiple objects imply one validated aggregate boundary.
 
-```csharp
-public record UpdateUserEmailCommand([Key] Guid UserId, string NewEmail)
-{
-    public UserEmailUpdated Handle(User user)
-    {
-        // The 'user' aggregate root is loaded using UserId as event source ID
-        user.UpdateEmail(NewEmail);
+## Lifetime and transaction
 
-        return new UserEmailUpdated { NewEmail = NewEmail };
-    }
-}
-```
+An injected instance is resolved once per command scope and rehydrated on resolution. Applied events enroll in the command's unit of work. If the pipeline sees a failed command before commit, it rolls back pending events. If the command succeeds, it completes the pending transaction unless an explicit commit already completed it.
 
-## Multiple Aggregate Roots
+This lifetime does not give aggregate `Failed(...)` calls automatic propagation, undo an earlier manual commit, or make external service calls transactional. See [Transactional commands](../commands/transactional-commands.md).
 
-Note that with the current pattern, you can only automatically resolve one aggregate root per command (based on the event source ID). For scenarios involving multiple aggregates, you'll need to load additional ones manually:
+## Verify the boundary
 
-```csharp
-public record TransferFundsCommand(Guid FromAccountId, Guid ToAccountId, decimal Amount) : ICanProvideEventSourceId
-{
-    // This command uses FromAccountId as the primary event source
-    public EventSourceId GetEventSourceId() => FromAccountId.ToString();
-
-    public FundsTransferred Handle(Account fromAccount, IAccountRepository accountRepository)
-    {
-        // Load the target account manually since we can only auto-resolve one
-        var toAccount = accountRepository.GetById(ToAccountId).GetAwaiter().GetResult();
-
-        fromAccount.TransferTo(toAccount, Amount);
-
-        return new FundsTransferred
-        {
-            ToAccountId = ToAccountId,
-            Amount = Amount
-        };
-    }
-}
-```## Error Handling
-
-### UnableToResolveAggregateRootFromCommandContext
-
-This exception is thrown when:
-
-- No event source ID is available in the command context
-- The event source ID is `EventSourceId.Unspecified`
-
-```csharp
-public record InvalidCommand(string SomeProperty);
-// No event source ID property or interface implementation
-
-// This will fail because no event source ID can be resolved
-```
-
-## Lifecycle Management
-
-### Command scope
-
-Aggregate roots are registered as command-scoped services, meaning:
-
-- The instance is resolved once per command and shared for the rest of that command
-- It is tied to the specific event source ID from the command context, and rehydrated from that stream on resolution
-- Changes made to the aggregate root are automatically tracked
-- The aggregate root is released when the command completes
-
-### Automatic commit
-
-When using aggregate roots through dependency injection:
-
-- Changes are automatically tracked by Chronicle's change tracking system
-- Events applied by the aggregate root are enrolled in the command's transaction and committed when the command succeeds
-- If the command fails — an exception, a validation failure, or a rejected append — the transaction is rolled back
-
-## Best Practices
-
-### Single Responsibility
-
-Keep command handlers focused on a single aggregate root when possible:
-
-```csharp
-// Good: Single aggregate root
-public record AddItemCommand([Key] Guid OrderId, Guid ProductId, int Quantity)
-{
-    public object Handle(Order order) =>
-        order.AddItem(ProductId, Quantity);
-}
-
-// Consider refactoring: Multiple concerns would require manual loading
-```
-
-### Event Source ID Clarity
-
-Make it clear which property serves as the event source ID:
-
-```csharp
-// Clear and explicit
-public record UpdateOrderCommand(EventSourceId OrderId, string Status);  // Obviously the event source ID
-
-// Also clear with Key attribute
-public record UpdateOrderCommand([Key] Guid OrderId, string Status);  // Marked as the key
-```
-
-### Validation
-
-Validate that the event source ID is meaningful before processing:
-
-```csharp
-public record UpdateOrderCommand([Key] Guid OrderId, string Status)
-{
-    public object Handle(Order order)
-    {
-        if (order.IsDeleted)
-        {
-            throw new OrderAlreadyDeletedException(OrderId);
-        }
-
-        order.UpdateStatus(Status);
-        return new OrderUpdated { Status = Status };
-    }
-}
-```## Advanced Scenarios
-
-### Custom Aggregate Root Resolution
-
-If you need custom resolution logic, you can bypass the automatic injection and use `IAggregateRootFactory` directly:
-
-```csharp
-public record SomeCommand(string SomeProperty)
-{
-    public object Handle(IAggregateRootFactory aggregateRootFactory, CommandContext commandContext)
-    {
-        var customEventSourceId = DetermineCustomEventSourceId();
-        var aggregate = aggregateRootFactory.Get<MyAggregate>(customEventSourceId).GetAwaiter().GetResult();
-
-        // Process with custom-loaded aggregate
-        return new SomeEvent();
-    }
-
-    private EventSourceId DetermineCustomEventSourceId() => EventSourceId.New();
-}
-```### Conditional Aggregate Loading
-
-```csharp
-public record ConditionalCommand([Key] Guid OrderId, bool ShouldProcessOrder)
-{
-    public object Handle(IServiceProvider serviceProvider)
-    {
-        if (ShouldProcessOrder)
-        {
-            // Only resolve Order when needed
-            var order = serviceProvider.GetRequiredService<Order>();
-            order.Process();
-            return new OrderProcessed();
-        }
-
-        return new CommandIgnored();
-    }
-}
-```
+A useful aggregate spec reconstructs history, applies another event, and checks the resulting state and exact append count. Add cases for `Apply` followed by `Failed`, failure before and after explicit commit, and competing commands. A build proves signatures, not those behaviors.

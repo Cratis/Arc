@@ -1,344 +1,70 @@
-# Authorization
+---
+title: Model-bound query authorization
+description: Protect reads with Arc authentication and roles, and understand the current policy limitation.
+---
 
-Model-bound queries support authorization through standard ASP.NET Core authorization attributes as well as the convenient `[Roles]` attribute provided by the Arc.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-## Using the Authorize Attribute
+## Choose the right authorization surface
 
-You can secure query methods using the standard `[Authorize]` attribute:
+For model-bound queries, use attributes from **`Cratis.Arc.Authorization`**. The default evaluator checks whether the current principal is authenticated and, when roles are specified, belongs to at least one of those roles.
+
+> [!WARNING]
+> The current model-bound evaluator does **not** evaluate named policies. Do not rely on `[Authorize(Policy = "...")]`, a policy-derived ownership attribute, or `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` to enforce a model-bound policy. Configured ASP.NET middleware/MVC authorization is a separate surface and can enforce its own requirements; it is not automatically the model-bound evaluator.
+
+Treat policy support as a current implementation limitation. For a policy-based HTTP API, use an explicitly protected MVC action and test its middleware configuration. For rules needed across model-bound HTTP, direct pipeline execution, and hub subscriptions, implement a real [authorization query filter](../query-pipeline.md#query-filters). Do not substitute input validation for an authorization verdict.
+
+## Require a role
+
+Use the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) with an authenticated host and the configured MongoDB provider. This replaces the earlier `DebitAccount` declaration:
 
 ```csharp
+using System.Collections.Generic;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries.ModelBound;
+using MongoDB.Driver;
+
+namespace Banking.Accounts;
+
 [ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
+[Roles("AccountReader")]
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 {
-    [Authorize]
-    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection) =>
+    [Path("/api/accounts")]
+    public static IEnumerable<DebitAccount> AllAccounts(IMongoCollection<DebitAccount> collection) =>
         collection.Find(_ => true).ToList();
 
-    [Authorize(Roles = "Admin,Manager")]
-    public static IEnumerable<DebitAccount> GetSensitiveAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Balance > 100000).ToList();
-}
-```
-
-## Using the Roles Attribute
-
-The Arc provides a more convenient `[Roles]` attribute for cleaner syntax when specifying multiple roles:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
     [Roles("Admin", "Auditor")]
-    public static IEnumerable<DebitAccount> GetAdminAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(_ => true).ToList();
-
-    [Roles("Manager")]
-    public static IEnumerable<DebitAccount> GetManagerAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Owner != CustomerId.Empty).ToList();
+    [Path("/api/accounts/overdrawn")]
+    public static IEnumerable<DebitAccount> OverdrawnAccounts(IMongoCollection<DebitAccount> collection) =>
+        collection.Find(account => account.Balance < 0).ToList();
 }
 ```
 
-The user needs to have **at least one** of the specified roles to execute the query.
+`AllAccounts` requires `AccountReader`. `OverdrawnAccounts` requires **Admin or Auditor**, replacing the type-level requirement rather than adding to it. These roles intentionally grant access to all matching accounts; this example does not claim owner-only access.
 
-## Read Model-Level Authorization
+## Attribute precedence
 
-You can apply authorization at the read model level to protect all query methods:
+For Arc's built-in attributes:
 
-```csharp
-[ReadModel]
-[Roles("User")] // All methods require at least "User" role
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(_ => true).ToList();
+1. Method-level `[AllowAnonymous]` permits anonymous access.
+2. Method-level `[Authorize]` or `[Roles]` takes precedence over the declaring type's requirements.
+3. Otherwise type-level anonymous/authorization requirements apply.
+4. Without a requirement, the default evaluator permits access.
 
-    [Roles("Admin")] // Override read model-level authorization
-    public static IEnumerable<DebitAccount> GetAdminOnlyAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Balance < 0).ToList();
-}
-```
+Do not combine `[AllowAnonymous]` with `[Authorize]`/`[Roles]` on the same target: the built-in anonymous evaluator treats that combination as ambiguous.
 
-## Method-Level Authorization Override
+Use `[Authorize]` for authentication alone and `[Roles("Admin", "Auditor")]` for authentication plus any listed role. A denied model-bound query does not invoke its method and produces `isAuthorized: false`. Direct HTTP normally maps that verdict to 403; hub denial is an `Unauthorized` message.
 
-Method-level authorization attributes override class-level ones:
+## Ownership is a separate rule
 
-```csharp
-[ReadModel]
-[Authorize] // Require authentication for all methods
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    // Inherits class-level [Authorize] - requires authentication
-    public static IEnumerable<DebitAccount> GetUserAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(_ => true).ToList();
+A role check does not establish record ownership. Neither a balance predicate nor a non-null user ID is an ownership check. If a read is owner-scoped, derive the owner from the authenticated principal's trusted identity mapping and constrain the database predicate to that owner **and** the requested record ID. Handle absent/unmapped identities by denying access, never by dropping the owner predicate.
 
-    [Roles("Admin", "Manager")] // Overrides class-level, requires specific roles
-    public static IEnumerable<DebitAccount> GetPrivilegedAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Balance > 50000).ToList();
+There is no universal claim-to-owner mapping Arc can supply for your application. This page therefore does not provide a success-shaped ownership-policy stub. Test at least two owners, a missing identity, and an unauthorized caller through every exposed route/transport before using such a query for private data. Generated proxies provide type safety, not client-side security enforcement.
 
-    [AllowAnonymous] // Completely overrides class-level authorization
-    public static int GetTotalAccountCount(IMongoCollection<DebitAccount> collection) =>
-        (int)collection.CountDocuments(_ => true);
-}
-```
+## Observable authorization
 
-## Policy-Based Authorization
+Authorization gates each new subscription. It does not automatically revoke a running stream when roles change or credentials expire. Use an [emission guard](../observable-query-emission-guards.md) backed by your current session/permission state when revocation must affect ongoing delivery.
 
-For more complex authorization scenarios, you can use policy-based authorization:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [Authorize(Policy = "RequireAccountAccess")]
-    public static DebitAccount GetAccountById(
-        AccountId id, 
-        IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Id == id).FirstOrDefault();
-        
-    [Authorize(Policy = "RequireHighValueAccess")]
-    public static IEnumerable<DebitAccount> GetHighValueAccounts(
-        IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Balance > 1000000).ToList();
-}
-```
-
-## Context-Dependent Authorization
-
-Access user context within query methods for dynamic authorization:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [Authorize]
-    public static IEnumerable<DebitAccount> GetMyAccounts(
-        IMongoCollection<DebitAccount> collection,
-        IHttpContextAccessor httpContextAccessor)
-    {
-        var userId = httpContextAccessor.HttpContext?.User?.FindFirst("sub")?.Value;
-        if (string.IsNullOrEmpty(userId))
-            return Enumerable.Empty<DebitAccount>();
-
-        var customerId = new CustomerId(Guid.Parse(userId));
-        return collection.Find(a => a.Owner == customerId).ToList();
-    }
-    
-    [Authorize]
-    public static DebitAccount? GetAccountIfOwned(
-        AccountId accountId,
-        IMongoCollection<DebitAccount> collection,
-        IHttpContextAccessor httpContextAccessor)
-    {
-        var userId = httpContextAccessor.HttpContext?.User?.FindFirst("sub")?.Value;
-        if (string.IsNullOrEmpty(userId))
-            return null;
-
-        var customerId = new CustomerId(Guid.Parse(userId));
-        return collection.Find(a => a.Id == accountId && a.Owner == customerId).FirstOrDefault();
-    }
-}
-```
-
-## Role Hierarchies
-
-Implement role hierarchies with custom authorization:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [Roles("User")] // Basic users can see their own accounts
-    public static IEnumerable<DebitAccount> GetBasicAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Balance >= 0).ToList();
-
-    [Roles("Manager", "Admin")] // Managers and admins can see more
-    public static IEnumerable<DebitAccount> GetManagerAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Balance > -1000).ToList();
-
-    [Roles("Admin")] // Only admins can see all accounts including severely overdrawn
-    public static IEnumerable<DebitAccount> GetAllAccountsIncludingProblematic(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(_ => true).ToList();
-}
-```
-
-## Observable Query Authorization
-
-Authorization also applies to observable queries:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [Authorize]
-    public static ISubject<IEnumerable<DebitAccount>> GetAccountsObservable(
-        IMongoCollection<DebitAccount> collection) =>
-        collection.Observe();
-
-    [Roles("Admin")]
-    public static ISubject<IEnumerable<DebitAccount>> GetAdminAccountsObservable(
-        IMongoCollection<DebitAccount> collection) =>
-        collection.Observe(a => a.Balance < 0);
-}
-```
-
-## Authorization with Query Parameters
-
-Combine authorization with parameter-based filtering:
-
-```csharp
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [Authorize]
-    public static IEnumerable<DebitAccount> GetAccountsByOwner(
-        CustomerId ownerId,
-        IMongoCollection<DebitAccount> collection,
-        IHttpContextAccessor httpContextAccessor)
-    {
-        var currentUserId = httpContextAccessor.HttpContext?.User?.FindFirst("sub")?.Value;
-        var isAdmin = httpContextAccessor.HttpContext?.User?.IsInRole("Admin") == true;
-        
-        // Users can only see their own accounts unless they're admin
-        if (!isAdmin && currentUserId != ownerId.Value.ToString())
-        {
-            return Enumerable.Empty<DebitAccount>();
-        }
-        
-        return collection.Find(a => a.Owner == ownerId).ToList();
-    }
-}
-```
-
-## Custom Authorization Attributes
-
-Create custom authorization attributes for domain-specific logic:
-
-```csharp
-public class RequireAccountOwnershipAttribute : AuthorizeAttribute
-{
-    public RequireAccountOwnershipAttribute() : base("RequireAccountOwnership") { }
-}
-
-[ReadModel]
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [RequireAccountOwnership]
-    public static DebitAccount GetAccountDetails(
-        AccountId id,
-        IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Id == id).FirstOrDefault();
-}
-```
-
-## Authorization Results
-
-When authorization fails, the query pipeline automatically returns an unauthorized result. The query method will not be executed:
-
-```csharp
-// In your policy handler or middleware
-public class AccountOwnershipHandler : AuthorizationHandler<AccountOwnershipRequirement>
-{
-    protected override Task HandleRequirementAsync(
-        AuthorizationHandlerContext context,
-        AccountOwnershipRequirement requirement)
-    {
-        var userId = context.User.FindFirst("sub")?.Value;
-        
-        // Check if user owns the account being accessed
-        if (userId is not null /* && user owns the account being accessed */)
-        {
-            context.Succeed(requirement);
-        }
-        
-        return Task.CompletedTask;
-    }
-}
-```
-
-## Anonymous Access
-
-Use `[AllowAnonymous]` to allow public access to specific query methods. This attribute bypasses all authorization requirements, including class-level `[Authorize]` attributes and role requirements.
-
-### How AllowAnonymous Works
-
-The authorization system evaluates attributes in the following order:
-
-1. **Method-level `[AllowAnonymous]`** - If present on the method, allows anonymous access immediately
-2. **Method-level `[Authorize]` or `[Roles]`** - If present on the method, these take precedence over class-level attributes
-3. **Class-level `[AllowAnonymous]`** - If present on the class (and no method-level authorization), allows anonymous access
-4. **Class-level `[Authorize]` or `[Roles]`** - Applied when no method-level attributes are specified
-
-### Method-Level AllowAnonymous
-
-Override class-level authorization for specific query methods:
-
-```csharp
-[ReadModel]
-[Authorize] // Require authentication by default
-public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, decimal Balance)
-{
-    [AllowAnonymous] // Override class-level authorization for public data
-    public static int GetTotalAccountCount(IMongoCollection<DebitAccount> collection) =>
-        (int)collection.CountDocuments(_ => true);
-
-    [AllowAnonymous]
-    public static decimal GetAverageBalance(IMongoCollection<DebitAccount> collection)
-    {
-        var accounts = collection.Find(_ => true).ToList();
-        return accounts.Count > 0 ? accounts.Average(a => a.Balance) : 0;
-    }
-    
-    // This method requires authentication (inherits from class)
-    public static IEnumerable<DebitAccount> GetAllAccounts(IMongoCollection<DebitAccount> collection) =>
-        collection.Find(_ => true).ToList();
-}
-```
-
-### Class-Level AllowAnonymous
-
-Apply `[AllowAnonymous]` at the class level to make all query methods publicly accessible by default:
-
-```csharp
-[ReadModel]
-[AllowAnonymous] // All methods are publicly accessible by default
-public record PublicStatistics(string Category, int Count)
-{
-    public static IEnumerable<PublicStatistics> GetAllStatistics(
-        IMongoCollection<PublicStatistics> collection) =>
-        collection.Find(_ => true).ToList();
-
-    public static PublicStatistics? GetByCategory(
-        string category,
-        IMongoCollection<PublicStatistics> collection) =>
-        collection.Find(s => s.Category == category).FirstOrDefault();
-
-    [Authorize] // Override class-level: this specific method requires authentication
-    public static IEnumerable<PublicStatistics> GetSensitiveStatistics(
-        IMongoCollection<PublicStatistics> collection) =>
-        collection.Find(s => s.Category.StartsWith("Internal")).ToList();
-}
-```
-
-### Common Use Cases for AllowAnonymous
-
-- **Public statistics or counts** - Aggregate data that doesn't expose sensitive information
-- **Product catalogs** - Public product listings for e-commerce sites
-- **Public content** - Blog posts, articles, or documentation
-- **Health checks** - System status information for monitoring
-- **Search endpoints** - Public search functionality
-
-## Best Practices
-
-1. **Apply authorization at the appropriate level** - Use class-level for broad protection, method-level for specific requirements
-2. **Use the `[Roles]` attribute** - More convenient than the standard `[Authorize(Roles = "...")]` syntax
-3. **Implement defense in depth** - Combine multiple authorization layers when appropriate
-4. **Consider user context** - Use `IHttpContextAccessor` to access current user information for dynamic authorization
-5. **Test authorization** - Ensure unauthorized users cannot access protected queries
-6. **Use policies for complex logic** - Implement custom authorization policies for domain-specific rules
-7. **Be explicit about public access** - Use `[AllowAnonymous]` to clearly indicate intentionally public methods
-8. **Log authorization failures** - Monitor and log unauthorized access attempts
-9. **Keep authorization simple** - Complex authorization logic should be in services, not query methods
-
-> **Note**: Authorization is evaluated before the query method is called. If authorization fails, the query will not be executed and the result will indicate the authorization failure.
-> The [proxy generator](../../proxy-generation/index.md) automatically creates TypeScript types that respect your authorization constraints,
-> helping prevent unauthorized client-side calls.
+Do not use [interceptor masking](../read-model-interception.md) as your only data-access control: observable HTTP snapshots currently bypass that interception path. Ensure the producer itself never yields fields or rows the caller must not receive.

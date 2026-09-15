@@ -1,40 +1,48 @@
-# Use the HTTP QUERY method
+---
+title: Use the HTTP QUERY method
+description: Move scalar query arguments into a request body without silently falling back to URLs.
+---
 
-By default Arc exposes every query over `GET`, with arguments in the URL query string. That is perfect until a query needs to carry **a lot** of arguments, or **sensitive** ones — a long free-text search, a nested filter, an access token. URLs have length limits, and everything in a URL leaks into server and proxy access logs, browser history, and `Referer` headers.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-The HTTP `QUERY` method ([RFC 10008](https://www.rfc-editor.org/info/rfc10008/)) solves this: it is a safe, idempotent request — like `GET` — but it carries its arguments in a JSON **request body** instead of the URL.
+Long search text can exceed practical URL limits. Arc's generated model-bound query endpoints support HTTP `QUERY` with an arguments body as an alternative to GET. It returns the same query result contract; it does not turn a read into a command.
 
-Arc registers **both** verbs for every query endpoint, so `QUERY` is available whenever you want it. `GET` stays the default; you opt into `QUERY` on the client.
-
-Use this when you want to:
-
-- send query arguments that are too large for a URL
-- keep sensitive arguments out of URLs, logs, and history
-- move a growing filter object into a structured body
+> [!WARNING]
+> If an argument must stay out of URLs, choose **explicit `QueryHttpMethod.Query`**, not `Auto` or the length-based fallback resolver. Auto can retry with GET and put those arguments in the URL. Bodies can also be logged: configure logging/redaction and use HTTPS. Authentication credentials belong in your normal authorization headers or cookies, not query arguments.
 
 ## Prerequisites
 
-- Your application is running and exposes at least one query.
-- You are calling the query from the generated TypeScript proxy, or from a plain HTTP tool.
+Use a generated **model-bound** endpoint with QUERY enabled and a network path that accepts the verb. Arc does not automatically add QUERY handling to every MVC GET action. Built-in QUERY binding remains [scalar argument conversion](model-bound/query-arguments.md), not arbitrary nested DTO/array deserialization.
 
-## Declare the transport in C\#
+## Declare the transport in CSharp
 
-The most direct way is to declare the transport where the query lives — the same place you already put `[Route]` or `[AllowAnonymous]`. Put `[QueryHttpMethod]` on a read model (all its queries) or a single static query method, and the generated proxy defaults to that transport with no client wiring:
+Complete type example for an existing Arc host with a registered MongoDB collection:
 
 ```csharp
+using System.Linq;
+using Cratis.Arc.Queries;
+using Cratis.Arc.Queries.ModelBound;
+using MongoDB.Driver;
+using MongoDB.Driver.Linq;
+
+namespace Catalog;
+
 [ReadModel]
-public record Order(OrderId Id, string Customer)
+public record Product(string Id, string Name)
 {
+    [Path("/api/products/search")]
     [QueryHttpMethod(QueryHttpMethod.Query)]
-    public static IEnumerable<Order> Search(OrderFilter filter) => /* ... */;
+    public static IQueryable<Product> Search(string searchText, IMongoCollection<Product> collection) =>
+        collection.AsQueryable().Where(product => product.Name.Contains(searchText));
 }
 ```
 
-The generated `Search` proxy calls `setHttpMethod(QueryHttpMethod.Query)` in its constructor, so every caller uses QUERY automatically — the backend author's knowledge that this query takes a large filter flows to the client through proxy generation. A method-level attribute overrides a read-model-level one, callers can still override it at runtime with `setHttpMethod`, and the server accepts both verbs regardless — this only sets the client default.
+The generated proxy defaults to QUERY. The attribute can also be put on the read-model type, with method-level choice taking precedence. It sets a **client default**, not a server-side ban on GET; both generated verbs remain available. Add [input validation](validation.md) and authorization appropriate to the data before deployment.
 
 ## Opt in from the client
 
-The generated proxies default to `GET`. Switch the default for every query by setting `Globals.queryHttpMethod`:
+Application-startup fragment for all generated queries without an explicit per-query override:
 
 ```typescript
 import { Globals } from '@cratis/arc';
@@ -43,32 +51,19 @@ import { QueryHttpMethod } from '@cratis/arc/queries';
 Globals.queryHttpMethod = QueryHttpMethod.Query;
 ```
 
-To switch a single query without changing the global default, call `setHttpMethod` on the query instance:
+For a single generated query instance, call `query.setHttpMethod(QueryHttpMethod.Query)` before performing it. Here `query` means an instance of your generated proxy, not a framework singleton. An explicit per-query setting takes precedence over a global resolver and global default.
 
-```typescript
-query.setHttpMethod(QueryHttpMethod.Query);
-```
+## Let the framework choose with Auto
 
-Everything else — arguments, paging, sorting, the shape of the result — stays exactly the same. Only the transport changes.
+Use `QueryHttpMethod.Auto` only when the arguments are safe in either transport. It tries QUERY, then retries GET for a 405/501 response or a non-abort fetch/network failure (including CORS failure). It remembers a GET downgrade per backend origin plus API base path for the session. Other HTTP error statuses are not a fallback signal.
 
-## Let the framework choose with `Auto`
-
-If you're not sure every deployment's network path supports `QUERY` (some corporate proxies, WAFs and gateways don't recognize it yet), use `QueryHttpMethod.Auto`:
-
-```typescript
-import { Globals } from '@cratis/arc';
-import { QueryHttpMethod } from '@cratis/arc/queries';
-
-Globals.queryHttpMethod = QueryHttpMethod.Auto;
-```
-
-Arc sends `QUERY` on the first query. If the server or an intermediary rejects the verb — a `405`/`501` response, or a network/CORS error from `fetch` — it transparently retries the query with `GET` and remembers the outcome **per backend** (origin + API base path) for the rest of the session, so subsequent queries go straight to the working transport and one backend's lack of support never downgrades another. This also covers the cross-origin case: if the CORS policy doesn't allow `QUERY`, `Auto` simply settles on `GET`.
-
-`Auto` only falls back on **transport-level** failures — an application error (a normal failed `QueryResult`) is never retried as `GET`. Call `resetQueryHttpMethodResolution()` (from `@cratis/arc/queries`) to make the next `Auto` query probe again, for example after a network change.
+`resetQueryHttpMethodResolution()` from `@cratis/arc/queries` clears learned transport choices. Explicit QUERY never falls back to GET.
 
 ## Choose the transport per query
 
-Most queries have small arguments that belong in the URL — only the ones whose arguments overflow it really need `QUERY`. Instead of picking a method for the whole app, set a **resolver** that decides per query. The built-in `lengthBasedQueryHttpMethod` keeps short queries on cacheable `GET` and prefers `QUERY` only when the `GET` URL would exceed a threshold:
+The exported `lengthBasedQueryHttpMethod({ threshold: 2000 })` resolver uses GET for short URLs and Auto for longer ones. It is a compatibility/length heuristic, **not a privacy rule**.
+
+Application-startup fragment:
 
 ```typescript
 import { Globals } from '@cratis/arc';
@@ -77,68 +72,38 @@ import { lengthBasedQueryHttpMethod } from '@cratis/arc/queries';
 Globals.queryHttpMethodResolver = lengthBasedQueryHttpMethod({ threshold: 2000 });
 ```
 
-When the URL is short the query uses `GET`; when it exceeds the threshold it uses `QUERY` (with `Auto`'s `GET` fallback, so an unsupporting backend still degrades gracefully).
-
-The resolver is consulted only when a query has **no** explicit method set via `setHttpMethod` — an explicit per-query choice always wins. You can also write your own policy; it receives the built `GET` URL, the route and the arguments:
-
-```typescript
-import { QueryHttpMethod } from '@cratis/arc/queries';
-
-Globals.queryHttpMethodResolver = ({ route }) =>
-    route.startsWith('/api/reports') ? QueryHttpMethod.Query : QueryHttpMethod.Get;
-```
+If URLs are prohibited for particular inputs, give those proxies an explicit QUERY setting rather than relying on length.
 
 ## The request body
 
-With `QUERY`, route parameters stay in the path (they identify the resource); every other argument, plus paging and sorting, moves into a JSON body:
+For the declared product query, this is the complete request envelope:
 
 ```json
 {
-  "arguments": { "searchText": "a very long search expression", "status": "active" },
-  "paging": { "page": 0, "pageSize": 20 },
-  "sorting": { "field": "name", "direction": "asc" }
+    "arguments": { "searchText": "widgets" },
+    "paging": { "page": 0, "pageSize": 20 },
+    "sorting": { "field": "name", "direction": "asc" }
 }
 ```
 
-`paging` and `sorting` are optional — omit them for an unpaged, unsorted query.
+`paging` and `sorting` are optional. Each argument is converted through the scalar converter; putting an object or array inside `arguments` does not make it bind as a complex parameter. Model-bound readers do not bind route placeholders; use the explicit path and arguments shown here.
 
 ## Call it with cURL
 
-You can exercise a `QUERY` endpoint with any HTTP client. The `Content-Type` must be `application/json` — Arc rejects a request without it.
+Runnable against a host exposing the example path, with its actual origin and normal credentials supplied:
 
 ```bash
-curl -X QUERY "https://localhost:5001/api/orders/search" \
-  -H "Content-Type: application/json" \
-  -d '{ "arguments": { "searchText": "widgets" }, "paging": { "page": 0, "pageSize": 20 } }'
+curl --include --request QUERY 'https://localhost:5001/api/products/search' \
+  --header 'Content-Type: application/json' \
+  --data '{"arguments":{"searchText":"widgets"},"paging":{"page":0,"pageSize":20}}'
 ```
 
-The response is the same `QueryResult` JSON you get from the `GET` form of the query.
+The response has the same [QueryResult fields](query-pipeline.md#query-result-metadata) as GET. Generated QUERY responses set `Cache-Control: no-store`; that is not a guarantee that intermediaries or application logs never record the request body.
 
-## Cross-origin calls need CORS to allow QUERY
+## Cross-origin and server configuration
 
-`QUERY` is not a [simple method](https://developer.mozilla.org/docs/Web/HTTP/CORS#simple_requests), so a browser sends a preflight `OPTIONS` request first. If you call queries from another origin, add `QUERY` to your allowed methods:
+For browser calls, configure your actual allowed origins, headers/credentials, and methods to include QUERY; preflight must succeed. GET calls with authorization headers or cross-origin credentials may need CORS configuration too. Do not use a blanket wildcard policy as a substitute for an application's access policy.
 
-```csharp
-builder.Services.AddCors(options =>
-    options.AddDefaultPolicy(policy =>
-        policy.WithMethods("GET", "POST", "QUERY").AllowAnyHeader().AllowAnyOrigin()));
-```
+The server option `ArcOptions.GeneratedApis.EnableQueryHttpMethod` controls registration of generated QUERY endpoints and defaults to enabled. Set it to false to keep only GET. That setting does not change MVC verb declarations.
 
-The `GET` default needs no CORS change, so this only matters once you opt into `QUERY`.
-
-## Turn it off on the server
-
-`QUERY` endpoints are registered by default. To restrict query endpoints to `GET` only — for example behind infrastructure that rejects unknown HTTP verbs — disable it:
-
-```csharp
-builder.Services.Configure<ArcOptions>(options =>
-    options.GeneratedApis.EnableQueryHttpMethod = false);
-```
-
-`GET` is unaffected.
-
-## See also
-
-- [Use Observable Queries with cURL](./using-observable-queries-with-curl.md)
-- [Configuration](../configuration/index.md)
-- [Query Pipeline](./query-pipeline.md)
+See [configuration](../configuration/index.md) for host options and [cURL observable workflows](using-observable-queries-with-curl.md) for snapshot versus streaming reads.

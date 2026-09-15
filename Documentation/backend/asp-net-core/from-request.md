@@ -1,38 +1,28 @@
-# FromRequest Attribute
+---
+title: Combine request values with FromRequest
+description: Bind JSON and URL values into one MVC request model, then validate them together.
+---
 
-The `[FromRequest]` attribute is a powerful model binding feature that allows you to combine data from multiple sources of an HTTP request into a single model.
-Unlike the standard ASP.NET Core model binding attributes that bind from a single source, `[FromRequest]` intelligently merges data from the request body with
-data from other parts of the request (route parameters, query strings, etc.). This creates a unified object that's perfect for comprehensive validation with
-frameworks like FluentValidation, enables cross-parameter validation rules, and simplifies controller methods by reducing multiple parameters into a single,
-well-structured request model.
+Use `[FromRequest]` when an MVC action needs a single input model assembled from JSON and URL values. Arc handles the merging, so the action and its validator can work with one object instead of stitching parameters together.
+
+This is an ASP.NET Core integration feature, not the binding contract for model-bound Arc commands or queries.
 
 ## Overview
 
-When you decorate a parameter with `[FromRequest]`, the Arc will:
+Arc binds the JSON body first, then uses MVC's other request sources to fill properties that still hold their type's default value. Non-default body values win.
 
-1. First attempt to bind the entire model from the request body (JSON)
-2. Then attempt to bind the same model from other request sources (route, query, headers)
-3. Merge the results, with request body taking precedence for non-default values
-4. Use values from other sources only when the corresponding property in the body-bound model has a default value
-
-This enables powerful scenarios where you can have a JSON payload that gets enhanced with additional data from the URL or query parameters.
-
-## How It Works
-
-The `FromRequestModelBinder` performs the following steps:
-
-1. **Body Binding**: Uses the standard body model binder to deserialize the request body into your model
-2. **Complex Binding**: Uses the complex model binder to bind from route, query, and other sources
-3. **Intelligent Merging**: For each property:
-   - If the body-bound value is not the default value for that type, it keeps the body value
-   - If the body-bound value is the default value but the complex-bound value is not, it uses the complex value
-   - This allows selective overriding of JSON properties with URL/query parameters
+See [default values and fallback](#default-values-and-fallback) when zero, false, or property initializers matter.
 
 ## Usage Examples
 
 ### Basic Usage
 
+In an existing ASP.NET Core Arc application, declare the request model and use it in your controller action:
+
 ```csharp
+using Cratis.Arc.ModelBinding;
+using Microsoft.AspNetCore.Mvc;
+
 public class UserUpdateRequest
 {
     public string Name { get; set; } = string.Empty;
@@ -42,14 +32,9 @@ public class UserUpdateRequest
 }
 
 [HttpPut("users/{userId}")]
-public async Task<IActionResult> UpdateUser([FromRequest] UserUpdateRequest request)
+public IActionResult UpdateUser([FromRequest] UserUpdateRequest request)
 {
-    // request.UserId will be populated from the route
-    // request.NotifyUser will be populated from query string
-    // request.Name and request.Email will come from JSON body
-    // If Name or Email are not provided in JSON (or are empty/null), 
-    // they could be overridden by query parameters if present
-    
+    // Apply the update through your application service after validation.
     return Ok();
 }
 ```
@@ -66,12 +51,10 @@ Content-Type: application/json
 }
 ```
 
-In this case:
+The action receives `UserId = 123`, `NotifyUser = true`, and the name and email from JSON. The example shows binding; `Ok()` alone does not persist an update.
 
-- `UserId` = 123 (from route)
-- `NotifyUser` = true (from query)
-- `Name` = "John Doe" (from JSON body)
-- `Email` = `"john@example.com"` (from JSON body)
+> [!IMPORTANT]
+> A non-default body value can also override a merged route ID. When the URL must identify the resource being changed, bind that ID separately with `[FromRoute]` and use it in the authorization and update—not the merged property.
 
 ### Fallback Scenarios
 
@@ -85,7 +68,7 @@ public class SearchRequest
 }
 
 [HttpPost("search/{category}")]
-public async Task<IActionResult> Search([FromRequest] SearchRequest request)
+public IActionResult Search([FromRequest] SearchRequest request)
 {
     return Ok();
 }
@@ -105,9 +88,9 @@ Content-Type: application/json
 Result:
 
 - `Query` = "laptop" (from JSON body)
-- `Page` = 2 (from query, since JSON didn't provide it and default is 1)
-- `PageSize` = 20 (from query, since JSON didn't provide it and default is 10)
-- `Category` = "electronics" (from route)
+- `Page` = 1 (initializer survives; it is not CLR default `0`)
+- `PageSize` = 10 (initializer survives)
+- `Category` = `""` (initializer survives; it is not CLR default `null`)
 
 **Request with complete JSON:**
 
@@ -127,38 +110,60 @@ Result:
 - `Query` = "laptop" (from JSON body)
 - `Page` = 5 (from JSON body, overrides query parameter)
 - `PageSize` = 50 (from JSON body, overrides query parameter)
-- `Category` = "electronics" (from route)
+- `Category` = `""` (initializer survives)
+
+To make the category eligible for route fallback, declare it as `[FromRoute] public string? Category { get; set; }` and validate it after binding. To allow paging fallback, do not initialize the numeric properties to nonzero values; apply business defaults after merging. `[FromRequest]` does not track field presence, so it cannot distinguish an omitted integer from an explicitly supplied zero.
+
+<a id="how-it-works"></a>
+
+## Default values and fallback
+
+Fallback compares a property's value with its type's default; it does not track whether the JSON field was present.
+
+| Body-bound value                                   | Eligible for fallback? |
+| -------------------------------------------------- | ---------------------- |
+| `0` for an integer                                 | Yes                    |
+| `false` for a Boolean                              | Yes                    |
+| `null` for a reference                             | Yes                    |
+| An empty string                                    | No                     |
+| A nonzero property initializer, such as `Page = 1` | No                     |
+
+An explicit JSON zero or false can therefore be replaced by a route/query value. Apply application defaults after binding when you want missing values to remain eligible for fallback.
 
 ## Benefits
 
-1. **Flexible API Design**: Allows clients to provide data in the most convenient way
-2. **Backward Compatibility**: Existing APIs can be enhanced without breaking changes
-3. **RESTful Patterns**: Supports having resource identifiers in the URL while allowing detailed data in the body
-4. **Progressive Enhancement**: Start with simple query parameters and optionally move to JSON for complex scenarios
-5. **Unified Object for Validation**: Creates a single, complete object that can be validated using frameworks like FluentValidation
+- **Cross-parameter validation:** a rule can check related values together—for example, require an email address when the request asks to notify the user.
+- **One validation model:** the validator receives the combined input, regardless of which request source supplied each value.
+- **Less controller plumbing:** the action receives one model instead of assembling it from separate parameters.
+- **Focused validator specs:** test rules directly with request objects; use separate HTTP tests to verify binding.
+
+Adding merging can change an existing endpoint's contract. Keep the precedence deliberate and test the request combinations your clients use.
 
 ### Validation Scenarios
 
-One of the key advantages of `[FromRequest]` is that it creates a complete object that contains all the data from your request, regardless of where it came from. This is particularly valuable when using validation frameworks like FluentValidation, which work with objects rather than individual parameters.
+With one request model, a validator can check the name, email, and notification preference together.
 
 **Traditional approach (multiple parameters):**
 
 ```csharp
 [HttpPut("users/{userId}")]
-public async Task<IActionResult> UpdateUser(
+public IActionResult UpdateUser(
     [FromRoute] int userId,
     [FromQuery] bool notifyUser,
     [FromBody] UserUpdateData data)
 {
-    // Validation is fragmented across multiple objects
-    // FluentValidation can't easily validate cross-parameter rules
-    // Manual validation logic becomes complex
+    // Combine the inputs before applying cross-property rules.
+    return Ok();
 }
 ```
 
 **With [FromRequest]:**
 
 ```csharp
+using Cratis.Arc.ModelBinding;
+using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
+
 public class UserUpdateRequest
 {
     [FromRoute] public int UserId { get; set; }
@@ -174,7 +179,7 @@ public class UserUpdateRequestValidator : AbstractValidator<UserUpdateRequest>
         RuleFor(x => x.UserId).GreaterThan(0);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Email).EmailAddress();
-        
+
         // Cross-property validation is now possible
         RuleFor(x => x.NotifyUser)
             .Equal(false)
@@ -184,40 +189,32 @@ public class UserUpdateRequestValidator : AbstractValidator<UserUpdateRequest>
 }
 
 [HttpPut("users/{userId}")]
-public async Task<IActionResult> UpdateUser([FromRequest] UserUpdateRequest request)
+public IActionResult UpdateUser([FromRequest] UserUpdateRequest request)
 {
-    // Single object validation with complete context
-    // FluentValidation can validate the entire request as one unit
-    // Cross-parameter validation rules are straightforward
+    // Validate the merged request before applying the update.
+    return Ok();
 }
 ```
 
-This approach enables:
-
-- **Cross-parameter validation**: Rules that depend on multiple values from different request sources
-- **Unified validation logic**: All validation rules in one place for the complete request
-- **Cleaner controllers**: Single parameter instead of multiple individual parameters
-- **Better testability**: Test validators with complete request objects rather than parameter combinations
+Register and invoke the validator through your MVC validation setup. `[FromRequest]` performs binding; declaring an `AbstractValidator<T>` alone does not establish when it runs. Test the validator directly with merged request objects, and use an HTTP test to check binding.
 
 ## Integration with Other Features
 
 ### Swagger/OpenAPI
 
-The Arc includes a `FromRequestOperationFilter` that automatically updates your Swagger documentation to correctly represent `[FromRequest]` parameters as request body schemas rather than individual parameters.
+Arc's `FromRequestOperationFilter` describes `[FromRequest]` parameters as body schemas. Check the generated operation's route and query parameters too; see [Swagger integration](./swagger.md) for its configuration and limits.
 
 ### Proxy Generation
 
-The TypeScript proxy generator understands `[FromRequest]` parameters and generates appropriate client code that handles the combination of route, query, and body parameters correctly.
+Model binding and client generation have separate requirements. Check the [proxy generator's supported endpoint shapes](../proxy-generation/index.md) when choosing the client for a mixed-source MVC action.
 
 ## Best Practices
 
-1. **Use for Hybrid Scenarios**: Best suited when you need both URL-based parameters (IDs, filters) and complex body data
-2. **Default Values**: Ensure your model properties have appropriate default values to enable the fallback behavior
-3. **Documentation**: Clearly document which properties can come from which sources for API consumers
-4. **Validation**: Apply validation attributes as needed - they work seamlessly with `[FromRequest]`
+- Use `[FromRequest]` when combining request sources reduces manual binding work.
+- Keep fallback-eligible properties unset until merging finishes.
+- Document the permitted sources and precedence for your clients.
+- Validate the merged input and authorize the resource before writing.
 
 ## Limitations
 
-- Properties must have appropriate default values for the merging logic to work correctly
-- The merging is based on default value comparison, so be mindful of what constitutes a "default" for your types
-- Complex nested scenarios may require careful consideration of the binding order
+Merging compares values, not JSON field presence. For partial updates that must distinguish “omitted” from an explicit zero, false, or null, use a request contract that represents that distinction. Test nested models and conflicting input sources through HTTP; a direct validator test does not exercise binding.

@@ -1,26 +1,26 @@
-# Field Types
+---
+title: Field types
+description: Choose a built-in CommandForm control and distinguish binding props from command validation rules.
+---
 
-CommandForm provides a comprehensive set of built-in field components for common form inputs. All field components automatically integrate with the command's state management and validation system.
+Built-in fields synchronize values with the surrounding form and display its validation messages. Import them from `@cratis/arc.react/commands` and render them inside `CommandForm`.
 
-## Type Safety
+## Type safety
 
-Most field components use an explicit type parameter to ensure type-safe accessor functions:
+Use an explicit command type for fields created by `asCommandFormField`. This **field fragment** assumes imports for `InputTextField` and your generated `UpdateProfile` class with a string `name` property:
 
 ```tsx
-// ✅ Correct: Full type safety with IntelliSense
-<InputTextField<UserCommand> value={c => c.name} title="Name" />
-
-// ❌ Incorrect: Missing type parameter - 'c' will be 'unknown'
-<InputTextField value={c => c.name} title="Name" />
+<InputTextField<UpdateProfile> value={c => c.name} title="Name" />
 ```
 
-The type parameter ensures the `value` accessor function parameter `c` is properly typed as your command class.
+Omitting both the generic and an accessor parameter annotation leaves `c` as `unknown`. The generic checks property names; most field accessors return `unknown`, so it does not guarantee the selected property's value type matches the control. Use simple property accessors, not computed or nested expressions.
 
-`RadioButtonField` and `RadioGroupField` also infer the selected value type from the accessor return type. When you do not provide a JSX type argument, annotate the accessor parameter inline:
+Radio fields infer the selected value type from the accessor itself. This **field fragment** expects a generated `UserSettingsCommand` whose `role` accepts `'reader'` or `'admin'`:
 
 ```tsx
 <RadioGroupField
-    value={(c: UserCommand) => c.role}
+    value={(c: UserSettingsCommand) => c.role}
+    title="Role"
     options={[
         { value: 'reader', label: 'Reader' },
         { value: 'admin', label: 'Administrator' }
@@ -28,50 +28,49 @@ The type parameter ensures the `value` accessor function parameter `c` is proper
 />
 ```
 
-## Common Props
+## Common props
 
-All field components share these base props:
+| Prop | Type | Contract |
+| --- | --- | --- |
+| `value` | Property accessor | Required; selects the command property. |
+| `title` | `string` | Field title shown by the default title renderer. |
+| `required` | `boolean` | Overrides the control's inferred required flag, not the command's validation rules. |
+| `icon` | `React.ReactElement` | Optional icon decoration. |
+| `description` | `string` | Optional description/tooltip decoration. |
+| `className`, `style` | `string`, `React.CSSProperties` | Control or wrapper styling, depending on field type. |
+| `currentValue` | `unknown` (typed for radios) | Explicit field seed; undefined supplies nothing. Binding supplies the live value internally. |
+| `initialValue`, `noInitialValue`, `populationKey` | Population metadata | See [Data loading](../data-loading.md#per-field-control). |
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `value` | `(instance: TCommand) => unknown` | **Required.** Accessor function that returns the property value from the command instance. |
-| `title` | `string` | The label for the field (shown when `showTitles` is enabled). |
-| `required` | `boolean` | Marks the field as required for validation. **Automatically determined** from the command property's `PropertyDescriptor.isOptional` (required if not optional). Only specify explicitly to override the automatic behavior. |
+Fields default to required when their generated `PropertyDescriptor.isOptional` is false (and also when no descriptor is resolved). This sets an input attribute. CommandForm has `noValidate`, so it does **not** enforce browser required/type/range constraints on submit. Payload presence validation checks null/undefined, not empty strings or false booleans. Use explicit [command validation rules](../validation.md#required-fields).
 
-> **Note**: Fields are automatically marked as required based on the command property's nullability. In C#, non-nullable properties generate `PropertyDescriptor` with `isOptional: false`, making those fields required by default. You only need to specify `required` explicitly when you want to override this behavior.
+`onValueChange`, `onBlur`, descriptor, and field-name props participate in internal binding. Custom adapters must forward the injected blur handler. Do not attach a public `onBlur` and assume it overrides or composes with the form's injected validation callback; use the form's interaction callbacks or an adapter that preserves forwarding.
 
-## Field State
+## Field state
 
-All field components automatically handle:
+- Edits update the command through the form setter and advance its revision.
+- Silent validation updates form validity; `validateOn` controls when displayed errors are refreshed.
+- Most controls add an invalid border; `RangeField` currently does not vary its border with invalid state, though the form still displays its message.
+- Display defaults do not seed payload values. Define intentional initial values on the form.
 
-- **Value Management**: Values are synchronized with the command instance
-- **Validation**: Required fields and type validation are enforced
-- **Error Display**: Invalid fields show error styling (red border)
-- **Change Tracking**: Changes are detected and the command's `hasChanges` property is updated
+## Available fields
 
-## Available Fields
-
-- [InputTextField](./input-text-field.md) - Text, email, password, date, color, and other text-based inputs
-- [NumberField](./number-field.md) - Numeric inputs with min, max, and step handling
-- [TextAreaField](./text-area-field.md) - Multi-line text input
-- [CheckboxField](./checkbox-field.md) - Boolean toggle input
-- [RadioButtonField](./radio-button-field.md) - Single radio option that assigns a specific value
-- [RadioGroupField](./radio-group-field.md) - Radio option list for one-of-many selections
-- [RangeField](./range-field.md) - Slider input for numeric ranges
-- [SelectField](./select-field.md) - Dropdown selection input
+| Field | Value and control |
+| --- | --- |
+| [InputTextField](./input-text-field.md) | Strings; text, email, password, date/time text, color, URL, telephone, and search. |
+| [NumberField](./number-field.md) | Numbers; empty/invalid native text input converts to zero. |
+| [TextAreaField](./text-area-field.md) | Multi-line strings. |
+| [CheckboxField](./checkbox-field.md) | Boolean checked state. |
+| [RadioButtonField](./radio-button-field.md) | One typed option for a property. |
+| [RadioGroupField](./radio-group-field.md) | A list of typed options for a property. |
+| [RangeField](./range-field.md) | Numeric slider with value display. |
+| [SelectField](./select-field.md) | String values from a native select; option IDs are stringified. |
 
 ## Styling
 
-Field components use a consistent styling approach:
+Most fields use full-width inline layout, `0.75rem` padding, and `0.375rem` rounded borders. Theme colors use CSS variables with some fallbacks; application CSS must define any variables or utility classes you rely on. There is no automatic UI-library installation or comprehensive accessible label/error association. For explicit control IDs, ARIA props, or unsupported native attributes, use [custom fields](../custom-fields.md).
 
-- Full width by default (`width: 100%`)
-- Standard padding (`padding: 0.75rem`)
-- Rounded corners (`border-radius: 0.375rem`)
-- Border color adapts to validation state (gray for valid, red for invalid)
-- Responsive to theme (light/dark mode support)
+## See also
 
-## See Also
-
-- [CommandForm Overview](../index.md)
+- [CommandForm overview](../index.md)
 - [Validation](../validation.md)
-- [Creating Custom Fields](../custom-fields.md)
+- [Creating custom fields](../custom-fields.md)

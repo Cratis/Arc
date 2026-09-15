@@ -1,156 +1,95 @@
-# Command Filters
+---
+title: Command filters
+description: Intercept model-bound commands, with authorization evaluated before ordinary filters.
+---
 
-Command filters provide a way to intercept and filter commands before they are handled in the **non-controller-based pipeline**. This allows you to implement cross-cutting concerns such as validation, authorization, logging, or custom business rules that should be applied to commands before they reach their handlers.
+Use a command filter when a rule applies before multiple commands run. Filters belong to the **model-bound `ICommandPipeline`**, not the MVC action pipeline. For controller-based commands, use ASP.NET Core filters and authorization.
 
-> **Note**: Command filters are specifically for the model-bound command pipeline. For controller-based commands, use standard ASP.NET Core filters instead.
+## How it works
 
-## How It Works
+Arc discovers `ICommandFilter` implementations and resolves them from the command's service scope. `OnExecution(CommandContext)` runs before `Provide()` and `Handle()`.
 
-Command filters are executed as part of the command pipeline, before the actual command handler is invoked. If a filter determines that a command should not proceed (e.g., validation fails), it can return an unsuccessful `CommandResult` to stop the pipeline execution.
+1. Filters implementing **`IAuthorizationCommandFilter`** run first.
+2. Ordinary `ICommandFilter` implementations run afterward.
+3. Within each group, filters retain discovery order; do not use that as a configurable priority mechanism.
+4. Each result is merged. The chain stops at the first unsuccessful result; a throwing filter contributes a failure rather than discarding earlier verdicts.
 
-## Implementing a Custom Command Filter
+The pipeline applies [severity filtering](./validation-severity-filtering.md) after this chain. That page describes the current limitation when a warning stops the chain but is later removed.
 
-To create a custom command filter, implement the `ICommandFilter` interface:
+## Implementing a custom command filter
+
+This complete filter logs the command type without logging its possibly sensitive payload. It requires normal Arc discovery and a resolvable `ILogger<CommandLoggingFilter>` with a configured provider if you want to observe messages.
 
 ```csharp
+using System;
+using System.Threading.Tasks;
 using Cratis.Arc.Commands;
+using Microsoft.Extensions.Logging;
 
-public class MyCustomFilter : ICommandFilter
+public class CommandLoggingFilter(ILogger<CommandLoggingFilter> logger) : ICommandFilter
 {
-    public async Task<CommandResult> OnExecution(CommandContext context)
+    static readonly Action<ILogger, string, Exception?> _checking = LoggerMessage.Define<string>(
+        LogLevel.Information, new EventId(1, "CheckingCommand"), "Checking command {CommandType}");
+
+    public Task<CommandResult> OnExecution(CommandContext context)
     {
-        // Your filtering logic here
-        
-        // Return success to allow the command to continue
-        return CommandResult.Success(context.CorrelationId);
-        
-        // Or return an error result to stop execution
-        // return new CommandResult
-        // {
-        //     CorrelationId = context.CorrelationId,
-        //     IsAuthorized = false,
-        //     ValidationResults = [/* your validation errors */]
-        // };
+        _checking(logger, context.Type.FullName ?? context.Type.Name, null);
+        return Task.FromResult(CommandResult.Success(context.CorrelationId));
     }
 }
 ```
 
-The `CommandContext` provides access to:
+This logs a pre-execution check, not successful completion. It also runs during pre-flight validation. For final outcomes use [execution scopes](./command-execution-scopes.md).
 
-- `CorrelationId` - The unique identifier for the command execution
-- `Type` - The type of the command being executed
-- `Command` - The actual command instance
-- `Dependencies` - Any dependencies resolved for the command handler
-- `Values` - Additional context values that may have been set
+## Cross-cutting authorization by namespace
 
-## Registering Custom Filters
+For access control, implement **`IAuthorizationCommandFilter`**, not just `ICommandFilter`. Return `CommandResult.Unauthorized`, not a severity-overridable validation error.
 
-Command filters are automatically discovered and registered through the dependency injection container. Simply ensure your filter class implements `ICommandFilter` and it will be included in the command pipeline.
-
-## Cross-Cutting Authorization by Namespace
-
-You can implement a command filter that applies authorization rules to all commands in a namespace instead of adding `[Authorize]` or `[Roles]` attributes to each command type.
+This complete filter requires an authenticated principal with the `Payments` role for commands in exactly `MyApp.Payments` or one of its child namespaces. It uses Arc's transport-independent principal accessor, which also supports trusted server-side execution scopes.
 
 ```csharp
+using System;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
-using Cratis.Arc.Http;
 
-namespace MyApp.Features.Security;
-
-public class NamespaceAuthorizationCommandFilter(IHttpRequestContextAccessor requestContextAccessor) : ICommandFilter
+public class PaymentsAuthorizationFilter(ICurrentPrincipalAccessor principals) : IAuthorizationCommandFilter
 {
-    const string ProtectedNamespace = "MyApp.Features.Payments";
-    const string RequiredRole = "Payments";
+    const string ProtectedNamespace = "MyApp.Payments";
 
     public Task<CommandResult> OnExecution(CommandContext context)
     {
-        var isProtectedCommand = context.Type.Namespace?.StartsWith(ProtectedNamespace, StringComparison.Ordinal) ?? false;
-        if (!isProtectedCommand)
+        var commandNamespace = context.Type.Namespace;
+        var protectedCommand = commandNamespace == ProtectedNamespace ||
+            (commandNamespace?.StartsWith(ProtectedNamespace + ".", StringComparison.Ordinal) ?? false);
+        if (!protectedCommand)
         {
             return Task.FromResult(CommandResult.Success(context.CorrelationId));
         }
 
-        var hasRole = requestContextAccessor.Current?.User.IsInRole(RequiredRole) ?? false;
-        return Task.FromResult(
-            hasRole
-                ? CommandResult.Success(context.CorrelationId)
-                : CommandResult.Unauthorized(context.CorrelationId, $"Role '{RequiredRole}' is required."));
+        var principal = principals.Current;
+        var authorized = principal?.Identity?.IsAuthenticated == true && principal.IsInRole("Payments");
+        return Task.FromResult(authorized
+            ? CommandResult.Success(context.CorrelationId)
+            : CommandResult.Unauthorized(context.CorrelationId, "Payments access is required."));
     }
 }
 ```
 
-This pattern is useful when you want one place to enforce authorization for a full slice or feature area.
+Keep this class in a discovered assembly and configure authentication to establish the trusted principal. The namespace boundary check deliberately excludes names such as `MyApp.PaymentsPublic`. Renaming a protected command outside the namespace changes its protection, so test your command inventory as well as allowed and denied principals. This role gate does not implement record ownership; add an actual ownership decision if your operation needs one.
 
-## Built-in Filters
+## Built-in filters
 
-The following filters are provided out of the box in the `Cratis.Arc.Commands.Filters` namespace:
+| Filter in `Cratis.Arc.Commands.Filters` | Behavior |
+| --- | --- |
+| `AuthorizationFilter` | Implements `IAuthorizationCommandFilter`; evaluates Arc authentication/role requirements and returns an unauthorized verdict when denied. |
+| `DataAnnotationValidationFilter` | Validates command properties. Positional records require targets such as `[property: Required]`. |
+| `FluentValidationFilter` | Validates the command graph with discovered validators. |
 
-| Filter | Description |
-|--------|-------------|
-| `DataAnnotationValidationFilter` | Validates commands using data annotations (e.g., `[Required]`, `[Range]`, etc.) applied to command properties |
-| `FluentValidationFilter` | Validates commands using FluentValidation validators, supporting nested object validation |
-| `AuthorizationFilter` | Provides a foundation for command authorization (currently returns success by default) |
+Use [command validation](./validation.md) for complete annotation and validator examples. For the exact supported attribute namespaces and the current policy/scheme limitation, read [model-bound authorization](./model-bound/authorization.md).
 
-### DataAnnotationValidationFilter
+## Context availability
 
-This filter automatically validates commands that have properties decorated with data annotation attributes:
+At filter time `CommandContext.Command`, `Type`, `CorrelationId`, `Values`, `ServiceProvider`, and `CancellationToken` describe the current invocation. `Dependencies` is still empty and `Response` has not been selected. Resolve any required collaborator through constructor injection rather than expecting handler arguments to be available already.
 
-```csharp
-[Command]
-public record CreateUser(
-    [Required] string Name,
-    [EmailAddress] string Email,
-    [Range(18, 120)] int Age);
-```
-
-If validation fails, the filter returns a `CommandResult` with validation errors, preventing the command from being handled.
-
-### FluentValidationFilter
-
-This filter works with FluentValidation validators that are discovered automatically. It supports recursive validation of nested objects within the command:
-
-```csharp
-public class CreateUserValidator : CommandValidator<CreateUser>
-{
-    public CreateUserValidator()
-    {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.Age).InclusiveBetween(18, 120);
-    }
-}
-```
-
-### AuthorizationFilter
-
-This filter provides the foundation for implementing command-level authorization.
-
-With this you can leverage the `Authorize` attribute from ASP.NET Core.
-
-```csharp
-[Command]
-[Authorize(Roles = "Administrator")]
-public record CreateUser(
-    string Name,
-    string Email,
-    int Age);
-```
-
-Or the convenience wrapper provided by Cratis Arc for  roles, allowing a more intuitive way of specifying multiple roles:
-
-```csharp
-[Command]
-[Roles("System", "Admin")]
-public record CreateUser(
-    string Name,
-    string Email,
-    int Age);
-```
-
-## Best Practices
-
-- Keep filters focused on a single concern (validation, authorization, etc.)
-- Return meaningful error messages in `ValidationResult` objects
-- Use the `CorrelationId` from the context for tracking and logging
-- Consider performance implications, especially for filters that run on every command
-- Test filters independently to ensure they work correctly in isolation
+Keep filters focused, avoid exposing sensitive details in rejection messages, and test them through both execution and pre-flight validation. See [command context](./command-context.md) for later phases.

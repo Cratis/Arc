@@ -7,35 +7,44 @@ description: Wire a React form or button to a command through the generated prox
 
 ## Call the proxy, don't write a client
 
-When the backend builds, Arc generates a typed proxy for every command. You don't write a `fetch`, redeclare the command's shape, or wire validation — the proxy already knows the types, and `CommandDialog` drives the whole interaction.
+After a configured Debug [proxy-generation build](/arc/backend/proxy-generation/getting-started/), Arc supplies typed command proxies. This recipe assumes the [standalone backend](/arc/backend/getting-started/) and [full-stack tutorial setup](/arc/tutorial/first-slice/), which supplies the Vite bootstrap, Components prerequisites, providers, and dialog composition. For an **Arc-only alternative in an existing Vite app**, [frontend getting started](/arc/frontend/getting-started/) uses ordinary HTML without Components. You don't write a `fetch`, redeclare the command's shape, or wire validation — the proxy already knows the types, and `CommandDialog` drives the whole interaction.
 
 ## Do it
 
 1. **Use `CommandDialog` for a form.** Pass the command constructor; the dialog instantiates it, renders the confirm/cancel buttons, and disables confirm while it executes. Use command form fields for the inputs:
 
    ```tsx title="AddAuthor.tsx"
+   import { useState } from 'react';
+   import { Guid } from '@cratis/fundamentals';
    import { CommandDialog } from '@cratis/components/CommandDialog';
    import { InputTextField } from '@cratis/components/CommandForm';
    import { RegisterAuthor } from './Authors/RegisterAuthor';   // generated proxy
 
-   export const AddAuthor = () => (
-       <CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" okLabel="Add">
-           <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
-       </CommandDialog>
-   );
+   export const AddAuthor = () => {
+       const [id] = useState(() => Guid.create());
+       return (
+           <CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" okLabel="Add" initialValues={{ id }}>
+               <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
+           </CommandDialog>
+       );
+   };
    ```
+
+   Mount a new dialog instance per operation and unmount on close. `id` is stable during editing and fresh for the next registration; a required Guid is not automatically filled by the proxy.
 
    The field accessor `i => i.name` is a property on the generated type — rename it in C#, rebuild, and the frontend stops compiling until you fix it.
 
 2. **Inject context the form needs to be valid via `initialValues`.** A parent id the user shouldn't type goes here — not in `onBeforeExecute`, which fires too late to affect validity:
 
+   This **form fragment** assumes the [book dialog's imports and per-operation `bookId` state](/arc/tutorial/books-and-relationships/). Keep `authorId` as the generated `Guid`, not a string.
+
    ```tsx
-   <CommandDialog<AddBook> command={AddBook} initialValues={{ authorId, bookId: Guid.create() }}>
+   <CommandDialog<AddBook> command={AddBook} title="Add book" initialValues={{ authorId, bookId }}>
        <InputTextField<AddBook> value={i => i.title} title="Title" />
    </CommandDialog>
    ```
 
-3. **Validation surfaces itself.** Rules you wrote on the command (and its value types) run client-side and on the server, and `CommandDialog` renders the messages against the fields. You write none of that wiring.
+3. **Validation surfaces itself.** Supported rules extracted from the command and its value types run client-side; the server remains authoritative, including async/custom/state-dependent rules that cannot be extracted, and `CommandDialog` renders the messages against the fields. You write none of that wiring.
 
 For executing a command without a dialog (a plain button, custom flow), the proxy exposes an execute call that returns a `CommandResult` — check `isSuccess` and read any returned value off it.
 

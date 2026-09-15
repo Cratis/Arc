@@ -33,9 +33,9 @@ Globals.queryDirectMode = true;
 ```
 
 | Value | Description |
-|-------|-------------|
+| ------- | ------------- |
 | `false` (default) | Route through `/.cratis/queries/sse` or `/.cratis/queries/ws`. |
-| `true` | Connect directly to each observable query WebSocket URL. |
+| `true` | Connect directly to each query URL using the separately selected SSE or WebSocket transport. |
 
 In React, this is usually configured through `<Arc queryDirectMode={...} />`. See [React query integration](../../react/queries/index.md).
 
@@ -49,11 +49,17 @@ import { Globals } from '@cratis/arc';
 // Keep cached data for 60 seconds after the last subscriber unmounts.
 Globals.queryCacheRetentionMs = 60_000;
 
-// Restore immediate eviction.
+// Schedule zero-delay cleanup after the last subscriber releases the entry.
 Globals.queryCacheRetentionMs = 0;
 ```
 
 In React applications, set this through `<Arc queryCacheRetentionMs={...} />` instead of modifying `Globals` directly. See [React query configuration](../../react/queries/configuration.md).
+
+## HTTP query method
+
+Ordinary query method selection (`Get`, `Query`, `Auto`) is separate from observable transport selection. See [using the HTTP QUERY method](../../../backend/queries/using-the-http-query-method.md) for global, per-query, and resolver configuration.
+
+Native streaming handshakes cannot attach arbitrary callback headers; see [transport credentials](../../react/arc.md#http-headers-callback). React bindings also mutate global settings, so nested providers are not independent authenticated hubs.
 
 ## See Also
 

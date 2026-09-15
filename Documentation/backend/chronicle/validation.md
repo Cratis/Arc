@@ -15,9 +15,9 @@ public class SettleLedgerValidator : CommandValidator<SettleLedger>
 }
 ```
 
-Arc resolves `LedgerBalance` for the same event source id the command appends events to, then constructs the validator with it. The flow is:
+This validator fragment assumes the application's `SettleLedger` command and `LedgerBalance` backing. Arc resolves the model using the command's input-time event source id, then constructs the validator. A later returned identity cannot reload that dependency. The flow is:
 
-1. The command is bound, and its event source id is resolved — from `[Key]`, from a property that converts to `EventSourceId`, or from `ICanProvideEventSourceId`. See [Resolving EventSourceId](resolving-event-source-id.md), which contributes the value to the [Command Context Values](../commands/command-context.md#command-context-values).
+1. The command is bound, and its event source id is resolved — from `[Key]`, from an `EventSourceId` or `EventSourceId<T>`-derived property, or from `ICanProvideEventSourceId`. See [Resolving EventSourceId](resolving-event-source-id.md), which contributes the value to the [Command Context Values](../commands/command-context.md#command-context-values).
 2. The read model instance is loaded from Chronicle's read model store by that id.
 3. Validators are constructed with it and their rules run — before `Handle()` is invoked.
 
@@ -26,7 +26,7 @@ Because the same command scope serves `Provide()` and `Handle()`, all three see 
 ## What to be aware of
 
 - **A key does not prove existence.** Declare the parameter nullable when a missing projection is a business condition, non-nullable when it is required. This is the central decision — see [nullable versus required](read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
-- **Read models are eventually consistent.** They are the right input for gating on projected state, and the wrong one for an invariant that must hold under concurrent commands. Use a Chronicle [constraint](/chronicle/constraints/) for those.
+- **Freshness depends on backing.** Materialized models can lag; passive models build state on demand. Neither snapshot alone guarantees an invariant under concurrent commands. Use a Chronicle [constraint](/chronicle/constraints/) for those.
 - **Validators need the Arc command pipeline.** Read-model injection does not work through MVC controllers — see [`ReadModelValidatorRequiresCommandPipeline`](read-models/failures.md#readmodelvalidatorrequirescommandpipeline).
 
 ## See also

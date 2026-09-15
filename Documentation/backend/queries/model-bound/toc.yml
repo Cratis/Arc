@@ -1,16 +1,18 @@
+# Copyright (c) Cratis. All rights reserved.
+# Licensed under the MIT license. See LICENSE file in the project root for full license information.
 - name: Overview
   href: index.md
-- name: Static Methods
+- name: Static methods
   href: static-methods.md
-- name: Observable Queries
-  href: observable-queries.md
-- name: Dependency Injection
+- name: Dependency injection
   href: dependency-injection.md
-- name: Query Arguments
+- name: Query arguments
   href: query-arguments.md
-- name: Paging
-  href: paging.md
-- name: Return Types
-  href: return-types.md
 - name: Authorization
   href: authorization.md
+- name: Return types
+  href: return-types.md
+- name: Paging
+  href: paging.md
+- name: Observable queries
+  href: observable-queries.md

@@ -21,5 +21,6 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <Compile Include="../Shared/CommandOperationConvention.cs" Link="CommandOperationConvention.cs" />
     </ItemGroup>
 </Project>

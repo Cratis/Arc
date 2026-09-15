@@ -1,122 +1,76 @@
-# Getting Started
+---
+title: Get started with MongoDB
+description: Add optional MongoDB persistence to standalone Arc with explicit connection settings.
+---
 
-MongoDB integration in Cratis Applications is designed to be simple to set up while providing powerful defaults that work out of the box.
+When an Arc command or query needs document storage, add `Cratis.Arc.MongoDB`. The integration supplies collection injection, BSON serializers, naming conventions, and observation. **Chronicle and event sourcing are not prerequisites.**
 
-## Basic Setup
+## Install the optional provider
 
-The simplest way to add MongoDB support to your application is through the configuration extension methods provided for `WebApplicationBuilder` or `HostBuilder`.
+Start from a working [ASP.NET Core Arc host](../asp-net-core/index.md) or [lightweight Arc host](../core/getting-started.md), then install:
 
-### With WebApplicationBuilder
+```bash
+dotnet add package Cratis.Arc.MongoDB
+```
+
+The MongoDB package currently references the ASP.NET shared framework as well as Arc Core, even though its persistence features do not require Chronicle.
+
+## Configure connection settings
+
+In your host's `appsettings.json`, add:
+
+```json
+{
+  "Cratis": {
+    "MongoDB": {
+      "Server": "mongodb://localhost:27017",
+      "Database": "library"
+    }
+  }
+}
+```
+
+`Server` and `Database` are required. Keep production credentials in your host's secret configuration, not source control. `DirectConnection` is optional: when unset, the connection string's setting is preserved. Direct connection does not turn a standalone MongoDB server into a replica set.
+
+## Enable the integration
+
+This is a complete ASP.NET Core `Program.cs` for a project using `Microsoft.NET.Sdk.Web` with `Cratis.Arc` and `Cratis.Arc.MongoDB` installed. Use the settings above and a reachable MongoDB deployment.
 
 ```csharp
-var builder = WebApplication.CreateBuilder(args);
-builder.AddCratisArc();
+using Cratis.Arc;
+using Microsoft.AspNetCore.Builder;
 
-builder.UseCratisMongoDB();
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB());
 
 var app = builder.Build();
 app.UseCratisArc();
+app.Run();
 ```
 
-### With HostBuilder
+`WithMongoDB()` works through `IArcBuilder`, including the lightweight host's `AddCratisArc` configuration callback. Retain that host's normal build, `UseCratisArc()`, and run sequence. For existing ASP.NET/generic-host code, `UseCratisMongoDB()` remains an alternative registration entry point; do not register both paths.
+
+A registration checkpoint is that a request/service scope can resolve `IMongoCollection<T>`. A successful database read additionally requires connectivity, permissions, and any application data you expect; starting the host does not populate collections.
+
+## What gets configured
+
+- Scoped `IMongoClient`, `IMongoDatabase`, and `IMongoCollection<T>` access.
+- Default server/database resolvers and unchanged type/member naming.
+- Guid serialization using `GuidRepresentation.Standard`.
+- Concept, date/time, geometry, and other [BSON serializers](./serializers.md).
+- Discovered [class maps](./class-mapping.md), [convention packs](./convention-packs.md), and filters.
+
+`DateTimeOffset` uses BSON UTC milliseconds by default: the original offset and submillisecond precision are not preserved. Naming and serializers are process-wide initialization, not per-request customization.
+
+## Customize defaults
+
+Alternative startup fragment; custom resolver types must implement the corresponding interfaces:
 
 ```csharp
-var host = Host.CreateDefaultBuilder(args)
-    .AddCratisArc()
-    .UseCratisMongoDB()
-    .Build();
+builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
+    configureMongoDB: mongo => mongo.WithCamelCaseNamingPolicy()));
 ```
 
-## What Gets Configured
+Import `Cratis.Arc.MongoDB` for MongoDB builder customization methods. Use `WithServerResolver<T>()` and `WithDatabaseResolver<T>()` only when the default configured server and [tenant database naming](./tenancy.md) do not meet your requirements.
 
-When you call `UseCratisMongoDB()`, the following components are automatically configured:
-
-### Default Serializers
-
-- **DateTimeOffset**: Proper handling of timezone information
-- **DateOnly**: .NET 6+ date-only types
-- **TimeOnly**: .NET 6+ time-only types  
-- **System.Type**: Serialization of .NET type information
-- **Guid**: Configured to use the standard .NET representation instead of MongoDB's legacy format
-- **Cratis Concepts**: Automatic serialization for all types implementing `ConceptAs<T>`
-
-### Convention Packs
-
-- **Naming Policy Convention**: Applies your configured naming policy to all properties
-- **Ignore Extra Elements**: Ignores unknown properties during deserialization
-
-### Automatic Discovery
-
-- **Class Maps**: All implementations of `IBsonClassMapFor<T>` are automatically discovered and registered
-- **Convention Pack Providers**: All implementations of `ICanProvideMongoDBConventionPacks` are discovered
-- **Convention Pack Filters**: All implementations of `ICanFilterMongoDBConventionPacksForType` are discovered
-
-## Configuration Options
-
-You can customize the MongoDB setup by providing configuration options:
-
-```csharp
-builder.UseCratisMongoDB(configureMongoDB: mongoBuilder =>
-{
-    mongoBuilder
-        .WithCamelCaseNamingPolicy()
-        .WithServerResolver<MyCustomServerResolver>()
-        .WithDatabaseResolver<MyCustomDatabaseNameResolver>();
-});
-```
-
-## Connection Configuration
-
-The framework uses resolver patterns for determining connection details:
-
-### Server Connection
-
-Implement `IMongoServerResolver` to provide connection string logic:
-
-```csharp
-public class MyServerResolver : IMongoServerResolver
-{
-    public MongoUrl Resolve()
-    {
-        return new MongoUrl("mongodb://localhost:27017");
-    }
-}
-```
-
-### Database Name
-
-Implement `IMongoDatabaseNameResolver` to provide database naming logic:
-
-```csharp
-public class MyDatabaseNameResolver : IMongoDatabaseNameResolver
-{
-    public string Resolve()
-    {
-        return "MyApplicationDatabase";
-    }
-}
-```
-
-## Sane Defaults
-
-### Guid Representation
-
-One of the most common pain points when working with MongoDB and .NET is Guid serialization. By default, MongoDB stores Guids using a legacy binary format that can cause issues. Cratis Applications configures Guids to use the standard .NET representation, making them more predictable and interoperable.
-
-### Error Handling
-
-The framework includes sensible error handling for common configuration issues:
-
-- Missing server resolver configuration
-- Missing database name resolver configuration  
-- Missing naming policy configuration
-
-These will throw descriptive exceptions with guidance on how to fix the configuration.
-
-## Next Steps
-
-- Learn about [Serializers](serializers.md) for custom type handling
-- Explore [Concepts](concepts.md) for domain-driven design patterns
-- Configure [Naming Policies](naming-policies.md) for consistent property naming
-- Set up [Class Mapping](class-mapping.md) for complex type mappings
-- Implement [Convention Packs](convention-packs.md) for advanced customization
+Next, verify [concept serialization](./concepts.md) and [class mapping](./class-mapping.md). Add [collection observation](./observing-collections.md) only after ordinary reads work; change streams require a replica set or sharded cluster and appropriate permissions.

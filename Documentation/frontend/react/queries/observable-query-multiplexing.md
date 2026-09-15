@@ -1,160 +1,79 @@
-# Observable Query Multiplexing
+---
+title: Observable query multiplexing
+description: Compare direct and shared-hub SSE/WebSocket connections and understand the streaming handshake and control requests.
+---
 
-Observable queries in Arc connect through a centralized hub rather than opening one WebSocket per query. This page explains how the multiplexing works from the frontend perspective and how to configure it.
+A screen with many live queries does not need one persistent connection per query. Hub mode shares transport connections and routes each result to its subscription. Direct mode remains useful for per-query debugging or hosts without hub endpoints.
 
-For the server-side protocol reference — endpoints, message types, keep-alive configuration — see [Observable Query Hub](../../../backend/queries/observable-query-demultiplexer.md).
+## How it works
 
-## How It Works
+The two configuration choices are independent:
 
-When `queryDirectMode` is `false` (the default), every observable query subscription is routed through one of two fixed hub endpoints instead of connecting to a per-query URL:
+| `queryTransportMethod` | `queryDirectMode` | Connection and subscription path |
+| --- | --- | --- |
+| `ServerSentEvents` | `false` | Shared EventSource hub at `/.cratis/queries/sse`; subscribe/unsubscribe through POSTs |
+| `WebSocket` | `false` | Shared WebSocket hub at `/.cratis/queries/ws`; subscribe/unsubscribe through socket messages |
+| `ServerSentEvents` | `true` | EventSource to each query's own URL |
+| `WebSocket` | `true` | WebSocket to each query's own URL |
 
-| Transport | Hub Endpoint | Notes |
-|-----------|-------------|-------|
-| Server-Sent Events | `/.cratis/queries/sse` | One `EventSource` per query, multiplexed by query name via query-string |
-| WebSocket | `/.cratis/queries/ws` | Single connection carrying N subscriptions via a typed protocol |
-
-The frontend `ObservableQueryFor.subscribe()` constructs the correct URL from the query's fully qualified name and its arguments, then establishes a connection to the hub. The server resolves the query by name, runs it through the query pipeline (including authorization), and streams results back.
+Paths above are relative to the configured origin/API base path. `<Arc>` defaults to SSE hub mode with one connection slot. The core `Globals` transport default, before React bindings initialize it, is WebSocket.
 
 ### SSE hub connection
 
-When transport is SSE, `subscribe()` calls the hub as:
+The streaming GET does **not** subscribe with `?query=Name`. After the connection handshake supplies a connection ID, the client submits control requests:
 
-```http
-GET /.cratis/queries/sse?query=<fullyQualifiedQueryName>&<queryArgs>
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Hub
+    Browser->>Hub: GET /.cratis/queries/sse
+    Hub-->>Browser: connected message with connection ID
+    Browser->>Hub: POST /.cratis/queries/sse/subscribe
+    Note over Browser,Hub: Connection ID, subscription ID, query name and arguments
+    Hub-->>Browser: SSE result messages tagged with subscription ID
+    Browser->>Hub: POST /.cratis/queries/sse/unsubscribe
 ```
 
-The `EventSource` re-establishes the connection automatically if the server becomes temporarily unavailable.
+Multiple subscriptions share that EventSource. Reconnection and resubscription are managed by the client. For payloads and server authorization, use the [hub protocol reference](../../../backend/queries/observable-query-demultiplexer.md).
 
 ### WebSocket hub connection
 
-When transport is WebSocket, `subscribe()` sends a typed `subscribe` message over a shared WebSocket connection. Refer to the [protocol reference](../../../backend/queries/observable-query-demultiplexer.md#protocol) for the full message format.
+The client sends typed subscription messages over the shared WebSocket and routes incoming results by subscription ID. It does not issue SSE control POSTs. Both transport handshakes are subject to browser credential restrictions; see [HTTP headers](../arc.md#http-headers-callback).
 
-## Configuring Transport and Mode
+## Configuring transport and mode
 
-All multiplexing configuration flows through the `<Arc>` component.
-
-### Selecting the transport method
+This configuration fragment selects direct SSE; direct mode does not implicitly mean WebSocket:
 
 ```tsx
 import { Arc } from '@cratis/arc.react';
 import { QueryTransportMethod } from '@cratis/arc/queries';
 
 export const App = () => (
-    <Arc
-        microservice="my-app"
-        queryTransportMethod={QueryTransportMethod.ServerSentEvents}
-    >
-        <MyRoutes />
+    <Arc queryTransportMethod={QueryTransportMethod.ServerSentEvents} queryDirectMode={true}>
+        <main>Your query components</main>
     </Arc>
 );
 ```
 
-| Value | Description |
-|-------|-------------|
-| `QueryTransportMethod.ServerSentEvents` | SSE hub — one `EventSource` per query (default). |
-| `QueryTransportMethod.WebSocket` | WebSocket hub — single shared connection per application. |
+For normal shared-hub use, leave `queryDirectMode` false. `queryConnectionCount` configures pool slots, not subscriptions; direct mode does not use the pool.
 
-### Bypassing the hub (direct mode)
+### SSE connection limit (HTTP/1.1)
 
-Set `queryDirectMode={true}` to connect each observable query directly to its own per-query WebSocket URL, bypassing the hub entirely.
+The client unconditionally caps SSE **hub** connections at four and warns if you request more. This leaves room for control POSTs and ordinary fetches in browsers with HTTP/1.1 per-origin connection limits. HTTP/2 changes network multiplexing but **does not remove Arc's current four-slot cap**. Direct SSE connections are not protected by this pool cap.
 
-```tsx
-export const App = () => (
-    <Arc
-        microservice="my-app"
-        queryDirectMode={true}
-    >
-        <MyRoutes />
-    </Arc>
-);
-```
+WebSocket hub pools do not use this SSE cap. More slots are not automatically faster; measure your workload before increasing the count.
 
-Use direct mode when:
+## Provider ownership
 
-- Connecting to backend services that do not expose the centralized hub endpoints.
-- Debugging individual query connections in isolation.
+The multiplexer is module-global, not isolated per nested `<Arc>`. Changing its origin/service/configuration key disposes the previous shared multiplexer. Do not use provider nesting as a guarantee of simultaneous independent authenticated hubs. See [provider limitations](../arc.md#multiple-microservices-in-one-frontend).
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly to each query's own URL. |
+## Controlling change-stream transfer mode
 
-### Configuring the number of hub connections
-
-By default a single centralized hub connection handles all subscriptions. Use `queryConnectionCount` to distribute subscriptions across multiple connections:
-
-```tsx
-<Arc
-    microservice="my-app"
-    queryConnectionCount={2}
-/>
-```
-
-The `ObservableQueryConnectionPool` picks the least-loaded slot round-robin when a new subscription is created. Increasing the connection count can improve throughput for applications with many concurrent observable queries.
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `queryConnectionCount` | `number` | `1` | Number of hub connection slots maintained for observable queries. |
-
-#### SSE connection limit (HTTP/1.1)
-
-HTTP/1.1 browsers enforce a hard limit of **six simultaneous connections per origin**. Each SSE `EventSource` occupies one of those slots for as long as the page is open because the connection is kept alive indefinitely to receive server pushes. If all six slots are taken by `EventSource` connections, subscribe and unsubscribe POST requests cannot get a connection and queue indefinitely — queries appear to hang and produce no data.
-
-Arc automatically caps the number of SSE hub connections at **4** regardless of what `queryConnectionCount` is set to. This leaves two slots free for the subscribe/unsubscribe POST calls and for ordinary `fetch` requests. A `console.warn` is emitted at startup when the configured count exceeds this limit.
-
-```tsx
-// This is capped at 4 automatically when using SSE — a warning is logged.
-<Arc
-    microservice="my-app"
-    queryTransportMethod={QueryTransportMethod.ServerSentEvents}
-    queryConnectionCount={10}
-/>
-```
-
-The cap only applies to SSE. WebSocket connections do not consume HTTP/1.1 connection slots after the initial upgrade handshake, so `queryConnectionCount` is respected in full when using WebSocket transport.
-
-> **Enable HTTP/2 to remove the limit.** HTTP/2 multiplexes all requests over a single TCP connection, making the per-origin slot limit irrelevant. When your server supports HTTP/2, `queryConnectionCount` may be set to any value without risk of connection starvation.
->
-> References:
-> - [HTTP/1.x connection management — MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Connection_management_in_HTTP_1.x)
-> - [Server-Sent Events — HTML Living Standard](https://html.spec.whatwg.org/multipage/server-sent-events.html)
-
-### Controlling change-stream transfer mode
-
-The `observableQueryTransferMode` prop sets the global default for how the `useChangeStream` hook processes incoming updates.
-
-```tsx
-import { Arc } from '@cratis/arc.react';
-import { ObservableQueryTransferMode } from '@cratis/arc';
-
-export const App = () => (
-    <Arc
-        microservice="my-app"
-        observableQueryTransferMode={ObservableQueryTransferMode.Delta}
-    >
-        <MyRoutes />
-    </Arc>
-);
-```
-
-| Value | Description |
-|-------|-------------|
-| `ObservableQueryTransferMode.Delta` | Default. Uses server-provided `ChangeSet` or falls back to client-side snapshot comparison. |
-| `ObservableQueryTransferMode.Full` | Treats every snapshot as a fresh batch of additions. |
-
-See [Change Stream](./change-stream.md) for a full explanation of the two modes.
-
-## Props Reference
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for hub connections. |
-| `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub entirely. |
-| `queryConnectionCount` | `number` | `1` | Number of concurrent hub connections to maintain. |
-| `observableQueryTransferMode` | `ObservableQueryTransferMode` | `Delta` | Controls how `useChangeStream` processes incoming updates. |
+`observableQueryTransferMode` is included in shared-hub subscription requests. Full mode asks the server for full snapshots; Delta mode sends an initial snapshot followed by delta-only collection updates. The same global setting controls fallback handling in `useChangeStream`; server-provided changesets take precedence over that fallback. Set it before establishing subscriptions, not as a per-provider isolation mechanism. It does not select SSE versus WebSocket. See [change streams](./change-stream.md) and the [observable Suspense delta limitation](./suspense-queries.md#observable-collections-and-delta-only-updates).
 
 ## See also
 
-- [Observable Query Hub](../../../backend/queries/observable-query-demultiplexer.md) — Protocol reference, authorization semantics, and keep-alive configuration on the backend.
-- [Query Instance Caching](./query-instance-caching.md) — How query instances are deduplicated and last-known results cached across components.
-- [Queries](./index.md) — General query hooks and usage patterns.
-- [Vite Configuration](../vite-configuration.md) — Required Vite proxy settings for WebSocket transport in development.
+- [Query configuration](./configuration.md)
+- [Query instance caching](./query-instance-caching.md)
+- [Backend observable hub](../../../backend/queries/observable-query-demultiplexer.md)
+- [Vite configuration](../vite-configuration.md)

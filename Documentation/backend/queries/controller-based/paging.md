@@ -1,134 +1,62 @@
-# Paging
+---
+title: Controller query paging
+description: Let the MVC query renderer apply paging and sorting to IQueryable results.
+---
 
-When a controller action returns `IQueryable<T>`, the query pipeline automatically applies server-side paging and sorting. This means you write a simple method that returns a queryable, and the framework handles the rest.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-## Why IQueryable matters
+## Return an IQueryable
 
-The key to automatic paging is returning `IQueryable<T>` instead of `IEnumerable<T>` or `List<T>`. When the pipeline sees an `IQueryable`, it can append `.Skip()` and `.Take()` *before* the database executes the query — so only the requested page of data travels over the wire.
-
-If you return a materialized collection like `List<T>`, the pipeline has no way to apply paging at the database level. All rows are fetched first, defeating the purpose.
+For a default Arc-wrapped MVC GET, return an unmaterialized database query. This alternative banking declaration uses the [shared domain concepts](../model-bound/index.md#model-account-identities-and-names), an ASP.NET Core Arc host, configured authorization, and the MongoDB provider:
 
 ```csharp
+using System.Linq;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using MongoDB.Driver;
+using MongoDB.Driver.Linq;
+
+namespace Banking.Accounts;
+
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance);
+
+[Authorize(Roles = "AccountReader")]
 [Route("api/accounts")]
-public class Accounts : Controller
+public class AccountsController(IMongoCollection<DebitAccount> collection) : ControllerBase
 {
-    readonly IMongoCollection<DebitAccount> _collection;
-
-    public Accounts(IMongoCollection<DebitAccount> collection) => _collection = collection;
-
-    // ✅ Returns IQueryable — paging and sorting are applied automatically
     [HttpGet]
-    public IQueryable<DebitAccount> AllAccounts() => _collection.AsQueryable();
+    public IQueryable<DebitAccount> AllAccounts() =>
+        collection.AsQueryable().OrderBy(account => account.Id);
+
+    [HttpGet("positive")]
+    public IQueryable<DebitAccount> PositiveAccounts() =>
+        collection.AsQueryable().Where(account => account.Balance > 0)
+            .OrderBy(account => account.Id);
 }
 ```
-
-## How it works
-
-When a client sends paging parameters in the query string, the `QueryableQueryRenderer` intercepts the `IQueryable` result and:
-
-1. Counts the total number of matching items
-2. Applies sorting based on `sortby` and `sortDirection`
-3. Applies `.Skip(page * pageSize)` and `.Take(pageSize)`
-4. Returns the page of data wrapped in a `QueryResult` with a `PagingInfo` containing `page`, `size`, `totalItems`, and `totalPages`
-
-The client controls paging with these query string parameters:
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `page` | `int` | Zero-based page number |
-| `pageSize` | `int` | Number of items per page |
-| `sortby` | `string` | Field name to sort by |
-| `sortDirection` | `asc` or `desc` | Sort direction |
-
-### Example requests
 
 ```http
 GET /api/accounts?page=0&pageSize=25
-GET /api/accounts?page=2&pageSize=10&sortby=name&sortDirection=asc
+GET /api/accounts/positive?page=1&pageSize=10&sortby=name&sortDirection=asc
 ```
 
-When no paging parameters are provided, the full result set is returned without paging.
+The action filter establishes the paging/sorting context. `QueryableQueryRenderer` counts the filtered query, applies requested sorting, then applies `Skip`/`Take`. A database-backed LINQ provider can perform this work server-side; an in-memory queryable cannot undo earlier materialization.
 
-## Complete example with filtering
+## Paging contract
 
-Paging works alongside query arguments. The pipeline applies paging *after* your method returns the filtered `IQueryable`:
+`page` is zero-based, `pageSize` is the requested size, and `sortby`/`sortDirection` select the sort. Use positive, bounded sizes and a stable ordering. Client-requested ordering replaces the method's primary ordering; account for duplicate sort values in production.
 
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    readonly IMongoCollection<DebitAccount> _collection;
+The response `paging` object has **`page`, `size`, `totalItems`, `totalPages`**. See [query result metadata](../query-pipeline.md#query-result-metadata). Without a paging request, the query is not automatically capped.
 
-    public Accounts(IMongoCollection<DebitAccount> collection) => _collection = collection;
+Lists, arrays, and plain enumerable results are not automatically sliced. A manually paged list does not automatically carry the database's total count. Do not return a `QueryResult` from a wrapped action to fix that: it becomes nested data, not outer metadata.
 
-    [HttpGet]
-    public IQueryable<DebitAccount> AllAccounts() => _collection.AsQueryable();
+## Manual control
 
-    [HttpGet("by-owner/{ownerId}")]
-    public IQueryable<DebitAccount> AccountsByOwner(CustomerId ownerId)
-        => _collection.AsQueryable().Where(a => a.Owner == ownerId);
-}
-```
+`IQueryContextManager.Current` exposes `Paging` and `Sorting` if an integration needs them. When using MongoDB's fluent API, compose `Skip`, `Limit`, and `Sort` **before** execution; use expression sorting or a `SortDefinition`, not `SortBy(string)`.
 
-Both endpoints support paging automatically because they return `IQueryable<T>`.
+For a completely custom response/metadata contract, use `[AspNetResult]` and supply the full MVC response yourself. That is an opt-out from Arc wrapping and needs a matching client. Prefer the queryable path unless you need that control.
 
-## Return type comparison
+## Observable paging
 
-| Return type | Paging | Sorting | DB-level optimization |
-| ----------- | ------ | ------- | --------------------- |
-| `IQueryable<T>` | ✅ Automatic | ✅ Automatic | ✅ Skip/Take pushed to DB |
-| `IEnumerable<T>` | ❌ | ❌ | ❌ All rows loaded |
-| `List<T>` | ❌ | ❌ | ❌ All rows loaded |
-| `T[]` | ❌ | ❌ | ❌ All rows loaded |
-
-## Manual paging with IQueryContextManager
-
-If you need full control over how paging is applied — for example, when using the MongoDB driver directly instead of LINQ — inject `IQueryContextManager` and read the paging context manually:
-
-```csharp
-[Route("api/accounts")]
-public class Accounts : Controller
-{
-    readonly IMongoCollection<DebitAccount> _collection;
-    readonly IQueryContextManager _queryContextManager;
-
-    public Accounts(
-        IMongoCollection<DebitAccount> collection,
-        IQueryContextManager queryContextManager)
-    {
-        _collection = collection;
-        _queryContextManager = queryContextManager;
-    }
-
-    [HttpGet("manual")]
-    public QueryResult ManualPaging()
-    {
-        var context = _queryContextManager.Current;
-        var query = _collection.Find(_ => true);
-
-        if (context.Sorting != Sorting.None)
-        {
-            query = context.Sorting.Direction == SortDirection.Ascending
-                ? query.SortBy(context.Sorting.Field)
-                : query.SortByDescending(context.Sorting.Field);
-        }
-
-        var totalItems = (int)query.CountDocuments();
-
-        if (context.Paging.IsPaged)
-        {
-            query = query.Skip(context.Paging.Skip).Limit(context.Paging.Size);
-        }
-
-        var data = query.ToList();
-
-        return new QueryResult
-        {
-            Data = data,
-            Paging = new PagingInfo(context.Paging.Page, context.Paging.Size, totalItems)
-        };
-    }
-}
-```
-
-> Manual paging is rarely needed. Prefer returning `IQueryable<T>` and letting the pipeline handle it.
+A stream does not become paged merely because it emits a collection. Arc's MongoDB `Observe()` supplies [provider-aware paging](../model-bound/paging.md#observable-queries-with-paging); arbitrary subjects must implement it themselves. See [controller observable queries](observable-queries.md).

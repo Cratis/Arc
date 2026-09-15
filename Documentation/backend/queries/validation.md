@@ -1,621 +1,101 @@
-# Query Validation
+---
+title: Query validation
+description: Validate model-bound scalar arguments with FluentValidation and distinguish MVC validation.
+---
 
-Query parameters can be validated using Arc's validation infrastructure.
-The validation happens in the query pipeline through validation filters before query performers are executed.
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-> **💡 Client-Side Validation**: When using FluentValidation, validation rules are automatically extracted by the [ProxyGenerator](../proxy-generation/validation.md) and run on the client before server calls. This provides immediate feedback to users and reduces unnecessary server requests.
+Reject malformed search input before the query reaches storage. Arc's model-bound query pipeline supports discovered FluentValidation validators; MVC actions use their own model-binding/model-state path. Choose the example for the endpoint style you actually expose.
 
-## Validation Filters
+## Validate the whole argument set
 
-Arc provides two validation filters that automatically validate query parameters:
-
-### DataAnnotationValidationFilter
-
-Automatically validates query parameters using System.ComponentModel.DataAnnotations attributes:
+A parameter model lets you validate required strings and relationships between scalar arguments without expecting HTTP to bind a complex DTO. This alternative banking declaration uses the [shared `AccountId` and `AccountName` concepts](model-bound/index.md#model-account-identities-and-names), the Arc MongoDB provider, and validator discovery. The prefix is search text, so its rule belongs to the query rather than to the complete account-name value:
 
 ```csharp
-// Query performer method
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using Cratis.Arc.Queries;
+using Cratis.Arc.Queries.ModelBound;
+using FluentValidation;
+using MongoDB.Bson;
+using MongoDB.Driver;
+
+namespace Banking.Accounts;
+
 [ReadModel]
-public class Accounts
+public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 {
-    public static IEnumerable<DebitAccount> SearchAccounts(
-        [Required][StringLength(50)] string name,
-        [Range(0, double.MaxValue)] decimal? minBalance,
-        [Range(0, double.MaxValue)] decimal? maxBalance,
+    [Path("/api/accounts/search")]
+    public static IEnumerable<DebitAccount> Search(
+        string prefix,
+        decimal minimumBalance,
+        decimal maximumBalance,
         IMongoCollection<DebitAccount> collection)
     {
-        // Validation happens automatically in the query pipeline
-        // This method only executes if validation passes
-        
-        var filterBuilder = Builders<DebitAccount>.Filter;
-        var filters = new List<FilterDefinition<DebitAccount>>();
+        var namePrefix = new BsonRegularExpression("^" + Regex.Escape(prefix));
+        var filter = Builders<DebitAccount>.Filter.Regex(account => account.Name, namePrefix) &
+            Builders<DebitAccount>.Filter.Gte(account => account.Balance, minimumBalance) &
+            Builders<DebitAccount>.Filter.Lte(account => account.Balance, maximumBalance);
+        return collection.Find(filter).SortBy(account => account.Id).Limit(100).ToList();
+    }
+}
 
-        filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(name, "i")));
+public class SearchParameters
+{
+    public string Prefix { get; set; } = string.Empty;
+    public decimal MinimumBalance { get; set; }
+    public decimal MaximumBalance { get; set; }
+}
 
-        if (minBalance.HasValue)
-            filters.Add(filterBuilder.Gte(a => a.Balance, minBalance.Value));
-
-        if (maxBalance.HasValue)
-            filters.Add(filterBuilder.Lte(a => a.Balance, maxBalance.Value));
-
-        var combinedFilter = filterBuilder.And(filters);
-        return collection.Find(combinedFilter).ToList();
+public class SearchValidator : QueryValidator<SearchParameters>
+{
+    public SearchValidator()
+    {
+        RuleFor(parameters => parameters.Prefix).NotEmpty().Length(3, 50);
+        RuleFor(parameters => parameters.MinimumBalance).GreaterThanOrEqualTo(0);
+        RuleFor(parameters => parameters.MaximumBalance)
+            .GreaterThanOrEqualTo(parameters => parameters.MinimumBalance);
     }
 }
 ```
 
-### Concepts
-
-A `ConceptValidator<T>` describes whether a value of that concept is well formed. Because that is a property of the
-type rather than of the operation carrying it, the validator applies wherever the concept appears — on a command
-property, on a query argument, and at any depth inside either. Declare it once:
-
-```csharp
-public record EmailAddress(string Value) : ConceptAs<string>(Value)
-{
-    public static implicit operator string(EmailAddress address) => address.Value;
-    public static implicit operator EmailAddress(string value) => new(value);
-}
-
-public class EmailAddressValidator : ConceptValidator<EmailAddress>
-{
-    public EmailAddressValidator() =>
-        RuleFor(x => x.Value).EmailAddress().WithMessage("Must be a valid email address");
-}
+```http
+GET /api/accounts/search?prefix=Sav&minimumBalance=0&maximumBalance=1000
 ```
 
-Every query taking an `EmailAddress` now rejects a malformed one, with no per-query rule to write or keep in sync.
-The rule is also carried into the generated client, so the browser rejects it too — see
-[Proxy Generation Validation](../proxy-generation/validation.md).
+The query lives on the model it returns, so it qualifies for discovery. Its HTTP arguments remain flat. The provider filter searches the serialized `AccountName` field without weakening the domain model; `Regex.Escape` keeps the prefix literal. The 100-row limit is a fixed cap, not automatic paging. `SearchParameters` is materialized internally for validation; the method does not accept a `SearchParameters` HTTP DTO. Missing/short `prefix` or a reversed range fails validation before the method executes. This teaching example still needs [authorization](model-bound/authorization.md) before exposing private data.
 
-### FluentValidationFilter
+## Argument-model discovery
 
-Automatically validates query parameters using FluentValidation validators. Create validators by inheriting from `QueryValidator<T>`:
+Arc looks in the read model's assembly for a type named `{QueryName}Parameters` or `{ReadModelName}{QueryName}Parameters`. It must have properties with matching names **and types** covering every caller argument; injected dependencies do not count. Use unambiguous names within that assembly.
 
-```csharp
-// Define a concept for the query parameter type
-public record AccountSearchParams(string Name, decimal? MinBalance, decimal? MaxBalance);
+When a matching model can be materialized, the FluentValidation filter validates it as one object graph. Otherwise it falls back to validating individual supplied arguments. Missing/null individual arguments are skipped by that filter; the performer enforces its required-argument rules. Plain strings are implicitly optional in the current performer, which is why the whole-argument `NotEmpty` rule above matters.
 
-// Create a validator for the parameter type
-public class AccountSearchParamsValidator : QueryValidator<AccountSearchParams>
-{
-    public AccountSearchParamsValidator()
-    {
-        RuleFor(x => x.Name)
-            .NotEmpty()
-            .MaximumLength(50)
-            .WithMessage("Account name is required and must be less than 50 characters");
+Argument-model materialization leaves absent members at their type defaults; do not assume optional method defaults are copied into that validation object. Test omitted values as well as explicit ones. If the model cannot be constructed, fallback validation does not preserve cross-field rules that existed only on that model.
 
-        RuleFor(x => x.MinBalance)
-            .GreaterThanOrEqualTo(0)
-            .When(x => x.MinBalance.HasValue)
-            .WithMessage("Minimum balance must be greater than or equal to 0");
+## Concepts and nested validation
 
-        RuleFor(x => x.MaxBalance)
-            .GreaterThanOrEqualTo(0)
-            .When(x => x.MaxBalance.HasValue)
-            .WithMessage("Maximum balance must be greater than or equal to 0");
+A `ConceptValidator<T>` defines invariants for a strongly typed value and can apply to supplied query arguments as well as command properties. FluentValidation traverses the object graph, including nested values and collections, and reports failures using the argument/member path. Concept `Value` failures map to the containing field rather than exposing `.Value` to the client.
 
-        RuleFor(x => x.MinBalance)
-            .LessThanOrEqualTo(x => x.MaxBalance)
-            .When(x => x.MinBalance.HasValue && x.MaxBalance.HasValue)
-            .WithMessage("Minimum balance must be less than or equal to maximum balance");
-    }
-}
+That validation capability does not add HTTP binding support: built-in model-bound GET/QUERY readers use [scalar conversion](model-bound/query-arguments.md#supported-input-shapes). Already-typed pipeline inputs or explicitly tested custom converters can carry richer values.
 
-// Use the validated parameter type in query performer
-[ReadModel]
-public class Accounts
-{
-    public static IEnumerable<DebitAccount> SearchAccountsWithValidation(
-        AccountSearchParams searchParams,
-        IMongoCollection<DebitAccount> collection)
-    {
-        // FluentValidation happens automatically in the query pipeline
-        var filterBuilder = Builders<DebitAccount>.Filter;
-        var filters = new List<FilterDefinition<DebitAccount>>();
+Generated clients extract supported FluentValidation rules for early feedback. Server validation remains authoritative; custom/async rules are not a blanket promise of browser/server parity. See [proxy validation](../proxy-generation/validation.md).
 
-        if (!string.IsNullOrEmpty(searchParams.Name))
-            filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(searchParams.Name, "i")));
+## DataAnnotations limitation
 
-        if (searchParams.MinBalance.HasValue)
-            filters.Add(filterBuilder.Gte(a => a.Balance, searchParams.MinBalance.Value));
+The current model-bound `DataAnnotationValidationFilter` reads attributes from `parameter.Type`, **not** the method parameter's attributes. It does not recursively validate DTO properties. Therefore `[Required]`, `[MinLength]`, or `[Range]` written on static query parameters does not enforce those rules through this filter.
 
-        if (searchParams.MaxBalance.HasValue)
-            filters.Add(filterBuilder.Lte(a => a.Balance, searchParams.MaxBalance.Value));
+Use the verified FluentValidation pattern above rather than presenting parameter annotations as a working model-bound validation recipe. This is a current runtime limitation; broader parameter-annotation support would require an implementation change.
 
-        var combinedFilter = filters.Any() ? filterBuilder.And(filters) : filterBuilder.Empty;
-        return collection.Find(combinedFilter).ToList();
-    }
-}
-```
+## Controller-based validation
 
-## How Validation Filters Work
+MVC has separate DataAnnotations/model-state behavior. Use [the complete MVC DTO example](controller-based/query-arguments.md#bind-and-validate-a-search-dto), where annotations are applied to DTO properties. MVC positional-record validation metadata also differs from ordinary object-property validation; do not mechanically transplant model-bound annotation advice into MVC records.
 
-The validation filters operate in the query pipeline:
+Arc's GET action filter uses model state and may wrap validation errors. `[ApiController]`, custom filters, and `[AspNetResult]` can change which response runs first or whether it is wrapped. Test the application's actual HTTP response instead of assuming one universal MVC error envelope.
 
-1. **Parameter Discovery**: Filters use `IQueryPerformerProviders` to discover query parameters and their types
-2. **Argument Coercion**: Raw arguments are converted to their declared parameter types, so a validator always sees a real `AccountId` rather than the string it arrived as
-3. **Validation**: The arguments are validated — either as a whole, or one at a time (see below)
-4. **Validation Results**: Failed validations return a `QueryResult` with validation errors
-5. **Pipeline Continuation**: Only successful validations allow the query performer to execute
+## Validation results and security
 
-Validation walks the whole object graph of each argument, exactly as command validation walks a command's
-properties. A validator is found and run for the argument itself, for anything nested inside it, and for every
-element of a collection — so a rule never silently fails to apply just because the value it guards sits a level
-down.
+A model-bound validation failure has `isValid: false`, `isSuccess: false`, and entries in `validationResults` containing `message`, `members`, and `severity`. Direct HTTP maps a validation verdict to 400. The response's paging fields are `page`, `size`, `totalItems`, and `totalPages`; see [the full QueryResult contract](query-pipeline.md#query-result-metadata).
 
-## Whole Argument Set vs. Individual Arguments
-
-A query's arguments are flat, which means there are two ways to describe rules over them.
-
-**Individual arguments** is the default. Each argument is validated on its own, and a failing rule reports the
-argument it belongs to. A rule reported by a validator for a nested value is prefixed with the path to the argument
-that carried it, so it is attributable to the field the caller supplied.
-
-Members are reported the way the client names them: camelCased, and without a concept's inner member. A
-`ConceptValidator<T>` declares its rules against the concept's `Value`, but a concept is a single value — a failure
-on an `email` argument is reported as `email`, not `Email` or `email.Value`. This is what lets a form match a server
-rejection to the field that caused it.
-
-**The whole argument set** is used when you want rules that span several arguments. Declare a type whose properties
-mirror the query's parameters, named `{QueryName}Parameters` or `{ReadModelName}{QueryName}Parameters`, and a
-`QueryValidator<T>` for it:
-
-```csharp
-[ReadModel]
-public class Accounts
-{
-    public static IEnumerable<DebitAccount> GetByEmailAndAge(string email, int minAge, IMongoCollection<DebitAccount> collection) =>
-        collection.Find(a => a.Owner.Email == email && a.Owner.Age >= minAge).ToList();
-}
-
-public class GetByEmailAndAgeParameters
-{
-    public string Email { get; set; } = string.Empty;
-    public int MinAge { get; set; }
-}
-
-public class GetByEmailAndAgeValidator : QueryValidator<GetByEmailAndAgeParameters>
-{
-    public GetByEmailAndAgeValidator()
-    {
-        RuleFor(x => x.Email).NotEmpty().EmailAddress();
-        RuleFor(x => x.MinAge).GreaterThanOrEqualTo(0);
-    }
-}
-```
-
-The parameters type is the server-side twin of the arguments object the generated proxy validates, so the same rules
-run in the browser and at the endpoint, reporting the same member names. Rules declared this way are enforced
-server-side whether or not the caller went through the proxy — a validator that only ran in the browser would be no
-validator at all, since the endpoint can be called directly.
-
-A type is only accepted as the argument set when it has a property of matching name **and** type for every one of the
-query's parameters, so an unrelated type that happens to carry the name is never picked up. Injected dependencies —
-the `IMongoCollection<T>` above, and any other service the method takes — are ignored: only the parameters the caller
-actually supplies count. A query that takes no arguments never resolves an argument set.
-
-When a query has an argument set, it is validated through that alone, so a failure is never reported twice. If the
-type does not match, validation falls back to each argument on its own rather than failing.
-
-## Controller-Based Query Validation
-
-For controller-based queries (using `[HttpGet]` endpoints), validation works with the standard ASP.NET Core model validation:
-
-```csharp
-public record AccountSearchQuery(
-    [Required]
-    [StringLength(50)]
-    string Name,
-
-    [Range(0, double.MaxValue)]
-    decimal? MinBalance,
-
-    [Range(0, double.MaxValue)]
-    decimal? MaxBalance);
-
-[HttpGet("search")]
-public IEnumerable<DebitAccount> SearchAccounts([FromQuery] AccountSearchQuery query)
-{
-    // If validation fails, a 400 Bad Request is returned automatically
-    // This code only executes if validation passes
-    
-    var filterBuilder = Builders<DebitAccount>.Filter;
-    var filters = new List<FilterDefinition<DebitAccount>>();
-
-    filters.Add(filterBuilder.Regex(a => a.Name, new BsonRegularExpression(query.Name, "i")));
-
-    if (query.MinBalance.HasValue)
-        filters.Add(filterBuilder.Gte(a => a.Balance, query.MinBalance.Value));
-
-    if (query.MaxBalance.HasValue)
-        filters.Add(filterBuilder.Lte(a => a.Balance, query.MaxBalance.Value));
-
-    var combinedFilter = filterBuilder.And(filters);
-    return _collection.Find(combinedFilter).ToList();
-}
-```
-
-## Standard Data Annotations
-
-Arc supports all standard validation attributes:
-
-```csharp
-public record ProductSearchQuery(
-    [Required]
-    [StringLength(100, MinimumLength = 3)]
-    string Name,
-
-    [Range(0.01, 999999.99)]
-    decimal? MinPrice,
-
-    [Range(0.01, 999999.99)]
-    decimal? MaxPrice,
-
-    [RegularExpression(@"^[A-Z]{2,4}$")]
-    string? Category,
-
-    [EmailAddress]
-    string? ContactEmail,
-
-    [Url]
-    string? Website);
-```
-
-## Custom Validators
-
-For complex validation logic, create custom validators by inheriting from `QueryValidator<T>`:
-
-```csharp
-public class AccountSearchQueryValidator : QueryValidator<AccountSearchQuery>
-{
-    public AccountSearchQueryValidator()
-    {
-        RuleFor(x => x.MinBalance)
-            .LessThanOrEqualTo(x => x.MaxBalance)
-            .When(x => x.MinBalance.HasValue && x.MaxBalance.HasValue)
-            .WithMessage("Minimum balance must be less than or equal to maximum balance");
-
-        RuleFor(x => x.Name)
-            .Must(BeValidAccountName)
-            .WithMessage("Account name contains invalid characters");
-
-        RuleFor(x => x)
-            .Must(HaveAtLeastOneSearchCriteria)
-            .WithMessage("At least one search criteria must be provided");
-    }
-
-    bool BeValidAccountName(string name)
-    {
-        // Custom validation logic
-        return !string.IsNullOrEmpty(name) && 
-               name.All(char.IsLetterOrDigit) || 
-               name.All(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c));
-    }
-
-    bool HaveAtLeastOneSearchCriteria(AccountSearchQuery query)
-    {
-        return !string.IsNullOrEmpty(query.Name) ||
-               query.MinBalance.HasValue ||
-               query.MaxBalance.HasValue;
-    }
-}
-```
-
-## FluentValidation Support
-
-Arc uses FluentValidation internally, giving you access to powerful validation rules:
-
-```csharp
-public class CustomerQueryValidator : QueryValidator<CustomerQuery>
-{
-    public CustomerQueryValidator()
-    {
-        RuleFor(x => x.Email)
-            .EmailAddress()
-            .When(x => !string.IsNullOrEmpty(x.Email));
-
-        RuleFor(x => x.PhoneNumber)
-            .Matches(@"^\+?[1-9]\d{1,14}$")
-            .When(x => !string.IsNullOrEmpty(x.PhoneNumber))
-            .WithMessage("Phone number must be in international format");
-
-        RuleFor(x => x.Age)
-            .GreaterThanOrEqualTo(0)
-            .LessThanOrEqualTo(150)
-            .When(x => x.Age.HasValue);
-
-        RuleFor(x => x.Tags)
-            .Must(tags => tags.Count <= 10)
-            .When(x => x.Tags != null)
-            .WithMessage("Maximum 10 tags allowed");
-    }
-}
-```
-
-## Cross-Field Validation
-
-Validate relationships between multiple fields:
-
-```csharp
-public class DateRangeQueryValidator : QueryValidator<DateRangeQuery>
-{
-    public DateRangeQueryValidator()
-    {
-        RuleFor(x => x.StartDate)
-            .LessThanOrEqualTo(x => x.EndDate)
-            .When(x => x.StartDate.HasValue && x.EndDate.HasValue)
-            .WithMessage("Start date must be before or equal to end date");
-
-        RuleFor(x => x.EndDate)
-            .GreaterThanOrEqualTo(DateTime.Today.AddDays(-365))
-            .When(x => x.EndDate.HasValue)
-            .WithMessage("End date cannot be more than one year in the past");
-
-        RuleFor(x => x)
-            .Must(x => !x.StartDate.HasValue || !x.EndDate.HasValue || 
-                      (x.EndDate.Value - x.StartDate.Value).Days <= 90)
-            .WithMessage("Date range cannot exceed 90 days");
-    }
-}
-```
-
-## Async Validation
-
-For validation that requires database lookups or external services:
-
-```csharp
-public class AccountExistsQueryValidator : QueryValidator<AccountExistsQuery>
-{
-    readonly IMongoCollection<DebitAccount> _collection;
-
-    public AccountExistsQueryValidator(IMongoCollection<DebitAccount> collection)
-    {
-        _collection = collection;
-
-        RuleFor(x => x.AccountId)
-            .MustAsync(AccountExists)
-            .WithMessage("Account does not exist");
-
-        RuleFor(x => x.OwnerEmail)
-            .MustAsync(OwnerEmailIsValid)
-            .When(x => !string.IsNullOrEmpty(x.OwnerEmail))
-            .WithMessage("Owner email is not registered");
-    }
-
-    async Task<bool> AccountExists(AccountId accountId, CancellationToken cancellationToken)
-    {
-        var count = await _collection.CountDocumentsAsync(
-            a => a.Id == accountId, 
-            cancellationToken: cancellationToken);
-        return count > 0;
-    }
-
-    async Task<bool> OwnerEmailIsValid(string email, CancellationToken cancellationToken)
-    {
-        // Call external service or database to validate email
-        // This is just an example
-        await Task.Delay(100, cancellationToken);
-        return email.Contains("@") && email.Contains(".");
-    }
-}
-```
-
-## Model-Bound Query Validation
-
-For model-bound queries with `[ReadModel]`, validation can be applied to the method parameters:
-
-```csharp
-public record GetAccountsByOwnerQuery(
-    [Required]
-    CustomerId OwnerId,
-    
-    [Range(1, 1000)]
-    int MaxResults = 100);
-
-[ReadModel]
-public class Accounts
-{
-    public static IEnumerable<DebitAccount> GetAccountsByOwner(
-        GetAccountsByOwnerQuery query,
-        IMongoCollection<DebitAccount> collection)
-    {
-        return collection
-            .Find(a => a.Owner == query.OwnerId)
-            .Limit(query.MaxResults)
-            .ToList();
-    }
-}
-
-// Custom validator for the query
-public class GetAccountsByOwnerQueryValidator : QueryValidator<GetAccountsByOwnerQuery>
-{
-    public GetAccountsByOwnerQueryValidator()
-    {
-        RuleFor(x => x.OwnerId)
-            .NotNull()
-            .NotEmpty()
-            .WithMessage("Owner ID is required");
-
-        RuleFor(x => x.MaxResults)
-            .GreaterThan(0)
-            .LessThanOrEqualTo(1000)
-            .WithMessage("Max results must be between 1 and 1000");
-    }
-}
-```
-
-## Validation Error Responses
-
-### Filter-Based Validation Errors
-
-When validation fails in the query pipeline (using validation filters), the query returns a `QueryResult` with detailed error information:
-
-```json
-{
-  "data": null,
-  "paging": {
-    "page": 0,
-    "pageSize": 0,
-    "totalItems": 0
-  },
-  "correlationId": "12345678-1234-1234-1234-123456789012",
-  "isSuccess": false,
-  "isAuthorized": true,
-  "isValid": false,
-  "hasExceptions": false,
-  "validationResults": [
-    {
-      "severity": "Error",
-      "message": "Account name is required and must be less than 50 characters",
-      "members": ["name"]
-    },
-    {
-      "severity": "Error", 
-      "message": "Minimum balance must be greater than or equal to 0",
-      "members": ["minBalance"]
-    }
-  ],
-  "exceptionMessages": [],
-  "exceptionStackTrace": ""
-}
-```
-
-### Controller-Based Validation Errors
-
-When validation fails on controller-based queries, the response returns a 400 Bad Request with detailed error information:
-
-```json
-{
-  "data": null,
-  "paging": {
-    "page": 0,
-    "pageSize": 0,
-    "totalItems": 0
-  },
-  "correlationId": "12345678-1234-1234-1234-123456789012",
-  "isSuccess": false,
-  "isAuthorized": true,
-  "isValid": false,
-  "hasExceptions": false,
-  "validationResults": [
-    {
-      "severity": "Error",
-      "message": "Account name is required",
-      "members": ["name"]
-    },
-    {
-      "severity": "Error", 
-      "message": "Minimum balance must be greater than or equal to 0",
-      "members": ["minBalance"]
-    }
-  ],
-  "exceptionMessages": [],
-  "exceptionStackTrace": ""
-}
-```
-
-## Ignoring Validation
-
-In some cases, you may want to bypass validation (useful for administrative queries):
-
-```csharp
-[HttpGet("admin/all-data")]
-[IgnoreValidation] // Skip validation for this endpoint
-public IEnumerable<DebitAccount> GetAllDataForAdmin([FromQuery] AdminQuery query)
-{
-    // This will execute without validation
-    return _collection.Find(_ => true).ToList();
-}
-```
-
-## Conditional Validation
-
-Apply validation rules conditionally:
-
-```csharp
-public class ConditionalQueryValidator : QueryValidator<ConditionalQuery>
-{
-    public ConditionalQueryValidator()
-    {
-        // Only validate email if contact method is email
-        RuleFor(x => x.Email)
-            .EmailAddress()
-            .When(x => x.ContactMethod == ContactMethod.Email);
-
-        // Only validate phone when contact method is phone
-        RuleFor(x => x.PhoneNumber)
-            .Matches(@"^\+?[1-9]\d{1,14}$")
-            .When(x => x.ContactMethod == ContactMethod.Phone);
-
-        // Require at least one contact method
-        RuleFor(x => x)
-            .Must(x => x.ContactMethod != ContactMethod.None)
-            .WithMessage("A contact method must be specified");
-    }
-}
-```
-
-## Complex Object Validation
-
-Validate nested objects and collections:
-
-```csharp
-public record OrderSearchQuery(
-    string? CustomerName,
-    DateRangeQuery? DateRange,
-    List<string>? ProductCategories,
-    AddressQuery? ShippingAddress);
-
-public class OrderSearchQueryValidator : QueryValidator<OrderSearchQuery>
-{
-    public OrderSearchQueryValidator()
-    {
-        RuleFor(x => x.DateRange)
-            .SetValidator(new DateRangeQueryValidator())
-            .When(x => x.DateRange != null);
-
-        RuleFor(x => x.ShippingAddress)
-            .SetValidator(new AddressQueryValidator())
-            .When(x => x.ShippingAddress != null);
-
-        RuleForEach(x => x.ProductCategories)
-            .NotEmpty()
-            .Length(2, 50)
-            .When(x => x.ProductCategories != null);
-    }
-}
-```
-
-## When to Use Each Validation Approach
-
-### Use Filter-Based Validation (Recommended)
-
-- **Model-bound queries**: Using `[ReadModel]` classes with static methods
-- **Query pipeline**: Working with the query pipeline infrastructure  
-- **Parameter-level validation**: Need to validate individual query parameters
-- **Consistent validation**: Want validation behavior consistent with commands
-- **Complex parameter types**: Using concepts or complex objects as parameters
-
-### Use Controller-Based Validation
-
-- **HTTP endpoints**: Creating traditional REST API endpoints with `[HttpGet]`
-- **ASP.NET Core integration**: Leveraging existing ASP.NET Core validation infrastructure
-- **Simple query objects**: Working with simple DTOs as query parameters
-- **Web API consistency**: Maintaining consistency with other ASP.NET Core controllers
-
-## Best Practices
-
-1. **Prefer filter-based validation** for model-bound queries using the query pipeline
-2. **Use data annotations** for simple validation rules on individual parameters
-3. **Create custom validators** for complex business logic and cross-parameter validation
-4. **Validate early** to prevent unnecessary database queries and improve performance
-5. **Provide clear error messages** that help users understand how to fix their input
-6. **Use async validation sparingly** as it can impact query performance significantly
-7. **Test validation rules thoroughly** with edge cases and boundary conditions
-8. **Consider performance impact** of validation, especially for high-frequency queries
-9. **Document validation requirements** clearly for API consumers
-10. **Use conditional validation** to avoid unnecessary validation overhead
-11. **Group related validation rules** logically for better maintainability
-12. **Validate parameter types** that are concepts or complex objects rather than individual parameters when possible
+Validation is not ownership or authorization. Put access decisions in an [authorization verdict/filter](query-pipeline.md#query-filters), and test forbidden callers independently of invalid input. At minimum test missing, empty, malformed, out-of-range, and cross-field-invalid values through GET, QUERY, and hub subscriptions when those paths are exposed.

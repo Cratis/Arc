@@ -6,16 +6,16 @@ Arc provides a `.UseInvariantCulture()` extension method that configures your ap
 
 Modern distributed applications run across different machines, containers, and cloud regions—each potentially configured with different regional settings. Without explicit culture configuration, operations like number parsing, date formatting, or string comparisons may produce inconsistent results depending on where the code runs.
 
-Using invariant culture guarantees:
+Invariant culture supplies predictable defaults for culture-sensitive code; explicit per-call or per-thread culture choices can still override them:
 
-- **DateTime formatting and parsing** behaves identically everywhere
+- **DateTime formatting and parsing** uses invariant conventions by default; it does not choose a time zone
 - **Number formatting and parsing** produces consistent results (e.g., decimal separator is always `.`)
 - **String comparisons and sorting** are culture-independent
-- **Serialization and deserialization** never depends on machine locale
+- **Serialization and deserialization** still follows each serializer's contract and explicit options
 
 ## Configuration
 
-Call `UseInvariantCulture()` on the `WebApplicationBuilder` before building the application, and on the resulting `WebApplication` to activate the request localization middleware:
+In an ASP.NET Core web project with `Cratis.Arc`, import `Cratis.Arc`. Call `UseInvariantCulture()` on the `WebApplicationBuilder` before building the application, and on the resulting `WebApplication` to activate the request localization middleware:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -48,9 +48,11 @@ Calling `UseInvariantCulture()` on the application:
 
 ## Practical Example
 
-Consider an API that accepts a price value. Without invariant culture, `"1,5"` might parse as `1.5` on a European machine but fail on an English-locale machine. With invariant culture, parsing is always based on the standard `"1.5"` format:
+Consider an API that accepts a price value. Without invariant culture, `"1,5"` might parse as `1.5` on a European machine but fail on an English-locale machine. Invariant culture stabilizes culture-sensitive parsing defaults. JSON numeric values already use JSON's culture-independent syntax; request localization does not define that wire format. This complete ASP.NET `Program.cs` example receives a numeric JSON `price`:
 
 ```csharp
+using Cratis.Arc;
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.UseInvariantCulture();
@@ -59,10 +61,11 @@ builder.AddCratisArc();
 var app = builder.Build();
 
 app.UseInvariantCulture();
+app.UseCratisArc();
 
 app.MapPost("/products", (ProductRequest request) =>
 {
-    // Price is always parsed using invariant culture rules
+    // JSON binding uses the serializer's numeric contract
     return Results.Ok(new { Price = request.Price });
 });
 

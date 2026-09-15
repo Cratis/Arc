@@ -1,12 +1,15 @@
-# Concepts
+---
+title: Concepts in MongoDB
+description: Store strongly typed standalone value records with explicit BSON and nullability contracts.
+---
 
-Cratis Applications provides seamless integration between [Cratis Concepts](../../general/index.md) and MongoDB through automatic serialization support. Concepts are domain-driven design primitives that wrap primitive types with business meaning.
+Use `ConceptAs<T>` to distinguish values such as a user ID and a product name without storing a wrapper document. Arc's MongoDB integration registers `ConceptSerializationProvider` during setup; Chronicle is not needed.
 
-## What are Concepts?
-
-Concepts are types that inherit from `ConceptAs<T>` and provide type-safe wrappers around primitive values:
+## Declare value records
 
 ```csharp
+using Cratis.Concepts;
+
 public record UserId(Guid Value) : ConceptAs<Guid>(Value)
 {
     public static readonly UserId NotSet = new(Guid.Empty);
@@ -21,196 +24,57 @@ public record ProductName(string Value) : ConceptAs<string>(Value)
 }
 ```
 
-## Automatic Serialization
+These are complete type declarations. `ConceptAs<T>` is a record, so derive a **record**, not a class. A standalone Guid-backed identity such as `UserId` is valid; do not replace every Guid concept with a Chronicle identity.
 
-When you call `UseCratisMongoDB()`, all types implementing `ConceptAs<T>` are automatically configured for MongoDB serialization through the `ConceptSerializationProvider`.
+## Store primitive values
 
-### How It Works
-
-The `ConceptSerializer<T>` handles the serialization by:
-
-1. **Detection**: Automatically detects types that implement `ConceptAs<T>`
-2. **Unwrapping**: Serializes only the underlying value, not the wrapper
-3. **Type Safety**: Ensures type validation during serialization/deserialization
-4. **Performance**: Optimized to avoid unnecessary object creation
-
-### Example Usage
+Model declaration using the types above:
 
 ```csharp
-public class User
+public class Product
 {
-    public UserId Id { get; set; }
-    public ProductName Name { get; set; }
-    public EmailAddress Email { get; set; }
-    public DateTimeOffset CreatedAt { get; set; }
-}
-
-// Usage
-var user = new User
-{
-    Id = UserId.New(),
-    Name = "John Doe",  // Implicit conversion
-    Email = "john@example.com",
-    CreatedAt = DateTimeOffset.Now
-};
-
-// In MongoDB, this will be stored as:
-// {
-//   "_id": "550e8400-e29b-41d4-a716-446655440000",
-//   "name": "John Doe",
-//   "email": "john@example.com", 
-//   "createdAt": ISODate("2024-01-15T10:30:00Z")
-// }
-```
-
-## Supported Underlying Types
-
-The `ConceptSerializer<T>` supports all primitive types that MongoDB can natively handle:
-
-### Numeric Types
-
-- `int`, `uint`, `long`, `ulong`
-- `float`, `double`, `decimal`
-- `byte`, `sbyte`, `short`, `ushort`
-
-### String and Character Types
-
-- `string`
-- `char`
-
-### Date and Time Types
-
-- `DateTime`
-- `DateTimeOffset` (uses the custom serializer)
-- `DateOnly` (uses the custom serializer)
-- `TimeOnly` (uses the custom serializer)
-
-### Other Types
-
-- `bool`
-- `Guid`
-- Any type that has a registered MongoDB serializer
-
-## Error Handling
-
-The concept serializer includes robust error handling:
-
-### Type Validation
-
-```csharp
-// This will throw TypeIsNotAConcept exception
-var serializer = new ConceptSerializer<string>(); // Invalid - string is not a concept
-```
-
-### Null Safety
-
-```csharp
-public record OptionalId(Guid? Value) : ConceptAs<Guid?>(Value)
-{
-    public static readonly OptionalId NotSet = new(null);
-}
-
-// Properly handles null values during serialization
-```
-
-## Performance Benefits
-
-### Storage Efficiency
-
-Concepts are serialized as their underlying values, meaning:
-
-- **No wrapper overhead**: Only the business value is stored
-- **Native MongoDB types**: Uses optimal BSON types for each primitive
-- **Index compatibility**: Underlying values can be indexed normally
-
-### Memory Efficiency
-
-- **Lazy initialization**: Concept instances are created only when needed
-- **Value semantics**: Record-based concepts minimize allocation overhead
-- **Implicit conversions**: Reduce explicit casting requirements
-
-## Best Practices
-
-### Use Static Members for Common Values
-
-```csharp
-public record Status(string Value) : ConceptAs<string>(Value)
-{
-    public static readonly Status Active = new("Active");
-    public static readonly Status Inactive = new("Inactive");
-    public static readonly Status Pending = new("Pending");
-    
-    public static implicit operator Status(string value) => new(value);
+    public required UserId OwnerId { get; set; }
+    public required ProductName Name { get; set; }
+    public UserId? ReviewerId { get; set; }
 }
 ```
 
-### Implement Validation
+`Name` is stored as a BSON string. Guid concepts are stored as Standard UUID **binary**, not a JSON string. A null concept reference is stored as BSON null. Actual element names follow your [naming policy](./naming-policies.md) and ID mapping.
+
+Use nullable concept references for optional values (`UserId?`). `ConceptAs<Guid?>` is invalid because nullable Guid does not meet the primitive generic constraint. Do not confuse the concept's non-null sentinel (`NotSet`) with an absent/null concept.
+
+## Serialization and validation
+
+`ConceptSerializer<T>` unwraps values on writes and reconstructs concepts on reads. It can read the primitive form and a legacy wrapper document containing `Value` or `value`. Construction with a non-concept type, such as `new ConceptSerializer<string>()`, throws `TypeIsNotAConcept`.
+
+BSON representation and range limits still apply to the underlying primitive. Custom serializer availability alone does not guarantee every possible `ConceptAs<T>` behaves identically: verify representative values and nulls for your type. See [serializers](./serializers.md), especially date/time precision.
+
+Do not define both a positional record constructor and another constructor with the same `string` signature. A simple email value type is:
 
 ```csharp
+using Cratis.Concepts;
+
 public record EmailAddress(string Value) : ConceptAs<string>(Value)
 {
-    public EmailAddress(string value) : this(Validate(value)) { }
-    
-    static string Validate(string email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-            throw new ArgumentException("Email cannot be empty");
-            
-        if (!email.Contains('@'))
-            throw new ArgumentException("Invalid email format");
-            
-        return email;
-    }
-    
     public static implicit operator EmailAddress(string value) => new(value);
 }
 ```
 
-### Event Source Integration
+This declaration does **not** validate email syntax. Put input rules in the application's validation layer; BSON serialization is not command validation. Collections of concepts also use their underlying values, but dictionary key representation must satisfy the driver's dictionary rules—do not assume arbitrary concept keys work with document-form dictionaries.
 
-For concepts used as Event Source IDs:
+## Query with typed values
 
-```csharp
-public record CustomerId(Guid Value) : ConceptAs<Guid>(Value)
-{
-    public static readonly CustomerId NotSet = new(Guid.Empty);
-    public static implicit operator CustomerId(Guid value) => new(value);
-    public static implicit operator EventSourceId(CustomerId id) => new(id.Value.ToString());
-    public static CustomerId New() => new(Guid.NewGuid());
-}
-```
-
-## Collection Examples
-
-Concepts work seamlessly in collections:
+Method fragment for an injected `IMongoCollection<Product>` named `collection` (`MongoDB.Driver` imported):
 
 ```csharp
-public class Order
-{
-    public OrderId Id { get; set; }
-    public CustomerId CustomerId { get; set; }
-    public IEnumerable<ProductId> ProductIds { get; set; }
-    public Dictionary<ProductId, Quantity> Products { get; set; }
-}
-
-// All concept types in collections are automatically handled
+var ownerId = UserId.New();
+var products = await collection.Find(product => product.OwnerId == ownerId).ToListAsync();
 ```
 
-## Query Support
+The member serializer renders the concept as its BSON primitive. A newly generated ID normally returns no rows unless matching data exists.
 
-Concepts can be used directly in MongoDB queries:
+## Optional Chronicle integration
 
-```csharp
-var customerId = CustomerId.New();
-var orders = await collection
-    .Find(o => o.CustomerId == customerId)
-    .ToListAsync();
-    
-// The concept is automatically converted to its underlying value for the query
-```
+If the identifier represents a Chronicle event source, use that integration's [event-source ID conventions](../chronicle/resolving-event-source-id.md). That is an additional event-sourcing contract, not a MongoDB bootstrap requirement or a restriction on ordinary Guid concepts.
 
-## Next Steps
-
-- Learn about [Class Mapping](class-mapping.md) for complex type configurations
-- Explore [Convention Packs](convention-packs.md) for customizing serialization behavior
-- Read about [Naming Policies](naming-policies.md) for consistent field naming
+Continue with [class mapping](./class-mapping.md) and [convention packs](./convention-packs.md).

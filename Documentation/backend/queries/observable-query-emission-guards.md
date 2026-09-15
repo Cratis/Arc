@@ -1,4 +1,9 @@
-# Observable Query Emission Guards
+---
+title: Observable query emission guards
+description: Re-check access before live emissions without treating snapshots as guarded streams.
+---
+<!-- Copyright (c) Cratis. All rights reserved.
+Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
 Authorization for an observable query runs when the subscription is established. That verdict decides whether the caller may **obtain** the live stream — it says nothing about the minutes or hours the stream then stays open.
 
@@ -8,7 +13,19 @@ An **emission guard** closes that gap. Implement `IGuardObservableQueryEmission`
 
 ## Writing a guard
 
+Illustrative application integration fragment: `ISessions` is your application's real session store contract, not an Arc API. Supply and register an implementation that checks authoritative session state; do not replace it with an always-true stub. This guard deliberately requires a session for every stream it evaluates.
+
 ```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Queries;
+
+namespace Application.Security;
+
+public interface ISessions
+{
+    Task<bool> IsActive(string sessionId);
+}
+
 public class SessionMustStillBeActive(ISessions sessions) : IGuardObservableQueryEmission
 {
     public async Task<ObservableQueryEmissionVerdict> Guard(ObservableQueryEmissionContext context)
@@ -38,7 +55,7 @@ That is the whole opt-in. Guards are discovered by convention — no registratio
 
 `Suppress` does **not** move the delta baseline. The client never saw the withheld emission, so the next delivered `ChangeSet` is still computed against the last state it actually received — nothing goes missing.
 
-`DenyAndTerminate` ends only the subscription it was given. Every sibling subscription on the same multiplexed connection keeps streaming. On the hub the client receives an `unauthorized` message for that query id and the subscription is deleted; on a direct connection it receives a final `QueryResult` with `IsAuthorized` false and the stream closes. In both cases the Arc client latches the denial and stops reconnecting — a reconnect would only be denied again, and on a direct SSE connection the browser would otherwise re-establish the stream every few seconds and re-run the whole query for each attempt.
+`DenyAndTerminate` ends only the subscription it was given. Every sibling subscription on the same multiplexed connection keeps streaming. On the hub the client receives an `Unauthorized` message for that query id and the subscription is deleted; on a direct connection it receives a final `QueryResult` with `IsAuthorized` false and the stream closes. In both cases the Arc client latches the denial and stops reconnecting — a reconnect would only be denied again, and on a direct SSE connection the browser would otherwise re-establish the stream every few seconds and re-run the whole query for each attempt.
 
 ## What the guard is told
 
@@ -58,7 +75,7 @@ This is deliberate. A guard that failed open would leave an application believin
 
 Know the blast radius before you write one. The aggregator is a process-wide singleton over every discovered guard type, so a single guard that cannot be constructed at all — an open generic, or one whose constructor takes something the subscription scope cannot resolve — denies **every** observable query in the application, on every transport, for as long as the process runs. The only symptom is the `Error` log; clients simply see their subscriptions end as unauthorized. Cover a new guard with a spec that exercises its real constructor.
 
-One exception is carved out: if the subscription's own `CancellationToken` is cancelled while the guard is running, the resulting `OperationCanceledException` is the client going away, not a guard failing. The emission is still withheld and the subscription still ends, but nothing is logged as a failure — otherwise every closed tab would produce an authorization error.
+One exception is carved out: if the subscription's own `CancellationToken` is canceled while the guard is running, the resulting `OperationCanceledException` is the client going away, not a guard failing. The emission is still withheld and the subscription still ends, but nothing is logged as a failure — otherwise every closed tab would produce an authorization error.
 
 ## Cost
 
@@ -69,6 +86,8 @@ The guard runs on **every** emission of **every** subscription. Keep it fast: pr
 Resolve collaborators through the constructor. They come from the subscription's own scope and are disposed with it, so a guard can safely hold a scoped session store or tenant-aware service.
 
 ## Where it does not help
+
+These guards protect streaming **emissions**, not the ordinary HTTP snapshot path through `ObservableQueryHttp`. Do not assume `waitForFirstResult=true` opts a snapshot into streaming interception or emission guards. Apply subscription-time authorization and safe data selection to every query; see [snapshot interception limitations](read-model-interception.md).
 
 On a WebSocket the principal is frozen at the handshake — the protocol offers no way to present fresh credentials on an established connection. The identity a guard receives on a WebSocket subscription is the one captured when the socket was upgraded, and it does not change for the life of that connection.
 

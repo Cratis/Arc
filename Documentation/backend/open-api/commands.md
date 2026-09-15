@@ -1,6 +1,6 @@
 # Commands
 
-Arc commands follow a request/response pattern where every HTTP handler that performs a mutation returns a `CommandResult` or `CommandResult<T>` envelope. The `CommandResultOperationTransformer` automatically updates the generated operation documentation to reflect this.
+Arc wraps participating controller commands in a `CommandResult` or `CommandResult<T>` envelope. This is not a guarantee about every arbitrary mutation endpoint in an ASP.NET application. The `CommandResultOperationTransformer` automatically updates the generated operation documentation to reflect this.
 
 ## What the transformer does
 
@@ -12,7 +12,7 @@ For every endpoint whose controller action or method is identified as a command 
 ## Response status codes
 
 | Status code | Meaning |
-|-------------|---------|
+| ------------- | --------- |
 | 200 | Command executed successfully |
 | 400 | Validation error or malformed payload |
 | 403 | Forbidden — insufficient permissions |
@@ -22,15 +22,19 @@ For every endpoint whose controller action or method is identified as a command 
 
 If the command returns a concept (a type inheriting from `ConceptAs<T>`), the transformer unwraps the concept to its underlying primitive type before generating the `CommandResult<T>` schema.
 
-```csharp
-public record InvoiceId(Guid Value) : ConceptAs<Guid>(Value);
+The following **type/action fragments** illustrate a response contract; place the action inside an existing MVC controller and supply the application service:
 
-// Controller action — return type is InvoiceId
-[HttpPost]
-public Task<InvoiceId> CreateInvoice(CreateInvoice command) { ... }
+```csharp
+public record InvoiceId(Guid Value) : Cratis.Concepts.ConceptAs<Guid>(Value);
 ```
 
-The documented 200 response will use `CommandResult<string>` (uuid format) rather than `CommandResult<InvoiceId>`.
+```csharp
+[HttpPost]
+public Task<InvoiceId> CreateInvoice(CreateInvoice command, [FromServices] IInvoiceService invoices) =>
+    invoices.Create(command);
+```
+
+The transformer constructs `CommandResult<Guid>`; its response member is represented in JSON Schema as a string with UUID format. It does not change a runtime `Guid` response into a different command contract.
 
 ## Opting out
 
@@ -39,6 +43,6 @@ Decorate the action with `[AspNetResult]` to bypass the transformer and expose t
 ```csharp
 [HttpPost]
 [AspNetResult]
-public Task<InvoiceId> CreateInvoice(CreateInvoice command) { ... }
+public Task<InvoiceId> CreateInvoice(CreateInvoice command, [FromServices] IInvoiceService invoices) =>
+    invoices.Create(command);
 ```
-

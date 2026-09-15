@@ -1,87 +1,63 @@
 ---
-title: Point Serializer
-description: Store single geographic coordinates (longitude, latitude) in MongoDB
+title: Point serializer
+description: Store GeoJSON points and use MongoDB driver geometry in query filters.
 ---
 
-The Point serializer stores geographic coordinates as GeoJSON Point objects, compatible with MongoDB's geospatial queries.
+Arc stores `Cratis.Geospatial.Point` as GeoJSON. Complete [MongoDB setup](../getting-started.md) first; the snippets below are model declarations and query-method fragments, not a standalone host.
 
 ## Usage
 
 ```csharp
 using Cratis.Geospatial;
+using MongoDB.Bson;
 
 public class Store
 {
     public ObjectId Id { get; set; }
-    public string Name { get; set; }
-    public Point Location { get; set; }
+    public required string Name { get; set; }
+    public required Point Location { get; set; }
 }
-
-// Create a point
-var point = new Point(longitude: -122.4194, latitude: 37.7749);
 ```
 
-## Storage Format
+Inside a method, construct a point with positional arguments or the correctly capitalized names:
 
-Points are serialized as GeoJSON Point documents:
+```csharp
+var point = new Point(Longitude: -122.4194, Latitude: 37.7749);
+```
+
+## Storage format
+
+With camel-case naming, the location member is:
 
 ```json
-{
-  "_id": ObjectId("..."),
-  "name": "Downtown Store",
-  "location": {
-    "type": "Point",
-    "coordinates": [-122.4194, 37.7749]
-  }
-}
+{"location":{"type":"Point","coordinates":[-122.4194,37.7749]}}
 ```
 
-The `coordinates` array follows GeoJSON format: `[longitude, latitude]`.
+Coordinates are `[longitude, latitude]`. Validate ranges in your application; the record/serializer does not enforce geographic validity.
+
+`Point?` expresses CLR optionality only. Arc's current geometry BSON serializers neither serialize a null value nor read explicit BSON null. Design and test an omission policy or a null-aware member serializer before persisting optional geometry; a nullable annotation alone is insufficient. See [serializer null handling](../serializers.md#error-handling).
 
 ## Querying
 
-### Finding Nearby Points
-
-Use MongoDB's `$near` operator with geospatial indexes:
+The driver's geometry arguments are **`GeoJsonPoint<GeoJson2DGeographicCoordinates>`**, not Cratis `Point`. The following fragment uses an `IMongoCollection<Store>` named `collection`:
 
 ```csharp
-// Create a geospatial index first
-collection.Indexes.CreateOne(
-    new CreateIndexModel<Store>(
-        Builders<Store>.IndexKeys.Geo2DSphere(s => s.Location)
-    )
-);
+using MongoDB.Driver;
+using MongoDB.Driver.GeoJsonObjectModel;
 
-// Query for stores near a point
-var nearbyStores = await collection.Find(
-    Builders<Store>.Filter.Near(
-        s => s.Location,
-        new Point(-122.4, 37.78),
-        maxDistance: 5000 // 5km in meters
-    )
-).ToListAsync();
+await collection.Indexes.CreateOneAsync(new CreateIndexModel<Store>(
+    Builders<Store>.IndexKeys.Geo2DSphere(store => store.Location)));
+
+var origin = new GeoJsonPoint<GeoJson2DGeographicCoordinates>(
+    new GeoJson2DGeographicCoordinates(-122.4, 37.78));
+var nearbyStores = await collection.Find(Builders<Store>.Filter.Near(
+    store => store.Location,
+    origin,
+    maxDistance: 5000)).ToListAsync();
 ```
 
-### Checking if Point is Within Area
+This uses a `2dsphere` index and a GeoJSON query point, so the distance bound is in meters. Index creation is normally deployment/setup work, not something to repeat on every query.
 
-```csharp
-// Find points within a polygon boundary
-var storesInArea = await collection.Find(
-    Builders<Store>.Filter.GeoWithin(
-        s => s.Location,
-        polygon
-    )
-).ToListAsync();
-```
+To find stored points within a region, use `GeoWithin` with a **driver GeoJSON polygon**. See [polygon queries](./polygon.md#querying) for construction and the distinction between containment and intersection. These examples establish API shape; test actual spatial results against your MongoDB deployment.
 
-## Best Practices
-
-- **Coordinate Order**: Always use `[longitude, latitude]` (not latitude, longitude)
-- **Create Indexes**: Create `2dsphere` indexes on Point properties for efficient spatial queries
-- **Null Handling**: Points can be nullable (`Point?`) for optional locations
-- **Validation**: Ensure longitude is between -180 and 180, latitude between -90 and 90
-
-## Related
-
-- [LineString](./linestring.md) — Routes and paths
-- [Polygon](./polygon.md) — Geographic areas
+Continue with [LineString](./linestring.md) for paths or [Polygon](./polygon.md) for areas.

@@ -86,6 +86,13 @@ public static partial class IndexFileManager
         var hasOrphansInDirectory = orphanedFileNames.Count > 0;
         var hasStaleExports = existingExports.Exists(e =>
         {
+            // A non-relative (bare/package) specifier, e.g. '@cratis/components', is never something the
+            // generator wrote and never something it can verify on disk — treat it as manual, never stale.
+            if (!e.StartsWith('.'))
+            {
+                return false;
+            }
+
             var fileName = e.TrimStart('.', '/');
             return !ExportTargetExistsOnDisk(directory, fileName) && !generatedFiles.ContainsKey(Path.GetFullPath(Path.Combine(directory, $"{fileName}.ts")));
         });
@@ -118,6 +125,14 @@ public static partial class IndexFileManager
             // Skip orphaned exports
             if (orphanedFileNames.Contains(fileName))
             {
+                continue;
+            }
+
+            // A non-relative (bare/package) specifier is never generator output and can never be verified
+            // on disk — always preserve it.
+            if (!export.StartsWith('.'))
+            {
+                finalExports.Add(export);
                 continue;
             }
 
@@ -263,14 +278,27 @@ public static partial class IndexFileManager
                 continue;
             }
 
+            var exportPath = match.Groups["path"].Value;
+
+            // A non-relative (bare/package) specifier is always hand-written.
+            if (!exportPath.StartsWith('.'))
+            {
+                return true;
+            }
+
+            var fileName = exportPath.TrimStart('.', '/');
+            var foundFile = false;
+
             // Check common TypeScript extensions for the export target
             foreach (var ext in (string[])[".ts", ".tsx"])
             {
-                var filePath = Path.Combine(directory, $"{match.Groups["path"].Value.TrimStart('.', '/')}{ext}");
+                var filePath = Path.Combine(directory, $"{fileName}{ext}");
                 if (!File.Exists(filePath))
                 {
                     continue;
                 }
+
+                foundFile = true;
 
                 // If the file is not proxy-generated, this is a live non-generated export
                 if (!GeneratedFileMetadata.IsGeneratedFile(filePath, out _))
@@ -278,11 +306,34 @@ public static partial class IndexFileManager
                     return true;
                 }
             }
+
+            // A directory export with its own barrel is, by construction, hand-written — the generator
+            // has never written a folder export — so it counts as a live non-generated export even though
+            // there is no single file to check for the @generated marker.
+            if (!foundFile && DirectoryBarrelExists(directory, fileName))
+            {
+                return true;
+            }
         }
 
         return false;
     }
 
+    /// <summary>
+    /// Checks whether an export target resolves to a generated file or a hand-written directory barrel on disk.
+    /// </summary>
+    /// <param name="directory">The directory containing the index.ts file doing the exporting.</param>
+    /// <param name="fileName">The relative export target, with any leading <c>./</c> and extension stripped.</param>
+    /// <returns><see langword="true"/> if the target resolves to a <c>.ts</c>/<c>.tsx</c> file or to a directory with its own barrel.</returns>
+    /// <remarks>
+    /// An export can also target a directory with its own <c>index.ts</c>/<c>index.tsx</c> barrel, e.g.
+    /// <c>export * from './List';</c> where <c>List/</c> is a hand-written folder. The generator has never written
+    /// a folder export — the export list it builds is always sourced from generated *files* in this directory — so
+    /// a folder export is by construction hand-written and must never be pruned as stale. Requiring the child
+    /// barrel to exist (rather than merely the directory) mirrors how TypeScript resolves a bare directory
+    /// specifier, and keeps pruning honest for a folder that exports nothing: an absent <c>List.ts</c> is not, on
+    /// its own, proof that the target is gone — it may simply be a folder export instead.
+    /// </remarks>
     static bool ExportTargetExistsOnDisk(string directory, string fileName)
     {
         foreach (var ext in (string[])[".ts", ".tsx"])
@@ -293,7 +344,20 @@ public static partial class IndexFileManager
             }
         }
 
-        return false;
+        return DirectoryBarrelExists(directory, fileName);
+    }
+
+    /// <summary>
+    /// Checks whether a relative export target resolves to a directory containing its own barrel file.
+    /// </summary>
+    /// <param name="directory">The directory containing the index.ts file doing the exporting.</param>
+    /// <param name="fileName">The relative export target, with any leading <c>./</c> stripped.</param>
+    /// <returns><see langword="true"/> if <paramref name="fileName"/> is a subdirectory of <paramref name="directory"/> with an <c>index.ts</c> or <c>index.tsx</c> file.</returns>
+    static bool DirectoryBarrelExists(string directory, string fileName)
+    {
+        var childDirectory = Path.Combine(directory, fileName);
+        return Directory.Exists(childDirectory) &&
+            (File.Exists(Path.Combine(childDirectory, "index.ts")) || File.Exists(Path.Combine(childDirectory, "index.tsx")));
     }
 
     [GeneratedRegex(@"^\s*export\s+\*\s+from\s+['""](?<path>.+)['""]\s*;?\s*$", RegexOptions.ExplicitCapture, 1000)]
