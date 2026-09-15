@@ -19,6 +19,7 @@ public class CommandHandlerProvider : ICommandHandlerProvider
     /// Initializes a new instance of the <see cref="CommandHandlerProvider"/> class.
     /// </summary>
     /// <param name="types">The types available in the application.</param>
+    [UnconditionalSuppressMessage("AOT", "IL2067", Justification = "types.All contains command types whose members are preserved by application assemblies. Source-generated command type registration is the long-term fix (tracked in GitHub issue #2204).")]
     public CommandHandlerProvider(ITypes types)
     {
         _commandTypes = types.All.Where(t => t.IsCommand()).ToDictionary(t => t, t => t.GetHandleMethod());

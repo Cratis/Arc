@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Validation;
 using CratisValidationResult = Cratis.Arc.Validation.ValidationResult;
@@ -48,6 +49,8 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
         return Task.FromResult(queryResult);
     }
 
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "ValidationContext uses reflection on the value type. Source-generated validation is the long-term fix (tracked in GitHub issue #2204).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "parameter.Type comes from the query performer and reflects user-registered parameter types. GetCustomAttributes is AOT-unsafe for runtime types; source-generated validation is the long-term fix (tracked in GitHub issue #2204).")]
     static void ValidateParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults)
     {
         if (value is null && !IsNullable(parameter.Type))

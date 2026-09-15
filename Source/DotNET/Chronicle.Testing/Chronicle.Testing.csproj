@@ -4,6 +4,7 @@
         <AssemblyName>Cratis.Arc.Chronicle.Testing</AssemblyName>
         <RootNamespace>Cratis.Arc.Chronicle.Testing</RootNamespace>
         <TargetFrameworks>net10.0</TargetFrameworks>
+        <IsAotCompatible>false</IsAotCompatible>
         <Description>Testing utilities for Cratis Arc Chronicle applications, providing in-process event log infrastructure and Chronicle-specific assertion helpers for command scenarios.</Description>
         <PackageTags>cratis;arc;chronicle;testing;commands;event-sourcing</PackageTags>
     </PropertyGroup>

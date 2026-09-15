@@ -35,9 +35,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
 
         var readModelTypes = types.All.Where(t => t.IsReadModel());
         _performers = readModelTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .Where(m => m.IsValidQueryFor(t))
-                .Select(m => new ModelBoundQueryPerformer(t, t.FullName ?? t.Name, m, serviceProviderIsService, authorizationEvaluator)))
+            .SelectMany(GetQueryPerformers(serviceProviderIsService, authorizationEvaluator))
             .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
     }
 
@@ -47,6 +45,12 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     /// <inheritdoc/>
     public bool TryGetPerformerFor(FullyQualifiedQueryName query, [NotNullWhen(true)] out IQueryPerformer? performer) =>
         _performers.TryGetValue(query, out performer);
+
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "Read model types are discovered at startup via ITypes and their methods are preserved by the type system. Source-generated discovery is the long-term fix (tracked in GitHub issue #2204).")]
+    static Func<Type, IEnumerable<ModelBoundQueryPerformer>> GetQueryPerformers(IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator) =>
+        t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+            .Where(m => m.IsValidQueryFor(t))
+            .Select(m => new ModelBoundQueryPerformer(t, t.FullName ?? t.Name, m, serviceProviderIsService, authorizationEvaluator));
 
     static IEnumerable<ModelBoundQueryPerformer> CreatePerformersFromGeneratedMetadata(
         IDictionary<string, Type> generatedMetadata,
