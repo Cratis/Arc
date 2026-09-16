@@ -41,4 +41,4 @@ There is no generated `Bindings` artifact or generated `Bindings.initialize()` c
 3. Adjust [configuration](Configuration/index.md) when your folder structure or routes differ from the defaults.
 4. Read [output behavior](Configuration/output-behavior.md) before mixing generated and handwritten files. Cleanup is not a general-purpose source-preservation mechanism.
 
-For specialized output, see [identity details](identity-details.md), [validation extraction](validation.md), and [file tracking](file-index-tracking.md).
+For specialized output, see [identity details](identity-details.md), [validation extraction](validation.md), [file tracking](file-index-tracking.md), and [linting generated proxies](linting.md).

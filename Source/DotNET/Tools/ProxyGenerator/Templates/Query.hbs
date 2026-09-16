@@ -134,7 +134,7 @@ export class {{Name}} extends QueryFor<{{{Model}}}> {
     private readonly _sortBy: {{Name}}SortBy;
     private static readonly _sortBy: {{Name}}SortByWithoutQuery = new {{Name}}SortByWithoutQuery();
 {{else}}
-    readonly defaultValue: {{{Model}}} = {} as any;
+    readonly defaultValue: {{{Model}}} = {} as {{{Model}}};
 {{/if}}
 
     constructor() {

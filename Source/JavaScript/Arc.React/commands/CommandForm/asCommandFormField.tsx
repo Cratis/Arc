@@ -35,6 +35,15 @@ export interface BaseCommandFormFieldProps<TCommand = unknown, TSource = unknown
     description?: string;
 
     /**
+     * Names the command property this field binds to, instead of letting CommandForm infer it from
+     * {@link value}. Supply this when the accessor reads the property dynamically - for example
+     * `instance => instance[descriptor.name]` - because inference reads the accessor's source text
+     * and cannot resolve a computed member. Omit it for ordinary `command => command.property`
+     * accessors, which continue to be inferred.
+     */
+    fieldName?: string;
+
+    /**
      * Skips this field when a command's initial values are populated from a query or a plain source
      * object - e.g. via {@link CommandFormProps.populateFromQuery}. Has no effect on
      * {@link CommandFormProps.initialValues}/{@link CommandFormProps.currentValues}, which are

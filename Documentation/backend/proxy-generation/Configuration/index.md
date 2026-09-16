@@ -9,6 +9,7 @@ Configure generation through properties and items **inside the existing `.csproj
 
 - [Basic options](basic.md): output path, namespace segments, source-file grouping, decorators.
 - [Library mode](library-mode.md): collect models beyond endpoint references; separate CLI interface output.
+- [Emit interfaces](emit-interfaces.md): plain interfaces with no decorators and no runtime dependency.
 - [Type exclusions](type-exclusions.md): omit types or namespace patterns.
 - [Namespace roots](namespace-roots.md): remap output folders without changing API routes.
 - [Assembly-to-package mappings](assembly-package-mappings.md): import shared model packages.
@@ -24,6 +25,7 @@ Configure generation through properties and items **inside the existing `.csproj
 | `CratisProxiesSegmentsToSkip` | Empty resolves to `0` | [Basic](basic.md) |
 | `CratisProxiesUseSourceFileAsOutputFile` | Off unless `true` | [Basic](basic.md) |
 | `CratisProxiesLibraryMode` | `false` | [Library mode](library-mode.md) |
+| `CratisProxiesEmitInterfaces` | `false` | [Emit interfaces](emit-interfaces.md) |
 | `ExcludeType` item | `Include`, `TypeName` | [Exclusions](type-exclusions.md) |
 | `ExcludeNamespace` item | `Include`, `Namespace` | [Exclusions](type-exclusions.md) |
 | `NamespaceRoot` item | `Include`, `Namespace`, `Folder` (may be empty) | [Namespace roots](namespace-roots.md) |
@@ -35,5 +37,3 @@ Configure generation through properties and items **inside the existing `.csproj
 | `CratisProxiesSkipIndexGeneration` | Off unless `true` | [Output behavior](output-behavior.md) |
 | `CratisProxiesSkipOutputDeletion` | `true` in MSBuild; direct executable differs | [Output behavior](output-behavior.md) |
 | `CratisProxiesSkipFileIndexTracking` | `false`; setting `true` is currently ignored by the executable | [Output behavior](output-behavior.md) |
-
-The executable accepts `--emit-interfaces` separately; the current MSBuild target does not expose that switch. See [library mode](library-mode.md#default-classes-versus-plain-interfaces).

@@ -268,45 +268,52 @@ and warns on the console for the ones that are configuration mistakes:
 
 ## Type-safe identity with complex types
 
-If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by providing a constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
+If your identity details contain complex types like `Guid` from `@cratis/fundamentals`, you can enable type-safe deserialization by giving `<Arc>` a `detailsType` constructor. This ensures that complex types are properly instantiated with their methods and behavior, not just plain JSON objects.
 
-A constructor alone is not enough: Fundamentals deserialization reads declared field metadata, not the types of property initializers. Use the generated/decorated details model rather than an unannotated class.
+First, define your identity details class with an `@field` decorator on every property that should be deserialized:
 
-Nest the configured provider beneath `Arc`. In this header-authenticated composition, your authentication integration supplies `httpHeadersCallback`; pass the same retained callback to both providers so the details provider does not replace it with empty headers:
+```typescript
+import { Guid, field } from '@cratis/fundamentals';
 
-```tsx
-import { Arc } from '@cratis/arc.react';
-import { IdentityProvider } from '@cratis/arc.react/identity';
-import { UserIdentityDetails } from './generated/UserIdentityDetails';
+class UserIdentityDetails {
+    @field(Guid)
+    userId!: Guid;
 
-export const App = ({
-    httpHeadersCallback,
-}: {
-    httpHeadersCallback: () => HeadersInit;
-}) => (
-    <Arc httpHeadersCallback={httpHeadersCallback}>
-        <IdentityProvider
-            detailsType={UserIdentityDetails}
-            httpHeadersCallback={httpHeadersCallback}
-        >
-            <main>Your application content</main>
-        </IdentityProvider>
-    </Arc>
-);
+    @field(String)
+    firstName!: string;
+
+    @field(String)
+    lastName!: string;
+}
 ```
 
-Finally, use the `useIdentity()` hook with the constructor and an explicit details generic. The generic avoids inferring the constructor itself as the default-details value:
+> [!IMPORTANT]
+> A details type with no `@field` decorators cannot be deserialized into. `JsonSerializer.deserializeFromInstance()` only copies members declared with `@field` - an undecorated class would silently construct an empty instance and discard everything the server sent. Cratis detects this case and passes the raw payload through unchanged instead of blanking it (with a console warning), but the fix is always to decorate every property you expect to read.
+
+Then, configure `<Arc>` with the details type. This is the primary form - `<Arc>` forwards it to the `IdentityProvider` it mounts internally, deserialization happens once, and every `useIdentity()` call anywhere in the tree gets the typed result for free:
+
+```typescript
+import { Arc } from '@cratis/arc.react';
+
+export const App = () => {
+    return (
+        <Arc detailsType={UserIdentityDetails}>
+            {/* ... your app content ... */}
+        </Arc>
+    );
+};
+```
+
+If you wire `IdentityProvider` directly instead of using `<Arc>` - see [Identity provider context](#identity-provider-context) - it accepts the same `detailsType` prop.
+
+Now a plain `useIdentity()` already returns typed details:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
-import { UserIdentityDetails } from './generated/UserIdentityDetails';
 
 export const Home = () => {
-    const identity = useIdentity<UserIdentityDetails>(UserIdentityDetails);
-    if (identity.isLoading) return <p>Loading…</p>;
-    if (!identity.isSet || !identity.details?.userId) return <p>No identity details.</p>;
-
-    // Now identity.details.userId is a proper Guid instance with all its methods
+    const identity = useIdentity<UserIdentityDetails>();
+    // identity.details.userId is a proper Guid instance with all its methods
     return (
         <>
             <h3>User ID: {identity.details.userId.toString()}</h3>
@@ -316,7 +323,24 @@ export const Home = () => {
 };
 ```
 
-The provider passes `detailsType` to `JsonSerializer.deserializeFromInstance()`. Passing a constructor to `useIdentity` alone does not deserialize an already-loaded plain object. The example requires the provider configuration and generated field metadata.
+You only need to pass the constructor to `useIdentity()` itself when the provider was **not** configured with a `detailsType` - for example, a shared component that has to work whether or not the hosting application set one up:
+
+```typescript
+import { useIdentity } from '@cratis/arc.react/identity';
+
+export const Home = () => {
+    const identity = useIdentity(UserIdentityDetails);
+
+    return (
+        <h3>User ID: {identity.details.userId.toString()}</h3>
+        <h3>User: {identity.details.firstName} {identity.details.lastName}</h3>
+    );
+};
+```
+
+It is safe to supply both. `useIdentity(UserIdentityDetails)` recognizes when `<Arc>`/`IdentityProvider` already deserialized the payload with that exact type and hands back the existing instance rather than deserializing it a second time - which would be destructive, not merely wasteful, for nested temporal values and concept types.
+
+This approach uses `JsonSerializer.deserializeFromInstance()` under the hood to recursively deserialize complex types, ensuring that types like `Guid`, `DateOnly`, and other `@field`-decorated custom types are properly instantiated rather than being plain JSON objects.
 
 ## Refreshing with hook
 
@@ -404,10 +428,18 @@ When using the type-safe overload with a constructor, the default value is provi
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
-import { Guid } from '@cratis/fundamentals';
+import { Guid, field } from '@cratis/fundamentals';
 
-import { UserIdentityDetails } from './generated/UserIdentityDetails';
+class UserIdentityDetails {
+    @field(Guid)
+    userId!: Guid;
 
+    @field(String)
+    firstName!: string;
+
+    @field(String)
+    lastName!: string;
+}
 export const Home = () => {
     const defaultDetails: UserIdentityDetails = {
         userId: Guid.empty,
@@ -422,3 +454,6 @@ export const Home = () => {
     );
 };
 ```
+
+> [!NOTE]
+> The default value is used as-is and is never run through deserialization - pass it already in its final, typed shape (as shown above, a plain object literal satisfying the class shape is enough). This matters because deserializing it would be redundant at best, and destructive at worst for nested temporal values and concept types.

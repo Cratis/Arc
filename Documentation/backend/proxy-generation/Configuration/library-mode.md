@@ -15,7 +15,7 @@ Add this fragment inside your existing project:
 </PropertyGroup>
 ```
 
-The collection pass walks project assemblies, including public non-abstract types, enums, and interfaces. Open generic definitions are skipped; abstract classes are not roots of this pass, though referenced inheritance types can still be involved. This is model generation, not a translation of arbitrary .NET methods or implementations.
+The collection pass walks project assemblies, including public non-abstract types, enums, and interfaces. Open generic definitions are skipped, along with their type parameters: neither has a concrete shape to emit. Abstract classes are not collected directly, but are still generated when something reachable derives from one — a concrete type's base class is followed, so an inheritance chain arrives intact rather than with its roots missing. This is model generation, not a translation of arbitrary .NET methods or implementations.
 
 [Exclusions](type-exclusions.md) still apply, and [package-mapped types](assembly-package-mappings.md) are imported rather than regenerated.
 
@@ -25,11 +25,7 @@ Library mode does **not** imply interface output. Models default to TypeScript c
 
 The executable separately accepts `--emit-interfaces` for shape-only model output. Interfaces have no runtime constructors or deserialization metadata; use this for types you construct/read as plain objects, not as a drop-in replacement for model constructors in query or identity clients. Command/query templates are not converted into dependency-free interfaces by this flag.
 
-The current MSBuild target does **not** forward an interface-emission property. Do not invent a `CratisProxiesEmitInterfaces` property and expect it to work. With the [executable alias prerequisite](output-behavior.md#direct-executable), a model-only library can use:
-
-```bash
-proxygenerator assembly.dll output-path --skip-output-deletion --library-mode --emit-interfaces
-```
+See [emit interfaces](emit-interfaces.md) for when to use interface output and how to enable it via the MSBuild property or CLI flag.
 
 ## Combine output controls
 

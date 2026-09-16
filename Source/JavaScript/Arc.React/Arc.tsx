@@ -5,6 +5,7 @@ import { CommandScope } from './commands';
 import { IdentityProvider } from './identity';
 import { Bindings } from './Bindings';
 import { ArcConfiguration, ArcContext } from './ArcContext';
+import { Constructor } from '@cratis/fundamentals';
 import { GetHttpHeaders, EventSourceFactory, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
@@ -25,6 +26,17 @@ export interface ArcProps {
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;
+    /**
+     * Optional constructor for the identity's application-specific details type, enabling type-safe
+     * deserialization of {@link IIdentity.details} for every consumer that reads it - both
+     * `useIdentity()` (with no argument) and, indirectly, any `useIdentity(type)` call that passes
+     * this same type.
+     *
+     * Must be a stable, module-level class carrying `@field` decorators for every property that
+     * should be populated - an inline/anonymous class, or one with no `@field` decorators, cannot be
+     * deserialized into and the raw payload is passed through instead (with a console warning).
+     */
+    detailsType?: Constructor;
     /**
      * Optional factory used to create the {@link EventSource} instances that back SSE
      * observable query connections. Falls back to the global {@link EventSource}
@@ -142,7 +154,7 @@ export const Arc = (props: ArcProps) => {
         <ArcContext.Provider value={configuration}>
             <MessengerScopeContext.Provider value={configuration.messenger}>
                 <QueryInstanceCacheContext.Provider value={queryInstanceCache.current}>
-                    <IdentityProvider httpHeadersCallback={props.httpHeadersCallback}>
+                    <IdentityProvider httpHeadersCallback={props.httpHeadersCallback} detailsType={props.detailsType}>
                         <CommandScope>
                             {props.children}
                         </CommandScope>

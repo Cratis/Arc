@@ -72,7 +72,11 @@ public static class MongoCollectionExtensions
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
-    /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
+    /// <returns>
+    /// An <see cref="ISubject{T}"/> with a single instance of the type; emits <see langword="default"/> when
+    /// no document matches — after the observed document is deleted, after an update or replace moves it out
+    /// of the filter, or when the initial query finds none.
+    /// </returns>
     public static ISubject<TDocument> ObserveSingle<TDocument>(
         this IMongoCollection<TDocument> collection,
         Expression<Func<TDocument, bool>>? filter,
@@ -109,7 +113,11 @@ public static class MongoCollectionExtensions
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
-    /// <returns><see cref="ISubject{T}"/> with a single instance of the type.</returns>
+    /// <returns>
+    /// An <see cref="ISubject{T}"/> with a single instance of the type; emits <see langword="default"/> when
+    /// no document matches — after the observed document is deleted, after an update or replace moves it out
+    /// of the filter, or when the initial query finds none.
+    /// </returns>
     public static ISubject<TDocument> ObserveSingle<TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
@@ -126,13 +134,33 @@ public static class MongoCollectionExtensions
     /// <param name="id">The identifier of the document to observe.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
-    /// <returns><see cref="ISubject{T}"/> with an instance of the type.</returns>
+    /// <returns>
+    /// An <see cref="ISubject{T}"/> with an instance of the type; emits <see langword="default"/> when no
+    /// document matches — after the observed document is deleted, or when the initial query finds none.
+    /// </returns>
     public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id)
     {
         var filter = Builders<TDocument>.Filter.Eq(new StringFieldDefinition<TDocument, TId>("_id"), id);
         return collection.ObserveSingle(() => collection.Find(filter), filter);
     }
 
+    /// <summary>
+    /// Create an observable query that will observe a single document in the collection, driven by an
+    /// explicit initial query and filter.
+    /// </summary>
+    /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
+    /// <param name="findCall">Produces the initial, sorted and paged query for the observed document.</param>
+    /// <param name="filter">The filter identifying the observed document.</param>
+    /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
+    /// <returns>An <see cref="ISubject{T}"/> with a single instance of the type.</returns>
+    /// <remarks>
+    /// The single-document observable emits <see langword="default"/> when no document matches — after a hard
+    /// delete, after an update or replace that moves the document out of the filter, and when the initial
+    /// query finds nothing. <see langword="default"/> is deliberate: it matches the existing "no such
+    /// document" convention (see <see cref="FindById{T,TId}"/>) and lets a subscriber tell "removed" apart
+    /// from "still catching up" — completing the observable instead would close the connection out from
+    /// under the client rather than report absence.
+    /// </remarks>
     static ISubject<TDocument> ObserveSingle<TDocument>(
          this IMongoCollection<TDocument> collection,
          Func<IFindFluent<TDocument, TDocument>> findCall,
@@ -141,14 +169,7 @@ public static class MongoCollectionExtensions
         return collection.Observe<TDocument, TDocument>(
             findCall,
             filter,
-            (documents, observable) =>
-            {
-                var result = documents.FirstOrDefault();
-                if (result is not null)
-                {
-                    observable.OnNext(result);
-                }
-            });
+            (documents, observable) => observable.OnNext(documents.FirstOrDefault()!));
     }
 
     static ISubject<TResult> Observe<TDocument, TResult>(
