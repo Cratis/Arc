@@ -179,6 +179,8 @@ public static class MongoCollectionExtensions
         Action<IEnumerable<TDocument>, ISubject<TResult>> onNext)
     {
         var completedCleanup = false;
+        var cancelling = false;
+        var cancellationGate = new object();
         var logger = Internals.ServiceProvider.GetRequiredService<ILogger<MongoCollection>>();
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
         var queryContext = queryContextManager.Current;
@@ -225,11 +227,7 @@ public static class MongoCollectionExtensions
         // the single latest emission keeps a late subscriber from missing the initial query result instead.
         var subject = new LifetimeAwareSubject<TResult>(
             new ReplaySubject<TResult>(1),
-            () =>
-            {
-                logger.ClientUnsubscribed();
-                cancellationTokenSource?.Cancel();
-            });
+            CancelWatch);
     #pragma warning restore CA2000 // Dispose objects before losing scope
         ISubject<TResult> observable = subject;
 
@@ -294,18 +292,64 @@ public static class MongoCollectionExtensions
             }
         }
 
+        void CancelWatch()
+        {
+            logger.ClientUnsubscribed();
+            lock (cancellationGate)
+            {
+                if (completedCleanup)
+                {
+                    return;
+                }
+                cancelling = true;
+            }
+
+            // Cancel invokes driver callbacks synchronously. Do not hold the gate while they run:
+            // a callback can itself allow Watch to finish, even on this same thread.
+            try
+            {
+                cancellationTokenSource.Cancel();
+            }
+            finally
+            {
+                lock (cancellationGate)
+                {
+                    cancelling = false;
+                    if (completedCleanup)
+                    {
+                        cancellationTokenSource.Dispose();
+                    }
+                }
+            }
+        }
+
         void Cleanup()
         {
-            if (completedCleanup)
-            {
-                return;
-            }
-            completedCleanup = true;
             logger.CleaningUp();
-            cancellationTokenSource?.Dispose();
-            cancellationTokenSource = default;
-            subject.OnCompleted();
-            subject.Dispose();
+            try
+            {
+                try
+                {
+                    subject.OnCompleted();
+                }
+                finally
+                {
+                    subject.Dispose();
+                }
+            }
+            finally
+            {
+                lock (cancellationGate)
+                {
+                    // Stop the subject before releasing its cancellation resource. If its one-shot
+                    // stop callback is still inside Cancel, that callback owns the final disposal.
+                    completedCleanup = true;
+                    if (!cancelling)
+                    {
+                        cancellationTokenSource.Dispose();
+                    }
+                }
+            }
         }
     }
 
