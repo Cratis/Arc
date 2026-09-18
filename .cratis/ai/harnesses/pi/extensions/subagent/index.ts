@@ -97,6 +97,20 @@ async function runSingleAgent(
 		};
 	}
 
+	// A restricted agent whose restriction cannot be expressed in Pi is not launched at all: launching it
+	// with the full toolset would be the opposite of what its author declared (see AgentConfig.toolsError).
+	if (agent.toolsError) {
+		return {
+			agent: agentName,
+			agentSource: agent.source,
+			task,
+			exitCode: 1,
+			finalText: "",
+			stderr: agent.toolsError,
+			step,
+		};
+	}
+
 	// An agent that pins no model inherits the dispatching session's model + thinking level.
 	const model = agent.model ?? dispatch.model;
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];

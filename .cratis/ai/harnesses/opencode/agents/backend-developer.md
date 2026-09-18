@@ -1,20 +1,17 @@
 ---
-name: Backend Developer
 description: >
   Specialist for C# backend code within a vertical slice.
   Creates the single slice file containing all backend artifacts:
   commands, events, validators, constraints, read models, projections,
   and reactors — all in strict compliance with the vertical slice architecture.
-model: claude-sonnet-4-5
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Edit
-  - Write
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+permission:
+  edit: allow
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/backend-developer.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/backend-developer.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/backend-developer.md. Do not edit; the canonical agent is the source. -->
 
 # Backend Developer
 

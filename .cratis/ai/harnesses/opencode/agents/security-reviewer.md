@@ -1,19 +1,17 @@
 ---
-name: Security Reviewer
 description: >
   Security gate agent for Cratis-based projects. Performs a structured
   security review of all changed files before merge, covering input validation,
   auth/authz, data exposure, secrets, event sourcing specifics, and frontend
   attack surface.
-model: claude-sonnet-4-5
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-readonly: true
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+permission:
+  edit: deny
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/security-reviewer.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/security-reviewer.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/security-reviewer.md. Do not edit; the canonical agent is the source. -->
 
 # Security Reviewer
 

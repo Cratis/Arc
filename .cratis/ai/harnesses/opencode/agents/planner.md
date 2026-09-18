@@ -1,19 +1,17 @@
 ---
-name: Vertical Slice Planner
 description: >
   Orchestrates the implementation of one or more vertical slices.
   Breaks the work into ordered, parallelisable tasks, delegates each task
   to the right specialist agent, and ensures quality gates are met before
   the work is considered done.
-model: claude-sonnet-4-5
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Agent
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+permission:
+  edit: deny
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/planner.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/planner.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/planner.md. Do not edit; the canonical agent is the source. -->
 
 # Vertical Slice Planner
 

@@ -1,18 +1,16 @@
 ---
-name: Repository Investigator
 description: >
   Read-only investigator for Cratis application and framework repositories.
   Produces typed, evidence-backed findings without changing source, invoking
   mutating Chronicle operations, or assuming an application architecture.
-model: claude-opus-5
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-readonly: true
+mode: subagent
+model: anthropic/claude-opus-5
+permission:
+  edit: deny
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/repository-investigator.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/repository-investigator.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/repository-investigator.md. Do not edit; the canonical agent is the source. -->
 
 # Repository Investigator
 

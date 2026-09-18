@@ -1,17 +1,16 @@
 ---
-name: Repository Investigation Reviewer
 description: >
   Independent, read-only reviewer for typed Cratis repository investigations.
   Reviews evidence and repository-mode reasoning without applying application
   conventions to framework or client-library repositories.
-model: claude-opus-5
-tools:
-  - Read
-  - Grep
-  - Glob
-readonly: true
+mode: subagent
+model: anthropic/claude-opus-5
+permission:
+  edit: deny
+  bash: deny
 ---
-<!-- cratis-ai-managed: agents/repository-investigation-reviewer.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/repository-investigation-reviewer.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/repository-investigation-reviewer.md. Do not edit; the canonical agent is the source. -->
 
 # Repository Investigation Reviewer
 

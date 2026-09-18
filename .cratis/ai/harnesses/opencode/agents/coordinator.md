@@ -1,5 +1,4 @@
 ---
-name: Coordinator
 description: >
   General-purpose coordinator agent for Cratis-based projects.
   Receives a high-level goal, breaks it into parallelisable tasks,
@@ -8,15 +7,14 @@ description: >
   Use this agent when a request spans multiple concerns (backend + frontend,
   multiple slices, mixed C#/TypeScript work, or requires both implementation
   and review).
-model: claude-sonnet-4-5
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Agent
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+permission:
+  edit: deny
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/coordinator.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/coordinator.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/coordinator.md. Do not edit; the canonical agent is the source. -->
 
 # Coordinator
 

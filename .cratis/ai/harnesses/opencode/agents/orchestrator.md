@@ -1,5 +1,4 @@
 ---
-name: Orchestrator
 description: >
   Top-level team orchestrator for Cratis-based projects.
   Receives any high-level goal and assembles the right team of specialist agents
@@ -8,15 +7,14 @@ description: >
   Use this agent as the entry point whenever multiple agents need to work together
   as a team: mixed implementation + documentation + review, multi-feature work,
   large refactors, or any goal that spans more than one concern.
-model: claude-sonnet-4-5
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Agent
+mode: subagent
+model: anthropic/claude-sonnet-4-5
+permission:
+  edit: deny
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/orchestrator.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/orchestrator.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/orchestrator.md. Do not edit; the canonical agent is the source. -->
 
 # Orchestrator
 

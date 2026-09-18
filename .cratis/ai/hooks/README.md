@@ -14,24 +14,27 @@ Three layers:
 | Quality gate | `Stop` | `scripts/cratis-quality-gate.sh` | one build/test run, only when relevant files changed | exits **2** — the turn does not end |
 
 The Claude Code wiring that fires them is tracked here, in
-[`settings.template.json`](./settings.template.json). Claude reads `.claude/settings.json`, which is
-per-machine and gitignored, so activate the hooks by copying the template once:
+[`settings.template.json`](./settings.template.json). Claude reads `.claude/settings.json`. In a
+repository set up with `cratis ai install`, that file is a **symlink** to this template and follows
+every `cratis ai update`; there is nothing to copy. Where the corpus is present without the CLI,
+activate the hooks by copying the template once:
 
 ```bash
 cp .cratis/ai/hooks/settings.template.json .claude/settings.json
 ```
 
-If you already have a `.claude/settings.json`, merge the template's `hooks` block into it rather
-than overwriting — the rest of that file is yours. Re-copy after the template changes; the copy is
-not a symlink, so it does not update itself. **Edit the template, never the copy**: `.cratis/ai/` is the
-source of truth (see the [corpus README](../README.md)), and
-`scripts/validate-ai-setup.sh` checks the template against the script names this page documents.
+If you already have a `.claude/settings.json` of your own, merge the template's `hooks` block into it
+rather than overwriting — the rest of that file is yours — and re-copy after the template changes.
+**Edit the template, never the copy or the managed file**: `.cratis/ai/` is the source of truth (see the
+[corpus README](../README.md)), and `cratis ai status` reports a hand-edited managed file as drift.
 
 The markdown files in this folder (`agent-stop.md`, `pre-commit.md`) remain *lifecycle guidance* —
 they describe what a hook should do for tools that have no wiring yet.
 
-> Hooks are the one surface with no folder adapter: Claude reads `.claude/settings.json`,
-> Copilot would read `.github/hooks/*.json`. Only the Claude wiring exists today.
+> Hooks are the one surface with no folder adapter: Claude Code reads `.claude/settings.json`;
+> the Pi harness bridges the same three scripts to its own events through the `cratis-hooks`
+> extension under `../harnesses/pi/extensions/`; Copilot would read `.github/hooks/*.json`, and no
+> Copilot wiring ships yet.
 
 ## What is enforced
 
@@ -63,17 +66,37 @@ The two `within_type_attribute` patterns are not line greps — the scanner trac
 blocks and type scope (positional record, multi-line declaration, or braced body), so a nullable
 property is only reported when it really sits inside an `[EventType]`.
 
+### Project-specific gate configuration
+
+The shipped gates discover the repository's own solution and package, so most repositories need no
+configuration at all. A repository whose project is not where discovery lands — several packages, a
+frontend under `Source/<App>` — states only what differs in its own
+`.cratis/ai/quality-gates.project.json`, which the gate merges over the managed file by gate id:
+
+```json
+{ "gates": [ { "id": "frontend-lint", "workingDirectory": "Source/App" } ] }
+```
+
+That file is project-owned and outside the managed manifest. **Do not put project facts into
+`scripts/quality-gates.json`**: it is Cratis-managed, so the next managed update either reports it as
+drift or replaces it, and the repository silently loses its own configuration. An override naming a
+gate that does not exist is reported on stderr rather than ignored, and an unreadable override leaves
+the managed gates running unchanged.
+
 **Gated** (`Stop`, exit 2): the app-pinned commands from the Quality Gates table in
 `general.md` and the steps in [`agent-stop.md`](./agent-stop.md) — Debug build, specs, Release
 build (with `-p:CratisProxiesOutputPath=` per `general.md`, so the proxy generator does not
 re-run and touch already-correct generated files), frontend lint / compile / compile-specs /
-test, and `validate-ai-setup.sh` for corpus changes.
+test.
 
-## The corpus validator
+## The package drift guards
 
-`scripts/validate-ai-setup.sh` sits outside the three layers: it validates `.cratis/ai/` itself, and both
-the `Stop` gate and the `ai-corpus` CI job run it. Structural, adapter and Codex checks are
-**fatal**; the content drift guards **warn**.
+Three scripts sit outside the three layers and are not bound to a hook event: run
+`scripts/validate-package-subpaths.sh` directly and it chains `validate-type-references.sh` and
+`validate-package-imports.sh` over the same roots. They check the corpus text against the packages a
+repository actually has installed, so they are meaningful only where `node_modules` or a NuGet cache
+exists. The corpus's own structure, catalog and adapters are verified in the `Cratis/AI` repository
+before anything is published; a consuming repository checks its installed copy with `cratis ai status`.
 
 ### Package subpath existence — `scripts/validate-package-subpaths.sh` (warn)
 
@@ -97,11 +120,9 @@ and the `ai-corpus` CI job checks out the tree and installs nothing — so faili
 permanent no-op in CI while turning repos red locally for their own dependency pin. The warning
 names the file, the line and the installed version, and leaves the judgement to a human.
 
-> **What this repository is.** `Cratis/AI` is a corpus of markdown, JSON and a little
-> JavaScript — it has no `Source/`, no `.slnx`, no `package.json` and no C# or TypeScript
-> project of its own. Every `.cs` / `.ts` / `Source/**` reference below describes what the
-> hooks do in a **consuming** repository. Here they are silent, which is the designed
-> behavior, not a broken setup.
+> Every `.cs` / `.ts` / `Source/**` reference below describes what the hooks do in a repository
+> that has such a project. Where there is none — a documentation or corpus-only repository — the
+> hooks are silent, which is the designed behavior, not a broken setup.
 
 **Silent when it cannot judge.** No `jq`, no `node_modules`, a package this repository does not
 depend on, or a package published without an `exports` map: skipped without a word. "Not installed"
@@ -121,8 +142,7 @@ specifiers, nothing else.
 
 Run it standalone, optionally over other roots, and add `CRATIS_HOOKS_SUBPATH_REPORT=1` to see every
 reference and how it resolved rather than only the failures. It invokes Tier 3 before its own gates
-and Tier 2 after its own work, over the same roots, so the single call site in
-`validate-ai-setup.sh` gets all three.
+and Tier 2 after its own work, over the same roots, so one call gets all three.
 
 ### Named import existence — `scripts/validate-package-imports.sh` (warn)
 
@@ -231,7 +251,7 @@ phrases and the guard stays quiet.
 **Silent when it cannot judge.** No `Directory.Packages.props`, no local NuGet cache, or a cache
 holding none of the pinned versions: skipped without a word. It needs no `jq` and no `node_modules`,
 which is why Tier 1 invokes it *above* its own gates rather than beside the Tier 2 call — a backend-
-only repository must still get this check. It adds about 1.4 s to `validate-ai-setup.sh`.
+only repository must still get this check. It adds about 1.4 s to the chained run.
 
 **The allowlist — `scripts/type-references-allowlist.txt`.** Thirteen entries, each with a written
 justification: ASP.NET Core and BCL attributes that live in ref packs (which ship no XML docs at
@@ -272,15 +292,15 @@ gate script find it — `workingDirectoryFrom: ["*.slnx", "*.sln", "**/*.slnx", 
 `dotnet build` in whichever directory holds the repository's own solution, preferring one at the
 root because the globs are tried in order. The frontend gates discover `package.json` the same way.
 The same shipped file therefore activates in an application repository, activates in a framework
-repository, and stays quiet in a corpus-only repository like this one, which has no project at all.
+repository, and stays quiet in a repository that has no project at all.
 
 **Overriding it, in order of increasing force.** Set `workingDirectory` on a gate to pin one of
 several candidate projects; drop a `quality-gates.json` of your own in place of the shipped one; or
 point `CRATIS_HOOKS_GATES` at a file anywhere. None of them requires forking the script.
 
 **Profile note.** The C# patterns are application-profile and scoped to `Source/**/*.cs`, which is
-the application source root [`../rules/general.md`](../rules/general.md) documents — not a path in
-this repository, which has no C# at all. A framework-profile repository (Arc, Chronicle,
+the application source root [`../rules/general.md`](../rules/general.md) documents. A
+framework-profile repository (Arc, Chronicle,
 Fundamentals, Components — see [`../rules/framework.md`](../rules/framework.md)) has no vertical
 slices and should disable them in its `cratis-patterns.local.json`; a repository whose application
 source root is not `Source/` re-scopes the `paths` globs there too.
@@ -305,7 +325,7 @@ Each is an explicit, auditable opt-out — none of them is a default.
 | `CRATIS_HOOKS_SKIP_GATE=1` | disables the quality gate |
 | `CRATIS_HOOKS_GATE_DRYRUN=1` | prints which gates would run, and why, then exits 0 |
 | `CRATIS_HOOKS_PATTERNS=<path>` | replaces the pattern file |
-| `CRATIS_HOOKS_GATES=<path>` | replaces the gate file |
+| `CRATIS_HOOKS_GATES=<path>` | replaces the gate file (the project override still merges over it) |
 | `CRATIS_HOOKS_SUBPATH_REPORT=1` | prints every `@cratis/*` subpath reference and how it resolved, not only the failures |
 | `CRATIS_HOOKS_IMPORT_REPORT=1` | prints every `@cratis/*` named import binding and how it resolved, not only the failures |
 | `CRATIS_HOOKS_TYPE_REPORT=1` | prints every .NET type/attribute name the corpus mentions and how it resolved, not only the failures |
@@ -334,8 +354,7 @@ Each is an explicit, auditable opt-out — none of them is a default.
 The scripts read hook JSON on stdin, so they are directly testable:
 
 The pattern pass and the gate both read the repository they are pointed at, so testing them means
-pointing them at a repository that *has* the thing under test. This corpus has no C# and no
-project, so run those two against a consuming checkout (or a scratch tree), and expect silence here.
+pointing them at a repository that *has* the thing under test; where it is absent, expect silence.
 
 ```bash
 # Pattern pass — expect exit 0, and JSON on stdout only when something matched.

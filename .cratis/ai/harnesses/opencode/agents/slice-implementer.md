@@ -1,19 +1,16 @@
 ---
-name: Slice Implementer
 description: >
   Implements a Cratis vertical slice end-to-end — all backend artifacts in one slice file, BDD specs
   in when_*/ folders, and the React surface (page and/or command dialog). Use for new slices and for
   non-trivial slice changes spanning backend and frontend.
-model: claude-opus-4-8
-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash
-  - Edit
-  - Write
+mode: subagent
+model: anthropic/claude-opus-4-8
+permission:
+  edit: allow
+  bash: allow
 ---
-<!-- cratis-ai-managed: agents/slice-implementer.md -->
+<!-- cratis-ai-managed: harnesses/opencode/agents/slice-implementer.md -->
+<!-- cratis-ai: generated OpenCode adapter of agents/slice-implementer.md. Do not edit; the canonical agent is the source. -->
 
 # Slice Implementer
 

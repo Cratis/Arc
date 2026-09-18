@@ -10,13 +10,18 @@ set -euo pipefail
 # ── Environment ───────────────────────────────────────────────────────────────
 
 # Root of the repository the hook is running for.
+#
+# The fallback walks up from this script, which is installed at
+# <root>/.cratis/ai/hooks/scripts/hook-lib.sh - four levels, not three. Three landed on
+# <root>/.cratis, so without CLAUDE_PROJECT_DIR every hook read a repository whose git
+# directory, tracked files and project files were all missing, and silently did nothing.
 hook_repo_root() {
     local d="${CLAUDE_PROJECT_DIR:-}"
     if [ -n "$d" ] && [ -d "$d" ]; then
         (cd "$d" && pwd)
         return 0
     fi
-    (cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
+    (cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
 }
 
 # True when the named command is on PATH.
