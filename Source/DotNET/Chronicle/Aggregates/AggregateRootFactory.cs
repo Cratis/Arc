@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -27,7 +28,7 @@ public class AggregateRootFactory(
     IServiceProvider serviceProvider) : IAggregateRootFactory
 {
     /// <inheritdoc/>
-    public async Task<TAggregateRoot> Get<TAggregateRoot>(EventSourceId id, EventStreamId? streamId = default, EventSourceType? eventSourceType = default)
+    public async Task<TAggregateRoot> Get<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TAggregateRoot>(EventSourceId id, EventStreamId? streamId = default, EventSourceType? eventSourceType = default)
         where TAggregateRoot : IAggregateRoot
     {
         // TODO: Create Issue: Must dispose of unit of work in some way or else it's a memory leak.

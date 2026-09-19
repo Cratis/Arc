@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Chronicle.Events;
 
 namespace Cratis.Arc.Chronicle.Aggregates;
@@ -22,6 +23,6 @@ public interface IAggregateRootFactory
     /// If the aggregate has event handler methods, the events for the specified <see cref="EventSourceId"/>
     /// will be retrieved and the event handler methods will be invoked.
     /// </remarks>
-    Task<TAggregateRoot> Get<TAggregateRoot>(EventSourceId id, EventStreamId? streamId = default, EventSourceType? eventSourceType = default)
+    Task<TAggregateRoot> Get<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TAggregateRoot>(EventSourceId id, EventStreamId? streamId = default, EventSourceType? eventSourceType = default)
         where TAggregateRoot : IAggregateRoot;
 }

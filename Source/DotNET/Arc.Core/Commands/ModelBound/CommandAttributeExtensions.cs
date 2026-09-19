@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Reflection;
 
@@ -16,14 +17,14 @@ public static class CommandAttributeExtensions
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if the type is a command; otherwise, false.</returns>
-    public static bool IsCommand(this Type type) => type.HasAttribute<CommandAttribute>() && type.HasHandleMethod();
+    public static bool IsCommand([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] this Type type) => type.HasAttribute<CommandAttribute>() && type.HasHandleMethod();
 
     /// <summary>
     /// Check if a type has a Handle method that takes a single argument of type object.
     /// </summary>
     /// <param name="type">Type to check.</param>
     /// <returns>True if the type has a Handle method; otherwise, false.</returns>
-    public static bool HasHandleMethod(this Type type) =>
+    public static bool HasHandleMethod([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] this Type type) =>
         type.GetMethod("Handle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) is not null;
 
     /// <summary>
@@ -31,6 +32,6 @@ public static class CommandAttributeExtensions
     /// </summary>
     /// <param name="type">Type to get the Handle method from.</param>
     /// <returns>The Handle method.</returns>
-    public static MethodInfo GetHandleMethod(this Type type) =>
+    public static MethodInfo GetHandleMethod([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)] this Type type) =>
         type.GetMethod("Handle", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)!;
 }

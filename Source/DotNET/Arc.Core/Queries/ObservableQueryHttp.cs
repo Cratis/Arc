@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Net;
 
@@ -58,6 +59,8 @@ public static class ObservableQueryHttp
     /// <param name="options">The <see cref="ObservableQueryHttpOptions"/>.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> for the request.</param>
     /// <returns>The <see cref="ObservableQueryHttpResponse"/> to send.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "streamingData.GetType() interfaces are preserved by the type system since query methods return strongly-typed observables. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Runtime MakeGenericMethod for CreateResponseForObservable<T>. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     public static async Task<ObservableQueryHttpResponse> CreateResponse(
         QueryContext queryContext,
         object streamingData,
@@ -159,11 +162,13 @@ public static class ObservableQueryHttp
             Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems)
         };
 
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "type.GetInterfaces() to find IObservable<T> implementation; these interfaces are preserved by the framework. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     static Type? GetObservableInterfaceFor(Type type) =>
         type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IObservable<>)
             ? type
             : type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IObservable<>));
 
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "streamingData.GetType() properties are preserved by the type system since the Value property is a known pattern. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3d).")]
     static bool TryGetCurrentValue(object streamingData, out object? currentValue)
     {
         var valueProperty = streamingData.GetType().GetProperty("Value");

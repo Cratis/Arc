@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Chronicle.Aggregates;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
@@ -27,32 +28,37 @@ public static class AggregateRootServiceCollectionExtensions
         foreach (var aggregateRootType in types.All.Where(_ => _.HasInterface<IAggregateRoot>()).ToArray())
         {
             services.RemoveAll(aggregateRootType);
-            services.AddScoped(aggregateRootType, serviceProvider =>
-            {
-                var commandContext = serviceProvider.GetRequiredService<CommandContext>();
-                var aggregateRootFactory = serviceProvider.GetRequiredService<IAggregateRootFactory>();
-
-                var eventSourceId = commandContext.GetEventSourceId();
-                if (eventSourceId == EventSourceId.Unspecified)
-                {
-                    throw new UnableToResolveAggregateRootFromCommandContext(aggregateRootType);
-                }
-
-                var getMethod = typeof(IAggregateRootFactory)
-                    .GetMethods()
-                    .First(m => m.Name == nameof(IAggregateRootFactory.Get) && m.IsGenericMethod);
-
-                var genericGetMethod = getMethod.MakeGenericMethod(aggregateRootType);
-
-                // IAggregateRootFactory.Get is async (it rehydrates from the event stream), so Invoke returns a
-                // Task<TAggregateRoot>. Unwrap it here so the resolved dependency is the aggregate root itself and
-                // not the Task — the command handler argument resolver injects this value directly, without awaiting.
-                var task = (Task)genericGetMethod.Invoke(aggregateRootFactory, [eventSourceId, null, null])!;
-                task.GetAwaiter().GetResult();
-                return task.GetType().GetProperty("Result")!.GetValue(task)!;
-            });
+            services.AddScoped(aggregateRootType, serviceProvider => ResolveAggregateRoot(aggregateRootType, serviceProvider));
         }
 
         return services;
+    }
+
+    [UnconditionalSuppressMessage("AOT", "IL2060", Justification = "The aggregate root types discovered at startup are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    [UnconditionalSuppressMessage("AOT", "IL2075", Justification = "Task<TAggregateRoot>.Result is unwrapped via reflection; Task's own properties are preserved by the type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The aggregate root types discovered at startup are preserved by the application's type system. Source-generated dispatch is the long-term fix (tracked in GitHub issue #2204 item 3e).")]
+    static object ResolveAggregateRoot(Type aggregateRootType, IServiceProvider serviceProvider)
+    {
+        var commandContext = serviceProvider.GetRequiredService<CommandContext>();
+        var aggregateRootFactory = serviceProvider.GetRequiredService<IAggregateRootFactory>();
+
+        var eventSourceId = commandContext.GetEventSourceId();
+        if (eventSourceId == EventSourceId.Unspecified)
+        {
+            throw new UnableToResolveAggregateRootFromCommandContext(aggregateRootType);
+        }
+
+        var getMethod = typeof(IAggregateRootFactory)
+            .GetMethods()
+            .First(m => m.Name == nameof(IAggregateRootFactory.Get) && m.IsGenericMethod);
+
+        var genericGetMethod = getMethod.MakeGenericMethod(aggregateRootType);
+
+        // IAggregateRootFactory.Get is async (it rehydrates from the event stream), so Invoke returns a
+        // Task<TAggregateRoot>. Unwrap it here so the resolved dependency is the aggregate root itself and
+        // not the Task — the command handler argument resolver injects this value directly, without awaiting.
+        var task = (Task)genericGetMethod.Invoke(aggregateRootFactory, [eventSourceId, null, null])!;
+        task.GetAwaiter().GetResult();
+        return task.GetType().GetProperty("Result")!.GetValue(task)!;
     }
 }

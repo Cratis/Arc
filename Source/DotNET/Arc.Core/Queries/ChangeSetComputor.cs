@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 
@@ -33,6 +34,7 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     /// </remarks>
     /// <param name="type">The item type to inspect.</param>
     /// <returns>The identity <see cref="PropertyInfo"/>, or <see langword="null"/> if not found.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2070", Justification = "type.GetProperties() on a runtime item type; the item type's public properties are preserved since these are user-defined domain model types. Source-generated change-set computation is the long-term fix (tracked in GitHub issue #2204).")]
     public static PropertyInfo? FindIdentityProperty(Type type) =>
         type.GetProperties()
             .FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase));
@@ -83,6 +85,8 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     /// <param name="currentItems">The current snapshot items.</param>
     /// <param name="idProperty">The property used to extract the item identity key.</param>
     /// <returns>A <see cref="ChangeSet"/> describing what changed.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer.Serialize on object items uses the configured ArcOptions.JsonSerializerOptions. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer.Serialize on object items uses the configured ArcOptions.JsonSerializerOptions. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public ChangeSet ComputeWithIdentity(object[] previousItems, object[] currentItems, PropertyInfo idProperty)
     {
         var previousById = new Dictionary<object, object>(previousItems.Length);
@@ -147,6 +151,8 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     /// <param name="previousItems">The previous snapshot items.</param>
     /// <param name="currentItems">The current snapshot items.</param>
     /// <returns>A <see cref="ChangeSet"/> describing what changed.</returns>
+    [UnconditionalSuppressMessage("AOT", "IL2026", Justification = "JsonSerializer.Serialize on object items uses the configured ArcOptions.JsonSerializerOptions. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
+    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "JsonSerializer.Serialize on object items uses the configured ArcOptions.JsonSerializerOptions. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5).")]
     public ChangeSet ComputeByJson(object[] previousItems, object[] currentItems)
     {
         var previousHashes = previousItems
