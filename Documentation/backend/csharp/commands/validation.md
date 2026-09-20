@@ -83,7 +83,7 @@ A service that reads storage must actually implement that lookup. Arc.Core does 
 ## Choosing a rejection phase
 
 - Use a validator for input feedback before data provisioning and execution.
-- Use `Provide()` to fetch handler data after filters; it can return validation control values to short-circuit. See [provide data to a command](../../../scenarios/provide-data-to-a-command.md).
+- Use `Provide()` to fetch handler data after filters; it can return validation control values to short-circuit. See [provide data to a command](../../../scenarios/provide-data-to-a-command.mdx).
 - Use a singular `ValidationResult` alternative from `Handle()` for a decision made during handling. See [response value handlers](./response-value-handlers.md). A failure returned after a service write does not undo that write.
 - Use an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace) for access control, not an overridable validation rule.
 

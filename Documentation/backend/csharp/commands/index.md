@@ -45,7 +45,7 @@ Choose the return shape that fits the operation:
 - **A tuple** — combine one response with [command operations](./operations/index.md) and other values consumed by [response value handlers](./response-value-handlers.md).
 - **`Cratis.Monads.Result<TSuccess, TError>`** — process the active alternative. A recognized validation value becomes a rejection; arbitrary error types are not automatically failures.
 
-Use [provided data](../../../scenarios/provide-data-to-a-command.md) when fetching handler input separately makes the operation clearer.
+Use [provided data](../../../scenarios/provide-data-to-a-command.mdx) when fetching handler input separately makes the operation clearer.
 
 ## Two ways to define a command
 

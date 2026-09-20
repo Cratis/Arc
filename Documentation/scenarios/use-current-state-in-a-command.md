@@ -58,7 +58,7 @@ Arc loads the author for `Id`, then injects it alongside the collection. The exp
 | Compute and perform the write or response  | `Handle()`                   |
 
 :::tip[Use current state to decide the write]
-Keep state acquisition in the provider or `Provide()`. For immediate inline writes, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
+Keep state acquisition in the provider or `Provide()`. On the C# backend, for immediate inline writes, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
 :::
 
 For example, a **validator fragment** in the same namespace can reject a rename to the current name:
@@ -79,7 +79,7 @@ public class RenameAuthorValidator : CommandValidator<RenameAuthor>
 }
 ```
 
-The nullable validator can turn absence into a business rejection before the non-nullable handler runs. See [Provide data to a command handler](./provide-data-to-a-command.md) for combining state with external data.
+The nullable validator can turn absence into a business rejection before the non-nullable handler runs. See [Provide data to a command handler](./provide-data-to-a-command.mdx) for combining state with external data.
 
 ## Say what absence means
 
@@ -150,11 +150,11 @@ void Establish() =>
         .ReadModel(new AccountBalance(150m));
 ```
 
-See [Chronicle testing](../backend/csharp/testing/chronicle.md) for the complete fixture. Standalone tests instead seed their provider or register application-service fakes as in [Test a command](./test-a-command.md).
+See [Chronicle testing](../backend/csharp/testing/chronicle.md) for the complete fixture. Standalone tests instead seed their provider or register application-service fakes as in [Test a command](./test-a-command.mdx).
 
 ## See also
 
 - [Read models from other providers](../backend/csharp/chronicle/read-models/other-providers.md) — provider ownership and explicit standalone keys.
 - [Resolution failures](../backend/csharp/chronicle/read-models/failures.md) — distinguish missing state, missing keys, and configuration errors.
-- [Validate a command](./validate-a-command.md) — choose the narrowest place for a rule.
+- [Validate a command](./validate-a-command.mdx) — choose the narrowest place for a rule.
 - [Chronicle event-source resolution](../backend/csharp/chronicle/resolving-event-source-id.md) — optional integration key conventions.

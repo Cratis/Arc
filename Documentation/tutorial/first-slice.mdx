@@ -75,7 +75,7 @@ public record Author(AuthorId Id, AuthorName Name)
 The dependencies are **method-injected**. Returning `Task` adds no payload: the explicit database write is the outcome. The static `AllAuthors` method is the query; no controller or duplicated transport model is needed.
 
 <Aside type="tip" title="Separate decisions as behavior grows">
-This tutorial uses supported direct database writes to make the first round trip visible. For immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/csharp/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write.
+This tutorial uses supported direct database writes to make the first round trip visible. On the C# backend, for immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/csharp/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write.
 </Aside>
 
 <Aside type="note" title="Live means a configured observation source">

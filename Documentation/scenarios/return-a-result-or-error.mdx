@@ -15,27 +15,18 @@ description: Return ordinary response data or a typed validation failure from a 
 | Give the caller several pieces of data | one ordinary response DTO containing those values |
 | Combine a response with server-side work | a tuple containing one ordinary response and operations or other server-handled values |
 
-The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/csharp/getting-started/your-first-command/). Add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
+The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/csharp/getting-started/your-first-command/). On C#, add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
 
-```csharp
-public async Task<Result<AuthorId, ValidationResult>> Handle(IMongoCollection<Author> authors)
-{
-    if (await authors.Find(author => author.Name == Name).AnyAsync())
-    {
-        return ValidationResult.Error("An author with that name is already registered.", [nameof(Name)]);
-    }
+<ArcBackendTabs snippet="scenarios/return-a-result-or-error/handle-result" />
 
-    await authors.InsertOneAsync(new Author(Id, Name));
-    return Id;
-}
-```
+The two backends reject differently, and it is worth being explicit about it. C# declares the alternative in the signature with `Result<TResponse, ValidationResult>`. Arc.Kotlin has no `Result<,>` type and no handler return shape that carries both a client response type and a rejection, because the generated proxy and OpenAPI metadata need exactly one client response leaf. The JVM way is to throw an application exception implementing `io.cratis.arc.validation.ValidationFailure`: the command pipeline converts it into the same validation feedback a validator would produce, without leaking the exception message or stack trace. An ordinary exception still becomes an exception result.
 
 The insert is the persistent effect; the `AuthorId` is response data. The pre-check gives a friendly failure but is **not atomic**. Keep the database unique index from [validation](/arc/tutorial/validation/) and explicitly translate its duplicate-write failure if you need friendly errors under races. Other storage exceptions remain exception results; do not disguise them as ordinary validation.
 
-For rules that can reject before work begins, prefer a `CommandValidator<T>`; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.md).
+For rules that can reject before work begins, prefer a `CommandValidator<T>`; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.mdx).
 
 :::note[Separate an already-decided write from its response]
-When the work and caller response are already decided, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) alongside the ordinary response. Direct service calls remain supported when their result is needed to choose the response or typed rejection. Operation `Execute()` methods cannot return receipts or validation alternatives; moving a write into an operation does not automatically preserve write-dependent error handling.
+When the work and caller response are already decided, the C# backend can return a [command operation](../backend/csharp/commands/operations/index.md) alongside the ordinary response. Direct service calls remain supported when their result is needed to choose the response or typed rejection. Operation `Execute()` methods cannot return receipts or validation alternatives; moving a write into an operation does not automatically preserve write-dependent error handling.
 :::
 
 ## Read it on the client
@@ -59,5 +50,5 @@ The standalone tutorial's `AuthorId : ConceptAs<Guid>` is **not** an event-sourc
 ## See also
 
 - [Commands](/arc/backend/csharp/commands/) — supported handlers and pipeline behavior.
-- [Validate a command](./validate-a-command.md) — choose the right rejection point.
-- [Test a command](./test-a-command.md) — assert the actual write, not just a successful result.
+- [Validate a command](./validate-a-command.mdx) — choose the right rejection point.
+- [Test a command](./test-a-command.mdx) — assert the actual write, not just a successful result.

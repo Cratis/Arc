@@ -7,13 +7,13 @@ These are recipes: "I need to do X — how?" Each one is short and assumes you'v
 
 | Recipe | When you reach for it |
 | --- | --- |
-| [Validate a command](./validate-a-command.md) | Reject malformed or duplicate input before it writes state |
-| [Return a result or an error](./return-a-result-or-error.md) | A command needs to hand back more than "it worked" — a value, or a typed failure |
-| [Provide data to a command handler](./provide-data-to-a-command.md) | A decision needs data you must fetch — keep the fetch out of `Handle` so it stays testable |
+| [Validate a command](./validate-a-command.mdx) | Reject malformed or duplicate input before it writes state |
+| [Return a result or an error](./return-a-result-or-error.mdx) | A command needs to hand back more than "it worked" — a value, or a typed failure |
+| [Provide data to a command handler](./provide-data-to-a-command.mdx) | A decision needs data you must fetch — keep the fetch out of `Handle` so it stays testable |
 | [Use current state in a command](./use-current-state-in-a-command.md) | A decision depends on provider-owned state — resolve it by an explicit command key |
-| [Query data across slices](./query-related-data.md) | A screen needs data that spans more than one feature |
+| [Query data across slices](./query-related-data.mdx) | A screen needs data that spans more than one feature |
 | [Execute a command from React](./run-a-command-from-react.md) | Wire a form or button to a command through the generated proxy |
-| [Test a command](./test-a-command.md) | Prove a slice works through the real pipeline — no HTTP, no database |
+| [Test a command](./test-a-command.mdx) | Prove a slice works through the real pipeline — no HTTP, no database |
 | [Authorize a command or query](/arc/backend/csharp/authorizing-commands-and-queries/) | Restrict who may run a command or read a query |
 
 Event-sourced Arc slices have their own Chronicle-specific recipes, starting with [React to an event](/arc/backend/csharp/chronicle/react-to-an-event/) and [Add event sourcing to an Arc slice](/arc/backend/csharp/chronicle/add-event-sourcing/).

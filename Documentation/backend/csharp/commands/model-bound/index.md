@@ -123,7 +123,7 @@ Arc resolves `Handle()` service parameters from the command's service scope. A `
 
 `CancellationToken` is special: Arc supplies the execution token rather than resolving it from DI. Both `Provide()` and `Handle()` may accept it. HTTP execution uses the request-aborted token; direct callers can [pass cancellation to the pipeline](../command-pipeline.md#cancellation).
 
-For the full `Provide()` contract, including its distinct validation control values, see [provide data to a command](../../../../scenarios/provide-data-to-a-command.md).
+For the full `Provide()` contract, including its distinct validation control values, see [provide data to a command](../../../../scenarios/provide-data-to-a-command.mdx).
 
 ## Frontend integration
 

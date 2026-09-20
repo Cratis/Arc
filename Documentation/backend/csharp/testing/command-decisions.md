@@ -205,6 +205,6 @@ You have fast tests for the decision and focused tests for Arc's composition. Yo
 
 For inline service side effects, prefer [command operations](../commands/operations/index.md). `Handle()` can return the work it intends to perform, and Arc manages execution and optional compensation. [Test command operations](./command-operations.md) extends this lesson with direct declaration specs and real `CommandScenario` recovery tests.
 
-A handler that writes directly through a service remains supported; unit specs can use a substitute to inspect the call. Such a handler is testable, but it is not a pure function. The [service-backed command recipe](../../../scenarios/test-a-command.md) shows the pipeline-level counterpart.
+A handler that writes directly through a service remains supported; unit specs can use a substitute to inspect the call. Such a handler is testable, but it is not a pure function. The [service-backed command recipe](../../../scenarios/test-a-command.mdx) shows the pipeline-level counterpart.
 
 With Chronicle, a handler can instead return a domain event as its decision; a scenario must then prove how the integration appends it. Continue to [test an event-sourced command](./event-sourced-commands.md), or return to [choosing a test boundary](./index.md#choose-the-boundary-that-can-catch-the-bug).

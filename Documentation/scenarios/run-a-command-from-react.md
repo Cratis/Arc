@@ -52,4 +52,4 @@ For executing a command without a dialog (a plain button, custom flow), the prox
 
 - [Dialogs](/components/) — `CommandDialog`, `Dialog`, and the form-field components.
 - [Command Result](/arc/frontend/core/commands/command-result/) — handling the result in code.
-- [Validate a command](./validate-a-command.md) — the rules that surface in the form.
+- [Validate a command](./validate-a-command.mdx) — the rules that surface in the form.

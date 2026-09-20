@@ -69,7 +69,7 @@ public record ProvideReadModelDependencyCommand(EventSourceId AccountId)
 }
 ```
 
-Use this shape when the projected state has to be combined with something fetched — a rate, a policy, an external lookup — before `Handle()` can decide. For plain validation, prefer a validator; `Provide()` exists to keep IO out of the decision, not to host rules. See [Provide data to a command handler](../../../../scenarios/provide-data-to-a-command.md).
+Use this shape when the projected state has to be combined with something fetched — a rate, a policy, an external lookup — before `Handle()` can decide. For plain validation, prefer a validator; `Provide()` exists to keep IO out of the decision, not to host rules. See [Provide data to a command handler](../../../../scenarios/provide-data-to-a-command.mdx).
 
 ## Nullable means you handle absence
 

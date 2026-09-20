@@ -20,7 +20,7 @@ After awaiting `Handle()`, the model-bound pipeline classifies its return value.
 
 Multiple unhandled tuple values cause `MultipleUnhandledTupleValues` internally. `ICommandPipeline.Execute` catches this and normally returns an exception-bearing result, rather than throwing that exception to the caller. A null return supplies no response.
 
-The built-in handler consumes **one `Cratis.Arc.Validation.ValidationResult`**. It does not consume `ValidationResult[]` or `IEnumerable<ValidationResult>` returned by `Handle()`. An unhandled collection becomes ordinary response data, or conflicts with another unhandled tuple value. `Provide()` has a [different control-result contract](../../../scenarios/provide-data-to-a-command.md) that does recognize validation collections.
+The built-in handler consumes **one `Cratis.Arc.Validation.ValidationResult`**. It does not consume `ValidationResult[]` or `IEnumerable<ValidationResult>` returned by `Handle()`. An unhandled collection becomes ordinary response data, or conflicts with another unhandled tuple value. `Provide()` has a [different control-result contract](../../../scenarios/provide-data-to-a-command.mdx) that does recognize validation collections.
 
 ## Result with tuple alternatives
 

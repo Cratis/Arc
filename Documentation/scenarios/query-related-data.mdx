@@ -15,16 +15,9 @@ These are fragments of the [standalone MongoDB book lesson](/arc/tutorial/books-
 
 **For an owns-a-list relationship, keep the child keyed to its parent.** A book belongs to an author, so the `Book` read model carries `AuthorId`:
 
-```csharp
-[ReadModel]
-public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
-{
-    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, IMongoCollection<Book> books) =>
-        books.Observe(book => book.AuthorId == authorId);
-}
-```
+<ArcBackendTabs snippet="scenarios/query-related-data/books-for-author" />
 
-No attribute marks the identity — by convention the `Id` property is the read model's identity. Arc sorts the query method's parameters by type: `authorId` is data, so it becomes a query parameter; `IMongoCollection<Book>` is a service, so it's injected. The generated proxy takes the data parameter:
+No attribute marks the identity — by convention the `Id` property is the read model's identity. Arc separates the query method's parameters into data and services: `authorId` is data, so it becomes a query parameter; the collection or `MongoObservableQuery` is a service, so it's injected. C# tells them apart by type; the JVM marks service parameters with `@FromServices` and leaves caller arguments unannotated, and puts the query on the read model's companion object as a `@JvmStatic` function. The generated proxy takes the data parameter either way:
 
 ```tsx
 // authorId is the generated Guid value, not String(author.id).

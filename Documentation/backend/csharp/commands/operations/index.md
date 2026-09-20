@@ -15,7 +15,7 @@ An operation implements `ICommandOperation`. Its public `Execute()` method perfo
 
 Your command constructs the operation without invoking either method. Calling `Handle()` directly therefore lets a spec inspect the proposed work without reserving a seat. Calling the command through Arc executes the operation. [CommandScenario](../../testing/command-operations.md) follows the same production pipeline; it does not silently replace execution with a recording stub.
 
-This extends the separation already offered by [Provide()](../../../../scenarios/provide-data-to-a-command.md):
+This extends the separation already offered by [Provide()](../../../../scenarios/provide-data-to-a-command.mdx):
 
 ```mermaid
 flowchart LR
