@@ -13,22 +13,7 @@ Authentication establishes a `ClaimsPrincipal` — an id, a name, and claims, in
 
 Implement `IProvideIdentityDetails<TDetails>`. During identity resolution, Arc calls it with an `IdentityProviderContext`, **not the raw token**. This illustrative MongoDB fragment assumes application-owned `Member` and `LibraryIdentity` types and the identity/provider imports; it controls the identity-details result, not access to every command:
 
-```csharp
-public class LibraryIdentityProvider(IMongoCollection<Member> members)
-    : IProvideIdentityDetails<LibraryIdentity>
-{
-    public async Task<IdentityDetails> Provide(IdentityProviderContext context)
-    {
-        // Look the user up in your own data, keyed by the provider's id.
-        var member = await members.Find(m => m.Subject == context.Id.Value).FirstOrDefaultAsync();
-        if (member is null)
-            return new IdentityDetails(false, LibraryIdentity.None);   // /.cratis/me rejects this result
-
-        var identity = new LibraryIdentity(member.Id, member.Role, member.Name);
-        return new IdentityDetails(true, identity);
-    }
-}
-```
+<ArcBackendTabs snippet="understanding-identity-and-access/identity-provider" />
 
 ```mermaid
 flowchart LR
@@ -53,22 +38,7 @@ A `LibraryIdentity.Role` property is display/domain data; it does not add `Claim
 
 Gate *what they can do* with attributes on the command or query. This standalone MongoDB excerpt uses the [tutorial's domain types and provider setup](/arc/backend/csharp/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports:
 
-```csharp
-[Roles("Librarian")]                       // only a Librarian may register an author
-[Command]
-public record RegisterAuthor(AuthorId Id, AuthorName Name)
-{
-    public Task Handle(IMongoCollection<Author> authors) =>
-        authors.InsertOneAsync(new Author(Id, Name));
-}
-
-[ReadModel]
-public record Author(AuthorId Id, AuthorName Name)
-{
-    [AllowAnonymous]                        // the public catalog is open to everyone
-    public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> c) => c.Observe();
-}
-```
+<ArcBackendTabs snippet="understanding-identity-and-access/authorization" />
 
 - `[Authorize]` requires an authenticated user; `[Roles("Librarian", "Admin")]` requires **at least one** of the listed roles; `[AllowAnonymous]` opens a specific endpoint back up.
 - Apply them at the **class level** to cover everything and **override per method** for exceptions — secure by default, opt out where you mean it.
