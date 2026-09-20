@@ -84,6 +84,15 @@ function relative(file) {
 }
 
 const files = await filesBelow(documentationRoot);
+// A checker that examined nothing reports success just as loudly as one that
+// examined everything. During a restructure that moves pages between folders,
+// a path that silently resolves to an empty tree is exactly the failure this
+// script exists to catch, so refuse to pass vacuously.
+if (files.length === 0) {
+    console.error(`Documentation authoring validation examined 0 files under ${documentationRoot}; the checker is not effective.`);
+    process.exit(1);
+}
+
 for (const file of files) {
     validateContent(file, await readFile(file, 'utf8'));
 }
