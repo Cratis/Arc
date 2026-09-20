@@ -49,7 +49,7 @@ React compositions fit.
   <LinkCard
     title="Coming from MediatR and MVC"
     description="Map controllers, DTOs, and MediatR handlers onto Arc's command and query model."
-    href="/arc/coming-from-mediatr-and-mvc/"
+    href="/arc/backend/csharp/coming-from-mediatr-and-mvc/"
   />
   <LinkCard
     title="Samples"
@@ -60,7 +60,7 @@ React compositions fit.
 
 ## Start an Arc host
 
-Use a .NET SDK compatible with your selected Arc release (the current source targets .NET 10). This is the **ASP.NET Core** path; [Arc.Core's lightweight host](/arc/backend/core/getting-started/) is a separate alternative.
+Use a .NET SDK compatible with your selected Arc release (the current source targets .NET 10). This is the **ASP.NET Core** path; [Arc.Core's lightweight host](/arc/backend/csharp/core/getting-started/) is a separate alternative.
 
 <Steps>
 1. Create an ASP.NET Core project and install the host package.
@@ -84,7 +84,7 @@ Use a .NET SDK compatible with your selected Arc release (the current source tar
    await app.RunAsync();
    ```
 
-1. Run `dotnet run` and confirm the application starts. Continue with [standalone setup](/arc/backend/getting-started/) for database configuration, generated proxies, and the first command/query checkpoint.
+1. Run `dotnet run` and confirm the application starts. Continue with [standalone setup](/arc/backend/csharp/getting-started/) for database configuration, generated proxies, and the first command/query checkpoint.
 </Steps>
 
 Starting the host verifies the setup path only. Commands, queries, generated
@@ -107,17 +107,17 @@ and lifecycle behavior.
   <LinkCard
     title="Command pipeline"
     description="Model intentions, validate and authorize them, provide dependencies, execute handlers, and convert typed results into HTTP responses."
-    href="/arc/backend/commands/"
+    href="/arc/backend/csharp/commands/"
   />
   <LinkCard
     title="Query pipeline"
     description="Expose purpose-shaped reads with paging, sorting, filtering, result rendering, and diagnostics."
-    href="/arc/backend/queries/"
+    href="/arc/backend/csharp/queries/"
   />
   <LinkCard
     title="Observable-query APIs"
     description="Work with documented query subscriptions, collection changes, subscription guards, and query health information."
-    href="/arc/backend/queries/observable-query-demultiplexer/"
+    href="/arc/backend/csharp/queries/observable-query-demultiplexer/"
   />
 </CardGrid>
 
@@ -138,7 +138,7 @@ React packages.
 
 Arc includes [pluggable identity and access behavior](/arc/understanding-identity-and-access/),
 identity-detail providers, server-side authorization and role checks, and
-frontend identity context. [Tenant resolution](/arc/backend/tenancy/) can use a
+frontend identity context. [Tenant resolution](/arc/backend/csharp/tenancy/) can use a
 header, query parameter, claim, subdomain, fixed value, or development setting
 before provider-specific database or namespace mapping.
 
@@ -155,17 +155,17 @@ services or current-state persistence without an event log.
   <LinkCard
     title="MongoDB"
     description="Use Arc's serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams."
-    href="/arc/backend/mongodb/"
+    href="/arc/backend/csharp/mongodb/"
   />
   <LinkCard
     title="Entity Framework Core"
     description="Discover read models, configure value conversions and mappings, run migrations, and observe supported SQL Server, PostgreSQL, or SQLite changes."
-    href="/arc/backend/entity-framework/"
+    href="/arc/backend/csharp/entity-framework/"
   />
   <LinkCard
     title="Chronicle"
     description="Add event-sourced commands, projections, reducers, aggregates, reactors, concurrency behavior, tenant namespaces, and Chronicle-specific testing."
-    href="/arc/backend/chronicle/"
+    href="/arc/backend/csharp/chronicle/"
   />
 </CardGrid>
 
@@ -176,10 +176,10 @@ operations at runtime. Repository packages also include analyzers, source
 generators, command-scenario testing, proxy-generation checks, Vite helpers, and
 Arc-specific ESLint rules.
 
-- [Inspect registered application contracts](/arc/backend/introspection/)
-- [Generate OpenAPI descriptions](/arc/backend/open-api/)
-- [Test command behavior](/arc/backend/testing/)
-- [Review analyzer rules](/arc/backend/code-analysis/)
+- [Inspect registered application contracts](/arc/backend/csharp/introspection/)
+- [Generate OpenAPI descriptions](/arc/backend/csharp/open-api/)
+- [Test command behavior](/arc/backend/csharp/testing/)
+- [Review analyzer rules](/arc/backend/csharp/code-analysis/)
 
 :::caution[Check the combination you use]
 These are separate packages and integration surfaces. Their existence does not

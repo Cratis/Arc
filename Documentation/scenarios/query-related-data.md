@@ -37,6 +37,6 @@ For a list-with-details screen, let the author list call `AllAuthors.use()` and 
 
 ## See also
 
-- [Queries](/arc/backend/queries/) — observable and non-observable query methods, parameters, and filtering.
+- [Queries](/arc/backend/csharp/queries/) — observable and non-observable query methods, parameters, and filtering.
 - [Relate your slices](/arc/tutorial/books-and-relationships/) — this relationship built step by step.
 - [Execute a command from React](./run-a-command-from-react.md) — consuming the query proxy.

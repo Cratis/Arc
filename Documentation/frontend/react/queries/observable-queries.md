@@ -2,7 +2,7 @@
 
 Observable queries provide real-time updates in React through `useObservableQuery()` and generated proxy helpers. Arc supports both centralized hub routing and direct per-query connections.
 
-For backend implementation patterns, see [Controller-based Observable Queries](../../../backend/queries/controller-based/observable-queries.md), [Model-bound Observable Queries](../../../backend/queries/model-bound/observable-queries.md), and [Observable Query Hub](../../../backend/queries/observable-query-demultiplexer.md).
+For backend implementation patterns, see [Controller-based Observable Queries](../../../backend/csharp/queries/controller-based/observable-queries.md), [Model-bound Observable Queries](../../../backend/csharp/queries/model-bound/observable-queries.md), and [Observable Query Hub](../../../backend/csharp/queries/observable-query-demultiplexer.md).
 
 ## Observable Query Transport
 
@@ -60,4 +60,4 @@ export const App = () => (
 
 - [Observable Query Multiplexing](./observable-query-multiplexing.md) for connection pooling, SSE limits, and protocol behavior.
 - [Change Stream](./change-stream.md) for item-level delta tracking on observable collections.
-- [Use Observable Queries with cURL](../../../backend/queries/using-observable-queries-with-curl.md) for backend endpoint debugging workflows.
+- [Use Observable Queries with cURL](../../../backend/csharp/queries/using-observable-queries-with-curl.md) for backend endpoint debugging workflows.

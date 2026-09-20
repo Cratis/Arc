@@ -28,11 +28,11 @@ flowchart TB
 | EF Core              | A registered `ReadOnlyDbContext` owns a `[ReadModel]` entity through `DbSet<T>`; resolution currently requires a single-property primary key |
 | Chronicle (optional) | A projection or reducer supplies declared ownership and integration-specific event-source key resolution                                     |
 
-A normal writable `BaseDbContext` like the tutorial's `LibraryDbContext` is **not enough to establish EF command-read-model ownership**. Keep method-injecting that context for explicit lookups/writes, or configure a [read-only context](/arc/backend/entity-framework/read-only/) intentionally. Configured auto-discovery is supported; do not duplicate it with mandatory manual registration.
+A normal writable `BaseDbContext` like the tutorial's `LibraryDbContext` is **not enough to establish EF command-read-model ownership**. Keep method-injecting that context for explicit lookups/writes, or configure a [read-only context](/arc/backend/csharp/entity-framework/read-only/) intentionally. Configured auto-discovery is supported; do not duplicate it with mandatory manual registration.
 
 ## Write against standalone state
 
-This complete command declaration uses the [MongoDB tutorial's setup, imports, and author types](/arc/backend/getting-started/your-first-command/). Add the shown key import to the file:
+This complete command declaration uses the [MongoDB tutorial's setup, imports, and author types](/arc/backend/csharp/getting-started/your-first-command/). Add the shown key import to the file:
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
@@ -58,7 +58,7 @@ Arc loads the author for `Id`, then injects it alongside the collection. The exp
 | Compute and perform the write or response  | `Handle()`                   |
 
 :::tip[Use current state to decide the write]
-Keep state acquisition in the provider or `Provide()`. For immediate inline writes, prefer returning a [command operation](../backend/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
+Keep state acquisition in the provider or `Provide()`. For immediate inline writes, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
 :::
 
 For example, a **validator fragment** in the same namespace can reject a rename to the current name:
@@ -109,13 +109,13 @@ public class SubmitOrderValidator : CommandValidator<SubmitOrder>
 }
 ```
 
-[ARC0006](../backend/code-analysis/ARC0006.md) warns on non-nullable read-model dependencies so the choice is explicit.
+[ARC0006](../backend/csharp/code-analysis/ARC0006.md) warns on non-nullable read-model dependencies so the choice is explicit.
 
 A shared instance prevents duplicate lookups; it is **not a lock, transaction, or freshness guarantee**. Other commands can change the database after it was read. Protect hard invariants with database constraints or an atomic conditional write/transaction. Chronicle projections may additionally lag their events; its [constraints](/chronicle/constraints/) enforce supported invariants at append time.
 
 ## Optional: projected state with Chronicle
 
-With [Chronicle integration](../backend/chronicle/index.md), read models can be backed by fluent `IProjectionFor<T>`, model-bound projection attributes, or `IReducerFor<T>`. Integration-specific key resolution can use event-source identifiers. The same injection positions apply.
+With [Chronicle integration](../backend/csharp/chronicle/index.md), read models can be backed by fluent `IProjectionFor<T>`, model-bound projection attributes, or `IReducerFor<T>`. Integration-specific key resolution can use event-source identifiers. The same injection positions apply.
 
 These are **integrated domain fragments**, assuming an event-source `LedgerId` / `AccountId`, configured projections, and registered event types; they do not persist anything in standalone Core:
 
@@ -150,11 +150,11 @@ void Establish() =>
         .ReadModel(new AccountBalance(150m));
 ```
 
-See [Chronicle testing](../backend/testing/chronicle.md) for the complete fixture. Standalone tests instead seed their provider or register application-service fakes as in [Test a command](./test-a-command.md).
+See [Chronicle testing](../backend/csharp/testing/chronicle.md) for the complete fixture. Standalone tests instead seed their provider or register application-service fakes as in [Test a command](./test-a-command.md).
 
 ## See also
 
-- [Read models from other providers](../backend/chronicle/read-models/other-providers.md) — provider ownership and explicit standalone keys.
-- [Resolution failures](../backend/chronicle/read-models/failures.md) — distinguish missing state, missing keys, and configuration errors.
+- [Read models from other providers](../backend/csharp/chronicle/read-models/other-providers.md) — provider ownership and explicit standalone keys.
+- [Resolution failures](../backend/csharp/chronicle/read-models/failures.md) — distinguish missing state, missing keys, and configuration errors.
 - [Validate a command](./validate-a-command.md) — choose the narrowest place for a rule.
-- [Chronicle event-source resolution](../backend/chronicle/resolving-event-source-id.md) — optional integration key conventions.
+- [Chronicle event-source resolution](../backend/csharp/chronicle/resolving-event-source-id.md) — optional integration key conventions.

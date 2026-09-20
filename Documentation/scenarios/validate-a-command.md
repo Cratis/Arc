@@ -11,7 +11,7 @@ Arc runs validators *before* it invokes `Handle()`. A command that fails validat
 
 ## Do it
 
-The validator fragments below assume the [standalone tutorial's domain types and imports](/arc/backend/getting-started/your-first-command/). Choose one `RegisterAuthorValidator` example, not multiple competing validators. State/service examples additionally require the provider or application-owned collaborator stated beside them.
+The validator fragments below assume the [standalone tutorial's domain types and imports](/arc/backend/csharp/getting-started/your-first-command/). Choose one `RegisterAuthorValidator` example, not multiple competing validators. State/service examples additionally require the provider or application-owned collaborator stated beside them.
 
 1. **A rule that's true of a value everywhere → validate the value type.** Write a `ConceptValidator<T>` and it applies to every command carrying that concept:
 
@@ -89,7 +89,7 @@ Validators are discovered by convention — you never register them. The fronten
 
 ## See also
 
-- [Command Validation](/arc/backend/commands/command-validation/) and [Validation](/arc/backend/commands/validation/) — the full validation model.
+- [Command Validation](/arc/backend/csharp/commands/command-validation/) and [Validation](/arc/backend/csharp/commands/validation/) — the full validation model.
 - [Make it trustworthy](/arc/tutorial/validation/) — the same ideas, taught step by step.
 - [Return a result or an error](./return-a-result-or-error.md) — standalone responses and the `Result<,>` return shape.
 - [Use current state in a command](./use-current-state-in-a-command.md) — injecting provider-owned state into a validator, `Provide()`, or `Handle()`.

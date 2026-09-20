@@ -43,7 +43,7 @@ flowchart LR
 Two things fall out of this design:
 
 - **Identity-details rejection.** `IsUserAuthorized: false` makes `/.cratis/me` return `403` for that result. It is **not a global operation gate**: the command/query authorization evaluator checks the principal and operation attributes independently. Protect actual operations against blocked users or expired subscriptions; hiding the UI or rejecting identity enrichment is insufficient.
-- **One identity, backend to browser.** The details you return are published as a `.cratis-identity` cookie and consumed, typed, on the React side — the same way commands and queries are. You enrich identity once and read it everywhere. (Details: [Identity](/arc/backend/identity/), [contracts](/arc/backend/identity/contracts/), and [on the frontend](/arc/frontend/react/identity/).)
+- **One identity, backend to browser.** The details you return are published as a `.cratis-identity` cookie and consumed, typed, on the React side — the same way commands and queries are. You enrich identity once and read it everywhere. (Details: [Identity](/arc/backend/csharp/identity/), [contracts](/arc/backend/csharp/identity/contracts/), and [on the frontend](/arc/frontend/react/identity/).)
 
 <Aside type="caution" title="Details are not authorization claims">
 A `LibraryIdentity.Role` property is display/domain data; it does not add `ClaimTypes.Role` or grant `[Roles("Librarian")]`. The `.cratis-identity` cookie supplies client context, not authoritative proof of permission. Establish roles in the authenticated principal using trusted authentication/claims configuration. Enforce blocked-user, subscription, and membership restrictions on the server's actual operations as well as reflecting them in the UI.
@@ -51,7 +51,7 @@ A `LibraryIdentity.Role` property is display/domain data; it does not add `Claim
 
 ## What can they do — authorize commands and queries
 
-Gate *what they can do* with attributes on the command or query. This standalone MongoDB excerpt uses the [tutorial's domain types and provider setup](/arc/backend/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports:
+Gate *what they can do* with attributes on the command or query. This standalone MongoDB excerpt uses the [tutorial's domain types and provider setup](/arc/backend/csharp/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports:
 
 ```csharp
 [Roles("Librarian")]                       // only a Librarian may register an author
@@ -74,7 +74,7 @@ public record Author(AuthorId Id, AuthorName Name)
 - Apply them at the **class level** to cover everything and **override per method** for exceptions — secure by default, opt out where you mean it.
 - A failure is automatic: `401` if authentication stops the request before Arc runs, `403` if Arc's command or query pipeline rejects the signed-in user. Pipeline authorization failures are surfaced in the generated command/query result as `isAuthorized: false`, so the UI can react.
 
-When a rule depends on a specific row — "you can only edit your own profile" — enforce it server-side against the trusted principal and that row, using your authorization extension or an explicit operation guard. An ordinary validation rejection is not the same result as an authorization rejection. (Full matrix, claims access, and inheritance rules: [Authorization](/arc/backend/core/authorization/).)
+When a rule depends on a specific row — "you can only edit your own profile" — enforce it server-side against the trusted principal and that row, using your authorization extension or an explicit operation guard. An ordinary validation rejection is not the same result as an authorization rejection. (Full matrix, claims access, and inheritance rules: [Authorization](/arc/backend/csharp/core/authorization/).)
 
 ## Whose data — multi-tenancy
 
@@ -90,11 +90,11 @@ The shape of it:
 Tenant id is sensitive. Resolve it from authenticated claims, validate membership, and never trust a raw header or query parameter — otherwise tenant isolation is one spoofed value away from breaking. In production, [Cratis AuthProxy](/authproxy/) can take this on at the edge: it strips spoofable identity and tenant headers from every inbound request, resolves the tenant after the user signs in, and validates it before the request reaches your app.
 </Aside>
 
-Set it up with [tenant resolvers](/arc/backend/tenancy/resolvers/), reach it through [tenant context](/arc/backend/tenancy/tenant-context/), and isolate storage with [database resolvers](/arc/backend/tenancy/database-resolvers/) — the [tenancy overview](/arc/backend/tenancy/) ties them together.
+Set it up with [tenant resolvers](/arc/backend/csharp/tenancy/resolvers/), reach it through [tenant context](/arc/backend/csharp/tenancy/tenant-context/), and isolate storage with [database resolvers](/arc/backend/csharp/tenancy/database-resolvers/) — the [tenancy overview](/arc/backend/csharp/tenancy/) ties them together.
 
 ## Where to go next
 
-- [Identity](/arc/backend/identity/) — the provider flow, contracts, and multi-service topologies in full.
-- [Authorization](/arc/backend/core/authorization/) — every attribute, the inheritance rules, and claims-based custom logic.
-- [Tenancy](/arc/backend/tenancy/) — resolvers, context, and per-tenant data isolation.
-- [Microsoft Identity headers](/arc/backend/asp-net-core/microsoft-identity/) — accepting the `x-ms-client-principal` family of HTTP headers from your ingress. These are unsigned assertions accepted from a **trusted ingress**, not bearer tokens validated by Arc. The ingress must replace spoofable headers and prevent direct backend access. For local-only fixtures, see [Generate a principal](/arc/general/generating-principal/).
+- [Identity](/arc/backend/csharp/identity/) — the provider flow, contracts, and multi-service topologies in full.
+- [Authorization](/arc/backend/csharp/core/authorization/) — every attribute, the inheritance rules, and claims-based custom logic.
+- [Tenancy](/arc/backend/csharp/tenancy/) — resolvers, context, and per-tenant data isolation.
+- [Microsoft Identity headers](/arc/backend/csharp/asp-net-core/microsoft-identity/) — accepting the `x-ms-client-principal` family of HTTP headers from your ingress. These are unsigned assertions accepted from a **trusted ingress**, not bearer tokens validated by Arc. The ingress must replace spoofable headers and prevent direct backend access. For local-only fixtures, see [Generate a principal](/arc/general/generating-principal/).

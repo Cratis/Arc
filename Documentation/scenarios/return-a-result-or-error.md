@@ -15,7 +15,7 @@ description: Return ordinary response data or a typed validation failure from a 
 | Give the caller several pieces of data | one ordinary response DTO containing those values |
 | Combine a response with server-side work | a tuple containing one ordinary response and operations or other server-handled values |
 
-The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/getting-started/your-first-command/). Add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
+The following **handler replacement** uses the [MongoDB tutorial's setup and domain types](/arc/backend/csharp/getting-started/your-first-command/). Add `using Cratis.Monads;` and `using Cratis.Arc.Validation;` to the command file:
 
 ```csharp
 public async Task<Result<AuthorId, ValidationResult>> Handle(IMongoCollection<Author> authors)
@@ -35,7 +35,7 @@ The insert is the persistent effect; the `AuthorId` is response data. The pre-ch
 For rules that can reject before work begins, prefer a `CommandValidator<T>`; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.md).
 
 :::note[Separate an already-decided write from its response]
-When the work and caller response are already decided, prefer returning a [command operation](../backend/commands/operations/index.md) alongside the ordinary response. Direct service calls remain supported when their result is needed to choose the response or typed rejection. Operation `Execute()` methods cannot return receipts or validation alternatives; moving a write into an operation does not automatically preserve write-dependent error handling.
+When the work and caller response are already decided, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) alongside the ordinary response. Direct service calls remain supported when their result is needed to choose the response or typed rejection. Operation `Execute()` methods cannot return receipts or validation alternatives; moving a write into an operation does not automatically preserve write-dependent error handling.
 :::
 
 ## Read it on the client
@@ -44,7 +44,7 @@ After regenerating the proxy, `execute()` returns a `CommandResult` (a response-
 
 ## Optional: event results with Chronicle
 
-Only after configuring [Arc + Chronicle](/arc/backend/chronicle/) do registered-event response handlers append events. These are **integration signatures**, not replacements for a standalone write:
+Only after configuring [Arc + Chronicle](/arc/backend/csharp/chronicle/) do registered-event response handlers append events. These are **integration signatures**, not replacements for a standalone write:
 
 | Integrated intention                  | Return shape and prerequisite                                                                                   |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -54,10 +54,10 @@ Only after configuring [Arc + Chronicle](/arc/backend/chronicle/) do registered-
 | Reject or append                      | `Result<AuthorRegistered, ValidationResult>`                                                                    |
 | Append several events                 | an enumerable of registered events; use `EventForEventSourceId` for explicit cross-stream targeting             |
 
-The standalone tutorial's `AuthorId : ConceptAs<Guid>` is **not** an event-source identifier. An ordinary `Guid` in a response remains ordinary caller data; do not reinterpret it as an append target. See [Chronicle response identifiers](/arc/backend/chronicle/commands/returning-event-source-id/) for explicit-source contracts.
+The standalone tutorial's `AuthorId : ConceptAs<Guid>` is **not** an event-source identifier. An ordinary `Guid` in a response remains ordinary caller data; do not reinterpret it as an append target. See [Chronicle response identifiers](/arc/backend/csharp/chronicle/commands/returning-event-source-id/) for explicit-source contracts.
 
 ## See also
 
-- [Commands](/arc/backend/commands/) — supported handlers and pipeline behavior.
+- [Commands](/arc/backend/csharp/commands/) — supported handlers and pipeline behavior.
 - [Validate a command](./validate-a-command.md) — choose the right rejection point.
 - [Test a command](./test-a-command.md) — assert the actual write, not just a successful result.

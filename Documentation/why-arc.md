@@ -13,7 +13,7 @@ For Cratis, event sourcing is usually the default persistence architecture for i
 
 - **Commands and queries as the unit of work.** A command is a record with a `Handle()` method — no separate handler class, no controller boilerplate. A query is a method on a read model. Arc maps them to HTTP automatically.
 - **Generated TypeScript proxies.** Every command and query becomes a typed client your React code calls. Change a command's shape in C# and the frontend types change with it — the compiler catches the mismatch, not your users.
-- **Pluggable persistence.** Commands and queries read and write wherever you point them — [Chronicle](/arc/backend/chronicle/) for event-sourced information systems, or [MongoDB](/arc/backend/mongodb/) and [EF Core / SQL](/arc/backend/entity-framework/) for current-state slices. Chronicle adds its [command transaction semantics](/arc/backend/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
+- **Pluggable persistence.** Commands and queries read and write wherever you point them — [Chronicle](/arc/backend/csharp/chronicle/) for event-sourced information systems, or [MongoDB](/arc/backend/csharp/mongodb/) and [EF Core / SQL](/arc/backend/csharp/entity-framework/) for current-state slices. Chronicle adds its [command transaction semantics](/arc/backend/csharp/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
 - **The cross-cutting integration points.** Arc supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Configure trusted authentication, membership checks, storage isolation, and business constraints for your application.
 
 ## Why CQRS and proxy generation
@@ -30,7 +30,7 @@ flowchart LR
     ReadModel -->|query proxy| React
 ```
 
-That diagram is the direct-database setup, useful for bounded current-state slices and for learning Arc in isolation. In the full Cratis loop, the [Chronicle integration](/arc/backend/chronicle/add-event-sourcing/) adds events and projections. Preserving the public query contract can keep the React caller unchanged, but provider code and data migration remain explicit work.
+That diagram is the direct-database setup, useful for bounded current-state slices and for learning Arc in isolation. In the full Cratis loop, the [Chronicle integration](/arc/backend/csharp/chronicle/add-event-sourcing/) adds events and projections. Preserving the public query contract can keep the React caller unchanged, but provider code and data migration remain explicit work.
 
 ## Vertical slices, not layers
 
@@ -38,6 +38,6 @@ Arc doesn't impose a folder structure, but it's built to make one shine: organiz
 
 ## Where to start
 
-- Build your first feature in the [getting started](/arc/backend/getting-started/) guide.
+- Build your first feature in the [getting started](/arc/backend/csharp/getting-started/) guide.
 - Walk the full database-backed path in the [Arc tutorial](/arc/tutorial/).
 - Need the wider stack? [Why developers choose Cratis](/why-cratis/) shows how Arc, Chronicle, Components, and the tools fit together.

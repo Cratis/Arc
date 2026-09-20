@@ -64,7 +64,7 @@ By the last chapter you'll have a working library back office where a librarian 
 
 ## What you'll need
 
-Start with [standalone ASP.NET Core setup](/arc/backend/getting-started/), then complete its [backend checkpoint](/arc/backend/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/getting-started/); do not recreate them.
+Start with [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/), then complete its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/react/getting-started/); do not recreate them.
 
 No Chronicle package, event store, or `dotnet new cratis` scaffold is required. That template is an **Arc + Chronicle** alternative, not this tutorial's starting point. Backend excerpts assume the setup's imports and namespaces; UI fragments are labeled where they require the surrounding composition.
 

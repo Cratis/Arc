@@ -47,4 +47,4 @@ Both validation and execution return [CommandResult](./command-result.md). `corr
 
 Prefer [CommandForm](../../react/command-form/index.md) for form-managed lifecycle and feedback. For raw hooks, debounce server checks, use an edit revision/current field values rather than `hasChanges`, and discard stale responses. See [React command validation](../../react/commands/validation.md).
 
-For endpoint details, continue with [backend command validation](../../../backend/commands/command-validation.md) and [command filters](../../../backend/commands/command-filters.md).
+For endpoint details, continue with [backend command validation](../../../backend/csharp/commands/command-validation.md) and [command filters](../../../backend/csharp/commands/command-filters.md).

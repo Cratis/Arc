@@ -10,9 +10,9 @@ Every app starts with one feature. Ours is **registering an author** — the fir
 
 ## Prerequisites
 
-Complete [standalone ASP.NET Core setup](/arc/backend/getting-started/) and [Your first command and query](/arc/backend/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle.
+Complete [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/) and [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle.
 
-The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [Arc-only frontend checkpoint](/arc/frontend/getting-started/) uses ordinary HTML instead. With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
+The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [Arc-only frontend checkpoint](/arc/frontend/react/getting-started/) uses ordinary HTML instead. With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
 
 ## Follow the backend half
 
@@ -75,11 +75,11 @@ public record Author(AuthorId Id, AuthorName Name)
 The dependencies are **method-injected**. Returning `Task` adds no payload: the explicit database write is the outcome. The static `AllAuthors` method is the query; no controller or duplicated transport model is needed.
 
 <Aside type="tip" title="Separate decisions as behavior grows">
-This tutorial uses supported direct database writes to make the first round trip visible. For immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write.
+This tutorial uses supported direct database writes to make the first round trip visible. For immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/csharp/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write.
 </Aside>
 
 <Aside type="note" title="Live means a configured observation source">
-MongoDB requires change streams on a replica set. EF Core receives same-host `SaveChanges` notifications through the configured interceptor; SQLite does not detect external-process writes. Keep the [storage prerequisites](/arc/backend/getting-started/) in place. An observable return type exposes a stream; it cannot make an unconfigured database emit changes.
+MongoDB requires change streams on a replica set. EF Core receives same-host `SaveChanges` notifications through the configured interceptor; SQLite does not detect external-process writes. Keep the [storage prerequisites](/arc/backend/csharp/getting-started/) in place. An observable return type exposes a stream; it cannot make an unconfigured database emit changes.
 </Aside>
 
 ## Build before importing
@@ -90,7 +90,7 @@ dotnet build -c Debug
 
 With `Cratis.Arc.ProxyGenerator.Build` installed and `CratisProxiesOutputPath` set, a post-build tool reads the assembly and PDB and generates `src/Authors/RegisterAuthor.ts` and `src/Authors/Author.ts`. The latter includes `AllAuthors` in source-file output mode. Building a bare Arc project without generator configuration emits no proxies.
 
-If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
+If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/csharp/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
 
 ## Set up the browser project
 

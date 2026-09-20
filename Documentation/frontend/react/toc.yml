@@ -1,3 +1,5 @@
+- name: Getting started
+  href: getting-started.mdx
 - name: Arc
   href: arc.md
 - name: Identity
@@ -16,6 +18,8 @@
   href: vite-configuration.md
 - name: Proxy Generation
   href: proxy-generation.md
+- name: MVVM with React
+  href: mvvm/toc.yml
 - name: Story Components
   href: stories/toc.yml
 - name: Storybook

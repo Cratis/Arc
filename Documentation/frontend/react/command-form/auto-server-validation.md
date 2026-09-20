@@ -135,6 +135,6 @@ A failed preflight has no command response to consume; some server results omit 
 ## See also
 
 - [Validation](./validation.md)
-- [Backend command validation](../../../backend/commands/command-validation.md)
+- [Backend command validation](../../../backend/csharp/commands/command-validation.md)
 - [Form lifecycle](./form-lifecycle.md)
 - [Customization](./customization.md)

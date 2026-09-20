@@ -19,5 +19,5 @@ This section focuses on contracts and runtime behavior in `@cratis/arc`. For Rea
 ## Related documentation
 
 - [Validation](../validation/index.md)
-- [Backend Queries](../../../backend/queries/index.md)
+- [Backend Queries](../../../backend/csharp/queries/index.md)
 - [React Queries](../../react/queries/index.md)

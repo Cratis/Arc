@@ -49,7 +49,7 @@ Use full-result display for cross-field rules when changing one field should upd
 This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host. It returns the accepted values; it deliberately does **not** persist a profile. A real update also needs an explicit backend write. No event store or Chronicle integration is involved.
 
 :::tip[Persist on the backend, not in a form callback]
-This example only returns accepted values. For a real immediate inline update, prefer a backend [command operation](../../../backend/commands/operations/index.md) describing the service write; direct service calls remain supported. Keep validation in validators and UI feedback in form callbacks. Operations execute on the server and do not add operation payloads or recovery details to the TypeScript command result.
+This example only returns accepted values. For a real immediate inline update, prefer a backend [command operation](../../../backend/csharp/commands/operations/index.md) describing the service write; direct service calls remain supported. Keep validation in validators and UI feedback in form callbacks. Operations execute on the server and do not add operation payloads or recovery details to the TypeScript command result.
 :::
 
 ```csharp
@@ -95,9 +95,9 @@ public class UpdateProfileValidator : CommandValidator<UpdateProfile>
 
 The named values distinguish profile names from email addresses in backend signatures. `EmailAddressValidator` carries the email invariant wherever that concept appears. Arc's concept-aware `RuleFor` unwraps `ProfileName`, so the command's string rules still apply. The generated `name` and `email` properties are strings, with the concept's supported rules attached to `email`; your React inputs need no concept-object conversion. These declarations are grouped for copying; keep each concept in its own application file.
 
-Build in Debug with [proxy generation configured](../../../backend/proxy-generation/getting-started.md), then use the generated class in the [overview form](./index.md#start-with-a-generated-command). Entering a short name or malformed email should display its rule message on blur. A valid submission returns `{ name, email }` to `onSuccess`. Only supported rules are generated; asynchronous service/database checks remain server-side.
+Build in Debug with [proxy generation configured](../../../backend/csharp/proxy-generation/getting-started.md), then use the generated class in the [overview form](./index.md#start-with-a-generated-command). Entering a short name or malformed email should display its rule message on blur. A valid submission returns `{ name, email }` to `onSuccess`. Only supported rules are generated; asynchronous service/database checks remain server-side.
 
-Preflight `validate()` skips handler execution and handler-argument resolution, but still runs pipeline filters/validators when it reaches the server. Keep those operations free of unintended side effects and sensitive diagnostic output. A client-side short-circuit does not establish server authorization. See [Backend command validation](../../../backend/commands/command-validation.md).
+Preflight `validate()` skips handler execution and handler-argument resolution, but still runs pipeline filters/validators when it reaches the server. Keep those operations free of unintended side effects and sensitive diagnostic output. A client-side short-circuit does not establish server authorization. See [Backend command validation](../../../backend/csharp/commands/command-validation.md).
 
 ## Accessing validation state
 

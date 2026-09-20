@@ -11,7 +11,7 @@ Proxies are generated when the **backend builds**. If the import doesn't resolve
 
 - Install `Cratis.Arc.ProxyGenerator.Build`, set `CratisProxiesOutputPath`, and run `dotnet build -c Debug` on the backend and confirm it succeeds — no proxies are emitted until the C# compiles.
 - Check the command/query is discoverable: a `[Command]` record with a `Handle()` method, or a static query method on a `[ReadModel]`.
-- Make sure proxy generation is targeting the right output folder for your frontend (see [Proxy Generation](./backend/proxy-generation/)).
+- Make sure proxy generation is targeting the right output folder for your frontend (see [Proxy Generation](./backend/csharp/proxy-generation/)).
 
 ## I changed the C# but the TypeScript is stale
 
@@ -28,11 +28,11 @@ That's authorization. Check that:
 - the caller is authenticated, and
 - the caller has the role the command requires (`[Roles(...)]` on the command — or on the query method for a 403 on reads).
 
-For local development you can generate a principal so you can exercise authorized endpoints without a full login — see [Identity](./backend/identity/) and [Authorizing commands and queries](./backend/authorizing-commands-and-queries.md).
+For local development you can generate a principal so you can exercise authorized endpoints without a full login — see [Identity](./backend/csharp/identity/) and [Authorizing commands and queries](./backend/csharp/authorizing-commands-and-queries.md).
 
 ## My validation isn't firing
 
-Arc discovers a `CommandValidator<TCommand>` by convention. Confirm the validator's generic type matches the command exactly, and that any async rule that needs a dependency takes it via the validator's constructor. See [Commands](./backend/commands/).
+Arc discovers a `CommandValidator<TCommand>` by convention. Confirm the validator's generic type matches the command exactly, and that any async rule that needs a dependency takes it via the validator's constructor. See [Commands](./backend/csharp/commands/).
 
 ## My query returns nothing
 

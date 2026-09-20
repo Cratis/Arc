@@ -10,7 +10,7 @@ Editing a command should not require a second copy of its values in React state.
 
 ## Start with a generated command
 
-Before using these examples, configure [Arc in React](../arc.md) and [proxy generation](../../../backend/proxy-generation/getting-started.md). Import a **generated command class**, not a TypeScript interface or an empty subclass of `Command`: execution needs the generated route, property descriptors, and validation metadata.
+Before using these examples, configure [Arc in React](../arc.md) and [proxy generation](../../../backend/csharp/proxy-generation/getting-started.md). Import a **generated command class**, not a TypeScript interface or an empty subclass of `Command`: execution needs the generated route, property descriptors, and validation metadata.
 
 The component below is a runnable frontend checkpoint in that configured application. It expects a generated `UpdateProfile` at `./commands/UpdateProfile` with `name` and `email` string properties; adapt the import to your configured output directory. Its backend endpoint and rules are shown in [Validation](./validation.md#backend-validation). That example returns profile details to demonstrate a standalone Arc response; it does not persist them or require Chronicle.
 
