@@ -62,6 +62,22 @@ By the last chapter you'll have a working library back office where a librarian 
 - How **observable queries** keep a screen live with no polling.
 - How to **authorize** commands and queries at the boundary.
 
+## Which backend this tutorial uses
+
+The tour below is written against the **C# backend**. The ideas it teaches — a
+slice from command to read model to query to screen, validation, relating
+slices, live queries, authorization — are the same on either backend, and the
+React code is identical because both generate the same TypeScript packages. The
+setup and the server-side code are not.
+
+:::note[Building on Kotlin or Java?]
+Start with [Get started with Kotlin](/arc/backend/kotlin/get-started/) or
+[Get started with Java](/arc/backend/kotlin/get-started/java/), which take you
+through the same first round trip with Gradle and Spring Boot, then use the
+[guides](/arc/backend/kotlin/guides/) for the ground the chapters below cover.
+The [scenario recipes](/arc/scenarios/) already show both languages side by side.
+:::
+
 ## What you'll need
 
 Start with [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/), then complete its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/react/getting-started/); do not recreate them.

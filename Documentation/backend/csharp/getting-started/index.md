@@ -32,7 +32,7 @@ Add this property group inside `Library.csproj`:
 
 The namespace root removes `Library` from **output folders only**, placing `Library.Authors` under `src/Authors`; API routes still retain the default `/api/library/...` prefix. Source-file mode groups query proxies into their read model's file (`Author.ts`) instead of separate query files (`AllAuthors.ts`). When following a frontend example using separate query files, import `AllAuthors` from `./Authors/Author` for this setup.
 
-The generator runs **after compilation** and uses the assembly and PDB source paths. An output path enables it; installing Arc alone does not. Use Debug builds for the following checkpoints. See [proxy configuration](../proxy-generation/configuration.md) before changing routes or output layout.
+The generator runs **after compilation** and uses the assembly and PDB source paths. An output path enables it; installing Arc alone does not. Use Debug builds for the following checkpoints. See [proxy configuration](../proxy-generation/Configuration/index.md) before changing routes or output layout.
 
 Create `GlobalUsings.cs` at the project root:
 

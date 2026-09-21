@@ -3,17 +3,18 @@ title: Arc
 description: Commands, queries, validation, authorization, and TypeScript proxy generation for ASP.NET Core.
 ---
 
-import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 import SimpleCard from '@components/SimpleCard.astro';
 import TopicHero from '@components/TopicHero.astro';
 
 <TopicHero
   icon="puzzle"
   eyebrow="Arc"
-  title="CQRS application framework for ASP.NET Core"
+  title="CQRS application framework for ASP.NET Core and Spring Boot"
 >
-  Arc is an opinionated CQRS application framework for ASP.NET Core with
-  commands, queries, validation, authorization, and TypeScript proxy generation.
+  Arc is an opinionated CQRS application framework with commands, queries,
+  validation, authorization, and TypeScript proxy generation. Write the backend
+  in C# or in Kotlin and Java — both generate the same typed frontend contract.
   Event sourcing is not required.
 </TopicHero>
 
@@ -60,32 +61,21 @@ React compositions fit.
 
 ## Start an Arc host
 
-Use a .NET SDK compatible with your selected Arc release (the current source targets .NET 10). This is the **ASP.NET Core** path; [Arc.Core's lightweight host](/arc/backend/csharp/core/getting-started/) is a separate alternative.
+Arc runs on two backend stacks. Pick the one your team already builds on — the
+application shape, the HTTP contract and the generated frontend client are the
+same either way, so the choice is about your runtime, not about what you can
+build.
 
-<Steps>
-1. Create an ASP.NET Core project and install the host package.
-
-   ```bash
-   dotnet new web -n Library --framework net10.0
-   cd Library
-   dotnet add package Cratis.Arc
-   ```
-
-1. Configure and run the host.
-
-   ```csharp
-   using Cratis.Arc;
-
-   var builder = WebApplication.CreateBuilder(args);
-   builder.AddCratisArc();
-
-   var app = builder.Build();
-   app.UseCratisArc();
-   await app.RunAsync();
-   ```
-
-1. Run `dotnet run` and confirm the application starts. Continue with [standalone setup](/arc/backend/csharp/getting-started/) for database configuration, generated proxies, and the first command/query checkpoint.
-</Steps>
+<CardGrid>
+  <LinkCard
+    title="C# on ASP.NET Core"
+    href="/arc/backend/csharp/getting-started/"
+    description="Install Cratis.Arc, configure the host, and reach the first command and query checkpoint. Arc.Core is a lighter alternative host." />
+  <LinkCard
+    title="Kotlin or Java on Spring Boot"
+    href="/arc/backend/kotlin/get-started/"
+    description="Apply the io.cratis.arc Gradle plugin, declare a command and a read model, and call them. A Java walkthrough sits alongside it." />
+</CardGrid>
 
 Starting the host verifies the setup path only. Commands, queries, generated
 proxies, persistence integrations, and frontend packages each have additional
@@ -148,23 +138,29 @@ storage topology.
 
 ## Persistence choices
 
-Arc.Core does not depend on Chronicle. Commands and queries can use application
-services or current-state persistence without an event log.
+Arc does not depend on Chronicle. Commands and queries can use application
+services or current-state persistence without an event log. Each backend
+integrates with the data access its own ecosystem already uses.
 
 <CardGrid>
   <LinkCard
-    title="MongoDB"
-    description="Use Arc's serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams."
+    title="MongoDB (C#)"
+    description="Arc's serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams."
     href="/arc/backend/csharp/mongodb/"
   />
   <LinkCard
-    title="Entity Framework Core"
-    description="Discover read models, configure value conversions and mappings, run migrations, and observe supported SQL Server, PostgreSQL, or SQLite changes."
+    title="Entity Framework Core (C#)"
+    description="Discover read models, configure value conversions and mappings, run migrations, and observe SQL Server, PostgreSQL or SQLite changes."
     href="/arc/backend/csharp/entity-framework/"
   />
   <LinkCard
+    title="Spring Data (Kotlin and Java)"
+    description="Inject JPA or MongoDB repositories into queries and commands, with Arc paging, tenant routing, transactions and observable change streams."
+    href="/arc/backend/kotlin/guides/spring-data/"
+  />
+  <LinkCard
     title="Chronicle"
-    description="Add event-sourced commands, projections, reducers, aggregates, reactors, concurrency behavior, tenant namespaces, and Chronicle-specific testing."
+    description="Add event-sourced commands, concurrency behavior, tenant namespaces and reactor side effects. Available on both backends."
     href="/arc/backend/csharp/chronicle/"
   />
 </CardGrid>

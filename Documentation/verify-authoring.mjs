@@ -63,16 +63,26 @@ async function validateLandingCollisions(files) {
     for (const file of files) {
         const extension = path.extname(file);
         const possibleDirectory = file.slice(0, -extension.length);
-        let directoryStats;
+
+        // The site lowercases every path segment when it builds a slug, so a page
+        // and a sibling folder that differ only in case collide on one route and
+        // one silently shadows the other. Comparing names here rather than asking
+        // the filesystem keeps this honest on case-sensitive volumes, where a
+        // plain stat of the lowercase path finds nothing and the collision ships.
+        const parent = path.dirname(possibleDirectory);
+        const wanted = path.basename(possibleDirectory).toLowerCase();
+        let siblings;
         try {
-            directoryStats = await stat(possibleDirectory);
+            siblings = await readdir(parent, { withFileTypes: true });
         } catch {
             continue;
         }
 
-        if (!directoryStats.isDirectory()) continue;
+        const directory = siblings.find(entry =>
+            entry.isDirectory() && entry.name.toLowerCase() === wanted);
+        if (!directory) continue;
 
-        const entries = await readdir(possibleDirectory);
+        const entries = await readdir(path.join(parent, directory.name));
         if (entries.some(entry => /^index\.mdx?$/i.test(entry))) {
             errors.push(`${relative(file)}: Conflicts with ${relative(possibleDirectory)}/index.md[x]. The site demotes the directory index to /overview/ and can orphan it; keep one landing page for the route.`);
         }
