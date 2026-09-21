@@ -1,3 +1,5 @@
+- name: Overview
+  href: index.mdx
 - name: Core
   href: core/toc.yml
 - name: React
