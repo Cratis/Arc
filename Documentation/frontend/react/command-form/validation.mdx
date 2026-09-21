@@ -40,58 +40,21 @@ The following are **configuration fragments** inside a component that imports `C
 | `validateOn` | `'blur'` | Determines when interaction error messages are updated: blur, change, or both. It does not disable silent edit validation. |
 | `validateAllFieldsOnChange` | `false` | False merges only the interacted field's displayed messages; true displays the full result. Both paths validate the command, not an isolated field rule. |
 | `validateOnInit` | `false` | Shows initialization/population errors. False hides those initial messages, not the validation work. |
-| `autoServerValidate` | `false` | Enables automatic server preflight; see [Auto server validation](./auto-server-validation.md) for request paths and timing. |
+| `autoServerValidate` | `false` | Enables automatic server preflight; see [Auto server validation](./auto-server-validation.mdx) for request paths and timing. |
 
 Use full-result display for cross-field rules when changing one field should update another field's message. With automatic server validation disabled, silent/interaction validation is client-side. Submission still runs command validation and, when local checks pass, the server pipeline.
 
 ## Backend validation
 
-This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host. It returns the accepted values; it deliberately does **not** persist a profile. A real update also needs an explicit backend write. No event store or Chronicle integration is involved.
+This standalone Arc endpoint is a complete command-and-validator example for an already configured Arc host, in whichever backend language you use. It returns the accepted values; it deliberately does **not** persist a profile. A real update also needs an explicit backend write. No event store or Chronicle integration is involved.
 
 :::tip[Persist on the backend, not in a form callback]
 This example only returns accepted values. For a real immediate inline update, prefer a backend [command operation](../../../backend/csharp/commands/operations/index.md) describing the service write; direct service calls remain supported. Keep validation in validators and UI feedback in form callbacks. Operations execute on the server and do not add operation payloads or recovery details to the TypeScript command result.
 :::
 
-```csharp
-using Cratis.Arc.Commands;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
-using Cratis.Concepts;
-using FluentValidation;
+<ArcBackendTabs snippet="frontend/react/command-form/validation/profile-command" />
 
-namespace MyApp.Profiles;
-
-public record ProfileName(string Value) : ConceptAs<string>(Value)
-{
-    public static readonly ProfileName NotSet = new(string.Empty);
-}
-
-public record EmailAddress(string Value) : ConceptAs<string>(Value)
-{
-    public static readonly EmailAddress NotSet = new(string.Empty);
-}
-
-public class EmailAddressValidator : ConceptValidator<EmailAddress>
-{
-    public EmailAddressValidator() => RuleFor(email => email.Value).NotEmpty().EmailAddress();
-}
-
-[Command]
-public record UpdateProfile(ProfileName Name, EmailAddress Email)
-{
-    public ProfileDetails Handle() => new(Name, Email);
-}
-
-public record ProfileDetails(ProfileName Name, EmailAddress Email);
-
-public class UpdateProfileValidator : CommandValidator<UpdateProfile>
-{
-    public UpdateProfileValidator()
-    {
-        RuleFor(command => command.Name).NotEmpty().MinimumLength(3).MaximumLength(100);
-    }
-}
-```
+The rules land in different places because the two backends project different surfaces to the client. C# extracts a supported subset from FluentValidation — here a `ConceptValidator<EmailAddress>` that travels with the value and a `CommandValidator<UpdateProfile>` for the command's own rule. Arc.Kotlin's client-projected surface is [shared fluent validation](/arc/backend/kotlin/guides/validation/): a `FluentModelValidator<T>` whose single `init` block declares literal rules over string, collection, and numeric members, which is why the JVM command carries plain `String` members rather than concepts. Anything conditional, asynchronous, or service-dependent stays in an ordinary `CommandValidator` there, server-side.
 
 The named values distinguish profile names from email addresses in backend signatures. `EmailAddressValidator` carries the email invariant wherever that concept appears. Arc's concept-aware `RuleFor` unwraps `ProfileName`, so the command's string rules still apply. The generated `name` and `email` properties are strings, with the concept's supported rules attached to `email`; your React inputs need no concept-object conversion. These declarations are grouped for copying; keep each concept in its own application file.
 
@@ -217,7 +180,7 @@ For exact field matching outside CommandForm, filter `validationResults` by memb
 
 ## See also
 
-- [Auto server validation](./auto-server-validation.md)
+- [Auto server validation](./auto-server-validation.mdx)
 - [Customization](./customization.md)
 - [Core command validation](../../core/commands/validation.md)
 - [Form lifecycle](./form-lifecycle.md)

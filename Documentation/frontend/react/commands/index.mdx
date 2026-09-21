@@ -1,6 +1,9 @@
-# Commands
+---
+title: Commands
+description: Execute backend commands from React through the generated proxy's .use() hook, with change tracking, validation, and typed results.
+---
 
-Commands represent actions you want to perform against the system. Arc generates their HTTP surface from model-bound commands or discovers controller actions. Either style can use validation and authorization; neither requires Chronicle or event sourcing.
+Commands represent actions you want to perform against the system. Arc generates their HTTP surface from model-bound commands, and in C# also from discovered controller actions. Either style can use validation and authorization; neither requires Chronicle or event sourcing.
 
 ## Overview
 
@@ -14,11 +17,11 @@ Commands provide a structured way to:
 
 ## Quick Start
 
-**Backend payload fragment (C#):** this DTO requires an already-defined controller endpoint accepting it. A record alone is not enough for proxy discovery; for a complete model-bound example, follow [getting started](/arc/frontend/react/getting-started/).
+**Backend fragment:** these are the declarations the proxy below is generated from.
 
-```csharp
-public record OpenDebitAccount(AccountId AccountId, AccountName Name, CustomerId Owner);
-```
+<ArcBackendTabs snippet="frontend/react/commands/index/command-payload" />
+
+The two backends reach the same generated command from different starting points. The C# record is a **payload DTO**: it requires an already-defined controller endpoint accepting it, because a record alone is not enough for proxy discovery. The JVM has no controller-based discovery, so the model-bound `@Command` *is* the endpoint. For a complete model-bound C# example, follow [getting started](/arc/frontend/react/getting-started/).
 
 **Consumer fragment:** call this hook inside a component, and execute from its event handler. This example assumes string-backed `AccountId` and `CustomerId`; use Fundamentals `Guid` values instead if the generated model maps Guid-backed concepts.
 

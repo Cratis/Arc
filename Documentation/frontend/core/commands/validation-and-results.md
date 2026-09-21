@@ -45,4 +45,4 @@ Typical failure categories include:
 
 - [Command Result](./command-result.md)
 - [Validation](./validation.md)
-- [React Commands](../../react/commands/index.md)
+- [React Commands](../../react/commands/index.mdx)

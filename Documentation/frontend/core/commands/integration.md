@@ -22,4 +22,4 @@ For setup and configuration, see [Backend Proxy Generation](../../../backend/csh
 
 ## React Layer
 
-For higher-level usage patterns in React components, see [React Commands](../../react/commands/index.md).
+For higher-level usage patterns in React components, see [React Commands](../../react/commands/index.mdx).

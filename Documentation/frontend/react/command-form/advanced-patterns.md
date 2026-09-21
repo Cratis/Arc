@@ -69,5 +69,5 @@ Exercise empty, invalid, valid, in-flight, and rejected states. Also test rapid 
 
 - [Layouts](./layouts.md)
 - [Working with hooks](./hooks.md)
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Form lifecycle](./form-lifecycle.md)

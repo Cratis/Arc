@@ -1,27 +1,27 @@
 ---
 title: Frontend
-description: How Arc turns your C# commands and queries into typed React hooks — call your backend like a local function, with validation and live updates included.
+description: How Arc turns your backend commands and queries into typed React hooks — call your backend like a local function, with validation and live updates included.
 ---
 
 import { Aside, LinkCard, CardGrid } from '@astrojs/starlight/components';
-import FullStackTabs from '@components/FullStackTabs.astro';
 
 Building a React frontend against a backend usually means writing the same plumbing over and over: a
 `fetch` call here, a hand-written request type there, validation rules copied from the server, and a
 pile of state to track whether the request is in flight, succeeded, or failed. Every time the backend
 changes, you go hunting for the frontend code that drifted out of sync.
 
-Arc removes that whole layer. When you build a command or query in C#, Arc **generates a typed
-TypeScript proxy** for it. On the frontend you import that proxy and call its `.use()` hook — the
-request shape, the response shape, and the validation rules all come along, type-checked end to end.
-Change the C# and the generated proxy changes with it, so the compiler catches the drift instead of
-your users.
+Arc removes that whole layer. When you build a command or query on the backend — in C# or on the
+JVM — Arc **generates a typed TypeScript proxy** for it. On the frontend you import that proxy and
+call its `.use()` hook — the request shape, the response shape, and the validation rules all come
+along, type-checked end to end. Change the backend and the generated proxy changes with it, so the
+compiler catches the drift instead of your users. Everything on this page and under it is the same
+whichever backend generated the client.
 
 ## How the pieces fit
 
 ```mermaid
 flowchart LR
-    CS["C# command / query"] -->|proxy generator| TS["Generated TS proxy"]
+    CS["Backend command / query"] -->|proxy generator| TS["Generated TS proxy"]
     TS -->|".use() hook"| RC["React component"]
     RC -->|executes / observes| API["Arc endpoint"]
     API --> CS
@@ -33,25 +33,13 @@ boundary, there is no DTO to keep in sync and no untyped JSON to second-guess.
 
 ## Execute a command from React
 
-A command is an intent to change something — *open an account*, *check out a book*. You define it in
-C#; Arc generates a proxy whose static `.use()` hook gives you an instance, explicit React value updates, change tracking,
-and execution. The following paired fragments assume the application's `AccountId`, `AccountHolder`, `Account`, and MongoDB registration; they are not a complete backend bootstrap.
+A command is an intent to change something — *open an account*, *check out a book*. You define it on
+the backend; Arc generates a proxy whose static `.use()` hook gives you an instance, explicit React value updates, change tracking,
+and execution. The following backend fragment assumes the application's `AccountId`, `AccountHolder`, `Account`, and its persistence registration; it is not a complete backend bootstrap.
 
-<FullStackTabs>
-<Fragment slot="csharp">
+<ArcBackendTabs snippet="frontend/index/open-account" />
 
-```csharp
-// Backend — the command and the read model it serves live together
-[Command]
-public record OpenAccount(AccountId Id, AccountHolder Owner)
-{
-    public Task Handle(IMongoCollection<Account> accounts) =>
-        accounts.InsertOneAsync(new Account(Id, Owner));
-}
-```
-
-</Fragment>
-<Fragment slot="typescript">
+Both backends generate the same client, so the React side below is written once:
 
 ```tsx
 // Frontend — the generated proxy, driven by its static .use() hook
@@ -87,9 +75,6 @@ export const OpenAccountForm = () => {
     );
 };
 ```
-
-</Fragment>
-</FullStackTabs>
 
 The `.use()` hook returns `[command, setValues, clearValues]`. Use the setter for reliable per-edit React rendering; raw assignment is change tracking, not a guarantee of every render or automatic validation. Set required properties explicitly: here a Guid-based `AccountId` needs a Fundamentals `Guid`, created once for this operation. A reusable create form must start a fresh operation after success, as the [getting-started checkpoint](/arc/frontend/react/getting-started/) shows.
 

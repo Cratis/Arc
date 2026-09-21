@@ -75,4 +75,4 @@ If your application uses event sourcing, [Chronicle command integration](../chro
 
 ## The frontend follows the backend
 
-The [proxy generator](../proxy-generation/index.md) generates the TypeScript command contract from the backend. After building the backend, use [commands in React](../../../frontend/react/commands/index.md) to submit it and inspect the result. Continue to [queries](../queries/index.md) to read the data your commands change.
+The [proxy generator](../proxy-generation/index.md) generates the TypeScript command contract from the backend. After building the backend, use [commands in React](../../../frontend/react/commands/index.mdx) to submit it and inspect the result. Continue to [queries](../queries/index.md) to read the data your commands change.

@@ -192,6 +192,6 @@ Seed the state the command should see with the `Given` builder — either the ev
 
 ## See also
 
-- [Use current state in a command](../../../../scenarios/use-current-state-in-a-command.md) — the short recipe.
+- [Use current state in a command](../../../../scenarios/use-current-state-in-a-command.mdx) — the short recipe.
 - [When resolution fails](./failures.md) — every error and what it means.
 - [Command validation](../../commands/validation.md) — the rest of Arc's validation model.

@@ -127,6 +127,6 @@ For the full `Provide()` contract, including its distinct validation control val
 
 ## Frontend integration
 
-The [proxy generator](../../proxy-generation/index.md) uses the command type name for the generated TypeScript command. It generates typed properties, supported validation rules, and response handling. Build the backend before consuming the proxy; use [commands in React](../../../../frontend/react/commands/index.md) to call it.
+The [proxy generator](../../proxy-generation/index.md) uses the command type name for the generated TypeScript command. It generates typed properties, supported validation rules, and response handling. Build the backend before consuming the proxy; use [commands in React](../../../../frontend/react/commands/index.mdx) to call it.
 
 [Chronicle command integration](../../chronicle/commands/index.md) is optional. Its returned-event behavior is an integration contract, not a requirement for a model-bound Arc command.

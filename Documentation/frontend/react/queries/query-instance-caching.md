@@ -63,4 +63,4 @@ Cached UI data can outlive its last viewer. Clearing identity or reconnecting ob
 
 - [Observable query multiplexing](./observable-query-multiplexing.md)
 - [Query diagnostics](./observable-query-diagnostics.md)
-- [Query usage](./usage.md)
+- [Query usage](./usage.mdx)

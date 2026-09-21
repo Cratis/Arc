@@ -78,7 +78,7 @@ builder.Services.AddSingleton(new LabelPolicy(80));
 
 Nullable dependency parameters may receive null when no value can be resolved. Non-nullable dependency parameters are required; resolution failure produces an exception outcome instead of silently constructing a validator with null. Use a nullable dependency when absence is a valid input to your rule, not to conceal a missing required service.
 
-A service that reads storage must actually implement that lookup. Arc.Core does not assume projected event state or supply persistence for arbitrary dependency types. For provider-specific current-state resolution, see [use current state in a command](../../../scenarios/use-current-state-in-a-command.md). [Chronicle read-model injection](../chronicle/read-models/injecting-into-commands.md) is an optional integration, not the default validator dependency model.
+A service that reads storage must actually implement that lookup. Arc.Core does not assume projected event state or supply persistence for arbitrary dependency types. For provider-specific current-state resolution, see [use current state in a command](../../../scenarios/use-current-state-in-a-command.mdx). [Chronicle read-model injection](../chronicle/read-models/injecting-into-commands.md) is an optional integration, not the default validator dependency model.
 
 ## Choosing a rejection phase
 

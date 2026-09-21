@@ -209,5 +209,5 @@ Export the adapters you actually implement from your application's field module.
 
 - [Field types](./field-types/index.md)
 - [Customization](./customization.md)
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [CommandForm overview](./index.md)
