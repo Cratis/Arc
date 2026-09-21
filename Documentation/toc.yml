@@ -12,6 +12,8 @@
   href: understanding-the-proxy-boundary.mdx
 - name: Understanding identity and access
   href: understanding-identity-and-access.mdx
+- name: HTTP contract
+  href: http-contract.md
 - name: Glossary
   href: glossary.md
 - name: Scenarios

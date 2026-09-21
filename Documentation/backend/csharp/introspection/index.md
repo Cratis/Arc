@@ -30,6 +30,10 @@ Introspection returns metadata, not business data. It helps you:
 
 This is discovered-operation metadata, not the final mapped/deduplicated runtime route table. In particular, query introspection does not apply custom `[Path]` routes; see the [query metadata reference](queries.md) before using `route` as a callable URL.
 
+## Cross-implementation shape
+
+Introspection is part of Arc's [shared HTTP contract](/arc/http-contract/), which both the C# and JVM backends honour. The endpoints and their anonymous access are common; the *depth* of the reported metadata is not. See [Introspection metadata depth](/arc/http-contract/#introspection-metadata-depth) before building tooling that has to run against both backends.
+
 ## Topics
 
 | Topic | Description |
