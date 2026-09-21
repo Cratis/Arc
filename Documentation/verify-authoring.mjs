@@ -26,6 +26,7 @@ async function filesBelow(directory) {
 function validateContent(file, content) {
     const isMarkdown = path.extname(file).toLowerCase() === '.md';
     let fence;
+    let stepsDepth = 0;
 
     for (const [index, line] of content.split('\n').entries()) {
         const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
@@ -48,6 +49,17 @@ function validateContent(file, content) {
 
         if (isMarkdown && /^\s*import\s+(?:.+\s+from\s+)?['"]/.test(line)) {
             errors.push(`${relative(file)}:${index + 1}: Imports require .mdx; in .md they render as visible prose.`);
+        }
+
+        // Starlight's <Steps> requires its content to be a single ordered list.
+        // The language-tab macro expands to a sibling element beside that list, so a
+        // tab inside a step block makes the page fail to render - and only the site
+        // build sees it, because the checks here expand the macro without ever
+        // rendering the component around it.
+        if (/^\s*<Steps>/.test(line)) stepsDepth += 1;
+        else if (/^\s*<\/Steps>/.test(line)) stepsDepth = Math.max(0, stepsDepth - 1);
+        else if (stepsDepth > 0 && /^\s*<ArcBackendTabs\b/.test(line)) {
+            errors.push(`${relative(file)}:${index + 1}: <ArcBackendTabs> inside <Steps> breaks rendering; Steps accepts only a single ordered list. Unwrap the step block.`);
         }
 
         if (isMarkdown) {
