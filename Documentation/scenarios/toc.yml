@@ -1,16 +1,16 @@
 - name: Overview
   href: index.md
 - name: Validate a command
-  href: validate-a-command.md
+  href: validate-a-command.mdx
 - name: Return a result or an error
-  href: return-a-result-or-error.md
+  href: return-a-result-or-error.mdx
 - name: Provide data to a command handler
-  href: provide-data-to-a-command.md
+  href: provide-data-to-a-command.mdx
 - name: Use current state in a command
   href: use-current-state-in-a-command.md
 - name: Query data across slices
-  href: query-related-data.md
+  href: query-related-data.mdx
 - name: Execute a command from React
   href: run-a-command-from-react.md
 - name: Test a command
-  href: test-a-command.md
+  href: test-a-command.mdx

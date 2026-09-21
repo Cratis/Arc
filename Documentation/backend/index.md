@@ -1,50 +1,41 @@
-# Backend
+---
+title: Backend
+description: Choose the Arc backend implementation for your language, and see what every implementation agrees on.
+---
 
-The backend is where you express *what your application does* — the commands that change state and the
-queries that read it. Arc's job is to make that expression the only thing you write: you define a
-command or query as a plain record, and Arc handles the HTTP endpoint, validation, authorization, and a
-typed TypeScript proxy for the frontend. CQRS without the ceremony. In the full Cratis loop those commands append events through Chronicle; in bounded current-state slices they can write MongoDB or EF Core directly.
+Arc's backend gives commands, queries, validation, authorization and proxy
+generation one application boundary. That shape is the same whichever language
+you write it in — a command is a declared intention that is validated,
+authorized and handled, and a query is a purpose-shaped read. What differs is
+the host you run it on and the API surface you write against.
 
-```mermaid
-flowchart LR
-    REC["Command / query record"] -->|Arc discovers| EP[HTTP endpoint]
-    REC -->|compiled assembly/PDB · configured post-build tool| TS[Typed TS proxy]
-    REC -->|commands write| DB[(MongoDB / EF Core)]
-    REC -->|queries read| RM[(Read models)]
-    DB --> RM
-```
+## Pick your language
 
-## Start here
+- [C#](/arc/backend/csharp/) — ASP.NET Core and the lightweight Arc.Core host,
+  with MongoDB and Entity Framework Core integrations, Roslyn analyzers, and
+  post-build TypeScript proxy generation.
+- [Kotlin and Java](/arc/backend/kotlin/) — Spring Boot, with Spring Data JPA
+  and MongoDB integrations, KSP compile-time diagnostics, and Gradle-driven
+  TypeScript proxy generation.
 
-New to the backend? Walk through [Getting started](./getting-started/index.md) to build your first
-command and query end to end. Then the two pillars:
+## What every implementation shares
 
-- [Commands](./commands/index.md) — intents that change state through `Handle()`.
-- [Queries](./queries/index.md) — reads, exposed to the frontend as typed proxies (including live, observable ones).
+The pieces below are contracts rather than APIs, so they hold across languages.
+A client generated from one backend talks to the other without changes.
 
-The magic that ties it to the frontend is [Proxy generation](./proxy-generation/index.md) — read it
-early; it's why the whole stack is type-safe.
+- The HTTP contract — routes, request and response envelopes, status codes, and
+  correlation.
+- The command and query result shape, including validation results and their
+  severities.
+- Observable queries and their transports, and how collection changes are
+  transferred.
+- Identity, authorization and tenant resolution semantics.
 
-## Integrations
+Where an implementation deliberately differs, its own pages say so rather than
+leaving you to infer it.
 
-Arc meets the rest of your stack:
+## The frontend is shared
 
-| Topic | What it covers |
-| ------- | ----------- |
-| [MongoDB](./mongodb/index.md) | Document storage for read models and other data. |
-| [Entity Framework](./entity-framework/index.md) | EF Core integration for relational read models. |
-| [Chronicle](./chronicle/index.md) | Event sourcing integration — append events from commands, build read models, feed state back into business rules. |
-| [ASP.NET Core](./asp-net-core/index.md) | How Arc plugs into the ASP.NET Core pipeline. |
-
-## Cross-cutting
-
-| Topic | What it covers |
-| ------- | ----------- |
-| [Core](./core/index.md) | Commands, queries, and dependency injection at the lower level. |
-| [Identity](./identity/index.md) | Who the user is — authentication and identity details. |
-| [Tenancy](./tenancy/index.md) | Tenant selection and provider-specific storage routing; membership authorization is separate. |
-| [Open API](./open-api/index.md) | OpenAPI/Swagger generation. |
-| [Code Analysis](./code-analysis/index.md) | Analyzers and fixers that catch mistakes at compile time. |
-
-Building the UI on top? Head to the [frontend](../frontend/), which consumes everything here
-through the generated proxies.
+Both backends generate against the same `@cratis/arc` and `@cratis/arc.react`
+packages, so the [frontend documentation](/arc/frontend/) applies whichever
+backend you chose.

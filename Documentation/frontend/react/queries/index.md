@@ -26,8 +26,8 @@ For low-level query contracts and non-React runtime behavior, see [Frontend Core
 
 ## Backend References
 
-- [Backend Queries Overview](../../../backend/queries/index.md)
-- [Controller-based Queries](../../../backend/queries/controller-based/index.md)
-- [Model-bound Queries](../../../backend/queries/model-bound/index.md)
-- [Query Pipeline](../../../backend/queries/query-pipeline.md)
-- [Backend Proxy Generation](../../../backend/proxy-generation/index.md)
+- [Backend Queries Overview](../../../backend/csharp/queries/index.md)
+- [Controller-based Queries](../../../backend/csharp/queries/controller-based/index.md)
+- [Model-bound Queries](../../../backend/csharp/queries/model-bound/index.md)
+- [Query Pipeline](../../../backend/csharp/queries/query-pipeline.md)
+- [Backend Proxy Generation](../../../backend/csharp/proxy-generation/index.md)

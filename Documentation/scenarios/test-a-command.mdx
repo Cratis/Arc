@@ -1,0 +1,48 @@
+---
+title: Test a command
+description: Exercise the standalone Arc pipeline in process, register its collaborators explicitly, and assert both results and effects without a web server or database.
+---
+
+**Goal:** verify the command's result and its actual effect without pretending that a successful result proves a database write.
+
+## Use the standalone harness
+
+On the JVM the equivalent harness is `io.cratis:arc-testing`, added as a `testImplementation` dependency and driven from an ordinary JUnit 5 test. It runs the same real command pipeline in process, so everything this page says about registering collaborators and asserting effects applies to both backends; only the assertion vocabulary differs.
+
+Reference `Cratis.Arc.Testing` in an xUnit spec project, together with `Cratis.Specifications.XUnit`, `NSubstitute`, and the usual xUnit runner/test SDK. `Cratis.Testing` is the wider integration meta-package; it is not required here. A dedicated spec project can run in Debug and Release; use `#if DEBUG` only when intentionally embedding specs in an application assembly that excludes them from Release.
+
+For decision-only cases, a direct `Handle()` call can be the simpler test. The [decision-and-pipeline lesson](/arc/backend/csharp/testing/command-decisions/) shows how the two approaches complement each other. This recipe deliberately tests service interaction through Arc.
+
+`CommandScenario<TCommand>` runs the real validation, authorization, `Provide`, and handler pipeline. It does **not** automatically fake your Mongo collection, context, or application services. Register all collaborators before the first `Execute` or `Validate`; the service provider is built lazily then. Dispose the scenario afterward.
+
+:::tip[Test the decision separately from execution]
+On the C# backend, for immediate inline side effects, prefer [command operations](../backend/csharp/commands/operations/index.md); the direct service-call example below remains supported. An operation-returning `Handle()` can be tested by inspecting its data without executing the work. It is pure only when it uses supplied inputs without I/O, clock reads, randomness, or mutable external state. [Operation scenarios](../backend/csharp/testing/command-operations.md) test actual execution and recovery with controlled collaborators, not automatic recording stubs.
+:::
+
+## Define the service-backed example
+
+This example uses only the `AuthorId` and `AuthorName` concept declarations from the [backend lesson](/arc/backend/csharp/getting-started/your-first-command/), not its database-backed `RegisterAuthor`. Put these declarations in `Library.Authors` in the application project:
+
+<ArcBackendTabs snippet="scenarios/test-a-command/command-under-test" />
+
+`IAuthorRegistration` / `AuthorRegistration` is an **application-owned interface**, not an Arc API. Production supplies its implementation; the spec supplies a substitute. If you test the Mongo tutorial command instead, supply its actual collection/validator dependencies or deliberately run a database integration spec.
+
+## Assert the effect through the pipeline
+
+Create the spec in the test project:
+
+<ArcBackendTabs snippet="scenarios/test-a-command/spec" />
+
+The first assertion checks the pipeline result; the second proves the handler called its collaborator with the intended values. Neither proves a production database mapping or index — test those at their integration boundary.
+
+The two harnesses differ in how the scenario is constructed and how it is torn down. C#'s `CommandScenario<TCommand>` discovers the command from its type argument, exposes an `IServiceCollection`, and is disposable. Arc.Kotlin's `CommandScenario` takes the KSP-generated `ArcArtifactModule` plus the command class — so the generated wiring itself is under test — registers collaborators one at a time with `addService(type, instance)`, and needs no disposal; `execute` is a suspending function, and the result carries `shouldSucceed`, `shouldBeInvalid`, `shouldBeUnauthorized`, and `shouldHaveResponse`. There is no NSubstitute on the JVM side, so a hand-written object expression stands in for the collaborator.
+
+## Check rejection independently
+
+In a separate spec, use the same service setup and execute the command with an empty author name. On C#, assert **both** `ShouldNotBeSuccessful()` and `ShouldHaveValidationErrors()`, and verify `Register` was not called; on the JVM, chain `shouldBeAuthorized().shouldBeInvalid()` so the spec pins *which* stage rejected the command. `Validate` / `validate` is available when you intentionally want pre-flight validation without invoking the handler; keep that action in a separate spec as well.
+
+For protected commands, set up the principal explicitly and assert `ShouldNotBeAuthorized()` / `shouldBeUnauthorized()` separately from validation. The [scenario reference](/arc/backend/csharp/testing/command-scenario/) and the [JVM in-process testing guide](/arc/backend/kotlin/guides/testing/) cover context setup and the complete assertion API.
+
+## Optional Chronicle testing
+
+Only event-sourced commands need the [Chronicle testing extension](/arc/backend/csharp/testing/chronicle/). It adds event/read-model seeding and append assertions. Keep those specs labeled as integration behavior; standalone Arc tests assert database/application-service effects instead.

@@ -1,0 +1,88 @@
+---
+title: Provide data to a command handler
+description: Fetch the data a command's decision needs in a Provide method so Handle stays a pure, easily tested function of its arguments.
+---
+
+**Goal:** your command's `Handle()` needs data it doesn't carry — usually data from another service, such as a credit bureau, pricing service, inventory lookup, risk model, or tenant configuration — and you don't want that IO tangled into the decision logic, where it's hard to test.
+
+## Lift the IO out of `Handle`
+
+Add a `Provide()` method next to `Handle()` on the command. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` can then be a pure function of its arguments. To separate the write side as well on the C# backend, return a [command operation](../backend/csharp/commands/operations/index.md) describing the required service work, or return events with the optional Chronicle integration. `Provide` does not make persistence automatic.
+
+:::tip[Acquire, decide, then perform]
+Use `Provide()` to acquire decision inputs, `Handle()` to decide, and — on the C# backend — returned command operations to perform inline side effects. Do not move writes into `Provide()` merely to make `Handle()` look pure: such direct writes are outside operation compensation. [Operation testing](../backend/csharp/testing/command-operations.md) covers the decision and real execution separately.
+:::
+
+`Provide` runs before `Handle`, after validation and authorization pass. Its parameters are resolved from dependency injection just like `Handle`'s, and `this` is the command, so it can read the command's own data.
+
+The following are **alternative domain fragments**, not a complete loan system. `LoanId`, `ApplicantId`, `CreditScore`, `RiskBand`, `LoanAssessment`, and the bureau/risk/rates interfaces are application-owned types. Supply their declarations and DI implementations; import `Cratis.Arc.Commands.ModelBound`, `Cratis.Arc.Validation`, and `Cratis.Monads` for the Arc attributes and result examples. `LoanAssessment` is an ordinary response DTO, not a persisted approval or Chronicle event.
+
+<ArcBackendTabs snippet="scenarios/provide-data-to-a-command/assess-loan" />
+
+## Why this matters: testability
+
+Because the IO lives in `Provide`, testing the decision needs no mocking — construct the command and call the handler directly with the values it would have received:
+
+<ArcBackendTabs snippet="scenarios/provide-data-to-a-command/test-the-decision" />
+
+`Provide` has a single job — acquire data — so it is easy to test in isolation too, with a stubbed credit bureau.
+
+## Return more than one value
+
+Return a tuple (C#) or a `Pair` (Kotlin) to feed several handler parameters; each value is matched to a parameter by type:
+
+<ArcBackendTabs snippet="scenarios/provide-data-to-a-command/several-values" />
+
+In C#, `Provide` may be synchronous or `async` (`Task<T>` / `ValueTask<T>`). On the JVM it may be ordinary, `suspend`, or return a `CompletionStage`, and a `Triple` or `CommandProvidedValues` carries more than two values.
+
+## Use cancellation when the work can stop
+
+<ArcBackendTabs snippet="scenarios/provide-data-to-a-command/cancellation" />
+
+This is one place the two backends express the same thing differently. In C#, `Provide` and `Handle` can each take a `CancellationToken` and Arc supplies the current command execution token — the request-aborted token for HTTP endpoints, or the token you pass to `ICommandPipeline`. You do not register `CancellationToken` in the service container; Arc treats it as part of the command execution context.
+
+On the JVM there is **no token parameter at all**: a `suspend` `provide` or `handle` already runs inside Arc's command coroutine, so cancelling the request cancels everything it awaits. Check `ensureActive()` when a long computation has no suspension point of its own.
+
+## Short-circuit before `Handle` runs
+
+`Provide` can stop the command before `Handle` is ever called:
+
+| Return / do                                     | Result                                      |
+| ----------------------------------------------- | ------------------------------------------- |
+| `ValidationResult.Error("…")`                   | command fails validation (HTTP 400)         |
+| an `AuthorizationResult` that is not authorized | command is unauthorized (HTTP 403)          |
+| throw                                           | command fails with the exception (HTTP 500) |
+| a value                                         | flows into `Handle` as an argument          |
+
+Use `Result<,>` to reject or proceed when the data acquisition itself determines whether the command can continue — return the error to stop, or the value to continue:
+
+<ArcBackendTabs snippet="scenarios/provide-data-to-a-command/short-circuit" />
+
+C# states the alternative in the return type with `Result<,>`. Arc.Kotlin recognizes the control value at runtime instead: a `provide` declared to return `Any` may hand back either the value the handler consumes or a `ValidationResult`, `AuthorizationResult`, or `CommandResult`, and Arc short-circuits on the control value.
+
+A `Provide` value that no handler parameter consumes is almost always a mistake, so the analyzer flags it (ARC0005).
+
+For ordinary command validation, including read-model existence checks, prefer a `CommandValidator<>`. Use `Provide()` when `Handle()` needs acquired data as an input to the decision.
+
+## Provider-owned state can already be available
+
+With a configured by-key read-model provider and a usable command key, `Provide` need not fetch that model again. Arc resolves it as a parameter alongside the services it uses — handy when existing state determines _what_ to fetch. Without those prerequisites, inject your application service or context and fetch explicitly:
+
+<ArcBackendTabs snippet="scenarios/provide-data-to-a-command/provider-owned-state" />
+
+See [Use current state in a command](./use-current-state-in-a-command.md) for how that resolution works and what a nullable parameter means.
+
+## Cross-cutting values
+
+`Provide` is per-command. For a value that many handlers need — the current tenant's settings, say — register it as a scoped service and take it as a `Handle` parameter. Arc resolves any `Handle` or `Provide` parameter it can't otherwise supply from the container.
+
+## When not to use it
+
+If `Handle` already has everything it needs from the command and its injected services, you don't need `Provide`. Reach for it specifically when a decision depends on data you must fetch — most often external or application-service data — where moving the fetch out buys you the testability.
+
+## See also
+
+- [Return a result or an error](./return-a-result-or-error.mdx) — the shapes `Handle()` itself can return.
+- [Test a command](./test-a-command.mdx) — testing a slice through the real pipeline.
+- [Validate a command](./validate-a-command.mdx) — where `ValidationResult.Error` comes from.
+- [Use current state in a command](./use-current-state-in-a-command.md) — the read model Arc resolves for you, in all three positions.

@@ -15,7 +15,7 @@ Current generated command and query modules import both `@cratis/arc` and `@crat
 npm install @cratis/fundamentals @cratis/arc @cratis/arc.react react react-dom
 ```
 
-Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the canonical [backend proxy-generation reference](../../backend/proxy-generation/index.md).
+Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the canonical [backend proxy-generation reference](../../backend/csharp/proxy-generation/index.md).
 
 ## Commands use your application services
 
@@ -74,13 +74,13 @@ export function OpenAccountButton() {
 }
 ```
 
-An ordinary C# `Guid` response remains a supported response and maps to Fundamentals `Guid`. The [Chronicle integration](../../backend/chronicle/commands/index.md) adds optional event-sourcing behavior; it does not redefine generic Arc responses.
+An ordinary C# `Guid` response remains a supported response and maps to Fundamentals `Guid`. The [Chronicle integration](../../backend/csharp/chronicle/commands/index.md) adds optional event-sourcing behavior; it does not redefine generic Arc responses.
 
 The command hook returns `[command, setValues, clearValues]`. Set required content explicitly. The setter edits properties; it does not reset the change-tracking baseline. See [data binding](./commands/data-binding.md).
 
 ## Queries follow the backend result shape
 
-Both [controller-based](../../backend/queries/controller-based/index.md) and [model-bound](../../backend/queries/model-bound/index.md) endpoints generate proxies. Parameterized queries emit a `NameParameters` interface. Query hooks return tuples, not model objects; read the first tuple element's `.data`.
+Both [controller-based](../../backend/csharp/queries/controller-based/index.md) and [model-bound](../../backend/csharp/queries/model-bound/index.md) endpoints generate proxies. Parameterized queries emit a `NameParameters` interface. Query hooks return tuples, not model objects; read the first tuple element's `.data`.
 
 - Ordinary `.use()` returns `[result, perform, setSorting]`.
 - Observable enumerable `.use()` returns `[result, setSorting]`.

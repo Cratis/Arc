@@ -102,7 +102,7 @@ public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 </TabItem>
 </Tabs>
 
-For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write.
+For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/csharp/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write.
 
 Run `dotnet build -c Debug` before adding React. Verify `src/Books/AddBook.ts` and `src/Books/Book.ts` exist; the latter includes `BooksForAuthor` in source-file output mode.
 

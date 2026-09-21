@@ -1,0 +1,57 @@
+---
+title: Validate a command
+description: Reject malformed or duplicate input before a standalone command writes, using concept rules, command rules, and state-dependent validation.
+---
+
+**Goal:** reject bad input before a command changes state. A blank name, a negative quantity, a duplicate email — you want the command rejected, with a clear reason, before `Handle()` runs.
+
+## Validation runs before the handler
+
+Arc runs validators *before* it invokes `Handle()`. A command that fails validation never invokes `Handle()` and returns a `CommandResult` carrying the errors. The proxy generator extracts a **supported subset** of rules for client feedback; async, custom, and state-dependent rules still require the authoritative server check. There are three places a rule can live; reach for the narrowest one that fits.
+
+## Do it
+
+The validator fragments below assume the [standalone tutorial's domain types and imports](/arc/backend/csharp/getting-started/your-first-command/). Choose one `RegisterAuthorValidator` example, not multiple competing validators. State/service examples additionally require the provider or application-owned collaborator stated beside them.
+
+1. **A rule that's true of a value everywhere → validate the value type.** Write a `ConceptValidator<T>` and it applies to every command carrying that concept:
+
+   <ArcBackendTabs snippet="scenarios/validate-a-command/concept-rule" />
+
+   The C# validator is FluentValidation-based; the Kotlin one implements Arc's `ConceptValidator` interface and is registered as an ordinary Spring bean. Either way the rule travels with the value, not with one command.
+
+2. **A rule specific to one command → validate the command.** Use a `CommandValidator<TCommand>` for cross-field or command-only rules:
+
+   <ArcBackendTabs snippet="scenarios/validate-a-command/command-rule" />
+
+   For lightweight cases, C# data annotations like `[Required]` on the command record work too. On the JVM, `CommandValidator<T>` is an imperative suspending bean rather than a fluent builder; when a **literal** member rule should also run in the generated TypeScript client, declare it with [shared fluent validation](/arc/backend/kotlin/guides/validation/) instead, which is limited to string, collection, and numeric members.
+
+3. **A rule that depends on existing state → use a provider or application service.** For by-key read-model injection, configure [provider ownership and an explicit command key](./use-current-state-in-a-command.md). Otherwise inject a database context, collection, or application collaborator and query explicitly.
+
+   A validation pre-check is not atomic, even when moved into `Handle()`. Back uniqueness with a database unique index; use transactions or atomic conditional updates for other invariants. The [tutorial installs the index](/arc/tutorial/validation/) and explains the remaining duplicate-exception translation. [Typed handler failures](./return-a-result-or-error.mdx) can express a rejected write without implying that a returned object was persisted.
+
+   With **optional Chronicle integration**, a registered event return can be appended and a Chronicle [constraint](/chronicle/constraints/) can enforce its supported invariant at append time. Neither behavior belongs to standalone Arc.Core.
+
+   When a snapshot check is sufficient, place the rule in the validator. If the condition must still hold when the write commits, enforce it through an atomic write, transaction, or appropriate constraint. Order status, account freezes, and role existence can all change after validation; a validator gives early feedback, not a commit-time guarantee:
+
+   This **domain fragment** assumes a keyed `SubmitOrder`, a provider-owned `OrderReadModel`, and an application `OrderStatus` enum:
+
+   <ArcBackendTabs snippet="scenarios/validate-a-command/state-rule" />
+
+   The two backends differ in *where* the current state comes from. C# resolves a provider-owned read model straight into the validator's constructor, and the nullable parameter is how you say a missing record is a business condition rather than a fault — [Use current state in a command](./use-current-state-in-a-command.md) covers that choice and all three positions in full. On the JVM the owned read model is resolved for the **handler** (`fun handle(order: OrderView?)`), so a validator loads it through its own injected repository.
+
+   A validator can also reach *outside* the command's own state. It's resolved through dependency injection, so it can take a collaborator and consult it.
+
+   `IAuthorsCatalog` / `AuthorsCatalog` is an application-owned contract, not an Arc interface. Its implementation must be available through DI:
+
+   <ArcBackendTabs snippet="scenarios/validate-a-command/service-rule" />
+
+   A rule like this runs on the server only — unlike the declarative rules, it can't be extracted into the generated proxy. The shapes genuinely diverge here: C# expresses it as FluentValidation's `MustAsync` predicate, while Arc.Kotlin's shared fluent surface is deliberately literal and has **no** dynamic or asynchronous predicate rule. The JVM sibling is therefore the ordinary imperative `CommandValidator`, whose `validate` is already a suspending function.
+
+Validators are discovered by convention — you never register them. The frontend surfaces the messages automatically; see [Execute a command from React](./run-a-command-from-react.md).
+
+## See also
+
+- [Command Validation](/arc/backend/csharp/commands/command-validation/) and [Validation](/arc/backend/csharp/commands/validation/) — the full validation model.
+- [Make it trustworthy](/arc/tutorial/validation/) — the same ideas, taught step by step.
+- [Return a result or an error](./return-a-result-or-error.mdx) — standalone responses and the `Result<,>` return shape.
+- [Use current state in a command](./use-current-state-in-a-command.md) — injecting provider-owned state into a validator, `Provide()`, or `Handle()`.

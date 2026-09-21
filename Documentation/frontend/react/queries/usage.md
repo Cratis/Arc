@@ -6,7 +6,7 @@ Use generated query proxies to retrieve data in React with strong typing and pre
 
 Arc generates query proxies from backend queries (controller-based and model-bound). These proxies expose static React helpers such as `.use()` and `.useWithPaging()`.
 
-See [Backend Proxy Generation](../../../backend/proxy-generation/index.md) for setup details.
+See [Backend Proxy Generation](../../../backend/csharp/proxy-generation/index.md) for setup details.
 
 ## Basic Query Hook
 

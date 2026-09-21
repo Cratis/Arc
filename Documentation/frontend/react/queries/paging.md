@@ -6,7 +6,7 @@ Enumerable query proxies expose paging helpers. The backend must implement pagin
 
 When the backend returns `IQueryable<T>`, the query pipeline applies `.Skip()` and `.Take()` on the server so only the requested page is fetched. Generated proxies expose `useWithPaging` and `useSuspenseWithPaging` for this flow.
 
-For backend implementation details, see [Controller-based Paging](../../../backend/queries/controller-based/paging.md) and [Model-bound Paging](../../../backend/queries/model-bound/paging.md).
+For backend implementation details, see [Controller-based Paging](../../../backend/csharp/queries/controller-based/paging.md) and [Model-bound Paging](../../../backend/csharp/queries/model-bound/paging.md).
 
 ## Enabling Paging
 
@@ -105,4 +105,4 @@ Ordinary automatic query-pipeline paging requires `IQueryable<T>`. A materialize
 
 - [Core Query Usage](./usage.md)
 - [Suspense Queries](./suspense-queries.md)
-- [Backend Query Pipeline](../../../backend/queries/query-pipeline.md)
+- [Backend Query Pipeline](../../../backend/csharp/queries/query-pipeline.md)

@@ -7,7 +7,7 @@ description: Wire a React form or button to a command through the generated prox
 
 ## Call the proxy, don't write a client
 
-After a configured Debug [proxy-generation build](/arc/backend/proxy-generation/getting-started/), Arc supplies typed command proxies. This recipe assumes the [standalone backend](/arc/backend/getting-started/) and [full-stack tutorial setup](/arc/tutorial/first-slice/), which supplies the Vite bootstrap, Components prerequisites, providers, and dialog composition. For an **Arc-only alternative in an existing Vite app**, [frontend getting started](/arc/frontend/getting-started/) uses ordinary HTML without Components. You don't write a `fetch`, redeclare the command's shape, or wire validation — the proxy already knows the types, and `CommandDialog` drives the whole interaction.
+After a configured Debug [proxy-generation build](/arc/backend/csharp/proxy-generation/getting-started/), Arc supplies typed command proxies. This recipe assumes the [standalone backend](/arc/backend/csharp/getting-started/) and [full-stack tutorial setup](/arc/tutorial/first-slice/), which supplies the Vite bootstrap, Components prerequisites, providers, and dialog composition. For an **Arc-only alternative in an existing Vite app**, [frontend getting started](/arc/frontend/react/getting-started/) uses ordinary HTML without Components. You don't write a `fetch`, redeclare the command's shape, or wire validation — the proxy already knows the types, and `CommandDialog` drives the whole interaction.
 
 ## Do it
 
@@ -52,4 +52,4 @@ For executing a command without a dialog (a plain button, custom flow), the prox
 
 - [Dialogs](/components/) — `CommandDialog`, `Dialog`, and the form-field components.
 - [Command Result](/arc/frontend/core/commands/command-result/) — handling the result in code.
-- [Validate a command](./validate-a-command.md) — the rules that surface in the form.
+- [Validate a command](./validate-a-command.mdx) — the rules that surface in the form.

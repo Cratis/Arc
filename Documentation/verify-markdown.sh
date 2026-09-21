@@ -73,11 +73,34 @@ else
 fi
 echo ""
 
+# Step 4: Client snippet compilation
+echo "=========================================="
+echo "Step 4: Compiling client snippets..."
+echo "=========================================="
+echo ""
+
+if ! command -v python3 &> /dev/null; then
+    echo "Error: python3 is not installed. It is required to compile the client snippets."
+    SNIPPET_EXIT_CODE=2
+elif python3 "$SCRIPT_DIR/validate-client-snippets.py"; then
+    SNIPPET_EXIT_CODE=0
+else
+    SNIPPET_EXIT_CODE=$?
+fi
+
+echo ""
+if [ $SNIPPET_EXIT_CODE -eq 0 ]; then
+    echo "✓ Client snippet compilation passed!"
+else
+    echo "✗ Client snippet compilation failed with exit code $SNIPPET_EXIT_CODE"
+fi
+echo ""
+
 # Final summary
 echo "=========================================="
 echo "Summary"
 echo "=========================================="
-if [ $LINT_EXIT_CODE -eq 0 ] && [ $AUTHORING_EXIT_CODE -eq 0 ] && [ $LINK_EXIT_CODE -eq 0 ]; then
+if [ $LINT_EXIT_CODE -eq 0 ] && [ $AUTHORING_EXIT_CODE -eq 0 ] && [ $LINK_EXIT_CODE -eq 0 ] && [ $SNIPPET_EXIT_CODE -eq 0 ]; then
     echo "✓ All checks passed!"
     exit 0
 else
@@ -85,5 +108,6 @@ else
     [ $LINT_EXIT_CODE -ne 0 ] && echo "  - Markdown linting"
     [ $AUTHORING_EXIT_CODE -ne 0 ] && echo "  - Starlight authoring validation"
     [ $LINK_EXIT_CODE -ne 0 ] && echo "  - Link verification"
+    [ $SNIPPET_EXIT_CODE -ne 0 ] && echo "  - Client snippet compilation"
     exit 1
 fi

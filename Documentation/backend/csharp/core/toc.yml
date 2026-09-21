@@ -1,0 +1,18 @@
+- name: Arc.Core
+  href: index.md
+- name: Overview
+  href: overview.md
+- name: Getting Started
+  href: getting-started.md
+- name: Endpoint Mapping
+  href: endpoint-mapping.md
+- name: Static Files
+  href: static-files.md
+- name: Authentication
+  href: authentication.md
+- name: Authorization
+  href: authorization.md
+- name: OpenAPI Specifications
+  href: openapi.md
+- name: Invariant Culture
+  href: invariant-culture.md

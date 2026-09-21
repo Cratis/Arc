@@ -5,13 +5,21 @@ description: Fixes for the issues that come up most when building with Arc — p
 
 Most Arc snags come down to a handful of causes. Here they are. If the slice uses the Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
 
+:::note[Building on Kotlin or Java?]
+The symptoms below are the same on either backend, but the fixes here are
+written for the C# stack. See
+[Troubleshooting and FAQ](/arc/backend/kotlin/troubleshooting/) for the JVM
+equivalents — Gradle and KSP build failures, `ARCKSP` diagnostic codes, and
+Spring Boot runtime behaviour.
+:::
+
 ## My frontend can't find the generated proxy
 
 Proxies are generated when the **backend builds**. If the import doesn't resolve:
 
 - Install `Cratis.Arc.ProxyGenerator.Build`, set `CratisProxiesOutputPath`, and run `dotnet build -c Debug` on the backend and confirm it succeeds — no proxies are emitted until the C# compiles.
 - Check the command/query is discoverable: a `[Command]` record with a `Handle()` method, or a static query method on a `[ReadModel]`.
-- Make sure proxy generation is targeting the right output folder for your frontend (see [Proxy Generation](./backend/proxy-generation/)).
+- Make sure proxy generation is targeting the right output folder for your frontend (see [Proxy Generation](./backend/csharp/proxy-generation/)).
 
 ## I changed the C# but the TypeScript is stale
 
@@ -28,11 +36,11 @@ That's authorization. Check that:
 - the caller is authenticated, and
 - the caller has the role the command requires (`[Roles(...)]` on the command — or on the query method for a 403 on reads).
 
-For local development you can generate a principal so you can exercise authorized endpoints without a full login — see [Identity](./backend/identity/) and [Authorizing commands and queries](./backend/authorizing-commands-and-queries.md).
+For local development you can generate a principal so you can exercise authorized endpoints without a full login — see [Identity](./backend/csharp/identity/) and [Authorizing commands and queries](./backend/csharp/authorizing-commands-and-queries.md).
 
 ## My validation isn't firing
 
-Arc discovers a `CommandValidator<TCommand>` by convention. Confirm the validator's generic type matches the command exactly, and that any async rule that needs a dependency takes it via the validator's constructor. See [Commands](./backend/commands/).
+Arc discovers a `CommandValidator<TCommand>` by convention. Confirm the validator's generic type matches the command exactly, and that any async rule that needs a dependency takes it via the validator's constructor. See [Commands](./backend/csharp/commands/).
 
 ## My query returns nothing
 

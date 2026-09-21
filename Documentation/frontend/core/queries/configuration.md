@@ -57,7 +57,7 @@ In React applications, set this through `<Arc queryCacheRetentionMs={...} />` in
 
 ## HTTP query method
 
-Ordinary query method selection (`Get`, `Query`, `Auto`) is separate from observable transport selection. See [using the HTTP QUERY method](../../../backend/queries/using-the-http-query-method.md) for global, per-query, and resolver configuration.
+Ordinary query method selection (`Get`, `Query`, `Auto`) is separate from observable transport selection. See [using the HTTP QUERY method](../../../backend/csharp/queries/using-the-http-query-method.md) for global, per-query, and resolver configuration.
 
 Native streaming handshakes cannot attach arbitrary callback headers; see [transport credentials](../../react/arc.md#http-headers-callback). React bindings also mutate global settings, so nested providers are not independent authenticated hubs.
 

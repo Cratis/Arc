@@ -18,4 +18,4 @@ This section focuses on command contracts and runtime behavior in `@cratis/arc`.
 - [Command Result](./command-result.md)
 - [Validation](./validation.md)
 - [Validation](../validation/index.md)
-- [Backend Commands](../../../backend/commands/index.md)
+- [Backend Commands](../../../backend/csharp/commands/index.md)
