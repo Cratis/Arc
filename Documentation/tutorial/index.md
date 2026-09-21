@@ -74,7 +74,7 @@ setup and the server-side code are not.
 Start with [Get started with Kotlin](/arc/backend/kotlin/get-started/) or
 [Get started with Java](/arc/backend/kotlin/get-started/java/), which take you
 through the same first round trip with Gradle and Spring Boot, then use the
-[guides](/arc/backend/kotlin/guides/) for the ground the chapters below cover.
+[Kotlin and Java documentation](/arc/backend/kotlin/) for the ground the chapters below cover.
 The [scenario recipes](/arc/scenarios/) already show both languages side by side.
 :::
 

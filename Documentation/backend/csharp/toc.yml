@@ -2,43 +2,43 @@
   href: index.md
 - name: Coming from MediatR and MVC
   href: coming-from-mediatr-and-mvc.md
-- name: Hosting overview
-  href: overview.md
 - name: Getting Started
   href: getting-started/toc.yml
+- name: Hosting overview
+  href: overview.md
 - name: Arc.Core
   href: core/toc.yml
 - name: ASP.NET Core
   href: asp-net-core/toc.yml
 - name: Configuration
   href: configuration/index.md
-- name: Tenancy
-  href: tenancy/toc.yml
-- name: Identity
-  href: identity/toc.yml
-- name: Authorizing commands and queries
-  href: authorizing-commands-and-queries.md
 - name: Commands
   href: commands/toc.yml
 - name: Queries
   href: queries/toc.yml
-- name: Introspection
-  href: introspection/toc.yml
-- name: Proxy Generation
-  href: proxy-generation/toc.yml
-- name: Code Analysis
-  href: code-analysis/toc.yml
+- name: Authorizing commands and queries
+  href: authorizing-commands-and-queries.md
+- name: Identity
+  href: identity/toc.yml
+- name: Tenancy
+  href: tenancy/toc.yml
 - name: MongoDB
   href: mongodb/toc.yml
 - name: Entity Framework
   href: entity-framework/toc.yml
+- name: Proxy Generation
+  href: proxy-generation/toc.yml
+- name: Code Analysis
+  href: code-analysis/toc.yml
 - name: OpenAPI
   href: open-api/toc.yml
+- name: Introspection
+  href: introspection/toc.yml
 - name: Testing
   href: testing/toc.yml
-- name: Generating a principal for local development
-  href: development/generating-principal.md
 - name: Chronicle
   href: chronicle/toc.yml
+- name: Generating a principal for local development
+  href: development/generating-principal.md
 - name: Generating a Screenplay
   href: generating-a-screenplay.md
