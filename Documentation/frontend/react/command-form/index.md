@@ -12,7 +12,7 @@ Editing a command should not require a second copy of its values in React state.
 
 Before using these examples, configure [Arc in React](../arc.md) and [proxy generation](../../../backend/csharp/proxy-generation/getting-started.md). Import a **generated command class**, not a TypeScript interface or an empty subclass of `Command`: execution needs the generated route, property descriptors, and validation metadata.
 
-The component below is a runnable frontend checkpoint in that configured application. It expects a generated `UpdateProfile` at `./commands/UpdateProfile` with `name` and `email` string properties; adapt the import to your configured output directory. Its backend endpoint and rules are shown in [Validation](./validation.md#backend-validation). That example returns profile details to demonstrate a standalone Arc response; it does not persist them or require Chronicle.
+The component below is a runnable frontend checkpoint in that configured application. It expects a generated `UpdateProfile` at `./commands/UpdateProfile` with `name` and `email` string properties; adapt the import to your configured output directory. Its backend endpoint and rules are shown in [Validation](./validation.mdx#backend-validation). That example returns profile details to demonstrate a standalone Arc response; it does not persist them or require Chronicle.
 
 ```tsx
 import { CommandForm, InputTextField, useIsCommandExecuting } from '@cratis/arc.react/commands';
@@ -40,7 +40,7 @@ export function ProfileForm() {
 
 Edit a field, leave it to see rule failures, then submit valid values. `SaveButton` reads the surrounding form's execution state because it renders **inside** the form. Hooks called in `ProfileForm` itself would be outside that provider. For a toolbar or dialog footer, use [formRef and onStateChange](./form-lifecycle.md#reaching-the-form-from-a-parent).
 
-`type="email"` chooses an HTML control; it does not define an Arc email rule. The form uses `noValidate`, so browser constraint validation does not block submission. See [required fields and validation rules](./validation.md#required-fields).
+`type="email"` chooses an HTML control; it does not define an Arc email rule. The form uses `noValidate`, so browser constraint validation does not block submission. See [required fields and validation rules](./validation.mdx#required-fields).
 
 <a id="commandformprops"></a>
 
@@ -88,7 +88,7 @@ Exception feedback uses safe text rather than raw server diagnostics. See [safe 
 
 Use `initialValues` for the initial seed and baseline, as in the example above; use `currentValues` for a reactive overlay. Changing `initialValues` alone after mount does not repopulate the command.
 
-See [Data loading](./data-loading.md) for precedence and population, [Validation](./validation.md) for state limitations, and [Customization](./customization.md) for renderer contracts.
+See [Data loading](./data-loading.md) for precedence and population, [Validation](./validation.mdx) for state limitations, and [Customization](./customization.md) for renderer contracts.
 
 ## Children
 
@@ -99,7 +99,7 @@ Fields bind through fragments, HTML elements, and custom layout components. Use 
 ## Next steps
 
 - [Field types](./field-types/index.md): choose a control and its supported props.
-- [Validation](./validation.md): distinguish client rules, server rules, and error display.
+- [Validation](./validation.mdx): distinguish client rules, server rules, and error display.
 - [Working with hooks](./hooks.md): read and edit the same form instance.
 - [Form lifecycle](./form-lifecycle.md): handle results and external execution.
 - [Advanced patterns](./advanced-patterns.md): computed previews, dialogs, and autosave boundaries.

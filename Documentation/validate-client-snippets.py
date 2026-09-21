@@ -163,6 +163,51 @@ FIXTURES: dict[str, DomainFixture] = {
             }
         """,
     ),
+    "account": DomainFixture(
+        usings=(
+            "using Cratis.Concepts;",
+        ),
+        declarations="""
+            public record AccountId(Guid Value) : ConceptAs<Guid>(Value);
+
+            public record AccountHolder(string Value) : ConceptAs<string>(Value);
+
+            public record AccountName(string Value) : ConceptAs<string>(Value);
+
+            public record CustomerId(Guid Value) : ConceptAs<Guid>(Value);
+
+            public record Account(AccountId Id, AccountHolder Owner);
+
+            public record DebitAccount(AccountId Id, AccountName Name);
+
+            public interface IAccountService
+            {
+                Task Open(AccountId id, AccountName name, CustomerId owner);
+            }
+        """,
+    ),
+    "ledger": DomainFixture(
+        usings=(
+            "using Cratis.Chronicle.Events;",
+        ),
+        declarations="""
+            public record LedgerId(Guid Value) : EventSourceId<Guid>(Value);
+
+            public record AccountId(Guid Value) : EventSourceId<Guid>(Value);
+
+            public record LedgerBalance(decimal Balance);
+
+            public record AccountBalance(decimal Balance);
+
+            public record LedgerSettled(decimal Balance);
+
+            public record FundsWithdrawn(decimal Amount, decimal Remaining);
+
+            public record MoneyDeposited(decimal Amount);
+
+            public record Withdraw(AccountId AccountId, decimal Amount);
+        """,
+    ),
     "order": DomainFixture(
         declarations="""
             public enum OrderStatus
@@ -236,6 +281,8 @@ USING_FLUENT_VALIDATION = "using FluentValidation;"
 USING_ARC_COMMANDS = "using Cratis.Arc.Commands;"
 USING_ARC_VALIDATION = "using Cratis.Arc.Validation;"
 USING_MONADS = "using Cratis.Monads;"
+USING_ARC_TESTING = "using Cratis.Arc.Testing.Commands;"
+USING_ARC_CHRONICLE_TESTING = "using Cratis.Arc.Chronicle.Testing.Commands;"
 
 
 # Per-snippet preludes. A snippet id is its path under client-snippets without the
@@ -310,6 +357,95 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="declaration",
         fixtures=("order",),
         usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION),
+    ),
+    "scenarios/use-current-state-in-a-command/rename-author": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_MONGO,),
+    ),
+    "scenarios/use-current-state-in-a-command/rename-author-validator": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION),
+        prelude="""
+            public record RenameAuthor(AuthorId Id, AuthorName NewName);
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/register-customer-validator": SnippetContext(
+        kind="declaration",
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION),
+        prelude="""
+            public record Customer(Guid Id, string Name);
+
+            public record RegisterCustomer(Guid Id, string Name);
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/required-order-state": SnippetContext(
+        kind="declaration",
+        fixtures=("order",),
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION),
+    ),
+    "scenarios/use-current-state-in-a-command/chronicle-commands": SnippetContext(
+        kind="declaration",
+        fixtures=("ledger",),
+    ),
+    "scenarios/use-current-state-in-a-command/seed-events": SnippetContext(
+        # The Chronicle testing surface lives in Cratis.Arc.Chronicle.Testing; the generated
+        # enclosing record stands in for the spec class the fragment is a member of.
+        kind="member",
+        fixtures=("ledger",),
+        usings=(USING_ARC_CHRONICLE_TESTING, USING_ARC_TESTING),
+        prelude="""
+            readonly CommandScenario<Withdraw> _scenario = new();
+            readonly AccountId _accountId = new(Guid.NewGuid());
+        """,
+    ),
+    "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
+        kind="member",
+        fixtures=("ledger",),
+        usings=(USING_ARC_CHRONICLE_TESTING, USING_ARC_TESTING),
+        prelude="""
+            readonly CommandScenario<Withdraw> _scenario = new();
+            readonly AccountId _accountId = new(Guid.NewGuid());
+        """,
+    ),
+    "frontend/index/open-account": SnippetContext(
+        kind="declaration",
+        fixtures=("account",),
+        usings=(USING_MONGO,),
+    ),
+    "frontend/react/proxy-generation/open-debit-account": SnippetContext(
+        # Deliberately self-contained: the page teaches what a whole backend file looks like
+        # before the generator turns it into TypeScript.
+        kind="declaration",
+    ),
+    "frontend/react/commands/index/command-payload": SnippetContext(
+        kind="declaration",
+        fixtures=("account",),
+    ),
+    "frontend/react/queries/usage/parameterized-query": SnippetContext(
+        kind="member",
+        fixtures=("account",),
+        usings=(USING_MONGO, "using Microsoft.AspNetCore.Mvc;"),
+        prelude="""
+            readonly IMongoCollection<DebitAccount> _collection = null!;
+        """,
+    ),
+    "frontend/react/command-form/validation/profile-command": SnippetContext(
+        kind="file",
+    ),
+    "frontend/react/command-form/auto-server-validation/server-only-rule": SnippetContext(
+        # A replacement for the validator the validation page declares, so it cannot share that
+        # snippet's namespace - the two would declare UpdateProfileValidator twice.
+        kind="declaration",
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION, "using Cratis.Concepts;"),
+        prelude="""
+            public record ProfileName(string Value) : ConceptAs<string>(Value);
+
+            public record EmailAddress(string Value) : ConceptAs<string>(Value);
+
+            public record UpdateProfile(ProfileName Name, EmailAddress Email);
+        """,
     ),
     "tutorial/real-time/observable-query": SnippetContext(
         kind="member",
@@ -576,6 +712,10 @@ def generate_project(sources: list[Path]) -> str:
         <!-- Cratis.Arc.Testing - the CommandScenario<T> and CommandResult assertions the
              test-a-command snippets are teaching. -->
         <ProjectReference Include="../../Source/DotNET/Testing/Testing.csproj" />
+        <!-- Cratis.Arc.Chronicle.Testing - the optional Chronicle integration's own scenario
+             seeding, which the use-current-state page shows for projected state. It brings
+             Cratis.Arc.Chronicle, and with it EventSourceId<T>, along transitively. -->
+        <ProjectReference Include="../../Source/DotNET/Chronicle.Testing/Chronicle.Testing.csproj" />
     </ItemGroup>
 
     <!-- Versions come from the repository's central package management, so validating the

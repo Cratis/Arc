@@ -31,6 +31,6 @@ Because the same command scope serves `Provide()` and `Handle()`, all three see 
 
 ## See also
 
-- [Use current state in a command](../../../scenarios/use-current-state-in-a-command.md) — the recipe, covering validators, `Provide()`, and `Handle()`.
+- [Use current state in a command](../../../scenarios/use-current-state-in-a-command.mdx) — the recipe, covering validators, `Provide()`, and `Handle()`.
 - [Read models in commands](read-models/injecting-into-commands.md) — the full reference for all three positions.
 - [Command validation](../commands/validation.md) — Arc's validation model in general.

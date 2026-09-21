@@ -10,7 +10,7 @@ These are recipes: "I need to do X — how?" Each one is short and assumes you'v
 | [Validate a command](./validate-a-command.mdx) | Reject malformed or duplicate input before it writes state |
 | [Return a result or an error](./return-a-result-or-error.mdx) | A command needs to hand back more than "it worked" — a value, or a typed failure |
 | [Provide data to a command handler](./provide-data-to-a-command.mdx) | A decision needs data you must fetch — keep the fetch out of `Handle` so it stays testable |
-| [Use current state in a command](./use-current-state-in-a-command.md) | A decision depends on provider-owned state — resolve it by an explicit command key |
+| [Use current state in a command](./use-current-state-in-a-command.mdx) | A decision depends on provider-owned state — resolve it by an explicit command key |
 | [Query data across slices](./query-related-data.mdx) | A screen needs data that spans more than one feature |
 | [Execute a command from React](./run-a-command-from-react.md) | Wire a form or button to a command through the generated proxy |
 | [Test a command](./test-a-command.mdx) | Prove a slice works through the real pipeline — no HTTP, no database |

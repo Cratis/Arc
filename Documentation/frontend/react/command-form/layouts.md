@@ -106,7 +106,7 @@ export function RegistrationForm() {
 }
 ```
 
-Selecting Business mounts the extra fields; selecting Personal unmounts them. Unmounting a field does **not** clear its command property or remove command validation rules. Define conditional backend rules and decide whether to clear now-inapplicable values. Proxy extraction does **not** preserve FluentValidation conditions such as `When`/`Unless`: a supported validator under a condition can become an unconditional client rule and reject a hidden field. Inspect the generated rules; keep conditional rules [server-only](./validation.md#backend-validation) when their condition cannot be represented on the client.
+Selecting Business mounts the extra fields; selecting Personal unmounts them. Unmounting a field does **not** clear its command property or remove command validation rules. Define conditional backend rules and decide whether to clear now-inapplicable values. Proxy extraction does **not** preserve FluentValidation conditions such as `When`/`Unless`: a supported validator under a condition can become an unconditional client rule and reject a hidden field. Inspect the generated rules; keep conditional rules [server-only](./validation.mdx#backend-validation) when their condition cannot be represented on the client.
 
 :::caution[A hidden field is not a security boundary]
 Hiding or unmounting a field does not remove its command value or replace server-side validation and authorization.
@@ -119,5 +119,5 @@ A mounted field keeps a stable registration. Equivalent inline accessors do not 
 ## See also
 
 - [CommandForm overview](./index.md)
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Customization](./customization.md)

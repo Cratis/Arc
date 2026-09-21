@@ -219,5 +219,5 @@ Choose the ownership boundary deliberately:
 
 - [Creating custom fields](./custom-fields.md)
 - [Field types](./field-types/index.md)
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Advanced patterns](./advanced-patterns.md)

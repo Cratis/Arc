@@ -5,7 +5,7 @@ description: How Chronicle read models become command-scoped dependencies in Arc
 
 A Chronicle read model is current state folded out of events. Arc makes that state available to a command as an ordinary constructor or method parameter, resolved for the key the command already carries — no query, no repository, no manual lookup.
 
-This section explains the mechanism. To _use_ it, start with [Use current state in a command](../../../../scenarios/use-current-state-in-a-command.md) for the recipe, or [Read models in commands](./injecting-into-commands.md) for the full reference on each position.
+This section explains the mechanism. To _use_ it, start with [Use current state in a command](../../../../scenarios/use-current-state-in-a-command.mdx) for the recipe, or [Read models in commands](./injecting-into-commands.md) for the full reference on each position.
 
 ## What makes a read model injectable
 

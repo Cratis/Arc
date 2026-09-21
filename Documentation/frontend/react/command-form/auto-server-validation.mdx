@@ -7,7 +7,7 @@ A name or email can pass local formatting rules and still fail a database-backed
 
 ## Enable preflight feedback
 
-This complete component uses the generated `UpdateProfile` from the [validation example](./validation.md#backend-validation). Configure Arc and generate the proxy before using it.
+This complete component uses the generated `UpdateProfile` from the [validation example](./validation.mdx#backend-validation). Configure Arc and generate the proxy before using it.
 
 ```tsx
 import { CommandForm, InputTextField, useIsCommandExecuting } from '@cratis/arc.react/commands';
@@ -60,37 +60,17 @@ The delay is **not a global request limiter**. With `autoServerValidate` enabled
 
 ## Add a server-only rule
 
-First define an actual endpoint, such as `UpdateProfile` in [Backend validation](./validation.md#backend-validation). A standalone DTO and validator alone are not this model-bound endpoint.
+First define an actual endpoint, such as `UpdateProfile` in [Backend validation](./validation.mdx#backend-validation). A standalone DTO and validator alone are not this model-bound endpoint.
 
-The following **application integration fragment**, shown in C#, replaces that example's validator. A JVM backend declares the equivalent rule with its own [shared validation](/arc/backend/kotlin/guides/validation/); the generated client and the form behaviour below are the same either way. It compiles alongside `UpdateProfile`; to run it, supply and register your application's `IProfileDirectory` implementation. `IsEmailAllowed` must apply your own profile/tenant policy, including allowing an unchanged email for an existing profile.
+The following **application integration fragment** adds the directory rule beside that example's command; the generated client and the form behaviour below are the same on either backend. It compiles alongside `UpdateProfile`; to run it, supply and register your application's profile-directory implementation. The allowed-email check must apply your own profile/tenant policy, including allowing an unchanged email for an existing profile.
 
-```csharp
-using System.Threading;
-using System.Threading.Tasks;
-using Cratis.Arc.Commands;
-using FluentValidation;
+<ArcBackendTabs snippet="frontend/react/command-form/auto-server-validation/server-only-rule" />
 
-namespace MyApp.Profiles;
+In C#, keep the `EmailAddressValidator` from the linked example: it owns the required/format rules, and this replacement validator takes over the command-level ones. Arc's concept-aware `RuleFor` unwraps the property, so the three-argument `MustAsync` overload reads the named `command.Email` from the command when calling the application service. `MinimumLength` and `MaximumLength` are FluentValidation method names.
 
-public interface IProfileDirectory
-{
-    Task<bool> IsEmailAllowed(EmailAddress email, CancellationToken cancellationToken);
-}
+The shapes genuinely diverge here. Arc.Kotlin's shared fluent surface is deliberately literal and has **no** asynchronous or predicate rule, so the JVM sibling is an ordinary `CommandValidator` whose `validate` is already a suspending function, added beside the `FluentModelValidator` that keeps projecting the literal rules to the client. There is also no `CancellationToken` parameter on the JVM: a suspending validator runs inside Arc's command coroutine, so cancelling the request cancels what it awaits.
 
-public class UpdateProfileValidator : CommandValidator<UpdateProfile>
-{
-    public UpdateProfileValidator(IProfileDirectory profiles)
-    {
-        RuleFor(command => command.Name)
-            .NotEmpty().MinimumLength(3).MaximumLength(100);
-        RuleFor(command => command.Email)
-            .MustAsync((command, _, cancellationToken) => profiles.IsEmailAllowed(command.Email, cancellationToken))
-            .WithMessage("This email cannot be used for this profile.");
-    }
-}
-```
-
-Keep the `EmailAddressValidator` from the linked example: it owns the required/format rules. Arc's concept-aware `RuleFor` unwraps the property, so the three-argument `MustAsync` overload reads the named `command.Email` from the command when calling the application service. The asynchronous directory rule remains server-side; the name rules and concept's supported format rules can be generated for the client. `MinimumLength` and `MaximumLength` are FluentValidation method names. No `minLength`, `maxLength`, or `pattern` props are supported on the built-in `InputTextField`.
+Either way the asynchronous directory rule remains server-side, while the name rules and supported format rules are generated for the client. No `minLength`, `maxLength`, or `pattern` props are supported on the built-in `InputTextField`.
 
 A server preflight runs pipeline filters and validators but skips the command handler and handler-argument resolution. Validators and filters must avoid unwanted side effects and disclosing sensitive information. A successful check does not reserve an email or enforce uniqueness under concurrent writes: enforce that invariant when the application performs the write as well.
 
@@ -121,12 +101,12 @@ Arc returns a command result with a `validationResults` array, not a `validation
 }
 ```
 
-A failed preflight has no command response to consume; some server results omit that optional member rather than returning null. CommandForm matches `members` to fields and displays the first matching message by default. Use an [error summary](./validation.md#accessing-validation-state) for all messages or results without members.
+A failed preflight has no command response to consume; some server results omit that optional member rather than returning null. CommandForm matches `members` to fields and displays the first matching message by default. Use an [error summary](./validation.mdx#accessing-validation-state) for all messages or results without members.
 
 ## Limits and operating guidance
 
 - `isExecuting` reports **execution**, not preflight network activity. CommandForm currently exposes no validation-pending/loading state. Do not label it “Checking availability.”
-- A previous validity verdict can remain while a new request runs. Internal issue tokens reject results overtaken by later applied validation, but do not guarantee every visible verdict describes the latest edit. For a custom gated UI, use the [revision-guarded pattern](./validation.md#progressive-validation).
+- A previous validity verdict can remain while a new request runs. Internal issue tokens reject results overtaken by later applied validation, but do not guarantee every visible verdict describes the latest edit. For a custom gated UI, use the [revision-guarded pattern](./validation.mdx#progressive-validation).
 - Preflight may short-circuit on client rules; it does not always reach server authorization. Execution must validate and authorize again.
 - The timer reduces traffic; it does not stop abuse. Configure ASP.NET Core rate-limiting middleware/policies or equivalent gateway controls in your application and verify they cover the generated validation endpoint. Arc does not provide the previously illustrated `RateLimitAttribute(MaxRequests, TimeWindowSeconds)` API.
 - Keep lookups indexed and bounded. Cache only with correct tenant/user keys and expiration; stale cached availability is advisory, never write-time enforcement.
@@ -134,7 +114,7 @@ A failed preflight has no command response to consume; some server results omit 
 
 ## See also
 
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Backend command validation](../../../backend/csharp/commands/command-validation.md)
 - [Form lifecycle](./form-lifecycle.md)
 - [Customization](./customization.md)

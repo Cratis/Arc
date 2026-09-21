@@ -84,7 +84,7 @@ Generated `.useSuspense()` argument positions and tuples match `.use()`. Only en
 | Observable paged | `[result, setSorting, setPage, setPageSize]` |
 | Observable single | `[result]` |
 
-Raw hooks are `useSuspenseQuery`, `useSuspenseQueryWithPaging`, `useSuspenseObservableQuery`, and `useSuspenseObservableQueryWithPaging`. Their arguments begin with the query constructor; paged raw hooks take a `Paging` instance next. Prefer [generated signatures](./usage.md#return-tuple) for application code.
+Raw hooks are `useSuspenseQuery`, `useSuspenseQueryWithPaging`, `useSuspenseObservableQuery`, and `useSuspenseObservableQueryWithPaging`. Their arguments begin with the query constructor; paged raw hooks take a `Paging` instance next. Prefer [generated signatures](./usage.mdx#return-tuple) for application code.
 
 ## Cache and re-fetching
 

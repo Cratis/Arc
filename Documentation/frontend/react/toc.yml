@@ -19,7 +19,7 @@
 - name: Vite Configuration
   href: vite-configuration.md
 - name: Proxy Generation
-  href: proxy-generation.md
+  href: proxy-generation.mdx
 - name: MVVM with React
   href: mvvm/toc.yml
 - name: Story Components

@@ -57,4 +57,4 @@ The callback and its receiver are weakly referenced. Supply the required receive
 
 - [Validation And Results](./validation-and-results.md)
 - [Configuration](./configuration.md)
-- [React Commands](../../react/commands/index.md)
+- [React Commands](../../react/commands/index.mdx)

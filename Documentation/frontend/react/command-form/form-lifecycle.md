@@ -7,7 +7,7 @@ Use the form's execution path when you want its result display, callbacks, and b
 
 ## Command result callbacks
 
-This complete component uses the generated `UpdateProfile` and its ordinary `{ name, email }` response from [Validation](./validation.md#backend-validation). The response type below is an application type, not a framework API.
+This complete component uses the generated `UpdateProfile` and its ordinary `{ name, email }` response from [Validation](./validation.mdx#backend-validation). The response type below is an application type, not a framework API.
 
 ```tsx
 import { useState } from 'react';
@@ -156,7 +156,7 @@ Supply `confirmSave` from your dialog implementation. The hidden form-owned subm
 
 Pass a stable ref from `useRef` or `useCallback`. An inline callback ref that sets parent state can repeatedly detach/attach and cause a render loop. `onStateChange` is different: its callback is read through a ref, runs on mount and on changes to its three state booleans, and safely accepts inline functions.
 
-`isValid` describes the latest applied silent validation, not a validation-pending state. `isAuthorized` is a local identity-role check. Neither is a server security boundary, and `execute()` does not use them as a precondition; execution performs command validation/authorization. See [Validation](./validation.md#accessing-validation-state) for current limitations.
+`isValid` describes the latest applied silent validation, not a validation-pending state. `isAuthorized` is a local identity-role check. Neither is a server security boundary, and `execute()` does not use them as a precondition; execution performs command validation/authorization. See [Validation](./validation.mdx#accessing-validation-state) for current limitations.
 
 ## Auto-save
 
@@ -167,5 +167,5 @@ A production autosave also needs serialization of saves, a pending revision, ret
 ## See also
 
 - [Working with hooks](./hooks.md)
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Data loading](./data-loading.md)

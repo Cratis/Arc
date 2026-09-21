@@ -2,7 +2,7 @@
 
 Core commands in Arc are the low-level TypeScript/JavaScript primitives used to execute state-changing operations.
 
-This section focuses on command contracts and runtime behavior in `@cratis/arc`. For React-specific ergonomics, see [React Commands](../../react/commands/index.md).
+This section focuses on command contracts and runtime behavior in `@cratis/arc`. For React-specific ergonomics, see [React Commands](../../react/commands/index.mdx).
 
 ## Capabilities
 

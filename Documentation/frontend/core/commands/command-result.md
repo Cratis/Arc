@@ -360,5 +360,5 @@ This is especially useful for debugging and support scenarios.
 ## Related Topics
 
 - [Commands](./index.md) - Core command concepts and usage
-- [React Commands](../../react/commands/index.md) - Using commands in React components
+- [React Commands](../../react/commands/index.mdx) - Using commands in React components
 - [Validation](../../../backend/csharp/commands/validation.md) - Understanding validation rules

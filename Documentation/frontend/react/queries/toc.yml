@@ -3,7 +3,7 @@
 - name: Configuration
   href: configuration.md
 - name: Core Query Usage
-  href: usage.md
+  href: usage.mdx
 - name: Paging
   href: paging.md
 - name: Observable Queries

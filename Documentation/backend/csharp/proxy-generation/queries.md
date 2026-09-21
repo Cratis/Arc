@@ -56,4 +56,4 @@ For **model-bound queries**, `[QueryHttpMethod]` metadata can select `Get`, `Que
 
 Every generated query class also declares a `defaultValue` — the value the query result holds before the first response arrives. A single-instance query's `defaultValue` is a typed empty placeholder, `{} as TModel`, so the property is typed as the model without asserting a shape it does not yet have; an enumerable query's `defaultValue` is simply `[]`.
 
-Continue with [React query usage](../../../frontend/react/queries/usage.md) and [validation extraction](validation.md).
+Continue with [React query usage](../../../frontend/react/queries/usage.mdx) and [validation extraction](validation.md).

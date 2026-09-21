@@ -103,6 +103,6 @@ Ordinary automatic query-pipeline paging requires `IQueryable<T>`. A materialize
 
 ## See Also
 
-- [Core Query Usage](./usage.md)
+- [Core Query Usage](./usage.mdx)
 - [Suspense Queries](./suspense-queries.md)
 - [Backend Query Pipeline](../../../backend/csharp/queries/query-pipeline.md)

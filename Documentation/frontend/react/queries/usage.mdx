@@ -1,4 +1,7 @@
-# Core Query Usage
+---
+title: Core Query Usage
+description: Read data in React through generated query proxies, with the hook tuples, argument positions, and result state each query shape returns.
+---
 
 Use generated query proxies to retrieve data in React with strong typing and predictable state.
 
@@ -74,19 +77,11 @@ An observable query HTTP request can return `202 Accepted` with `isReady: false`
 
 ## Query Parameters
 
-Queries can expose parameters through backend attributes (for example `[FromQuery]` and route parameters). These become typed arguments on generated proxies.
+Queries can expose parameters on the backend — in C# through attributes such as `[FromQuery]` and route parameters, on the JVM through ordinary query-method parameters. These become typed arguments on generated proxies.
 
-```csharp
-[HttpGet("starting-with")]
-public IEnumerable<DebitAccount> StartingWith([FromQuery] string? filter)
-{
-    var filterDocument = Builders<DebitAccount>
-        .Filter
-        .Regex("name", $"^{filter ?? string.Empty}.*");
+<ArcBackendTabs snippet="frontend/react/queries/usage/parameterized-query" />
 
-    return _collection.Find(filterDocument).ToList();
-}
-```
+The C# tab shows a controller action, because that is the style this attribute-driven parameter binding belongs to. The JVM has no controller-based discovery, so its parameters are simply the query method's own, declared on the `@ReadModel`'s companion object. Both produce the same parameterized proxy.
 
 Use the parameterized proxy from React:
 
