@@ -3,7 +3,7 @@ title: "3. Relate your slices"
 description: Add a second feature — books that belong to an author — and read each author's catalog back with a filtered, live query.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import {Aside} from '@astrojs/starlight/components';
 
 An author exists to have written things. So our second feature is **adding a book to an author's catalog** — and it's the first time two slices in our app relate to each other. A book belongs to an author; we'll model that with a plain foreign key — the author's id on the book — and read a catalog back with a **filtered** query.
 
@@ -22,7 +22,6 @@ Continue from [chapter 2](/arc/tutorial/validation/), using its project and one 
 
 On the JVM, the same four declarations go in a `books` package beside the `authors` one, each file importing what it uses — there is no global-import step. Keep the package inside the application's component-scan root so Spring finds the repository and Arc's KSP processor sees the artifacts.
 
-<Steps>
 
 1. **Strong types for the book.** Same discipline as before — a record deriving from `ConceptAs<T>` on C#, a data class implementing `ConceptAs<T>` on the JVM:
 
@@ -50,7 +49,6 @@ On the JVM, the same four declarations go in a `books` package beside the `autho
 
    The JVM handler is the same either way — `BookRepository` is a `MongoRepository` or a `JpaRepository`, and the command never knows which.
 
-</Steps>
 
 ## Read a catalog back, filtered
 
