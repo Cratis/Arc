@@ -12,6 +12,8 @@
   href: understanding-the-proxy-boundary.mdx
 - name: Understanding identity and access
   href: understanding-identity-and-access.mdx
+- name: Glossary
+  href: glossary.md
 - name: Scenarios
   href: scenarios/toc.yml
 - name: Backend overview
