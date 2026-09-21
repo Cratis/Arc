@@ -23,6 +23,14 @@ Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an
 
 ## A standalone slice, end to end
 
+:::note[Shown in C#]
+The walkthrough below and the testing section after it are written against the
+C# backend, because they lean on that stack's MongoDB integration and test
+library. The point they make — that a slice needs no event log — holds on the
+JVM too; see [Spring Data read models](/arc/backend/kotlin/guides/spring-data/)
+and [testing](/arc/backend/kotlin/guides/testing/) for the equivalents.
+:::
+
 These **illustrative excerpts** show registering an author and listing authors live in MongoDB. For the runnable project, domain declarations/imports, ASP.NET host, MongoDB settings and replica-set bootstrap, start with [standalone setup](./backend/csharp/getting-started/index.md) and its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). The explanation here does not replace those prerequisites.
 
 **The read model is just a document.** Mark it `[ReadModel]` and Arc exposes its query methods. A static method *is* the query, and returning an `ISubject<>` makes it live:

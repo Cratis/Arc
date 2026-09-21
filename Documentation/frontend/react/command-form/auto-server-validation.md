@@ -62,7 +62,7 @@ The delay is **not a global request limiter**. With `autoServerValidate` enabled
 
 First define an actual endpoint, such as `UpdateProfile` in [Backend validation](./validation.md#backend-validation). A standalone DTO and validator alone are not this model-bound endpoint.
 
-The following **application integration fragment** replaces that example's validator. It compiles alongside `UpdateProfile`; to run it, supply and register your application's `IProfileDirectory` implementation. `IsEmailAllowed` must apply your own profile/tenant policy, including allowing an unchanged email for an existing profile.
+The following **application integration fragment**, shown in C#, replaces that example's validator. A JVM backend declares the equivalent rule with its own [shared validation](/arc/backend/kotlin/guides/validation/); the generated client and the form behaviour below are the same either way. It compiles alongside `UpdateProfile`; to run it, supply and register your application's `IProfileDirectory` implementation. `IsEmailAllowed` must apply your own profile/tenant policy, including allowing an unchanged email for an existing profile.
 
 ```csharp
 using System.Threading;
