@@ -22,8 +22,6 @@
   href: backend/csharp/toc.yml
 - name: Frontend
   href: frontend/toc.yml
-- name: General
-  href: general/toc.yml
 - name: Troubleshooting
   href: troubleshooting.md
 - name: Api

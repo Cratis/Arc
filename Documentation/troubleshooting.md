@@ -5,6 +5,14 @@ description: Fixes for the issues that come up most when building with Arc — p
 
 Most Arc snags come down to a handful of causes. Here they are. If the slice uses the Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
 
+:::note[Building on Kotlin or Java?]
+The symptoms below are the same on either backend, but the fixes here are
+written for the C# stack. See
+[Troubleshooting and FAQ](/arc/backend/kotlin/troubleshooting/) for the JVM
+equivalents — Gradle and KSP build failures, `ARCKSP` diagnostic codes, and
+Spring Boot runtime behaviour.
+:::
+
 ## My frontend can't find the generated proxy
 
 Proxies are generated when the **backend builds**. If the import doesn't resolve:

@@ -36,6 +36,8 @@
   href: open-api/toc.yml
 - name: Testing
   href: testing/toc.yml
+- name: Generating a principal for local development
+  href: development/generating-principal.md
 - name: Chronicle
   href: chronicle/toc.yml
 - name: Generating a Screenplay

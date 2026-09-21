@@ -73,7 +73,7 @@ if (app.Environment.IsDevelopment())
 }
 ```
 
-Keep the host bound to `http://localhost:5000` as in setup. Follow [Generate a local principal](/arc/general/generating-principal/) to send the three `x-ms-client-principal` headers through the local Vite proxy. In that page's JSON, include `"Librarian"` in `userRoles`, then Base64-encode that JSON locally. Restrict the browser header override to your localhost app URLs.
+Keep the host bound to `http://localhost:5000` as in setup. Follow [Generate a local principal](/arc/backend/csharp/development/generating-principal/) to send the three `x-ms-client-principal` headers through the local Vite proxy. In that page's JSON, include `"Librarian"` in `userRoles`, then Base64-encode that JSON locally. Restrict the browser header override to your localhost app URLs.
 
 This adapter **does not validate bearer-token signatures, issuer, or audience**. It trusts the headers. Production must instead use a properly configured authentication scheme or an authenticated trusted ingress that replaces spoofable headers and prevents direct backend access. Never expose this local header-spoofing fixture publicly.
 

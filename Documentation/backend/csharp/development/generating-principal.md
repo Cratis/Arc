@@ -3,7 +3,7 @@ title: Generate a Microsoft identity principal for local development
 description: Simulate trusted-ingress principal headers on a loopback-only development host, without confusing Base64 assertions with validated bearer tokens.
 ---
 
-Need to exercise different users and roles before wiring production login? The [Microsoft identity header adapter](../backend/csharp/asp-net-core/microsoft-identity.md) can construct a principal from development HTTP headers. This is **identity simulation**, not token validation.
+Need to exercise different users and roles before wiring production login? The [Microsoft identity header adapter](generating-principal.md) can construct a principal from development HTTP headers. This is **identity simulation**, not token validation.
 
 ## Understand the trust boundary first
 
@@ -11,7 +11,7 @@ Need to exercise different users and roles before wiring production login? The [
 
 Use manually supplied headers only on an isolated, loopback-bound development host. In production, either configure a real token/cookie authentication scheme or accept these assertions only from a trusted authenticated ingress. That ingress must **strip and replace all incoming identity headers**, and the backend must not be reachable through a bypass route. An arbitrary browser or proxy sending these headers is not trustworthy.
 
-The [authorization tutorial](/arc/tutorial/authorization/) shows the ASP.NET registration and middleware placement for a Development-only fixture. The [lightweight host authentication](../backend/csharp/core/authentication.md) is a different setup; do not mix their APIs.
+The [authorization tutorial](/arc/tutorial/authorization/) shows the ASP.NET registration and middleware placement for a Development-only fixture. The [lightweight host authentication](generating-principal.md) is a different setup; do not mix their APIs.
 
 ## Construct the assertion
 

@@ -3,7 +3,7 @@ title: ConceptAs conversion
 description: Map strongly typed value records to EF provider values.
 ---
 
-The ConceptAs conversion feature provides automatic type conversion support for Cratis [Concepts](../../../general/index.md) in Entity Framework Core. This feature ensures that domain concepts are properly stored and retrieved from the database while maintaining type safety and domain integrity.
+The ConceptAs conversion feature provides automatic type conversion support for Cratis [Concepts](/arc/glossary/) in Entity Framework Core. This feature ensures that domain concepts are properly stored and retrieved from the database while maintaining type safety and domain integrity.
 
 ## What it does
 

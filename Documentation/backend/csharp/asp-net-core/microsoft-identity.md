@@ -16,7 +16,7 @@ Internally, it is based on the following HTTP headers to be present.
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
-> a browser extension. Read more about [generating principal tokens for local development](../../../general/generating-principal.md).
+> a browser extension. Read more about [generating principal tokens for local development](../development/generating-principal.md).
 
 The token in the `x-ms-client-principal` should be a base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
 
