@@ -34,6 +34,8 @@
   href: open-api/toc.yml
 - name: Introspection
   href: introspection/toc.yml
+- name: Attribute reference
+  href: attributes.md
 - name: Observability
   href: observability.md
 - name: Testing
