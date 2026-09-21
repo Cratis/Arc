@@ -447,6 +447,49 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             public record UpdateProfile(ProfileName Name, EmailAddress Email);
         """,
     ),
+    "tutorial/first-slice/author-slice": SnippetContext(
+        # The chapter's own RegisterAuthor and Author shadow the fixture's, which is the
+        # point of the page - the reader is looking at the files they wrote.
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_REACTIVE, USING_MONGO),
+    ),
+    "tutorial/validation/author-name-rule": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_ARC_VALIDATION, USING_FLUENT_VALIDATION),
+    ),
+    "tutorial/validation/duplicate-name-rule": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION, USING_MONGO),
+    ),
+    "tutorial/books-and-relationships/book-concepts": SnippetContext(
+        # Deliberately fixture-free: the chapter is teaching the reader to declare these
+        # two concepts, so the snippet must be the whole declaration.
+        kind="declaration",
+        usings=("using Cratis.Concepts;",),
+    ),
+    "tutorial/books-and-relationships/add-book": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_MONGO,),
+    ),
+    "tutorial/books-and-relationships/books-for-author": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=(USING_REACTIVE, USING_MONGO),
+    ),
+    "tutorial/authorization/roles-on-command": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=("using Cratis.Arc.Authorization;", USING_MONGO),
+    ),
+    "tutorial/authorization/roles-on-query": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+        usings=("using Cratis.Arc.Authorization;", USING_REACTIVE, USING_MONGO),
+    ),
     "tutorial/real-time/observable-query": SnippetContext(
         kind="member",
         fixtures=("library",),
