@@ -3,7 +3,7 @@ title: "2. Make it trustworthy"
 description: Reject a blank or duplicate author name — first with a validator on the value type, then with a business rule that checks existing state — and watch the reason appear in the React form.
 ---
 
-import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import {Aside, Tabs, TabItem} from '@astrojs/starlight/components';
 
 We left chapter 1 with a working slice and an honest problem: a librarian can register an author with a blank name, or the same author twice, and nothing stops them. A trustworthy app has to be able to say *no* — clearly, and as early as possible.
 
@@ -18,7 +18,6 @@ Let's add both. This chapter extends the files and imports from [chapter 1](/arc
 
 Your first instinct might be to validate `Name` inside a `RegisterAuthor` validator. But think about it: *every* command that takes an `AuthorName` wants the same guarantee — never blank. Arc lets you state that rule **on the value type itself**, so it's enforced everywhere an `AuthorName` is used, and you never write it twice.
 
-<Steps>
 
 1. **Write a `ConceptValidator` for the value type.** On C# it reaches into the concept's underlying `Value` and applies ordinary [FluentValidation](https://docs.fluentvalidation.net/) rules; on the JVM it implements Arc's `ConceptValidator` interface and reads the same underlying value through `value()`:
 
@@ -26,13 +25,11 @@ Your first instinct might be to validate `Name` inside a `RegisterAuthor` valida
 
    That's the whole change. C# discovers the validator by convention, with no registration at all; the JVM one is an ordinary Spring bean, so `@Component` is all the wiring it needs. From then on, any command carrying an `AuthorName` rejects a blank one before the handler ever runs.
 
-</Steps>
 
 ## Reject the duplicate against existing state
 
 Uniqueness is the harder kind of "no", because it depends on what's already there. Input validation can't answer it — you have to look in the database. That's a job for a **`CommandValidator`**, which validates a whole command and, because Arc constructs it from the container, can take the dependencies it needs to check state.
 
-<Steps>
 
 1. **Write a `CommandValidator` that asks the database.** Both backends take the dependency they need and look for an author already carrying this name; if one exists, the command is rejected:
 
@@ -58,7 +55,6 @@ Uniqueness is the harder kind of "no", because it depends on what's already ther
 
    The JVM validator is unchanged by that choice: it already asks a repository, and which Spring Data module backs that repository is not its business.
 
-</Steps>
 
 ## Install the database constraint
 

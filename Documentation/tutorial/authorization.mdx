@@ -3,7 +3,7 @@ title: "5. Decide who can do what"
 description: Gate the catalog with role-based authorization on commands and queries, connect it to the signed-in user, and look back at the full-stack feature you built.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
+import {Aside} from '@astrojs/starlight/components';
 
 Our back office works, but it's wide open: anyone who can reach it can register authors and add books. The last thing a real app needs is to decide *who is allowed*. We'll add role-based authorization — and the nice part is that it's declarative, so none of our `Handle()` methods or read models change. The rule lives at the boundary, where it belongs.
 
@@ -15,7 +15,6 @@ Continue with the standalone ASP.NET Core host from [chapter 1](/arc/tutorial/fi
 
 Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one declaration at the edge. Put `[Roles(...)]` — `@Roles(...)` on the JVM — on the command, and Arc checks the caller's roles before the command runs. The excerpts below show the document-store branch; on the relational branch add only the attribute or annotation and retain your existing handlers and queries:
 
-<Steps>
 
 1. **Require a role to change the catalog.** Only a librarian may register authors or add books:
 
@@ -23,7 +22,6 @@ Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)`
 
    The same declaration goes on `AddBook`. Everything inside the handler stays exactly as it was — the gate is applied around it.
 
-</Steps>
 
 ## Gate the queries
 
