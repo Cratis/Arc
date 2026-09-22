@@ -93,6 +93,40 @@ The lightweight authentication middleware installs the successful principal on `
 
 Arc command/query authorization is a separate pipeline check. Read the current principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`, not the client-readable identity cookie. See [Authorization](authorization.md) for roles, result status, and direct-call boundaries.
 
+## Anonymous endpoints and handlers
+
+`AllowAnonymous` on an endpoint means **no credential is required**, not **no identity is wanted**. Every handler still runs against an anonymous endpoint by default, and its principal — if it produces one — still reaches `IHttpRequestContext.User`. Several of Arc's own endpoints depend on this: the observable query demultiplexer's WebSocket and SSE routes are anonymous, yet the individual queries multiplexed over that connection are still authorized against `context.User`.
+
+A handler finds out an endpoint allows anonymous access through `IHttpRequestContext.AllowsAnonymous()`. Use it to stay quiet instead of failing:
+
+```csharp
+public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
+{
+    if (!context.Headers.TryGetValue("X-Api-Key", out var apiKey))
+    {
+        return Task.FromResult(
+            context.AllowsAnonymous()
+                ? AuthenticationResult.Anonymous
+                : AuthenticationResult.Failed("Missing API key"));
+    }
+
+    // Validate apiKey and return AuthenticationResult.Succeeded(...) or .Failed(...).
+}
+```
+
+A handler that has nothing to contribute on an anonymous endpoint — it only rejects missing or invalid credentials for a mechanism the endpoint never required — can opt out entirely instead of running and quietly failing:
+
+```csharp
+public class ApiKeyAuthenticationHandler : IAuthenticationHandler
+{
+    public bool AppliesToAnonymousEndpoints => false;
+
+    public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context) => ...;
+}
+```
+
+`Authentication.HandleAuthentication` skips a handler that opts out while the current endpoint allows anonymous access, and returns `AuthenticationResult.Anonymous` when every handler is skipped this way. Handlers that keep the default `true` are unaffected and still run in the usual order.
+
 ## Testing authentication handlers
 
 Before exposing the service, exercise missing credentials, malformed input, arbitrary tokens, expired/wrong-issuer/wrong-audience tokens, a genuinely valid token, forged forwarded headers, and backend access bypassing ingress. Also test endpoints with and without anonymous metadata and every accepted authentication mechanism. A valid-token-only test cannot establish a fail-closed boundary.
