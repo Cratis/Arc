@@ -12,6 +12,7 @@ import { renderCommandFormDescendants } from './renderCommandFormDescendants';
 import { runCommandValidation } from './runCommandValidation';
 import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime';
 import { CommandFormFieldBinding } from './commandFormFieldBindingContext';
+import { CommandFormNativeResultContext } from './CommandFormNativeResultContext';
 
 export interface ColumnInfo {
     fields: React.ReactElement<CommandFormFieldProps>[];
@@ -35,6 +36,8 @@ const CommandFormFieldWrapper = ({
     field: React.ReactElement<CommandFormFieldProps>;
 }) => {
     const context = useCommandFormContext<unknown>();
+    const nativeResultContext = React.useContext(CommandFormNativeResultContext);
+    const nativeCommandResult = nativeResultContext ? nativeResultContext.result : context.commandResult;
     const fieldProps = field.props as CommandFormFieldProps;
     const propertyAccessor = fieldProps.value;
 
@@ -178,7 +181,7 @@ const CommandFormFieldWrapper = ({
                         } else {
                             // Per-field merge: keep errors from untouched fields, update this field.
                             const currentErrors =
-                                context.commandResult?.validationResults || [];
+                                nativeCommandResult?.validationResults || [];
                             const errorsFromOtherFields = currentErrors.filter(
                                 (vr) => !memberMatchesField(vr.members, propertyName),
                             );
@@ -227,7 +230,7 @@ const CommandFormFieldWrapper = ({
                             } else {
                                 // Per-field merge: keep errors from untouched fields, update this field.
                                 const currentErrors =
-                                    context.commandResult?.validationResults || [];
+                                    nativeCommandResult?.validationResults || [];
                                 const errorsFromOtherFields = currentErrors.filter(
                                     (vr) => !memberMatchesField(vr.members, propertyName),
                                 );

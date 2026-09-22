@@ -171,7 +171,8 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
             required ?? (propertyDescriptor ? !propertyDescriptor.isOptional : true);
 
         const serverError = fieldName ? getFieldError(fieldName) : undefined;
-        const customError = fieldName ? customFieldErrors[fieldName] : undefined;
+        const customError = fieldName && Object.hasOwn(customFieldErrors, fieldName)
+            ? customFieldErrors[fieldName] : undefined;
 
         const errors: string[] = [];
         if (serverError) errors.push(serverError);

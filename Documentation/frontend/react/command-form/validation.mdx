@@ -101,11 +101,11 @@ export function ProfileForm() {
 
 Current state boundaries:
 
-- `isValid` comes from the latest applied **silent** result having an empty `validationResults` array, not from displayed `commandResult.isValid` or custom field errors. Even a warning makes that form flag false; command execution has its own severity policy.
+- `isValid` requires the latest applied **silent** result to have an empty `validationResults` array and no nonempty custom field errors to remain. It does not come from displayed `commandResult.isValid`. Even a warning in silent validation makes that form flag false; command execution has its own severity policy.
 - `isAuthorized` checks the client identity's roles. It does not certify server authorization.
 - The form has no public validation-pending state. A prior verdict can remain while newer validation is in flight. Internal ordering rejects a result overtaken by a later **applied** result, not every result for an older edit.
 - `onFieldChange` fires immediately on edits with previously displayed validation information; it can also fire after blur. Do not use its `validationInfo` as a fresh asynchronous permission to save.
-- `onFieldValidate` and `setCustomFieldError` supply presentation errors only; reproduce blocking rules in command validation.
+- Nonempty errors from `onFieldValidate` and `setCustomFieldError` block form execution and are reported as validation failures. Clearing the last custom error restores retained native feedback; see [custom-error result behavior](./form-lifecycle.md#command-result-callbacks). Raw command execution bypasses this form-local gate, so enforce business rules in command/server validation too.
 
 These flags are UI hints, not reservations or security boundaries. Always let execution validate again.
 

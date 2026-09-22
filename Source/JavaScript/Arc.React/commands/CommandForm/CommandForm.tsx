@@ -17,9 +17,9 @@ import {
 } from './CommandFormContext';
 import type { Constructor } from '@cratis/fundamentals';
 import { useCommand, type SetCommandValues } from '../useCommand';
-import type { ICommandResult } from '@cratis/arc/commands';
+import { CommandResult, type ICommandResult } from '@cratis/arc/commands';
 import type { Command } from '@cratis/arc/commands';
-import type { ValidationResult } from '@cratis/arc/validation';
+import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validation';
 import type { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
 import { deepEqual } from '@cratis/arc';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
@@ -28,6 +28,7 @@ import { memberMatchesField } from './memberMatchesField';
 import { runCommandValidation } from './runCommandValidation';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants';
 import { CommandFormFieldRegistrationContext } from './CommandFormFieldRegistrationContext';
+import { CommandFormNativeResultContext } from './CommandFormNativeResultContext';
 import { useIdentity } from '../../identity';
 import { markAsCommandFormColumn } from './commandFormMarkers';
 import {
@@ -228,6 +229,18 @@ const getInitialValuesFromFields = <TCommand,>(
     return values as Partial<TCommand>;
 };
 
+const hasCustomFieldErrors = (errors: Record<string, string>) =>
+    Object.values(errors).some(Boolean);
+
+const createCustomValidationResult = (errors: Record<string, string>) => {
+    const results = Object.entries(errors)
+        .filter(([, message]) => !!message)
+        .map(([member, message]) => new ValidationResult(
+            ValidationResultSeverity.Error, message, [member], undefined,
+        ));
+    return results.length > 0 ? CommandResult.validationFailed(results) : undefined;
+};
+
 const CommandFormComponent = <TCommand extends object = object, TResponse = object>(
     props: CommandFormProps<TCommand, TResponse>,
 ) => {
@@ -423,14 +436,32 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         },
         [commandInstance],
     );
-    const [commandResult, setCommandResult] = useState<
+    const [nativeCommandResult, setNativeCommandResult] = useState<
         ICommandResult<unknown> | undefined
     >(undefined);
+    const [customValidationResult, setCustomValidationResult] = useState<CommandResult>();
+    // A blocked attempt is the public result, without overwriting native feedback. Editing its
+    // errors updates that failure; clearing the last one restores the retained native result.
+    const commandResult = customValidationResult ?? nativeCommandResult;
+    const nativeResultContext = useMemo(() => ({ result: nativeCommandResult }), [nativeCommandResult]);
+    const setCommandResult = useCallback((result: ICommandResult<unknown>) => {
+        setNativeCommandResult(result);
+        setCustomValidationResult(undefined);
+    }, []);
     const [silentValidationResult, setSilentValidationResult] = useState<
         ICommandResult<unknown> | undefined
     >(undefined);
     const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>(
         {},
+    );
+
+    // Write through before scheduling a render: a field can reject input and execute through a
+    // previously captured context/handle in the same event. Empty messages mean no error, matching
+    // getFieldError's display policy. Keep these results separate from native validation so clearing
+    // a custom error cannot leave a stale copy in the native result or silent validity state.
+    const customFieldErrorsRef = React.useRef(customFieldErrors);
+    const getCustomValidationResult = useCallback(
+        () => createCustomValidationResult(customFieldErrorsRef.current), [],
     );
 
     // Executions are counted, not flagged. Nothing stops a form from being submitted again while the
@@ -495,6 +526,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             props.autoServerValidate,
             beginSilentValidation,
             applySilentValidationResult,
+            setCommandResult,
         ],
     );
 
@@ -577,13 +609,12 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         validateSilently,
     ]);
 
-    // isValid is driven exclusively by silentValidationResult which is updated on mount and
-    // after every field value change. commandResult only controls error message display.
-    // Default to false (not yet validated) so the form is never considered valid before
-    // the first silent validation completes.
-    const isValid = silentValidationResult
+    // Custom errors independently veto validity; an in-flight native validation cannot clear them.
+    // Default to false until the first silent validation completes.
+    const isCommandValid = silentValidationResult
         ? (silentValidationResult.validationResults?.length ?? 0) === 0
         : false;
+    const isValid = isCommandValid && !hasCustomFieldErrors(customFieldErrors);
 
     // isAuthorized checks if the current user has at least one of the roles required by the command.
     // If the command has no roles defined, all users are considered authorized.
@@ -673,33 +704,33 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         silentValidationResult,
         beginSilentValidation,
         applySilentValidationResult,
+        setCommandResult,
     ]);
 
     const setCustomFieldError = useCallback(
         (fieldName: string, error: string | undefined) => {
-            setCustomFieldErrors((prev) => {
-                if (error === undefined) {
-                    const newErrors = { ...prev };
-                    delete newErrors[fieldName];
-                    return newErrors;
-                }
-                return { ...prev, [fieldName]: error };
-            });
+            // Computed insertion creates an own property even for '__proto__'. Assignment to a
+            // plain object's inherited setter would silently lose that field's string message.
+            const errors = { ...customFieldErrorsRef.current, [fieldName]: error ?? '' };
+            if (!error) delete errors[fieldName];
+            customFieldErrorsRef.current = errors;
+            setCustomFieldErrors(errors);
+            setCustomValidationResult((previous) => previous ? createCustomValidationResult(errors) : undefined);
         },
         [],
     );
 
     const getFieldError = (propertyName: string): string | undefined => {
         // Check custom field errors first
-        if (customFieldErrors[propertyName]) {
-            return customFieldErrors[propertyName];
+        if (Object.hasOwn(customFieldErrorsRef.current, propertyName) && customFieldErrorsRef.current[propertyName]) {
+            return customFieldErrorsRef.current[propertyName];
         }
 
-        if (!commandResult || !commandResult.validationResults) {
+        if (!nativeCommandResult || !nativeCommandResult.validationResults) {
             return undefined;
         }
 
-        for (const validationResult of commandResult.validationResults) {
+        for (const validationResult of nativeCommandResult.validationResults) {
             if (memberMatchesField(validationResult.members, propertyName)) {
                 return validationResult.message;
             }
@@ -709,6 +740,18 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     };
 
     const handleExecute = useCallback(async (): Promise<ICommandResult<unknown>> => {
+        const reportCustomValidationFailure = (result: CommandResult) => {
+            // Publish the same result returned to the caller and callbacks, but keep native field
+            // feedback and silent validity separate so clearing custom errors cannot erase them.
+            setCustomValidationResult(result);
+            // A local validation failure has no response, just like Command's native validation gate.
+            props.onFailed?.(result as ICommandResult<TResponse>);
+            props.onValidationFailure?.(result.validationResults);
+            return result;
+        };
+        const customFailure = getCustomValidationResult();
+        if (customFailure) return reportCustomValidationFailure(customFailure);
+
         let finalValues = commandInstance;
 
         // Apply onBeforeExecute transformation if provided
@@ -716,6 +759,11 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
             finalValues = props.onBeforeExecute(commandInstance);
             setCommandValues(finalValues);
         }
+
+        // A transformation can synchronously set custom errors too. Re-read before execution;
+        // never retry automatically if a failure callback subsequently clears the error.
+        const failureAfterTransformation = getCustomValidationResult();
+        if (failureAfterTransformation) return reportCustomValidationFailure(failureAfterTransformation);
 
         // Execute the command
         // SAFETY: Arc-generated command instances extend Command; the runtime guard preserves compatibility with plain objects.
@@ -759,7 +807,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         }
 
         throw new Error('Command instance does not have an execute method');
-    }, [commandInstance, props, setCommandValues, setCommandResult]);
+    }, [commandInstance, props, setCommandValues, setCommandResult, getCustomValidationResult]);
 
     // handleExecute is re-created on every render - its dependencies include props, and CommandForm
     // renders <CommandFormComponent {...props} />, so props is a fresh object each time. That cannot be
@@ -767,10 +815,10 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
     // depend on it: everything it needs is parked in a ref, refreshed after every commit, and the handle
     // itself is built once. A handle rebuilt per render would re-attach a callback ref on every parent
     // render, which is a re-attach loop when the parent re-renders in response to being handed the ref.
-    const latestRef = React.useRef({ handleExecute, isValid, isAuthorized });
+    const latestRef = React.useRef({ handleExecute, isCommandValid, isAuthorized });
     const onStateChangeRef = React.useRef(props.onStateChange);
     React.useLayoutEffect(() => {
-        latestRef.current = { handleExecute, isValid, isAuthorized };
+        latestRef.current = { handleExecute, isCommandValid, isAuthorized };
         onStateChangeRef.current = props.onStateChange;
     });
 
@@ -782,7 +830,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 return executionCountRef.current > 0;
             },
             get isValid() {
-                return latestRef.current.isValid;
+                return latestRef.current.isCommandValid && !hasCustomFieldErrors(customFieldErrorsRef.current);
             },
             get isAuthorized() {
                 return latestRef.current.isAuthorized;
@@ -822,7 +870,9 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
         commandResult,
         setCommandResult,
         getFieldError,
-        isValid,
+        get isValid() {
+            return isCommandValid && !hasCustomFieldErrors(customFieldErrorsRef.current);
+        },
         isAuthorized,
         isExecuting,
         beginSilentValidation,
@@ -854,7 +904,9 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
                 value={contextValue as CommandFormContextValue<unknown>}
             >
                 <form onSubmit={handleFormSubmit} noValidate>
-                    <CommandFormFields orderedChildren={orderedChildren} />
+                    <CommandFormNativeResultContext.Provider value={nativeResultContext}>
+                        <CommandFormFields orderedChildren={orderedChildren} />
+                    </CommandFormNativeResultContext.Provider>
                     {(props.showErrors ?? true) && hasExceptions && (
                         ExceptionDisplay ? (
                             <ExceptionDisplay message={exceptionMessage} />
