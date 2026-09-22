@@ -18,8 +18,15 @@ public class Authentication(IInstancesOf<IAuthenticationHandler> handlers) : IAu
     /// <inheritdoc/>
     public async Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
+        var allowsAnonymous = context.AllowsAnonymous();
+
         foreach (var handler in handlers)
         {
+            if (allowsAnonymous && !handler.AppliesToAnonymousEndpoints)
+            {
+                continue;
+            }
+
             var result = await handler.HandleAuthentication(context);
             if (result.IsAuthenticated || result.Failure is not null)
             {
