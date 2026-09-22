@@ -46,7 +46,7 @@ export interface CommandFormState {
     isExecuting: boolean;
 
     /**
-     * Whether the form currently passes silent validation.
+     * Whether the form currently passes silent validation and has no nonempty custom field errors.
      */
     isValid: boolean;
 
@@ -63,7 +63,8 @@ export interface CommandFormState {
  */
 export interface CommandFormHandle extends CommandFormState {
     /**
-     * Executes the command the same way submitting the form does.
+     * Executes the command the same way submitting the form does. Nonempty custom field errors
+     * return a native validation failure before transformation or command execution.
      */
     execute(): Promise<ICommandResult<unknown>>;
 }
@@ -104,6 +105,15 @@ export interface CommandFormContextValue<TCommand> {
     onBeforeExecute?: BeforeExecuteCallback<TCommand>;
     onExecute?: () => Promise<ICommandResult<unknown>>;
     customFieldErrors: Record<string, string>;
+    /**
+     * Sets a form-local validation error, immediately blocking submission, onExecute and formRef.execute.
+     * Undefined or an empty string clears it, matching field error display. A blocked attempt reports
+     * a native validation failure through commandResult, its return value, onFailed and onValidationFailure.
+     * Editing errors updates the displayed custom failure; clearing the last restores the retained
+     * native result (or undefined). A subsequent setCommandResult replaces the displayed result.
+     * Native field feedback and silent validation remain separate and are not discarded when custom
+     * errors clear. Raw command.execute is unaffected.
+     */
     setCustomFieldError: (fieldName: string, error: string | undefined) => void;
     showTitles: boolean;
     showErrors: boolean;

@@ -55,10 +55,10 @@ Useful context members:
 | `commandVersion` | Revision advanced by the form's setters/baseline population; useful for edit-dependent effects. |
 | `setCommandValues` | Writes command properties and rerenders; this is not baseline initialization or validation. |
 | `commandResult`, `getFieldError(name)` | Displayed result and the first matching field message. |
-| `isValid` | Whether the latest applied silent result contains no validation results; false until a result arrives. |
+| `isValid` | Whether the latest applied silent result contains no validation results and no nonempty custom field errors remain; false until a silent result arrives. |
 | `isAuthorized` | Client identity-role check, not proof of server authorization. |
 | `isExecuting`, `onExecute` | Execution state and the form's execution operation. |
-| `customFieldErrors`, `setCustomFieldError` | Presentation messages keyed by field; these alone do not block execution. |
+| `customFieldErrors`, `setCustomFieldError` | Form-local errors keyed by field; nonempty messages block form execution. Undefined or an empty string clears an error. |
 
 ## useIsCommandExecuting
 
