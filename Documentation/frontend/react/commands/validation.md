@@ -89,4 +89,4 @@ For blur-only feedback, call `validate()` from the field's blur handler and use 
 - `setValues()` edits content; it does not reset the baseline. A completed rejected server execution can change that baseline today. See [data binding](./data-binding.md#execution-baseline-limitations).
 - Default execution allows warnings. For confirmation-before-warning-override, use the explicit [severity workflow](../../core/validation/severity-filtering.md), not `execute()` followed by a question.
 
-Continue with [command results](../../core/commands/command-result.md) and [server validation](../../../backend/commands/command-validation.md).
+Continue with [command results](../../core/commands/command-result.md) and [server validation](../../../backend/csharp/commands/command-validation.md).

@@ -5,6 +5,7 @@
   "MD033": {
     "allowed_elements": [
       "a",
+      "ArcBackendTabs",
       "Aside",
       "Badge",
       "Card",

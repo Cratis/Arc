@@ -200,7 +200,7 @@ A rejection your own rules produced and one the framework composed on your behal
 
 ### Optional Chronicle rejection handling
 
-The next two fragments apply only when using the [Chronicle command integration](../../../backend/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `retry` and `setFieldError` below represent application-owned actions, not Arc APIs.
+The next two fragments apply only when using the [Chronicle command integration](../../../backend/csharp/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `retry` and `setFieldError` below represent application-owned actions, not Arc APIs.
 
 ```typescript
 import { ValidationResultReason } from '@cratis/arc';
@@ -360,5 +360,5 @@ This is especially useful for debugging and support scenarios.
 ## Related Topics
 
 - [Commands](./index.md) - Core command concepts and usage
-- [React Commands](../../react/commands/index.md) - Using commands in React components
-- [Validation](../../../backend/commands/validation.md) - Understanding validation rules
+- [React Commands](../../react/commands/index.mdx) - Using commands in React components
+- [Validation](../../../backend/csharp/commands/validation.md) - Understanding validation rules

@@ -3,7 +3,7 @@ title: "3. Relate your slices"
 description: Add a second feature — books that belong to an author — and read each author's catalog back with a filtered, live query.
 ---
 
-import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import {Aside} from '@astrojs/starlight/components';
 
 An author exists to have written things. So our second feature is **adding a book to an author's catalog** — and it's the first time two slices in our app relate to each other. A book belongs to an author; we'll model that with a plain foreign key — the author's id on the book — and read a catalog back with a **filtered** query.
 
@@ -20,40 +20,21 @@ flowchart LR
 
 Continue from [chapter 2](/arc/tutorial/validation/), using its project and one database branch. Create `BookId.cs`, `BookTitle.cs`, `AddBook.cs`, and `Book.cs` under `src/Books/`, each with `namespace Library.Books;` above the declarations shown. Add `global using Library.Books;` to `GlobalUsings.cs`. Existing global imports supply the Arc, provider, and author types.
 
-<Steps>
+On the JVM, the same four declarations go in a `books` package beside the `authors` one, each file importing what it uses — there is no global-import step. Keep the package inside the application's component-scan root so Spring finds the repository and Arc's KSP processor sees the artifacts.
 
-1. **Strong types for the book.** Same discipline as before:
 
-   ```csharp
-   public record BookId(Guid Value) : ConceptAs<Guid>(Value)
-   {
-       public static readonly BookId NotSet = new(Guid.Empty);
+1. **Strong types for the book.** Same discipline as before — a record deriving from `ConceptAs<T>` on C#, a data class implementing `ConceptAs<T>` on the JVM:
 
-       public static BookId New() => new(Guid.NewGuid());
-   }
+   <ArcBackendTabs snippet="tutorial/books-and-relationships/book-concepts" />
 
-   public record BookTitle(string Value) : ConceptAs<string>(Value)
-   {
-       public static readonly BookTitle NotSet = new(string.Empty);
-
-       public static implicit operator BookTitle(string value) => new(value);
-   }
-   ```
+   The C# sentinels and the implicit conversion are conveniences, not requirements; the JVM has no implicit-conversion operator, so a Kotlin caller writes `BookTitle("...")` where C# can pass a bare string.
 
 2. **The command writes a book, tagged with its author.** `AddBook` carries the `AuthorId` it belongs to — and writes a `Book` carrying that id:
 
-   <Tabs syncKey="db">
-   <TabItem label="MongoDB" icon="seti:db">
-   ```csharp
-   [Command]
-   public record AddBook(AuthorId AuthorId, BookId BookId, BookTitle Title)
-   {
-       public Task Handle(IMongoCollection<Book> books) =>
-           books.InsertOneAsync(new Book(BookId, AuthorId, Title));
-   }
-   ```
-   </TabItem>
-   <TabItem label="EF Core" icon="seti:db">
+   <ArcBackendTabs snippet="tutorial/books-and-relationships/add-book" />
+
+   **On the relational branch**, the C# handler takes the context and saves through it:
+
    ```csharp
    [Command]
    public record AddBook(AuthorId AuthorId, BookId BookId, BookTitle Title)
@@ -65,29 +46,19 @@ Continue from [chapter 2](/arc/tutorial/validation/), using its project and one 
        }
    }
    ```
-   </TabItem>
-   </Tabs>
 
-</Steps>
+   The JVM handler is the same either way — `BookRepository` is a `MongoRepository` or a `JpaRepository`, and the command never knows which.
+
 
 ## Read a catalog back, filtered
 
 The read model is just the book document — it carries the `AuthorId` it belongs to. The query takes the author's id (Arc binds it by matching the parameter name) and returns only that author's books, live:
 
-<Tabs syncKey="db">
-<TabItem label="MongoDB" icon="seti:db">
+<ArcBackendTabs snippet="tutorial/books-and-relationships/books-for-author" />
 
-```csharp
-[ReadModel]
-public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
-{
-    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, IMongoCollection<Book> books) =>
-        books.Observe(b => b.AuthorId == authorId);
-}
-```
+The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, while the JVM passes Spring Data `Criteria` naming the stored field. Both return a stream — `ISubject<…>` or a `Flow<List<…>>` — which is what makes the query live.
 
-</TabItem>
-<TabItem label="EF Core" icon="seti:db">
+**On the relational branch**, the C# query reads through the context instead:
 
 ```csharp
 [ReadModel]
@@ -95,16 +66,12 @@ public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
 {
     public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, LibraryDbContext db) =>
         db.Books.Observe(b => b.AuthorId == authorId);
-
 }
 ```
 
-</TabItem>
-</Tabs>
+For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/csharp/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write. On the JVM, a relational branch injects [`JpaObservableQuery`](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) in place of `MongoObservableQuery` and lets your schema tooling create the table; remember that JPA observation is in-process only.
 
-For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write.
-
-Run `dotnet build -c Debug` before adding React. Verify `src/Books/AddBook.ts` and `src/Books/Book.ts` exist; the latter includes `BooksForAuthor` in source-file output mode.
+Before adding React, regenerate the proxies — `dotnet build -c Debug`, or `./gradlew generateArcProxies` on the JVM. Verify `src/Books/AddBook.ts` and `src/Books/Book.ts` exist; the latter includes `BooksForAuthor` in source-file output mode.
 
 <Aside type="tip" title="The relationship is a filter, not an existence constraint">
 `Observe(b => b.AuthorId == authorId)` reads books carrying this author's id, without a join. The form supplies an existing author, but these examples do not prevent a direct caller from submitting an unknown id. Add server validation and, where supported, a database foreign-key constraint if author existence is a required invariant.

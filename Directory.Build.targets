@@ -1,0 +1,17 @@
+<Project>
+    <!-- The package updater builds the solution before pushing, but does not execute these specs.
+         Catch the known test-double incompatibility during compilation rather than hanging CI later. -->
+    <Target Name="VerifyMongoDBTestDoubleCompatibility"
+            BeforeTargets="CoreCompile"
+            DependsOnTargets="ResolveReferences"
+            Condition="'$(MSBuildProjectName)' == 'MongoDB.Specs'">
+        <ItemGroup>
+            <_MongoDBSpecTestDouble Include="@(ReferencePath)"
+                                   Condition="'%(ReferencePath.NuGetPackageId)' == 'NSubstitute'" />
+        </ItemGroup>
+        <Error Condition="'@(_MongoDBSpecTestDouble)' == ''"
+               Text="Cannot verify MongoDB.Specs test-double compatibility: NSubstitute was not resolved." />
+        <Error Condition="!$([System.String]::Copy('%(_MongoDBSpecTestDouble.NuGetPackageVersion)').StartsWith('5.'))"
+               Text="MongoDB.Specs requires NSubstitute 5.x. NSubstitute 6.x deadlocks the Castle DynamicProxy task-return interception; migrate that boundary before lifting the pin." />
+    </Target>
+</Project>

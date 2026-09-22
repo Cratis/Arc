@@ -1,0 +1,29 @@
+- name: Overview
+  href: index.md
+- name: Getting Started
+  href: getting-started.md
+- name: Serializers
+  href: serializers.md
+- name: Geospatial Types
+  href: geospatial/index.md
+  items:
+    - name: Point
+      href: geospatial/point.md
+    - name: LineString
+      href: geospatial/linestring.md
+    - name: Polygon
+      href: geospatial/polygon.md
+- name: Concepts
+  href: concepts.md
+- name: Naming Policies
+  href: naming-policies.md
+- name: Class Mapping
+  href: class-mapping.md
+- name: Convention Packs
+  href: convention-packs.md
+- name: Observing Collections
+  href: observing-collections.md
+- name: Watching Multiple Collections
+  href: change-stream-watcher.md
+- name: Tenancy
+  href: tenancy.md

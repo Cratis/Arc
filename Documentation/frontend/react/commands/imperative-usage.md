@@ -332,7 +332,7 @@ Avoid imperative usage when:
 
 ## See Also
 
-- [Commands Overview](./index.md)
+- [Commands Overview](./index.mdx)
 - [React Hook Usage](./react-usage.md) - Recommended approach for React
 - [Data Binding](./data-binding.md)
 - [Validation](./validation.md)

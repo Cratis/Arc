@@ -16,7 +16,7 @@ A multi-line string input. An undefined value displays as an empty string withou
 | `cols` | `number` | | Number of visible text columns. |
 | `required` | `boolean` | | Override automatic required detection. |
 
-See [Common props](./index.md#common-props) for styling, decoration, and population. This field does not accept every native textarea attribute (for example `maxLength`); use a [custom adapter](../custom-fields.md) for additional attributes. Required and length rules belong in [command validation](../validation.md#required-fields).
+See [Common props](./index.md#common-props) for styling, decoration, and population. This field does not accept every native textarea attribute (for example `maxLength`); use a [custom adapter](../custom-fields.md) for additional attributes. Required and length rules belong in [command validation](../validation.mdx#required-fields).
 
 ## Example
 

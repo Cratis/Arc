@@ -93,11 +93,11 @@ If the frontend reports `subscribed: true` but `hasResult: false`, and the backe
 
 If the frontend reports `subscribed: false`, the subscription request never reached the backend — look for a connection problem in the multiplexer or SSE transport.
 
-See [Query Health Endpoint](../../../backend/queries/query-health.md) for the full backend API and response shape.
+See [Query Health Endpoint](../../../backend/csharp/queries/query-health.md) for the full backend API and response shape.
 
 ## Related pages
 
 - [Observable Queries](./observable-queries.md)
 - [Observable Query Multiplexing](./observable-query-multiplexing.md)
 - [Query Instance Caching](./query-instance-caching.md)
-- [Backend: Query Health Endpoint](../../../backend/queries/query-health.md)
+- [Backend: Query Health Endpoint](../../../backend/csharp/queries/query-health.md)

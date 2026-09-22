@@ -82,4 +82,4 @@ Failure-specific callbacks can accompany `onFailed`. Stored failures for a comma
 
 MVVM can inject the nearest `ICommandScope`. Reading its getters and calling `execute()` are supported, but making a view model observable does not make the injected scope's internals observable. Bridge the state you display through an explicit notification/state path.
 
-See [MVVM context](../../react.mvvm/mvvm-context.md) and [command results](../../core/commands/command-result.md).
+See [MVVM context](../../react/mvvm/mvvm-context.md) and [command results](../../core/commands/command-result.md).

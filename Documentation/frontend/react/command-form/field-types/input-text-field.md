@@ -15,7 +15,7 @@ A text input supporting the native input types listed below. Values emitted by t
 | `placeholder` | `string` | | Placeholder text shown when empty. |
 | `required` | `boolean` | | Override automatic required detection. |
 
-The shared `className`, `style`, decoration, and population props are described in [Common props](./index.md#common-props). This built-in field does not accept `minLength`, `maxLength`, `pattern`, arbitrary input IDs, or arbitrary native attributes; use a [custom adapter](../custom-fields.md) when needed. `type="email"` does not enforce an email rule because CommandForm uses `noValidate`; see [Validation](../validation.md#required-fields).
+The shared `className`, `style`, decoration, and population props are described in [Common props](./index.md#common-props). This built-in field does not accept `minLength`, `maxLength`, `pattern`, arbitrary input IDs, or arbitrary native attributes; use a [custom adapter](../custom-fields.md) when needed. `type="email"` does not enforce an email rule because CommandForm uses `noValidate`; see [Validation](../validation.mdx#required-fields).
 
 ## Examples
 

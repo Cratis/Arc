@@ -34,7 +34,7 @@ Rules are defined on the backend and extracted by proxy generation:
 - Consistent frontend/backend behavior
 - Type-safe generated validators
 
-See [Backend Command Validation](../../../backend/commands/validation.md) and [Backend Query Validation](../../../backend/queries/validation.md).
+See [Backend Command Validation](../../../backend/csharp/commands/validation.md) and [Backend Query Validation](../../../backend/csharp/queries/validation.md).
 
 ## Related
 

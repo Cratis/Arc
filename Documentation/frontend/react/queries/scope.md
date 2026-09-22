@@ -47,4 +47,4 @@ Keep queries under one scope when you need one reactive indicator, or explicitly
 
 MVVM can inject `IQueryScope`, and a view-model getter can read `scope.isPerforming`. However, `withViewModel` making the view model observable does not make the injected scope's mutable internals observable. For a reactive display, bridge explicit scope callbacks to state rather than relying on a computed getter alone.
 
-Continue with [query usage](./usage.md) or [command scopes](../commands/scope.md).
+Continue with [query usage](./usage.mdx) or [command scopes](../commands/scope.md).

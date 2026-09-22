@@ -104,4 +104,4 @@ Configure a `busyIndicator` renderer on `DialogComponents`. Inside it, read `use
 
 `useBusyIndicator(title?, message?)` returns `[showBusyIndicator, closeBusyIndicator]`. Close it in `finally` after your application-owned operation, including failures. Busy UI is not cancellation or a guarantee that the operation succeeded.
 
-Continue with [MVVM dialogs](../react.mvvm/dialogs.md) for request classes and the `IDialogs` service.
+Continue with [MVVM dialogs](../react/mvvm/dialogs.md) for request classes and the `IDialogs` service.

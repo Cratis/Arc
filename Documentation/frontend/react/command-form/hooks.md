@@ -106,6 +106,6 @@ All these hooks throw outside the provider. Use [formRef/onStateChange](./form-l
 
 ## See also
 
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Data loading](./data-loading.md)
 - [Form lifecycle](./form-lifecycle.md)

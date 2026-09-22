@@ -41,7 +41,7 @@ Radio fields infer the selected value type from the accessor itself. This **fiel
 | `currentValue` | `unknown` (typed for radios) | Explicit field seed; undefined supplies nothing. Binding supplies the live value internally. |
 | `initialValue`, `noInitialValue`, `populationKey` | Population metadata | See [Data loading](../data-loading.md#per-field-control). |
 
-Fields default to required when their generated `PropertyDescriptor.isOptional` is false (and also when no descriptor is resolved). This sets an input attribute. CommandForm has `noValidate`, so it does **not** enforce browser required/type/range constraints on submit. Payload presence validation checks null/undefined, not empty strings or false booleans. Use explicit [command validation rules](../validation.md#required-fields).
+Fields default to required when their generated `PropertyDescriptor.isOptional` is false (and also when no descriptor is resolved). This sets an input attribute. CommandForm has `noValidate`, so it does **not** enforce browser required/type/range constraints on submit. Payload presence validation checks null/undefined, not empty strings or false booleans. Use explicit [command validation rules](../validation.mdx#required-fields).
 
 `onValueChange`, `onBlur`, descriptor, and field-name props participate in internal binding. Custom adapters must forward the injected blur handler. Do not attach a public `onBlur` and assume it overrides or composes with the form's injected validation callback; use the form's interaction callbacks or an adapter that preserves forwarding.
 
@@ -72,5 +72,5 @@ Most fields use full-width inline layout, `0.75rem` padding, and `0.375rem` roun
 ## See also
 
 - [CommandForm overview](../index.md)
-- [Validation](../validation.md)
+- [Validation](../validation.mdx)
 - [Creating custom fields](../custom-fields.md)

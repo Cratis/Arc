@@ -3,8 +3,7 @@ title: Understanding the proxy boundary
 description: How Cratis keeps your C# backend and your React frontend in lockstep — the generated, typed proxy boundary at the heart of full-stack type safety, and what keeps the two languages honest.
 ---
 
-import { Steps, Aside } from '@astrojs/starlight/components';
-import FullStackTabs from '@components/FullStackTabs.astro';
+import { Aside } from '@astrojs/starlight/components';
 
 Every full-stack app has a seam down the middle: C# on one side, TypeScript on the other, HTTP in between. Normally *you* are the glue across that seam — you write a controller, hand-write a DTO, redeclare its shape in TypeScript, wrap it in a `fetch`, and then spend the rest of the project keeping both sides in agreement. Nothing tells you when they drift: a renamed field compiles happily on each side and fails in the browser at runtime.
 
@@ -25,22 +24,19 @@ Generating from the same types catches structural drift at compile time when you
 
 ## Walk the boundary
 
-<Steps>
+1. **Write the slice on the backend.** A command is a record (C#) or a data class (Kotlin) with a handler on it. This standalone excerpt uses the [tutorial's domain types, imports, and provider setup](/arc/backend/csharp/getting-started/your-first-command/):
 
-1. **Write the slice in C#.** A command is a record with `Handle()` on it. This standalone MongoDB excerpt uses the [tutorial's domain types, imports, and provider setup](/arc/backend/getting-started/your-first-command/):
+   <ArcBackendTabs snippet="understanding-the-proxy-boundary/register-author" />
 
-   ```csharp
-   [Command]
-   public record RegisterAuthor(AuthorId Id, AuthorName Name)
-   {
-       public Task Handle(IMongoCollection<Author> authors) =>
-           authors.InsertOneAsync(new Author(Id, Name));
-   }
-   ```
+2. **Configure and build.** Each backend discovers commands, queries, referenced types and supported validation rules from your own code during its ordinary build, then writes the TypeScript. How it reads your code differs, and so does where generation can be switched off.
 
-2. **Configure and build.** Install `Cratis.Arc.ProxyGenerator.Build` and set `CratisProxiesOutputPath` as in [generator setup](/arc/backend/proxy-generation/getting-started/), then run `dotnet build -c Debug`. An MSBuild target invokes a **post-build executable** that inspects the compiled assembly and PDB; it is not a Roslyn source generator. It discovers commands, queries, referenced types, and supported validation rules. Namespace folders, source-file placement, and index output depend on [configuration](/arc/backend/proxy-generation/configuration/). Without an output path the target does not generate proxies.
+   On **C#**, install `Cratis.Arc.ProxyGenerator.Build` and set `CratisProxiesOutputPath` as in [generator setup](/arc/backend/csharp/proxy-generation/getting-started/), then run `dotnet build -c Debug`. An MSBuild target runs after the build and invokes a **post-build executable** that inspects the compiled assembly and its PDB — it is not a Roslyn source generator. Without an output path the target does nothing, which is also how you skip generation on a second build.
 
-3. **Import the proxy in React.** It's already there, generated from the C# above — call it as if it were local, typed code:
+   On **Kotlin and Java**, apply the `io.cratis.arc` Gradle plugin and configure `cratisArc { proxies { } }` as in [TypeScript proxies](/arc/backend/kotlin/guides/typescript-proxies/). A **KSP annotation processor** runs as part of compilation and records what it found in an artifact manifest, and the `generateArcProxies` Gradle task turns that manifest into TypeScript.
+
+   Namespace folders, source-file placement, and index output depend on each backend's generator configuration.
+
+3. **Import the proxy in React.** It's already there, generated from the backend code above — call it as if it were local, typed code:
 
    ```tsx
    import { RegisterAuthor } from './Authors/RegisterAuthor';   // generated
@@ -52,32 +48,19 @@ Generating from the same types catches structural drift at compile time when you
    </CommandDialog>
    ```
 
-</Steps>
-
 ## What keeps it honest
 
-Here's the payoff — and the whole reason the boundary is *generated* rather than written. Suppose you rename `Name` to `FullName` on the command:
+Here's the payoff — and the whole reason the boundary is *generated* rather than written. Suppose you rename the name property on the command:
 
-<FullStackTabs>
-  <Fragment slot="csharp">
-  ```csharp
-  [Command]
-  public record RegisterAuthor(AuthorId Id, AuthorName FullName)   // was Name
-  {
-      public Task Handle(IMongoCollection<Author> authors) =>
-          authors.InsertOneAsync(new Author(Id, FullName));
-  }
-  ```
-  </Fragment>
-  <Fragment slot="typescript">
-  ```tsx
-  // After `dotnet build`, the generated proxy has `fullName`, not `name`.
-  // This line stops compiling until you fix it — caught at build, not in production:
-  <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
-  //                                         ^^^^ Property 'name' does not exist on RegisterAuthor
-  ```
-  </Fragment>
-</FullStackTabs>
+<ArcBackendTabs snippet="understanding-the-proxy-boundary/rename-property" />
+
+Rebuild, and the generated proxy has `fullName` where it used to have `name`. The React component that still reads the old property stops compiling — caught at build, not in production:
+
+```tsx
+// This line stops compiling until you fix it:
+<InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
+//                                         ^^^^ Property 'name' does not exist on RegisterAuthor
+```
 
 You didn't run the app. You didn't open the browser. After regeneration and a frontend type-check, the TypeScript compiler catches the drift, because the accessor `i => i.name` points at a property the regenerated type no longer has. That's the difference between a generated boundary and a hand-written one: drift is a **compile error**, not a **production incident**.
 
@@ -94,10 +77,10 @@ A configured generator build can emit:
 - **Types and enums** — every complex type and enum your commands and queries reference, so nested shapes are typed too.
 - **Identity details** — your custom identity type, so the signed-in user is typed on the frontend.
 
-Each has a detailed reference: [Commands](/arc/backend/proxy-generation/commands/), [Queries](/arc/backend/proxy-generation/queries/), and [Identity details](/arc/backend/proxy-generation/identity-details/). The [frontend proxy-generation guide](/arc/frontend/react/proxy-generation/) shows the generated TypeScript for each, with the `.use()` and `useSuspense()` hooks.
+Each has a detailed reference: [Commands](/arc/backend/csharp/proxy-generation/commands/), [Queries](/arc/backend/csharp/proxy-generation/queries/), and [Identity details](/arc/backend/csharp/proxy-generation/identity-details/). The [frontend proxy-generation guide](/arc/frontend/react/proxy-generation/) shows the generated TypeScript for each, with the `.use()` and `useSuspense()` hooks.
 
 <Aside type="note" title="Not every backend return value crosses the boundary">
-[Command operations](./backend/commands/operations/index.md) describe inline work for the server, not the browser. The proxy generator excludes operations and operation batches from the client response contract. React still executes the generated command and handles its ordinary result; compensation and recovery observations remain backend concerns.
+On the C# backend, [command operations](./backend/csharp/commands/operations/index.md) describe inline work for the server, not the browser. The proxy generator excludes operations and operation batches from the client response contract. React still executes the generated command and handles its ordinary result; compensation and recovery observations remain backend concerns.
 </Aside>
 
 ## The transport disappears too
@@ -118,11 +101,11 @@ One definition in C#, one proxy in TypeScript — and whether the data arrives a
 A few things follow from the proxies being *generated*, and they're worth holding onto:
 
 - **You never edit a generated file.** Treat the generated folder like build output — change the C#, rebuild, and the TypeScript follows.
-- **The generator tracks what it made** and removes files for commands or queries you delete, so the generated tree doesn't accumulate ghosts. (See [File index tracking](/arc/backend/proxy-generation/file-index-tracking/).)
+- **The generator tracks what it made** and removes files for commands or queries you delete, so the generated tree doesn't accumulate ghosts. (See [File index tracking](/arc/backend/csharp/proxy-generation/file-index-tracking/).)
 - **The sequencing is fixed:** backend compiles → proxies generate → the frontend can reference them. For a single slice you can't build the React half before the C# half compiles — which is exactly why the workflow is backend-first.
 
 ## Why this is the thing that matters
 
 Plenty of frameworks give you CQRS, or an event store, or a component library. The proxy boundary is what makes Cratis **full-stack**: the type safety doesn't stop at the edge of the backend — it runs all the way to the React component. It's why a Cratis feature is *one* thing expressed in two languages, kept in agreement by the build instead of by discipline.
 
-Ready to see it run? [Build your first command and query](/arc/backend/getting-started/your-first-command/), then [wire it into React](/arc/frontend/getting-started/) — and watch the same property name flow from C# all the way to the screen.
+Ready to see it run? [Build your first command and query](/arc/backend/csharp/getting-started/your-first-command/), then [wire it into React](/arc/frontend/react/getting-started/) — and watch the same property name flow from C# all the way to the screen.

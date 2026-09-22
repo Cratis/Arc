@@ -55,6 +55,6 @@ The server's `ChangeSetComputor` also compares snapshots. Intermediate writes be
 
 ## See also
 
-- [Backend change streams](../../../backend/queries/change-stream.md)
+- [Backend change streams](../../../backend/csharp/queries/change-stream.md)
 - [Observable query multiplexing](./observable-query-multiplexing.md)
 - [Query instance caching](./query-instance-caching.md)

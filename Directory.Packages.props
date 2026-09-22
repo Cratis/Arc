@@ -96,10 +96,11 @@
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
-    <!-- Held at 5.x. NSubstitute 6 changes the Castle.Core it brings, and that combination deadlocks
-         MongoCollectionInterceptor - the whole MongoDB.Specs assembly hangs before a single test runs.
-         Moving to 6 is a migration of the DynamicProxy layer, not a version bump. -->
-    <PackageVersion Include="NSubstitute" Version="6.2.0" />
+    <!-- Held at 5.x. NSubstitute 6 deadlocks the task-returning DynamicProxy fixtures used by
+         MongoCollectionInterceptor. Directory.Build.targets checks this during compilation so
+         the package updater cannot publish that incompatible test setup. Moving to 6 requires
+         migrating and verifying this interception boundary, not a version bump alone. -->
+    <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <PackageVersion Include="Microsoft.ClearScript.V8" Version="7.5.1.1" />
     <PackageVersion Include="Microsoft.ClearScript.V8.Native.osx-arm64" Version="7.5.1.1" />
