@@ -381,30 +381,34 @@ Everything above is common. The following is not, and each entry matters to some
 writing a client or reasoning about security. Each one names what the C# implementation
 does and what the JVM implementation does.
 
-### SSE subscribe and unsubscribe do not verify connection ownership on .NET
+### SSE connection ownership is compared on a different set of values
 
-**This is the one to read first.**
+Both implementations verify that the caller of an SSE control POST is the caller that
+opened the GET stream, and both answer a mismatch with 404 - the same status as an unknown
+connection, so neither endpoint confirms that someone else's connection ID exists. What
+they compare is not the same.
 
 The SSE control endpoints take a `connectionId` in the POST body and act on the stream it
 names.
 
-- **C#**: the handlers look the connection ID up and return 404 only when no such
-  connection exists. There is no comparison between the POST caller and the principal
-  that opened the GET stream. A caller holding another connection's ID can attach a
-  subscription whose results are written into that other caller's SSE stream, and can
-  unsubscribe that caller's subscriptions. The injected subscription is authorized as the
-  *POST* caller - the principal is captured from the POST request, not borrowed from the
-  stream - so this is cross-connection injection and denial of service, not privilege
-  escalation.
+- **C#**: the identity that opened the GET stream is captured once, while that request is
+  still in flight, and each subsequent POST is compared against it on the identity
+  identifier claim and authentication state. The display name and the resolved tenant are
+  not compared: the name is mutable and a control POST is authorized with its own tenant
+  rather than the connection's.
 - **JVM**: the handshake captured when the GET stream opened is compared with the
   handshake of the POST request on principal ID, principal name, authentication state, and
-  resolved tenant. A mismatch returns 404, the same status as an unknown connection, so
-  the endpoint does not confirm that someone else's connection ID exists.
+  resolved tenant.
 
-**Why it matters**: do not treat a connection ID as a bearer-style secret on either
-implementation, but on C# in particular do not let one leak - through a log, a referrer,
-or a shared diagnostic - and do not build a client that assumes a subscription it did not
-create cannot appear on its stream.
+A connection opened by an unauthenticated caller carries no identity to bind to on either
+implementation, so ownership cannot be distinguished between anonymous callers.
+
+**Why it matters**: a client may not assume a control POST issued under a different
+identity will be honored, and may not treat 404 as proof that a connection does not exist.
+A connection whose caller has been re-authenticated under the same identity - a token
+refresh while the stream stays open - keeps working on C#; on the JVM a change to the
+principal name or the resolved tenant ends it. Do not treat a connection ID as a
+bearer-style secret on either implementation.
 
 ### Query health is anonymous on .NET
 
