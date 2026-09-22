@@ -37,6 +37,12 @@ namespace Cratis.Arc.Queries;
 /// endpoints for subscribe/unsubscribe, correlated via a server-assigned connection identifier.
 /// </para>
 /// <para>
+/// Because the SSE transport spreads one connection across several HTTP requests, the caller that opened the
+/// stream is captured as an <see cref="ObservableQueryCaller"/> and every subscribe and unsubscribe is checked
+/// against it. A control request from a different caller is answered with 404, identically to one naming a
+/// connection that does not exist, so a connection identifier on its own grants nothing.
+/// </para>
+/// <para>
 /// Each subject-backed subscription gets its own <see cref="IServiceScope"/>, created at subscribe time from
 /// <paramref name="serviceProvider"/> and disposed when the subscription ends. Chronicle's client services are
 /// registered scoped, resolving the current tenant's namespace the first time they are used within a scope and
@@ -153,7 +159,7 @@ public class ObservableQueryDemultiplexer(
             context.RequestAborted,
             hostApplicationLifetime.ApplicationStopping);
 
-        var state = new SSEConnectionState(context, linkedCts);
+        var state = new SSEConnectionState(context, linkedCts, ObservableQueryCaller.CapturedFrom(context));
         _sseConnections[connectionId] = state;
 
 #pragma warning disable CA2025 // keepAliveTask is always awaited in the finally block before linkedCts is disposed
@@ -223,9 +229,9 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        if (!_sseConnections.TryGetValue(body.ConnectionId, out var state))
+        var state = ResolveOwnedConnection(context, body.ConnectionId);
+        if (state is null)
         {
-            logger.SseUnknownConnection(body.ConnectionId);
             context.SetStatusCode(404);
             return;
         }
@@ -347,9 +353,9 @@ public class ObservableQueryDemultiplexer(
             return;
         }
 
-        if (!_sseConnections.TryGetValue(body.ConnectionId, out var state))
+        var state = ResolveOwnedConnection(context, body.ConnectionId);
+        if (state is null)
         {
-            logger.SseUnknownConnection(body.ConnectionId);
             context.SetStatusCode(404);
             return;
         }
@@ -1563,11 +1569,40 @@ public class ObservableQueryDemultiplexer(
             }
         };
     }
+
+    /// <summary>
+    /// Resolves the SSE connection <paramref name="connectionId"/> names, but only for the caller that opened it.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/> of the control request.</param>
+    /// <param name="connectionId">The connection identifier carried in the control request body.</param>
+    /// <returns>The <see cref="SSEConnectionState"/>, or null when there is no such connection or it belongs to another caller.</returns>
+    /// <remarks>
+    /// Both outcomes are deliberately indistinguishable to the caller, so that probing connection identifiers
+    /// reveals nothing about which ones exist.
+    /// </remarks>
+    SSEConnectionState? ResolveOwnedConnection(IHttpRequestContext context, string connectionId)
+    {
+        if (!_sseConnections.TryGetValue(connectionId, out var state))
+        {
+            logger.SseUnknownConnection(connectionId);
+            return null;
+        }
+
+        if (!state.Caller.IsSameCallerAs(ObservableQueryCaller.CapturedFrom(context)))
+        {
+            logger.SseConnectionNotOwnedByCaller(connectionId);
+            return null;
+        }
+
+        return state;
+    }
+
 #pragma warning restore SA1204
 
     sealed record SSEConnectionState(
         IHttpRequestContext Context,
-        CancellationTokenSource CancellationTokenSource)
+        CancellationTokenSource CancellationTokenSource,
+        ObservableQueryCaller Caller)
     {
         public ObservableQuerySubscriptionStates Subscriptions { get; } = new();
         public CancellationToken CancellationToken { get; } = CancellationTokenSource.Token;
