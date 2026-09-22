@@ -62,7 +62,11 @@ public static class MongoCollectionExtensions
         return collection.Observe<TDocument, IEnumerable<TDocument>>(
             () => collection.Find(filter, options),
             filter,
-            (cursor, observable) => observable.OnNext([.. cursor]));
+
+            // The emitted snapshot carries the changes it represents, so the delta downstream is the one the change
+            // stream already stated rather than one rediscovered by comparing every item against the previous
+            // snapshot. It is still an IEnumerable<TDocument> to every subscriber that does not look.
+            (cursor, changes, observable) => observable.OnNext(new ObservedCollection<TDocument>([.. cursor], changes)));
     }
 
     /// <summary>
@@ -103,7 +107,7 @@ public static class MongoCollectionExtensions
         return collection.Observe<TDocument, IEnumerable<TDocument>>(
             () => collection.Find(filter, options),
             filter,
-            (documents, observable) => observable.OnNext(documents));
+            (documents, changes, observable) => observable.OnNext(new ObservedCollection<TDocument>([.. documents], changes)));
     }
 
     /// <summary>
@@ -169,14 +173,14 @@ public static class MongoCollectionExtensions
         return collection.Observe<TDocument, TDocument>(
             findCall,
             filter,
-            (documents, observable) => observable.OnNext(documents.FirstOrDefault()!));
+            (documents, _, observable) => observable.OnNext(documents.FirstOrDefault()!));
     }
 
     static ISubject<TResult> Observe<TDocument, TResult>(
         this IMongoCollection<TDocument> collection,
         Func<IFindFluent<TDocument, TDocument>> findCall,
         FilterDefinition<TDocument> filter,
-        Action<IEnumerable<TDocument>, ISubject<TResult>> onNext)
+        Action<IEnumerable<TDocument>, IReadOnlyList<CollectionChange>?, ISubject<TResult>> onNext)
     {
         var completedCleanup = false;
         var cancelling = false;
@@ -248,7 +252,10 @@ public static class MongoCollectionExtensions
                 using var cursor = await collection.WatchAsync(pipeline, options, cancellationToken);
                 queryContext.TotalItems = (int)await findCall().CountDocumentsAsync();
                 await documents.InitializeWithQuery(query);
-                onNext(documents, subject);
+
+                // The initial emission is a whole snapshot, not a delta - there is no previous state to state a
+                // change against, so it carries no changes and downstream treats it as the baseline.
+                onNext(documents, null, subject);
                 await cursor.ForEachAsync(
                     async changeDocument =>
                     {
@@ -357,7 +364,7 @@ public static class MongoCollectionExtensions
         IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument> filter,
         QueryContext queryContext,
-        Action<IEnumerable<TDocument>, ISubject<TResult>> onNext,
+        Action<IEnumerable<TDocument>, IReadOnlyList<CollectionChange>?, ISubject<TResult>> onNext,
         ChangeStreamDocument<TDocument> changeDocument,
         IFindFluent<TDocument, TDocument> query,
         QueryContextAwareSet<TDocument> documents,
@@ -366,6 +373,7 @@ public static class MongoCollectionExtensions
         CancellationToken cancellationToken)
     {
         var hasChanges = false;
+        var changes = new List<CollectionChange>();
         if (changeDocument.DocumentKey is not null && changeDocument.DocumentKey.TryGetValue("_id", out var idValue))
         {
             var id = GetId(idProperty, idValue);
@@ -373,12 +381,16 @@ public static class MongoCollectionExtensions
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
                 queryContext.TotalItems--;
-                hasChanges = await RemoveFromSet(queryContext, query, documents, id);
+                hasChanges = await RemoveFromSet(queryContext, query, documents, id, changes);
             }
             else if (changeDocument.OperationType == ChangeStreamOperationType.Insert)
             {
                 queryContext.TotalItems++;
                 hasChanges = documents.Add(fullDocument);
+                if (hasChanges)
+                {
+                    changes.Add(new(CollectionChangeKind.Added, id));
+                }
             }
             else if (fullDocument is not null)
             {
@@ -398,17 +410,21 @@ public static class MongoCollectionExtensions
                         queryContext.TotalItems++;
                     }
                     hasChanges = documents.Add(fullDocument);
+                    if (hasChanges)
+                    {
+                        changes.Add(new(wasPresent ? CollectionChangeKind.Replaced : CollectionChangeKind.Added, id));
+                    }
                 }
                 else if (wasPresent)
                 {
                     queryContext.TotalItems--;
-                    hasChanges = await RemoveFromSet(queryContext, query, documents, id);
+                    hasChanges = await RemoveFromSet(queryContext, query, documents, id, changes);
                 }
             }
         }
         if (hasChanges)
         {
-            onNext(documents, subject);
+            onNext(documents, changes, subject);
         }
     }
 
@@ -419,16 +435,40 @@ public static class MongoCollectionExtensions
     /// <param name="query">The sorted and paged query the refill reads from.</param>
     /// <param name="documents">The observed set to remove from.</param>
     /// <param name="id">The identifier of the document to remove.</param>
+    /// <param name="changes">Collects the changes the removal made, including any refill a paged query pulled in.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>True when a document was removed.</returns>
-    static Task<bool> RemoveFromSet<TDocument>(
+    static async Task<bool> RemoveFromSet<TDocument>(
         QueryContext queryContext,
         IFindFluent<TDocument, TDocument> query,
         QueryContextAwareSet<TDocument> documents,
-        object id) =>
-        queryContext.Paging.IsPaged
-            ? documents.RemoveAndAddLastInQuery(id, query)
-            : Task.FromResult(documents.Remove(id));
+        object id,
+        List<CollectionChange> changes)
+    {
+        if (!queryContext.Paging.IsPaged)
+        {
+            var removedUnpaged = documents.Remove(id);
+            if (removedUnpaged)
+            {
+                changes.Add(new(CollectionChangeKind.Removed, id));
+            }
+
+            return removedUnpaged;
+        }
+
+        var (removed, addedId) = await documents.RemoveAndAddLastInQuery(id, query);
+        if (removed)
+        {
+            changes.Add(new(CollectionChangeKind.Removed, id));
+        }
+
+        if (addedId is not null)
+        {
+            changes.Add(new(CollectionChangeKind.Added, addedId));
+        }
+
+        return removed;
+    }
 
     static object GetId(PropertyInfo idProperty, BsonValue idValue)
     {

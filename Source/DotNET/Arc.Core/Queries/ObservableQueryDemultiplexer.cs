@@ -982,7 +982,17 @@ public class ObservableQueryDemultiplexer(
                     var currentItems = enumerable.Cast<object>().ToArray();
                     if (!isFullMode && (!isDeltaMode || !isFirstEmission))
                     {
-                        changeSet = _changeSetComputor.Compute(previousItems, currentItems);
+                        // A provider that watches its data source already knows which items changed, and says so on
+                        // the emission. Taking it at its word makes the delta cost proportional to what changed rather
+                        // than to the size of the collection - comparing every item against the previous snapshot to
+                        // rediscover a single changed row is the expensive part of serving an observable query.
+                        //
+                        // The changes are read from the raw emission rather than the intercepted result, because
+                        // interception may hand back different instances; the identities it names still resolve
+                        // against the intercepted items.
+                        changeSet = data is IHaveKnownChanges { Changes: { } knownChanges } && !isFirstEmission
+                            ? _changeSetComputor.ComputeFromKnownChanges(knownChanges, currentItems, previousItems)
+                            : _changeSetComputor.Compute(previousItems, currentItems);
                     }
 
                     previousItems = currentItems;

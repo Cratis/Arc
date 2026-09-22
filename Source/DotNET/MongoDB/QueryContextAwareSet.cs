@@ -123,25 +123,29 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
     /// <param name="id">The id.</param>
     /// <param name="query">The query.</param>
     /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task<bool> RemoveAndAddLastInQuery(object id, IFindFluent<TDocument, TDocument> query)
+    public async Task<(bool Removed, object? AddedId)> RemoveAndAddLastInQuery(object id, IFindFluent<TDocument, TDocument> query)
     {
         var removed = Remove(id);
         if (_items.Count >= _maxSize || NotFilledUpPage())
         {
-            return removed;
+            return (removed, null);
         }
         var countInQuery = (int)await query.CountDocumentsAsync();
         switch (countInQuery)
         {
             case 0:
-                return removed;
+                return (removed, null);
             case >1:
                 query = query.Skip(countInQuery - 1);
                 break;
         }
         var document = await query.SingleAsync();
-        _items.AddLast((_getId(document), document));
-        return removed;
+        var addedId = _getId(document);
+        _items.AddLast((addedId, document));
+
+        // The refill is reported so the emission can state it as an addition. A paged removal pulls the next document
+        // onto the page, and a delta that mentioned only the removal would leave a client one row short.
+        return (removed, addedId);
         bool NotFilledUpPage() => _items.Count < _maxSize - 1;
     }
 
