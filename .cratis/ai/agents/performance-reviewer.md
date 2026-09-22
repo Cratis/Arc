@@ -6,10 +6,11 @@ description: >
   React render overhead, and Chronicle anti-patterns before merge.
 model: claude-sonnet-4-5
 tools:
-  - githubRepo
-  - codeSearch
-  - usages
-  - terminalLastCommand
+  - Read
+  - Grep
+  - Glob
+  - Bash
+readonly: true
 ---
 <!-- cratis-ai-managed: agents/performance-reviewer.md -->
 

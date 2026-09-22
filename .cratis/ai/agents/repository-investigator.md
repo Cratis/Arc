@@ -7,9 +7,10 @@ description: >
 model: claude-opus-5
 tools:
   - Read
-  - Glob
   - Grep
+  - Glob
   - Bash
+readonly: true
 ---
 <!-- cratis-ai-managed: agents/repository-investigator.md -->
 

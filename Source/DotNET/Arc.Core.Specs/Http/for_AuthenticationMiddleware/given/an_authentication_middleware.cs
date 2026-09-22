@@ -18,5 +18,6 @@ public class an_authentication_middleware : Specification
         _authentication.HasHandlers.Returns(true);
         _middleware = new AuthenticationMiddleware(_authentication);
         _httpRequestContext = Substitute.For<IHttpRequestContext>();
+        _httpRequestContext.Items.Returns(new Dictionary<object, object?>());
     }
 }

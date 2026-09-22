@@ -7,11 +7,12 @@ description: >
   and reactors — all in strict compliance with the vertical slice architecture.
 model: claude-sonnet-4-5
 tools:
-  - githubRepo
-  - codeSearch
-  - usages
-  - rename
-  - terminalLastCommand
+  - Read
+  - Grep
+  - Glob
+  - Bash
+  - Edit
+  - Write
 ---
 <!-- cratis-ai-managed: agents/backend-developer.md -->
 

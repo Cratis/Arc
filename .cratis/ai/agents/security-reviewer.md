@@ -7,10 +7,11 @@ description: >
   attack surface.
 model: claude-sonnet-4-5
 tools:
-  - githubRepo
-  - codeSearch
-  - usages
-  - terminalLastCommand
+  - Read
+  - Grep
+  - Glob
+  - Bash
+readonly: true
 ---
 <!-- cratis-ai-managed: agents/security-reviewer.md -->
 
