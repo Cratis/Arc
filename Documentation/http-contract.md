@@ -91,9 +91,9 @@ and `pageSize`; `sorting` takes `field` and `direction`. A QUERY response always
 `Cache-Control: no-store`.
 
 Argument names are matched case-insensitively against the query's declared parameters,
-and a matched value is converted to the parameter's declared type. `desc` selects
-descending order and `asc` selects ascending, case-insensitively - see
-[the divergence note](#sorting-direction-vocabulary) for the longer spellings.
+and a matched value is converted to the parameter's declared type. `asc`, `ascending`,
+`desc`, and `descending` all select their direction case-insensitively, and any other
+value is rejected as `malformedRequest` with 400 rather than being sorted some other way.
 
 Over GET the same request is expressed with reserved query-string parameters `page`,
 `pageSize`, `sortBy`, and `sortDirection`; every other parameter is an argument.
@@ -465,17 +465,6 @@ fails on a C# host, but tooling that *requires* `hasDefault` or authorization me
 will find it absent, and tooling that treats an introspected `route` as a callable URL
 will miss C# queries with custom paths. Neither implementation exposes a default
 expression or an invented default value.
-
-### Sorting direction vocabulary
-
-- **C#**: only `desc` (case-insensitive) selects descending. Every other value - including
-  `descending` - falls through to ascending, silently.
-- **JVM**: `asc`, `ascending`, `desc`, and `descending` are all accepted
-  case-insensitively, and anything else is rejected as `malformedRequest` with 400.
-
-**Why it matters**: `sortDirection=descending` sorts the wrong way on a C# host and is
-rejected outright on a JVM host. Send `asc` and `desc`; they are the only two values that
-mean the same thing everywhere.
 
 ### Unknown fields in the QUERY envelope and in query arguments
 
