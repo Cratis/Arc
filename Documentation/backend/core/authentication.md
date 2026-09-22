@@ -91,6 +91,32 @@ In the ASP.NET Core package, the corresponding registration is `builder.Services
 
 The lightweight authentication middleware installs the successful principal on `IHttpRequestContext.User`. With handlers present, an endpoint not explicitly allowing anonymous access returns HTTP 401 if authentication does not succeed. An endpoint with `AllowAnonymous = true` proceeds even when credentials fail. If **no handlers** are available, the middleware currently proceeds without authenticating; metadata alone is not a fail-closed protection in that configuration.
 
+Every handler still runs on an `AllowAnonymous` endpoint, even when it ultimately lets the request through, because establishing `context.User` there is often still wanted - Arc's own identity, introspection, and observable query demultiplexer endpoints are all anonymous yet still depend on the principal being set for a signed-in caller. A handler that only ever *rejects* - never establishes an identity worth keeping - should not do that rejection work, including any logging, for a request the endpoint never required a credential for.
+
+The middleware sets the matched endpoint's metadata on `IHttpRequestContext` before it calls any handler, so a handler can check it directly:
+
+```csharp
+public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
+{
+    if (!context.Headers.TryGetValue("X-API-Key", out var apiKey) || apiKey != expectedKey)
+    {
+        if (context.AllowsAnonymous())
+        {
+            // No credential was required here - stay quiet and let another mechanism (or the
+            // endpoint's own AllowAnonymous) decide. Do not log this as a rejection.
+            return Task.FromResult(AuthenticationResult.Anonymous);
+        }
+
+        logger.LogWarning("Rejected a request to {Path} without a valid API key", context.Path);
+        return Task.FromResult(AuthenticationResult.Failed("Missing or invalid API key"));
+    }
+
+    return Task.FromResult(AuthenticationResult.Succeeded(principal));
+}
+```
+
+`context.AllowsAnonymous()` (from `HttpRequestContextEndpointExtensions`) is `true` only when the matched endpoint declared `AllowAnonymous = true`; a handler that never checks it keeps behaving exactly as before.
+
 Arc command/query authorization is a separate pipeline check. Read the current principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`, not the client-readable identity cookie. See [Authorization](authorization.md) for roles, result status, and direct-call boundaries.
 
 ## Testing authentication handlers
