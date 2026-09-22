@@ -67,10 +67,7 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
             if (!string.IsNullOrEmpty(sortByPascal) && !string.IsNullOrEmpty(sortDirection))
             {
-                var direction = sortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase)
-                    ? SortDirection.Descending
-                    : SortDirection.Ascending;
-                return new Sorting(sortByPascal, direction);
+                return new Sorting(sortByPascal, SortDirections.Parse(sortDirection, SortDirectionQueryStringKey));
             }
         }
 
