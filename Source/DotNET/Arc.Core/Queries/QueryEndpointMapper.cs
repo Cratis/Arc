@@ -114,7 +114,9 @@ public static class QueryEndpointMapper
                 }
                 catch (Exception ex)
                 {
-                    var errorResult = QueryResult.Error(correlationIdAccessor.Current, ex);
+                    // A reader rejecting the request as invalid client input carries its own validation result, which
+                    // is what names the reason on the wire. Everything else stays an exception result.
+                    var errorResult = QueryResult.FromException(correlationIdAccessor.Current, ex);
                     ExceptionDetailRedactor.Redact(errorResult, arcOptions.ExposeExceptionDetails, logger);
                     context.SetStatusCode((int)HttpStatusCode.BadRequest);
                     await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);

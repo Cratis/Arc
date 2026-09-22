@@ -87,10 +87,7 @@ public class BodyQueryRequestReader : IQueryRequestReader
         if (envelope.Sorting is { } sorting && !string.IsNullOrEmpty(sorting.Field))
         {
             var sortByPascal = sorting.Field.ToPascalCase();
-            var direction = sorting.Direction.Equals("desc", StringComparison.OrdinalIgnoreCase)
-                ? SortDirection.Descending
-                : SortDirection.Ascending;
-            return new Sorting(sortByPascal, direction);
+            return new Sorting(sortByPascal, SortDirections.Parse(sorting.Direction, "sorting.direction"));
         }
 
         return Sorting.None;

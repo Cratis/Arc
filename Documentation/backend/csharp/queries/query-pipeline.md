@@ -93,7 +93,7 @@ Illustrative complete success envelope under camelCase serialization (the identi
 
 Default direct model-bound HTTP maps success to 200, authorization denial to 403, validation failure to 400, not-ready to 202, and other failures to 500. Observable waiting also has a 408 timeout path. Hub frames and SSE control POSTs have their own [protocol semantics](observable-query-demultiplexer.md); do not infer their status from this table.
 
-This envelope and this status mapping are part of Arc's [shared HTTP contract](/arc/http-contract/) and are identical on the JVM backend, down to the precedence between authorization, validation, and readiness. What a client must not assume is identical is covered in [where the implementations differ](/arc/http-contract/#where-the-implementations-differ) - in particular [observable snapshot readiness](/arc/http-contract/#observable-http-snapshot-readiness) and [sorting direction vocabulary](/arc/http-contract/#sorting-direction-vocabulary).
+This envelope and this status mapping are part of Arc's [shared HTTP contract](/arc/http-contract/) and are identical on the JVM backend, down to the precedence between authorization, validation, and readiness. What a client must not assume is identical is covered in [where the implementations differ](/arc/http-contract/#where-the-implementations-differ) - in particular [observable snapshot readiness](/arc/http-contract/#observable-http-snapshot-readiness) and [unknown fields in the QUERY envelope](/arc/http-contract/#unknown-fields-in-the-query-envelope-and-in-query-arguments).
 
 ## Streaming boundary
 

@@ -25,6 +25,9 @@ internal static partial class ObservableQueryDemultiplexerLogMessages
     [LoggerMessage(LogLevel.Warning, "SSE subscribe request for unknown connection id '{ConnectionId}'")]
     internal static partial void SseUnknownConnection(this ILogger<ObservableQueryDemultiplexer> logger, string connectionId);
 
+    [LoggerMessage(LogLevel.Warning, "SSE control request for connection id '{ConnectionId}' came from a caller that does not own it")]
+    internal static partial void SseConnectionNotOwnedByCaller(this ILogger<ObservableQueryDemultiplexer> logger, string connectionId);
+
     [LoggerMessage(LogLevel.Debug, "Client subscribed to query '{QueryName}' with id '{QueryId}'")]
     internal static partial void ClientSubscribed(this ILogger<ObservableQueryDemultiplexer> logger, string queryName, string queryId);
 
