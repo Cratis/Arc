@@ -45,7 +45,7 @@ public record AllocateManagedIdentifier()
 }
 ```
 
-`[Cratis.Arc.Authorization.Authorize(Roles = $"{nameof(ApplicationRole.Admin)},{nameof(ApplicationRole.Manager)}")]` expresses the same role requirement. These application-owned names still emit the role strings `Admin` and `Manager`; preserve exact names when roles come from an external identity provider. Use a single attribute with a comma-separated list rather than assuming several authorization attributes compose multiple requirements; the current attribute evaluator takes the first matching attribute.
+`[Cratis.Arc.Authorization.Authorize(Roles = $"{nameof(ApplicationRole.Admin)},{nameof(ApplicationRole.Manager)}")]` expresses the same role requirement. These application-owned names still emit the role strings `Admin` and `Manager`; preserve exact names when roles come from an external identity provider. A comma-separated list means *any one* of those roles. Several authorization attributes on one command all apply, so `[Roles(nameof(ApplicationRole.Admin))]` together with `[Authorize(Roles = nameof(ApplicationRole.Auditor))]` requires both.
 
 ## Anonymous access with AllowAnonymous
 
@@ -56,9 +56,9 @@ This does not promise to bypass custom authorization filters or external middlew
 ## Policy-based authorization
 
 > [!WARNING]
-> Current model-bound Arc evaluators check authentication and roles only. Although Arc's `AuthorizeAttribute` exposes `Policy` and `AuthenticationSchemes` properties, those properties are not evaluated here. Do not rely on them to protect a command.
+> Current model-bound Arc evaluators check authentication and roles only. Although Arc's `AuthorizeAttribute` exposes `Policy` and `AuthenticationSchemes` properties, those properties are not evaluated here. Do not rely on them to protect a command; analyzer [ARC0021](../../code-analysis/index.md#arc0021-unevaluated-authorization-settings) reports either one.
 
-Do not substitute `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` on a model-bound command expecting equivalent protection. The current Arc evaluators do not establish that contract; even the ASP.NET-named evaluator currently resolves the Arc attribute type. Analyzer [ARC0020](../../code-analysis/index.md#arc0020-aspnet-core-authorization-attributes) reports the substitution at build time. Standard Microsoft authorization on **MVC controllers/actions**, or explicitly configured external middleware, is a separate enforcement path.
+With `Cratis.Arc`, `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` and `AllowAnonymousAttribute` on a model-bound command are enforced like Arc's own - authentication and roles. Arc's attributes are still the portable choice, because Arc Core's own HTTP host does not read the Microsoft ones; analyzer [ARC0020](../../code-analysis/index.md#arc0020-aspnet-core-authorization-attributes) reports a Microsoft attribute in a project without `Cratis.Arc`. Standard Microsoft authorization on **MVC controllers/actions**, or explicitly configured external middleware, is a separate enforcement path.
 
 For domain-specific access control in the model-bound pipeline, implement an [authorization command filter](../command-filters.md#cross-cutting-authorization-by-namespace) using `IAuthorizationCommandFilter` and an actual unauthorized verdict. That example uses real authentication and role checks, not a placeholder policy or an overridable validator. Record ownership needs its own real resource lookup and owner comparison before changes occur.
 

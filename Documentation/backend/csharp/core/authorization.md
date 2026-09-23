@@ -18,7 +18,7 @@ Use attributes from `Cratis.Arc.Authorization`:
 | No authorization attribute | No authentication or role requirement from the Arc evaluator. |
 
 > [!WARNING]
-> Arc's evaluator reads authentication and roles only. The `Policy` and `AuthenticationSchemes` properties on Arc's attribute are **not enforced** by that evaluator. It takes the first applicable authorization attribute; stacking `[Authorize]` and `[Roles]` does not combine requirements. Use a single attribute. ASP.NET Core middleware can enforce its own endpoint policies when configured with Microsoft metadata; that is a separate boundary, not a guarantee for direct Arc pipeline execution.
+> Arc's evaluator reads authentication and roles only. The `Policy` and `AuthenticationSchemes` properties on Arc's attribute are **not enforced** by that evaluator, which analyzer [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) reports. Every authorization attribute on a declaration applies, so stacking `[Authorize]` and `[Roles]` requires both, as ASP.NET Core does. ASP.NET Core middleware can enforce its own endpoint policies when configured with Microsoft metadata; that is a separate boundary, not a guarantee for direct Arc pipeline execution.
 
 ## Protect a command
 

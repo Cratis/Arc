@@ -203,16 +203,28 @@ static class DiagnosticDescriptors
         description: "A single declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading. Arc does not settle it deterministically: one of its anonymous evaluators throws AmbiguousAuthorizationLevel, the other prefers anonymous, and whichever is discovered first wins. Declare one or the other. Overriding a class-level declaration on one query method is a different, supported thing and is not reported.");
 
     /// <summary>
-    /// ARC0020: ASP.NET Core authorization attribute on a model-bound Arc artifact.
+    /// ARC0020: ASP.NET Core authorization attribute on a model-bound Arc artifact without Arc's ASP.NET Core integration.
     /// </summary>
     public static readonly DiagnosticDescriptor ARC0020_AspNetAuthorizationAttributeOnModelBoundArtifact = new(
         id: "ARC0020",
-        title: "ASP.NET Core authorization attribute is not enforced on a model-bound Arc artifact",
-        messageFormat: "[{0}] on '{1}' comes from Microsoft.AspNetCore.Authorization and is not enforced on model-bound commands and read models. Use Cratis.Arc.Authorization.{2}Attribute instead.",
+        title: "ASP.NET Core authorization attribute is not enforced without Arc's ASP.NET Core integration",
+        messageFormat: "[{0}] on '{1}' comes from Microsoft.AspNetCore.Authorization, and this project does not use Arc's ASP.NET Core integration, which is what enforces it. Use Cratis.Arc.Authorization.{2}Attribute instead.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Arc authorizes model-bound commands and read models through its own Cratis.Arc.Authorization attributes, and does not place an artifact's attributes on the ASP.NET Core endpoint it maps. An [Authorize] from Microsoft.AspNetCore.Authorization on a [Command] or [ReadModel] is therefore read by nothing: the artifact stays open to every caller, with no error at build or run time. Replace it with the Arc attribute of the same name. Controller-based commands and queries are unaffected, because ASP.NET Core MVC enforces its own attributes there.");
+        description: "Arc's ASP.NET Core integration (the Cratis.Arc package) enforces ASP.NET Core's [Authorize] and [AllowAnonymous] on model-bound commands and read models alongside Arc's own attributes. A project hosted without it - on Arc Core's own HTTP host, for example - has nothing that reads the ASP.NET Core attributes, so a command marked with one stays open to every caller. Use the Arc attribute of the same name, which every Arc host enforces.");
+
+    /// <summary>
+    /// ARC0021: Authorization setting that Arc does not evaluate on a model-bound artifact.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0021_AuthorizationSettingNotEvaluated = new(
+        id: "ARC0021",
+        title: "Authorization setting is not evaluated on a model-bound Arc artifact",
+        messageFormat: "[{0}] on '{1}' sets {2}, which Arc does not evaluate on model-bound commands and read models. The caller only has to be authenticated and hold any roles the attribute names.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Arc enforces the authentication and roles an authorization attribute declares on a model-bound command or read model. It does not evaluate a named Policy or restrict AuthenticationSchemes, so an artifact that relies on either is less protected than its attribute reads. Express the requirement as roles, or enforce it in the command or query itself, until policy evaluation is supported.");
 
     const string Category = "Arc";
 }

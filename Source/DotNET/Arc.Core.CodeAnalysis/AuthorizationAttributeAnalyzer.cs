@@ -17,9 +17,14 @@ namespace Cratis.Arc.CodeAnalysis;
 /// of its anonymous evaluators is asked first — throwing in one order and admitting anonymous callers in the other.
 /// </para>
 /// <para>
-/// ARC0020 reports an ASP.NET Core authorization attribute on a model-bound command or read model. Arc authorizes
-/// model-bound artifacts through its own attributes only and never places the artifact's attributes on the
-/// endpoint, so the ASP.NET Core attribute is not enforced by anything.
+/// ARC0020 reports an ASP.NET Core authorization attribute on a model-bound command or read model in a project that
+/// does not use Arc's ASP.NET Core integration. That integration is what enforces the ASP.NET Core attributes; without
+/// it they are read by nothing.
+/// </para>
+/// <para>
+/// ARC0021 reports a <c>Policy</c> or <c>AuthenticationSchemes</c> on an authorization attribute of a model-bound
+/// command or read model. Arc enforces authentication and roles; it does not evaluate either of these, so the
+/// artifact is less protected than the attribute reads.
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -31,6 +36,9 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
     const string AspNetAuthorize = "Microsoft.AspNetCore.Authorization.AuthorizeAttribute";
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
     const string ReadModelAttribute = "Cratis.Arc.Queries.ModelBound.ReadModelAttribute";
+    const string AspNetIntegration = "Cratis.Arc.Authorization.AspNetAnonymousEvaluator";
+    const string PolicyProperty = "Policy";
+    const string AuthenticationSchemesProperty = "AuthenticationSchemes";
 
     enum AuthorizationKind
     {
@@ -45,7 +53,8 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         DiagnosticDescriptors.ARC0019_ConflictingAuthorizationOnDeclaration,
-        DiagnosticDescriptors.ARC0020_AspNetAuthorizationAttributeOnModelBoundArtifact
+        DiagnosticDescriptors.ARC0020_AspNetAuthorizationAttributeOnModelBoundArtifact,
+        DiagnosticDescriptors.ARC0021_AuthorizationSettingNotEvaluated
     ];
 
     /// <inheritdoc/>
@@ -53,10 +62,14 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSymbolAction(AnalyzeSymbol, SymbolKind.NamedType, SymbolKind.Method);
+        context.RegisterCompilationStartAction(start =>
+        {
+            var aspNetIntegrationPresent = start.Compilation.GetTypeByMetadataName(AspNetIntegration) is not null;
+            start.RegisterSymbolAction(symbolContext => AnalyzeSymbol(symbolContext, aspNetIntegrationPresent), SymbolKind.NamedType, SymbolKind.Method);
+        });
     }
 
-    static void AnalyzeSymbol(SymbolAnalysisContext context)
+    static void AnalyzeSymbol(SymbolAnalysisContext context, bool aspNetIntegrationPresent)
     {
         var classified = context.Symbol.GetAttributes()
             .Select(attribute => (Attribute: attribute, Kind: Classify(attribute.AttributeClass)))
@@ -72,9 +85,60 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
 
         ReportConflict(context, classified, isModelBound);
 
-        if (isModelBound)
+        if (!isModelBound)
+        {
+            return;
+        }
+
+        if (!aspNetIntegrationPresent)
         {
             ReportIgnoredAspNetAttributes(context, classified);
+        }
+
+        ReportUnevaluatedSettings(context, classified);
+    }
+
+    static void ReportUnevaluatedSettings(
+        SymbolAnalysisContext context,
+        List<(AttributeData Attribute, AuthorizationKind Kind)> classified)
+    {
+        foreach (var (attribute, _) in classified.Where(_ => _.Kind is AuthorizationKind.ArcAuthorize or AuthorizationKind.AspNetAuthorize))
+        {
+            var name = attribute.AttributeClass!.Name.Replace("Attribute", string.Empty);
+            foreach (var setting in UnevaluatedSettingsOf(attribute))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.ARC0021_AuthorizationSettingNotEvaluated,
+                    LocationOf(attribute, context.Symbol),
+                    name,
+                    context.Symbol.Name,
+                    setting));
+            }
+        }
+    }
+
+    static IEnumerable<string> UnevaluatedSettingsOf(AttributeData attribute)
+    {
+        // ASP.NET Core's [Authorize("PolicyName")] carries the policy as its single constructor argument.
+        // [Roles] takes a params array, and reading Value on an array constant throws, so only scalar
+        // constants are inspected.
+        var policyFromConstructor = attribute.ConstructorArguments.Length == 1 &&
+            IsNonEmptyString(attribute.ConstructorArguments[0]) &&
+            string.Equals(attribute.AttributeClass?.ToDisplayString(), AspNetAuthorize, StringComparison.Ordinal);
+
+        var named = attribute.NamedArguments
+            .Where(argument => IsNonEmptyString(argument.Value))
+            .Select(argument => argument.Key)
+            .ToList();
+
+        if (policyFromConstructor || named.Contains(PolicyProperty))
+        {
+            yield return PolicyProperty;
+        }
+
+        if (named.Contains(AuthenticationSchemesProperty))
+        {
+            yield return AuthenticationSchemesProperty;
         }
     }
 
@@ -150,6 +214,9 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
                    string.Equals(name, ReadModelAttribute, StringComparison.Ordinal);
         }) == true;
     }
+
+    static bool IsNonEmptyString(TypedConstant constant) =>
+        constant.Kind != TypedConstantKind.Array && constant.Value is string { Length: > 0 };
 
     static Location LocationOf(AttributeData attribute, ISymbol symbol) =>
         attribute.ApplicationSyntaxReference?.GetSyntax().GetLocation() ?? symbol.Locations.FirstOrDefault() ?? Location.None;
