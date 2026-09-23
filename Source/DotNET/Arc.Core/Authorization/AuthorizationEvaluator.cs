@@ -7,128 +7,99 @@ using Cratis.Types;
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
-/// Helper class for performing authorization checks.
+/// Represents an implementation of <see cref="IAuthorizationEvaluator"/> that decides authorization from the
+/// authorization attributes declared on a type or method.
 /// </summary>
 /// <param name="currentPrincipalAccessor">The <see cref="ICurrentPrincipalAccessor"/> to access the principal currently executing.</param>
 /// <param name="anonymousEvaluators">The collection of <see cref="IAnonymousEvaluator"/> instances.</param>
 /// <param name="authorizationAttributeEvaluators">The collection of <see cref="IAuthorizationAttributeEvaluator"/> instances.</param>
+/// <remarks>
+/// <para>
+/// Every evaluator is consulted, so the outcome never depends on the order evaluators are discovered in. Each
+/// attribute family - Arc's own, and ASP.NET Core's when Arc is hosted there - contributes through its own evaluator.
+/// </para>
+/// <para>
+/// A member that one evaluator reports as anonymous and another as restricted contradicts itself and is rejected
+/// with <see cref="AmbiguousAuthorizationLevel"/> rather than resolved toward either reading. Every authorization
+/// requirement found must be satisfied, so stacked attributes require all of them.
+/// </para>
+/// <para>
+/// A method's own declaration replaces its type's: a restricted read model can open one query, and an open read
+/// model can restrict one.
+/// </para>
+/// </remarks>
 public class AuthorizationEvaluator(
     ICurrentPrincipalAccessor currentPrincipalAccessor,
     IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
     IInstancesOf<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators) : IAuthorizationEvaluator
 {
     /// <inheritdoc/>
+    /// <exception cref="AmbiguousAuthorizationLevel">Thrown when the type is declared both anonymous and restricted.</exception>
     public bool IsAuthorized(Type type)
     {
-        // Check all anonymous evaluators first
-        foreach (var evaluator in anonymousEvaluators)
+        if (IsAnonymousAllowed(type, evaluator => evaluator.IsAnonymousAllowed(type)) == true)
         {
-            var result = evaluator.IsAnonymousAllowed(type);
-            if (result.HasValue)
-            {
-                if (result.Value)
-                {
-                    return true;
-                }
-
-                // If any evaluator explicitly denies (returns false), we continue checking authorization
-                break;
-            }
+            return true;
         }
 
-        // Check all authorization attribute evaluators
-        var hasAuthorize = false;
-        string? roles = null;
-        foreach (var evaluator in authorizationAttributeEvaluators)
-        {
-            var authInfo = evaluator.GetAuthorizationInfo(type);
-            if (authInfo.HasValue && authInfo.Value.HasAuthorize)
-            {
-                hasAuthorize = true;
-                roles = authInfo.Value.Roles;
-                break;
-            }
-        }
-
-        return IsAuthorizedWithRoles(hasAuthorize, roles);
+        return Satisfies(authorizationAttributeEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(type)));
     }
 
     /// <inheritdoc/>
+    /// <exception cref="AmbiguousAuthorizationLevel">Thrown when the method or its type is declared both anonymous and restricted.</exception>
     public bool IsAuthorized(MethodInfo method)
     {
-        // Check all anonymous evaluators first
-        foreach (var evaluator in anonymousEvaluators)
+        if (IsAnonymousAllowed(method, evaluator => evaluator.IsAnonymousAllowed(method)) == true)
         {
-            var result = evaluator.IsAnonymousAllowed(method);
-            if (result.HasValue)
-            {
-                if (result.Value)
-                {
-                    return true;
-                }
-
-                // If any evaluator explicitly denies (returns false), we continue checking authorization
-                break;
-            }
+            return true;
         }
 
-        // Check all authorization attribute evaluators for the method
-        var hasAuthorize = false;
-        string? roles = null;
-        foreach (var evaluator in authorizationAttributeEvaluators)
-        {
-            var authInfo = evaluator.GetAuthorizationInfo(method);
-            if (authInfo.HasValue && authInfo.Value.HasAuthorize)
-            {
-                hasAuthorize = true;
-                roles = authInfo.Value.Roles;
-                break;
-            }
-        }
+        var requirements = authorizationAttributeEvaluators
+            .SelectMany(evaluator => evaluator.GetAuthorizationRequirements(method))
+            .ToList();
 
-        if (hasAuthorize)
+        if (requirements.Count > 0)
         {
-            return IsAuthorizedWithRoles(hasAuthorize, roles);
+            return Satisfies(requirements);
         }
 
         var declaringType = method.DeclaringType;
-        if (declaringType is not null)
-        {
-            return IsAuthorized(declaringType);
-        }
-
-        return true;
+        return declaringType is null || IsAuthorized(declaringType);
     }
 
-    bool IsAuthorizedWithRoles(bool hasAuthorize, string? roles)
+    /// <summary>
+    /// Asks every anonymous evaluator about a member and combines their answers.
+    /// </summary>
+    /// <param name="member">The member being evaluated, used to describe a contradiction.</param>
+    /// <param name="ask">Asks one evaluator about the member.</param>
+    /// <returns>True when the member is anonymous, false when it is restricted, or null when no evaluator declares either.</returns>
+    /// <exception cref="AmbiguousAuthorizationLevel">Thrown when one evaluator reports the member anonymous and another restricted.</exception>
+    bool? IsAnonymousAllowed(MemberInfo member, Func<IAnonymousEvaluator, bool?> ask)
     {
-        if (!hasAuthorize)
+        var answers = anonymousEvaluators.Select(ask).Where(answer => answer.HasValue).Select(answer => answer!.Value).ToList();
+
+        if (answers.Contains(true) && answers.Contains(false))
+        {
+            throw new AmbiguousAuthorizationLevel(member);
+        }
+
+        return answers.Count == 0 ? null : answers[0];
+    }
+
+    bool Satisfies(IEnumerable<AuthorizationRequirement> requirements)
+    {
+        var all = requirements.ToList();
+        if (all.Count == 0)
         {
             return true;
         }
 
         var user = currentPrincipalAccessor.Current;
-        if (user is null)
+        if (user?.Identity?.IsAuthenticated != true)
         {
             return false;
         }
 
-        if (!user.Identity?.IsAuthenticated ?? true)
-        {
-            return false;
-        }
-
-        if (!string.IsNullOrEmpty(roles))
-        {
-            var requiredRoles = roles.Split(',').Select(r => r.Trim());
-            var userHasRequiredRole = requiredRoles.Any(user.IsInRole);
-
-            if (!userHasRequiredRole)
-            {
-                return false;
-            }
-        }
-
-        return true;
+        return all.TrueForAll(requirement => requirement.AnyOfRoles.Count == 0 || requirement.AnyOfRoles.Any(user.IsInRole));
     }
 }

@@ -6,14 +6,10 @@ using Cratis.Arc.Commands;
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound.when_executing;
 
 /// <summary>
-/// <see cref="AuthorizedCommand"/> is marked with Microsoft.AspNetCore.Authorization's [Authorize], which Arc does not
-/// enforce on a model-bound command: it never places the artifact's attributes on the endpoint, and its evaluators
-/// read only Cratis.Arc.Authorization's attributes. A caller with no identity at all is therefore admitted.
+/// <see cref="AuthorizedCommand"/> is marked with ASP.NET Core's <c>[Authorize]</c> rather than Arc's. Hosted on ASP.NET
+/// Core, Arc enforces both, so a caller with no identity is rejected exactly as <see cref="with_arc_authorize_and_no_user"/>
+/// is. Between v18.2.0 and this fix the ASP.NET Core attribute was read by nothing and this caller was admitted.
 /// </summary>
-/// <remarks>
-/// Pinned, not endorsed - see https://github.com/Cratis/Arc/issues/2719. Analyzer ARC0020 reports the attribute at
-/// build time. When the issue is resolved this spec should flip to match <see cref="with_arc_authorize_and_no_user"/>.
-/// </remarks>
 [Collection(ScenarioCollectionDefinition.Name)]
 public class with_aspnet_authorize_and_no_user : given.a_scenario_web_application
 {
@@ -27,5 +23,6 @@ public class with_aspnet_authorize_and_no_user : given.a_scenario_web_applicatio
         _result = executionResult.Result;
     }
 
-    [Fact] void should_admit_the_anonymous_caller() => _result.IsAuthorized.ShouldBeTrue();
+    [Fact] void should_not_be_authorized() => _result.IsAuthorized.ShouldBeFalse();
+    [Fact] void should_not_succeed() => _result.IsSuccess.ShouldBeFalse();
 }

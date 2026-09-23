@@ -3,5 +3,5 @@
 
 namespace Cratis.Arc.Authorization.for_AspNetAnonymousEvaluator.given;
 
-[AllowAnonymous]
+[Microsoft.AspNetCore.Authorization.AllowAnonymous]
 public class TypeWithAllowAnonymous;

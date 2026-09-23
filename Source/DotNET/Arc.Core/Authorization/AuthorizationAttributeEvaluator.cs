@@ -39,4 +39,16 @@ public class AuthorizationAttributeEvaluator : IAuthorizationAttributeEvaluator
 
         return null;
     }
+
+    /// <inheritdoc/>
+    public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
+        type.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .OfType<AuthorizeAttribute>()
+            .Select(attribute => AuthorizationRequirement.FromRoles(attribute.Roles));
+
+    /// <inheritdoc/>
+    public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) =>
+        method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+            .OfType<AuthorizeAttribute>()
+            .Select(attribute => AuthorizationRequirement.FromRoles(attribute.Roles));
 }
