@@ -28,7 +28,7 @@ public class with_post_request : given.a_static_files_middleware
         _contextTask = _listener.GetContextAsync();
 
         var content = new StringContent("");
-        var responseTask = _client.PostAsync($"http://localhost:{_port}/test.html", content);
+        var responseTask = _client.PostAsync($"http://{LoopbackHost}:{_port}/test.html", content);
 
         var context = await _contextTask;
 

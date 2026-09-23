@@ -25,7 +25,7 @@ public class and_file_does_not_exist : given.a_static_files_middleware
     {
         _contextTask = _listener.GetContextAsync();
 
-        var responseTask = _client.GetAsync($"http://localhost:{_port}/nonexistent.html");
+        var responseTask = _client.GetAsync($"http://{LoopbackHost}:{_port}/nonexistent.html");
 
         var context = await _contextTask;
 
