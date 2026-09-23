@@ -34,6 +34,7 @@ public static class Generator
     /// <param name="namespaceRoots">Pairs of (namespace, base folder) used as roots. When a type's namespace begins with a root the root is stripped and the remainder is placed under the base folder.</param>
     /// <param name="typeMappings">Triples of (fully qualified type name, TypeScript type, package) declaring how a type crosses the wire. Consulted ahead of the built-in map, so it can correct an existing mapping as well as add an unknown one.</param>
     /// <param name="emitInterfaces">Emit types as plain interfaces rather than classes, with no decorators and no runtime dependency on <c>@cratis/fundamentals</c>.</param>
+    /// <param name="useProxyFileSuffix">Name generated files <c>Name.proxy.ts</c> rather than <c>Name.ts</c>, to tell them apart from hand-written TypeScript.</param>
     /// <returns>True if successful, false if not.</returns>
     public static async Task<bool> Generate(
         string assemblyFile,
@@ -53,7 +54,8 @@ public static class Generator
         IReadOnlyCollection<string>? excludedNamespacePatterns = null,
         IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null,
         IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null,
-        bool emitInterfaces = false)
+        bool emitInterfaces = false,
+        bool useProxyFileSuffix = false)
     {
         assemblyFile = Path.GetFullPath(assemblyFile);
         if (!File.Exists(assemblyFile))
@@ -73,6 +75,7 @@ public static class Generator
         TypeExtensions.SetExcludedTypes(excludedTypeNames ?? [], excludedNamespacePatterns ?? []);
         TypeExtensions.SetNamespaceRoots(namespaceRoots ?? []);
         TypeExtensions.SetTypeMappings(typeMappings ?? []);
+        GeneratedFileNames.UseProxySuffix(useProxyFileSuffix);
         if (!TypeExtensions.TryInitializeProjectAssemblies(assemblyFile, message, errorMessage))
         {
             return false;

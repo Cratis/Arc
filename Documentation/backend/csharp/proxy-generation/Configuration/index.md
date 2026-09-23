@@ -10,6 +10,7 @@ Configure generation through properties and items **inside the existing `.csproj
 - [Basic options](basic.md): output path, namespace segments, source-file grouping, decorators.
 - [Library mode](library-mode.md): collect models beyond endpoint references; separate CLI interface output.
 - [Emit interfaces](emit-interfaces.md): plain interfaces with no decorators and no runtime dependency.
+- [Proxy file suffix](proxy-file-suffix.md): name generated files `Name.proxy.ts` to tell them apart from hand-written TypeScript.
 - [Type exclusions](type-exclusions.md): omit types or namespace patterns.
 - [Namespace roots](namespace-roots.md): remap output folders without changing API routes.
 - [Assembly-to-package mappings](assembly-package-mappings.md): import shared model packages.
@@ -26,6 +27,7 @@ Configure generation through properties and items **inside the existing `.csproj
 | `CratisProxiesUseSourceFileAsOutputFile` | Off unless `true` | [Basic](basic.md) |
 | `CratisProxiesLibraryMode` | `false` | [Library mode](library-mode.md) |
 | `CratisProxiesEmitInterfaces` | `false` | [Emit interfaces](emit-interfaces.md) |
+| `CratisProxiesUseProxyFileSuffix` | `false` | [Proxy file suffix](proxy-file-suffix.md) |
 | `ExcludeType` item | `Include`, `TypeName` | [Exclusions](type-exclusions.md) |
 | `ExcludeNamespace` item | `Include`, `Namespace` | [Exclusions](type-exclusions.md) |
 | `NamespaceRoot` item | `Include`, `Namespace`, `Folder` (may be empty) | [Namespace roots](namespace-roots.md) |

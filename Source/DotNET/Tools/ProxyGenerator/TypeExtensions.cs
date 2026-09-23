@@ -751,7 +751,7 @@ public static class TypeExtensions
                     typeName = typeName[..backtickIndex];
                 }
 
-                importPath = $"{Path.GetRelativePath(fullPath, fullPathForType)}/{typeName}";
+                importPath = $"{Path.GetRelativePath(fullPath, fullPathForType)}/{GeneratedFileNames.ModuleNameFor(typeName)}";
             }
 
             if (!importPath.StartsWith('.') && !importPath.StartsWith('/'))
