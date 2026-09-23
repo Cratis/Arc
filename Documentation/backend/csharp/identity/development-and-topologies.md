@@ -4,7 +4,7 @@
 
 For development scenarios, Arc automatically exposes HTTP endpoints that development tools use to discover available users and tenants. This eliminates the need to hard-code user lists in your frontend or development environment — just implement the providers and Arc surfaces them.
 
-The primary consumer of these endpoints is [Lens](https://github.com/Cratis/Lens), the Cratis browser extension for exercising a running Arc application during development. Lens reads `/.cratis/tenants` and `/.cratis/users` to populate its tenant and user pickers, then injects the corresponding identity and tenant headers into every request your frontend makes while Lens is active — see [How Lens discovers tenants and users](https://github.com/Cratis/Lens/blob/main/Documentation/GettingStarted/TenantsAndUsers/index.md) for the extension side of this contract.
+The primary consumer of these endpoints is [Lens](/tools/lens/), the Cratis browser extension for exercising a running Arc application during development. Lens reads `/.cratis/tenants` and `/.cratis/users` to populate its tenant and user pickers, then injects the corresponding identity and tenant headers into every request your frontend makes while Lens is active — see [Lens: where the tenant and user roster comes from](/tools/lens/#where-the-tenant-and-user-roster-comes-from) for the extension side of this contract, with screenshots against seeded demo data. This is also the [Tenancy](../tenancy/) discovery seam's development counterpart: it answers "which tenants exist", not "which tenant is this request for".
 
 ### Available Endpoints
 
@@ -87,7 +87,7 @@ public class DevelopmentTenantsProvider : ICanProvideTenants
 
 ### How Development Tooling Uses These Endpoints
 
-Development tools — [Lens](https://github.com/Cratis/Lens) chief among them, plus the Cratis Portal or custom dev dashboards — use these endpoints to populate dropdown menus and user/tenant selectors. Instead of hard-coding a list of test users or maintaining them in configuration, your code is the source of truth:
+Development tools — [Lens](/tools/lens/) chief among them, plus the Cratis Portal or custom dev dashboards — use these endpoints to populate dropdown menus and user/tenant selectors. Instead of hard-coding a list of test users or maintaining them in configuration, your code is the source of truth:
 
 - The tool fetches `/.cratis/users` to populate user-selection dropdowns
 - The tool fetches `/.cratis/tenants` to populate tenant-selection dropdowns
