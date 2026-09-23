@@ -7,7 +7,7 @@ Arc's Core Roslyn analyzers check command, query, validation, and concept declar
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0020 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0021 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -30,7 +30,8 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0017](#arc0017-command-operation-batches) | Use CommandOperations for operation batches | Error | `CommandOperationAnalyzer` |
 | [ARC0018](#arc0018-command-operation-visibility) | Operation cannot have a generated invoker | Error | `CommandOperationAnalyzer` |
 | [ARC0019](#arc0019-conflicting-authorization) | [AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration | Warning | `AuthorizationAttributeAnalyzer` |
-| [ARC0020](#arc0020-aspnet-core-authorization-attributes) | ASP.NET Core authorization attribute is not enforced on a model-bound Arc artifact | Warning | `AuthorizationAttributeAnalyzer` |
+| [ARC0020](#arc0020-aspnet-core-authorization-attributes) | ASP.NET Core authorization attribute is not enforced without Arc's ASP.NET Core integration | Warning | `AuthorizationAttributeAnalyzer` |
+| [ARC0021](#arc0021-unevaluated-authorization-settings) | Authorization setting is not evaluated on a model-bound Arc artifact | Warning | `AuthorizationAttributeAnalyzer` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -107,7 +108,7 @@ Runtime validation remains necessary when declarations are loaded without the so
 
 ## ARC0019: Conflicting authorization
 
-Reports `[AllowAnonymous]` declared on the same class or method as `[Authorize]` or `[Roles]`. One declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading, and Arc does not settle it deterministically: one of its anonymous evaluators throws `AmbiguousAuthorizationLevel` and the other admits anonymous callers, depending on which is asked first ([#2714](https://github.com/Cratis/Arc/issues/2714)). Keep one of the two.
+Reports `[AllowAnonymous]` declared on the same class or method as `[Authorize]` or `[Roles]`. One declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading. Arc refuses to guess: at run time it rejects the call with `AmbiguousAuthorizationLevel`, whichever attribute families are involved. The analyzer reports the contradiction at build time instead of on the first request. Keep one of the two.
 
 ```csharp
 [Command]
@@ -123,20 +124,37 @@ Overriding a class across two declarations is a different, supported thing and i
 
 ## ARC0020: ASP.NET Core authorization attributes
 
-Reports `[Authorize]` or `[AllowAnonymous]` from `Microsoft.AspNetCore.Authorization` on a `[Command]` or `[ReadModel]` type, or on one of its methods. Arc authorizes model-bound artifacts only through its own `Cratis.Arc.Authorization` attributes, and does not place an artifact's attributes on the ASP.NET Core endpoint it maps, so the ASP.NET Core attribute is read by nothing. A command marked with it stays open to every caller, with no error at build or run time.
+Reports `[Authorize]` or `[AllowAnonymous]` from `Microsoft.AspNetCore.Authorization` on a `[Command]` or `[ReadModel]` type or method, in a project that does not reference Arc's ASP.NET Core integration (`Cratis.Arc`). That integration is what enforces the ASP.NET Core attributes on model-bound artifacts. Without it - on Arc Core's own HTTP host, for example - nothing reads them, and a command marked with one stays open to every caller.
 
 ```csharp
 using Microsoft.AspNetCore.Authorization;
 
 [Command]
-[Authorize]                 // ARC0020: this command is not protected
+[Authorize]                 // ARC0020 in a project without Cratis.Arc: this command is not protected
 public record CloseAccount(string Id)
 {
     public void Handle() { }
 }
 ```
 
-Replace it with the Arc attribute of the same name, `Cratis.Arc.Authorization.AuthorizeAttribute` or `AllowAnonymousAttribute`. When a file imports both namespaces, qualify the attribute or alias it. Controller-based commands and queries are not reported: ASP.NET Core MVC enforces its own attributes there. Whether Arc should enforce the ASP.NET Core attributes on model-bound artifacts is tracked in [#2719](https://github.com/Cratis/Arc/issues/2719).
+Use the Arc attribute of the same name, `Cratis.Arc.Authorization.AuthorizeAttribute` or `AllowAnonymousAttribute`, which every Arc host enforces. When a file imports both namespaces, qualify the attribute or alias it. Controllers are not reported; ASP.NET Core MVC enforces its own attributes there.
+
+Arc v18.2.0 through v22.20.0 did not enforce the ASP.NET Core attributes on model-bound artifacts even with `Cratis.Arc`, because its evaluators resolved Arc's same-named attributes instead ([#2719](https://github.com/Cratis/Arc/issues/2719)).
+
+## ARC0021: Unevaluated authorization settings
+
+Reports `Policy` or `AuthenticationSchemes` on an authorization attribute of a `[Command]` or `[ReadModel]` type or method, whether Arc's attribute or ASP.NET Core's, including ASP.NET Core's `[Authorize("PolicyName")]` constructor form. Arc enforces the authentication and roles an attribute declares on a model-bound artifact; it does not evaluate a named policy or restrict authentication schemes, so an artifact relying on either is less protected than its attribute reads.
+
+```csharp
+[Command]
+[Authorize(Policy = "ActiveSubscription")]   // ARC0021: the caller only has to be authenticated
+public record UpdateProfile(string Name)
+{
+    public void Handle() { }
+}
+```
+
+Express the requirement as roles, or enforce it in an [authorization command filter](../commands/command-filters.md) or query filter. Policy evaluation is tracked in [#2736](https://github.com/Cratis/Arc/issues/2736). Controllers are not reported; ASP.NET Core MVC evaluates policies and schemes on the requests it handles.
 
 ## Quick fixes
 

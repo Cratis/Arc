@@ -12,9 +12,13 @@ When your application uses `Cratis.Arc`, two layers can reject a request: ASP.NE
 | ASP.NET Core authorization | Microsoft endpoint/controller metadata, registered policies, schemes, default/fallback policy | Requests that traverse the configured middleware and matching endpoint metadata |
 | Arc authorization filters | Authenticated principal and OR-role membership from Arc attributes | Commands and queries executed through Arc pipelines |
 
-`Cratis.Arc.Authorization.RolesAttribute` derives from **Arc's** `AuthorizeAttribute`, not Microsoft's. Arc's evaluator does not evaluate `Policy` or `AuthenticationSchemes`, and it takes the first applicable authorization attribute instead of combining multiple attributes. Do not stack Arc attributes to express AND requirements.
+`Cratis.Arc.Authorization.RolesAttribute` derives from **Arc's** `AuthorizeAttribute`, not Microsoft's. Every authorization attribute on a declaration applies, so stacked attributes require all of them, as they do in ASP.NET Core. Arc's evaluator does not evaluate `Policy` or `AuthenticationSchemes`; analyzer [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) reports either on a model-bound artifact.
 
-Current limitation: the ASP.NET adapter's authorization evaluator resolves Arc's attribute type too. Do not rely on a Microsoft `[Authorize]` placed only on a model-bound command record to protect direct pipeline calls. This does **not** mean Microsoft authorization cannot work: middleware can enforce Microsoft metadata on controllers or explicitly configured endpoints. Verify the actual HTTP route and the pipeline separately.
+With `Cratis.Arc`, Arc's pipeline also enforces **Microsoft's** `[Authorize]` and `[AllowAnonymous]` on model-bound commands and read models - authentication and roles, as it does for its own attributes. That holds for every route into the pipeline, including hub subscriptions and direct pipeline execution, which ASP.NET Core middleware never sees. Both attribute families can be mixed; a method's declaration replaces its type's whichever family each comes from, and a declaration that is both anonymous and restricted is rejected as ambiguous. Arc's own attributes remain the portable choice: they are enforced on every Arc host, including Arc Core's own HTTP host, where nothing reads the Microsoft ones.
+
+:::caution[Arc v18.2.0 through v22.20.0 did not enforce the Microsoft attributes]
+When Arc Core gained its own attributes in v18.2.0, the ASP.NET Core evaluators meant to keep honoring Microsoft's resolved Arc's same-named attributes instead, so a model-bound command protected only with Microsoft's `[Authorize]` was open to every caller. Upgrade, or replace those attributes with `Cratis.Arc.Authorization`'s.
+:::
 
 ## Setup
 
