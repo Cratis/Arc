@@ -26,6 +26,9 @@ public class into_a_command_handle : Specification
         readModels
             .GetInstanceById(typeof(ReducerAccountSummary), _eventSourceId, default)
             .Returns(Task.FromResult<object>(new ReducerAccountSummary(250m, false)));
+        readModels
+            .Release(Arg.Any<ReducerAccountSummary>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<ReducerAccountSummary>()));
 
         _scenario.Services.Replace(ServiceDescriptor.Singleton<IReadModels>(readModels));
     }
