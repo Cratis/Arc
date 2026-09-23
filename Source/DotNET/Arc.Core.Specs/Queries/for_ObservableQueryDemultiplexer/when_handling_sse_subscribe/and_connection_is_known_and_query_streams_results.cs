@@ -149,18 +149,4 @@ public class and_connection_is_known_and_query_streams_results : given.an_observ
         var json = sseMessage["data: ".Length..].Trim();
         return JsonSerializer.Deserialize<ObservableQueryHubMessage>(json, _arcOptions.Value.JsonSerializerOptions);
     }
-
-    static async Task WaitFor(Func<bool> condition)
-    {
-        var timeout = DateTimeOffset.UtcNow.AddSeconds(2);
-        while (DateTimeOffset.UtcNow < timeout)
-        {
-            if (condition())
-            {
-                return;
-            }
-
-            await Task.Delay(25);
-        }
-    }
 }
