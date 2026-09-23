@@ -27,10 +27,25 @@ public class and_query_context_has_paging : given.an_observable_query_demultiple
     QueryContext _queryContextWithPaging;
     int _receiveCount;
 
+    /// <summary>
+    /// Raised when the demultiplexer sends the subscription's initial, empty result.
+    /// </summary>
+    /// <remarks>
+    /// The spec waits on what happened rather than on how long it usually takes.
+    /// </remarks>
+    TaskCompletionSource _initialResultSent;
+
+    /// <summary>
+    /// Raised when the demultiplexer sends the result carrying data, which is the one under test.
+    /// </summary>
+    TaskCompletionSource _dataResultSent;
+
     void Establish()
     {
         _receiveCount = 0;
         _sentMessages = [];
+        _initialResultSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _dataResultSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         _queryContextWithPaging = new QueryContext(
             new FullyQualifiedQueryName(ControllerQueryName),
@@ -76,6 +91,7 @@ public class and_query_context_has_paging : given.an_observable_query_demultiple
                 if (hubMessage is not null)
                 {
                     _sentMessages.Enqueue(hubMessage);
+                    SignalResultSent(hubMessage);
                 }
 
                 return Task.CompletedTask;
@@ -118,26 +134,44 @@ public class and_query_context_has_paging : given.an_observable_query_demultiple
 
             var bytes = JsonSerializer.SerializeToUtf8Bytes(subscribeMessage, _arcOptions.Value.JsonSerializerOptions);
 
-            // Emit on a thread that, by the time the callback runs, no longer has the request-scoped
-            // QueryContext available — simulating the MongoDB change stream callback. The fix must
-            // capture the context at subscribe time; reading it at callback time would observe
-            // QueryContext.NotSet and overwrite the paging information.
-            _ = Task.Factory.StartNew(
-                () =>
-                {
-                    Thread.Sleep(50);
-                    _queryContextManager.Current.Returns(QueryContext.NotSet);
-                    _subject.OnNext(["event-store-a"]);
-                },
-                CancellationToken.None,
-                TaskCreationOptions.LongRunning,
-                TaskScheduler.Default);
+            // Emit on another thread once the subscription is established and its initial result is out, by which
+            // time the request-scoped QueryContext is no longer available — simulating the MongoDB change stream
+            // callback. The fix must capture the context at subscribe time; reading it at callback time would
+            // observe QueryContext.NotSet and overwrite the paging information.
+            _ = Task.Run(async () =>
+            {
+                await _initialResultSent.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                _queryContextManager.Current.Returns(QueryContext.NotSet);
+                _subject.OnNext(["event-store-a"]);
+            });
 
             return CopyToReceiveBuffer(bytes, buffer);
         }
 
-        await Task.Delay(200);
+        // Close only once the result under test has been sent. A timeout here is a named failure, not a race.
+        await _dataResultSent.Task.WaitAsync(TimeSpan.FromSeconds(10));
         return new WebSocketReceiveResult(0, System.Net.WebSockets.WebSocketMessageType.Close, true, WebSocketCloseStatus.NormalClosure, "done");
+    }
+
+    void SignalResultSent(ObservableQueryHubMessage hubMessage)
+    {
+        if (hubMessage.Type != ObservableQueryHubMessageType.QueryResult ||
+            hubMessage.QueryId != QueryId ||
+            hubMessage.Payload is not JsonElement payload ||
+            !TryGetPropertyIgnoreCase(payload, "data", out var data) ||
+            data.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        if (data.GetArrayLength() == 0)
+        {
+            _initialResultSent.TrySetResult();
+        }
+        else
+        {
+            _dataResultSent.TrySetResult();
+        }
     }
 
     static WebSocketReceiveResult CopyToReceiveBuffer(byte[] data, ArraySegment<byte> buffer)
