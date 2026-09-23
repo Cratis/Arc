@@ -6,6 +6,8 @@
   href: library-mode.md
 - name: Emit Interfaces
   href: emit-interfaces.md
+- name: Proxy File Suffix
+  href: proxy-file-suffix.md
 - name: Type Exclusions
   href: type-exclusions.md
 - name: Namespace Roots
