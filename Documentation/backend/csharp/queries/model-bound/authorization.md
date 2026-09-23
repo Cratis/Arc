@@ -11,7 +11,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 For model-bound queries, use attributes from **`Cratis.Arc.Authorization`**. The default evaluator checks whether the current principal is authenticated and, when roles are specified, belongs to at least one of those roles.
 
 > [!WARNING]
-> The current model-bound evaluator does **not** evaluate named policies. Do not rely on `[Authorize(Policy = "...")]`, a policy-derived ownership attribute, or `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` to enforce a model-bound policy. Configured ASP.NET middleware/MVC authorization is a separate surface and can enforce its own requirements; it is not automatically the model-bound evaluator.
+> The current model-bound evaluator does **not** evaluate named policies. Do not rely on `[Authorize(Policy = "...")]`, a policy-derived ownership attribute, or `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` to enforce a model-bound policy. Configured ASP.NET middleware/MVC authorization is a separate surface and can enforce its own requirements; it is not automatically the model-bound evaluator. Analyzer [ARC0020](../../code-analysis/index.md#arc0020-aspnet-core-authorization-attributes) reports an ASP.NET Core authorization attribute on a read model at build time.
 
 Treat policy support as a current implementation limitation. For a policy-based HTTP API, use an explicitly protected MVC action and test its middleware configuration. For rules needed across model-bound HTTP, direct pipeline execution, and hub subscriptions, implement a real [authorization query filter](../query-pipeline.md#query-filters). Do not substitute input validation for an authorization verdict.
 
