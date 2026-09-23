@@ -1,0 +1,28 @@
+name: Publish Documentation
+
+# The Cratis/Documentation site rebuilds when a product repository dispatches
+# `build-docs`. Publish dispatches it after a release, but a documentation-only
+# change carries `no-release` and never reaches that step, so it went live only when
+# another repository happened to trigger a site build (Cratis/Arc.Kotlin#226).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Documentation/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Documentation Build
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
+        with:
+          token: ${{ secrets.PAT_DOCUMENTATION }}
+          repository: cratis/documentation
+          event-type: build-docs
