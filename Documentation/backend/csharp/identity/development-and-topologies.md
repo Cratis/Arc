@@ -4,6 +4,8 @@
 
 For development scenarios, Arc automatically exposes HTTP endpoints that development tools use to discover available users and tenants. This eliminates the need to hard-code user lists in your frontend or development environment — just implement the providers and Arc surfaces them.
 
+The primary consumer of these endpoints is [Lens](https://github.com/Cratis/Lens), the Cratis browser extension for exercising a running Arc application during development. Lens reads `/.cratis/tenants` and `/.cratis/users` to populate its tenant and user pickers, then injects the corresponding identity and tenant headers into every request your frontend makes while Lens is active — see [How Lens discovers tenants and users](https://github.com/Cratis/Lens/blob/main/Documentation/GettingStarted/TenantsAndUsers/index.md) for the extension side of this contract.
+
 ### Available Endpoints
 
 Normal Arc activation maps these endpoints unless replacements with the same endpoint names already exist, even when no development providers are registered:
@@ -55,6 +57,8 @@ public class DevelopmentUsersProvider : ICanProvideUsers
 
 ### Implementing a Tenants Provider
 
+`ICanProvideTenants` is a development-only seam: it has nothing to do with tenant *resolution* at request time (see [Tenancy](../tenancy/)). It exists purely so a tool like Lens can ask your running application, at any moment, "which tenants do you know about right now?" — sourced from wherever your application already keeps that list (a fixed set, a database, a configuration section), rather than a hand-maintained copy pasted into the tool.
+
 Similarly, create a class implementing `ICanProvideTenants`:
 
 ```csharp
@@ -83,11 +87,13 @@ public class DevelopmentTenantsProvider : ICanProvideTenants
 
 ### How Development Tooling Uses These Endpoints
 
-Development tools (like the Cratis Portal or custom dev dashboards) use these endpoints to populate dropdown menus and user selectors. Instead of hard-coding a list of test users or maintaining them in configuration, your code is the source of truth:
+Development tools — [Lens](https://github.com/Cratis/Lens) chief among them, plus the Cratis Portal or custom dev dashboards — use these endpoints to populate dropdown menus and user/tenant selectors. Instead of hard-coding a list of test users or maintaining them in configuration, your code is the source of truth:
 
-- Frontend fetches `/.cratis/users` to populate user-selection dropdowns
-- Frontend fetches `/.cratis/tenants` to populate tenant-selection dropdowns
+- The tool fetches `/.cratis/users` to populate user-selection dropdowns
+- The tool fetches `/.cratis/tenants` to populate tenant-selection dropdowns
 - Developers can switch context without rebuilding
+
+With Lens specifically: once a tenant or user is selected in the extension popup, every subsequent request from the page under inspection carries the matching tenant header and identity headers, so your backend's [tenant resolution](../tenancy/resolvers.md) and [identity provider](./provider-flow.md) see the switch exactly as they would from a real caller — no restart, no manually crafted headers.
 
 You can have **multiple providers** — all registered providers are discovered and their results merged. This is useful when users or tenants come from different sources (database, configuration, external service).
 
