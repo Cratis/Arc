@@ -7,7 +7,7 @@ Arc's Core Roslyn analyzers check command, query, validation, and concept declar
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0018 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0020 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -29,6 +29,8 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0016](#arc0016-command-operation-methods) | Invalid command operation method | Error | `CommandOperationAnalyzer` |
 | [ARC0017](#arc0017-command-operation-batches) | Use CommandOperations for operation batches | Error | `CommandOperationAnalyzer` |
 | [ARC0018](#arc0018-command-operation-visibility) | Operation cannot have a generated invoker | Error | `CommandOperationAnalyzer` |
+| [ARC0019](#arc0019-conflicting-authorization) | [AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration | Warning | `AuthorizationAttributeAnalyzer` |
+| [ARC0020](#arc0020-aspnet-core-authorization-attributes) | ASP.NET Core authorization attribute is not enforced on a model-bound Arc artifact | Warning | `AuthorizationAttributeAnalyzer` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -102,6 +104,39 @@ See [zero-to-many operations](../commands/operations/implementing.md#return-zero
 Reports a concrete operation whose type cannot be referenced by its generated invoker. Use a public or internal nongeneric operation in accessible nongeneric containing types. File-local, private nested, or generic declarations do not provide the supported generated invocation shape. A file-local type cannot be referenced from the separate generated source file.
 
 Runtime validation remains necessary when declarations are loaded without the source generator. Generated operation invokers do not establish NativeAOT support for every other Arc execution path.
+
+## ARC0019: Conflicting authorization
+
+Reports `[AllowAnonymous]` declared on the same class or method as `[Authorize]` or `[Roles]`. One declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading, and Arc does not settle it deterministically: one of its anonymous evaluators throws `AmbiguousAuthorizationLevel` and the other admits anonymous callers, depending on which is asked first ([#2714](https://github.com/Cratis/Arc/issues/2714)). Keep one of the two.
+
+```csharp
+[Command]
+[Authorize]
+[AllowAnonymous]            // ARC0019
+public record OpenAccount(string Name)
+{
+    public void Handle() { }
+}
+```
+
+Overriding a class across two declarations is a different, supported thing and is not reported: an `[Authorize]` read model can mark one query method `[AllowAnonymous]`, which is how a protected read model exposes a login-screen query. Both Arc's and ASP.NET Core's attributes are recognized, but a declaration using only ASP.NET Core's attributes on a type that is not an Arc artifact, such as an MVC controller, is left to ASP.NET Core.
+
+## ARC0020: ASP.NET Core authorization attributes
+
+Reports `[Authorize]` or `[AllowAnonymous]` from `Microsoft.AspNetCore.Authorization` on a `[Command]` or `[ReadModel]` type, or on one of its methods. Arc authorizes model-bound artifacts only through its own `Cratis.Arc.Authorization` attributes, and does not place an artifact's attributes on the ASP.NET Core endpoint it maps, so the ASP.NET Core attribute is read by nothing. A command marked with it stays open to every caller, with no error at build or run time.
+
+```csharp
+using Microsoft.AspNetCore.Authorization;
+
+[Command]
+[Authorize]                 // ARC0020: this command is not protected
+public record CloseAccount(string Id)
+{
+    public void Handle() { }
+}
+```
+
+Replace it with the Arc attribute of the same name, `Cratis.Arc.Authorization.AuthorizeAttribute` or `AllowAnonymousAttribute`. When a file imports both namespaces, qualify the attribute or alias it. Controller-based commands and queries are not reported: ASP.NET Core MVC enforces its own attributes there. Whether Arc should enforce the ASP.NET Core attributes on model-bound artifacts is tracked in [#2719](https://github.com/Cratis/Arc/issues/2719).
 
 ## Quick fixes
 

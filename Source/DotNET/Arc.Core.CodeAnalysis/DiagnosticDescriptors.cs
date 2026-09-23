@@ -190,5 +190,29 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Arc coerces a query argument to the declared parameter type before validation runs, and resolves a ConceptAs<T>'s validator by the value's runtime type — so a parameter declared as the concept is validated, and one declared as a raw string or Guid is not. Converting inside the body produces the concept the query wanted while skipping the rules that guard it, silently and with nothing in the build, the lint step or the spec suite to notice. Declare the parameter as the concept. Two things change when you do: an omitted argument deserializes to null rather than to the concept's NotSet, so a null-safe guard over the raw value has to be made null-aware rather than deleted; and the concept's validator becomes reachable, which is what is wanted for a keyed lookup and may be too strict for free-text search — suppress the rule at those sites.");
 
+    /// <summary>
+    /// ARC0019: [AllowAnonymous] declared together with [Authorize] or [Roles] on one declaration.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0019_ConflictingAuthorizationOnDeclaration = new(
+        id: "ARC0019",
+        title: "[AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration",
+        messageFormat: "'{0}' is marked both [AllowAnonymous] and [{1}]. The two contradict each other, and Arc resolves the contradiction differently depending on evaluator order — rejecting the call in one and admitting anonymous callers in the other. Keep one of them.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A single declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading. Arc does not settle it deterministically: one of its anonymous evaluators throws AmbiguousAuthorizationLevel, the other prefers anonymous, and whichever is discovered first wins. Declare one or the other. Overriding a class-level declaration on one query method is a different, supported thing and is not reported.");
+
+    /// <summary>
+    /// ARC0020: ASP.NET Core authorization attribute on a model-bound Arc artifact.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0020_AspNetAuthorizationAttributeOnModelBoundArtifact = new(
+        id: "ARC0020",
+        title: "ASP.NET Core authorization attribute is not enforced on a model-bound Arc artifact",
+        messageFormat: "[{0}] on '{1}' comes from Microsoft.AspNetCore.Authorization and is not enforced on model-bound commands and read models. Use Cratis.Arc.Authorization.{2}Attribute instead.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Arc authorizes model-bound commands and read models through its own Cratis.Arc.Authorization attributes, and does not place an artifact's attributes on the ASP.NET Core endpoint it maps. An [Authorize] from Microsoft.AspNetCore.Authorization on a [Command] or [ReadModel] is therefore read by nothing: the artifact stays open to every caller, with no error at build or run time. Replace it with the Arc attribute of the same name. Controller-based commands and queries are unaffected, because ASP.NET Core MVC enforces its own attributes there.");
+
     const string Category = "Arc";
 }

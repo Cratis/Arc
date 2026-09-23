@@ -58,7 +58,7 @@ This does not promise to bypass custom authorization filters or external middlew
 > [!WARNING]
 > Current model-bound Arc evaluators check authentication and roles only. Although Arc's `AuthorizeAttribute` exposes `Policy` and `AuthenticationSchemes` properties, those properties are not evaluated here. Do not rely on them to protect a command.
 
-Do not substitute `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` on a model-bound command expecting equivalent protection. The current Arc evaluators do not establish that contract; even the ASP.NET-named evaluator currently resolves the Arc attribute type. Standard Microsoft authorization on **MVC controllers/actions**, or explicitly configured external middleware, is a separate enforcement path.
+Do not substitute `Microsoft.AspNetCore.Authorization.AuthorizeAttribute` on a model-bound command expecting equivalent protection. The current Arc evaluators do not establish that contract; even the ASP.NET-named evaluator currently resolves the Arc attribute type. Analyzer [ARC0020](../../code-analysis/index.md#arc0020-aspnet-core-authorization-attributes) reports the substitution at build time. Standard Microsoft authorization on **MVC controllers/actions**, or explicitly configured external middleware, is a separate enforcement path.
 
 For domain-specific access control in the model-bound pipeline, implement an [authorization command filter](../command-filters.md#cross-cutting-authorization-by-namespace) using `IAuthorizationCommandFilter` and an actual unauthorized verdict. That example uses real authentication and role checks, not a placeholder policy or an overridable validator. Record ownership needs its own real resource lookup and owner comparison before changes occur.
 

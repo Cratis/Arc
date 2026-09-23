@@ -155,6 +155,27 @@ public class AuthorizedCommand
 }
 
 /// <summary>
+/// A command that requires authorization through Arc's own attribute.
+/// </summary>
+[Command]
+[Cratis.Arc.Authorization.Authorize]
+public class ArcAuthorizedCommand
+{
+    /// <summary>
+    /// Gets or sets the secure data.
+    /// </summary>
+    public string SecureData { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Handles the command.
+    /// </summary>
+    public void Handle()
+    {
+        // Authorized command
+    }
+}
+
+/// <summary>
 /// A command with complex nested types.
 /// </summary>
 [Command]
