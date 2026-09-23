@@ -30,7 +30,7 @@ React compositions fit.
   <SimpleCard title="Start an Arc host" icon="rocket" link="#start-an-arc-host">
     Add the Arc package and configure an ASP.NET Core host.
   </SimpleCard>
-  <SimpleCard title="Commands and queries" icon="seti:c-sharp" link="#commands-and-queries">
+  <SimpleCard title="Commands and queries" icon="list-format" link="#commands-and-queries">
     Execute changes, expose reads, and generate the client contracts for both.
   </SimpleCard>
   <SimpleCard title="Frontend contracts" icon="laptop" link="#frontend-contracts">
@@ -86,7 +86,10 @@ configuration and version requirements.
 Arc supports model-bound records and methods as well as controller-based
 endpoints. The command and query pipelines handle dependency injection,
 validation, authorization, filters, execution scopes, result conversion, and
-HTTP exposure.
+HTTP exposure — the same shape whether the handler is written in C# or in
+Kotlin/Java. The [scenario recipes](/arc/scenarios/) show the same task, such
+as [validating a command](/arc/scenarios/validate-a-command/), with both
+backends side by side.
 
 Queries can return one result or use Arc's observable-query APIs. The TypeScript
 generator creates clients for recognized commands, queries, referenced types,
@@ -95,19 +98,34 @@ and lifecycle behavior.
 
 <CardGrid>
   <LinkCard
-    title="Command pipeline"
+    title="Command pipeline (C#)"
     description="Model intentions, validate and authorize them, provide dependencies, execute handlers, and convert typed results into HTTP responses."
     href="/arc/backend/csharp/commands/"
   />
   <LinkCard
-    title="Query pipeline"
+    title="Command pipeline (Kotlin and Java)"
+    description="The same command model on Spring Boot: KSP-generated handlers, dependency resolution, validation and typed results."
+    href="/arc/backend/kotlin/guides/commands/"
+  />
+  <LinkCard
+    title="Query pipeline (C#)"
     description="Expose purpose-shaped reads with paging, sorting, filtering, result rendering, and diagnostics."
     href="/arc/backend/csharp/queries/"
   />
   <LinkCard
-    title="Observable-query APIs"
+    title="Query pipeline (Kotlin and Java)"
+    description="Model-bound read models with GET, RFC QUERY, HTTP snapshots, SSE and WebSocket hosting on Spring Boot."
+    href="/arc/backend/kotlin/guides/queries/"
+  />
+  <LinkCard
+    title="Observable-query APIs (C#)"
     description="Work with documented query subscriptions, collection changes, subscription guards, and query health information."
     href="/arc/backend/csharp/queries/observable-query-demultiplexer/"
+  />
+  <LinkCard
+    title="Observable-query APIs (Kotlin and Java)"
+    description="Subscribe to collection changes over SSE or WebSocket, and the same observable-query lifecycle on the JVM host."
+    href="/arc/backend/kotlin/guides/observable-queries/"
   />
 </CardGrid>
 
