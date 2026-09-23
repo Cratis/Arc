@@ -19,3 +19,5 @@ ARC0015|Arc|Warning|Query parameter converted to a concept in the method body
 ARC0016|Arc|Error|Invalid command operation method
 ARC0017|Arc|Error|Use CommandOperations for operation batches
 ARC0018|Arc|Error|Operation cannot have a generated invoker
+ARC0019|Arc|Warning|[AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration
+ARC0020|Arc|Warning|ASP.NET Core authorization attribute is not enforced on a model-bound Arc artifact
