@@ -66,7 +66,7 @@ public static partial class DescriptorExtensions
                 outputFileName = descriptor.Name;
             }
 
-            var fullPath = Path.Join(targetPath, path, $"{outputFileName}.ts");
+            var fullPath = Path.Join(targetPath, path, GeneratedFileNames.FileNameFor(outputFileName));
             var normalizedFullPath = Path.GetFullPath(fullPath);
 
             if (!descriptorsByOutputPath.TryGetValue(normalizedFullPath, out var group))
@@ -458,7 +458,7 @@ public static partial class DescriptorExtensions
         ImportModulePathRegex().Replace(content, match =>
         {
             var prefix = match.Groups["prefix"].Value;
-            var fileName = match.Groups["fileName"].Value;
+            var fileName = GeneratedFileNames.BaseNameOf(match.Groups["fileName"].Value);
 
             if (!prefix.StartsWith('.'))
             {
@@ -466,7 +466,7 @@ public static partial class DescriptorExtensions
             }
 
             return fixups.TryGetValue(fileName, out var sourceFile)
-                ? $"from '{prefix}{sourceFile}'"
+                ? $"from '{prefix}{GeneratedFileNames.ModuleNameFor(sourceFile)}'"
                 : match.Value;
         });
 
