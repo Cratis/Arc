@@ -48,4 +48,4 @@ See [database isolation](database-resolvers.md) for the exact integration bounda
 - [Configuration](./configuration.md)
 - [Tenant context access](./tenant-context.md)
 - [Database isolation](./database-resolvers.md)
-- [Development tenant discovery with `ICanProvideTenants`](../identity/development-and-topologies.md#implementing-a-tenants-provider) — the `/.cratis/tenants` endpoint that development tools such as [Lens](https://github.com/Cratis/Lens) use to let you switch tenants without touching configuration.
+- [Development tenant discovery with `ICanProvideTenants`](../identity/development-and-topologies.md#implementing-a-tenants-provider) (C#), or the equivalent [`TenantsProvider`](/arc/backend/kotlin/guides/development-users-and-tenants/) (Kotlin and Java) — the `/.cratis/tenants` endpoint that development tools such as [Lens](/tools/lens/) use to let you switch tenants without touching configuration.
