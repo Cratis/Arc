@@ -94,14 +94,21 @@ public static class ReadModelServiceCollectionExtensions
         }
 
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
-        var subject = commandContext.GetSubject();
 
-        // A never-created or removed read model resolves to null; there is nothing to release (decrypt),
-        // and releasing null would dereference it while resolving the compliance subject. Hand back the
-        // null so command-side code can inject a nullable read model and treat null as "does not exist".
-        return subject is null || readModel is null
-            ? readModel
-            : ReleaseReadModel(readModels, readModelType, readModel);
+        // A never-created or removed read model resolves to null; there is nothing to release (decrypt).
+        // Hand back the null so command-side code can inject a nullable read model and treat null as
+        // "does not exist".
+        //
+        // Whether there is anything to release is otherwise decided entirely by IReadModels.Release itself,
+        // not by commandContext.GetSubject() here. The two answer different questions: GetSubject() finds
+        // only an explicit ICanProvideSubject/[Subject]/Subject-typed member on the *command* - used to pick
+        // the identity newly appended events are encrypted under - and returns null for the common case where
+        // a command relies on the implicit event-source-id fallback instead. Release resolves its own subject
+        // from the *read model instance* (its own [Subject] member, or its Id), which is unrelated to the
+        // command's shape; and a namespace- or global-scoped [Encrypted] value needs no subject at all. Gating
+        // release on the command's subject skipped it for most commands regardless of what the read model
+        // actually carried.
+        return readModel is null ? readModel : ReleaseReadModel(readModels, readModelType, readModel);
     }
 
     /// <summary>
