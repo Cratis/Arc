@@ -27,7 +27,7 @@ public class and_attempting_directory_traversal : given.a_static_files_middlewar
     {
         _contextTask = _listener.GetContextAsync();
 
-        var responseTask = _client.GetAsync($"http://localhost:{_port}/../../../etc/passwd");
+        var responseTask = _client.GetAsync($"http://{LoopbackHost}:{_port}/../../../etc/passwd");
 
         var context = await _contextTask;
 

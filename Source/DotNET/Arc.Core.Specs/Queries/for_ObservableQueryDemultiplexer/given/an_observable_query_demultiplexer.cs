@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -62,18 +63,26 @@ public class an_observable_query_demultiplexer : Specification
     }
 
     /// <summary>
-    /// Polls the condition until it returns <see langword="true"/> or a 2-second timeout elapses.
+    /// Waits until the condition holds, and fails the spec by name if it never does.
     /// </summary>
-    /// <param name="condition">The condition to poll.</param>
-    /// <returns>A <see cref="Task"/> that completes when the condition is met or the timeout expires.</returns>
-    protected static async Task WaitFor(Func<bool> condition)
+    /// <param name="condition">The condition to wait for.</param>
+    /// <param name="description">The condition as written at the call site; supplied by the compiler.</param>
+    /// <returns>A <see cref="Task"/> that completes once the condition holds.</returns>
+    /// <exception cref="TimeoutException">Thrown when the condition does not hold within the deadline.</exception>
+    /// <remarks>
+    /// This used to return silently at its deadline, so a spec whose awaited event never happened carried on and
+    /// failed somewhere unrelated - or passed without its precondition. It now fails naming the exact condition. The
+    /// deadline is a ceiling for a loaded CI runner, not an expected duration. Polling itself is still a signal these
+    /// specs have not built yet (#2721).
+    /// </remarks>
+    protected static async Task WaitFor(Func<bool> condition, [CallerArgumentExpression(nameof(condition))] string? description = null)
     {
-        var timeout = DateTimeOffset.UtcNow.AddSeconds(2);
-        while (DateTimeOffset.UtcNow < timeout)
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        while (!condition())
         {
-            if (condition())
+            if (DateTimeOffset.UtcNow >= deadline)
             {
-                return;
+                throw new TimeoutException($"Timed out waiting for: {description}");
             }
 
             await Task.Delay(25);
