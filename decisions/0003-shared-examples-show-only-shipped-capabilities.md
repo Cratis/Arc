@@ -1,8 +1,10 @@
 ---
 id: 0003-shared-examples-show-only-shipped-capabilities
 title: Show a capability on a shared page only once every backend ships it
-status: proposed
-stage: none
+status: accepted
+stage: implemented
+decided: 2026-09-23
+decider: Sindre Alstad Wilting
 class: product
 reversibility: reversible
 applies-to:
