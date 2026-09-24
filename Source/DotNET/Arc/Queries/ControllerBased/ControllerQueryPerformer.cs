@@ -22,9 +22,35 @@ namespace Cratis.Arc.Queries.ControllerBased;
 public class ControllerQueryPerformer(
     ControllerActionDescriptor actionDescriptor,
     IServiceProviderIsService serviceProviderIsService,
-    IAuthorizationEvaluator authorizationEvaluator) : IQueryPerformer
+    IAuthorizationEvaluator authorizationEvaluator) : IQueryPerformer, IFrameworkAuthorizationQueryTarget
 {
-    readonly MethodInfo _performMethod = actionDescriptor.MethodInfo;
+    readonly Func<QueryContext, bool>? _authorizeFromScope;
+
+    /// <summary>
+    /// Creates a controller performer that resolves authorization in the executing scope.
+    /// </summary>
+    /// <param name="actionDescriptor">The controller action.</param>
+    /// <param name="serviceProviderIsService">Service classification.</param>
+    /// <param name="scopeFactory">A scope for direct performer calls.</param>
+    /// <param name="resolveEvaluator">Resolves the evaluator from a scope.</param>
+    public ControllerQueryPerformer(
+        ControllerActionDescriptor actionDescriptor,
+        IServiceProviderIsService serviceProviderIsService,
+        IServiceScopeFactory scopeFactory,
+        Func<IServiceProvider, IAuthorizationEvaluator> resolveEvaluator)
+        : this(actionDescriptor, serviceProviderIsService, null!)
+    {
+        _authorizeFromScope = context =>
+        {
+            if (context.ServiceProvider is { } services)
+            {
+                return resolveEvaluator(services).IsAuthorized(AuthorizationMethod);
+            }
+
+            using var scope = scopeFactory.CreateScope();
+            return resolveEvaluator(scope.ServiceProvider).IsAuthorized(AuthorizationMethod);
+        };
+    }
 
     /// <inheritdoc/>
     public QueryName Name { get; } = actionDescriptor.MethodInfo.Name;
@@ -60,7 +86,15 @@ public class ControllerQueryPerformer(
     public bool SupportsPaging { get; } = ComputeSupportsPaging(actionDescriptor.MethodInfo);
 
     /// <inheritdoc/>
-    public bool IsAuthorized(QueryContext context) => authorizationEvaluator.IsAuthorized(_performMethod);
+    public MethodInfo AuthorizationMethod { get; } = actionDescriptor.MethodInfo;
+
+    /// <inheritdoc/>
+    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null && authorizationEvaluator?.GetType() != typeof(AuthorizationEvaluator);
+
+    /// <inheritdoc/>
+    public bool IsAuthorized(QueryContext context) => _authorizeFromScope is not null
+        ? _authorizeFromScope(context)
+        : authorizationEvaluator.IsAuthorized(AuthorizationMethod);
 
     /// <inheritdoc/>
     public async ValueTask<object?> Perform(QueryContext context)
@@ -71,8 +105,8 @@ public class ControllerQueryPerformer(
         var controller = CreateControllerInstance(serviceProvider);
         try
         {
-            var args = GetMethodArguments(_performMethod.GetParameters(), context.Arguments ?? QueryArguments.Empty, serviceProvider);
-            var invocationResult = _performMethod.Invoke(controller, args);
+            var args = GetMethodArguments(AuthorizationMethod.GetParameters(), context.Arguments ?? QueryArguments.Empty, serviceProvider);
+            var invocationResult = AuthorizationMethod.Invoke(controller, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
             return UnwrapMvcResult(result);
         }

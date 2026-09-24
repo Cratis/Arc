@@ -11,8 +11,7 @@ namespace Cratis.Arc.Authorization;
 /// </summary>
 /// <remarks>
 /// The ASP.NET Core attribute type is named in full on purpose: in this namespace an unqualified
-/// <c>AuthorizeAttribute</c> resolves to Arc's own attribute, not ASP.NET Core's. Roles are enforced; a
-/// <c>Policy</c> or <c>AuthenticationSchemes</c> on the attribute is not evaluated, which analyzer ARC0021 reports.
+/// <c>AuthorizeAttribute</c> resolves to Arc's own attribute, not ASP.NET Core's.
 /// </remarks>
 public class AspNetAuthorizationAttributeEvaluator : IAuthorizationAttributeEvaluator
 {
@@ -24,11 +23,11 @@ public class AspNetAuthorizationAttributeEvaluator : IAuthorizationAttributeEval
 
     /// <inheritdoc/>
     public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
-        AttributesOn(type).Select(attribute => AuthorizationRequirement.FromRoles(attribute.Roles));
+        AttributesOn(type).Select(attribute => AuthorizationRequirement.FromAttribute(attribute.Roles, attribute.Policy, attribute.AuthenticationSchemes));
 
     /// <inheritdoc/>
     public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) =>
-        AttributesOn(method).Select(attribute => AuthorizationRequirement.FromRoles(attribute.Roles));
+        AttributesOn(method).Select(attribute => AuthorizationRequirement.FromAttribute(attribute.Roles, attribute.Policy, attribute.AuthenticationSchemes));
 
     static IEnumerable<Microsoft.AspNetCore.Authorization.AuthorizeAttribute> AttributesOn(MemberInfo member) =>
         member.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)

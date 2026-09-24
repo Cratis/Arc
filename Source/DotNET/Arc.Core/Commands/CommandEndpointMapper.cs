@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
@@ -149,9 +150,26 @@ public static class CommandEndpointMapper
                 try
                 {
                     var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
-                    commandResult = bodyFailure ?? (validateOnly
-                        ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
-                        : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted));
+                    if (bodyFailure is not null)
+                    {
+                        commandResult = bodyFailure;
+                    }
+                    else if (commandPipeline is CommandPipeline builtInPipeline)
+                    {
+                        commandResult = validateOnly
+                            ? await builtInPipeline.ValidateHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
+                            : await builtInPipeline.ExecuteHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
+                    }
+                    else if (AuthorizationAttributeGuard.RequiresScopedEvaluation(commandType))
+                    {
+                        throw new InvalidAuthorizationConfiguration($"Command '{commandType}' requires an Arc pipeline that can prepare authorization before execution.");
+                    }
+                    else
+                    {
+                        commandResult = validateOnly
+                            ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
+                            : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
+                    }
                 }
                 catch (Exception ex)
                 {

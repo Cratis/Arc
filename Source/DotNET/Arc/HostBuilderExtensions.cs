@@ -2,6 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries.ControllerBased;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.Hosting;
 
@@ -77,8 +80,11 @@ public static class HostBuilderExtensions
         builder
             .ConfigureServices(services =>
             {
-                services.AddHttpContextAccessor();
+                OperationHttpContextAccessorRegistration.Add(services);
+                services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyRuntime, AspNetAuthorizationPolicyRuntime>());
+                services.AddHostedService<AuthorizationStartupValidation>();
                 services.AddControllersFromProjectReferencedAssembles(Internals.Types);
+                services.AddScopedControllerQueryAuthorization();
             });
 
         return builder;

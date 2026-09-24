@@ -2,7 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -47,37 +50,66 @@ public class ClientObservable<T>(
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
         var isTerminated = false;
+        var drain = new DirectObservableEmissionDrain();
+        var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
+        var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
+            .CaptureLiveRequest(context.RequestServices);
         using var cts = new CancellationTokenSource();
+        using var receiveCts = new CancellationTokenSource();
         using var writeLock = new SemaphoreSlim(1, 1);
+        using var emissionGate = new SemaphoreSlim(1, 1);
 
-        using var subscription = Subject.Subscribe(Next, Error, Complete);
+        var subscription = Subject.Subscribe(Next, Error, Complete);
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
+        await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
+        {
+            _ = cts.CancelAsync();
+            tcs.TrySetResult();
+        });
 
-        // If application is stopping, complete the observable
-        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping);
-        linkedTokenSource.Token.Register(Complete);
+        var receiveTask = webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, receiveCts.Token);
+        try
+        {
+            if (await Task.WhenAny(receiveTask, tcs.Task) == receiveTask)
+            {
+                await cts.CancelAsync();
+            }
 
-        await webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, cts.Token);
-
-        // The client disconnected — clean up without completing the shared subject.
-        if (!cts.IsCancellationRequested)
+            // Completion does not cancel writes: callbacks accepted before the subject completed retain their
+            // order and finish before the socket and its request scope are released.
+            var pending = drain.StopAndDrain();
+            subscription.Dispose();
+            await pending;
+        }
+        finally
         {
             await cts.CancelAsync();
+            await receiveCts.CancelAsync();
+            await receiveTask;
+            subscription.Dispose();
         }
-
-        tcs.TrySetResult();
-
-        await tcs.Task;
         return;
 
         async void Next(T data)
         {
-            if (cts.IsCancellationRequested || isTerminated)
+            if (!drain.TryEnter())
             {
                 return;
             }
 
+            var gateHeld = false;
             try
             {
+                await emissionGate.WaitAsync(cts.Token);
+                gateHeld = true;
+                if (cts.IsCancellationRequested || isTerminated)
+                {
+                    return;
+                }
+
+                using var emissionIdentity = context is ObservableQuerySubscriptionHttpRequestContext selectedSubscription
+                    ? selectedSubscription.BeginEmission()
+                    : ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
                 if (data is null)
                 {
                     // A single-document observable emits default/null to report "no such document" (removed,
@@ -93,7 +125,6 @@ public class ClientObservable<T>(
                 // the connection's own request-scoped provider rather than the root — ensures the interceptor
                 // releases compliance/PII data under this subscription's tenant, not whichever tenant happened
                 // to resolve first.
-                httpRequestContextAccessor.Current = context;
                 queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
 
                 if (emissionGuards.HasGuards && !await IsEmissionAllowed())
@@ -130,6 +161,15 @@ public class ClientObservable<T>(
                 {
                     Subject.OnError(ex);
                 }
+            }
+            finally
+            {
+                if (gateHeld)
+                {
+                    emissionGate.Release();
+                }
+
+                drain.Exit();
             }
         }
 
@@ -182,7 +222,6 @@ public class ClientObservable<T>(
             if (!cts.IsCancellationRequested)
             {
                 logger.ObservableCompleted();
-                _ = cts.CancelAsync();
             }
             tcs.TrySetResult();
         }

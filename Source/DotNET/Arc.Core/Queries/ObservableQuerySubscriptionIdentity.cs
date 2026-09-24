@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using System.Text.Json;
+using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.Queries;
 
@@ -49,6 +50,11 @@ internal sealed class ObservableQuerySubscriptionIdentity(
     /// Gets the caller that established the subscription.
     /// </summary>
     public ClaimsPrincipal? Principal { get; } = principal;
+
+    /// <summary>
+    /// Gets the selected tenant captured during subscription admission for later emissions.
+    /// </summary>
+    internal TenantId? AuthorizedTenant { get; init; }
 
     /// <summary>
     /// Creates independent query arguments from the immutable subscription baseline.

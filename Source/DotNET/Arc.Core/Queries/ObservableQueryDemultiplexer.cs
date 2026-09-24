@@ -8,7 +8,9 @@ using System.Net.WebSockets;
 using System.Reactive.Subjects;
 using System.Security.Claims;
 using System.Text.Json;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Reflection;
@@ -760,64 +762,159 @@ public class ObservableQueryDemultiplexer(
         Action onCompleted,
         CancellationToken token)
     {
+        try
+        {
+            return await CreateSubscriptionCore(context, queryServiceProvider, principal, queryId, request, onNext, onError, onUnauthorized, onCompleted, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (InvalidAuthorizationConfiguration exception)
+        {
+            logger.ErrorProcessingMessage(exception);
+            try
+            {
+                await onUnauthorized(queryId, token);
+            }
+            finally
+            {
+                onCompleted();
+            }
+            return null;
+        }
+        catch (Exception exception)
+        {
+            logger.ErrorProcessingMessage(exception);
+            try
+            {
+                await onError(queryId, "An error occurred while preparing the subscription.", token);
+            }
+            finally
+            {
+                onCompleted();
+            }
+            return null;
+        }
+    }
+
+    async Task<IDisposable?> CreateSubscriptionCore(
+        IHttpRequestContext context,
+        IServiceProvider queryServiceProvider,
+        ClaimsPrincipal principal,
+        string queryId,
+        ObservableQuerySubscriptionRequest request,
+        Func<QueryResult, CancellationToken, Task> onNext,
+        Func<string, string, CancellationToken, Task> onError,
+        Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
+        CancellationToken token)
+    {
         var paging = BuildPaging(request);
         var sorting = BuildSorting(request);
         var arguments = BuildQueryArguments(request.Arguments);
         var fullyQualifiedName = new FullyQualifiedQueryName(request.QueryName);
 
         // Run through the full query pipeline (including authorization filters)
-        var queryResult = await queryPipeline.Perform(
-            fullyQualifiedName,
-            arguments,
-            paging,
-            sorting,
-            queryServiceProvider,
-            token);
-
-        if (!queryResult.IsAuthorized)
+        QueryResult queryResult;
+        if (queryPipeline is QueryPipeline builtInPipeline)
         {
-            logger.QueryUnauthorized(request.QueryName, queryId);
-            await onUnauthorized(queryId, token);
-            return null;
+            queryResult = await builtInPipeline.PerformHosted(fullyQualifiedName, arguments, paging, sorting, queryServiceProvider, token);
         }
-
-        if (!queryResult.IsSuccess)
+        else
         {
-            var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
-            await onError(queryId, errorMsg, token);
-            return null;
-        }
-
-        var streamingData = queryResult.Data;
-        if (streamingData is null || !IsStreamingResult(streamingData))
-        {
-            // Non-streaming result — send current snapshot and return null (no long-lived subscription)
-            var queryResultWithData = new QueryResult
+            if (queryServiceProvider.GetService<IQueryPerformerProviders>() is { } catalog &&
+                catalog.TryGetPerformersFor(fullyQualifiedName, out var performer) &&
+                queryServiceProvider.GetService<AuthorizationDeclarations>() is { } declarations)
             {
-                CorrelationId = queryResult.CorrelationId,
-                Data = queryResult.Data,
-                IsAuthorized = true,
-                ValidationResults = [],
-                ExceptionMessages = [],
-                ExceptionStackTrace = string.Empty,
-                Paging = queryResult.Paging
+                var target = QueryAuthorizationTarget.For(performer, declarations);
+                var declaration = target is System.Reflection.MethodInfo method ? declarations.For(method) : declarations.For((Type)target);
+                if (declaration.RequiresAsynchronousEvaluation)
+                {
+                    throw new InvalidAuthorizationConfiguration($"Query '{fullyQualifiedName}' requires an Arc pipeline that prepares authorization before subscription.");
+                }
+            }
+
+            queryResult = await queryPipeline.Perform(fullyQualifiedName, arguments, paging, sorting, queryServiceProvider, token);
+        }
+        var ownedScope = queryResult.OwnedScope;
+        try
+        {
+            if (!queryResult.IsAuthorized)
+            {
+                logger.QueryUnauthorized(request.QueryName, queryId);
+                await onUnauthorized(queryId, token);
+                return null;
+            }
+
+            if (!queryResult.IsSuccess)
+            {
+                var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
+                await onError(queryId, errorMsg, token);
+                return null;
+            }
+
+            if (queryResult.AuthorizedPrincipal is { } selectedPrincipal &&
+                context is ObservableQuerySubscriptionHttpRequestContext subscriptionContext)
+            {
+                subscriptionContext.SelectAuthorizedPrincipal(selectedPrincipal, ownedScope?.ServiceProvider);
+            }
+
+            var streamingData = queryResult.Data;
+            if (streamingData is null || !IsStreamingResult(streamingData))
+            {
+                // Non-streaming result — send current snapshot and return null (no long-lived subscription)
+                var queryResultWithData = new QueryResult
+                {
+                    CorrelationId = queryResult.CorrelationId,
+                    Data = queryResult.Data,
+                    IsAuthorized = true,
+                    ValidationResults = [],
+                    ExceptionMessages = [],
+                    ExceptionStackTrace = string.Empty,
+                    Paging = queryResult.Paging
+                };
+
+                await onNext(queryResultWithData, token);
+                return null;
+            }
+
+            // The built-in pipeline returns its selected principal and coerced arguments explicitly. Legacy custom
+            // pipelines can still publish arguments through the context manager, but an AsyncLocal is not relied on
+            // for the built-in path and no request services or context are retained by the identity.
+            var legacyContext = queryResult.AuthorizedArguments is null ? queryContextManager.Current : null;
+            var identity = new ObservableQuerySubscriptionIdentity(
+                fullyQualifiedName,
+                queryResult.AuthorizedArguments ?? legacyContext?.Arguments ?? arguments,
+                queryResult.AuthorizedPrincipal ?? principal,
+                arcOptions.Value.JsonSerializerOptions)
+            {
+                AuthorizedTenant = queryResult.AuthorizedTenant ?? queryServiceProvider.GetService<TenantIdAccessor>()?.Current
             };
 
-            await onNext(queryResultWithData, token);
-            return null;
+            IDisposable? subscription = null;
+            try
+            {
+                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
+                if (subscription is StreamingQuerySubscription lifetime && ownedScope is not null)
+                {
+                    lifetime.AddResource(ownedScope);
+                    ownedScope = null;
+                }
+
+                var attached = subscription;
+                subscription = null;
+                return attached;
+            }
+            finally
+            {
+                subscription?.Dispose();
+            }
         }
-
-        // The pipeline coerces the raw string arguments to their declared parameter types and publishes them on the
-        // query context. Take them from there so an emission guard sees the same typed arguments the query itself ran
-        // with, rather than the unconverted strings that came in over the wire.
-        var performedQueryContext = queryContextManager.Current;
-        var identity = new ObservableQuerySubscriptionIdentity(
-            fullyQualifiedName,
-            performedQueryContext?.Arguments ?? arguments,
-            principal,
-            arcOptions.Value.JsonSerializerOptions);
-
-        return SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
+        finally
+        {
+            ownedScope?.Dispose();
+        }
     }
 
     IDisposable SubscribeToSubject(
@@ -942,7 +1039,8 @@ public class ObservableQueryDemultiplexer(
                 // Restore the subscribing connection's context — this callback runs on the subject's own
                 // producer thread, where the AsyncLocal tenant context set up when the subscription was
                 // created does not flow (see the class remarks).
-                httpRequestContextAccessor.Current = context;
+                using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                    context, interceptionScope.ServiceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
                 var interceptedData = await readModelInterceptors.InterceptEmission(typeof(T), data, interceptionScope.ServiceProvider);
                 subscriptionToken.ThrowIfCancellationRequested();
 
@@ -1080,7 +1178,8 @@ public class ObservableQueryDemultiplexer(
             var previousContext = httpRequestContextAccessor.Current;
             try
             {
-                httpRequestContextAccessor.Current = context;
+                using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                    context, interceptionScope.ServiceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
                 if (subscriptionToken.IsCancellationRequested)
                 {
                     return;
@@ -1174,7 +1273,8 @@ public class ObservableQueryDemultiplexer(
 
         try
         {
-            httpRequestContextAccessor.Current = context;
+            using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                context, guardServiceProvider ?? serviceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
             await foreach (var item in enumerable.WithCancellation(token))
             {
                 if (token.IsCancellationRequested)

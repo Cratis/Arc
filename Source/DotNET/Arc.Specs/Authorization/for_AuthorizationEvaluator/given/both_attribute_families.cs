@@ -45,13 +45,43 @@ public class both_attribute_families : Specification
         [new AspNetAnonymousEvaluator(), new AnonymousEvaluator()],
         [new AspNetAuthorizationAttributeEvaluator(), new AuthorizationAttributeEvaluator()]);
 
+    /// <summary>
+    /// Creates effective metadata resolution with Arc attributes first.
+    /// </summary>
+    /// <returns>The declaration resolver.</returns>
+    protected AuthorizationDeclarations ArcDeclarationsFirst() => BuildDeclarations(
+        [new AnonymousEvaluator(), new AspNetAnonymousEvaluator()],
+        [new AuthorizationAttributeEvaluator(), new AspNetAuthorizationAttributeEvaluator()]);
+
+    /// <summary>
+    /// Creates effective metadata resolution with ASP.NET Core attributes first.
+    /// </summary>
+    /// <returns>The declaration resolver.</returns>
+    protected AuthorizationDeclarations AspNetDeclarationsFirst() => BuildDeclarations(
+        [new AspNetAnonymousEvaluator(), new AnonymousEvaluator()],
+        [new AspNetAuthorizationAttributeEvaluator(), new AuthorizationAttributeEvaluator()]);
+
     AuthorizationEvaluator Compose(IAnonymousEvaluator[] anonymous, IAuthorizationAttributeEvaluator[] attributes)
+    {
+        var (anonymousEvaluators, attributeEvaluators) = CreateEvaluators(anonymous, attributes);
+        return new AuthorizationEvaluator(_currentPrincipalAccessor, anonymousEvaluators, attributeEvaluators);
+    }
+
+    AuthorizationDeclarations BuildDeclarations(IAnonymousEvaluator[] anonymous, IAuthorizationAttributeEvaluator[] attributes)
+    {
+        var (anonymousEvaluators, attributeEvaluators) = CreateEvaluators(anonymous, attributes);
+        return new AuthorizationDeclarations(anonymousEvaluators, attributeEvaluators);
+    }
+
+    static (IInstancesOf<IAnonymousEvaluator>, IInstancesOf<IAuthorizationAttributeEvaluator>) CreateEvaluators(
+        IAnonymousEvaluator[] anonymous,
+        IAuthorizationAttributeEvaluator[] attributes)
     {
         var anonymousEvaluators = Substitute.For<IInstancesOf<IAnonymousEvaluator>>();
         anonymousEvaluators.GetEnumerator().Returns(_ => anonymous.AsEnumerable().GetEnumerator());
         var attributeEvaluators = Substitute.For<IInstancesOf<IAuthorizationAttributeEvaluator>>();
         attributeEvaluators.GetEnumerator().Returns(_ => attributes.AsEnumerable().GetEnumerator());
-        return new AuthorizationEvaluator(_currentPrincipalAccessor, anonymousEvaluators, attributeEvaluators);
+        return (anonymousEvaluators, attributeEvaluators);
     }
 
     [Microsoft.AspNetCore.Authorization.Authorize]

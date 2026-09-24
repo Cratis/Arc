@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
+using Microsoft.Extensions.DependencyInjection;
+
 namespace Cratis.Arc.Queries.Filters;
 
 /// <summary>
@@ -10,21 +13,48 @@ namespace Cratis.Arc.Queries.Filters;
 public class AuthorizationFilter(IQueryPerformerProviders queryPerformerProviders) : IAuthorizationQueryFilter
 {
     /// <inheritdoc/>
-    public Task<QueryResult> OnPerform(QueryContext context)
+    public async Task<QueryResult> OnPerform(QueryContext context)
     {
+        context.CancellationToken.ThrowIfCancellationRequested();
         if (!queryPerformerProviders.TryGetPerformersFor(context.Name, out var performer))
         {
-            return Task.FromResult(QueryResult.Success(context.CorrelationId));
+            return QueryResult.Success(context.CorrelationId);
         }
 
-        // performer.IsAuthorized already applies the full hierarchy:
-        // method-level [AllowAnonymous] overrides type-level [Authorize],
-        // and a method with no annotation falls back to the type-level check.
-        if (!performer.IsAuthorized(context))
+        if (context.ServiceProvider is null)
         {
-            return Task.FromResult(QueryResult.Unauthorized(context.CorrelationId));
+            var typeRequiresScope = performer.Type is { } type && AuthorizationAttributeGuard.RequiresScopedEvaluation(type);
+            var methodRequiresScope = performer is IAuthorizationQueryTarget declared &&
+                AuthorizationAttributeGuard.RequiresScopedEvaluation(declared.AuthorizationMethod);
+            var opaqueMethodRequiresScope = performer is not IAuthorizationQueryTarget &&
+                performer.Type is { } opaqueType && AuthorizationAttributeGuard.HasAdvancedMethod(opaqueType);
+            if (typeRequiresScope || methodRequiresScope || opaqueMethodRequiresScope)
+            {
+                return QueryResult.Unauthorized(context.CorrelationId);
+            }
         }
 
-        return Task.FromResult(QueryResult.Success(context.CorrelationId));
+        bool allowed;
+        if (context.ServiceProvider is { } services)
+        {
+            var declarations = services.GetRequiredService<AuthorizationDeclarations>();
+            var target = QueryAuthorizationTarget.For(performer, declarations);
+            Func<bool>? legacyVerdict = performer is IFrameworkAuthorizationQueryTarget { HasIndependentLegacyVerdict: false }
+                ? null
+                : () => performer.IsAuthorized(context);
+            allowed = await services.GetRequiredService<AuthorizationEvaluation>().IsAuthorized(
+                target,
+                context,
+                services,
+                context.CancellationToken,
+                legacyVerdict);
+        }
+        else
+        {
+            allowed = performer.IsAuthorized(context);
+        }
+
+        context.CancellationToken.ThrowIfCancellationRequested();
+        return allowed ? QueryResult.Success(context.CorrelationId) : QueryResult.Unauthorized(context.CorrelationId);
     }
 }

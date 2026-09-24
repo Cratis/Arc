@@ -12,12 +12,12 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// <summary>
 /// Represents a model bound query performer.
 /// </summary>
-public class ModelBoundQueryPerformer : IQueryPerformer
+public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorizationQueryTarget
 {
     readonly IEnumerable<ParameterInfo> _dependencies;
     readonly IEnumerable<ParameterInfo> _queryParameters;
-    readonly MethodInfo _performMethod;
-    readonly IAuthorizationEvaluator _authorizationEvaluator;
+    readonly IAuthorizationEvaluator? _authorizationEvaluator;
+    readonly Func<QueryContext, bool>? _authorizeFromScope;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModelBoundQueryPerformer"/> class.
@@ -29,6 +29,42 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
     /// <exception cref="QueryMethodCannotBeGeneric">Thrown when <paramref name="performMethod"/> is generic.</exception>
     public ModelBoundQueryPerformer(Type readModelType, string readModelTypeName, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
+        : this(readModelType, readModelTypeName, performMethod, serviceProviderIsService)
+    {
+        _authorizationEvaluator = authorizationEvaluator;
+    }
+
+    /// <summary>
+    /// Creates a performer that resolves authorization from each query's scope, rather than caching the discovery scope.
+    /// </summary>
+    /// <param name="readModelType">The read model type.</param>
+    /// <param name="readModelTypeName">The qualified read model name.</param>
+    /// <param name="performMethod">The query method.</param>
+    /// <param name="serviceProviderIsService">The service classification.</param>
+    /// <param name="scopeFactory">A fallback for direct performer calls without a query scope.</param>
+    /// <param name="resolveEvaluator">Resolves the configured evaluator in a scope.</param>
+    public ModelBoundQueryPerformer(
+        Type readModelType,
+        string readModelTypeName,
+        MethodInfo performMethod,
+        IServiceProviderIsService serviceProviderIsService,
+        IServiceScopeFactory scopeFactory,
+        Func<IServiceProvider, IAuthorizationEvaluator> resolveEvaluator)
+        : this(readModelType, readModelTypeName, performMethod, serviceProviderIsService)
+    {
+        _authorizeFromScope = context =>
+        {
+            if (context.ServiceProvider is { } services)
+            {
+                return resolveEvaluator(services).IsAuthorized(AuthorizationMethod);
+            }
+
+            using var scope = scopeFactory.CreateScope();
+            return resolveEvaluator(scope.ServiceProvider).IsAuthorized(AuthorizationMethod);
+        };
+    }
+
+    ModelBoundQueryPerformer(Type readModelType, string readModelTypeName, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService)
     {
         // Fail while wiring up rather than on every request: invoking an open generic throws a bare BCL message that
         // says nothing about which read model method is at fault.
@@ -61,8 +97,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType, !IsNullableOrOptional(p))));
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
         SupportsPaging = ComputeSupportsPaging(performMethod);
-        _performMethod = performMethod;
-        _authorizationEvaluator = authorizationEvaluator;
+        AuthorizationMethod = performMethod;
     }
 
     /// <inheritdoc/>
@@ -96,19 +131,27 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     public bool SupportsPaging { get; }
 
     /// <inheritdoc/>
-    public bool IsAuthorized(QueryContext context) => _authorizationEvaluator.IsAuthorized(_performMethod);
+    public MethodInfo AuthorizationMethod { get; }
+
+    /// <inheritdoc/>
+    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null && _authorizationEvaluator?.GetType() != typeof(AuthorizationEvaluator);
+
+    /// <inheritdoc/>
+    public bool IsAuthorized(QueryContext context) => _authorizeFromScope is not null
+        ? _authorizeFromScope(context)
+        : _authorizationEvaluator!.IsAuthorized(AuthorizationMethod);
 
     /// <inheritdoc/>
     public async ValueTask<object?> Perform(QueryContext context)
     {
-        var parameters = _performMethod.GetParameters();
+        var parameters = AuthorizationMethod.GetParameters();
         var dependencies = context.Dependencies?.ToArray() ?? [];
         var queryStringParameters = context.Arguments ?? QueryArguments.Empty;
         var args = GetMethodArguments(parameters, dependencies, queryStringParameters);
 
         try
         {
-            var invocationResult = _performMethod.Invoke(null, args);
+            var invocationResult = AuthorizationMethod.Invoke(null, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
             return result;
         }

@@ -25,9 +25,9 @@ namespace Cratis.Arc.Queries;
 /// thread, where the request's <c>AsyncLocal</c> context does not flow, so a guard that reached for an ambient accessor
 /// would see whichever identity — or none — that thread happened to carry.
 /// <para>
-/// For a WebSocket subscription the principal is the one captured when the socket was upgraded: the WebSocket protocol
-/// offers no way to re-present credentials on an established connection, so it does not change for the life of that
-/// connection. A guard that needs a fresher verdict must reach its own source of truth (a session store, a token
+/// For a WebSocket subscription the principal is selected from authentication schemes on the live handshake when
+/// the subscription is admitted, then captured for its lifetime. The WebSocket protocol offers no way to re-present
+/// credentials on an established connection, so it does not change after admission. A guard that needs a fresher verdict must reach its own source of truth (a session store, a token
 /// introspection endpoint, a revocation list) using the identity carried here.
 /// </para>
 /// </remarks>

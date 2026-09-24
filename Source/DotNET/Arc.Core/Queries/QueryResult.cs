@@ -9,7 +9,7 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents the result coming from performing a query.
 /// </summary>
-public class QueryResult
+public partial class QueryResult
 {
     /// <summary>
     /// Gets or inits the <see cref="PagingInfo"/> for the query.

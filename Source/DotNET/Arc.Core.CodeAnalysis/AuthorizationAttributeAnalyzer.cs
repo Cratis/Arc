@@ -13,8 +13,7 @@ namespace Cratis.Arc.CodeAnalysis;
 /// <remarks>
 /// <para>
 /// ARC0019 reports <c>[AllowAnonymous]</c> declared together with <c>[Authorize]</c> or <c>[Roles]</c> on one
-/// declaration. The two contradict each other, and Arc resolves the contradiction differently depending on which
-/// of its anonymous evaluators is asked first — throwing in one order and admitting anonymous callers in the other.
+/// declaration. The two contradict each other, and Arc rejects the declaration in either evaluator order.
 /// </para>
 /// <para>
 /// ARC0020 reports an ASP.NET Core authorization attribute on a model-bound command or read model in a project that
@@ -22,9 +21,8 @@ namespace Cratis.Arc.CodeAnalysis;
 /// it they are read by nothing.
 /// </para>
 /// <para>
-/// ARC0021 reports a <c>Policy</c> or <c>AuthenticationSchemes</c> on an authorization attribute of a model-bound
-/// command or read model. Arc enforces authentication and roles; it does not evaluate either of these, so the
-/// artifact is less protected than the attribute reads.
+/// ARC0021 reports <c>AuthenticationSchemes</c> without ASP.NET Core integration. Native Arc policies work on
+/// either host, while explicit authentication schemes require ASP.NET Core.
 /// </para>
 /// </remarks>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
@@ -37,7 +35,6 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
     const string ReadModelAttribute = "Cratis.Arc.Queries.ModelBound.ReadModelAttribute";
     const string AspNetIntegration = "Cratis.Arc.Authorization.AspNetAnonymousEvaluator";
-    const string PolicyProperty = "Policy";
     const string AuthenticationSchemesProperty = "AuthenticationSchemes";
 
     enum AuthorizationKind
@@ -95,17 +92,20 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
             ReportIgnoredAspNetAttributes(context, classified);
         }
 
-        ReportUnevaluatedSettings(context, classified);
+        if (!aspNetIntegrationPresent)
+        {
+            ReportUnsupportedSettings(context, classified);
+        }
     }
 
-    static void ReportUnevaluatedSettings(
+    static void ReportUnsupportedSettings(
         SymbolAnalysisContext context,
         List<(AttributeData Attribute, AuthorizationKind Kind)> classified)
     {
         foreach (var (attribute, _) in classified.Where(_ => _.Kind is AuthorizationKind.ArcAuthorize or AuthorizationKind.AspNetAuthorize))
         {
             var name = attribute.AttributeClass!.Name.Replace("Attribute", string.Empty);
-            foreach (var setting in UnevaluatedSettingsOf(attribute))
+            foreach (var setting in UnsupportedSettingsOf(attribute))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.ARC0021_AuthorizationSettingNotEvaluated,
@@ -117,24 +117,12 @@ public class AuthorizationAttributeAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    static IEnumerable<string> UnevaluatedSettingsOf(AttributeData attribute)
+    static IEnumerable<string> UnsupportedSettingsOf(AttributeData attribute)
     {
-        // ASP.NET Core's [Authorize("PolicyName")] carries the policy as its single constructor argument.
-        // [Roles] takes a params array, and reading Value on an array constant throws, so only scalar
-        // constants are inspected.
-        var policyFromConstructor = attribute.ConstructorArguments.Length == 1 &&
-            IsNonEmptyString(attribute.ConstructorArguments[0]) &&
-            string.Equals(attribute.AttributeClass?.ToDisplayString(), AspNetAuthorize, StringComparison.Ordinal);
-
         var named = attribute.NamedArguments
             .Where(argument => IsNonEmptyString(argument.Value))
             .Select(argument => argument.Key)
             .ToList();
-
-        if (policyFromConstructor || named.Contains(PolicyProperty))
-        {
-            yield return PolicyProperty;
-        }
 
         if (named.Contains(AuthenticationSchemesProperty))
         {

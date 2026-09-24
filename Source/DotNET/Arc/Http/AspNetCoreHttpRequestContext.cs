@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using System.Text.Json;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.Options;
 
@@ -12,8 +13,9 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// ASP.NET Core implementation of <see cref="IHttpRequestContext"/>.
 /// </summary>
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
-public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext
+public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, IAuthorizationRequestContext
 {
+    readonly AsyncLocal<Selection?> _selected = new();
     JsonSerializerOptions? _jsonOptions;
 
     /// <inheritdoc/>
@@ -47,7 +49,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public string Method => httpContext.Request.Method;
 
     /// <inheritdoc/>
-    public IServiceProvider RequestServices => httpContext.RequestServices;
+    public IServiceProvider RequestServices => _selected.Value?.Services ?? httpContext.RequestServices;
 
     /// <inheritdoc/>
     public CancellationToken RequestAborted => httpContext.RequestAborted;
@@ -58,8 +60,18 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     /// <inheritdoc/>
     public ClaimsPrincipal User
     {
-        get => httpContext.User;
-        set => httpContext.User = value;
+        get => _selected.Value?.Principal ?? httpContext.User;
+        set
+        {
+            if (_selected.Value is { } selection)
+            {
+                _selected.Value = new Selection(value, selection.Services);
+            }
+            else
+            {
+                httpContext.User = value;
+            }
+        }
     }
 
     /// <inheritdoc/>
@@ -152,5 +164,20 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     public async Task WriteStream(Stream stream, CancellationToken cancellationToken = default)
     {
         await stream.CopyToAsync(httpContext.Response.Body, cancellationToken);
+    }
+
+    /// <inheritdoc/>
+    public IDisposable BeginSelectedPrincipal(ClaimsPrincipal principal, IServiceProvider services)
+    {
+        var previous = _selected.Value;
+        _selected.Value = new Selection(principal, services);
+        return new SelectedScope(this, previous);
+    }
+
+    sealed record Selection(ClaimsPrincipal Principal, IServiceProvider Services);
+
+    sealed class SelectedScope(AspNetCoreHttpRequestContext request, Selection? previous) : IDisposable
+    {
+        public void Dispose() => request._selected.Value = previous;
     }
 }

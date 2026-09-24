@@ -3,7 +3,10 @@
 
 using System.Reactive.Subjects;
 using System.Text.Json;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -44,24 +47,30 @@ public class ClientObservableSSE<T>(
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
         var isTerminated = false;
+        var drain = new DirectObservableEmissionDrain();
+        var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
+        var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
+            .CaptureLiveRequest(context.RequestServices);
         using var cts = new CancellationTokenSource();
+        using var emissionGate = new SemaphoreSlim(1, 1);
 
-        using var subscription = Subject.Subscribe(Next, Error, Complete);
-
-        // If application is stopping, complete the observable
-        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
-        linkedTokenSource.Token.Register(Complete);
+        var subscription = Subject.Subscribe(Next, Error, Complete);
+        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
+        await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
+        {
+            _ = cts.CancelAsync();
+            tcs.TrySetResult();
+        });
 
         try
         {
             await tcs.Task;
         }
-        catch (OperationCanceledException)
-        {
-            // Normal cancellation
-        }
         finally
         {
+            var pending = drain.StopAndDrain();
+            subscription.Dispose();
+            await pending;
             await cts.CancelAsync();
         }
 
@@ -69,13 +78,24 @@ public class ClientObservableSSE<T>(
 
         async void Next(T data)
         {
-            if (cts.IsCancellationRequested || isTerminated)
+            if (!drain.TryEnter())
             {
                 return;
             }
 
+            var gateHeld = false;
             try
             {
+                await emissionGate.WaitAsync(cts.Token);
+                gateHeld = true;
+                if (cts.IsCancellationRequested || isTerminated)
+                {
+                    return;
+                }
+
+                using var emissionIdentity = context is ObservableQuerySubscriptionHttpRequestContext selectedSubscription
+                    ? selectedSubscription.BeginEmission()
+                    : ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, emissionTenant, queryContext.NativeEmissionRequest ?? nativeRequest, httpRequestContextAccessor);
                 if (data is null)
                 {
                     // A single-document observable emits default/null to report "no such document" (removed,
@@ -91,7 +111,6 @@ public class ClientObservableSSE<T>(
                 // the connection's own request-scoped provider rather than the root — ensures the interceptor
                 // releases compliance/PII data under this subscription's tenant, not whichever tenant happened
                 // to resolve first.
-                httpRequestContextAccessor.Current = context;
                 queryResult.Data = await readModelInterceptors.InterceptEmission(typeof(T), data, context.RequestServices);
 
                 if (emissionGuards.HasGuards && !await IsEmissionAllowed())
@@ -129,6 +148,15 @@ public class ClientObservableSSE<T>(
                 {
                     Subject.OnError(ex);
                 }
+            }
+            finally
+            {
+                if (gateHeld)
+                {
+                    emissionGate.Release();
+                }
+
+                drain.Exit();
             }
         }
 
@@ -177,7 +205,8 @@ public class ClientObservableSSE<T>(
                 return;
             }
             logger.ObservableAnErrorOccurred(error);
-            Complete();
+            _ = cts.CancelAsync();
+            tcs.TrySetResult();
         }
 
         void Complete()
@@ -185,7 +214,6 @@ public class ClientObservableSSE<T>(
             if (!cts.IsCancellationRequested)
             {
                 logger.ObservableCompleted();
-                _ = cts.CancelAsync();
             }
             tcs.TrySetResult();
         }

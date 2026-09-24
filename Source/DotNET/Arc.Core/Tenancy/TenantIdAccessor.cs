@@ -12,7 +12,7 @@ namespace Cratis.Arc.Tenancy;
 [Singleton]
 public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAccessor
 {
-    static readonly AsyncLocal<TenantId> _current = new();
+    static readonly AsyncLocal<TenantId?> _current = new();
 
     /// <inheritdoc/>
     public TenantId Current
@@ -29,5 +29,27 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
             _current.Value = result;
             return result;
         }
+    }
+
+    /// <summary>
+    /// Gets the tenant already cached on this execution flow without causing it to resolve.
+    /// </summary>
+    internal TenantId? Cached => _current.Value;
+
+    /// <summary>
+    /// Temporarily binds tenant resolution to the identity selected for an authorized operation.
+    /// </summary>
+    /// <param name="tenant">The selected tenant.</param>
+    /// <returns>A scope restoring the previously cached tenant.</returns>
+    internal IDisposable UseAuthorizedTenant(TenantId tenant)
+    {
+        var previous = _current.Value;
+        _current.Value = tenant;
+        return new TenantScope(previous);
+    }
+
+    sealed class TenantScope(TenantId? previous) : IDisposable
+    {
+        public void Dispose() => _current.Value = previous;
     }
 }
