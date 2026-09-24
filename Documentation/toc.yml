@@ -14,6 +14,8 @@
   href: understanding-identity-and-access.mdx
 - name: HTTP contract
   href: http-contract.md
+- name: Capability matrix
+  href: capabilities.md
 - name: Glossary
   href: glossary.md
 - name: Scenarios
