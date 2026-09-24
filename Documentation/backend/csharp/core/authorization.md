@@ -1,6 +1,6 @@
 ---
 title: Authorization
-description: Protect Arc pipelines with authentication and roles, and read the current principal without ASP.NET Core.
+description: Protect Arc pipelines with authentication, roles, and named asynchronous policies.
 ---
 
 An authenticated caller is not necessarily allowed to perform every operation. Arc's authorization filters check the current principal before command or query logic runs. These checks belong to `Cratis.Arc.Core`; they do not require ASP.NET Core, a database, or Chronicle.
@@ -14,11 +14,11 @@ Use attributes from `Cratis.Arc.Authorization`:
 | `[Authorize]` | Requires an authenticated principal. |
 | `[Authorize(Roles = "Admin,Manager")]` | Requires authentication and at least one listed role. |
 | `[Roles("Admin", "Manager")]` | The same OR-role check; derives from Arc's `AuthorizeAttribute`. |
+| `[Authorize(Policy = "ActiveSubscription")]` | Requires authentication and the named policy to succeed asynchronously. |
 | `[AllowAnonymous]` | Explicitly allows anonymous access. |
 | No authorization attribute | No authentication or role requirement from the Arc evaluator. |
 
-> [!WARNING]
-> Arc's evaluator reads authentication and roles only. The `Policy` and `AuthenticationSchemes` properties on Arc's attribute are **not enforced** by that evaluator, which analyzer [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) reports. Every authorization attribute on a declaration applies, so stacking `[Authorize]` and `[Roles]` requires both, as ASP.NET Core does. ASP.NET Core middleware can enforce its own endpoint policies when configured with Microsoft metadata; that is a separate boundary, not a guarantee for direct Arc pipeline execution.
+Every authorization attribute on a declaration applies: stacked roles and policies are combined with AND. Register each policy before starting the host; an unknown or duplicate policy fails startup, and an unresolved policy at runtime never grants access. The standalone Arc host cannot authenticate named schemes: `AuthenticationSchemes` fails startup (and [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) flags it). Use [ASP.NET Core integration](../asp-net-core/authorization.md) for actual scheme authentication.
 
 ## Protect a command
 
@@ -37,6 +37,35 @@ public record Greet(string Name)
 ```
 
 Through the command pipeline, anonymous callers cannot reach `Handle()`. For role protection, replace `[Authorize]` with `[Roles("Admin", "Manager")]`.
+
+## Register a named policy
+
+A policy resolves from the command or query's executing service scope, so it can depend on scoped collaborators. This example uses a trusted claim established by your host's authentication mechanism:
+
+```csharp
+using System.Threading;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+
+public class ActiveSubscription : IAuthorizationPolicy
+{
+    public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(context.Principal.HasClaim("subscription", "active"));
+    }
+}
+```
+
+In the host builder, before `Build()`:
+
+```csharp
+using Cratis.Arc.Authorization;
+
+builder.Services.AddArcAuthorizationPolicy<ActiveSubscription>("ActiveSubscription");
+```
+
+Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. An authenticated principal is required even when a policy itself permits anonymous callers. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
 
 ## Protect a query
 
@@ -65,12 +94,12 @@ Method authorization takes precedence over type authorization. Arc rejects confl
 flowchart LR
     HTTP[Mapped HTTP endpoint] --> Pipeline[Command or query pipeline]
     Caller[Server-side pipeline caller] --> Pipeline
-    Pipeline --> Check[Authentication and role check]
+    Pipeline --> Check[Authentication, roles, and async policies]
     Check --> Logic[Handle or static query method]
     Direct[Ordinary C# method call] --> Logic
 ```
 
-Attributes do not intercept ordinary C# calls. `new Greet("World").Handle()` and `ServiceStatus.Internal()` bypass pipeline authorization, validation, filters, and result handling. Use mapped endpoints or [the command pipeline](../commands/command-pipeline.md) / [query pipeline](../queries/query-pipeline.md) when those guarantees are required. Server-side callers must also establish an appropriate principal through the supported execution scope; being in-process does not itself prove permission.
+Attributes do not intercept ordinary C# calls. `new Greet("World").Handle()` and `ServiceStatus.Internal()` bypass pipeline authorization, validation, filters, and result handling. Use mapped endpoints or [the command pipeline](../commands/command-pipeline.md) / [query pipeline](../queries/query-pipeline.md) when those guarantees are required. Server-side callers must also establish an appropriate principal through the supported execution scope; being in-process does not itself prove permission. A nested Core pipeline may use a different trusted server-side principal in a no-scheme execution scope, restoring the outer actor afterward. The restriction on changing a scheme-selected actor after an outer command has bound its unit of work applies to ASP.NET Core scheme selection, not to ordinary no-scheme `BeginScope` nesting.
 
 ## Working with claims
 
