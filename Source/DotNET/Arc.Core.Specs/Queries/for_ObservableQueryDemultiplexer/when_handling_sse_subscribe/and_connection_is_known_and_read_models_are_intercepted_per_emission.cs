@@ -54,6 +54,7 @@ public class and_connection_is_known_and_read_models_are_intercepted_per_emissio
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 

@@ -44,6 +44,7 @@ public class and_connection_is_known_and_query_streams_results : given.an_observ
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 

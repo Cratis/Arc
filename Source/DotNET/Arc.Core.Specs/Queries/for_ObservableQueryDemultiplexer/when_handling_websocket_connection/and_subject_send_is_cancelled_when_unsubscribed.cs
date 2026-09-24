@@ -64,6 +64,7 @@ public class and_subject_send_is_cancelled_when_unsubscribed : given.a_guarded_w
         _sendStarted.TrySetResult();
         try
         {
+            // This send double remains blocked until unsubscribe cancels it.
             await Task.Delay(Timeout.Infinite, token);
         }
         finally

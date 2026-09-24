@@ -21,8 +21,8 @@ public class and_subject_completes : given.a_guarded_sse_connection
         _hadObserversAfterCompletion = _subject.HasObservers;
         _resultsAfterCompletion = CountQueryResultsFor(FirstQueryId);
 
+        // Scope disposal acknowledges terminal teardown before the late emission is attempted.
         _subject.OnNext(["late-item"]);
-        await Task.Delay(50);
     });
 
     [Fact] void should_send_the_last_emission_once() => _resultsAfterCompletion.ShouldEqual(1);

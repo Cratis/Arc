@@ -54,6 +54,7 @@ public class and_concurrent_messages_are_sent : given.an_observable_query_demult
                 try
                 {
                     _messages.Enqueue(callInfo.Arg<string>());
+                    _signals.Signal();
                     return Task.CompletedTask;
                 }
                 catch (Exception ex)
@@ -89,6 +90,8 @@ public class and_concurrent_messages_are_sent : given.an_observable_query_demult
         for (var i = 0; i < NumberOfEmissions; i++)
         {
             _subject.OnNext([$"event-{i}"]);
+
+            // Deliberately widen the interleaving window between concurrent writes and keep-alive pings.
             await Task.Delay(5);
         }
 

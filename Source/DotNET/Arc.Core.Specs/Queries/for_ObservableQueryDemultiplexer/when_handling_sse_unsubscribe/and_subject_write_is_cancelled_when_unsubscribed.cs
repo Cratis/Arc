@@ -53,6 +53,7 @@ public class and_subject_write_is_cancelled_when_unsubscribed : given.a_guarded_
         _writeStarted.TrySetResult();
         try
         {
+            // This write double remains blocked until unsubscribe cancels it.
             await Task.Delay(Timeout.Infinite, token);
         }
         finally

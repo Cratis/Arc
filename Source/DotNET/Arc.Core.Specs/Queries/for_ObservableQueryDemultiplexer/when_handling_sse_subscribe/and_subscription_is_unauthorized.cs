@@ -36,6 +36,7 @@ public class and_subscription_is_unauthorized : given.an_observable_query_demult
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 

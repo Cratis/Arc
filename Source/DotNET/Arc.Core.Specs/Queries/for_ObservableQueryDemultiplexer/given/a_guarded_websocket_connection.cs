@@ -62,6 +62,7 @@ public class a_guarded_websocket_connection : a_guarded_connection
                 if (hubMessage is not null)
                 {
                     _sentMessages.Enqueue(hubMessage);
+                    _signals.Signal();
                 }
 
                 return Task.CompletedTask;

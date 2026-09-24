@@ -43,6 +43,7 @@ public class and_connection_is_known_and_full_mode_emission : given.an_observabl
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 
