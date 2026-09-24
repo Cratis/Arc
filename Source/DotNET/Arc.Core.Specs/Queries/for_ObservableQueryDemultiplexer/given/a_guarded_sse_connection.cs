@@ -38,6 +38,7 @@ public class a_guarded_sse_connection : a_guarded_connection
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
     }

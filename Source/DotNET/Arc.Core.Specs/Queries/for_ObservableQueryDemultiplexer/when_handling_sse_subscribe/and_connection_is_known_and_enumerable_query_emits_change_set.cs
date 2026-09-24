@@ -43,6 +43,7 @@ public class and_connection_is_known_and_enumerable_query_emits_change_set : giv
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 

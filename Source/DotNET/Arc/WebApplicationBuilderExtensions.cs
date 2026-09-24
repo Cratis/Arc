@@ -2,7 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries.ControllerBased;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -75,9 +78,12 @@ public static class WebApplicationBuilderExtensions
         }
 
         builder.Services.AddCratisArcCore();
+        builder.Services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyRuntime, AspNetAuthorizationPolicyRuntime>());
+        builder.Services.AddHostedService<AuthorizationStartupValidation>();
         builder.Services.AddIdentityProvider();
-        builder.Services.AddHttpContextAccessor();
+        OperationHttpContextAccessorRegistration.Add(builder.Services);
         builder.Services.AddControllersFromProjectReferencedAssembles(Internals.Types);
+        builder.Services.AddScopedControllerQueryAuthorization();
 
         builder.Host.SkipEagerServiceProviderValidation();
         builder.AddCorrelationIdLogEnricher();

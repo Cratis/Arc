@@ -32,6 +32,7 @@ public class and_guard_resolves_scoped_dependencies : given.a_guarded_sse_connec
     protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
     {
         services.AddSingleton(_resolved);
+        services.AddSingleton(_signals);
         services.AddScoped<ScopedGuardDependency>();
         guardTypes.Add(typeof(ScopedDependencyGuard));
     }
@@ -43,11 +44,12 @@ public class and_guard_resolves_scoped_dependencies : given.a_guarded_sse_connec
         public void Dispose() => IsDisposed = true;
     }
 
-    public class ScopedDependencyGuard(ConcurrentQueue<ScopedGuardDependency> resolved, ScopedGuardDependency dependency) : IGuardObservableQueryEmission
+    public class ScopedDependencyGuard(ConcurrentQueue<ScopedGuardDependency> resolved, ScopedGuardDependency dependency, given.condition_pulse signals) : IGuardObservableQueryEmission
     {
         public Task<ObservableQueryEmissionVerdict> Guard(ObservableQueryEmissionContext context)
         {
             resolved.Enqueue(dependency);
+            signals.Signal();
             return Task.FromResult(ObservableQueryEmissionVerdict.Allow);
         }
     }

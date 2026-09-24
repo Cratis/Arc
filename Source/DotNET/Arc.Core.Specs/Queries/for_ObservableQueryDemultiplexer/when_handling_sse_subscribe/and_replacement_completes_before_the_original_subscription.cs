@@ -26,9 +26,12 @@ public class and_replacement_completes_before_the_original_subscription : given.
     {
         _performCount = 0;
         _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Interlocked.Increment(ref _performCount) == 1
-                ? _originalResult.Task
-                : _replacementResult.Task);
+            .Returns(_ =>
+            {
+                var count = Interlocked.Increment(ref _performCount);
+                _signals.Signal();
+                return count == 1 ? _originalResult.Task : _replacementResult.Task;
+            });
     }
 
     async Task Because()

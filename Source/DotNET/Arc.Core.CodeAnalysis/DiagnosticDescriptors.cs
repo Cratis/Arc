@@ -196,11 +196,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0019_ConflictingAuthorizationOnDeclaration = new(
         id: "ARC0019",
         title: "[AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration",
-        messageFormat: "'{0}' is marked both [AllowAnonymous] and [{1}]. The two contradict each other, and Arc resolves the contradiction differently depending on evaluator order — rejecting the call in one and admitting anonymous callers in the other. Keep one of them.",
+        messageFormat: "'{0}' is marked both [AllowAnonymous] and [{1}]. The two contradict each other, and Arc rejects the declaration. Keep one of them.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A single declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading. Arc does not settle it deterministically: one of its anonymous evaluators throws AmbiguousAuthorizationLevel, the other prefers anonymous, and whichever is discovered first wins. Declare one or the other. Overriding a class-level declaration on one query method is a different, supported thing and is not reported.");
+        description: "A single declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading. Arc rejects it with AmbiguousAuthorizationLevel regardless of evaluator order. Declare one or the other. Overriding a class-level declaration on one query method is a different, supported thing and is not reported.");
 
     /// <summary>
     /// ARC0020: ASP.NET Core authorization attribute on a model-bound Arc artifact without Arc's ASP.NET Core integration.
@@ -215,16 +215,16 @@ static class DiagnosticDescriptors
         description: "Arc's ASP.NET Core integration (the Cratis.Arc package) enforces ASP.NET Core's [Authorize] and [AllowAnonymous] on model-bound commands and read models alongside Arc's own attributes. A project hosted without it - on Arc Core's own HTTP host, for example - has nothing that reads the ASP.NET Core attributes, so a command marked with one stays open to every caller. Use the Arc attribute of the same name, which every Arc host enforces.");
 
     /// <summary>
-    /// ARC0021: Authorization setting that Arc does not evaluate on a model-bound artifact.
+    /// ARC0021: Authentication scheme that requires the ASP.NET Core host.
     /// </summary>
     public static readonly DiagnosticDescriptor ARC0021_AuthorizationSettingNotEvaluated = new(
         id: "ARC0021",
-        title: "Authorization setting is not evaluated on a model-bound Arc artifact",
-        messageFormat: "[{0}] on '{1}' sets {2}, which Arc does not evaluate on model-bound commands and read models. The caller only has to be authenticated and hold any roles the attribute names.",
+        title: "Authentication scheme requires the ASP.NET Core host",
+        messageFormat: "[{0}] on '{1}' sets {2}, which requires Arc's ASP.NET Core integration. The standalone Arc host rejects this setting at startup.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Arc enforces the authentication and roles an authorization attribute declares on a model-bound command or read model. It does not evaluate a named Policy or restrict AuthenticationSchemes, so an artifact that relies on either is less protected than its attribute reads. Express the requirement as roles, or enforce it in the command or query itself, until policy evaluation is supported.");
+        description: "Named policies are supported on both Arc hosts. AuthenticationSchemes requires the ASP.NET Core host's authentication service; the standalone Arc host rejects explicit schemes at startup. Use Arc's ASP.NET Core integration for scheme-specific authentication.");
 
     const string Category = "Arc";
 }

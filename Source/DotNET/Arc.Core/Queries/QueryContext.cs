@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Tenancy;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Queries;
@@ -27,4 +30,20 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// Gets or sets the total number of items in the query.
     /// </summary>
     public int TotalItems { get; set; }
+
+    /// <summary>
+    /// Gets the principal selected during authorization, for a long-lived subscription's identity snapshot.
+    /// </summary>
+    public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
+
+    /// <summary>
+    /// Gets the operation-local authorization plan prepared by a host before creating a fresh execution scope.
+    /// </summary>
+    internal PreparedAuthorization? PreparedAuthorization { get; set; }
+
+    /// <summary>Gets or sets the captured tenant used after the direct query pipeline returns.</summary>
+    internal TenantId? EmissionTenant { get; set; }
+
+    /// <summary>Gets or sets the still-live direct request's native scope factory.</summary>
+    internal Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? NativeEmissionRequest { get; set; }
 }

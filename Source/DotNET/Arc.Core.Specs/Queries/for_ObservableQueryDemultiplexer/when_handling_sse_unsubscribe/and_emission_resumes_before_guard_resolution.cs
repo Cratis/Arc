@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Microsoft.Extensions.Logging;
-
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_unsubscribe;
 
 /// <summary>
@@ -12,6 +10,7 @@ namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_
 /// </summary>
 public class and_emission_resumes_before_guard_resolution : given.a_guarded_sse_connection
 {
+    given.observed_logger _observedLogger;
     TaskCompletionSource<IEnumerable<object>> _interceptionGate;
     TaskCompletionSource _interceptionStarted;
 
@@ -19,7 +18,9 @@ public class and_emission_resumes_before_guard_resolution : given.a_guarded_sse_
     {
         _interceptionGate = new TaskCompletionSource<IEnumerable<object>>();
         _interceptionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        _observedLogger = new(_signals);
+        _logger = _observedLogger;
+        UseGuards(_configuredGuards);
 
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(_ =>
@@ -46,14 +47,7 @@ public class and_emission_resumes_before_guard_resolution : given.a_guarded_sse_
     [Fact] void should_not_report_the_subscription_as_unauthorized() => HasUnauthorizedFor(FirstQueryId).ShouldBeFalse();
     [Fact] void should_only_unregister_the_explicitly_unsubscribed_subscription() => _healthTracker.Received(1).UnregisterSubscription(Arg.Any<string>(), FirstQueryId);
 
-    int LogCallCount => _logger.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(ILogger.Log));
+    int LogCallCount => _observedLogger.Count;
 
-    async Task WaitForLogAfter(int count)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (LogCallCount <= count)
-        {
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    Task WaitForLogAfter(int count) => WaitFor(() => LogCallCount > count);
 }

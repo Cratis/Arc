@@ -1,8 +1,9 @@
 ---
 id: 0001-enforce-aspnet-core-authorization-attributes
 title: Enforce ASP.NET Core's authorization attributes on model-bound artifacts, alongside Arc's own
-status: accepted
+status: superseded
 stage: verified
+superseded-by: 0004-evaluate-authorization-policies-asynchronously
 decided: 2026-09-23
 decider: Sindre Alstad Wilting
 class: product

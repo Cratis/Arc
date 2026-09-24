@@ -60,6 +60,7 @@ public class an_sse_connection_owned_by_a_caller : an_observable_query_demultipl
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
     }

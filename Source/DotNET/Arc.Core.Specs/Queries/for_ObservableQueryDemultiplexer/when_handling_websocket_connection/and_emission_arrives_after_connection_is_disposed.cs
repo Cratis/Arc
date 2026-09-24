@@ -7,7 +7,6 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Execution;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_websocket_connection;
 
@@ -24,6 +23,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
     const string ControllerQueryName = "Cratis.Chronicle.Api.EventStores.EventStoreQueries.AllEventStores";
     const string QueryId = "query-1";
 
+    given.observed_logger _observedLogger;
     IQueryHealthTracker _observableHealthTracker;
     IHttpRequestContext _context;
     IWebSocketContext _webSocketContext;
@@ -44,7 +44,8 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         _sentMessages = [];
         _interceptionGate = new TaskCompletionSource<IEnumerable<object>>();
         _dataServed = new TaskCompletionSource();
-        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        _observedLogger = new(_signals);
+        _logger = _observedLogger;
 
         // Rebuild the hub with a health tracker we can observe. A late emission stopped by teardown must not be
         // recorded as data served, because no result reaches the disconnected client.
@@ -68,7 +69,11 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         // Hold interception open so the first emission stays in flight (holding the emission gate) while the
         // connection is torn down underneath it.
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
-            .Returns(_ => _interceptionGate.Task);
+            .Returns(_ =>
+            {
+                _signals.Signal();
+                return _interceptionGate.Task;
+            });
 
         _subject = new BehaviorSubject<IEnumerable<string>>([]);
         _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
@@ -123,6 +128,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         // Close the socket. The finally disposes the subscription (emission gate), the write lock and the
         // linked cancellation source — all while the emission is still in flight.
         _closeRequested = true;
+        _signals.Signal();
         await connectionTask;
         _connectionCompleted = true;
 
@@ -147,16 +153,9 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
     [Fact] void should_not_track_the_late_emission_as_data_served() => _dataServed.Task.IsCompleted.ShouldBeFalse();
     [Fact] void should_not_send_a_query_result_over_the_disposed_socket() => HasQueryResultMessage().ShouldBeFalse();
 
-    int LogCallCount => _logger.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(ILogger.Log));
+    int LogCallCount => _observedLogger.Count;
 
-    async Task WaitForLogAfter(int count)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (LogCallCount <= count)
-        {
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    Task WaitForLogAfter(int count) => WaitFor(() => LogCallCount > count);
 
     bool HasQueryResultMessage() =>
         _sentMessages.Any(_ => _.Type == ObservableQueryHubMessageType.QueryResult && _.QueryId == QueryId);
@@ -181,10 +180,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
 
         // Keep the connection open until the spec asks it to close, then signal a normal close so the read
         // loop exits and the connection is torn down.
-        while (!_closeRequested)
-        {
-            await Task.Delay(10);
-        }
+        await WaitFor(() => _closeRequested);
 
         return new WebSocketReceiveResult(0, System.Net.WebSockets.WebSocketMessageType.Close, true, WebSocketCloseStatus.NormalClosure, "done");
     }

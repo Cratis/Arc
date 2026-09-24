@@ -39,6 +39,11 @@ public class ClientEnumerableObservable<T>(
         {
             try
             {
+                using var emissionIdentity = context is ObservableQuerySubscriptionHttpRequestContext subscription
+                    ? subscription.BeginEmission()
+                    : queryContext.EmissionTenant is not null || queryContext.NativeEmissionRequest is not null
+                        ? ObservableEmissionIdentity.Begin(context, context.RequestServices, context.User, queryContext.EmissionTenant, queryContext.NativeEmissionRequest)
+                        : null;
                 await foreach (var item in enumerable.WithCancellation(cts.Token))
                 {
                     if (item is null)

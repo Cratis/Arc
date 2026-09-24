@@ -1,6 +1,6 @@
 ---
 title: Model-bound query authorization
-description: Protect reads with Arc authentication and roles, and understand the current policy limitation.
+description: Protect reads with authentication, roles, named policies, and selected schemes.
 ---
 
 <!-- Copyright (c) Cratis. All rights reserved.
@@ -10,10 +10,9 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 For model-bound queries, use attributes from **`Cratis.Arc.Authorization`**. The default evaluator checks whether the current principal is authenticated and, when roles are specified, belongs to at least one of those roles.
 
-> [!WARNING]
-> The current model-bound evaluator does **not** evaluate named policies. Do not rely on `[Authorize(Policy = "...")]` - on Arc's attribute or Microsoft's - or on a policy-derived ownership attribute to enforce a model-bound policy; analyzer [ARC0021](../../code-analysis/index.md#arc0021-unevaluated-authorization-settings) reports a policy the evaluator will not evaluate. With `Cratis.Arc`, Microsoft's `[Authorize]` and `[AllowAnonymous]` are enforced for authentication and roles like Arc's own. Configured ASP.NET middleware/MVC authorization is a separate surface and can enforce its own requirements; it is not automatically the model-bound evaluator.
+Register a native scoped policy using [Core named policies](../../core/authorization.md#register-a-named-policy), then put `[Authorize(Policy = "ActiveSubscription")]` on the read model or a query method. Arc awaits every named policy before invoking the method, whether the call comes from HTTP, the query pipeline, or a new hub subscription. Unknown and duplicate policies fail host startup. Method-level declarations replace type-level declarations, while stacked attributes on one declaration all apply. The selected principal must be authenticated, even when the policy itself would allow anonymous access.
 
-Treat policy support as a current implementation limitation. For a policy-based HTTP API, use an explicitly protected MVC action and test its middleware configuration. For rules needed across model-bound HTTP, direct pipeline execution, and hub subscriptions, implement a real [authorization query filter](../query-pipeline.md#query-filters). Do not substitute input validation for an authorization verdict.
+On ASP.NET Core, both Arc and Microsoft's authorization attributes can name ASP.NET policies or select registered authentication schemes. Arc authenticates an explicitly requested or policy-contributed scheme instead of trusting the default request identity; on SSE it uses the live subscribe POST. Scheme-selected queries construct authorization filters and later query dependencies under the same selected principal and tenant in a fresh Arc-owned service scope. A direct `IQueryPipeline.Perform(..., serviceProvider)` call with an arbitrary provider cannot safely rebind already-resolved identity-dependent services and fails closed if it selects a different identity; use mapped HTTP or a hub subscription. The standalone Core host rejects `AuthenticationSchemes` at startup (see [ARC0021](../../code-analysis/index.md#arc0021-unevaluated-authorization-settings)). ASP.NET Core middleware/MVC authorization remains a separate HTTP boundary. Do not substitute input validation for an authorization verdict.
 
 ## Require a role
 
@@ -65,6 +64,6 @@ There is no universal claim-to-owner mapping Arc can supply for your application
 
 ## Observable authorization
 
-Authorization gates each new subscription. It does not automatically revoke a running stream when roles change or credentials expire. Use an [emission guard](../observable-query-emission-guards.md) backed by your current session/permission state when revocation must affect ongoing delivery.
+Authorization gates each new subscription. Direct SSE/WebSocket streams keep the live request's selected principal, tenant, and service provider through each emission. Emissions from another producer's execution flow restore the subscriber's identity (including on controller-based streams without policy metadata). On disconnect, direct streams stop accepting emissions and wait for in-flight interception and guards before releasing their request resources; a normally completed stream delivers already accepted emissions before ending. The hub snapshots the selected principal, typed arguments, and tenant for subsequent emissions, so guards run with the admitting identity even after the subscribe POST ends. Hub emissions have no native ASP.NET Core `HttpContext` after admission: a subscribe POST has ended and an emission can originate under another request's identity. Resolve identity through `ICurrentPrincipalAccessor` or the Arc emission context rather than native HTTP inside a hub emission guard. It does not automatically revoke a running stream when roles change or credentials expire. Use an [emission guard](../observable-query-emission-guards.md) backed by your current session/permission state when revocation must affect ongoing delivery.
 
 Do not use [interceptor masking](../read-model-interception.md) as your only data-access control: observable HTTP snapshots currently bypass that interception path. Ensure the producer itself never yields fields or rows the caller must not receive.

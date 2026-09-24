@@ -45,6 +45,7 @@ public class and_connection_is_known_and_delta_mode_first_emission : given.an_ob
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 

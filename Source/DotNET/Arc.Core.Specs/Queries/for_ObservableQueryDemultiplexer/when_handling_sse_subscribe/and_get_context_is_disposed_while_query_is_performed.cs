@@ -64,6 +64,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 

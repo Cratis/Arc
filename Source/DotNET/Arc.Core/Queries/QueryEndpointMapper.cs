@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
 using Cratis.Execution;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -134,13 +136,68 @@ public static class QueryEndpointMapper
         var observableQueryHandler = context.RequestServices.GetRequiredService<IObservableQueryHandler>();
         var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
         var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
+        var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
+            .CaptureLiveRequest(context.RequestServices);
 
-        var queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
+        QueryResult queryResult;
+        if (queryPipeline is QueryPipeline builtInPipeline)
+        {
+            queryResult = await builtInPipeline.PerformHosted(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
+        }
+        else
+        {
+            if (context.RequestServices.GetService<AuthorizationDeclarations>() is { } declarations)
+            {
+                var target = QueryAuthorizationTarget.For(performer, declarations);
+                var declaration = target is System.Reflection.MethodInfo method ? declarations.For(method) : declarations.For((Type)target);
+                if (declaration.RequiresAsynchronousEvaluation)
+                {
+                    throw new InvalidAuthorizationConfiguration($"Query '{performer.FullyQualifiedName}' requires an Arc pipeline that prepares authorization before execution.");
+                }
+            }
+
+            queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
+        }
+
+        using var ownedScope = queryResult.OwnedScope;
 
         // Check if the result data is a streaming result (Subject or AsyncEnumerable)
         if (queryResult.IsSuccess && observableQueryHandler.IsStreamingResult(queryResult.Data))
         {
-            await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
+            // The pipeline has restored the outer request identity. A direct stream lives beyond that lease,
+            // so keep its subscriber identity, selected tenant and owned provider until the transport finishes.
+            var tenant = queryResult.AuthorizedTenant ?? context.RequestServices.GetRequiredService<TenantIdAccessor>().Current;
+            var manager = context.RequestServices.GetRequiredService<IQueryContextManager>();
+            var previousQueryContext = manager.Current;
+            var queryContext = queryResult.AuthorizedQueryContext ?? previousQueryContext;
+            if (queryContext != QueryContext.NotSet)
+            {
+                queryContext.EmissionTenant = tenant;
+                queryContext.NativeEmissionRequest = nativeRequest;
+                manager.Set(queryContext);
+            }
+
+            try
+            {
+                // No-scheme requests retain their original context, including any custom request implementation and
+                // principal subclass. Only a selected identity needs a durable context with the owned B provider.
+                if (queryResult.AuthorizedPrincipal is { } principal)
+                {
+                    var selected = new ObservableQuerySubscriptionHttpRequestContext(
+                        context, context, queryResult.OwnedScope?.ServiceProvider ?? context.RequestServices, context.RequestAborted);
+                    selected.ConfigureEmission(tenant, nativeRequest);
+                    selected.SelectAuthorizedPrincipal(principal, queryResult.OwnedScope?.ServiceProvider);
+                    await observableQueryHandler.HandleStreamingResult(selected, performer.Name, queryResult.Data);
+                }
+                else
+                {
+                    await observableQueryHandler.HandleStreamingResult(context, performer.Name, queryResult.Data);
+                }
+            }
+            finally
+            {
+                manager.Set(previousQueryContext);
+            }
             return;
         }
 

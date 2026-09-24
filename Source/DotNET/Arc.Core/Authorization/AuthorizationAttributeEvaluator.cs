@@ -44,11 +44,11 @@ public class AuthorizationAttributeEvaluator : IAuthorizationAttributeEvaluator
     public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
         type.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .OfType<AuthorizeAttribute>()
-            .Select(attribute => AuthorizationRequirement.FromRoles(attribute.Roles));
+            .Select(attribute => AuthorizationRequirement.FromAttribute(attribute.Roles, attribute.Policy, attribute.AuthenticationSchemes));
 
     /// <inheritdoc/>
     public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) =>
         method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
             .OfType<AuthorizeAttribute>()
-            .Select(attribute => AuthorizationRequirement.FromRoles(attribute.Roles));
+            .Select(attribute => AuthorizationRequirement.FromAttribute(attribute.Roles, attribute.Policy, attribute.AuthenticationSchemes));
 }

@@ -22,6 +22,9 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
     BehaviorSubject<IEnumerable<string>> _subject;
     ConcurrentQueue<ObservableQueryHubMessage> _sentMessages;
     int _receiveCount;
+    readonly TaskCompletionSource _initialResultSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource _dataResultSent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    Task _producerTask = Task.CompletedTask;
 
     void Establish()
     {
@@ -61,6 +64,23 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
                 if (hubMessage is not null)
                 {
                     _sentMessages.Enqueue(hubMessage);
+                    if (hubMessage.Type == ObservableQueryHubMessageType.QueryResult &&
+                        hubMessage.QueryId == QueryId &&
+                        hubMessage.Payload is JsonElement payload &&
+                        TryGetPropertyIgnoreCase(payload, "data", out var resultData) &&
+                        resultData.ValueKind == JsonValueKind.Array)
+                    {
+                        if (resultData.GetArrayLength() == 0)
+                        {
+                            _initialResultSent.TrySetResult();
+                        }
+                        else
+                        {
+                            _dataResultSent.TrySetResult();
+                        }
+                    }
+
+                    _signals.Signal();
                 }
 
                 return Task.CompletedTask;
@@ -83,6 +103,7 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
             Arg.Any<CancellationToken>());
 
     [Fact] void should_send_query_result_message_over_websocket() => HasQueryResultMessage().ShouldBeTrue();
+    [Fact] void should_send_non_empty_data_result_over_websocket() => HasDataQueryResultMessage().ShouldBeTrue();
 
     async Task<WebSocketReceiveResult> ReceiveNextMessage(ArraySegment<byte> buffer)
     {
@@ -99,17 +120,20 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
 
             var bytes = JsonSerializer.SerializeToUtf8Bytes(subscribeMessage, _arcOptions.Value.JsonSerializerOptions);
 
-            _ = Task.Run(async () =>
-            {
-                await Task.Delay(50);
-                _subject.OnNext(["event-store-a"]);
-            });
+            _producerTask = ProduceDataAfterInitialResult();
 
             return CopyToReceiveBuffer(bytes, buffer);
         }
 
-        await Task.Delay(150);
+        await _producerTask;
+        await WaitFor(() => _dataResultSent.Task.IsCompleted);
         return new WebSocketReceiveResult(0, System.Net.WebSockets.WebSocketMessageType.Close, true, WebSocketCloseStatus.NormalClosure, "done");
+    }
+
+    async Task ProduceDataAfterInitialResult()
+    {
+        await WaitFor(() => _initialResultSent.Task.IsCompleted);
+        _subject.OnNext(["event-store-a"]);
     }
 
     static WebSocketReceiveResult CopyToReceiveBuffer(byte[] data, ArraySegment<byte> buffer)
@@ -135,6 +159,14 @@ public class and_query_streams_results : given.an_observable_query_demultiplexer
 
         return false;
     }
+
+    bool HasDataQueryResultMessage() => _sentMessages.Any(hubMessage =>
+        hubMessage.Type == ObservableQueryHubMessageType.QueryResult &&
+        hubMessage.QueryId == QueryId &&
+        hubMessage.Payload is JsonElement payload &&
+        TryGetPropertyIgnoreCase(payload, "data", out var data) &&
+        data.ValueKind == JsonValueKind.Array &&
+        data.EnumerateArray().Any(item => item.ValueKind == JsonValueKind.String && item.GetString() == "event-store-a"));
 
     static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)
     {

@@ -25,13 +25,40 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         IActionDescriptorCollectionProvider actionDescriptorCollectionProvider,
         IServiceProviderIsService serviceProviderIsService,
         IAuthorizationEvaluator authorizationEvaluator)
+        : this(
+            actionDescriptorCollectionProvider,
+            action => new ControllerQueryPerformer(action, serviceProviderIsService, authorizationEvaluator))
+    {
+    }
+
+    /// <summary>
+    /// Creates performers without capturing an evaluator from the discovery scope.
+    /// </summary>
+    /// <param name="actions">The MVC action catalog.</param>
+    /// <param name="serviceProviderIsService">Service classification.</param>
+    /// <param name="scopeFactory">Creates standalone scopes.</param>
+    /// <param name="resolveEvaluator">Resolves the evaluator from the executing scope.</param>
+    internal QueryPerformerProvider(
+        IActionDescriptorCollectionProvider actions,
+        IServiceProviderIsService serviceProviderIsService,
+        IServiceScopeFactory scopeFactory,
+        Func<IServiceProvider, IAuthorizationEvaluator> resolveEvaluator)
+        : this(
+            actions,
+            action => new ControllerQueryPerformer(action, serviceProviderIsService, scopeFactory, resolveEvaluator))
+    {
+    }
+
+    QueryPerformerProvider(
+        IActionDescriptorCollectionProvider actionDescriptorCollectionProvider,
+        Func<ControllerActionDescriptor, ControllerQueryPerformer> createPerformer)
     {
         var controllerActions = actionDescriptorCollectionProvider.ActionDescriptors.Items
             .OfType<ControllerActionDescriptor>()
             .Where(_ => _.MethodInfo.IsQuery());
 
         _performers = controllerActions
-            .Select(_ => new ControllerQueryPerformer(_, serviceProviderIsService, authorizationEvaluator))
+            .Select(createPerformer)
             .ToDictionary(_ => _.FullyQualifiedName, _ => (IQueryPerformer)_);
     }
 

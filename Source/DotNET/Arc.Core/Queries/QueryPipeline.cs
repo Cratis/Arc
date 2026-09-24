@@ -2,14 +2,17 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Cratis.Reflection;
 using Cratis.Traces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
 
@@ -35,65 +38,81 @@ public class QueryPipeline(
     IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
 {
     /// <inheritdoc/>
-    public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
+    public Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default) =>
+        PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, cancellationToken);
+
+    /// <summary>
+    /// Prepares HTTP or hub policy metadata once and creates a clean scope only if a scheme changes identity.
+    /// </summary>
+    /// <param name="queryName">The query name.</param>
+    /// <param name="arguments">The query arguments.</param>
+    /// <param name="paging">Paging.</param>
+    /// <param name="sorting">Sorting.</param>
+    /// <param name="requestServices">The existing request provider.</param>
+    /// <param name="cancellationToken">Request cancellation.</param>
+    /// <returns>A result whose owned scope, if present, the caller must dispose after response or subscription completion.</returns>
+    /// <exception cref="InvalidAuthorizationConfiguration">A target cannot be safely authorized.</exception>
+    internal async Task<QueryResult> PerformHosted(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
     {
-        var correlationId = GetCorrelationId();
-        var result = QueryResult.Success(correlationId);
-        using var span = activitySource.Perform(queryName.Value);
         try
         {
-            if (paging.IsPaged)
-            {
-                var pagingValidation = await ValidatePaging(paging, correlationId);
-                if (!pagingValidation.IsSuccess)
-                {
-                    return pagingValidation;
-                }
-            }
+            return await PerformHostedCore(queryName, arguments, paging, sorting, requestServices, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (InvalidAuthorizationConfiguration exception)
+        {
+            requestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
+            return QueryResult.Unauthorized(GetCorrelationId());
+        }
+        catch (Exception exception)
+        {
+            requestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationPreparationFailed(exception);
+            return QueryResult.Error(GetCorrelationId(), "An error occurred while preparing authorization.");
+        }
+    }
 
-            if (!queryPerformerProviders.TryGetPerformersFor(queryName, out var queryPerformer))
-            {
-                return QueryResult.MissingPerformer(correlationId, queryName);
-            }
+    async Task<QueryResult> PerformHostedCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
+    {
+        if (!queryPerformerProviders.TryGetPerformersFor(queryName, out var performer))
+        {
+            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
+        }
 
-            var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
-            var coercedArguments = CoerceArguments(arguments, queryPerformer);
-            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, dependencies, serviceProvider, cancellationToken);
-            queryContextManager.Set(context);
+        var declarations = requestServices.GetRequiredService<AuthorizationDeclarations>();
+        var target = QueryAuthorizationTarget.For(performer, declarations);
+        var declaration = target switch
+        {
+            System.Reflection.MethodInfo method => declarations.For(method),
+            Type type => declarations.For(type),
+            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+        };
+        if (!declaration.RequiresAsynchronousEvaluation)
+        {
+            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
+        }
 
-            result = await queryFilters.OnPerform(context);
-            if (!result.IsSuccess)
-            {
-                return result;
-            }
-            var data = await queryPerformer.Perform(context);
-            if (data is null)
-            {
-                return result;
-            }
-            var rendererResult = queryRenderers.Render(queryName, data, serviceProvider);
-            if (rendererResult is null)
-            {
-                return QueryResult.Error(correlationId, "No renderer result");
-            }
-            result.Data = await ApplyInterceptors(queryPerformer.ReadModelType, rendererResult.Data, serviceProvider);
-            result.Paging = context.Paging == Paging.NotPaged ? PagingInfo.NotPaged : new PagingInfo(
-                        context.Paging.Page,
-                        context.Paging.Size,
-                        rendererResult.TotalItems);
+        var prepared = await requestServices.GetRequiredService<AuthorizationEvaluation>().Prepare(target, requestServices, cancellationToken);
+        if (!prepared.PrincipalChanged)
+        {
+            return await PerformCore(queryName, arguments, paging, sorting, requestServices, prepared, cancellationToken);
+        }
 
+        var scope = requestServices.GetRequiredService<IServiceScopeFactory>().CreateScope();
+        try
+        {
+            using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
+            var result = await PerformCore(queryName, arguments, paging, sorting, scope.ServiceProvider, prepared, cancellationToken);
+            result.OwnedScope = scope;
             return result;
         }
-        catch (MissingArgumentForQuery ex)
+        catch
         {
-            result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
+            scope.Dispose();
+            throw;
         }
-        catch (Exception ex)
-        {
-            result.MergeWith(QueryResult.Error(correlationId, ex));
-        }
-
-        return result;
     }
 
     /// <summary>
@@ -109,7 +128,7 @@ public class QueryPipeline(
     /// so validation and invocation never see an unconverted string for a concept-typed parameter.
     /// The conversion is idempotent, so already-typed arguments pass through untouched.
     /// </remarks>
-    static QueryArguments CoerceArguments(QueryArguments arguments, IQueryPerformer performer)
+    QueryArguments CoerceArguments(QueryArguments arguments, IQueryPerformer performer)
     {
         var parameters = performer.Parameters;
         if (arguments.Count == 0 || parameters is null)
@@ -139,7 +158,7 @@ public class QueryPipeline(
         return changed ? coerced : arguments;
     }
 
-    static object ResolveDependency(IServiceProvider serviceProvider, Type dependencyType)
+    object ResolveDependency(IServiceProvider serviceProvider, Type dependencyType)
     {
         try
         {
@@ -151,6 +170,129 @@ public class QueryPipeline(
             // container exception into an actionable error rather than a bare "Unable to resolve service" message.
             throw new CannotResolveDependency(dependencyType, failure);
         }
+    }
+
+    async Task<QueryResult> PerformCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, PreparedAuthorization? prepared, CancellationToken cancellationToken)
+    {
+        var correlationId = GetCorrelationId();
+        var result = QueryResult.Success(correlationId);
+        using var principalLease = new AuthorizationPrincipalLease();
+        using var span = activitySource.Perform(queryName.Value);
+        try
+        {
+            if (paging.IsPaged)
+            {
+                var pagingValidation = await ValidatePaging(paging, correlationId);
+                if (!pagingValidation.IsSuccess)
+                {
+                    return pagingValidation;
+                }
+            }
+
+            if (!queryPerformerProviders.TryGetPerformersFor(queryName, out var queryPerformer))
+            {
+                return QueryResult.MissingPerformer(correlationId, queryName);
+            }
+
+            var coercedArguments = CoerceArguments(arguments, queryPerformer);
+            var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, ServiceProvider: serviceProvider, CancellationToken: cancellationToken)
+            {
+                PreparedAuthorization = prepared
+            };
+
+            // Install the prepared identity before any filter is discovered or constructed. Filter constructors can
+            // resolve scoped, tenant-bound dependencies that must never be cached under the outer request identity.
+            if (prepared?.PrincipalChanged == true && prepared.SelectedPrincipal is { } selectedPrincipal)
+            {
+                principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal, serviceProvider));
+            }
+
+            if (queryFilters is IStagedQueryFilters stagedFilters)
+            {
+                queryContextManager.Set(context);
+                result = await stagedFilters.Authorize(context);
+                if (!result.IsSuccess)
+                {
+                    return result;
+                }
+
+                if (prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
+                {
+                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(authorizedPrincipal, serviceProvider));
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
+                var authorizedDependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
+                context = context with { Dependencies = authorizedDependencies };
+                queryContextManager.Set(context);
+                result.MergeWith(await stagedFilters.AfterAuthorization(context));
+            }
+            else
+            {
+                if (prepared?.Declaration.RequiresAsynchronousEvaluation == true)
+                {
+                    throw new InvalidAuthorizationConfiguration("Advanced query authorization requires Arc's staged authorization filters before dependency construction.");
+                }
+
+                // Preserve the contract of custom IQueryFilters implementations that expect dependencies on entry.
+                AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
+                var dependencies = queryPerformer.Dependencies.Select(dependencyType => ResolveDependency(serviceProvider, dependencyType)).ToArray();
+                context = context with { Dependencies = dependencies };
+                queryContextManager.Set(context);
+                result = await queryFilters.OnPerform(context);
+                if (result.IsSuccess && prepared is null && context.AuthorizedPrincipal is { } authorizedPrincipal)
+                {
+                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(authorizedPrincipal, serviceProvider));
+                }
+            }
+
+            if (!result.IsSuccess)
+            {
+                return result;
+            }
+
+            result.AuthorizedPrincipal = context.AuthorizedPrincipal;
+            result.AuthorizedArguments = context.Arguments;
+            result.AuthorizedQueryContext = context;
+            if (context.AuthorizedPrincipal is not null)
+            {
+                result.AuthorizedTenant = serviceProvider.GetRequiredService<TenantIdAccessor>().Current;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var data = await queryPerformer.Perform(context);
+            if (data is null)
+            {
+                return result;
+            }
+            var rendererResult = queryRenderers.Render(queryName, data, serviceProvider);
+            if (rendererResult is null)
+            {
+                return QueryResult.Error(correlationId, "No renderer result");
+            }
+            result.Data = await ApplyInterceptors(queryPerformer.ReadModelType, rendererResult.Data, serviceProvider);
+            result.Paging = context.Paging == Paging.NotPaged ? PagingInfo.NotPaged : new PagingInfo(
+                        context.Paging.Page,
+                        context.Paging.Size,
+                        rendererResult.TotalItems);
+
+            return result;
+        }
+        catch (MissingArgumentForQuery ex)
+        {
+            result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
+        }
+        catch (InvalidAuthorizationConfiguration ex)
+        {
+            result.MergeWith(QueryResult.Unauthorized(correlationId));
+            result.ExceptionMessages = [.. result.ExceptionMessages, ex.Message];
+        }
+        catch (Exception ex)
+        {
+            result.MergeWith(QueryResult.Error(correlationId, ex));
+        }
+
+        return result;
     }
 
     CorrelationId GetCorrelationId()

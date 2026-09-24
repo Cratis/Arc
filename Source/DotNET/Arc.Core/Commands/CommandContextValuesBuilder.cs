@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
 
 namespace Cratis.Arc.Commands;
@@ -12,18 +13,24 @@ namespace Cratis.Arc.Commands;
 /// <param name="commandKeys">The <see cref="ICommandKeys"/> to read the command's key from when no provider resolved one.</param>
 public class CommandContextValuesBuilder(
     IInstancesOf<ICommandContextValuesProvider> providers,
-    ICommandKeys commandKeys) : ICommandContextValuesBuilder
+    ICommandKeys commandKeys) : IScopedCommandContextValuesBuilder
 {
     /// <inheritdoc/>
-    public CommandContextValues Build(object command)
+    public CommandContextValues Build(object command) => Build(command, providers, null);
+
+    /// <inheritdoc/>
+    public CommandContextValues Build(object command, IServiceProvider services) =>
+        Build(command, DiscoveredInstances.ResolvedFrom(services, providers), services);
+
+    CommandContextValues Build(object command, IEnumerable<ICommandContextValuesProvider> selectedProviders, IServiceProvider? services)
     {
         var values = new CommandContextValues();
-        foreach (var provider in providers)
+        foreach (var provider in selectedProviders)
         {
             values.Merge(provider.Provide(command));
         }
 
-        AddResolvedKeyIfNoProviderResolvedOne(command, values);
+        AddResolvedKeyIfNoProviderResolvedOne(command, values, services);
 
         return values;
     }
@@ -33,6 +40,7 @@ public class CommandContextValuesBuilder(
     /// </summary>
     /// <param name="command">The command being executed.</param>
     /// <param name="values">The values built so far.</param>
+    /// <param name="services">The executing scope when identity-specific providers must be resolved there.</param>
     /// <remarks>
     /// An integration that owns key resolution resolves the key here, while the values are being built — the Chronicle
     /// one always does, writing an empty key when the command carried nothing usable. What it wrote stands, empty
@@ -45,14 +53,17 @@ public class CommandContextValuesBuilder(
     /// the same answer.
     /// </para>
     /// </remarks>
-    void AddResolvedKeyIfNoProviderResolvedOne(object command, CommandContextValues values)
+    void AddResolvedKeyIfNoProviderResolvedOne(object command, CommandContextValues values, IServiceProvider? services)
     {
         if (values.ContainsKey(CommandContextKeys.ResolvedKey))
         {
             return;
         }
 
-        if (commandKeys.GetKeyFor(command) is { Length: > 0 } key)
+        var key = services is not null && commandKeys is CommandKeys scopedKeys
+            ? scopedKeys.GetKeyFor(command, services)
+            : commandKeys.GetKeyFor(command);
+        if (key is { Length: > 0 })
         {
             values[CommandContextKeys.ResolvedKey] = key;
         }

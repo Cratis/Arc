@@ -31,7 +31,7 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0018](#arc0018-command-operation-visibility) | Operation cannot have a generated invoker | Error | `CommandOperationAnalyzer` |
 | [ARC0019](#arc0019-conflicting-authorization) | [AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration | Warning | `AuthorizationAttributeAnalyzer` |
 | [ARC0020](#arc0020-aspnet-core-authorization-attributes) | ASP.NET Core authorization attribute is not enforced without Arc's ASP.NET Core integration | Warning | `AuthorizationAttributeAnalyzer` |
-| [ARC0021](#arc0021-unevaluated-authorization-settings) | Authorization setting is not evaluated on a model-bound Arc artifact | Warning | `AuthorizationAttributeAnalyzer` |
+| [ARC0021](#arc0021-unevaluated-authorization-settings) | Authentication scheme requires the ASP.NET Core host | Warning | `AuthorizationAttributeAnalyzer` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -143,18 +143,18 @@ Arc v18.2.0 through v22.20.0 did not enforce the ASP.NET Core attributes on mode
 
 ## ARC0021: Unevaluated authorization settings
 
-Reports `Policy` or `AuthenticationSchemes` on an authorization attribute of a `[Command]` or `[ReadModel]` type or method, whether Arc's attribute or ASP.NET Core's, including ASP.NET Core's `[Authorize("PolicyName")]` constructor form. Arc enforces the authentication and roles an attribute declares on a model-bound artifact; it does not evaluate a named policy or restrict authentication schemes, so an artifact relying on either is less protected than its attribute reads.
+Reports `AuthenticationSchemes` on an authorization attribute of a `[Command]` or `[ReadModel]` type or method when the project does not reference Arc's ASP.NET Core integration. Native named policies are evaluated asynchronously on either Arc host. Explicit schemes require ASP.NET Core's authentication service; the standalone Core host fails startup rather than silently admitting a caller.
 
 ```csharp
 [Command]
-[Authorize(Policy = "ActiveSubscription")]   // ARC0021: the caller only has to be authenticated
+[Authorize(AuthenticationSchemes = "Bearer")] // ARC0021 without Cratis.Arc
 public record UpdateProfile(string Name)
 {
     public void Handle() { }
 }
 ```
 
-Express the requirement as roles, or enforce it in an [authorization command filter](../commands/command-filters.md) or query filter. Policy evaluation is tracked in [#2736](https://github.com/Cratis/Arc/issues/2736). Controllers are not reported; ASP.NET Core MVC evaluates policies and schemes on the requests it handles.
+Use [ASP.NET Core integration](../asp-net-core/authorization.md) and register the scheme, or omit `AuthenticationSchemes` and use a [host-neutral named policy](../core/authorization.md#register-a-named-policy). Missing or ambiguous policy registrations also fail startup. Controllers are not reported; ASP.NET Core MVC evaluates their policies and schemes independently.
 
 ## Quick fixes
 
