@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound.when_executing;
 
 [Collection(ScenarioCollectionDefinition.Name)]
-public class when_the_request_is_cancelled_during_a_command_policy : given.a_scenario_web_application
+public class and_the_request_is_cancelled_during_a_command_policy : given.a_scenario_web_application
 {
     PolicyGate _gate => Host!.Services.GetRequiredService<PolicyGate>();
     TenantFlowObservations _flows;

@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound.when_executing;
 
 [Collection(ScenarioCollectionDefinition.Name)]
-public class when_explicit_provider_was_bound_before_scheme_selection : given.a_scenario_web_application
+public class with_an_explicit_provider_bound_before_scheme_selection : given.a_scenario_web_application
 {
     TenantCommandObservations _observations;
     bool _authorized;
