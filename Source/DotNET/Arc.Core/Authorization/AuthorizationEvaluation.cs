@@ -127,14 +127,14 @@ public class AuthorizationEvaluation(
             ? AuthorizationEvaluator.AlreadyEvaluated(target, selectedPrincipal, declaration)
             : null;
 
-        // A custom legacy denial remains authoritative; a custom allow cannot bypass a policy.
-        var allowed = legacyEvaluator.GetType() == typeof(AuthorizationEvaluator) || target switch
+        // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
+        var allowed = legacyVerdict?.Invoke() ?? target switch
         {
             Type type => legacyEvaluator.IsAuthorized(type),
             MethodInfo method => legacyEvaluator.IsAuthorized(method),
             _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
         };
-        if (!allowed || legacyVerdict?.Invoke() == false)
+        if (!allowed)
         {
             return false;
         }

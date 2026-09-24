@@ -70,7 +70,7 @@ public class AuthorizationEvaluator(
     internal static IDisposable AlreadyEvaluated(MemberInfo target, ClaimsPrincipal principal, AuthorizationDeclaration declaration)
     {
         var previous = _alreadyEvaluated.Value;
-        _alreadyEvaluated.Value = new AuthorizedEvaluation(target, principal, declaration);
+        _alreadyEvaluated.Value = new AuthorizedEvaluation(target, AuthorizationPrincipalIdentity.Capture(principal), declaration);
         return new EvaluationScope(previous);
     }
 
@@ -114,7 +114,7 @@ public class AuthorizationEvaluator(
         var principal = currentPrincipalAccessor.Current;
         if (declaration.RequiresAsynchronousEvaluation && principal is not null &&
             _alreadyEvaluated.Value is { } checkedEvaluation &&
-            checkedEvaluation.Target.Equals(target) && ReferenceEquals(checkedEvaluation.Principal, principal) &&
+            checkedEvaluation.Target.Equals(target) && AuthorizationPrincipalIdentity.Same(checkedEvaluation.Principal, principal) &&
             SameDeclaration(checkedEvaluation.Declaration, declaration))
         {
             return CheckRoles(declaration, principal);
@@ -123,7 +123,7 @@ public class AuthorizationEvaluator(
         return Check(declaration, principal);
     }
 
-    sealed record AuthorizedEvaluation(MemberInfo Target, ClaimsPrincipal Principal, AuthorizationDeclaration Declaration);
+    sealed record AuthorizedEvaluation(MemberInfo Target, PrincipalSnapshot Principal, AuthorizationDeclaration Declaration);
 
     sealed class EvaluationScope(AuthorizedEvaluation? previous) : IDisposable
     {

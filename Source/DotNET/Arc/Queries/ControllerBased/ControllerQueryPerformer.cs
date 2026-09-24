@@ -89,7 +89,7 @@ public class ControllerQueryPerformer(
     public MethodInfo AuthorizationMethod { get; } = actionDescriptor.MethodInfo;
 
     /// <inheritdoc/>
-    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null && authorizationEvaluator?.GetType() != typeof(AuthorizationEvaluator);
+    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null;
 
     /// <inheritdoc/>
     public bool IsAuthorized(QueryContext context) => _authorizeFromScope is not null

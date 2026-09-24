@@ -4,12 +4,12 @@
 namespace Cratis.Arc.Queries;
 
 /// <summary>
-/// Marks built-in performers whose legacy verdict is the same built-in evaluator already checked by the async dispatcher.
+/// Identifies built-in performers that can distinguish a captured evaluator from scope-resolved authorization.
 /// </summary>
 internal interface IFrameworkAuthorizationQueryTarget : IAuthorizationQueryTarget
 {
     /// <summary>
-    /// Gets whether this instance owns a legacy evaluator that differs from the DI evaluator.
+    /// Gets whether this instance owns a captured legacy evaluator whose verdict must be used instead of the dispatcher fallback.
     /// </summary>
     bool HasIndependentLegacyVerdict { get; }
 }

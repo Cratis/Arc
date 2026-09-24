@@ -134,7 +134,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     public MethodInfo AuthorizationMethod { get; }
 
     /// <inheritdoc/>
-    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null && _authorizationEvaluator?.GetType() != typeof(AuthorizationEvaluator);
+    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null;
 
     /// <inheritdoc/>
     public bool IsAuthorized(QueryContext context) => _authorizeFromScope is not null
