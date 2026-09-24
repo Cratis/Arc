@@ -11,6 +11,7 @@ Three layers:
 |---|---|---|---|---|
 | Pattern pass | `PostToolUse` on a write | `scripts/cratis-pattern-scan.sh` | zero tokens until a match | appends a one-line reminder to context, never blocks |
 | Hard block | `PreToolUse` on a write | `scripts/cratis-guard-writes.sh` | zero | exits **2** — the write does not happen |
+| Hard block | `PreToolUse` on `Bash` | `scripts/cratis-guard-store-mutations.sh` | zero; parses only commands that mention `cratis` | exits **2** — the store-changing `cratis chronicle` command does not run |
 | Quality gate | `Stop` | `scripts/cratis-quality-gate.sh` | one build/test run, only when relevant files changed | exits **2** — the turn does not end |
 
 The Claude Code wiring that fires them is tracked here, in
@@ -32,8 +33,9 @@ The markdown files in this folder (`agent-stop.md`, `pre-commit.md`) remain *lif
 they describe what a hook should do for tools that have no wiring yet.
 
 > Hooks are the one surface with no folder adapter: Claude Code reads `.claude/settings.json`;
-> the Pi harness bridges the same three scripts to its own events through the `cratis-hooks`
-> extension under `../harnesses/pi/extensions/`; Copilot would read `.github/hooks/*.json`, and no
+> the Pi harness bridges the same scripts to its own events through the `cratis-hooks`
+> extension under `../harnesses/pi/extensions/` (its `bash` tool feeds the store-mutation guard, its
+> `write` and `edit` tools the write guard); Copilot would read `.github/hooks/*.json`, and no
 > Copilot wiring ships yet.
 
 ## What is enforced
@@ -50,6 +52,42 @@ Rule numbers refer to the numbered list in [`../rules/general.md`](../rules/gene
 
 The generated-file check is anchored: the marker must be a comment opener at the start of one of
 the first five lines. A rule file or a document that merely *mentions* the marker is not blocked.
+
+**Blocked outright** (`PreToolUse` on `Bash`, exit 2): a `cratis chronicle` command that is not
+read-only. The **cratis-chronicle-cli-operations** skill makes `--yes` the authorization boundary for
+a live store and says a request to diagnose does not authorize a mutation; this guard enforces that.
+
+- **Allowlist, failing closed.** Every command below `cratis chronicle` is checked against the
+  read-only allowlist in `scripts/cratis-store-mutations.json`. A known mutation (replay,
+  retry-partition, clear-quarantine, jobs stop/resume, recommendations perform/ignore, users,
+  applications and subscriptions add/remove, plus login, logout, report-error and the interactive
+  workbench) is blocked with what it changes; a command on neither list — including one a newer CLI
+  adds — is blocked as unknown. `-h`/`--help` and `-v`/`--version` are always allowed.
+- **Where it looks.** Every `cratis` in command position: at the start, after `;` `&&` `||` `|`
+  `&`, inside `$( )`, backticks and `( )`, behind environment assignments
+  (`CHRONICLE_CONNECTION_STRING=… cratis …`), keywords (`if`, `then`, `do`, …) and wrappers (`rtk
+  proxy`, `env`, `sudo`, `timeout`, `xargs`, `nohup`, …), in the script of `bash -c` / `sh -c` /
+  `eval`, and in text piped, redirected or here-documented into a shell. A path segment
+  (`~/repos/cratis/Chronicle`), a file name (`cratis.json`), a quoted argument
+  (`grep 'cratis chronicle …'`) and a here-document fed to anything but a shell are not commands.
+- **Options before the command path.** The global and group options (`--server`, `-o`, `-q`,
+  `-y`, `-e`, `-n`, `--debug`) are skipped with their values wherever they appear. An option the
+  guard does not know, placed before the command path, makes the command impossible to classify, so
+  it is blocked.
+- **Out of scope.** Every other group — `ai`, `arc`, `context`, `llm`, `screenplay`, `prologue`,
+  `completions` — and the top-level commands (`init`, `new`, `render`, `run`, `update`, `version`,
+  `get-started`, `llm-context`) are always allowed. Several of them change local files or
+  configuration; guarding them is a separate decision, not part of this one.
+- **What it cannot see.** It reads the command text, so `cratis` reached through a variable, an
+  alias, a shell function, a script file, or another language's process API is invisible. It is a
+  guardrail against an agent reaching for `--yes`, not a sandbox.
+- **The block message** lists each refused command path and its effect, tells the agent not to retry
+  or work around the guard, and asks it to report the exact command, the target context or server,
+  what it changes and why, and to ask the user.
+
+A person who has authorized a mutation sets `CRATIS_HOOKS_ALLOW_STORE_MUTATIONS=1` in the
+environment the harness was started from. The hook reads its own environment, so an assignment
+inside the command (`CRATIS_HOOKS_ALLOW_STORE_MUTATIONS=1 cratis …`) changes nothing.
 
 **Flagged** (`PostToolUse`, exit 0 + context):
 
@@ -272,14 +310,16 @@ how it resolved rather than only the failures.
 
 ## Configuration is data, not code
 
-Neither the pattern list nor the gate commands live in a script. A consuming repository
-customises both without forking anything:
+Neither the pattern list, the gate commands nor the `cratis` command classification live in a
+script. A consuming repository customises all three without forking anything:
 
 | File | Purpose |
 |---|---|
 | `scripts/cratis-patterns.json` | shipped pattern set; its header `$comment` documents every field |
 | `scripts/cratis-patterns.local.json` | optional; merged over the above by `id` — add patterns, or set `"enabled": false` to silence one |
 | `scripts/quality-gates.json` | shipped gates; `changed` globs decide when a gate runs, `requires` and `workingDirectoryFrom` decide whether it *can* |
+| `scripts/cratis-store-mutations.json` | the store-mutation guard's read-only allowlist and known-mutating list, each entry with its reason or effect, and the CLI options it skips; its header `$comment` documents every field and the CLI version the lists were derived from |
+| `scripts/cratis-store-mutations.local.json` | optional; its lists are appended to the above. It can classify a command a newer CLI adds, or list a shipped read-only command as mutating (a command on the mutating list always blocks); only a replacement file can make a known mutation read-only |
 
 A gate whose `requires.commands` are not on `PATH`, whose `requires.paths` do not exist, or whose
 `workingDirectoryFrom` matches nothing in the repository, is a **no-op with a message on stderr**
@@ -326,6 +366,8 @@ Each is an explicit, auditable opt-out — none of them is a default.
 | `CRATIS_HOOKS_GATE_DRYRUN=1` | prints which gates would run, and why, then exits 0 |
 | `CRATIS_HOOKS_PATTERNS=<path>` | replaces the pattern file |
 | `CRATIS_HOOKS_GATES=<path>` | replaces the gate file (the project override still merges over it) |
+| `CRATIS_HOOKS_ALLOW_STORE_MUTATIONS=1` | allows `cratis chronicle` commands that change a live store; set by the person who authorized the mutation, in the environment the harness was started from |
+| `CRATIS_HOOKS_STORE_MUTATIONS=<path>` | replaces the store-mutation guard's command lists (the `.local.json` beside the script still extends them) |
 | `CRATIS_HOOKS_SUBPATH_REPORT=1` | prints every `@cratis/*` subpath reference and how it resolved, not only the failures |
 | `CRATIS_HOOKS_IMPORT_REPORT=1` | prints every `@cratis/*` named import binding and how it resolved, not only the failures |
 | `CRATIS_HOOKS_TYPE_REPORT=1` | prints every .NET type/attribute name the corpus mentions and how it resolved, not only the failures |
@@ -339,7 +381,10 @@ Each is an explicit, auditable opt-out — none of them is a default.
 - **`jq` is the only dependency.** Every script
   degrades to a silent no-op when it is missing — a hook must never break a session.
 - **Fail safe.** Malformed config, empty stdin, a missing file, a binary file, a file over 2 MB:
-  all exit 0 silently.
+  all exit 0 silently. The one deliberate exception is the store-mutation guard's command lists:
+  an unreadable shipped or local list is not an empty allowlist that happens to pass, so every `cratis chronicle`
+  command is then blocked with a message naming the file, and a classifier that fails to run blocks
+  the command it was given. Commands that never mention `cratis` are unaffected either way.
 - **No secrets, no file dumps.** Gate output is capped at `maxOutputLines`; the pattern pass
   prints a path, a line number and a fixed message — never file content.
 - **No re-entry.** The `Stop` hook returns immediately when `stop_hook_active` is true, so a
@@ -367,6 +412,12 @@ jq -nc '{session_id:"t", cwd:"'"$PWD"'", tool_name:"Edit",
 jq -nc '{session_id:"t", cwd:"'"$PWD"'", tool_name:"Edit",
          tool_input:{file_path:"'"$PWD"'/Directory.Packages.props", new_string:"x"}}' \
   | .cratis/ai/hooks/scripts/cratis-guard-writes.sh; echo "exit=$?"
+
+# Store-mutation guard, both directions: expect exit 2, then exit 0 for the read-only neighbor
+jq -nc '{tool_name:"Bash", tool_input:{command:"cratis chronicle observers replay my-observer --yes"}}' \
+  | .cratis/ai/hooks/scripts/cratis-guard-store-mutations.sh; echo "exit=$?"
+jq -nc '{tool_name:"Bash", tool_input:{command:"cratis chronicle observers list -o plain"}}' \
+  | .cratis/ai/hooks/scripts/cratis-guard-store-mutations.sh; echo "exit=$?"
 
 # Quality gate — show the dispatch plan without running anything
 jq -nc '{session_id:"t", cwd:"'"$PWD"'", stop_hook_active:false}' \

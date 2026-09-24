@@ -4,7 +4,6 @@ description: >
   Read-only investigator for Cratis application and framework repositories.
   Produces typed, evidence-backed findings without changing source, invoking
   mutating Chronicle operations, or assuming an application architecture.
-model: claude-opus-5
 tools:
   - Read
   - Grep

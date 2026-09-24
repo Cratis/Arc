@@ -83,8 +83,9 @@ Two invariants; the mechanics of every channel (`cratis ai install`, `@cratis/pi
 the plugin marketplaces) are in [ai-distribution.md](./ai-distribution.md):
 
 - Never copy or synchronize `.cratis/ai`, `.agents`, `.claude`, `.github`, or `.pi`
-  trees between repositories, and never patch managed files under `.cratis/ai/`
-  by hand — update through the channel that installed them.
+  trees between repositories. In a consuming repository, never patch managed
+  files under `.cratis/ai/` by hand — update through the channel that installed
+  them. The authored corpus in `Cratis/AI` is changed and reviewed here.
 - The consuming repository owns its project facts, confidential behavior, and
   local skills; installing, updating, or uninstalling shared AI never merges,
   overwrites, or removes them.

@@ -4,7 +4,6 @@ description: >
   Reviews evidence and repository-mode reasoning without applying application
   conventions to framework or client-library repositories.
 mode: subagent
-model: anthropic/claude-opus-5
 permission:
   edit: deny
   bash: deny

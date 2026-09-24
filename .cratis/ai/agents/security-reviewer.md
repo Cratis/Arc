@@ -5,7 +5,6 @@ description: >
   security review of all changed files before merge, covering input validation,
   auth/authz, data exposure, secrets, event sourcing specifics, and frontend
   attack surface.
-model: claude-sonnet-4-5
 tools:
   - Read
   - Grep

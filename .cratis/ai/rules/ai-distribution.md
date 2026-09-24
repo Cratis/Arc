@@ -32,6 +32,26 @@ repository through one of three channels, each with its own version semantics:
 - **Native plugin marketplaces** (Claude Code, Codex, Copilot, Cursor) expose the
   skills only, from the unpinned GitHub source.
 
+## Profile-selected MCP servers
+
+`mcp-servers.json` declares MCP launch capabilities for selected profiles. It is
+canonical corpus content, not a replacement client configuration and not an
+instruction for an assistant to install or execute arbitrary software.
+
+The Cratis CLI owns native client registration and executable hosting. Screenplay
+uses `cratis screenplay mcp`, bundled in the CLI; no second global tool install
+or startup download is required. Client installation must preserve unrelated
+servers, settings and comments, detect conflicts, support dry-run/status, and
+remove only unchanged owned entries on uninstall. Unsupported adapters must be
+reported explicitly rather than presented as configured.
+
+Project model roots and opt-outs are consumer-owned configuration. Guidance
+installation never makes `.cratis/screenplay/` managed corpus content. Ordinary
+model writes still require the model-authoring proposal/apply contract and the
+user's in-scope request.
+
+## Preserve consumer ownership
+
 Keep existing repository-local AI files in place while a replacement corpus is
 under canary; do not restart legacy all-to-all propagation and do not delete
 legacy adapters before reviewed retirement evidence exists.
@@ -58,4 +78,3 @@ and roll back the same way — by package version where one exists, otherwise by
 reinstalling from a known-good source commit with `--source`. Never patch managed
 files under `.cratis/ai/`, generated adapters, or marketplace wrappers by hand;
 `cratis ai status` reports such drift and `update` refuses it without `--force`.
-

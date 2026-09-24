@@ -4,7 +4,6 @@ description: >
   Implements React components that consume auto-generated command and query
   proxies, following the project's component and styling conventions.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: allow
   bash: allow

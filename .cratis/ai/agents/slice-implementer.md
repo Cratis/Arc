@@ -4,7 +4,6 @@ description: >
   Implements a Cratis vertical slice end-to-end — all backend artifacts in one slice file, BDD specs
   in when_*/ folders, and the React surface (page and/or command dialog). Use for new slices and for
   non-trivial slice changes spanning backend and frontend.
-model: claude-opus-4-8
 tools:
   - Read
   - Grep
