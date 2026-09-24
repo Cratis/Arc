@@ -5,7 +5,6 @@ description: >
   auth/authz, data exposure, secrets, event sourcing specifics, and frontend
   attack surface.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: deny
   bash: allow

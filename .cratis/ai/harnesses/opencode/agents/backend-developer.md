@@ -5,7 +5,6 @@ description: >
   commands, events, validators, constraints, read models, projections,
   and reactors — all in strict compliance with the vertical slice architecture.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: allow
   bash: allow

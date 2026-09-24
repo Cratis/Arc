@@ -8,7 +8,6 @@ description: >
   multiple slices, mixed C#/TypeScript work, or requires both implementation
   and review).
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: deny
   bash: allow

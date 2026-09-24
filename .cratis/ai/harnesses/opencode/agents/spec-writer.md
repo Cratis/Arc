@@ -4,7 +4,6 @@ description: >
   TypeScript/React specs for vertical slices. Ensures every slice has
   comprehensive behavior coverage following the project's BDD conventions.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: allow
   bash: allow

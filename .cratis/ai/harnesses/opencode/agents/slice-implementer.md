@@ -4,7 +4,6 @@ description: >
   in when_*/ folders, and the React surface (page and/or command dialog). Use for new slices and for
   non-trivial slice changes spanning backend and frontend.
 mode: subagent
-model: anthropic/claude-opus-4-8
 permission:
   edit: allow
   bash: allow

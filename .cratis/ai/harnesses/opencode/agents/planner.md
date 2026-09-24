@@ -5,7 +5,6 @@ description: >
   to the right specialist agent, and ensures quality gates are met before
   the work is considered done.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: deny
   bash: allow

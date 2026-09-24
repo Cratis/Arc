@@ -5,7 +5,8 @@
  * The agent definitions are the SINGLE-SOURCE corpus files under `.cratis/ai/agents/*.md`,
  * surfaced to Pi through symlink adapters in `.pi/agents/*.md`. Those files are written
  * in the Claude/Copilot shape (Title-Case `name`, a YAML-list `tools:` using Claude tool
- * names such as `Read`/`Glob`/`Bash`, and a `model:` id). Pi's built-in tools are the
+ * names such as `Read`/`Glob`/`Bash`). Agents without a `model:` inherit the dispatching
+ * session's model. Pi's built-in tools are the
  * lowercase set `read, write, edit, bash, grep, find, ls`, so this module NORMALIZES the
  * shared shape to Pi semantics — the adapter layer absorbs the tool difference, exactly
  * like every other adapter in this corpus, so `.pi/agents/*.md` can stay pure symlinks.

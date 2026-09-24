@@ -4,7 +4,6 @@ description: >
   project instruction files, checking architecture conformance, C# and
   TypeScript conventions, and vertical slice correctness before merge.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: deny
   bash: allow

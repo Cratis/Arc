@@ -4,7 +4,6 @@ description: >
   Produces typed, evidence-backed findings without changing source, invoking
   mutating Chronicle operations, or assuming an application architecture.
 mode: subagent
-model: anthropic/claude-opus-5
 permission:
   edit: deny
   bash: allow

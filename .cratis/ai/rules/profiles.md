@@ -115,7 +115,8 @@ JVM language conventions are `kotlin.md` and `java.md`.
 
 | Profile ID | Description |
 |---|---|
-| `cratis/documentation` | Documentation writing |
+| `cratis/documentation` | Reader-centered product docs, technical examples, release notes, and voice review |
+| `cratis/content` | Release notes, social feed posts, and voice review |
 | `cratis/review` | Code review, performance, security |
 | `cratis/studio` | Studio MCP safety guidance |
 | `cratis/cli` | CLI operations |
@@ -138,7 +139,14 @@ per surface so only the relevant one loads:
 | `cratis-screenplay-ui-composition` | `layout`, templates, `form`, `contribute`, `ui profile`, `theme`, `$strings`, `file` |
 | `cratis-screenplay-captures-and-reactions` | The Change Data Capture Language, `reaction`, `trigger` |
 | `cratis-screenplay-specifications` | Given/when/then and the reference execution |
-| `cratis-screenplay-model-authoring` | The compiler, the CLI, diagnostics, and the parsed-versus-admitted boundary |
+| `cratis-screenplay-model-authoring` | Typed MCP authoring, model navigation/refactoring, compiler diagnostics, and source-versus-executable readiness |
+
+The profile also selects the corpus-owned Screenplay MCP declaration from
+`mcp-servers.json`. The Cratis CLI hosts the server as `cratis screenplay mcp`
+and registers a scoped entry for supported clients without replacing their other
+servers. Inspect install/status results for adapter support or configuration
+conflicts. The conventional model root is `.cratis/screenplay/`; project-owned
+configuration can choose another root.
 
 ## How to Use Profiles
 
@@ -223,19 +231,14 @@ Select language profiles when working with specific languages:
 }
 ```
 
-### 5. Agent Harnesses Exclusion
+### 5. Skills in agent harnesses
 
-**Important:** The Agent Harnesses (`.agents/` folder) should **not** include the `skills` folder from the AI corpus. The skills folder is managed separately and should be excluded from agent plugin installations.
-
-When configuring agent plugins:
-- The `skills` field in `marketplace.json` should point to an empty array or be omitted
-- The `skills` symlink in `.agents/plugins/` should not reference `../.cratis/ai/skills`
-- Agent Harnesses should only include the rules and profile-catalog.json for profile resolution
-
-This ensures that:
-1. Skills are managed independently from agent plugins
-2. The AI corpus remains the source of truth for rules and profiles
-3. Agent Harnesses don't duplicate or override the skills folder
+The canonical skills live in `.cratis/ai/skills/`. Supported harnesses expose
+that tree through generated links or package integration; marketplace plugins
+may point their `skills` field at `./skills`. Edit the canonical skill and its
+profile-catalog entry in this repository, not a consuming repository's managed
+copy or a generated harness adapter. Check reachability through the selected
+profiles as well as plugin discovery, which can expose the whole skill tree.
 
 ## Profile-Specific Rules
 

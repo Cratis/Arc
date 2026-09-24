@@ -4,7 +4,6 @@ description: >
   files for projection efficiency, query patterns, unnecessary allocations,
   React render overhead, and Chronicle anti-patterns before merge.
 mode: subagent
-model: anthropic/claude-sonnet-4-5
 permission:
   edit: deny
   bash: allow

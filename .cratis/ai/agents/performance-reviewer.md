@@ -4,7 +4,6 @@ description: >
   Performance-focused review agent for Cratis-based projects. Analyzes changed
   files for projection efficiency, query patterns, unnecessary allocations,
   React render overhead, and Chronicle anti-patterns before merge.
-model: claude-sonnet-4-5
 tools:
   - Read
   - Grep

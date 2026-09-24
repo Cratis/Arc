@@ -4,7 +4,6 @@ description: >
   Quality gate agent for Cratis-based projects. Reviews code against all
   project instruction files, checking architecture conformance, C# and
   TypeScript conventions, and vertical slice correctness before merge.
-model: claude-sonnet-4-5
 tools:
   - Read
   - Grep
