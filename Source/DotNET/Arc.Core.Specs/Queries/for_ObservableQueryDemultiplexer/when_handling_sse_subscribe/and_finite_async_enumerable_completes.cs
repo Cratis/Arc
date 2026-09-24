@@ -22,7 +22,6 @@ public class and_finite_async_enumerable_completes : given.a_guarded_sse_connect
 
         _scopeDisposedAfterStreamExited = _state.ScopeDisposedAfterStreamExited;
         _resultsAfterCompletion = CountQueryResultsFor(FirstQueryId);
-        await Task.Delay(50);
     });
 
     [Fact] void should_send_the_finite_result_once() => _resultsAfterCompletion.ShouldEqual(1);

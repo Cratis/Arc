@@ -33,6 +33,7 @@ public class and_scoped_guard_completes_after_connection_teardown : given.a_guar
     protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
     {
         services.AddSingleton(new GuardState(_guardStarted, _guardRelease, _dependencies));
+        services.AddSingleton(_signals);
         services.AddScoped<ScopedDependency>();
         guardTypes.Add(typeof(BlockedGuard));
     }
@@ -42,10 +43,14 @@ public class and_scoped_guard_completes_after_connection_teardown : given.a_guar
         TaskCompletionSource Release,
         List<ScopedDependency> Dependencies);
 
-    public class ScopedDependency : IDisposable
+    public class ScopedDependency(given.condition_pulse signals) : IDisposable
     {
         public bool IsDisposed { get; private set; }
-        public void Dispose() => IsDisposed = true;
+        public void Dispose()
+        {
+            IsDisposed = true;
+            signals.Signal();
+        }
     }
 
     public class BlockedGuard(GuardState state, ScopedDependency dependency) : IGuardObservableQueryEmission

@@ -22,6 +22,7 @@ public class an_observable_query_demultiplexer : Specification
     protected IObservableQueryEmissionGuards _emissionGuards;
     protected ILogger<ObservableQueryDemultiplexer> _logger;
     protected ObservableQueryDemultiplexer _hub;
+    protected readonly condition_pulse _signals = new();
 
     void Establish()
     {
@@ -69,23 +70,25 @@ public class an_observable_query_demultiplexer : Specification
     /// <param name="description">The condition as written at the call site; supplied by the compiler.</param>
     /// <returns>A <see cref="Task"/> that completes once the condition holds.</returns>
     /// <exception cref="TimeoutException">Thrown when the condition does not hold within the deadline.</exception>
-    /// <remarks>
-    /// This used to return silently at its deadline, so a spec whose awaited event never happened carried on and
-    /// failed somewhere unrelated - or passed without its precondition. It now fails naming the exact condition. The
-    /// deadline is a ceiling for a loaded CI runner, not an expected duration. Polling itself is still a signal these
-    /// specs have not built yet (#2721).
-    /// </remarks>
-    protected static async Task WaitFor(Func<bool> condition, [CallerArgumentExpression(nameof(condition))] string? description = null)
+    protected async Task WaitFor(Func<bool> condition, [CallerArgumentExpression(nameof(condition))] string? description = null)
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
-        while (!condition())
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        while (true)
         {
-            if (DateTimeOffset.UtcNow >= deadline)
+            var next = _signals.Next;
+            if (condition())
+            {
+                return;
+            }
+
+            try
+            {
+                await next.WaitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
             {
                 throw new TimeoutException($"Timed out waiting for: {description}");
             }
-
-            await Task.Delay(25);
         }
     }
 }

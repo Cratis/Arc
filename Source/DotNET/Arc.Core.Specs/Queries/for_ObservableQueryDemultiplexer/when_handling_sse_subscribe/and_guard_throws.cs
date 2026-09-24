@@ -12,8 +12,9 @@ public class and_guard_throws : given.a_guarded_sse_connection
         _subject.OnNext(["event-store-a"]);
         await WaitFor(() => HasUnauthorizedFor(FirstQueryId));
 
+        await WaitFor(() => Volatile.Read(ref _unregisteredCount) == 1);
+        _subject.HasObservers.ShouldBeFalse();
         _subject.OnNext(["event-store-b"]);
-        await Task.Delay(50);
     });
 
     [Fact] void should_not_write_the_emission() => CountQueryResultsFor(FirstQueryId).ShouldEqual(0);
