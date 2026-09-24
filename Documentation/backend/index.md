@@ -17,11 +17,21 @@ the host you run it on and the API surface you write against.
 - [Kotlin and Java](/arc/backend/kotlin/) — Spring Boot, with Spring Data JPA
   and MongoDB integrations, KSP compile-time diagnostics, and Gradle-driven
   TypeScript proxy generation.
+- [TypeScript](/arc/backend/typescript/) — Node.js, on its own HTTP host or in
+  Express, Fastify, or Hono, with MongoDB and Drizzle SQL integrations, an
+  experimental Chronicle integration, ESLint rules, and TypeScript proxies
+  generated from your source. It is a source preview: no package is published
+  to npm and it does not have full parity with the C# implementation. Its
+  [capability reference](/arc/backend/typescript/reference/capabilities/)
+  gives the status of each capability.
 
 ## What every implementation shares
 
 The pieces below are contracts rather than APIs, so they hold across languages.
-A client generated from one backend talks to the other without changes.
+A client generated from the C# backend talks to the JVM backend, and the other
+way round, without changes. Arc for TypeScript follows the same contract for
+the capabilities it implements; a paired suite checks a bounded set of routes
+against a C# host.
 
 - The HTTP contract — routes, request and response envelopes, status codes, and
   correlation.
@@ -36,6 +46,7 @@ leaving you to infer it.
 
 ## The frontend is shared
 
-Both backends generate against the same `@cratis/arc` and `@cratis/arc.react`
-packages, so the [frontend documentation](/arc/frontend/) applies whichever
-backend you chose.
+Every backend generates proxies for the same `@cratis/arc` and
+`@cratis/arc.react` packages, so the [frontend documentation](/arc/frontend/)
+applies whichever backend you chose. The steps for running the generator differ
+by language; see your backend's proxy generation page.
