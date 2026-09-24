@@ -47,31 +47,34 @@ public class ClientObservableSSE<T>(
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
         var isTerminated = false;
-        var drain = new DirectObservableEmissionDrain();
+        using var cts = new CancellationTokenSource();
+        var drain = new DirectObservableEmissionDrain(cts);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
             .CaptureLiveRequest(context.RequestServices);
-        using var cts = new CancellationTokenSource();
         using var emissionGate = new SemaphoreSlim(1, 1);
 
-        var subscription = Subject.Subscribe(Next, Error, Complete);
-        using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
-        await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
-        {
-            _ = cts.CancelAsync();
-            tcs.TrySetResult();
-        });
-
+        IDisposable? subscription = null;
+        Exception? failure = null;
         try
         {
+            subscription = Subject.Subscribe(Next, Error, Complete);
+            using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
+            await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
+            {
+                _ = drain.Cancel();
+                tcs.TrySetResult();
+            });
+
             await tcs.Task;
+        }
+        catch (Exception error)
+        {
+            failure = error;
         }
         finally
         {
-            var pending = drain.StopAndDrain();
-            subscription.Dispose();
-            await pending;
-            await cts.CancelAsync();
+            await drain.TerminateAsync(subscription, failure);
         }
 
         return;
@@ -205,7 +208,7 @@ public class ClientObservableSSE<T>(
                 return;
             }
             logger.ObservableAnErrorOccurred(error);
-            _ = cts.CancelAsync();
+            _ = drain.Cancel();
             tcs.TrySetResult();
         }
 

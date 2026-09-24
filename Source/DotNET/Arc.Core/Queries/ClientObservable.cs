@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
@@ -50,45 +51,84 @@ public class ClientObservable<T>(
         var queryResult = new QueryResult();
         var hasDeliveredEmission = false;
         var isTerminated = false;
-        var drain = new DirectObservableEmissionDrain();
+        using var cts = new CancellationTokenSource();
+        var drain = new DirectObservableEmissionDrain(cts);
         var emissionTenant = queryContext.EmissionTenant ?? context.RequestServices.GetService<TenantIdAccessor>()?.Current;
         var nativeRequest = (context.RequestServices.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?
             .CaptureLiveRequest(context.RequestServices);
-        using var cts = new CancellationTokenSource();
         using var receiveCts = new CancellationTokenSource();
         using var writeLock = new SemaphoreSlim(1, 1);
         using var emissionGate = new SemaphoreSlim(1, 1);
 
-        var subscription = Subject.Subscribe(Next, Error, Complete);
+        IDisposable? subscription = null;
+        var receiveTask = Task.CompletedTask;
+        var receiverWatch = Task.CompletedTask;
+        Exception? failure = null;
+        Exception? terminationFailure = null;
+        Exception? receiverFailure = null;
         using var linkedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(hostApplicationLifetime.ApplicationStopping, context.RequestAborted);
         await using var disconnectRegistration = linkedTokenSource.Token.Register(() =>
         {
-            _ = cts.CancelAsync();
+            _ = drain.Cancel();
             tcs.TrySetResult();
         });
-
-        var receiveTask = webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, receiveCts.Token);
         try
         {
-            if (await Task.WhenAny(receiveTask, tcs.Task) == receiveTask)
-            {
-                await cts.CancelAsync();
-            }
-
-            // Completion does not cancel writes: callbacks accepted before the subject completed retain their
-            // order and finish before the socket and its request scope are released.
-            var pending = drain.StopAndDrain();
-            subscription.Dispose();
-            await pending;
+            subscription = Subject.Subscribe(Next, Error, Complete);
+            receiveTask = Receive();
+            receiverWatch = receiveTask.ContinueWith(
+                completed =>
+                {
+                    _ = drain.Cancel();
+                    tcs.TrySetResult();
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            await tcs.Task;
+        }
+        catch (Exception error)
+        {
+            failure = error;
         }
         finally
         {
-            await cts.CancelAsync();
-            await receiveCts.CancelAsync();
-            await receiveTask;
-            subscription.Dispose();
+            // Completion does not cancel writes: accepted callbacks finish before the socket and request scope
+            // are released. On any failure, cancellation and unsubscription may fail too, but cannot skip the drain.
+            try
+            {
+                await drain.TerminateAsync(subscription, failure, receiveCts.CancelAsync);
+            }
+            catch (Exception error)
+            {
+                terminationFailure = error;
+            }
+
+            try
+            {
+                await receiveTask;
+            }
+            catch (Exception error)
+            {
+                receiverFailure = error;
+            }
+
+            await receiverWatch;
         }
+
+        if (terminationFailure is not null && receiverFailure is not null)
+        {
+            throw new ObservableQueryTeardownFailed([terminationFailure, receiverFailure]);
+        }
+
+        if (terminationFailure is not null || receiverFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(terminationFailure ?? receiverFailure).Throw();
+        }
+
         return;
+
+        async Task Receive() => await webSocketConnectionHandler.HandleIncomingMessages(webSocket, writeLock, receiveCts.Token);
 
         async void Next(T data)
         {
@@ -213,7 +253,7 @@ public class ClientObservable<T>(
             logger.ObservableAnErrorOccurred(error);
             if (!cts.IsCancellationRequested)
             {
-                _ = cts.CancelAsync();
+                _ = drain.Cancel();
                 tcs.TrySetResult();
             }
         }
