@@ -2,7 +2,7 @@
 id: 0004-evaluate-authorization-policies-asynchronously
 title: Evaluate complete authorization requirements asynchronously without bypassing legacy denials
 status: accepted
-stage: none
+stage: verified
 class: contract
 reversibility: costly
 decided: 2026-09-24
