@@ -2,7 +2,7 @@
 id: 0002-shared-arc-pages-stay-in-the-arc-repository
 title: Keep Arc's language-agnostic documentation in the Arc repository until a stated trigger
 status: accepted
-stage: implemented
+stage: verified
 decided: 2026-09-23
 decider: Sindre Alstad Wilting
 class: strategy
