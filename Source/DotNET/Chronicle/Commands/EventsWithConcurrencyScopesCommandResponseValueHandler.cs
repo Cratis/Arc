@@ -35,9 +35,14 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
         }
         else
         {
+            // CHR0001 misidentifies the named `concurrencyScopes` argument as the events argument for this
+            // AppendMany overload and flags its EventSourceId key type - a Chronicle analyzer bug, not a real
+            // violation. Tracked upstream: https://github.com/Cratis/Chronicle/issues/4144
+#pragma warning disable CHR0001
             var result = await eventLog.AppendMany(
                 events,
                 concurrencyScopes: response.ConcurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value));
+#pragma warning restore CHR0001
 
             if (!result.IsSuccess)
             {
