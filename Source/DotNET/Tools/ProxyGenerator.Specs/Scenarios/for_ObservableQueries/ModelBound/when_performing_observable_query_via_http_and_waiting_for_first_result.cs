@@ -22,10 +22,10 @@ public class when_performing_observable_query_via_http_and_waiting_for_first_res
             new Dictionary<string, object>
             {
                 [ObservableQueryHttp.WaitForFirstResultQueryStringKey] = true,
-                [ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey] = 1
+                [ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey] = 30
             });
 
-        await Task.Delay(100);
+        await ObservableReadModel.WaitForDelayedSingleSubscription().WaitAsync(TimeSpan.FromSeconds(30));
         ObservableReadModel.UpdateDelayedSingleItem(new ObservableReadModel
         {
             Id = Guid.NewGuid(),

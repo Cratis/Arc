@@ -21,7 +21,7 @@ public class ObservableReadModel
     static BehaviorSubject<ObservableReadModel> _singleItemSubject = new(
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
     );
-    static Subject<ObservableReadModel> _delayedSingleItemSubject = new();
+    static SubscriptionSignalingSubject _delayedSingleItemSubject = new();
 
     static readonly List<IDisposable> _subscriptions = [];
 
@@ -89,6 +89,12 @@ public class ObservableReadModel
     public static ISubject<ObservableReadModel> ObserveDelayedSingle() => _delayedSingleItemSubject;
 
     /// <summary>
+    /// Gets the signal that the delayed single item has a subscriber.
+    /// </summary>
+    /// <returns>A task completed once the subscriber is registered.</returns>
+    public static Task WaitForDelayedSingleSubscription() => _delayedSingleItemSubject.Subscribed;
+
+    /// <summary>
     /// Updates all items - for testing data changes.
     /// </summary>
     /// <param name="items">The new items.</param>
@@ -133,12 +139,31 @@ public class ObservableReadModel
 
         _singleItemSubject = new BehaviorSubject<ObservableReadModel>(
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 });
-        _delayedSingleItemSubject = new Subject<ObservableReadModel>();
+        _delayedSingleItemSubject = new SubscriptionSignalingSubject();
 
         // Complete old subjects to disconnect all subscribers (including old WebSocket connections)
         oldAllItems.OnCompleted();
         oldSingleItem.OnCompleted();
         oldDelayedSingleItem.OnCompleted();
+    }
+
+    sealed class SubscriptionSignalingSubject : ISubject<ObservableReadModel>
+    {
+        readonly Subject<ObservableReadModel> _subject = new();
+        readonly TaskCompletionSource _subscribed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task Subscribed => _subscribed.Task;
+
+        public IDisposable Subscribe(IObserver<ObservableReadModel> observer)
+        {
+            var subscription = _subject.Subscribe(observer);
+            _subscribed.TrySetResult();
+            return subscription;
+        }
+
+        public void OnNext(ObservableReadModel item) => _subject.OnNext(item);
+        public void OnError(Exception error) => _subject.OnError(error);
+        public void OnCompleted() => _subject.OnCompleted();
     }
 }
 
