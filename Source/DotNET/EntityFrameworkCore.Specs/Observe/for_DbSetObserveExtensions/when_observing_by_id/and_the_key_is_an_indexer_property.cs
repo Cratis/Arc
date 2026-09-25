@@ -22,7 +22,7 @@ public class and_the_key_is_an_indexer_property : a_db_set_observe_context
     void Because()
     {
         var subject = _dbContext.PropertyBags.ObserveById(2);
-        _received = subject.FirstAsync().Wait();
+        _received = subject.FirstAsync().Timeout(TimeSpan.FromSeconds(10)).Wait();
         subject.OnCompleted();
     }
 

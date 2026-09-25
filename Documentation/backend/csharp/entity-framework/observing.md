@@ -28,7 +28,7 @@ var customer = dbContext.Customers.ObserveSingle(customer => customer.Email == e
 var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId);
 ```
 
-`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, they emit `null` and keep the subscription open: initially (a late subscriber replays that `null`), after a delete, and after an update moves the entity out of the filter. This matches MongoDB's single-document observation. Treat `null` as "not found" on the client. All three methods use EF Core's primary-key metadata, including mapped indexer keys on named shared-type sets such as `dbContext.Set<Dictionary<string, object?>>("PropertyBag")`. `ObserveById()` filters on that key's mapped name rather than requiring a CLR `Id` property.
+`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, they emit `null` and keep the subscription open: initially (a late subscriber replays that `null`), after a delete, and after an update moves the entity out of the filter. This matches MongoDB's single-document observation. Treat `null` as "not found" on the client. All three methods use EF Core's primary-key metadata, including mapped indexer keys on named shared-type sets such as `dbContext.Set<Dictionary<string, object?>>("PropertyBag")`. `ObserveById()` filters on that key's mapped name rather than requiring a CLR `Id` property. For composite or keyless entities, observation still falls back to a mapped `Id` property. Shadow-property keys are not supported and fail at observation setup.
 
 To customize loading, use the second callback:
 

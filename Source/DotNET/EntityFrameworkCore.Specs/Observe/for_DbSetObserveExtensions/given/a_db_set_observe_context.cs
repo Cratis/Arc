@@ -23,14 +23,22 @@ public class TestEntity
     public int SortOrder { get; set; }
 }
 
+public class ShadowKeyEntity
+{
+    public string Name { get; set; } = string.Empty;
+}
+
 public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
 {
     public DbSet<TestEntity> TestEntities { get; set; }
+    public DbSet<ShadowKeyEntity> ShadowKeyEntities { get; set; }
 
     public DbSet<Dictionary<string, object?>> PropertyBags => Set<Dictionary<string, object?>>("PropertyBag");
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ShadowKeyEntity>().Property<int>("ShadowId");
+        modelBuilder.Entity<ShadowKeyEntity>().HasKey("ShadowId");
         modelBuilder.SharedTypeEntity<Dictionary<string, object?>>("PropertyBag", entity =>
         {
             entity.IndexerProperty<int>("Id");

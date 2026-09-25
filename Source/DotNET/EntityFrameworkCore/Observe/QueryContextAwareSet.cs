@@ -30,7 +30,7 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
     /// <param name="queryContext">The query context.</param>
     /// <param name="idProperty">The EF Core identity property.</param>
     public QueryContextAwareSet(QueryContext queryContext, IProperty idProperty)
-        : this(queryContext, idProperty.ClrType, entity => idProperty.GetGetter().GetClrValue(entity))
+        : this(queryContext, idProperty.ClrType, GetIdGetter(idProperty))
     {
     }
 
@@ -134,6 +134,12 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
 
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    static Func<TEntity, object?> GetIdGetter(IProperty idProperty)
+    {
+        var getter = idProperty.GetGetter();
+        return entity => getter.GetClrValue(entity);
+    }
 
     void Initialize(QueryContext newQueryContext)
     {

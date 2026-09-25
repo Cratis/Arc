@@ -340,13 +340,17 @@ public static class DbSetObserveExtensions
     {
         var entityType = dbSet.EntityType;
         var primaryKey = entityType.FindPrimaryKey();
-        if (primaryKey?.Properties.Count == 1)
+        var idProperty = primaryKey?.Properties.Count == 1
+            ? primaryKey.Properties[0]
+            : entityType.FindProperty("Id")
+                ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
+
+        if (idProperty.IsShadowProperty())
         {
-            return primaryKey.Properties[0];
+            throw new InvalidOperationException($"Entity type {entityType.Name} has a shadow-property key '{idProperty.Name}' that cannot be observed");
         }
 
-        return entityType.FindProperty("Id")
-            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
+        return idProperty;
     }
 
     static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
