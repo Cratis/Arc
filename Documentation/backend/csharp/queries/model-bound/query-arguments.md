@@ -132,9 +132,10 @@ The GET reader removes these names from ordinary arguments, case-insensitively:
 | Keys                                              | Purpose                          |
 | ------------------------------------------------- | -------------------------------- |
 | `page`, `pageSize`                                | Arc paging context               |
-| `sortby`, `sortDirection`                         | Arc sorting context              |
+| `sortBy`, `sortDirection`                         | Arc sorting context              |
 | `waitForFirstResult`, `waitForFirstResultTimeout` | Observable HTTP snapshot control |
 
+GET also reads the reserved keys case-insensitively (`sortby`, `SORTBY`, `PAGE`, and `PAGESIZE` are equivalent spellings).
 Do not declare method parameters named `page` or `pageSize` expecting GET to populate them. Use [automatic paging](paging.md), or distinct business argument names if you implement a separate result cap. QUERY places paging/sorting in separate envelope properties; hub subscriptions also have dedicated paging/sorting fields. Keep the distinction explicit across transports.
 
 ## URL binding

@@ -96,7 +96,8 @@ and a matched value is converted to the parameter's declared type. `asc`, `ascen
 value is rejected as `malformedRequest` with 400 rather than being sorted some other way.
 
 Over GET the same request is expressed with reserved query-string parameters `page`,
-`pageSize`, `sortBy`, and `sortDirection`; every other parameter is an argument.
+`pageSize`, `sortBy`, and `sortDirection`. These four reserved keys are matched case-insensitively
+(`sortby` and `SORTBY` also work); every other parameter is an argument.
 
 ## Unknown fields
 
