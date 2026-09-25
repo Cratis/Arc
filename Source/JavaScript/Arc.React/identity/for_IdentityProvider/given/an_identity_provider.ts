@@ -61,6 +61,17 @@ export class an_identity_provider {
     }
 
     /**
+     * Answers the next fetch as an ended session: a clean HTTP failure, not a network error - the way
+     * AuthProxy answers a caller whose session expired.
+     */
+    answerNextFetchAsUnauthorized() {
+        this.fetchStub.resolves({
+            ok: false,
+            status: 401
+        } as Response);
+    }
+
+    /**
      * Holds the next fetch open, so a refresh can be observed while it is still in flight.
      */
     holdNextFetchOpen() {
