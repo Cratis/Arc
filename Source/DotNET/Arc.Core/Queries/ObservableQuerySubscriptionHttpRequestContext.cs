@@ -107,6 +107,9 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     public void SetResponseHeader(string name, string value) => _transportContext.SetResponseHeader(name, value);
 
     /// <inheritdoc/>
+    public string? GetResponseHeader(string name) => _transportContext.GetResponseHeader(name);
+
+    /// <inheritdoc/>
     public void AppendCookie(string key, string value, CookieOptions options) => _transportContext.AppendCookie(key, value, options);
 
     /// <inheritdoc/>

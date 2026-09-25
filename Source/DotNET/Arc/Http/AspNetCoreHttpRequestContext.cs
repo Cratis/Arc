@@ -115,6 +115,10 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     }
 
     /// <inheritdoc/>
+    public string? GetResponseHeader(string name) =>
+        httpContext.Response.Headers.TryGetValue(name, out var value) ? value.ToString() : null;
+
+    /// <inheritdoc/>
     public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
         await httpContext.Response.WriteAsJsonAsync(value, type, JsonSerializerOptions, cancellationToken);
