@@ -103,6 +103,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     }
 
     /// <inheritdoc/>
+    public string? GetResponseHeader(string name) => context.Response.Headers[name];
+
+    /// <inheritdoc/>
     public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

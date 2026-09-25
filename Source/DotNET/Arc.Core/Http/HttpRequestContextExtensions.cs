@@ -71,9 +71,28 @@ public static class HttpRequestContextExtensions
     /// Prevents identity-bearing responses from being stored by caches.
     /// </summary>
     /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    /// <remarks>
+    /// <c>Vary</c> is merged rather than replaced, so tokens set earlier in the pipeline (for example <c>Origin</c> from CORS)
+    /// are kept. <c>Cookie</c> is added once, compared case-insensitively, and a <c>*</c> value is left as is since it
+    /// already varies on everything.
+    /// </remarks>
     internal static void SetNoStoreResponseHeaders(this IHttpRequestContext context)
     {
         context.SetResponseHeader("Cache-Control", "no-store, private");
-        context.SetResponseHeader("Vary", "Cookie");
+        context.AddVaryResponseHeaderToken("Cookie");
+    }
+
+    static void AddVaryResponseHeaderToken(this IHttpRequestContext context, string token)
+    {
+        const string varyHeader = "Vary";
+        var tokens = (context.GetResponseHeader(varyHeader) ?? string.Empty)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (tokens.Any(existing => existing == "*" || existing.Equals(token, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        context.SetResponseHeader(varyHeader, string.Join(", ", tokens.Append(token)));
     }
 }
