@@ -35,9 +35,15 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
         }
         else
         {
+            // CHR0001 misfires here: it assumes the second syntactic argument to AppendMany is always the
+            // event collection, but this call's second argument is the named concurrencyScopes dictionary,
+            // which binds to a later parameter. The analyzer then flags EventSourceId, one of that
+            // dictionary's type arguments, as if it needed an [EventType] attribute.
+#pragma warning disable CHR0001
             var result = await eventLog.AppendMany(
                 events,
                 concurrencyScopes: response.ConcurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value));
+#pragma warning restore CHR0001
 
             if (!result.IsSuccess)
             {
