@@ -237,13 +237,20 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     /// its element type is neither a primitive, a concept, nor an enum, so it still defers to the container exactly
     /// as before.
     /// </para>
+    /// <para>
+    /// A concept (<c>ConceptAs&lt;T&gt;</c>) is excluded for the same reason as an enum: it is a concrete reference
+    /// type, so self-binding registers it and <c>IsService</c> answers true. It was then resolved from the container
+    /// instead of bound from the request, and failed trying to construct it from its primitive value. A concept is
+    /// always a caller-supplied argument, as it already is inside a collection and in the generated proxy. A nullable
+    /// concept (<c>T?</c>) shares the same runtime type, so it is covered too.
+    /// </para>
     /// </remarks>
     static bool IsDependency(IServiceProviderIsService serviceProviderIsService, ParameterInfo parameter) =>
         !IsNeverADependency(parameter.ParameterType) &&
         serviceProviderIsService.IsService(parameter.ParameterType);
 
     static bool IsNeverADependency(Type type) =>
-        type.IsValueType || type.IsEnumerableOfQueryArgumentElement(out _);
+        type.IsValueType || type.IsConcept() || type.IsEnumerableOfQueryArgumentElement(out _);
 
     static bool IsNullableOrOptional(ParameterInfo parameter)
     {
