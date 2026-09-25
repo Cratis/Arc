@@ -6,6 +6,7 @@ using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Concepts;
 using Cratis.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -160,6 +161,13 @@ public class ControllerQueryPerformer(
         }
 
         if (bindingSource is not null)
+        {
+            return false;
+        }
+
+        // A concept is a concrete type, so self-binding registers it and the container reports it as a service.
+        // It is always a caller-supplied argument, never something to resolve from the container.
+        if (parameter.ParameterType.IsConcept())
         {
             return false;
         }
