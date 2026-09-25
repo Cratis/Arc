@@ -13,18 +13,15 @@ namespace Cratis.Arc.OpenApi;
 public class ComplexKeyDictionarySchemaTransformer : IOpenApiSchemaTransformer
 {
     /// <inheritdoc/>
-    public async Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
+    public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
         var type = context.JsonTypeInfo.Type;
-        if (context.JsonTypeInfo.Options.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is not ComplexKeyDictionaryJsonConverterFactory)
+        if (type.IsGenericType && context.JsonTypeInfo.Options.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is ComplexKeyDictionaryJsonConverterFactory)
         {
-            return;
+            schema.Type = JsonSchemaType.Object;
+            DeferredSchemas.Register(schema, context);
         }
 
-        var valueType = type.GetInterfaces().Append(type)
-            .First(candidate => candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IDictionary<,>))
-            .GetGenericArguments()[1];
-        schema.Type = JsonSchemaType.Object;
-        schema.AdditionalProperties = await context.GetOrCreateSchemaAsync(valueType, null, cancellationToken);
+        return Task.CompletedTask;
     }
 }

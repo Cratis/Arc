@@ -13,20 +13,15 @@ namespace Cratis.Arc.OpenApi;
 public class DerivedTypeSchemaTransformer : IOpenApiSchemaTransformer
 {
     /// <inheritdoc/>
-    public async Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
+    public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
         var type = context.JsonTypeInfo.Type;
-        if (context.JsonTypeInfo.Options.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is not DerivedTypeJsonConverterFactory)
+        if (context.JsonTypeInfo.Options.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is DerivedTypeJsonConverterFactory)
         {
-            return;
+            schema.Type = JsonSchemaType.Object;
+            DeferredSchemas.Register(schema, context);
         }
 
-        schema.Type = JsonSchemaType.Object;
-        schema.Properties ??= new Dictionary<string, IOpenApiSchema>();
-        foreach (var property in type.GetProperties())
-        {
-            var name = context.JsonTypeInfo.Options.PropertyNamingPolicy?.ConvertName(property.Name) ?? property.Name;
-            schema.Properties[name] = await context.GetOrCreateSchemaAsync(property.PropertyType, null, cancellationToken);
-        }
+        return Task.CompletedTask;
     }
 }

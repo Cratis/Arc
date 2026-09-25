@@ -20,6 +20,7 @@ public static class OpenApiExtensions
             .AddSchemaTransformer<EnumerableConceptSchemaTransformer>()
             .AddSchemaTransformer<ComplexKeyDictionarySchemaTransformer>()
             .AddSchemaTransformer<DerivedTypeSchemaTransformer>()
+            .AddDocumentTransformer<DeferredSchemaDocumentTransformer>()
             .AddSchemaTransformer<EnumSchemaTransformer>()
             .AddSchemaTransformer<FromRequestSchemaTransformer>()
             .AddOperationTransformer<FromRequestOperationTransformer>()
