@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { DialogResponse, DialogResult, IDialogComponents, ConfirmationDialogRequest, BusyIndicatorDialogRequest, CloseDialog } from '@cratis/arc.react/dialogs';
-import { DialogButtons } from '@cratis/arc.react/dialogs/DialogButtons';
+import { DialogButtons } from '@cratis/arc.react/dialogs';
 import { IDialogs } from './IDialogs';
 import { BusyIndicator } from './BusyIndicator';
 import { IDialogMediatorHandler } from './IDialogMediatorHandler';
