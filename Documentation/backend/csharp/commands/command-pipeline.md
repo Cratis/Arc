@@ -44,6 +44,23 @@ public class ScopedCartApplicationService(ICommandPipeline pipeline, IServicePro
 
 Resolve this caller inside the existing scope you intend to share. Passing the root provider does not create a command scope. Scope-explicit calls use the supplied provider and leave its lifetime to the caller.
 
+## Execute for a specific tenant
+
+An off-request worker has no HTTP tenant to inherit. Pass a `TenantId` to `Execute` so the command's filters, handler, and tenant-aware dependencies resolve under that tenant:
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Tenancy;
+
+public class TenantCartJob(ICommandPipeline pipeline)
+{
+    public Task<CommandResult<CartLineId>> Add(TenantId tenant, Sku sku, Quantity quantity) =>
+        pipeline.Execute<CartLineId>(new AddItemToCart(sku, quantity), tenant);
+}
+```
+
+Both typed and untyped calls accept a tenant, with or without an existing scoped `IServiceProvider` (`Execute(command, services, tenant)`). The scope-free form creates a fresh command scope. The explicit tenant remains visible through `ITenantIdAccessor.Current` across awaits, including tenant-aware Chronicle namespace resolution; nested calls can choose another tenant without changing the caller's tenant afterward. If you pass a service provider, resolve tenant-sensitive services *during* execution rather than constructing them before choosing the tenant. An explicit tenant does not grant authorization: establish a trusted principal separately when required.
+
 ## Cancellation
 
 HTTP command endpoints pass the request-aborted token. `Provide()` and `Handle()` may accept a `CancellationToken`, which Arc supplies directly.

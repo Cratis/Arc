@@ -37,16 +37,23 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     internal TenantId? Cached => _current.Value;
 
     /// <summary>
-    /// Temporarily binds tenant resolution to the identity selected for an authorized operation.
+    /// Temporarily binds an explicitly selected tenant to this execution flow.
     /// </summary>
     /// <param name="tenant">The selected tenant.</param>
     /// <returns>A scope restoring the previously cached tenant.</returns>
-    internal IDisposable UseAuthorizedTenant(TenantId tenant)
+    internal static IDisposable UseTenant(TenantId tenant)
     {
         var previous = _current.Value;
         _current.Value = tenant;
         return new TenantScope(previous);
     }
+
+    /// <summary>
+    /// Temporarily binds tenant resolution to the identity selected for an authorized operation.
+    /// </summary>
+    /// <param name="tenant">The selected tenant.</param>
+    /// <returns>A scope restoring the previously cached tenant.</returns>
+    internal IDisposable UseAuthorizedTenant(TenantId tenant) => UseTenant(tenant);
 
     sealed class TenantScope(TenantId? previous) : IDisposable
     {

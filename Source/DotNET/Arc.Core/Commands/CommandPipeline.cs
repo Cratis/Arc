@@ -4,6 +4,7 @@
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -47,6 +48,34 @@ public class CommandPipeline(
         using var scope = scopeFactory.CreateScope();
         using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Execute(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult> Execute(object command, TenantId tenant, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var tenantScope = TenantIdAccessor.UseTenant(tenant);
+        return await Execute(command, allowedSeverity);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, TenantId tenant, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var tenantScope = TenantIdAccessor.UseTenant(tenant);
+        return await Execute(command, serviceProvider, allowedSeverity);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, TenantId tenant, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var tenantScope = TenantIdAccessor.UseTenant(tenant);
+        return await Execute<TResult>(command, allowedSeverity);
+    }
+
+    /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, TenantId tenant, ValidationResultSeverity? allowedSeverity = default)
+    {
+        using var tenantScope = TenantIdAccessor.UseTenant(tenant);
+        return await Execute<TResult>(command, serviceProvider, allowedSeverity);
     }
 
     /// <inheritdoc/>
