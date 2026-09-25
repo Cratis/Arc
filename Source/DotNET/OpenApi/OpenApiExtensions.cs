@@ -20,6 +20,7 @@ public static class OpenApiExtensions
             .AddSchemaTransformer<EnumerableConceptSchemaTransformer>()
             .AddSchemaTransformer<ComplexKeyDictionarySchemaTransformer>()
             .AddSchemaTransformer<DerivedTypeSchemaTransformer>()
+            .AddSchemaTransformer<PolymorphicCollectionSchemaTransformer>()
             .AddSchemaTransformer<StringValueSchemaTransformer>()
             .AddSchemaTransformer<GeoJsonSchemaTransformer>()
             .AddDocumentTransformer<DeferredSchemaDocumentTransformer>()

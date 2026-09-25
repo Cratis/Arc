@@ -19,6 +19,29 @@ public static class RecursiveSchemas
 
     public static Task<JsonNode?> GenerateDictionary<TValue>() => Task.Run(() => GenerateDictionaryDocument<TValue>()).WaitAsync(TimeSpan.FromSeconds(10));
 
+    public static Task<JsonNode?> GeneratePolymorphicCollection(bool nested) => Task.Run(() => GeneratePolymorphicCollectionDocument(nested)).WaitAsync(TimeSpan.FromSeconds(10));
+
+    static async Task<JsonNode?> GeneratePolymorphicCollectionDocument(bool nested)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddCratisArc();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddOpenApi(options => options.AddConcepts());
+        await using var app = builder.Build();
+        if (nested)
+        {
+            app.MapGet("/nodes", () => TypedResults.Ok<IListNode>(new ListNode([])));
+        }
+        else
+        {
+            app.MapGet("/nodes", () => TypedResults.Ok<IEnumerable<IListNode>>([]));
+        }
+        await app.StartAsync();
+        var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
+        return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
+    }
+
     static async Task<JsonNode?> GenerateDictionaryDocument<TValue>()
     {
         var builder = WebApplication.CreateBuilder();
@@ -102,4 +125,18 @@ public static class RecursiveSchemas
     public record SomeConcept(string Value) : ConceptAs<string>(Value);
     public record Node(Dictionary<SomeConcept, Node> Children);
     public record Folder(IEnumerable<Folder> Children);
+    public record ListNodeValue(List<ListNodeValue> Children);
+#pragma warning disable CA1819 // The array is part of the schema under specification.
+    public record ArrayNodeValue(ArrayNodeValue[] Children);
+#pragma warning restore CA1819
+    public record ReadOnlyNodeValue(IReadOnlyList<ReadOnlyNodeValue> Children);
+    public record NullableNode(NullableNode? Next, int Count);
+
+    public interface IListNode
+    {
+        IReadOnlyList<IListNode> Children { get; }
+    }
+
+    [DerivedType("listNode", typeof(IListNode))]
+    public record ListNode(IReadOnlyList<IListNode> Children) : IListNode;
 }

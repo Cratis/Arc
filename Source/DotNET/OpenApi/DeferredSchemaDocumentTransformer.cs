@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Cratis.Json;
 using Cratis.Serialization;
 using Microsoft.AspNetCore.OpenApi;
@@ -27,7 +28,7 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
         {
             var (type, original, jsonOptions) = pending[index];
             var id = options.Get(context.DocumentName).CreateSchemaReferenceId(jsonOptions.GetTypeInfo(type));
-            if (!filled.Add(type))
+            if (id is not null && !filled.Add(type))
             {
                 continue;
             }
@@ -54,6 +55,10 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
                     .GetGenericArguments()[1];
                 schema.AdditionalProperties = await GetSchema(valueType, document, context, jsonOptions, cancellationToken);
             }
+            else if (jsonOptions.GetTypeInfo(type) is { Kind: JsonTypeInfoKind.Enumerable, ElementType: { } elementType })
+            {
+                schema.Items = await GetSchema(elementType, document, context, jsonOptions, cancellationToken);
+            }
         }
     }
 
@@ -73,10 +78,14 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
                     foreach (var property in jsonOptions.GetTypeInfo(type).Properties)
                     {
                         var propertyType = property.PropertyType;
-                        var childType = propertyType.IsGenericType && propertyType.GetGenericTypeDefinition() == typeof(IEnumerable<>) ? propertyType.GetGenericArguments()[0] : propertyType;
+                        var propertyInfo = jsonOptions.GetTypeInfo(propertyType);
+                        var childType = propertyInfo.Kind == JsonTypeInfoKind.Enumerable ? propertyInfo.ElementType ?? propertyType : propertyType;
                         if (schema.Properties.ContainsKey(property.Name) && options.Get(context.DocumentName).CreateSchemaReferenceId(jsonOptions.GetTypeInfo(childType)) is not null)
                         {
-                            schema.Properties[property.Name] = await GetSchema(propertyType, document, context, jsonOptions, cancellationToken);
+                            var propertySchema = await GetSchema(propertyType, document, context, jsonOptions, cancellationToken);
+                            schema.Properties[property.Name] = property.IsGetNullable && propertySchema is OpenApiSchemaReference
+                                ? new OpenApiSchema { OneOf = [new OpenApiSchema { Type = JsonSchemaType.Null }, propertySchema] }
+                                : propertySchema;
                         }
                     }
                 }
@@ -84,14 +93,9 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
             return new OpenApiSchemaReference(id, document);
         }
 
-        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IEnumerable<>))
+        if (jsonOptions.GetTypeInfo(type) is { Kind: JsonTypeInfoKind.Enumerable, ElementType: { } elementType })
         {
-            var itemType = type.GetGenericArguments()[0];
-            var itemId = options.Get(context.DocumentName).CreateSchemaReferenceId(jsonOptions.GetTypeInfo(itemType));
-            if (itemId is not null && document.Components?.Schemas?.ContainsKey(itemId) == true)
-            {
-                return new OpenApiSchema { Type = JsonSchemaType.Array, Items = new OpenApiSchemaReference(itemId, document) };
-            }
+            return new OpenApiSchema { Type = JsonSchemaType.Array, Items = await GetSchema(elementType, document, context, jsonOptions, cancellationToken) };
         }
 
         return await context.GetOrCreateSchemaAsync(type, null, cancellationToken);
