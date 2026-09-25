@@ -80,7 +80,7 @@ docker exec arc-library-mongo mongosh --eval 'rs.initiate({_id:"rs0",members:[{_
 docker exec arc-library-mongo mongosh --eval 'db.hello().isWritablePrimary'
 ```
 
-Wait until Mongo accepts connections before running `rs.initiate`; then repeat the final check until it prints `true`. This unauthenticated, loopback-only database is **development-only**. Use your deployment's access controls and connection secrets in production. Arc discovers collections and its serializers; no per-collection registration is required.
+Wait until Mongo accepts connections before running `rs.initiate`; then repeat the final check until it prints `true`. If the container exits immediately, run `docker logs arc-library-mongo`. MongoDB 8 refuses to start on Linux kernels 6.19 through 7.0.13, which includes some Docker Desktop virtual machines; the log then names the kernel incompatibility. Update Docker Desktop, or remove the container and start it from `mongo:7.0` instead, which runs this tutorial unchanged. See MongoDB's [production notes](https://www.mongodb.com/docs/upcoming/administration/production-notes) for the affected kernels. This unauthenticated, loopback-only database is **development-only**. Use your deployment's access controls and connection secrets in production. Arc discovers collections and its serializers; no per-collection registration is required.
 
 Replace `Program.cs`:
 

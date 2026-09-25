@@ -15,7 +15,7 @@ cd GreetingService
 dotnet add package Cratis.Arc.Core
 ```
 
-`Cratis.Arc` is the separate ASP.NET Core integration package. If you want Kestrel, MVC, or the ASP.NET middleware ecosystem, follow the [ASP.NET Core guide](../asp-net-core/index.md) instead.
+`Cratis.Arc` is the separate ASP.NET Core integration package. If you want Kestrel, MVC, or the ASP.NET middleware ecosystem, follow the [ASP.NET Core guide](../asp-net-core/index.md) instead. Do not add `Cratis.Arc` to this project: with it referenced, `ArcApplication` stops at startup with `Unable to resolve service for type ... IActionDescriptorCollectionProvider`, because that package's controller-based query discovery needs MVC services this host does not register.
 
 ## Complete example
 
@@ -51,7 +51,7 @@ public record Greeting(string Text)
 }
 ```
 
-`AddCratisArc` registers services and binds options. `UseCratisArc` maps Arc endpoints and schedules listener startup; `RunAsync` starts the host and waits for shutdown. Both registration and activation matter. This lesson deliberately permits anonymous access; read [authentication](authentication.md) and [authorization](authorization.md) before exposing private operations.
+The build reports two `CA1050` warnings because the command and read model sit in the global namespace; that is expected in this single-file checkpoint and is what gives the command its short `/api/greet` route. `AddCratisArc` registers services and binds options. `UseCratisArc` maps Arc endpoints and schedules listener startup; `RunAsync` starts the host and waits for shutdown. Both registration and activation matter. This lesson deliberately permits anonymous access; read [authentication](authentication.md) and [authorization](authorization.md) before exposing private operations.
 
 ## Run and observe
 
