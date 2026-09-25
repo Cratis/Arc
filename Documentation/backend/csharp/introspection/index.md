@@ -1,4 +1,7 @@
-# Introspection
+---
+title: Introspection
+description: Inspect your application's commands, queries, and identity schema at runtime, and decide how to expose those endpoints in production.
+---
 
 Arc exposes introspection endpoints that let you inspect the command and query surface of your application at runtime.
 

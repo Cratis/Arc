@@ -48,7 +48,8 @@ This is also what happens when a `[ReadModel]` marked `[RemovedWith<T>]` is remo
 Guard against it on the frontend the same way you guard against "not loaded yet" — with `result.hasData` (or `result.isReady` if you need to tell "no result yet" apart from "ready, but nothing matches"):
 
 ```tsx
-const [result] = GetAccountObservable.use(accountId);
+// ObserveAccount is the generated proxy for the query method above
+const [result] = ObserveAccount.use({ id: accountId });
 
 if (!result.isReady) {
     return <Spinner />;

@@ -1,4 +1,7 @@
-# Swagger
+---
+title: Swagger
+description: Describe Arc commands, queries, and concepts in Swashbuckle Swagger documents with the Cratis.Arc.Swagger filters.
+---
 
 Cratis Arc provides Swagger/OpenAPI filters through the optional `Cratis.Arc.Swagger` package for ASP.NET Core hosts. These describe Arc conventions, but do not guarantee that every generated schema matches the runtime contract. Review the [current limitations](#current-limitations) before generating clients.
 
@@ -14,16 +17,27 @@ The Swagger extension adds filters for:
 
 ## Setup
 
-To use the Swagger enhancements, add the extension to your Swagger configuration:
+Add the `Cratis.Arc.Swagger` package, which brings Swashbuckle with it, then register the document generator with Arc's filters and expose the document and UI in `Program.cs`:
 
 ```csharp
-builder.Services.AddSwaggerGen(options =>
+using Cratis.Arc.Swagger;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options => options.AddConcepts());
+
+var app = builder.Build();
+if (app.Environment.IsDevelopment())
 {
-    options.AddConcepts();
-});
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+app.UseCratisArc();
+await app.RunAsync();
 ```
 
-The `AddConcepts()` method adds all the necessary filters and operation filters automatically.
+`AddConcepts()` registers the schema and operation filters; it does not serve anything by itself. `UseSwagger()` serves `/swagger/v1/swagger.json`, which lists the Arc command, validate, and query routes alongside Arc's `/.cratis/*` endpoints, and `UseSwaggerUI()` serves the browser UI at `/swagger`. The example serves both only in Development; decide deliberately whether a production host should publish its API description.
 
 ## Features
 

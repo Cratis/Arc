@@ -1,4 +1,7 @@
-# Proxy File Suffix
+---
+title: Proxy File Suffix
+description: Add a .proxy suffix to generated TypeScript file names, and what changes when you switch it on or off.
+---
 
 By default each generated file is named after the type it represents, or after its C# source file when
 `CratisProxiesUseSourceFileAsOutputFile` is on:
@@ -40,4 +43,4 @@ Code that imports a generated file directly by path must use the suffixed name o
 
 Turning the option on - or off - in a project that already has generated files replaces them: the next build writes
 the new names and removes the previously generated ones, like any other generated file that is no longer produced.
-Files you wrote yourself are never removed.
+With the default incremental output, the switch removes only files the generator produced. The suffix does not protect handwritten files from the generator's other cleanup: [full regeneration](output-behavior.md) deletes the whole output directory, and orphan-directory cleanup can remove an `index.ts`.

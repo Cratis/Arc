@@ -1,4 +1,7 @@
-# Static Files
+---
+title: Static Files
+description: Serve static files and a single-page application fallback from the lightweight Arc.Core host.
+---
 
 Arc.Core provides built-in support for serving static files, similar to the `UseStaticFiles()` middleware in ASP.NET Core. This is essential for hosting Single Page Applications (SPAs), serving assets like CSS, JavaScript, images, and other static content.
 
@@ -141,7 +144,7 @@ With this configuration:
 - `/styles.css` → Serves `wwwroot/styles.css`
 - `/js/app.js` → Serves `wwwroot/js/app.js`
 - `/dashboard/users/123` → Serves `wwwroot/index.html` (SPA route)
-- `/api/users` → Handled by your query endpoints
+- `/api/users` → Handled by a command or query only if one is mapped to that route; otherwise an unmatched GET also serves `wwwroot/index.html`
 
 ## Multiple Static File Configurations
 

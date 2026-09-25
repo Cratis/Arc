@@ -21,7 +21,7 @@ graph LR
 ## Prerequisites
 
 - A MongoDB replica set or sharded cluster supporting change streams, with database-level watch/read permissions
-- `UseCratisMongoDB()` called during application startup
+- Arc's MongoDB integration registered at startup, through either `builder.UseCratisMongoDB()` or `builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB())`; both register the watcher
 
 The examples below are service/query fragments using your application's `Book`, `Author`, and `Publisher` types. Import `Cratis.Arc.MongoDB` and `System.Reactive.Subjects`; the controller example additionally uses `Microsoft.AspNetCore.Mvc`. They are not complete host programs.
 

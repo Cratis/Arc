@@ -32,8 +32,8 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 
 | Attribute | Valid on | Effect |
 |---|---|---|
-| `[Path]` | class, method | Overrides the route Arc would otherwise derive from the type or method name. |
-| `[QueryHttpMethod]` | class, method | Chooses the HTTP method a query is exposed with, where more than one is supported. |
+| `[Path]` | read model, query method | Overrides the route Arc would otherwise derive for a model-bound query. It does not change command routes. |
+| `[QueryHttpMethod]` | read model, query method | Sets the HTTP method the **generated proxy** uses by default (GET, QUERY, or Auto). The server accepts GET and, unless `GeneratedApis.EnableQueryHttpMethod` is `false`, QUERY regardless of this attribute. |
 | `[FromRequest]` | parameter, property | Binds a value from several request sources rather than the default one. |
 
 A route you do not override is derived, so `[Path]` is for the cases where the
@@ -48,7 +48,10 @@ derived route is wrong for you — not something to apply everywhere.
 | `[AllowAnonymous]` | class, method | Opens a specific artifact or operation back up. |
 
 Apply them at class level to cover everything and override per method for the
-exceptions — secure by default, opened where you mean it. A failure surfaces as
+exceptions. An artifact with no authorization attribute is open to any caller
+unless your ASP.NET Core host configures a
+[fallback policy](asp-net-core/authorization.md), so protection is something you
+declare, not a default. A failure surfaces as
 `isAuthorized: false` in the result rather than as an exception, so the frontend
 can react to it.
 
@@ -56,7 +59,7 @@ can react to it.
 
 | Attribute | Valid on | Effect |
 |---|---|---|
-| `[IgnoreValidation]` | class, method | Excludes an artifact from validation that would otherwise apply. |
+| `[IgnoreValidation]` | controller, action | Skips Arc's validation filter for an ASP.NET Core controller or action, leaving ASP.NET Core's default model validation behavior. It has no effect on model-bound commands and queries. |
 
 Most validation is declared in a `CommandValidator<T>` or `ConceptValidator<T>`
 rather than with an attribute. See [validation](commands/validation.md).
@@ -66,7 +69,7 @@ rather than with an attribute. See [validation](commands/validation.md).
 | Attribute | Valid on | Effect |
 |---|---|---|
 | `[IgnoreAutoRegistration]` | class | Keeps a type out of Arc's conventional discovery. |
-| `[AspNetResult]` | class, method | Returns the ASP.NET Core result directly instead of Arc's result envelope. |
+| `[AspNetResult]` | controller, action | Returns an ASP.NET Core controller action's result directly instead of wrapping it in Arc's result envelope. It applies to controller-based endpoints only. |
 
 `[AspNetResult]` opts out of the envelope the generated client expects, so a
 proxy will not consume that endpoint in the usual way. Reach for it when an
@@ -80,7 +83,7 @@ These arrive with Chronicle rather than Arc itself, and only apply when the
 | Attribute | Valid on | Effect |
 |---|---|---|
 | `[EventType]` | class | Marks a record as an event. Takes no arguments for a new event. |
-| `[Key]` | property | Identifies the event source a command acts on. |
+| `[Key]` (`Cratis.Chronicle.Keys`) | property, positional record parameter | Identifies the event source a command acts on. Without Chronicle, Arc instead reads `System.ComponentModel.DataAnnotations.KeyAttribute` as the command key; Chronicle ignores that one, so unless the command has an `EventSourceId`-typed property, it can silently resolve no event source; [ARCCHR0008](chronicle/code-analysis/ARCCHR0008.md) warns about it. |
 | `[NotAudited]` | class, struct, property, parameter | Keeps a secret out of the causation chain written with every event. |
 | `[ExecuteCommandsAsSystem]` | class | Runs a reactor's returned commands without a user principal. |
 

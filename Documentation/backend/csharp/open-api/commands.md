@@ -1,4 +1,7 @@
-# Commands
+---
+title: Commands
+description: How the OpenAPI command transformer describes Arc's CommandResult envelope for controller commands.
+---
 
 Arc wraps participating controller commands in a `CommandResult` or `CommandResult<T>` envelope. This is not a guarantee about every arbitrary mutation endpoint in an ASP.NET application. The `CommandResultOperationTransformer` automatically updates the generated operation documentation to reflect this.
 

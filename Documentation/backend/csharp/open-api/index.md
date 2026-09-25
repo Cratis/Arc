@@ -1,4 +1,7 @@
-# Microsoft.AspNetCore.OpenApi
+---
+title: Microsoft.AspNetCore.OpenApi
+description: Add Arc's schema and operation transformers to Microsoft.AspNetCore.OpenApi documents with Cratis.Arc.OpenApi, and know their limits.
+---
 
 The `Cratis.Arc.OpenApi` package provides deep integration with `Microsoft.AspNetCore.OpenApi` (.NET 10+), adding schema and operation transformers for Arc conventions. Review the enum and model-bound response limitations below before treating generated schemas as a wire-contract guarantee. This is the ASP.NET host integration, not [Core's built-in lightweight OpenAPI](../core/openapi.md).
 

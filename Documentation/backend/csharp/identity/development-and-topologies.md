@@ -1,4 +1,7 @@
-# Development and Topologies
+---
+title: Development and Topologies
+description: Expose development users and tenants for tools such as Lens, and run identity across ingress and microservice topologies.
+---
 
 ## Development Users and Tenants
 

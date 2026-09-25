@@ -24,7 +24,7 @@ var featured = collection.ObserveSingle(author => author.IsFeatured);
 var byId = collection.ObserveById<Author, Guid>(authorId);
 ```
 
-The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. Single observation emits only when an entity exists: it does not emit null when no document matches.
+The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. When no document matches, single observation emits `null` and stays open; see [when there is no matching document](#when-the-observed-document-is-gone) below.
 
 The watch starts when `Observe()` is called, not when the first subscriber arrives. The collection result replays its latest emission to late subscribers. It does not emit a placeholder empty collection before the initial database query finishes.
 

@@ -7,7 +7,7 @@ description: Restrict who can run a command or read a query with role-based auth
 
 ## Authorize at the boundary, not in the logic
 
-Authorization is a cross-cutting concern: it belongs at the edge, applied as an attribute, so your `Handle()` methods and read models stay focused on behavior. Arc enforces role attributes on **both** commands and query methods when invoked through its pipelines. Direct C# calls to `Handle()` or a static query bypass these checks. Use attributes from `Cratis.Arc.Authorization`; `[Roles]` requires authentication and at least one listed role. Arc does not enforce its attribute's `Policy` or `AuthenticationSchemes` properties.
+Authorization is a cross-cutting concern: it belongs at the edge, applied as an attribute, so your `Handle()` methods and read models stay focused on behavior. Arc enforces role attributes on **both** commands and query methods when invoked through its pipelines. Direct C# calls to `Handle()` or a static query bypass these checks. Use attributes from `Cratis.Arc.Authorization`; `[Roles]` requires authentication and at least one listed role. `[Authorize(Policy = "...")]` is enforced too, once you [register the named policy](core/authorization.md#register-a-named-policy). Named `AuthenticationSchemes` work only on the [ASP.NET Core host](asp-net-core/authorization.md); the standalone Arc host fails at startup rather than ignoring them.
 
 ## Protect a command
 

@@ -28,7 +28,7 @@ var customer = dbContext.Customers.ObserveSingle(customer => customer.Email == e
 var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId);
 ```
 
-`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>` and emit a value only when an entity exists; absence is not a null notification. `ObserveById` requires a public `Id` property. Collection observation uses single-key EF metadata where available, falling back to `Id`.
+`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, they emit `null` and keep the subscription open: initially (a late subscriber replays that `null`), after a delete, and after an update moves the entity out of the filter. This matches MongoDB's single-document observation. Treat `null` as "not found" on the client. `ObserveById` requires a public `Id` property. Collection observation uses single-key EF metadata where available, falling back to `Id`.
 
 To customize loading, use the second callback:
 
