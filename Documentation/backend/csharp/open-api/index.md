@@ -25,7 +25,7 @@ builder.Services.AddOpenApi(options => options.AddConcepts());
 
 After building the app, map the document using ASP.NET's `app.MapOpenApi()` (default `/openapi/v1.json`). Keep `app.UseCratisArc()` and the host's normal startup too. Map only in intended environments or apply appropriate endpoint access controls; API documentation is not automatically private.
 
-The `AddConcepts()` method registers all schema and operation transformers automatically.
+The `AddConcepts()` method registers all schema and operation transformers automatically. It preserves string schemas for dates, times, URIs and runtime types, and describes geospatial values as GeoJSON objects. For polymorphic types, the schema describes the declared base properties, while the wire format also carries the discriminator and derived properties.
 
 ## Requirements
 

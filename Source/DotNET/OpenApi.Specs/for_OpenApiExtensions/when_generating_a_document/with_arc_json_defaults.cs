@@ -2,10 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.given;
 using Cratis.Concepts;
+using Cratis.Geospatial;
 using Cratis.Serialization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +26,22 @@ public class with_arc_json_defaults : Specification
     [Fact] void should_describe_the_concept_collection_as_an_array() => Schema("IEnumerableOfSampleConcept")["type"]!.ToString().ShouldEqual("array");
     [Fact] void should_describe_the_concept_collection_items() => Schema("IEnumerableOfSampleConcept")["items"]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/SampleConcept");
     [Fact] void should_preserve_the_enum_type() => Schema("SampleEnum")["type"]!.ToString().ShouldEqual("integer");
+    [Fact] void should_describe_dates_as_strings() => Schema("SampleDates")["properties"]!["date"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_describe_nullable_dates_as_strings_or_null() => Schema("SampleDates")["properties"]!["nullableDate"]!["type"]!.ToString().ShouldContain("null");
+    [Fact] void should_describe_times_as_strings() => Schema("SampleDates")["properties"]!["time"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_describe_nullable_times_as_strings_or_null() => Schema("SampleDates")["properties"]!["nullableTime"]!["type"]!.ToString().ShouldContain("null");
+    [Fact] void should_describe_uris_as_strings() => Schema("SampleDates")["properties"]!["uri"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_describe_nullable_uris_as_strings_or_null() => Schema("SampleDates")["properties"]!["nullableUri"]!["type"]!.ToString().ShouldContain("null");
+    [Fact] void should_describe_types_as_strings() => Schema("Type")["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_describe_geojson_points_as_objects() => Schema("Point")["properties"]!["coordinates"]!["items"]!["type"]!.ToString().ShouldEqual("number");
+    [Fact] void should_describe_geojson_lines_as_objects() => Schema("LineString")["properties"]!["coordinates"]!["items"]!["items"]!["type"]!.ToString().ShouldEqual("number");
+    [Fact] void should_describe_geojson_polygons_as_objects() => Schema("Polygon")["properties"]!["coordinates"]!["items"]!["items"]!["items"]!["type"]!.ToString().ShouldEqual("number");
+    [Fact] void should_describe_primitive_collections_as_arrays() => Schema("SampleValues")["properties"]!["names"]!["type"]!.ToString().ShouldEqual("array");
     [Fact] void should_describe_declared_polymorphic_properties() => Schema("ISampleBase")["properties"]!["name"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_describe_inherited_interface_properties() => Schema("ISampleBase")["properties"]!["renamed"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_exclude_ignored_interface_properties() => Schema("ISampleBase")["properties"]!["hidden"].ShouldBeNull();
+    [Fact] void should_exclude_indexers() => Schema("ISampleBase")["properties"]!["item"].ShouldBeNull();
+    [Fact] void should_exclude_static_properties() => Schema("ISampleBase")["properties"]!["staticValue"].ShouldBeNull();
     [Fact] void should_describe_the_complex_key_dictionary_as_an_object() => Schema("DictionaryOfSampleConceptAndstring")["type"]!.ToString().ShouldEqual("object");
     [Fact] void should_describe_the_complex_key_dictionary_values() => Schema("DictionaryOfSampleConceptAndstring")["additionalProperties"]!["type"]!.ToString().ShouldEqual("string");
     [Fact] void should_describe_controller_response_using_the_same_options() => _document!["paths"]!["/controller"]!["get"]!["responses"]!["200"]!["content"]!["text/json"]!["schema"]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/IEnumerableOfSampleConcept");
@@ -34,6 +52,7 @@ public class with_arc_json_defaults : Specification
     {
         var builder = WebApplication.CreateBuilder();
         builder.AddCratisArc();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddOpenApi(options => options.AddConcepts());
         builder.Services.AddControllers().AddApplicationPart(typeof(SchemaController).Assembly);
         await using var app = builder.Build();
@@ -43,6 +62,8 @@ public class with_arc_json_defaults : Specification
         app.MapGet("/enum", () => TypedResults.Ok(SampleEnum.Second));
         app.MapGet("/derived", () => TypedResults.Ok<ISampleBase>(new SampleDerived("value", 42)));
         app.MapGet("/dictionary", () => TypedResults.Ok(new Dictionary<SampleConcept, string>()));
+        app.MapGet("/dates", () => TypedResults.Ok(new SampleDates(DateOnly.MinValue, null, TimeOnly.MinValue, null, new Uri("https://example.com"), null)));
+        app.MapGet("/values", () => TypedResults.Ok(new SampleValues(typeof(string), new Point(1, 2), null, null, ["a"])));
         await app.StartAsync();
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
         var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
@@ -50,16 +71,32 @@ public class with_arc_json_defaults : Specification
     }
 
     public record SampleConcept(Guid Value) : ConceptAs<Guid>(Value);
+    public record SampleDates(DateOnly Date, DateOnly? NullableDate, TimeOnly Time, TimeOnly? NullableTime, Uri Uri, Uri? NullableUri);
+    public record SampleValues(Type RuntimeType, Point Point, LineString? Line, Polygon? Polygon, IEnumerable<string> Names);
     public enum SampleEnum
     {
         First = 0,
         Second = 1
     }
-    public interface ISampleBase
+    public interface IAdditionalProperties
+    {
+        [JsonPropertyName("renamed")]
+        string Id { get; }
+        [JsonIgnore]
+        string Hidden { get; }
+        string this[int index] { get; }
+        static string StaticValue => "static";
+    }
+    public interface ISampleBase : IAdditionalProperties
     {
         string Name { get; }
     }
 
     [DerivedType("sample-derived", typeof(ISampleBase))]
-    public record SampleDerived(string Name, int Count) : ISampleBase;
+    public record SampleDerived(string Name, int Count) : ISampleBase
+    {
+        public string Id => "id";
+        public string Hidden => "hidden";
+        public string this[int index] => "value";
+    }
 }

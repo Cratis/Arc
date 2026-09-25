@@ -16,7 +16,7 @@ public class EnumerableConceptSchemaTransformer : IOpenApiSchemaTransformer
     public async Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
         var type = context.JsonTypeInfo.Type;
-        if (context.JsonTypeInfo.Options.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is not EnumerableConceptAsJsonConverterFactory)
+        if (!type.IsGenericType || context.JsonTypeInfo.Options.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is not EnumerableConceptAsJsonConverterFactory)
         {
             return;
         }
