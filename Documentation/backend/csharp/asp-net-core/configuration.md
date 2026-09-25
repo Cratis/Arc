@@ -278,7 +278,7 @@ For example, with the configuration above:
 
 ## JSON Serialization
 
-Arc-generated endpoints use `ArcOptions.JsonSerializerOptions`. Arc's MVC post-configuration copies only the property naming policy and appends Arc converters; it does not copy the entire options object. Settings such as `DefaultIgnoreCondition`, `NumberHandling`, and other MVC serializer options require separate MVC configuration if controller output must match. Manual serialization must explicitly use the Arc options; unrelated minimal API endpoints use their ASP.NET serializer configuration.
+Arc-generated endpoints use `ArcOptions.JsonSerializerOptions`. Arc's MVC post-configuration copies only the property naming policy and appends Arc converters; it does not copy the entire options object. Settings such as `DefaultIgnoreCondition`, `NumberHandling`, and other MVC serializer options require separate MVC configuration if controller output must match. Plain ASP.NET minimal API endpoints also receive Arc's concept and other converters by default, so concepts in request and response bodies use their underlying primitive JSON values. Manual serialization must explicitly use the Arc options.
 
 ### Default Configuration
 
@@ -330,7 +330,7 @@ builder.AddCratisArc(options =>
 });
 ```
 
-For controllers, configure null omission, number handling, and other non-copied settings separately through MVC's `AddJsonOptions`. Arc's post-configuration still sets the naming policy, removes the first `JsonStringEnumConverter` if present, and appends Arc converters. `ConfigureHttpJsonOptions` configures ASP.NET minimal API serialization; it does **not** replace Arc's serializer for generated endpoints. Converter order matters: the first matching converter wins, so appending a converter may not override an existing Arc converter. Test the actual request/response contract; see [OpenAPI enum limitations](../open-api/enums.md).
+For controllers, configure null omission, number handling, and other non-copied settings separately through MVC's `AddJsonOptions`. Arc's post-configuration still sets the naming policy, removes the first `JsonStringEnumConverter` if present, and appends Arc converters. `ConfigureHttpJsonOptions` configures ASP.NET minimal API serialization; it does **not** replace Arc's serializer for generated endpoints. For minimal APIs, explicitly configured naming policies and converters take precedence over Arc's defaults. Null omission, number handling, and other serializer settings still require separate minimal API configuration. Converter order matters: the first matching converter wins. Test the actual request/response contract; see [OpenAPI enum limitations](../open-api/enums.md).
 
 ## Best Practices
 
