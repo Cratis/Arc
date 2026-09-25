@@ -26,6 +26,18 @@ public class TestEntity
 public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
 {
     public DbSet<TestEntity> TestEntities { get; set; }
+
+    public DbSet<Dictionary<string, object?>> PropertyBags => Set<Dictionary<string, object?>>("PropertyBag");
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.SharedTypeEntity<Dictionary<string, object?>>("PropertyBag", entity =>
+        {
+            entity.IndexerProperty<int>("Id");
+            entity.IndexerProperty<string>("Name");
+            entity.HasKey("Id");
+        });
+    }
 }
 
 #pragma warning restore SA1402, SA1649

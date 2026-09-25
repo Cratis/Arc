@@ -10,6 +10,7 @@ using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -84,10 +85,8 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         var parameter = Expression.Parameter(typeof(TEntity), "e");
-        var idProperty = typeof(TEntity).GetProperty("Id", BindingFlags.Instance | BindingFlags.Public)
-            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
-
-        var property = Expression.Property(parameter, idProperty);
+        var idProperty = GetIdProperty(dbSet);
+        var property = Expression.Call(typeof(EF), nameof(EF.Property), [idProperty.ClrType], parameter, Expression.Constant(idProperty.Name));
         var constant = Expression.Constant(id, typeof(TId));
         var equals = Expression.Equal(property, constant);
         var lambda = Expression.Lambda<Func<TEntity, bool>>(equals, parameter);
@@ -171,7 +170,7 @@ public static class DbSetObserveExtensions
         using (var scope = serviceScopeFactory.CreateScope())
         {
             var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-            var freshDbSet = freshDbContext.Set<TEntity>();
+            var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
             var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
             queryContext.TotalItems = initialBaseQuery.Count();
             var query = BuildQuery(initialBaseQuery, queryContext);
@@ -218,7 +217,7 @@ public static class DbSetObserveExtensions
                 // Create a new scope to get a fresh DbContext
                 using var scope = serviceScopeFactory.CreateScope();
                 var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-                var freshDbSet = freshDbContext.Set<TEntity>();
+                var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
 
                 // Build the query using the fresh DbSet
                 var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
@@ -336,24 +335,17 @@ public static class DbSetObserveExtensions
         }
     }
 
-    static PropertyInfo GetIdProperty<TEntity>(DbSet<TEntity> dbSet)
+    static IProperty GetIdProperty<TEntity>(DbSet<TEntity> dbSet)
         where TEntity : class
     {
-        // Try to get the key from EF Core metadata first
         var entityType = dbSet.EntityType;
         var primaryKey = entityType.FindPrimaryKey();
         if (primaryKey?.Properties.Count == 1)
         {
-            var keyProperty = primaryKey.Properties[0];
-            var clrProperty = typeof(TEntity).GetProperty(keyProperty.Name, BindingFlags.Instance | BindingFlags.Public);
-            if (clrProperty is not null)
-            {
-                return clrProperty;
-            }
+            return primaryKey.Properties[0];
         }
 
-        // Fall back to convention-based Id property
-        return typeof(TEntity).GetProperty("Id", BindingFlags.Instance | BindingFlags.Public)
+        return entityType.FindProperty("Id")
             ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
     }
 
