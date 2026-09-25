@@ -15,7 +15,25 @@ namespace Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.gi
 
 public static class RecursiveSchemas
 {
-    public static async Task<JsonNode?> Generate(bool polymorphic)
+    public static Task<JsonNode?> Generate(bool polymorphic) => Task.Run(() => GenerateDocument(polymorphic)).WaitAsync(TimeSpan.FromSeconds(10));
+
+    public static Task<JsonNode?> GenerateDictionary<TValue>() => Task.Run(() => GenerateDictionaryDocument<TValue>()).WaitAsync(TimeSpan.FromSeconds(10));
+
+    static async Task<JsonNode?> GenerateDictionaryDocument<TValue>()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.AddCratisArc();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Services.AddOpenApi(options => options.AddConcepts());
+        await using var app = builder.Build();
+        app.MapGet("/dictionary", () => TypedResults.Ok(new Dictionary<SomeConcept, TValue>()));
+        await app.StartAsync();
+        var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
+        return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
+    }
+
+    static async Task<JsonNode?> GenerateDocument(bool polymorphic)
     {
         var builder = WebApplication.CreateBuilder();
         builder.AddCratisArc();
@@ -33,8 +51,43 @@ public static class RecursiveSchemas
 
         await app.StartAsync();
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
-        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
         return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
+    }
+
+    public static bool ReferencesResolve(JsonNode document) => References(document).All(reference =>
+        reference.StartsWith("#/components/schemas/", StringComparison.Ordinal) &&
+        document["components"]?["schemas"]?[reference["#/components/schemas/".Length..]] is not null);
+
+    static IEnumerable<string> References(JsonNode? node)
+    {
+        if (node is JsonObject properties)
+        {
+            foreach (var property in properties)
+            {
+                if (property.Key == "$ref" && property.Value is not null)
+                {
+                    yield return property.Value.ToString();
+                }
+                else
+                {
+                    foreach (var reference in References(property.Value))
+                    {
+                        yield return reference;
+                    }
+                }
+            }
+        }
+        else if (node is JsonArray items)
+        {
+            foreach (var item in items)
+            {
+                foreach (var reference in References(item))
+                {
+                    yield return reference;
+                }
+            }
+        }
     }
 
     public interface INode
@@ -48,4 +101,5 @@ public static class RecursiveSchemas
 
     public record SomeConcept(string Value) : ConceptAs<string>(Value);
     public record Node(Dictionary<SomeConcept, Node> Children);
+    public record Folder(IEnumerable<Folder> Children);
 }

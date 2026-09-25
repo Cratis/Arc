@@ -12,6 +12,7 @@ public class with_a_recursive_polymorphic_type : Specification
 
     async Task Because() => _document = await RecursiveSchemas.Generate(true);
 
-    [Fact] void should_reference_the_parent() => _document!["components"]!["schemas"]!["INode"]!["properties"]!["parent"]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/INode");
+    [Fact] void should_reference_the_parent() => _document!["components"]!["schemas"]!["INode"]!["properties"]!["parent"]!["oneOf"]![1]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/INode");
+    [Fact] void should_allow_a_null_parent() => _document!["components"]!["schemas"]!["INode"]!["properties"]!["parent"]!["oneOf"]![0]!["type"]!.ToString().ShouldEqual("null");
     [Fact] void should_reference_the_child_items() => _document!["components"]!["schemas"]!["INode"]!["properties"]!["children"]!["items"]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/INode");
 }

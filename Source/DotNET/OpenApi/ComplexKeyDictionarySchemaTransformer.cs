@@ -8,7 +8,7 @@ using Microsoft.OpenApi;
 namespace Cratis.Arc.OpenApi;
 
 /// <summary>
-/// Restores object schemas for dictionaries whose keys Arc serializes as JSON property names.
+/// Marks dictionaries whose keys Arc serializes as JSON property names for expansion by <see cref="DeferredSchemaDocumentTransformer"/>.
 /// </summary>
 public class ComplexKeyDictionarySchemaTransformer : IOpenApiSchemaTransformer
 {

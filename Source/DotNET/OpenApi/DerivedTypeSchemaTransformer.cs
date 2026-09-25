@@ -8,7 +8,7 @@ using Microsoft.OpenApi;
 namespace Cratis.Arc.OpenApi;
 
 /// <summary>
-/// Retains the declared properties of a polymorphic type when its converter suppresses schema inference.
+/// Marks polymorphic types for expansion by <see cref="DeferredSchemaDocumentTransformer"/> when their converter suppresses schema inference.
 /// </summary>
 public class DerivedTypeSchemaTransformer : IOpenApiSchemaTransformer
 {

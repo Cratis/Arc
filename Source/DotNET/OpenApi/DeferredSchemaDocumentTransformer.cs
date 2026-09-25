@@ -21,10 +21,16 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
     public async Task TransformAsync(OpenApiDocument document, OpenApiDocumentTransformerContext context, CancellationToken cancellationToken)
     {
         var pending = DeferredSchemas.For(document);
+        var filled = new HashSet<Type>();
+        var nullability = new NullabilityInfoContext();
         for (var index = 0; index < pending.Count; index++)
         {
             var (type, original, jsonOptions) = pending[index];
             var id = options.Get(context.DocumentName).CreateSchemaReferenceId(jsonOptions.GetTypeInfo(type));
+            if (!filled.Add(type))
+            {
+                continue;
+            }
             var schema = id is not null && document.Components?.Schemas?.TryGetValue(id, out var component) == true && component is OpenApiSchema resolved ? resolved : original;
             if (jsonOptions.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is DerivedTypeJsonConverterFactory)
             {
@@ -35,7 +41,10 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
                 foreach (var property in properties)
                 {
                     var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? jsonOptions.PropertyNamingPolicy?.ConvertName(property.Name) ?? property.Name;
-                    schema.Properties[name] = await GetSchema(property.PropertyType, document, context, jsonOptions, cancellationToken);
+                    var propertySchema = await GetSchema(property.PropertyType, document, context, jsonOptions, cancellationToken);
+                    schema.Properties[name] = nullability.Create(property).ReadState == NullabilityState.Nullable && propertySchema is OpenApiSchemaReference
+                        ? new OpenApiSchema { OneOf = [new OpenApiSchema { Type = JsonSchemaType.Null }, propertySchema] }
+                        : propertySchema;
                 }
             }
             else if (jsonOptions.Converters.FirstOrDefault(converter => converter.CanConvert(type)) is ComplexKeyDictionaryJsonConverterFactory)
@@ -51,8 +60,27 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
     async Task<IOpenApiSchema> GetSchema(Type type, OpenApiDocument document, OpenApiDocumentTransformerContext context, System.Text.Json.JsonSerializerOptions jsonOptions, CancellationToken cancellationToken)
     {
         var id = options.Get(context.DocumentName).CreateSchemaReferenceId(jsonOptions.GetTypeInfo(type));
-        if (id is not null && document.Components?.Schemas?.ContainsKey(id) == true)
+        if (id is not null)
         {
+            if (document.Components?.Schemas?.ContainsKey(id) != true)
+            {
+                var schema = await context.GetOrCreateSchemaAsync(type, null, cancellationToken);
+                document.Components ??= new OpenApiComponents();
+                document.Components.Schemas ??= new Dictionary<string, IOpenApiSchema>();
+                document.Components.Schemas.TryAdd(id, schema);
+                if (schema.Properties is not null)
+                {
+                    foreach (var property in jsonOptions.GetTypeInfo(type).Properties)
+                    {
+                        var propertyType = property.PropertyType;
+                        var childType = propertyType.IsGenericType && propertyType.GetGenericTypeDefinition() == typeof(IEnumerable<>) ? propertyType.GetGenericArguments()[0] : propertyType;
+                        if (schema.Properties.ContainsKey(property.Name) && options.Get(context.DocumentName).CreateSchemaReferenceId(jsonOptions.GetTypeInfo(childType)) is not null)
+                        {
+                            schema.Properties[property.Name] = await GetSchema(propertyType, document, context, jsonOptions, cancellationToken);
+                        }
+                    }
+                }
+            }
             return new OpenApiSchemaReference(id, document);
         }
 
