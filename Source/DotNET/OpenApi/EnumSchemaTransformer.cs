@@ -18,6 +18,8 @@ public class EnumSchemaTransformer : IOpenApiSchemaTransformer
         var type = context.JsonTypeInfo.Type;
         if (type.IsEnum)
         {
+            schema.Type ??= JsonSchemaType.Integer;
+            schema.Enum ??= [];
             schema.Enum.Clear();
             Enum.GetNames(type)
                 .ToList()
