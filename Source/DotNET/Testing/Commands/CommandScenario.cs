@@ -302,9 +302,11 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
             Services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
         }
 
+        // The scenario's provider stays local to the scenario. It is deliberately not assigned to the process-wide
+        // Internals.ServiceProvider: that belongs to the host, and a scenario that replaced it would leave the host
+        // resolving services from a provider the scenario disposes, and would race with any other live scenario.
         _serviceProvider = Services.BuildServiceProvider();
         serviceProvider = _serviceProvider;
-        Internals.ServiceProvider = _serviceProvider;
         _pipeline = _serviceProvider.GetRequiredService<ICommandPipeline>();
     }
 }
