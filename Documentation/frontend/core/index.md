@@ -1,4 +1,7 @@
-# Core
+---
+title: Core
+description: The framework-agnostic TypeScript layer beneath Arc's React hooks, and when to use it directly outside React.
+---
 
 The core is Arc's frontend layer **beneath React** — the framework-agnostic TypeScript that the React
 hooks build on. Most apps consume it indirectly through [React](../react/index.md); reach for it

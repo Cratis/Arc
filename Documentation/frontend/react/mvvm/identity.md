@@ -1,4 +1,7 @@
-# Identity
+---
+title: Identity
+description: Access the current identity from an MVVM view model through the IIdentityProvider registered in the container.
+---
 
 The MVVM implementation of identity is built on top of what you find the [core](../../core/identity.md).
 To access identity in an MVVM solution with a view model, the `IdentityProvider` is hooked up to the [container](./tsyringe.md)

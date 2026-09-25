@@ -1,4 +1,7 @@
-# Validation Results
+---
+title: Validation Results
+description: Reference for the validation-result shape that commands and queries return, including severity and member paths.
+---
 
 Validation failures are returned in command/query results using a shared validation-result shape.
 

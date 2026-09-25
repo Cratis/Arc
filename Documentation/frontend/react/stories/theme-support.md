@@ -1,10 +1,13 @@
-# Automatic Theme Support
+---
+title: Automatic Theme Support
+description: How Story Components switch between dark and light palettes through the data-theme attribute, and how to wire that to Storybook.
+---
 
 Story components read theme CSS variables, so their colors follow the selected dark or light theme.
 
 ## How It Works
 
-Every color in the story components is read from a CSS custom property rather than written into a rule.
+Almost every color in the story components is read from a CSS custom property rather than written into a rule. The exception is the translucent badge backgrounds, which are fixed `rgba(...)` values; override `.story-badge-*` if you need them to match a custom palette.
 The stylesheet that ships with the package declares those properties twice - once for dark, once for light -
 so changing the theme changes one attribute and every component follows.
 

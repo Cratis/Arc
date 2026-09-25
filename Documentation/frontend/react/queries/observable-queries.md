@@ -1,4 +1,7 @@
-# Observable Queries
+---
+title: Observable Queries
+description: Use observable queries in React for real-time updates, and choose between hub-multiplexed and direct per-query connections.
+---
 
 Observable queries provide real-time updates in React through `useObservableQuery()` and generated proxy helpers. Arc supports both centralized hub routing and direct per-query connections.
 

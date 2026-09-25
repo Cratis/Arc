@@ -1,4 +1,7 @@
-# Messaging
+---
+title: Messaging
+description: Let separate MVVM features communicate through the messenger, and scope messaging to part of a page.
+---
 
 At times you want to allow multiple features on a page to know about changes that happens in one component.
 A common scenario is a list + detail scenario where you typically have a list and when you click an item you
@@ -85,7 +88,7 @@ export class UserDetailsViewModel {
 ```
 
 With this, the details view model will subscribe to the `UserSelected` message and set the state of the
-view model accordingly. The subscriber receives the **published message instance**, not its nested `user` payload. Retain the subscription and unsubscribe in `detached()` when the view model is disposed.
+view model accordingly. The subscriber receives the **published message instance**, not its nested `user` payload. Retain the subscription and unsubscribe in `detached()` when the view model is disposed. With `<Arc development>` set, `detached()` is not guaranteed to run on unmount; see [view model lifecycle](./using-view-model.md#view-model-lifecycle).
 
 ## Scoped messaging
 

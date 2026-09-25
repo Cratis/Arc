@@ -1,4 +1,7 @@
-# React
+---
+title: React
+description: How Arc's React hooks and helpers turn generated command and query proxies into idiomatic React, and where to start.
+---
 
 This is the heart of Arc on the frontend: a small set of hooks and helpers that turn your
 generated command and query proxies into idiomatic React. You import a proxy, call its `.use()` hook,

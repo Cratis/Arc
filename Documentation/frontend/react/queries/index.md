@@ -1,4 +1,7 @@
-# Queries
+---
+title: Queries
+description: "Overview of React query capabilities in Arc: request/response reads, paging, conditional and suspense queries, and live observable streams."
+---
 
 React queries in Arc provide strongly typed data-access patterns for request/response reads, paged views, and live observable streams.
 
