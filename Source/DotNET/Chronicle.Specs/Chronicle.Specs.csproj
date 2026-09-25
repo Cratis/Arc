@@ -6,6 +6,13 @@
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
         <TargetFrameworks>net10.0</TargetFrameworks>
+        <!-- Cratis.Chronicle only started actually shipping Cratis.Chronicle.CodeAnalysis as a package
+             dependency as of 19.4.8 - before that the CHR* analyzers were built but never delivered to
+             any consumer. These specs use minimal, non-compliant fixture types (plain classes, no
+             [EventType]) on purpose, to test handler/projection logic in isolation rather than model real
+             domain events - so the analyzers now flag pre-existing shapes for the first time. Tracked for
+             a dedicated cleanup pass: https://github.com/Cratis/Arc/issues/2776 -->
+        <NoWarn>$(NoWarn);CHR0001;CHR0003;CHR0021;CHR0024;CHR0027</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Hosting" />
