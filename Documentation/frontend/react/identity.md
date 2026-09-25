@@ -1,4 +1,7 @@
-# Identity
+---
+title: Identity
+description: "Use identity in React: the identity provider context, useIdentity(), role checks, RequireRole, typed details, and refreshing."
+---
 
 The React implementation of identity is built on top of what you find the [core](../core/identity.md).
 It provides an encapsulation that feels more natural to a React application.
@@ -290,7 +293,7 @@ class UserIdentityDetails {
 > [!IMPORTANT]
 > A details type with no `@field` decorators cannot be deserialized into. `JsonSerializer.deserializeFromInstance()` only copies members declared with `@field` - an undecorated class would silently construct an empty instance and discard everything the server sent. Cratis detects this case and passes the raw payload through unchanged instead of blanking it (with a console warning), but the fix is always to decorate every property you expect to read.
 
-Then, configure `<Arc>` with the details type. This is the primary form - `<Arc>` forwards it to the `IdentityProvider` it mounts internally, deserialization happens once, and every `useIdentity()` call anywhere in the tree gets the typed result for free:
+Then, configure `<Arc>` with the details type. This is the primary form - `<Arc>` forwards it to the `IdentityProvider` it mounts internally, deserialization happens once, and every `useIdentity()` call anywhere in the tree receives a real `UserIdentityDetails` instance at runtime:
 
 ```typescript
 import { Arc } from '@cratis/arc.react';
@@ -306,7 +309,7 @@ export const App = () => {
 
 If you wire `IdentityProvider` directly instead of using `<Arc>` - see [Identity provider context](#identity-provider-context) - it accepts the same `detailsType` prop.
 
-Now a plain `useIdentity()` already returns typed details:
+The runtime instance does not change TypeScript's view: a bare `useIdentity()` types `details` as `object`. Pass the details type as the generic argument (or the constructor) where you read it:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';

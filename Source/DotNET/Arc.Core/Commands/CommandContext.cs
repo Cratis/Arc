@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Security.Claims;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 
@@ -52,4 +54,14 @@ public record CommandContext(
         : this(correlationId, type, command, dependencies, values, allowedSeverity, response, serviceProvider, default)
     {
     }
+
+    /// <summary>
+    /// Gets the principal selected by scheme authentication for the rest of this command execution.
+    /// </summary>
+    public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
+
+    /// <summary>
+    /// Gets the preselected policy and scheme plan when a command must establish identity before its execution scopes.
+    /// </summary>
+    internal PreparedAuthorization? PreparedAuthorization { get; set; }
 }

@@ -21,7 +21,7 @@ flowchart LR
 When a command writes and the configured observation source notifies, the observable query publishes updated data to subscribed React components, which re-render. Open the app in two browser tabs, add a book in one, and watch it appear in the other — you wrote none of that plumbing. It falls out of returning `Observe()` and calling `.use()`.
 
 <Aside type="note" title="Under the hood">
-The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, MongoDB uses [change streams](/arc/backend/mongodb/observing-collections/) on a replica set or supported sharded deployment. An [observed `DbSet`](/arc/backend/entity-framework/observing/) receives in-process notifications from the configured `SaveChanges` interceptor. SQLite relies on that path only; SQL Server/PostgreSQL cross-process detection requires their database notification setup. If database notification setup fails, EF observation can fall back to in-process-only behavior; inspect server logs rather than assuming external writes are visible. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/queries/using-observable-queries-with-curl/).
+The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, MongoDB uses [change streams](/arc/backend/csharp/mongodb/observing-collections/) on a replica set or supported sharded deployment. An [observed `DbSet`](/arc/backend/csharp/entity-framework/observing/) receives in-process notifications from the configured `SaveChanges` interceptor. SQLite relies on that path only; SQL Server/PostgreSQL cross-process detection requires their database notification setup. If database notification setup fails, EF observation can fall back to in-process-only behavior; inspect server logs rather than assuming external writes are visible. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/csharp/queries/using-observable-queries-with-curl/).
 </Aside>
 
 ## Verify the scope of observation
@@ -36,17 +36,11 @@ The following are **alternative MongoDB method fragments** in `Author`, using th
 
 Nothing special — just the return type. A one-shot query returns the data:
 
-```csharp
-public static IEnumerable<Author> AllAuthors(IMongoCollection<Author> authors) =>
-    authors.Find(_ => true).ToList();
-```
+<ArcBackendTabs snippet="tutorial/real-time/one-shot-query" />
 
-Make it return an `ISubject<…>` via `Observe()` instead, and the exact same method becomes a live subscription — the proxy and the React `.use()` adapt automatically:
+Make it return a stream instead — an `ISubject<…>` on C#, a `Flow<List<…>>` on the JVM — and the exact same method becomes a live subscription. The proxy and the React `.use()` adapt automatically, and the frontend code is identical for both backends:
 
-```csharp
-public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> authors) =>
-    authors.Observe();
-```
+<ArcBackendTabs snippet="tutorial/real-time/observable-query" />
 
 That's the whole switch between "load once" and "stay live." You choose per query: a rarely-changing lookup can be a plain list; a screen the librarian watches should observe.
 

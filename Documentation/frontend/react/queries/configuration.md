@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Configuration
+description: "Reference for the <Arc> props that configure queries centrally: routing, headers, transport, hub connections, transfer mode, and caching."
+---
 
 Configure query behavior centrally through the `<Arc />` component instead of per query instance.
 
@@ -6,7 +9,7 @@ Configure query behavior centrally through the `<Arc />` component instead of pe
 
 | Prop | Type | Default | Purpose |
 | ---- | ---- | ------- | ------- |
-| `microservice` | `string` | `undefined` | Routes query requests to a named microservice in shared-ingress environments. |
+| `microservice` | `string` | `''` | Routes query requests to a named microservice in shared-ingress environments. |
 | `apiBasePath` | `string` | `''` | Prepends a base API path to query requests. |
 | `httpHeadersCallback` | `() => HeadersInit` | `undefined` | Adds headers to ordinary fetches and SSE control POSTs, not native stream handshakes. |
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Selects SSE or WebSocket transport for observable query connections. |
@@ -38,7 +41,7 @@ export const App = () => (
 
 The example's `MyRoutes` is your application's route component. For bearer authentication, configure the [fetch/stream credential paths](../arc.md#http-headers-callback) separately; setting callback headers does not authenticate a native EventSource or WebSocket handshake.
 
-For ordinary query HTTP method selection (`Get`, `Query`, `Auto`), see [using the HTTP QUERY method](../../../backend/queries/using-the-http-query-method.md). It is separate from observable transport selection.
+For ordinary query HTTP method selection (`Get`, `Query`, `Auto`), see [using the HTTP QUERY method](../../../backend/csharp/queries/using-the-http-query-method.md). It is separate from observable transport selection.
 
 ## Query Cache Retention
 

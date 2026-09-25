@@ -15,7 +15,7 @@ Arc reflects a broader Cratis conviction: application plumbing should not be the
 
 - [Browse the Arc documentation](https://www.cratis.io/arc/)
 - [Read why Arc exists](https://github.com/Cratis/Arc/blob/main/Documentation/why-arc.md)
-- [Map familiar concepts when coming from MediatR and MVC](https://github.com/Cratis/Arc/blob/main/Documentation/coming-from-mediatr-and-mvc.md)
+- [Map familiar concepts when coming from MediatR and MVC](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/coming-from-mediatr-and-mvc.md)
 - [Try runnable samples](https://github.com/Cratis/Samples) — including Idea Loom and Library
 - [Choose a documented application path](#choose-a-path)
 - [Understand Arc's independent boundary](#arc-does-not-require-event-sourcing)
@@ -42,15 +42,15 @@ Each row is a documented capability area, not a promise of compatibility with ev
 
 Arc documentation is organized around the job you need to complete:
 
-- [Execute commands](https://github.com/Cratis/Arc/blob/main/Documentation/backend/commands/index.md) — model-bound or controller-based changes, pipelines, validation, authorization, filters, and response handling.
-- [Separate command decisions from inline side effects](https://github.com/Cratis/Arc/blob/main/Documentation/backend/commands/operations/index.md) — preferred for already-decided work in model-bound commands, with optional best-effort compensation. Direct service calls remain supported; operations require neither Chronicle nor frontend recovery code.
-- [Expose queries and observable results](https://github.com/Cratis/Arc/blob/main/Documentation/backend/queries/index.md) — request/response reads, paging, sorting, streaming updates, diagnostics, and generated clients.
+- [Execute commands](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/commands/index.md) — model-bound or controller-based changes, pipelines, validation, authorization, filters, and response handling.
+- [Separate command decisions from inline side effects](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/commands/operations/index.md) — preferred for already-decided work in model-bound commands, with optional best-effort compensation. Direct service calls remain supported; operations require neither Chronicle nor frontend recovery code.
+- [Expose queries and observable results](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/queries/index.md) — request/response reads, paging, sorting, streaming updates, diagnostics, and generated clients.
 - [Build the frontend](https://github.com/Cratis/Arc/blob/main/Documentation/frontend/index.mdx) — TypeScript runtimes, React hooks and forms, dialogs, identity, messaging, and optional MVVM packages.
 - [Configure identity and access](https://github.com/Cratis/Arc/blob/main/Documentation/understanding-identity-and-access.mdx) — authentication, identity details, authorization, roles, and frontend visibility boundaries.
-- [Resolve tenants](https://github.com/Cratis/Arc/blob/main/Documentation/backend/tenancy/index.md) — request resolvers, scoped tenant context, and provider-specific database or namespace mapping.
+- [Resolve tenants](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/tenancy/index.md) — request resolvers, scoped tenant context, and provider-specific database or namespace mapping.
 - [Use current-state persistence](https://github.com/Cratis/Arc/blob/main/Documentation/arc-without-event-sourcing.md) — application services, MongoDB, or Entity Framework Core without requiring an event log.
-- [Add Chronicle event sourcing](https://github.com/Cratis/Arc/blob/main/Documentation/backend/chronicle/index.md) — events, projections, reducers, aggregates, reactors, concurrency, and Chronicle-specific testing.
-- [Inspect and verify the application boundary](https://github.com/Cratis/Arc/blob/main/Documentation/backend/introspection/index.md) — introspection, OpenAPI, analyzers, generated metadata, and command scenarios.
+- [Add Chronicle event sourcing](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/chronicle/index.md) — events, projections, reducers, aggregates, reactors, concurrency, and Chronicle-specific testing.
+- [Inspect and verify the application boundary](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/introspection/index.md) — introspection, OpenAPI, analyzers, generated metadata, and command scenarios.
 
 The canonical Arc page remains the front door; product-owned documentation and source carry the detail.
 
@@ -70,20 +70,20 @@ Applications may use Arc without Components and remain responsible for their own
 
 ## Start an Arc host
 
-Arc's .NET packages embed this product-family README. The example below uses the umbrella `Cratis.Arc` package to start an Arc host; when viewing this README from a specialized package page, use that package's manifest and reference documentation for its own installation scope.
+Arc's .NET packages embed this product-family README. The example below uses the `Cratis.Arc` package, Arc's ASP.NET Core integration; when viewing this README from a specialized package page, use that package's manifest and reference documentation for its own installation scope.
 
-Use the .NET SDK declared by Arc's current [`global.json`](https://github.com/Cratis/Arc/blob/main/global.json). Install the host package:
+Use the .NET SDK declared by Arc's current [`global.json`](https://github.com/Cratis/Arc/blob/main/global.json). Create an ASP.NET Core project and install the package:
 
 ```bash
+dotnet new web -n MyApp
+cd MyApp
 dotnet add package Cratis.Arc
 ```
 
-Create and run an Arc host:
+Replace `Program.cs` and run the host:
 
 ```csharp
-using Cratis.Arc;
-
-var builder = ArcApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 builder.AddCratisArc();
 
 var app = builder.Build();
@@ -91,7 +91,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-Starting the host confirms the basic Arc setup. Continue with the [Arc documentation](https://www.cratis.io/arc/), and use [GitHub Issues](https://github.com/Cratis/Arc/issues) when the observed behavior does not match the documentation.
+Starting the host confirms the basic Arc setup. For workers, consoles, or services without ASP.NET Core, the lightweight host is `ArcApplication.CreateBuilder(args)` from the separate `Cratis.Arc.Core` package; do not combine it with `Cratis.Arc`, whose ASP.NET Core services it does not register. See [getting started with the lightweight host](https://www.cratis.io/arc/backend/csharp/core/getting-started/). Continue with the [Arc documentation](https://www.cratis.io/arc/), and use [GitHub Issues](https://github.com/Cratis/Arc/issues) when the observed behavior does not match the documentation.
 
 ## Packages and repository layout
 
@@ -125,7 +125,7 @@ Package existence does not imply compatibility with every frontend, runtime, per
 
 Arc is a framework-library repository. Changes to public APIs, analyzers, generated output, and package shapes can affect consumers and require the owning repository's compatibility and release review.
 
-Repository development currently requires the SDK and toolchain versions declared by [`global.json`](https://github.com/Cratis/Arc/blob/main/global.json) and [`package.json`](https://github.com/Cratis/Arc/blob/main/package.json). Follow the [Cratis contribution guide](https://github.com/Cratis/.github/blob/main/contributing.md) and this repository's project context (`.cratis/PROJECT.md`) before changing public surfaces.
+Repository development currently requires the SDK and toolchain versions declared by [`global.json`](https://github.com/Cratis/Arc/blob/main/global.json) and [`package.json`](https://github.com/Cratis/Arc/blob/main/package.json). Follow the [Cratis contribution guide](https://github.com/Cratis/.github/blob/main/contributing.md) and this repository's project context ([`AGENTS.md`](https://github.com/Cratis/Arc/blob/main/AGENTS.md) and the project rules it links) before changing public surfaces.
 
 Before submitting documentation-only work, verify its links, anchors, and examples explicitly; current automated documentation checks are path-scoped. Source changes must pass the owning repository's applicable build, specification, TypeScript, and documentation gates.
 

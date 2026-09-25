@@ -31,7 +31,7 @@ public class and_file_is_in_subdirectory : given.a_static_files_middleware
     {
         _contextTask = _listener.GetContextAsync();
 
-        var responseTask = _client.GetAsync($"http://localhost:{_port}/sub/page.html");
+        var responseTask = _client.GetAsync($"http://{LoopbackHost}:{_port}/sub/page.html");
 
         var context = await _contextTask;
 

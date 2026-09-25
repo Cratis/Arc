@@ -11,6 +11,7 @@ using Cratis.Execution;
 using Cratis.Traces;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -45,6 +46,7 @@ public class CommandPipeline(
     public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity = default)
     {
         using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Execute(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
     }
 
@@ -52,6 +54,7 @@ public class CommandPipeline(
     public async Task<CommandResult> Execute(object command, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Execute(command, scope.ServiceProvider, allowedSeverity, cancellationToken);
     }
 
@@ -59,6 +62,7 @@ public class CommandPipeline(
     public async Task<CommandResult<TResult>> Execute<TResult>(object command, ValidationResultSeverity? allowedSeverity = default)
     {
         using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Execute<TResult>(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
     }
 
@@ -66,6 +70,7 @@ public class CommandPipeline(
     public async Task<CommandResult<TResult>> Execute<TResult>(object command, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Execute<TResult>(command, scope.ServiceProvider, allowedSeverity, cancellationToken);
     }
 
@@ -73,6 +78,7 @@ public class CommandPipeline(
     public async Task<CommandResult> Validate(object command, ValidationResultSeverity? allowedSeverity = default)
     {
         using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Validate(command, scope.ServiceProvider, allowedSeverity, CancellationToken.None);
     }
 
@@ -80,6 +86,7 @@ public class CommandPipeline(
     public async Task<CommandResult> Validate(object command, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await Validate(command, scope.ServiceProvider, allowedSeverity, cancellationToken);
     }
 
@@ -88,10 +95,146 @@ public class CommandPipeline(
         Execute(command, serviceProvider, allowedSeverity, CancellationToken.None);
 
     /// <inheritdoc/>
-    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    public Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken) =>
+        ExecuteCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
+        Execute<TResult>(command, serviceProvider, allowedSeverity, CancellationToken.None);
+
+    /// <inheritdoc/>
+    public async Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        var result = await Execute(command, serviceProvider, allowedSeverity, cancellationToken);
+        if (result is CommandResult<TResult> typed)
+        {
+            return typed;
+        }
+
+        // The pipeline builds the result as CommandResult<runtimeTypeOfResponse>, which is not CommandResult<TResult>
+        // even when the response is assignable to TResult (generics are invariant, so CommandResult<Dog> is not a
+        // CommandResult<IAnimal>). Re-wrap when there is no response, or the response is a TResult — covering both the
+        // failure/no-response case and a TResult that is an interface or base type. Only a genuine type mismatch falls
+        // through to the cast, which still throws the documented InvalidCastException.
+        var response = result.ResponseValue;
+        if (response is null || response is TResult)
+        {
+            return new CommandResult<TResult>
+            {
+                CorrelationId = result.CorrelationId,
+                IsAuthorized = result.IsAuthorized,
+                ValidationResults = result.ValidationResults,
+                ExceptionMessages = result.ExceptionMessages,
+                ExceptionStackTrace = result.ExceptionStackTrace,
+                AuthorizationFailureReason = result.AuthorizationFailureReason,
+                Recovery = result.Recovery,
+                OperationOutcomes = result.OperationOutcomes,
+                Response = response is TResult typedResponse ? typedResponse : default
+            };
+        }
+
+        return (CommandResult<TResult>)result;
+    }
+
+    /// <inheritdoc/>
+    public Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
+        Validate(command, serviceProvider, allowedSeverity, CancellationToken.None);
+
+    /// <inheritdoc/>
+    public Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken) =>
+        ValidateCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+
+    /// <summary>
+    /// Prepares HTTP command authentication once and uses a fresh owned scope only when schemes change identity.
+    /// </summary>
+    /// <param name="command">The command.</param>
+    /// <param name="requestServices">The original request provider.</param>
+    /// <param name="allowedSeverity">The validation severity threshold.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The command result.</returns>
+    internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        if (!AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+        {
+            return await ExecuteCore(command, requestServices, allowedSeverity, null, cancellationToken);
+        }
+
+        var (prepared, failure) = await PrepareHosted(command, requestServices, cancellationToken);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        if (!prepared!.PrincipalChanged)
+        {
+            return await ExecuteCore(command, requestServices, allowedSeverity, prepared, cancellationToken);
+        }
+
+        using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
+        return await ExecuteCore(command, scope.ServiceProvider, allowedSeverity, prepared, cancellationToken);
+    }
+
+    /// <summary>
+    /// Prepares validation-only HTTP authentication before any identity-bound command context providers run.
+    /// </summary>
+    /// <param name="command">The command to validate.</param>
+    /// <param name="requestServices">The original request provider.</param>
+    /// <param name="allowedSeverity">The severity threshold.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The validation result.</returns>
+    internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        if (!AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+        {
+            return await ValidateCore(command, requestServices, allowedSeverity, null, cancellationToken);
+        }
+
+        var (prepared, failure) = await PrepareHosted(command, requestServices, cancellationToken);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        if (!prepared!.PrincipalChanged)
+        {
+            return await ValidateCore(command, requestServices, allowedSeverity, prepared, cancellationToken);
+        }
+
+        using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
+        return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, cancellationToken);
+    }
+
+    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)
+    {
+        try
+        {
+            var authorization = await services.GetRequiredService<AuthorizationEvaluation>().Prepare(command.GetType(), services, token);
+            return (authorization, null);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (InvalidAuthorizationConfiguration exception)
+        {
+            services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
+            return (null, CommandResult.Unauthorized(GetCorrelationId()));
+        }
+        catch (Exception exception)
+        {
+            services.GetService<ILogger<CommandPipeline>>()?.AuthorizationPreparationFailed(exception);
+            return (null, CommandResult.Error(GetCorrelationId(), "An error occurred while preparing authorization."));
+        }
+    }
+
+    async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
+        using var principalLease = new AuthorizationPrincipalLease();
+        using var identityLease = new AuthorizationPrincipalLease();
         CommandContext? commandContext = default;
         ICommandExecutionScope[]? scopes = default;
         var executionScopesCompleted = false;
@@ -118,21 +261,55 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
+            var preparedAuthorization = suppliedAuthorization;
+            if (preparedAuthorization is null && AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+            {
+                preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
+                    .Prepare(command.GetType(), serviceProvider, cancellationToken);
+            }
+
+            if (preparedAuthorization is not null)
+            {
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                {
+                    return CommandResult.Unauthorized(correlationId);
+                }
+
+                if (preparedAuthorization.PrincipalChanged)
+                {
+                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
+                        .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
+                }
+            }
+
+            identityLease.Attach(AuthorizationCommandIdentity.Enter(
+                preparedAuthorization?.SelectedPrincipal ?? serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
+                scopeFactory));
+            AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
+
             commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
                 [],
-                contextValuesBuilder.Build(command),
+                BuildContextValues(command, serviceProvider, preparedAuthorization),
                 allowedSeverity,
                 ServiceProvider: serviceProvider,
-                CancellationToken: cancellationToken);
+                CancellationToken: cancellationToken)
+            {
+                PreparedAuthorization = preparedAuthorization
+            };
             contextModifier.SetCurrent(commandContext);
 
             // Materialized once so Begin and Complete are guaranteed to act on the same scope instances, and resolved
             // from the command's own scope rather than the provider that constructed this singleton, so an execution
             // scope depending on a scoped service is created in the scope the command runs in instead of the root.
             scopes = [.. DiscoveredInstances.ResolvedFrom(serviceProvider, executionScopes)];
+            if (scopes.Any(scope => scope is ICommandOperationExecutionScope { IsCommitParticipant: true }))
+            {
+                AuthorizationCommandIdentity.MarkTransactional();
+            }
+
             if (frame.MayParticipate)
             {
                 frame.Validate(scopes);
@@ -151,6 +328,13 @@ public class CommandPipeline(
                 return await CompleteExecutionScopes(result);
             }
 
+            if (preparedAuthorization is null && commandContext.AuthorizedPrincipal is not null)
+            {
+                // Dynamically supplied scheme metadata was not visible before execution scopes began.
+                throw new InvalidAuthorizationConfiguration($"Command '{command.GetType()}' selected an authentication scheme after execution scopes began.");
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
             var resolution = await argumentResolver.Resolve(commandHandler, commandContext, serviceProvider, allowedSeverity);
             result.MergeWith(resolution.ControlResult);
             result = FilterValidationResults(result, allowedSeverity);
@@ -161,6 +345,7 @@ public class CommandPipeline(
 
             commandContext = commandContext with { Dependencies = resolution.Arguments };
 
+            cancellationToken.ThrowIfCancellationRequested();
             var response = await commandHandler.Handle(commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
@@ -206,6 +391,12 @@ public class CommandPipeline(
                 commandContext = processedResult.CommandContext;
                 result = processedResult.Result;
             }
+        }
+        catch (InvalidAuthorizationConfiguration ex)
+        {
+            serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
+            result.MergeWith(CommandResult.Unauthorized(correlationId));
+            operations?.CaptureFailure(result, failureSource);
         }
         catch (Exception ex)
         {
@@ -273,53 +464,11 @@ public class CommandPipeline(
         }
     }
 
-    /// <inheritdoc/>
-    public Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
-        Execute<TResult>(command, serviceProvider, allowedSeverity, CancellationToken.None);
-
-    /// <inheritdoc/>
-    public async Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
-    {
-        var result = await Execute(command, serviceProvider, allowedSeverity, cancellationToken);
-        if (result is CommandResult<TResult> typed)
-        {
-            return typed;
-        }
-
-        // The pipeline builds the result as CommandResult<runtimeTypeOfResponse>, which is not CommandResult<TResult>
-        // even when the response is assignable to TResult (generics are invariant, so CommandResult<Dog> is not a
-        // CommandResult<IAnimal>). Re-wrap when there is no response, or the response is a TResult — covering both the
-        // failure/no-response case and a TResult that is an interface or base type. Only a genuine type mismatch falls
-        // through to the cast, which still throws the documented InvalidCastException.
-        var response = result.ResponseValue;
-        if (response is null || response is TResult)
-        {
-            return new CommandResult<TResult>
-            {
-                CorrelationId = result.CorrelationId,
-                IsAuthorized = result.IsAuthorized,
-                ValidationResults = result.ValidationResults,
-                ExceptionMessages = result.ExceptionMessages,
-                ExceptionStackTrace = result.ExceptionStackTrace,
-                AuthorizationFailureReason = result.AuthorizationFailureReason,
-                Recovery = result.Recovery,
-                OperationOutcomes = result.OperationOutcomes,
-                Response = response is TResult typedResponse ? typedResponse : default
-            };
-        }
-
-        return (CommandResult<TResult>)result;
-    }
-
-    /// <inheritdoc/>
-    public Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
-        Validate(command, serviceProvider, allowedSeverity, CancellationToken.None);
-
-    /// <inheritdoc/>
-    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
+        using var principalLease = new AuthorizationPrincipalLease();
         using var span = activitySource.Validate(command.GetType().FullName ?? command.GetType().Name);
         try
         {
@@ -329,20 +478,50 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
+            var preparedAuthorization = suppliedAuthorization;
+            if (preparedAuthorization is null && AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+            {
+                preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
+                    .Prepare(command.GetType(), serviceProvider, cancellationToken);
+            }
+
+            if (preparedAuthorization is not null)
+            {
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                {
+                    return CommandResult.Unauthorized(correlationId);
+                }
+
+                if (preparedAuthorization.PrincipalChanged)
+                {
+                    principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>()
+                        .Begin(preparedAuthorization.SelectedPrincipal!, serviceProvider));
+                }
+            }
+
+            AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
             var commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
                 [],
-                contextValuesBuilder.Build(command),
+                BuildContextValues(command, serviceProvider, preparedAuthorization),
                 allowedSeverity,
                 ServiceProvider: serviceProvider,
-                CancellationToken: cancellationToken);
+                CancellationToken: cancellationToken)
+            {
+                PreparedAuthorization = preparedAuthorization
+            };
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
             result = await commandFilters.OnExecution(commandContext);
             result = FilterValidationResults(result, allowedSeverity);
+        }
+        catch (InvalidAuthorizationConfiguration ex)
+        {
+            serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
+            result.MergeWith(CommandResult.Unauthorized(correlationId));
         }
         catch (Exception ex)
         {
@@ -350,6 +529,22 @@ public class CommandPipeline(
         }
 
         return result;
+    }
+
+    CommandContextValues BuildContextValues(object command, IServiceProvider services, PreparedAuthorization? prepared)
+    {
+        if (prepared?.PrincipalChanged != true)
+        {
+            return contextValuesBuilder.Build(command);
+        }
+
+        var builder = services.GetRequiredService<ICommandContextValuesBuilder>();
+        if (builder is not IScopedCommandContextValuesBuilder scoped)
+        {
+            throw new InvalidAuthorizationConfiguration("Scheme-selected commands require a scope-aware context values builder.");
+        }
+
+        return scoped.Build(command, services);
     }
 
     async Task<(CommandContext CommandContext, CommandResult Result)> ProcessOperationResponse(

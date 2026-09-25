@@ -41,6 +41,8 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     protected IServiceProvider _guardedServiceProvider;
     protected object _streamingData;
     protected string[] _queryIds = [FirstQueryId];
+    protected int _unregisteredCount;
+    protected IObservableQueryEmissionGuards _configuredGuards;
 
     /// <summary>
     /// The verdict the application guard gives for an emission. Assign in a spec's own Establish — it is read when
@@ -55,6 +57,12 @@ public class a_guarded_connection : an_observable_query_demultiplexer
         _subject = new Subject<IEnumerable<string>>();
         _streamingData = _subject;
         _healthTracker = Substitute.For<IQueryHealthTracker>();
+        _healthTracker.When(_ => _.UnregisterSubscription(Arg.Any<string>(), Arg.Any<string>()))
+            .Do(_ =>
+            {
+                Interlocked.Increment(ref _unregisteredCount);
+                _signals.Signal();
+            });
         _principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "the-caller")], "test"));
 
         var services = new ServiceCollection();
@@ -99,7 +107,9 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     /// on the no-guard fast path.
     /// </summary>
     /// <param name="guards">The <see cref="IObservableQueryEmissionGuards"/> the hub consults.</param>
-    protected void UseGuards(IObservableQueryEmissionGuards guards) =>
+    protected void UseGuards(IObservableQueryEmissionGuards guards)
+    {
+        _configuredGuards = guards;
         _hub = new ObservableQueryDemultiplexer(
             _queryPipeline,
             _queryContextManager,
@@ -111,6 +121,7 @@ public class a_guarded_connection : an_observable_query_demultiplexer
             _healthTracker,
             guards,
             _logger);
+    }
 
     /// <summary>
     /// Lets a spec add its own guard — and the services that guard needs — to the application's container.
@@ -130,6 +141,7 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     {
         for (var index = 0; index < 100; index++)
         {
+            // Deliberately slow the streaming double so cancellation can interrupt between batches.
             await Task.Delay(10, cancellationToken);
             yield return [$"item-{index}"];
         }
@@ -138,6 +150,7 @@ public class a_guarded_connection : an_observable_query_demultiplexer
     ObservableQueryEmissionVerdict Evaluate(ObservableQueryEmissionContext context)
     {
         _guardCalls.Enqueue(context);
+        _signals.Signal();
         return _verdict(context);
     }
 

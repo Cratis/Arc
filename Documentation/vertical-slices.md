@@ -79,4 +79,4 @@ Co-location is about a _behavior_, not duplication. Things genuinely shared betw
 
 - [Build a full-stack feature](/build-a-full-app/) — a slice built end to end.
 - [Why Arc](/arc/why-arc/) — the framework that makes slices low-ceremony.
-- [MediatR, MVC, and Arc](/arc/coming-from-mediatr-and-mvc/) — how this differs from layered controllers/handlers.
+- [MediatR, MVC, and Arc](/arc/backend/csharp/coming-from-mediatr-and-mvc/) — how this differs from layered controllers/handlers.

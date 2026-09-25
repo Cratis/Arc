@@ -9,6 +9,6 @@ public class when_checking_type_with_authorize : given.an_aspnet_authorization_a
 
     void Because() => _result = _evaluator.GetAuthorizationInfo(typeof(given.TypeWithAuthorize));
 
-    [Fact] void should_return_has_authorize_true() => _result?.HasAuthorize.ShouldBeTrue();
-    [Fact] void should_return_null_roles() => _result?.Roles.ShouldBeNull();
+    [Fact] void should_return_has_authorize_true() => _result!.Value.HasAuthorize.ShouldBeTrue();
+    [Fact] void should_return_null_roles() => _result!.Value.Roles.ShouldBeNull();
 }

@@ -24,8 +24,9 @@ public class and_subject_errors : given.a_guarded_sse_connection
             _.Type == ObservableQueryHubMessageType.Error && _.QueryId == FirstQueryId);
 
         _subject.OnError(new TestFailure("late failure"));
+
+        // Scope disposal acknowledges terminal teardown before the late emission is attempted.
         _subject.OnNext(["late-item"]);
-        await Task.Delay(50);
     });
 
     [Fact] void should_report_the_subject_error_once() => _errorsAfterTermination.ShouldEqual(1);

@@ -6,7 +6,6 @@ using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Execution;
-using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_subscribe;
 
@@ -23,6 +22,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
     const string ControllerQueryName = "Cratis.Chronicle.Api.EventStores.EventStoreQueries.AllEventStores";
     const string QueryId = "query-1";
 
+    given.observed_logger _observedLogger;
     IQueryHealthTracker _observableHealthTracker;
     IHttpRequestContext _connectionContext;
     IHttpRequestContext _subscribeContext;
@@ -43,7 +43,8 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         _connectionId = string.Empty;
         _interceptionGate = new TaskCompletionSource<IEnumerable<object>>();
         _dataServed = new TaskCompletionSource();
-        _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
+        _observedLogger = new(_signals);
+        _logger = _observedLogger;
 
         // Rebuild the hub with a health tracker we can observe. A late emission stopped by teardown must not be
         // recorded as data served, because no result reaches the disconnected client.
@@ -67,7 +68,11 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
         // Hold interception open so the first emission stays in flight (holding the emission gate) while the
         // connection is torn down underneath it.
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
-            .Returns(_ => _interceptionGate.Task);
+            .Returns(_ =>
+            {
+                _signals.Signal();
+                return _interceptionGate.Task;
+            });
 
         _subject = new BehaviorSubject<IEnumerable<string>>([]);
         _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
@@ -85,6 +90,7 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 
@@ -135,16 +141,9 @@ public class and_emission_arrives_after_connection_is_disposed : given.an_observ
     [Fact] void should_not_track_the_late_emission_as_data_served() => _dataServed.Task.IsCompleted.ShouldBeFalse();
     [Fact] void should_not_write_a_query_result_to_the_disposed_connection() => HasQueryResultMessage().ShouldBeFalse();
 
-    int LogCallCount => _logger.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(ILogger.Log));
+    int LogCallCount => _observedLogger.Count;
 
-    async Task WaitForLogAfter(int count)
-    {
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (LogCallCount <= count)
-        {
-            await Task.Delay(10, timeout.Token);
-        }
-    }
+    Task WaitForLogAfter(int count) => WaitFor(() => LogCallCount > count);
 
     bool HasQueryResultMessage() =>
         _messages

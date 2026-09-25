@@ -34,7 +34,7 @@ sequenceDiagram
     Browser->>Hub: POST /.cratis/queries/sse/unsubscribe
 ```
 
-Multiple subscriptions share that EventSource. Reconnection and resubscription are managed by the client. For payloads and server authorization, use the [hub protocol reference](../../../backend/queries/observable-query-demultiplexer.md).
+Multiple subscriptions share that EventSource. Reconnection and resubscription are managed by the client. For payloads and server authorization, use the [hub protocol reference](../../../backend/csharp/queries/observable-query-demultiplexer.md).
 
 ### WebSocket hub connection
 
@@ -75,5 +75,5 @@ The multiplexer is module-global, not isolated per nested `<Arc>`. Changing its 
 
 - [Query configuration](./configuration.md)
 - [Query instance caching](./query-instance-caching.md)
-- [Backend observable hub](../../../backend/queries/observable-query-demultiplexer.md)
+- [Backend observable hub](../../../backend/csharp/queries/observable-query-demultiplexer.md)
 - [Vite configuration](../vite-configuration.md)

@@ -36,6 +36,7 @@ public class and_subscription_is_unauthorized : given.an_observable_query_demult
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 
@@ -113,19 +114,5 @@ public class and_subscription_is_unauthorized : given.an_observable_query_demult
 
         var json = sseMessage["data: ".Length..].Trim();
         return JsonSerializer.Deserialize<ObservableQueryHubMessage>(json, _arcOptions.Value.JsonSerializerOptions);
-    }
-
-    static async Task WaitFor(Func<bool> condition)
-    {
-        var timeout = DateTimeOffset.UtcNow.AddSeconds(2);
-        while (DateTimeOffset.UtcNow < timeout)
-        {
-            if (condition())
-            {
-                return;
-            }
-
-            await Task.Delay(25);
-        }
     }
 }

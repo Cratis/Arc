@@ -9,6 +9,6 @@ public class when_checking_type_with_authorize_and_roles : given.an_aspnet_autho
 
     void Because() => _result = _evaluator.GetAuthorizationInfo(typeof(given.TypeWithAuthorizeAndRoles));
 
-    [Fact] void should_return_has_authorize_true() => _result?.HasAuthorize.ShouldBeTrue();
-    [Fact] void should_return_roles() => _result?.Roles.ShouldEqual("Admin,User");
+    [Fact] void should_return_has_authorize_true() => _result!.Value.HasAuthorize.ShouldBeTrue();
+    [Fact] void should_return_roles() => _result!.Value.Roles.ShouldEqual("Admin,User");
 }

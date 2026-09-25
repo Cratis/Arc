@@ -25,6 +25,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
     string _connectionId;
     bool _getContextDisposed;
     int _getUserReads;
+    int _getUserReadsWhenDisposed;
     int _getUserWrites;
     int _subscribeStatusCode;
 
@@ -63,6 +64,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
 
@@ -99,6 +101,7 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
             await _performStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             _postPrincipal.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Name, "late-mutation")]));
 
+            _getUserReadsWhenDisposed = _getUserReads;
             _getContextDisposed = true;
             var queryResult = QueryResult.Success(CorrelationId.New());
             queryResult.Data = _subject;
@@ -119,7 +122,8 @@ public class and_get_context_is_disposed_while_query_is_performed : given.a_guar
     [Fact] void should_authorize_with_a_durable_snapshot_instead_of_the_post_context() => ReferenceEquals(_authorizationContext, _subscribeContext).ShouldBeFalse();
     [Fact] void should_ignore_user_replacement_attempts_during_the_pipeline() => _authorizationContext.User.Identity?.Name.ShouldEqual("fresh-caller");
     [Fact] void should_authorize_with_the_post_tenant_snapshot() => _authorizationContext.Headers["Tenant-ID"].ShouldEqual("tenant-b");
-    [Fact] void should_not_read_user_from_the_get_context() => _getUserReads.ShouldEqual(0);
+    [Fact] void should_capture_the_connection_owner_exactly_once() => _getUserReadsWhenDisposed.ShouldEqual(1);
+    [Fact] void should_not_read_user_from_the_get_context_once_it_is_disposed() => _getUserReads.ShouldEqual(_getUserReadsWhenDisposed);
     [Fact] void should_not_write_user_to_the_get_context() => _getUserWrites.ShouldEqual(0);
     [Fact] void should_consult_the_emission_guard() => _guardCalls.Count.ShouldEqual(1);
     [Fact] void should_give_the_emission_guard_the_post_principal() => _guardCalls.Single().Principal?.Identity?.Name.ShouldEqual("fresh-caller");

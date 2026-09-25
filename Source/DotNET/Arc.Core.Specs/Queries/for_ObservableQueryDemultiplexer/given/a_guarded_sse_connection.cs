@@ -30,10 +30,15 @@ public class a_guarded_sse_connection : a_guarded_connection
         _connectionContext = Substitute.For<IHttpRequestContext>();
         _connectionContext.RequestAborted.Returns(_connectionCancellation.Token);
         _connectionContext.RequestServices.Returns(Substitute.For<IServiceProvider>());
+
+        // The GET that opens the stream is authenticated exactly as the control POSTs that follow it are, and the
+        // demultiplexer only accepts a control request from the caller that opened the connection.
+        _connectionContext.User.Returns(_principal);
         _connectionContext.Write(Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(callInfo =>
             {
                 _messages.Enqueue(callInfo.Arg<string>());
+                _signals.Signal();
                 return Task.CompletedTask;
             });
     }
@@ -58,6 +63,7 @@ public class a_guarded_sse_connection : a_guarded_connection
     {
         var unsubscribeContext = Substitute.For<IHttpRequestContext>();
         unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
+        unsubscribeContext.User.Returns(_principal);
         unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<object?>(new ObservableQuerySSEUnsubscribeRequest(_connectionId, queryId)));
 
@@ -111,6 +117,7 @@ public class a_guarded_sse_connection : a_guarded_connection
     {
         var unsubscribeContext = Substitute.For<IHttpRequestContext>();
         unsubscribeContext.RequestAborted.Returns(CancellationToken.None);
+        unsubscribeContext.User.Returns(_principal);
         unsubscribeContext.ReadBodyAsJson(typeof(ObservableQuerySSEUnsubscribeRequest), Arg.Any<CancellationToken>())
             .Returns(_ => Task.FromResult<object?>(CreateRequest()));
         unsubscribeContext.When(_ => _.SetStatusCode(Arg.Any<int>()))

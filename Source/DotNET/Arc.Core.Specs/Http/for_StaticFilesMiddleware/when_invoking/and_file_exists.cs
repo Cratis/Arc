@@ -30,7 +30,7 @@ public class and_file_exists : given.a_static_files_middleware
     {
         _contextTask = _listener.GetContextAsync();
 
-        var responseTask = _client.GetAsync($"http://localhost:{_port}/test.html");
+        var responseTask = _client.GetAsync($"http://{LoopbackHost}:{_port}/test.html");
 
         var context = await _contextTask;
 

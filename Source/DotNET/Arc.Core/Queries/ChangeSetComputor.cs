@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
@@ -26,6 +27,8 @@ namespace Cratis.Arc.Queries;
 /// <param name="serializerOptions">The <see cref="JsonSerializerOptions"/> used for item comparison.</param>
 public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
 {
+    static readonly ConcurrentDictionary<Type, bool> _overridesEquality = new();
+
     /// <summary>
     /// Discovers the property that represents the identity of an item.
     /// </summary>
@@ -38,6 +41,58 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     public static PropertyInfo? FindIdentityProperty(Type type) =>
         type.GetProperties()
             .FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Builds the delta an emission already stated, rather than rediscovering it by comparison.
+    /// </summary>
+    /// <param name="changes">The changes the emission carried.</param>
+    /// <param name="current">The current snapshot, used to resolve the items the changes name.</param>
+    /// <param name="previous">The previous snapshot, used to resolve removed items which are no longer in <paramref name="current"/>.</param>
+    /// <returns>A <see cref="ChangeSet"/> describing what changed.</returns>
+    /// <remarks>
+    /// An item named by a change but present in neither snapshot is skipped rather than reported as a change to
+    /// nothing - it is better to under-report a delta than to emit an entry a client cannot act on.
+    /// </remarks>
+    public ChangeSet ComputeFromKnownChanges(
+        IReadOnlyList<CollectionChange> changes,
+        IEnumerable<object> current,
+        IEnumerable<object>? previous)
+    {
+        var currentItems = current.ToArray();
+        var itemType = (currentItems.FirstOrDefault() ?? previous?.FirstOrDefault())?.GetType();
+        var idProperty = itemType is not null ? FindIdentityProperty(itemType) : null;
+        if (idProperty is null)
+        {
+            return Compute(previous, currentItems);
+        }
+
+        var currentById = ById(currentItems, idProperty);
+        var previousById = ById(previous?.ToArray() ?? [], idProperty);
+
+        var added = new List<object>();
+        var replaced = new List<object>();
+        var removed = new List<object>();
+
+        foreach (var change in changes)
+        {
+            switch (change.Kind)
+            {
+                case CollectionChangeKind.Added when currentById.TryGetValue(change.Id, out var addedItem):
+                    added.Add(addedItem);
+                    break;
+
+                case CollectionChangeKind.Replaced when currentById.TryGetValue(change.Id, out var replacedItem):
+                    replaced.Add(replacedItem);
+                    break;
+
+                case CollectionChangeKind.Removed when previousById.TryGetValue(change.Id, out var removedItem):
+                    removed.Add(removedItem);
+                    break;
+            }
+        }
+
+        return new ChangeSet { Added = added, Replaced = replaced, Removed = removed };
+    }
 
     /// <summary>
     /// Computes the delta between two consecutive collection snapshots.
@@ -119,14 +174,9 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
             {
                 added.Add(item);
             }
-            else
+            else if (!AreEquivalent(prev, item))
             {
-                var prevJson = JsonSerializer.Serialize(prev, serializerOptions);
-                var currJson = JsonSerializer.Serialize(item, serializerOptions);
-                if (prevJson != currJson)
-                {
-                    replaced.Add(item);
-                }
+                replaced.Add(item);
             }
         }
 
@@ -172,5 +222,58 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
             .ToArray();
 
         return new ChangeSet { Added = added, Removed = removed };
+    }
+
+    /// <summary>
+    /// Indexes a snapshot's items by their identity.
+    /// </summary>
+    /// <param name="items">The items to index.</param>
+    /// <param name="idProperty">The property carrying the identity.</param>
+    /// <returns>The items keyed by identity.</returns>
+    static Dictionary<object, object> ById(object[] items, PropertyInfo idProperty)
+    {
+        var byId = new Dictionary<object, object>(items.Length);
+        foreach (var item in items)
+        {
+            var id = idProperty.GetValue(item);
+            if (id is not null)
+            {
+                byId[id] = item;
+            }
+        }
+
+        return byId;
+    }
+
+    static bool OverridesEquality(Type type) =>
+        _overridesEquality.GetOrAdd(type, static candidate =>
+            candidate.GetMethod(nameof(Equals), BindingFlags.Public | BindingFlags.Instance, [typeof(object)])?.DeclaringType != typeof(object));
+
+    /// <summary>
+    /// Gets whether two snapshots of the same item are equivalent, without serializing them when that can be avoided.
+    /// </summary>
+    /// <param name="previous">The item as the previous snapshot held it.</param>
+    /// <param name="current">The item as the current snapshot holds it.</param>
+    /// <returns>True when the two are equivalent.</returns>
+    /// <remarks>
+    /// A provider that rebuilds a snapshot by replacing only the item that changed hands back the very same instances
+    /// for every item that did not, so reference equality settles the overwhelming majority of comparisons outright.
+    /// Read models are records, whose value equality settles the rest. Serializing is the last resort, for an item type
+    /// that overrides neither - and it now runs for the items that genuinely might differ rather than for every item in
+    /// the collection on every emission.
+    /// </remarks>
+    bool AreEquivalent(object previous, object current)
+    {
+        if (ReferenceEquals(previous, current))
+        {
+            return true;
+        }
+
+        if (OverridesEquality(previous.GetType()))
+        {
+            return previous.Equals(current);
+        }
+
+        return JsonSerializer.Serialize(previous, serializerOptions) == JsonSerializer.Serialize(current, serializerOptions);
     }
 }

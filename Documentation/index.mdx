@@ -1,19 +1,20 @@
 ---
 title: Arc
-description: Commands, queries, validation, authorization, and TypeScript proxy generation for ASP.NET Core.
+description: Commands, queries, validation, authorization, and TypeScript proxy generation for ASP.NET Core, Kotlin, and Java.
 ---
 
-import { CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 import SimpleCard from '@components/SimpleCard.astro';
 import TopicHero from '@components/TopicHero.astro';
 
 <TopicHero
   icon="puzzle"
   eyebrow="Arc"
-  title="CQRS application framework for ASP.NET Core"
+  title="CQRS application framework for ASP.NET Core and Spring Boot"
 >
-  Arc is an opinionated CQRS application framework for ASP.NET Core with
-  commands, queries, validation, authorization, and TypeScript proxy generation.
+  Arc is an opinionated CQRS application framework with commands, queries,
+  validation, authorization, and TypeScript proxy generation. Write the backend
+  in C# or in Kotlin and Java — both generate the same typed frontend contract.
   Event sourcing is not required.
 </TopicHero>
 
@@ -27,9 +28,9 @@ React compositions fit.
 
 <CardGrid>
   <SimpleCard title="Start an Arc host" icon="rocket" link="#start-an-arc-host">
-    Add the Arc package and configure an ASP.NET Core host.
+    Add Arc to an ASP.NET Core or a Spring Boot host.
   </SimpleCard>
-  <SimpleCard title="Commands and queries" icon="seti:c-sharp" link="#commands-and-queries">
+  <SimpleCard title="Commands and queries" icon="list-format" link="#commands-and-queries">
     Execute changes, expose reads, and generate the client contracts for both.
   </SimpleCard>
   <SimpleCard title="Frontend contracts" icon="laptop" link="#frontend-contracts">
@@ -47,9 +48,14 @@ React compositions fit.
     href="/arc/why-arc/"
   />
   <LinkCard
-    title="Coming from MediatR and MVC"
+    title="Coming from MediatR and MVC (C#)"
     description="Map controllers, DTOs, and MediatR handlers onto Arc's command and query model."
-    href="/arc/coming-from-mediatr-and-mvc/"
+    href="/arc/backend/csharp/coming-from-mediatr-and-mvc/"
+  />
+  <LinkCard
+    title="Coming from Spring MVC (Kotlin and Java)"
+    description="Map @RestController handlers and DTOs onto Arc's command and query model."
+    href="/arc/backend/kotlin/coming-from-spring-mvc/"
   />
   <LinkCard
     title="Samples"
@@ -60,32 +66,21 @@ React compositions fit.
 
 ## Start an Arc host
 
-Use a .NET SDK compatible with your selected Arc release (the current source targets .NET 10). This is the **ASP.NET Core** path; [Arc.Core's lightweight host](/arc/backend/core/getting-started/) is a separate alternative.
+Arc runs on two backend stacks. Pick the one your team already builds on — the
+application shape, the HTTP contract and the generated frontend client are the
+same either way, so the choice is about your runtime, not about what you can
+build.
 
-<Steps>
-1. Create an ASP.NET Core project and install the host package.
-
-   ```bash
-   dotnet new web -n Library --framework net10.0
-   cd Library
-   dotnet add package Cratis.Arc
-   ```
-
-1. Configure and run the host.
-
-   ```csharp
-   using Cratis.Arc;
-
-   var builder = WebApplication.CreateBuilder(args);
-   builder.AddCratisArc();
-
-   var app = builder.Build();
-   app.UseCratisArc();
-   await app.RunAsync();
-   ```
-
-1. Run `dotnet run` and confirm the application starts. Continue with [standalone setup](/arc/backend/getting-started/) for database configuration, generated proxies, and the first command/query checkpoint.
-</Steps>
+<CardGrid>
+  <LinkCard
+    title="C# on ASP.NET Core"
+    href="/arc/backend/csharp/getting-started/"
+    description="Install Cratis.Arc, configure the host, and reach the first command and query checkpoint. Arc.Core is a lighter alternative host." />
+  <LinkCard
+    title="Kotlin or Java on Spring Boot"
+    href="/arc/backend/kotlin/get-started/"
+    description="Apply the io.cratis.arc Gradle plugin, declare a command and a read model, and call them. A Java walkthrough sits alongside it." />
+</CardGrid>
 
 Starting the host verifies the setup path only. Commands, queries, generated
 proxies, persistence integrations, and frontend packages each have additional
@@ -96,7 +91,10 @@ configuration and version requirements.
 Arc supports model-bound records and methods as well as controller-based
 endpoints. The command and query pipelines handle dependency injection,
 validation, authorization, filters, execution scopes, result conversion, and
-HTTP exposure.
+HTTP exposure — the same shape whether the handler is written in C# or in
+Kotlin/Java. The [scenario recipes](/arc/scenarios/) show the same task, such
+as [validating a command](/arc/scenarios/validate-a-command/), with both
+backends side by side.
 
 Queries can return one result or use Arc's observable-query APIs. The TypeScript
 generator creates clients for recognized commands, queries, referenced types,
@@ -105,19 +103,34 @@ and lifecycle behavior.
 
 <CardGrid>
   <LinkCard
-    title="Command pipeline"
+    title="Command pipeline (C#)"
     description="Model intentions, validate and authorize them, provide dependencies, execute handlers, and convert typed results into HTTP responses."
-    href="/arc/backend/commands/"
+    href="/arc/backend/csharp/commands/"
   />
   <LinkCard
-    title="Query pipeline"
+    title="Command pipeline (Kotlin and Java)"
+    description="The same command model on Spring Boot: KSP-generated handlers, dependency resolution, validation and typed results."
+    href="/arc/backend/kotlin/guides/commands/"
+  />
+  <LinkCard
+    title="Query pipeline (C#)"
     description="Expose purpose-shaped reads with paging, sorting, filtering, result rendering, and diagnostics."
-    href="/arc/backend/queries/"
+    href="/arc/backend/csharp/queries/"
   />
   <LinkCard
-    title="Observable-query APIs"
+    title="Query pipeline (Kotlin and Java)"
+    description="Model-bound read models with GET, RFC QUERY, HTTP snapshots, SSE and WebSocket hosting on Spring Boot."
+    href="/arc/backend/kotlin/guides/queries/"
+  />
+  <LinkCard
+    title="Observable-query APIs (C#)"
     description="Work with documented query subscriptions, collection changes, subscription guards, and query health information."
-    href="/arc/backend/queries/observable-query-demultiplexer/"
+    href="/arc/backend/csharp/queries/observable-query-demultiplexer/"
+  />
+  <LinkCard
+    title="Observable-query APIs (Kotlin and Java)"
+    description="Subscribe to collection changes over SSE or WebSocket, and the same observable-query lifecycle on the JVM host."
+    href="/arc/backend/kotlin/guides/observable-queries/"
   />
 </CardGrid>
 
@@ -138,9 +151,10 @@ React packages.
 
 Arc includes [pluggable identity and access behavior](/arc/understanding-identity-and-access/),
 identity-detail providers, server-side authorization and role checks, and
-frontend identity context. [Tenant resolution](/arc/backend/tenancy/) can use a
+frontend identity context. Tenant resolution can use a
 header, query parameter, claim, subdomain, fixed value, or development setting
-before provider-specific database or namespace mapping.
+before provider-specific database or namespace mapping — see [tenancy on C#](/arc/backend/csharp/tenancy/)
+or [tenancy on Kotlin and Java](/arc/backend/kotlin/guides/ambient-tenancy/).
 
 Frontend visibility helpers do not replace server-side authorization. Tenant
 resolution also does not by itself establish isolation for an application or
@@ -148,24 +162,35 @@ storage topology.
 
 ## Persistence choices
 
-Arc.Core does not depend on Chronicle. Commands and queries can use application
-services or current-state persistence without an event log.
+Arc does not depend on Chronicle. Commands and queries can use application
+services or current-state persistence without an event log. Each backend
+integrates with the data access its own ecosystem already uses.
 
 <CardGrid>
   <LinkCard
-    title="MongoDB"
-    description="Use Arc's serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams."
-    href="/arc/backend/mongodb/"
+    title="MongoDB (C#)"
+    description="Arc's serialization conventions, tenant-aware database resolution, resilient collection access, and observable change streams."
+    href="/arc/backend/csharp/mongodb/"
   />
   <LinkCard
-    title="Entity Framework Core"
-    description="Discover read models, configure value conversions and mappings, run migrations, and observe supported SQL Server, PostgreSQL, or SQLite changes."
-    href="/arc/backend/entity-framework/"
+    title="Entity Framework Core (C#)"
+    description="Discover read models, configure value conversions and mappings, run migrations, and observe SQL Server, PostgreSQL or SQLite changes."
+    href="/arc/backend/csharp/entity-framework/"
   />
   <LinkCard
-    title="Chronicle"
-    description="Add event-sourced commands, projections, reducers, aggregates, reactors, concurrency behavior, tenant namespaces, and Chronicle-specific testing."
-    href="/arc/backend/chronicle/"
+    title="Spring Data (Kotlin and Java)"
+    description="Inject JPA or MongoDB repositories into queries and commands, with Arc paging, tenant routing, transactions and observable change streams."
+    href="/arc/backend/kotlin/guides/spring-data/"
+  />
+  <LinkCard
+    title="Chronicle (C#)"
+    description="Add event-sourced commands, concurrency behavior, tenant namespaces and reactor side effects."
+    href="/arc/backend/csharp/chronicle/"
+  />
+  <LinkCard
+    title="Chronicle (Kotlin and Java)"
+    description="The same event-sourced commands, concurrency behavior, tenant namespaces and reactor side effects on Spring Boot."
+    href="/arc/backend/kotlin/guides/chronicle/"
   />
 </CardGrid>
 
@@ -176,10 +201,10 @@ operations at runtime. Repository packages also include analyzers, source
 generators, command-scenario testing, proxy-generation checks, Vite helpers, and
 Arc-specific ESLint rules.
 
-- [Inspect registered application contracts](/arc/backend/introspection/)
-- [Generate OpenAPI descriptions](/arc/backend/open-api/)
-- [Test command behavior](/arc/backend/testing/)
-- [Review analyzer rules](/arc/backend/code-analysis/)
+- [Inspect registered application contracts (C#)](/arc/backend/csharp/introspection/) — commands, queries and identity schemas are also introspectable on Kotlin and Java; a dedicated guide is not yet published
+- Generate OpenAPI descriptions: [C#](/arc/backend/csharp/open-api/) or [Kotlin and Java](/arc/backend/kotlin/guides/openapi/)
+- Test command behavior: [C#](/arc/backend/csharp/testing/) or [Kotlin and Java](/arc/backend/kotlin/guides/testing/)
+- Review analyzer rules: [C# Roslyn analyzers](/arc/backend/csharp/code-analysis/) or [Kotlin KSP diagnostics](/arc/backend/kotlin/reference/diagnostics/)
 
 :::caution[Check the combination you use]
 These are separate packages and integration surfaces. Their existence does not
@@ -194,8 +219,11 @@ combination you evaluate.
   <SimpleCard title="Arc source and README" icon="seti:folder" link="https://github.com/Cratis/Arc">
     Repository structure, package roles, contribution guidance, and current limits.
   </SimpleCard>
-  <SimpleCard title="Arc packages" icon="open-book" link="https://www.nuget.org/packages/Cratis.Arc">
+  <SimpleCard title="Arc packages (C#)" icon="open-book" link="https://www.nuget.org/packages/Cratis.Arc">
     Published .NET package metadata and versions.
+  </SimpleCard>
+  <SimpleCard title="Arc packages (Kotlin and Java)" icon="open-book" link="https://central.sonatype.com/namespace/io.cratis">
+    Published Maven Central package metadata and versions.
   </SimpleCard>
   <SimpleCard title="Chronicle" icon="seti:db" link="/chronicle/">
     The optional event-sourced runtime integration for Arc application behavior.

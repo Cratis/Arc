@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
@@ -12,12 +13,12 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// <summary>
 /// Represents a model bound query performer.
 /// </summary>
-public class ModelBoundQueryPerformer : IQueryPerformer
+public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorizationQueryTarget
 {
-    readonly IEnumerable<ParameterInfo> _dependencies;
-    readonly IEnumerable<ParameterInfo> _queryParameters;
-    readonly MethodInfo _performMethod;
-    readonly IAuthorizationEvaluator _authorizationEvaluator;
+    readonly ImmutableArray<ParameterInfo> _parameters;
+    readonly ImmutableHashSet<int> _dependencyPositions;
+    readonly IAuthorizationEvaluator? _authorizationEvaluator;
+    readonly Func<QueryContext, bool>? _authorizeFromScope;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ModelBoundQueryPerformer"/> class.
@@ -29,6 +30,42 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     /// <param name="authorizationEvaluator">The authorization evaluator.</param>
     /// <exception cref="QueryMethodCannotBeGeneric">Thrown when <paramref name="performMethod"/> is generic.</exception>
     public ModelBoundQueryPerformer(Type readModelType, string readModelTypeName, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService, IAuthorizationEvaluator authorizationEvaluator)
+        : this(readModelType, readModelTypeName, performMethod, serviceProviderIsService)
+    {
+        _authorizationEvaluator = authorizationEvaluator;
+    }
+
+    /// <summary>
+    /// Creates a performer that resolves authorization from each query's scope, rather than caching the discovery scope.
+    /// </summary>
+    /// <param name="readModelType">The read model type.</param>
+    /// <param name="readModelTypeName">The qualified read model name.</param>
+    /// <param name="performMethod">The query method.</param>
+    /// <param name="serviceProviderIsService">The service classification.</param>
+    /// <param name="scopeFactory">A fallback for direct performer calls without a query scope.</param>
+    /// <param name="resolveEvaluator">Resolves the configured evaluator in a scope.</param>
+    public ModelBoundQueryPerformer(
+        Type readModelType,
+        string readModelTypeName,
+        MethodInfo performMethod,
+        IServiceProviderIsService serviceProviderIsService,
+        IServiceScopeFactory scopeFactory,
+        Func<IServiceProvider, IAuthorizationEvaluator> resolveEvaluator)
+        : this(readModelType, readModelTypeName, performMethod, serviceProviderIsService)
+    {
+        _authorizeFromScope = context =>
+        {
+            if (context.ServiceProvider is { } services)
+            {
+                return resolveEvaluator(services).IsAuthorized(AuthorizationMethod);
+            }
+
+            using var scope = scopeFactory.CreateScope();
+            return resolveEvaluator(scope.ServiceProvider).IsAuthorized(AuthorizationMethod);
+        };
+    }
+
+    ModelBoundQueryPerformer(Type readModelType, string readModelTypeName, MethodInfo performMethod, IServiceProviderIsService serviceProviderIsService)
     {
         // Fail while wiring up rather than on every request: invoking an open generic throws a bare BCL message that
         // says nothing about which read model method is at fault.
@@ -55,14 +92,29 @@ public class ModelBoundQueryPerformer : IQueryPerformer
             CustomRoute = pathProperty?.GetValue(pathAttribute) as string;
         }
 
-        _dependencies = performMethod.GetParameters().Where(p => IsDependency(serviceProviderIsService, p));
-        _queryParameters = performMethod.GetParameters().Where(p => !IsDependency(serviceProviderIsService, p));
-        Dependencies = _dependencies.Select(p => p.ParameterType);
-        Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType, !IsNullableOrOptional(p))));
+        _parameters = performMethod.GetParameters().ToImmutableArray();
+        var dependencyPositions = ImmutableHashSet.CreateBuilder<int>();
+        var dependencyTypes = ImmutableArray.CreateBuilder<Type>();
+        var queryParameters = ImmutableArray.CreateBuilder<QueryParameter>();
+        foreach (var parameter in _parameters)
+        {
+            if (IsDependency(serviceProviderIsService, parameter))
+            {
+                dependencyPositions.Add(parameter.Position);
+                dependencyTypes.Add(parameter.ParameterType);
+            }
+            else
+            {
+                queryParameters.Add(new QueryParameter(parameter.Name ?? string.Empty, parameter.ParameterType, !IsNullableOrOptional(parameter)));
+            }
+        }
+
+        _dependencyPositions = dependencyPositions.ToImmutable();
+        Dependencies = dependencyTypes.ToImmutable();
+        Parameters = new(queryParameters.ToImmutable());
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
         SupportsPaging = ComputeSupportsPaging(performMethod);
-        _performMethod = performMethod;
-        _authorizationEvaluator = authorizationEvaluator;
+        AuthorizationMethod = performMethod;
     }
 
     /// <inheritdoc/>
@@ -96,19 +148,26 @@ public class ModelBoundQueryPerformer : IQueryPerformer
     public bool SupportsPaging { get; }
 
     /// <inheritdoc/>
-    public bool IsAuthorized(QueryContext context) => _authorizationEvaluator.IsAuthorized(_performMethod);
+    public MethodInfo AuthorizationMethod { get; }
+
+    /// <inheritdoc/>
+    public bool HasIndependentLegacyVerdict => _authorizeFromScope is null;
+
+    /// <inheritdoc/>
+    public bool IsAuthorized(QueryContext context) => _authorizeFromScope is not null
+        ? _authorizeFromScope(context)
+        : _authorizationEvaluator!.IsAuthorized(AuthorizationMethod);
 
     /// <inheritdoc/>
     public async ValueTask<object?> Perform(QueryContext context)
     {
-        var parameters = _performMethod.GetParameters();
         var dependencies = context.Dependencies?.ToArray() ?? [];
         var queryStringParameters = context.Arguments ?? QueryArguments.Empty;
-        var args = GetMethodArguments(parameters, dependencies, queryStringParameters);
+        var args = GetMethodArguments(dependencies, queryStringParameters);
 
         try
         {
-            var invocationResult = _performMethod.Invoke(null, args);
+            var invocationResult = AuthorizationMethod.Invoke(null, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
             return result;
         }
@@ -225,15 +284,15 @@ public class ModelBoundQueryPerformer : IQueryPerformer
         return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
-    object?[] GetMethodArguments(ParameterInfo[] parameters, object[] dependencies, QueryArguments queryStringParameters)
+    object?[] GetMethodArguments(object[] dependencies, QueryArguments queryStringParameters)
     {
         var dependencyIndex = 0;
-        var args = new object?[parameters.Length];
-        for (var i = 0; i < parameters.Length; i++)
+        var args = new object?[_parameters.Length];
+        for (var i = 0; i < _parameters.Length; i++)
         {
-            var parameter = parameters[i];
+            var parameter = _parameters[i];
 
-            if (_dependencies.Contains(parameter))
+            if (_dependencyPositions.Contains(parameter.Position))
             {
                 args[i] = ResolveDependency(dependencies, ref dependencyIndex);
             }
@@ -243,11 +302,11 @@ public class ModelBoundQueryPerformer : IQueryPerformer
             }
         }
 
-        ValidateArguments(parameters, args);
+        ValidateArguments(_parameters, args);
         return args;
     }
 
-    void ValidateArguments(ParameterInfo[] parameters, object?[] args)
+    void ValidateArguments(ImmutableArray<ParameterInfo> parameters, object?[] args)
     {
         for (var i = 0; i < parameters.Length; i++)
         {

@@ -1,4 +1,7 @@
-# Validation
+---
+title: Validation
+description: Overview of Arc's TypeScript validation primitives and generated rules that run before command and query requests.
+---
 
 Core validation in Arc provides shared TypeScript/JavaScript primitives and generated rules that run before command and query requests.
 
@@ -17,6 +20,6 @@ This page is an overview of validation capabilities. Use the pages below for spe
 
 - [Core Commands](../commands/index.md)
 - [Core Queries](../queries/index.md)
-- [Backend Command Validation](../../../backend/commands/validation.md)
-- [Backend Query Validation](../../../backend/queries/validation.md)
-- [Proxy Generation Validation](../../../backend/proxy-generation/validation.md)
+- [Backend Command Validation](../../../backend/csharp/commands/validation.md)
+- [Backend Query Validation](../../../backend/csharp/queries/validation.md)
+- [Proxy Generation Validation](../../../backend/csharp/proxy-generation/validation.md)

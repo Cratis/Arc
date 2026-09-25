@@ -3,16 +3,20 @@ title: "1. Your first full-stack slice"
 description: Connect the standalone author command and observable query to React, initialize required identifiers, and verify a persistent round trip.
 ---
 
-import { Steps, Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+import { Steps, Aside } from '@astrojs/starlight/components';
 import FullStackTabs from '@components/FullStackTabs.astro';
 
 Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before cataloging a book. You have a command that writes and a query that reads; now let's connect them to a screen without a hand-written API client.
 
 ## Prerequisites
 
-Complete [standalone ASP.NET Core setup](/arc/backend/getting-started/) and [Your first command and query](/arc/backend/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle.
+Complete [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/) and [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle.
 
-The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [Arc-only frontend checkpoint](/arc/frontend/getting-started/) uses ordinary HTML instead. With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
+<Aside type="note" title="Building on Kotlin or Java?">
+Start from [Get started with Kotlin](/arc/backend/kotlin/get-started/) or [Get started with Java](/arc/backend/kotlin/get-started/java/) instead: JDK 17, Gradle, the `io.cratis.arc` plugin, and `arc-spring-boot-starter` take the place of the .NET SDK and the `Cratis.Arc.*` packages. Where this tutorial says MongoDB or EF Core, read [Spring Data MongoDB or Spring Data JPA](/arc/backend/kotlin/guides/spring-data/). Every backend excerpt below has a tab for your language; the setup commands and the React half are covered per backend in a note.
+</Aside>
+
+The setup below adds Vite in the same `Library/` project root; keep components under `src/` and generated files in `src/Authors/`. Do not duplicate the backend types you already created. This tutorial uses the **optional Components dialog UI**; the [Arc-only frontend checkpoint](/arc/frontend/react/getting-started/) uses ordinary HTML instead. With our source-file proxy grouping, import its `AllAuthors` from `./Authors/Author`, not `./Authors/AllAuthors`.
 
 ## Follow the backend half
 
@@ -26,29 +30,13 @@ flowchart LR
     Q -->|generated proxy| UI[React list]
 ```
 
-These are **excerpts from the backend checkpoint**, not additional files:
+These are **excerpts from the backend checkpoint**, not additional files. Each tab shows the same slice over that backend's document store — MongoDB on C#, Spring Data MongoDB on the JVM:
 
-<Tabs syncKey="db">
-<TabItem label="MongoDB" icon="seti:db">
+<ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
 
-```csharp
-[Command]
-public record RegisterAuthor(AuthorId Id, AuthorName Name)
-{
-    public Task Handle(IMongoCollection<Author> authors) =>
-        authors.InsertOneAsync(new Author(Id, Name));
-}
+The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, and through `@FromServices` on `handle` and the companion-object query function on the JVM. Returning `Task` or `Unit` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and neither backend needs a controller or a duplicated transport model.
 
-[ReadModel]
-public record Author(AuthorId Id, AuthorName Name)
-{
-    public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> authors) =>
-        authors.Observe();
-}
-```
-
-</TabItem>
-<TabItem label="EF Core" icon="seti:db">
+**If you chose the relational branch**, the C# excerpts inject `LibraryDbContext` instead of the collection and are otherwise the same slice:
 
 ```csharp
 [Command]
@@ -69,17 +57,14 @@ public record Author(AuthorId Id, AuthorName Name)
 }
 ```
 
-</TabItem>
-</Tabs>
-
-The dependencies are **method-injected**. Returning `Task` adds no payload: the explicit database write is the outcome. The static `AllAuthors` method is the query; no controller or duplicated transport model is needed.
+On the JVM, the relational branch changes no Arc code at all: `AuthorRepository` extends `JpaRepository` rather than `MongoRepository`, and the observable query resolves [`JpaObservableQuery` instead of `MongoObservableQuery`](/arc/backend/kotlin/guides/spring-data/observable-snapshots/).
 
 <Aside type="tip" title="Separate decisions as behavior grows">
-This tutorial uses supported direct database writes to make the first round trip visible. For immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write.
+This tutorial uses supported direct database writes to make the first round trip visible. On the C# backend, for immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/csharp/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write. Command operations are a C#-only surface; on the JVM keep the direct repository write shown here, and test the decision through [in-process command scenarios](/arc/backend/kotlin/guides/testing/).
 </Aside>
 
 <Aside type="note" title="Live means a configured observation source">
-MongoDB requires change streams on a replica set. EF Core receives same-host `SaveChanges` notifications through the configured interceptor; SQLite does not detect external-process writes. Keep the [storage prerequisites](/arc/backend/getting-started/) in place. An observable return type exposes a stream; it cannot make an unconfigured database emit changes.
+MongoDB requires change streams on a replica set. EF Core receives same-host `SaveChanges` notifications through the configured interceptor; SQLite does not detect external-process writes. Keep the [storage prerequisites](/arc/backend/csharp/getting-started/) in place. An observable return type exposes a stream; it cannot make an unconfigured database emit changes. The JVM boundary is the same shape: MongoDB observation rides change streams and needs the same replica set, while JPA observation is in-process only and needs a published change notification — see [Observable storage snapshots](/arc/backend/kotlin/guides/spring-data/observable-snapshots/).
 </Aside>
 
 ## Build before importing
@@ -90,7 +75,11 @@ dotnet build -c Debug
 
 With `Cratis.Arc.ProxyGenerator.Build` installed and `CratisProxiesOutputPath` set, a post-build tool reads the assembly and PDB and generates `src/Authors/RegisterAuthor.ts` and `src/Authors/Author.ts`. The latter includes `AllAuthors` in source-file output mode. Building a bare Arc project without generator configuration emits no proxies.
 
-If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
+<Aside type="note" title="The same step on the JVM">
+Run `./gradlew generateArcProxies` (the task is also attached to `build`). KSP writes the Arc artifact manifest at compile time and the `io.cratis.arc` plugin's generator turns it into the same TypeScript. Point `cratisArc.proxies.outputDirectory` at your frontend source folder — an unset output directory skips generation, exactly as an unset `CratisProxiesOutputPath` does. Route settings exist on both the build side (`cratisArc.endpoints.*`) and the runtime side (`cratis.arc.endpoints.*`) and must agree; the starter fails startup when they do not. See [Generate TypeScript proxies](/arc/backend/kotlin/guides/typescript-proxies/).
+</Aside>
+
+If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/csharp/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
 
 ## Set up the browser project
 
@@ -98,12 +87,13 @@ If you already have a Vite app, retain its entry/configuration and adapt only th
 
 ```bash
 npm init -y
+npm pkg set type=module
 npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.10.3 @cratis/arc @cratis/arc.react \
   @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
 npm install --save-dev vite typescript @types/react @types/react-dom
 ```
 
-Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
+`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
 
 Create `tsconfig.json`:
 
@@ -155,6 +145,8 @@ export default defineConfig({
 ```
 
 The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
+
+Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default, so point both proxy targets at `http://localhost:8080` — or set `server.port=5000` — and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on both backends.
 
 ## Read and write from React
 
@@ -252,7 +244,17 @@ createRoot(document.getElementById('root')!).render(<App />);
 
 `tokens` supplies shared CSS variables, `styles` supplies component structure, and `theme` adds the baseline appearance, including dark mode. You can omit `theme` when a product design system supplies its own token values.
 
-Keep the backend running on port 5000. From another terminal in `Library/`, run:
+Those three subpaths are stylesheets, so they ship no type declarations. Current TypeScript releases check side-effect imports and report `TS2882: Cannot find module or type declarations for side-effect import` for each one. Declare them once in `src/cratis-components-styles.d.ts`:
+
+```typescript
+declare module '@cratis/components/tokens';
+declare module '@cratis/components/styles';
+declare module '@cratis/components/theme';
+```
+
+This keeps side-effect checking on for every other import, so a mistyped package name still fails the type-check.
+
+Keep the backend running on the port your Vite proxy targets — 5000 for the ASP.NET Core host, 8080 for a default Spring Boot one. From another terminal in `Library/`, run:
 
 ```bash
 npx tsc --noEmit
@@ -294,7 +296,7 @@ The accessor `i => i.name` is a property on the generated command, not a string.
   </Fragment>
 </FullStackTabs>
 
-Rename `Name` in C#, regenerate, then run the frontend type-check. The old accessor fails compilation. Never repair this by editing generated code.
+Rename `Name` in C#, regenerate, then run the frontend type-check. The old accessor fails compilation. Never repair this by editing generated code. The Kotlin and Java backends prove the same thing with the same TypeScript: rename `name` on the Kotlin command, run `./gradlew generateArcProxies`, and the accessor above stops compiling.
 
 ## What you built
 

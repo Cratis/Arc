@@ -7,7 +7,7 @@ Use the form's execution path when you want its result display, callbacks, and b
 
 ## Command result callbacks
 
-This complete component uses the generated `UpdateProfile` and its ordinary `{ name, email }` response from [Validation](./validation.md#backend-validation). The response type below is an application type, not a framework API.
+This complete component uses the generated `UpdateProfile` and its ordinary `{ name, email }` response from [Validation](./validation.mdx#backend-validation). The response type below is an application type, not a framework API.
 
 ```tsx
 import { useState } from 'react';
@@ -42,6 +42,10 @@ export function ProfileForm() {
 The form first calls `onSuccess(response)` or `onFailed(result)`. It then checks, in order, `hasExceptions`, `!isAuthorized`, and `!isValid`, invoking `onException(messages, stackTrace)`, `onUnauthorized()`, and `onValidationFailure(validationResults)` as applicable. Several callbacks can run for the same result; the last message setter wins in this example.
 
 Callbacks describe **returned command results**. An unexpectedly thrown/rejected promise, including a throwing transformation or callback, is not converted to `onException`. Catch rejections when calling the imperative handle, as below. Do not display raw stack traces to end users. Navigate only in `onSuccess`, using the response contract your handler actually returns.
+
+Nonempty custom field errors block submission, `onExecute()` and `formRef.execute()` before transformation or command execution. A blocked attempt publishes the same validation-failure result to `commandResult`, the caller and `onFailed`, then invokes `onValidationFailure`. It makes no HTTP request and does not enter the executing state. Errors set during `onBeforeExecute` are checked again before command execution.
+
+Editing custom errors updates the displayed custom failure. Clearing its last error restores the retained native result, or `undefined` if none exists; that can restore an earlier success, but does not execute or fire callbacks. A subsequent native/displayed result replaces the custom failure. Native field errors and silent validation remain separate, so clearing custom errors neither discards native errors nor leaves a custom failure in silent validity. Calling `commandInstance.execute()` directly bypasses this form-local gate.
 
 ## Exception diagnostics and display
 
@@ -156,7 +160,7 @@ Supply `confirmSave` from your dialog implementation. The hidden form-owned subm
 
 Pass a stable ref from `useRef` or `useCallback`. An inline callback ref that sets parent state can repeatedly detach/attach and cause a render loop. `onStateChange` is different: its callback is read through a ref, runs on mount and on changes to its three state booleans, and safely accepts inline functions.
 
-`isValid` describes the latest applied silent validation, not a validation-pending state. `isAuthorized` is a local identity-role check. Neither is a server security boundary, and `execute()` does not use them as a precondition; execution performs command validation/authorization. See [Validation](./validation.md#accessing-validation-state) for current limitations.
+`isValid` combines the latest applied silent validation with the absence of nonempty custom field errors; it is not a validation-pending state. `isAuthorized` is a local identity-role check. Neither is a server security boundary. `execute()` gates on custom errors, not these flags; once that gate passes, execution performs command validation/authorization. See [Validation](./validation.mdx#accessing-validation-state) for current limitations.
 
 ## Auto-save
 
@@ -167,5 +171,5 @@ A production autosave also needs serialization of saves, a pending revision, ret
 ## See also
 
 - [Working with hooks](./hooks.md)
-- [Validation](./validation.md)
+- [Validation](./validation.mdx)
 - [Data loading](./data-loading.md)

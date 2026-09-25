@@ -26,6 +26,7 @@ async function filesBelow(directory) {
 function validateContent(file, content) {
     const isMarkdown = path.extname(file).toLowerCase() === '.md';
     let fence;
+    let stepsDepth = 0;
 
     for (const [index, line] of content.split('\n').entries()) {
         const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
@@ -50,6 +51,17 @@ function validateContent(file, content) {
             errors.push(`${relative(file)}:${index + 1}: Imports require .mdx; in .md they render as visible prose.`);
         }
 
+        // Starlight's <Steps> requires its content to be a single ordered list.
+        // The language-tab macro expands to a sibling element beside that list, so a
+        // tab inside a step block makes the page fail to render - and only the site
+        // build sees it, because the checks here expand the macro without ever
+        // rendering the component around it.
+        if (/^\s*<Steps>/.test(line)) stepsDepth += 1;
+        else if (/^\s*<\/Steps>/.test(line)) stepsDepth = Math.max(0, stepsDepth - 1);
+        else if (stepsDepth > 0 && /^\s*<ArcBackendTabs\b/.test(line)) {
+            errors.push(`${relative(file)}:${index + 1}: <ArcBackendTabs> inside <Steps> breaks rendering; Steps accepts only a single ordered list. Unwrap the step block.`);
+        }
+
         if (isMarkdown) {
             const componentMatch = line.match(/^\s*<\/?([A-Z][A-Za-z0-9.]*)\b/);
             if (componentMatch) {
@@ -63,16 +75,26 @@ async function validateLandingCollisions(files) {
     for (const file of files) {
         const extension = path.extname(file);
         const possibleDirectory = file.slice(0, -extension.length);
-        let directoryStats;
+
+        // The site lowercases every path segment when it builds a slug, so a page
+        // and a sibling folder that differ only in case collide on one route and
+        // one silently shadows the other. Comparing names here rather than asking
+        // the filesystem keeps this honest on case-sensitive volumes, where a
+        // plain stat of the lowercase path finds nothing and the collision ships.
+        const parent = path.dirname(possibleDirectory);
+        const wanted = path.basename(possibleDirectory).toLowerCase();
+        let siblings;
         try {
-            directoryStats = await stat(possibleDirectory);
+            siblings = await readdir(parent, { withFileTypes: true });
         } catch {
             continue;
         }
 
-        if (!directoryStats.isDirectory()) continue;
+        const directory = siblings.find(entry =>
+            entry.isDirectory() && entry.name.toLowerCase() === wanted);
+        if (!directory) continue;
 
-        const entries = await readdir(possibleDirectory);
+        const entries = await readdir(path.join(parent, directory.name));
         if (entries.some(entry => /^index\.mdx?$/i.test(entry))) {
             errors.push(`${relative(file)}: Conflicts with ${relative(possibleDirectory)}/index.md[x]. The site demotes the directory index to /overview/ and can orphan it; keep one landing page for the route.`);
         }
@@ -84,6 +106,15 @@ function relative(file) {
 }
 
 const files = await filesBelow(documentationRoot);
+// A checker that examined nothing reports success just as loudly as one that
+// examined everything. During a restructure that moves pages between folders,
+// a path that silently resolves to an empty tree is exactly the failure this
+// script exists to catch, so refuse to pass vacuously.
+if (files.length === 0) {
+    console.error(`Documentation authoring validation examined 0 files under ${documentationRoot}; the checker is not effective.`);
+    process.exit(1);
+}
+
 for (const file of files) {
     validateContent(file, await readFile(file, 'utf8'));
 }

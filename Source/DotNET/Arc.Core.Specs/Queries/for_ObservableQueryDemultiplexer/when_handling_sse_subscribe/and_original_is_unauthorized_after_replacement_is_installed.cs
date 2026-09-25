@@ -17,9 +17,12 @@ public class and_original_is_unauthorized_after_replacement_is_installed : given
     {
         _performCount = 0;
         _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
-            .Returns(_ => Interlocked.Increment(ref _performCount) == 1
-                ? _originalResult.Task
-                : _replacementResult.Task);
+            .Returns(_ =>
+            {
+                var count = Interlocked.Increment(ref _performCount);
+                _signals.Signal();
+                return count == 1 ? _originalResult.Task : _replacementResult.Task;
+            });
     }
 
     async Task Because()

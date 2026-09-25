@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands.Filters;
 
@@ -12,13 +13,18 @@ namespace Cratis.Arc.Commands.Filters;
 public class AuthorizationFilter(IAuthorizationEvaluator authorizationHelper) : IAuthorizationCommandFilter
 {
     /// <inheritdoc/>
-    public Task<CommandResult> OnExecution(CommandContext context)
+    public async Task<CommandResult> OnExecution(CommandContext context)
     {
-        if (authorizationHelper.IsAuthorized(context.Type))
+        context.CancellationToken.ThrowIfCancellationRequested();
+        if (context.ServiceProvider is null && AuthorizationAttributeGuard.RequiresScopedEvaluation(context.Type))
         {
-            return Task.FromResult(CommandResult.Success(context.CorrelationId));
+            return CommandResult.Unauthorized(context.CorrelationId);
         }
 
-        return Task.FromResult(CommandResult.Unauthorized(context.CorrelationId));
+        var allowed = context.ServiceProvider is { } services
+            ? await services.GetRequiredService<AuthorizationEvaluation>().IsAuthorized(context.Type, context, services, null, authorizationHelper, context.CancellationToken)
+            : authorizationHelper.IsAuthorized(context.Type);
+        context.CancellationToken.ThrowIfCancellationRequested();
+        return allowed ? CommandResult.Success(context.CorrelationId) : CommandResult.Unauthorized(context.CorrelationId);
     }
 }

@@ -71,6 +71,8 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
         try
         {
             yield return 1;
+
+            // Keep the stream in flight until disposal cancels its token.
             await Task.Delay(Timeout.Infinite, cancellationToken);
         }
         finally
@@ -81,7 +83,14 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
 
     static async Task<bool> CompletesWithin(Task task, TimeSpan timeout)
     {
-        var winner = await Task.WhenAny(task, Task.Delay(timeout));
-        return winner == task;
+        try
+        {
+            await task.WaitAsync(timeout);
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
+        }
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -65,6 +66,7 @@ public class ArcApplication : IHost, IAsyncDisposable
     /// <inheritdoc/>
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
+        await Services.GetRequiredService<AuthorizationConfigurationValidator>().Validate(cancellationToken);
         foreach (var action in _startupActions)
         {
             await action(Services);

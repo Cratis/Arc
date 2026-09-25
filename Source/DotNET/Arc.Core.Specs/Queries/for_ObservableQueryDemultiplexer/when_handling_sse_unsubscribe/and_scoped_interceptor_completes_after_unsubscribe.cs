@@ -45,8 +45,11 @@ public class and_scoped_interceptor_completes_after_unsubscribe : given.a_guarde
     [Fact] void should_not_report_the_subscription_as_unauthorized() => HasUnauthorizedFor(FirstQueryId).ShouldBeFalse();
     [Fact] void should_not_send_a_late_error() => HasErrorFor(FirstQueryId).ShouldBeFalse();
 
-    protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes) =>
+    protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
+    {
+        services.AddSingleton(_signals);
         services.AddScoped<ScopedDependency>();
+    }
 
     async Task<IEnumerable<object>> Intercept(IEnumerable<object> data, IServiceProvider provider)
     {
@@ -56,9 +59,13 @@ public class and_scoped_interceptor_completes_after_unsubscribe : given.a_guarde
         return data;
     }
 
-    public class ScopedDependency : IDisposable
+    public class ScopedDependency(given.condition_pulse signals) : IDisposable
     {
         public bool IsDisposed { get; private set; }
-        public void Dispose() => IsDisposed = true;
+        public void Dispose()
+        {
+            IsDisposed = true;
+            signals.Signal();
+        }
     }
 }

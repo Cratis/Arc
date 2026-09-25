@@ -3,5 +3,5 @@
 
 namespace Cratis.Arc.Authorization.for_AspNetAuthorizationAttributeEvaluator.given;
 
-[Authorize(Roles = "Admin,User")]
+[Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,User")]
 public class TypeWithAuthorizeAndRoles;

@@ -1,8 +1,11 @@
-# Commands
+---
+title: Commands
+description: Overview of Arc's low-level TypeScript command primitives in @cratis/arc and where each capability is documented.
+---
 
 Core commands in Arc are the low-level TypeScript/JavaScript primitives used to execute state-changing operations.
 
-This section focuses on command contracts and runtime behavior in `@cratis/arc`. For React-specific ergonomics, see [React Commands](../../react/commands/index.md).
+This section focuses on command contracts and runtime behavior in `@cratis/arc`. For React-specific ergonomics, see [React Commands](../../react/commands/index.mdx).
 
 ## Capabilities
 
@@ -18,4 +21,4 @@ This section focuses on command contracts and runtime behavior in `@cratis/arc`.
 - [Command Result](./command-result.md)
 - [Validation](./validation.md)
 - [Validation](../validation/index.md)
-- [Backend Commands](../../../backend/commands/index.md)
+- [Backend Commands](../../../backend/csharp/commands/index.md)

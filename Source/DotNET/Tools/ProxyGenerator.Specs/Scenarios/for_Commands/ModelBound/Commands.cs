@@ -4,8 +4,13 @@
 using System.ComponentModel.DataAnnotations;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+
+using ArcPrincipalAccessor = Cratis.Arc.Authorization.ICurrentPrincipalAccessor;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_Commands.ModelBound;
 
@@ -151,6 +156,161 @@ public class AuthorizedCommand
     public void Handle()
     {
         // Authorized command
+    }
+}
+
+/// <summary>
+/// A command that requires authorization through Arc's own attribute.
+/// </summary>
+[Command]
+[Cratis.Arc.Authorization.Authorize]
+public class ArcAuthorizedCommand
+{
+    /// <summary>
+    /// Gets or sets the secure data.
+    /// </summary>
+    public string SecureData { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Handles the command.
+    /// </summary>
+    public void Handle()
+    {
+        // Authorized command
+    }
+}
+
+/// <summary>
+/// A command whose policy must authenticate the named scheme before executing.
+/// </summary>
+[Command]
+[Cratis.Arc.Authorization.Authorize(Policy = "ActiveSubscription", AuthenticationSchemes = "Special")]
+public class PolicyProtectedCommand
+{
+    static int _handled;
+    static string? _lastArcCaller;
+    static string? _lastHttpCaller;
+    static string? _lastBoundTenant;
+    static string? _lastRequestServicesTenant;
+    static bool _reusedOldTenantService;
+
+    /// <summary>
+    /// Gets the number of times the handler has executed.
+    /// </summary>
+    public static int Handled => Volatile.Read(ref _handled);
+
+    /// <summary>
+    /// Gets the selected identity observed by Arc's principal accessor inside the handler.
+    /// </summary>
+    public static string? LastArcCaller => Volatile.Read(ref _lastArcCaller);
+
+    /// <summary>
+    /// Gets the selected identity observed by ASP.NET Core inside the handler.
+    /// </summary>
+    public static string? LastHttpCaller => Volatile.Read(ref _lastHttpCaller);
+
+    /// <summary>
+    /// Gets the tenant captured by the command's scoped dependency.
+    /// </summary>
+    public static string? LastBoundTenant => Volatile.Read(ref _lastBoundTenant);
+
+    /// <summary>
+    /// Gets the tenant resolved through the live HTTP context's execution services.
+    /// </summary>
+    public static string? LastRequestServicesTenant => Volatile.Read(ref _lastRequestServicesTenant);
+
+    /// <summary>
+    /// Gets whether the command accidentally reused a service resolved before scheme selection.
+    /// </summary>
+    public static bool ReusedOldTenantService => Volatile.Read(ref _reusedOldTenantService);
+
+    /// <summary>
+    /// Handles an authorized request.
+    /// </summary>
+    /// <param name="principal">The Arc principal.</param>
+    /// <param name="httpContextAccessor">The ASP.NET Core request principal.</param>
+    /// <param name="bound">A scoped collaborator that captures its tenant at construction.</param>
+    public void Handle(ArcPrincipalAccessor principal, IHttpContextAccessor httpContextAccessor, TenantBoundService bound)
+    {
+        var httpContext = httpContextAccessor.HttpContext!;
+        Volatile.Write(ref _lastArcCaller, principal.Current?.Identity?.Name);
+        Volatile.Write(ref _lastHttpCaller, httpContext.User.Identity?.Name);
+        Volatile.Write(ref _lastBoundTenant, bound.Tenant.Value);
+        Volatile.Write(ref _lastRequestServicesTenant, httpContext.RequestServices.GetRequiredService<TenantBoundService>().Tenant.Value);
+        Volatile.Write(ref _reusedOldTenantService, httpContext.Items.TryGetValue("PreResolvedServiceId", out var oldId) && oldId is Guid id && id == bound.Id);
+        Interlocked.Increment(ref _handled);
+    }
+}
+
+/// <summary>
+/// A command that waits for a scoped asynchronous policy before handling.
+/// </summary>
+[Command]
+[Cratis.Arc.Authorization.Authorize(Policy = "Gated")]
+public class GatedCommand
+{
+    static int _handled;
+
+    /// <summary>
+    /// Gets the number of completed handler invocations.
+    /// </summary>
+    public static int Handled => Volatile.Read(ref _handled);
+
+    /// <summary>
+    /// Handles an authorized command.
+    /// </summary>
+    public void Handle() => Interlocked.Increment(ref _handled);
+}
+
+/// <summary>
+/// A command whose policy intentionally ignores cancellation before returning success.
+/// </summary>
+[Command]
+[Cratis.Arc.Authorization.Authorize(Policy = "IgnoringCancellation")]
+public class NonCooperativeCommand
+{
+    static int _handled;
+
+    /// <summary>
+    /// Gets the number of handler invocations.
+    /// </summary>
+    public static int Handled => Volatile.Read(ref _handled);
+
+    /// <summary>
+    /// Executes only after authorization and cancellation checks.
+    /// </summary>
+    public void Handle() => Interlocked.Increment(ref _handled);
+}
+
+/// <summary>
+/// A command that requires authentication without choosing a different scheme.
+/// </summary>
+[Command]
+[Cratis.Arc.Authorization.Authorize]
+public class NoSchemePrincipalCommand
+{
+    static Type? _principalType;
+    static bool _samePrincipal;
+
+    /// <summary>
+    /// Gets the principal's runtime type observed in the handler.
+    /// </summary>
+    public static Type? PrincipalType => _principalType;
+
+    /// <summary>
+    /// Gets whether Arc and ASP.NET Core exposed the same unchanged principal.
+    /// </summary>
+    public static bool SamePrincipal => _samePrincipal;
+
+    /// <summary>
+    /// Handles a request without an identity transition.
+    /// </summary>
+    /// <param name="principal">The Arc principal.</param>
+    /// <param name="http">The ASP.NET Core request.</param>
+    public void Handle(ArcPrincipalAccessor principal, IHttpContextAccessor http)
+    {
+        _principalType = http.HttpContext?.User.GetType();
+        _samePrincipal = ReferenceEquals(principal.Current, http.HttpContext?.User);
     }
 }
 

@@ -12,6 +12,7 @@ import { renderCommandFormDescendants } from './renderCommandFormDescendants';
 import { runCommandValidation } from './runCommandValidation';
 import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime';
 import { CommandFormFieldBinding } from './commandFormFieldBindingContext';
+import { CommandFormNativeResultContext } from './CommandFormNativeResultContext';
 
 export interface ColumnInfo {
     fields: React.ReactElement<CommandFormFieldProps>[];
@@ -35,11 +36,15 @@ const CommandFormFieldWrapper = ({
     field: React.ReactElement<CommandFormFieldProps>;
 }) => {
     const context = useCommandFormContext<unknown>();
+    const nativeResultContext = React.useContext(CommandFormNativeResultContext);
+    const nativeCommandResult = nativeResultContext ? nativeResultContext.result : context.commandResult;
     const fieldProps = field.props as CommandFormFieldProps;
     const propertyAccessor = fieldProps.value;
 
-    // Get the property name from the accessor function
-    const propertyName = propertyAccessor ? getPropertyName(propertyAccessor) : '';
+    // An explicit fieldName wins; a dynamic accessor such as `instance => instance[name]` cannot be
+    // resolved from source text, so inference is only a fallback for ordinary member accessors.
+    const propertyName =
+        fieldProps.fieldName || (propertyAccessor ? getPropertyName(propertyAccessor) : '');
     useCommandFormFieldRegistration(fieldProps, propertyName);
     const hasWarnedAboutInvalidBinding = React.useRef(false);
 
@@ -176,7 +181,7 @@ const CommandFormFieldWrapper = ({
                         } else {
                             // Per-field merge: keep errors from untouched fields, update this field.
                             const currentErrors =
-                                context.commandResult?.validationResults || [];
+                                nativeCommandResult?.validationResults || [];
                             const errorsFromOtherFields = currentErrors.filter(
                                 (vr) => !memberMatchesField(vr.members, propertyName),
                             );
@@ -225,7 +230,7 @@ const CommandFormFieldWrapper = ({
                             } else {
                                 // Per-field merge: keep errors from untouched fields, update this field.
                                 const currentErrors =
-                                    context.commandResult?.validationResults || [];
+                                    nativeCommandResult?.validationResults || [];
                                 const errorsFromOtherFields = currentErrors.filter(
                                     (vr) => !memberMatchesField(vr.members, propertyName),
                                 );
@@ -520,9 +525,9 @@ export const CommandFormFields = (props: CommandFormFieldsProps) => {
             {(fields || []).map((field, index) => {
                 const fieldProps = field.props as CommandFormFieldProps;
                 const propertyAccessor = fieldProps.value;
-                const propertyName = propertyAccessor
-                    ? getPropertyName(propertyAccessor)
-                    : `field-${index}`;
+                const propertyName =
+                    fieldProps.fieldName ||
+                    (propertyAccessor ? getPropertyName(propertyAccessor) : `field-${index}`);
 
                 return (
                     <CommandFormFieldWrapper

@@ -29,6 +29,11 @@ public class registered_read_models : Specification
         clientArtifactsProvider.ModelBoundProjections.Returns([]);
         clientArtifactsProvider.Reducers.Returns([typeof(ReducerForReadModel)]);
 
+        // ReducerReadModel carries no [PII]/[Encrypted] members, so a real IReadModels.Release would be a
+        // no-op that hands the same instance straight back. This fixture is about DI/reducer resolution, not
+        // release itself, so the substitute mirrors that no-op rather than defaulting to null for every call.
+        _readModels.Release(Arg.Any<ReducerReadModel>()).Returns(callInfo => Task.FromResult(callInfo.Arg<ReducerReadModel>()));
+
         var services = new ServiceCollection();
         services.AddReadModels(clientArtifactsProvider);
         services.AddSingleton(_readModels);

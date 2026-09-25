@@ -56,15 +56,40 @@ By the last chapter you'll have a working library back office where a librarian 
 
 ## What you'll learn
 
-- The full Arc loop — **command → read model → query → React** — and how `dotnet build` keeps the two languages in sync.
+- The full Arc loop — **command → read model → query → React** — and how a build (`dotnet build`, or `./gradlew generateArcProxies`) keeps the two languages in sync.
 - How to put **validation and business rules** on a command and have the failure surface in the UI through the generated proxy.
 - How to model a **second feature that reads the first**, and read related data back.
 - How **observable queries** keep a screen live with no polling.
 - How to **authorize** commands and queries at the boundary.
 
+## One tutorial, either backend
+
+There is **one tutorial**, and it is written for both backends. Every backend
+code example has a tab for C# and a tab for Kotlin, and the React code is
+identical for both because they generate the same TypeScript packages. The ideas
+are the same either way — a slice from command to read model to query to screen,
+validation, relating slices, live queries, authorization.
+
+What is **not** the same is the scaffolding around that code: the SDK, the build
+command that regenerates proxies, the database integration, and the way a
+development user signs in. Each chapter names the JVM equivalent where it
+matters, in a note rather than a tab, so neither reader is handed a false
+equivalence.
+
+:::note[Building on Kotlin or Java?]
+Set up first with [Get started with Kotlin](/arc/backend/kotlin/get-started/) or
+[Get started with Java](/arc/backend/kotlin/get-started/java/), which take you
+through the first round trip with Gradle and Spring Boot, then follow the
+chapters below and pick the Kotlin tab. Read "MongoDB or EF Core" as
+[Spring Data MongoDB or Spring Data JPA](/arc/backend/kotlin/guides/spring-data/),
+and keep the [Kotlin and Java documentation](/arc/backend/kotlin/) open for the
+detail a tutorial cannot carry. The [scenario recipes](/arc/scenarios/) show both
+languages side by side too.
+:::
+
 ## What you'll need
 
-Start with [standalone ASP.NET Core setup](/arc/backend/getting-started/), then complete its [backend checkpoint](/arc/backend/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/getting-started/); do not recreate them.
+Start with [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/), then complete its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. On the JVM, [Get started with Kotlin](/arc/backend/kotlin/get-started/) or [Get started with Java](/arc/backend/kotlin/get-started/java/) plays that part: JDK 17, Gradle, the `io.cratis.arc` plugin, `arc-spring-boot-starter`, and a Spring Data integration. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/react/getting-started/); do not recreate them.
 
 No Chronicle package, event store, or `dotnet new cratis` scaffold is required. That template is an **Arc + Chronicle** alternative, not this tutorial's starting point. Backend excerpts assume the setup's imports and namespaces; UI fragments are labeled where they require the surrounding composition.
 

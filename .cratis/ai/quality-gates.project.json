@@ -1,0 +1,24 @@
+{
+  "$comment": [
+    "Copyright (c) Cratis. All rights reserved.",
+    "Licensed under the MIT license. See LICENSE file in the project root for full license information.",
+    "Project-owned override: Arc's package-graph specs pack Release outputs with --no-build --no-restore.",
+    "The preceding Debug build restores net10.0 only. Prepare the Release package graph immediately before specs, as package-graph-verification.yml does.",
+    "Keep every Debug spec enabled and propagate any prerequisite or test failure."
+  ],
+  "gates": [
+    {
+      "id": "backend-specs",
+      "description": "Prepare Release package outputs, then run all Debug specs — zero failures",
+      "workingDirectory": ".",
+      "requires": {
+        "commands": ["bash", "dotnet"]
+      },
+      "command": [
+        "bash",
+        "-c",
+        "set -euo pipefail; dotnet build Source/DotNET/Cratis/Cratis.csproj --configuration Release; dotnet build Source/DotNET/Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj --configuration Release; dotnet test --configuration Debug --no-build"
+      ]
+    }
+  ]
+}

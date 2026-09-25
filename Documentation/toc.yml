@@ -6,28 +6,26 @@
   href: why-arc.md
 - name: CQRS without event sourcing
   href: arc-without-event-sourcing.md
-- name: MediatR, MVC, and Arc
-  href: coming-from-mediatr-and-mvc.md
 - name: Vertical slices
   href: vertical-slices.md
 - name: Understanding the proxy boundary
   href: understanding-the-proxy-boundary.mdx
 - name: Understanding identity and access
   href: understanding-identity-and-access.mdx
-- name: Generating a Screenplay
-  href: generating-a-screenplay.md
+- name: HTTP contract
+  href: http-contract.md
+- name: Capability matrix
+  href: capabilities.md
+- name: Glossary
+  href: glossary.md
 - name: Scenarios
   href: scenarios/toc.yml
-- name: Backend
-  href: backend/toc.yml
-- name: Integrations
-  items:
-    - name: Chronicle
-      href: backend/chronicle/toc.yml
+- name: Backend overview
+  href: backend/index.md
+- name: C#
+  href: backend/csharp/toc.yml
 - name: Frontend
   href: frontend/toc.yml
-- name: General
-  href: general/toc.yml
 - name: Troubleshooting
   href: troubleshooting.md
 - name: Api

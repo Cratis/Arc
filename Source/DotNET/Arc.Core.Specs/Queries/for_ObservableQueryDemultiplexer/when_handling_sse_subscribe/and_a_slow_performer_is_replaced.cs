@@ -30,6 +30,7 @@ public class and_a_slow_performer_is_replaced : given.a_guarded_sse_connection
                     _performStarted.TrySetResult();
                     try
                     {
+                        // This performer stays in flight until replacement cancels its token.
                         await Task.Delay(Timeout.InfiniteTimeSpan, token);
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested)

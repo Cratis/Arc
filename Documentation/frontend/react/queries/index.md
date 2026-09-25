@@ -1,4 +1,7 @@
-# Queries
+---
+title: Queries
+description: "Overview of React query capabilities in Arc: request/response reads, paging, conditional and suspense queries, and live observable streams."
+---
 
 React queries in Arc provide strongly typed data-access patterns for request/response reads, paged views, and live observable streams.
 
@@ -9,7 +12,7 @@ This page is an overview of capabilities. Detailed behavior is documented on the
 | Capability | What It Covers | Learn More |
 | ---------- | -------------- | ---------- |
 | Arc-level configuration | Query-related `<Arc />` props for transport, headers, and stream transfer mode | [Configuration](./configuration.md) |
-| Core query usage | `use()` patterns, arguments, and `QueryResultWithState` | [Core Query Usage](./usage.md) |
+| Core query usage | `use()` patterns, arguments, and `QueryResultWithState` | [Core Query Usage](./usage.mdx) |
 | Paging and sorting | `useWithPaging`, page/sort callbacks, and paging metadata | [Paging](./paging.md) |
 | Observable streams | Real-time subscriptions, transport selection, and direct mode | [Observable Queries](./observable-queries.md) |
 | Diagnostics | Live snapshots for cache, transport, and ownership state | [Observable Query Diagnostics](./observable-query-diagnostics.md) |
@@ -26,8 +29,8 @@ For low-level query contracts and non-React runtime behavior, see [Frontend Core
 
 ## Backend References
 
-- [Backend Queries Overview](../../../backend/queries/index.md)
-- [Controller-based Queries](../../../backend/queries/controller-based/index.md)
-- [Model-bound Queries](../../../backend/queries/model-bound/index.md)
-- [Query Pipeline](../../../backend/queries/query-pipeline.md)
-- [Backend Proxy Generation](../../../backend/proxy-generation/index.md)
+- [Backend Queries Overview](../../../backend/csharp/queries/index.md)
+- [Controller-based Queries](../../../backend/csharp/queries/controller-based/index.md)
+- [Model-bound Queries](../../../backend/csharp/queries/model-bound/index.md)
+- [Query Pipeline](../../../backend/csharp/queries/query-pipeline.md)
+- [Backend Proxy Generation](../../../backend/csharp/proxy-generation/index.md)

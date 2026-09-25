@@ -190,5 +190,41 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Arc coerces a query argument to the declared parameter type before validation runs, and resolves a ConceptAs<T>'s validator by the value's runtime type — so a parameter declared as the concept is validated, and one declared as a raw string or Guid is not. Converting inside the body produces the concept the query wanted while skipping the rules that guard it, silently and with nothing in the build, the lint step or the spec suite to notice. Declare the parameter as the concept. Two things change when you do: an omitted argument deserializes to null rather than to the concept's NotSet, so a null-safe guard over the raw value has to be made null-aware rather than deleted; and the concept's validator becomes reachable, which is what is wanted for a keyed lookup and may be too strict for free-text search — suppress the rule at those sites.");
 
+    /// <summary>
+    /// ARC0019: [AllowAnonymous] declared together with [Authorize] or [Roles] on one declaration.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0019_ConflictingAuthorizationOnDeclaration = new(
+        id: "ARC0019",
+        title: "[AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration",
+        messageFormat: "'{0}' is marked both [AllowAnonymous] and [{1}]. The two contradict each other, and Arc rejects the declaration. Keep one of them.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A single declaration that both opens itself to anonymous callers and restricts itself to authenticated or role-holding ones has no defensible reading. Arc rejects it with AmbiguousAuthorizationLevel regardless of evaluator order. Declare one or the other. Overriding a class-level declaration on one query method is a different, supported thing and is not reported.");
+
+    /// <summary>
+    /// ARC0020: ASP.NET Core authorization attribute on a model-bound Arc artifact without Arc's ASP.NET Core integration.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0020_AspNetAuthorizationAttributeOnModelBoundArtifact = new(
+        id: "ARC0020",
+        title: "ASP.NET Core authorization attribute is not enforced without Arc's ASP.NET Core integration",
+        messageFormat: "[{0}] on '{1}' comes from Microsoft.AspNetCore.Authorization, and this project does not use Arc's ASP.NET Core integration, which is what enforces it. Use Cratis.Arc.Authorization.{2}Attribute instead.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Arc's ASP.NET Core integration (the Cratis.Arc package) enforces ASP.NET Core's [Authorize] and [AllowAnonymous] on model-bound commands and read models alongside Arc's own attributes. A project hosted without it - on Arc Core's own HTTP host, for example - has nothing that reads the ASP.NET Core attributes, so a command marked with one stays open to every caller. Use the Arc attribute of the same name, which every Arc host enforces.");
+
+    /// <summary>
+    /// ARC0021: Authentication scheme that requires the ASP.NET Core host.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0021_AuthorizationSettingNotEvaluated = new(
+        id: "ARC0021",
+        title: "Authentication scheme requires the ASP.NET Core host",
+        messageFormat: "[{0}] on '{1}' sets {2}, which requires Arc's ASP.NET Core integration. The standalone Arc host rejects this setting at startup.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Named policies are supported on both Arc hosts. AuthenticationSchemes requires the ASP.NET Core host's authentication service; the standalone Arc host rejects explicit schemes at startup. Use Arc's ASP.NET Core integration for scheme-specific authentication.");
+
     const string Category = "Arc";
 }

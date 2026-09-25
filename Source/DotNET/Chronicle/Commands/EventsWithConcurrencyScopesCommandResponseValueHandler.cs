@@ -20,6 +20,11 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var response = (EventsWithConcurrencyScopes)value;
+        if (response.Events.Count == 0 && response.ConcurrencyScopes.Count == 0)
+        {
+            return CommandResult.Success(commandContext.CorrelationId);
+        }
+
         var events = response.Events
             .Select(@event => eventLog.WithCommandMetadata(@event, commandContext))
             .ToArray();

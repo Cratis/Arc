@@ -25,6 +25,8 @@ public class AuthenticationMiddleware(IAuthentication authentication)
             return true;
         }
 
+        context.SetEndpointMetadata(metadata);
+
         var result = await authentication.HandleAuthentication(context);
 
         if (result.IsAuthenticated)

@@ -1,4 +1,7 @@
-# Command Contracts
+---
+title: Command Contracts
+description: Reference for the ICommand contract in @cratis/arc that generated command proxies implement.
+---
 
 Core command support in `@cratis/arc` is built around typed command classes generated from backend command definitions.
 
@@ -57,4 +60,4 @@ The callback and its receiver are weakly referenced. Supply the required receive
 
 - [Validation And Results](./validation-and-results.md)
 - [Configuration](./configuration.md)
-- [React Commands](../../react/commands/index.md)
+- [React Commands](../../react/commands/index.mdx)

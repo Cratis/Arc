@@ -1,4 +1,7 @@
-# Backend Integration
+---
+title: Backend Integration
+description: How core TypeScript queries map to controller-based and model-bound backend query endpoints through generated proxies.
+---
 
 Core queries map directly to backend query endpoints and generated query proxies.
 
@@ -6,8 +9,8 @@ Core queries map directly to backend query endpoints and generated query proxies
 
 Arc supports both backend styles:
 
-- [Controller-based Queries](../../../backend/queries/controller-based/index.md)
-- [Model-bound Queries](../../../backend/queries/model-bound/index.md)
+- [Controller-based Queries](../../../backend/csharp/queries/controller-based/index.md)
+- [Model-bound Queries](../../../backend/csharp/queries/model-bound/index.md)
 
 Both styles generate equivalent frontend proxy ergonomics.
 
@@ -18,7 +21,7 @@ Both styles generate equivalent frontend proxy ergonomics.
 - Automatic sync with backend contract changes
 - Consistent wrapper/result handling
 
-For setup details, see [Backend Proxy Generation](../../../backend/proxy-generation/index.md).
+For setup details, see [Backend Proxy Generation](../../../backend/csharp/proxy-generation/index.md).
 
 ## React Layer
 

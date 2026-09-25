@@ -43,6 +43,7 @@ public class and_async_enumerable_guard_completes_after_unsubscribe : given.a_gu
     protected override void ConfigureGuards(IServiceCollection services, List<Type> guardTypes)
     {
         services.AddSingleton(new AwaitingGuardState(_guardStarted, _guardRelease, _dependencies));
+        services.AddSingleton(_signals);
         services.AddScoped<ScopedDependency>();
         guardTypes.Add(typeof(AwaitingGuard));
     }
@@ -52,6 +53,8 @@ public class and_async_enumerable_guard_completes_after_unsubscribe : given.a_gu
         try
         {
             yield return ["item-a"];
+
+            // Keep the stream in flight until unsubscription cancels its token.
             await Task.Delay(Timeout.Infinite, cancellationToken);
         }
         finally
@@ -65,10 +68,14 @@ public class and_async_enumerable_guard_completes_after_unsubscribe : given.a_gu
         TaskCompletionSource Release,
         List<ScopedDependency> Dependencies);
 
-    public class ScopedDependency : IDisposable
+    public class ScopedDependency(given.condition_pulse signals) : IDisposable
     {
         public bool IsDisposed { get; private set; }
-        public void Dispose() => IsDisposed = true;
+        public void Dispose()
+        {
+            IsDisposed = true;
+            signals.Signal();
+        }
     }
 
     public class AwaitingGuard(AwaitingGuardState state, ScopedDependency dependency) : IGuardObservableQueryEmission

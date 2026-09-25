@@ -3,7 +3,9 @@
 
 using System.Collections.ObjectModel;
 using System.Security.Claims;
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.Queries;
 
@@ -22,10 +24,13 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     IHttpRequestContext requestContext,
     IHttpRequestContext transportContext,
     IServiceProvider requestServices,
-    CancellationToken requestAborted) : IHttpRequestContext
+    CancellationToken requestAborted) : IHttpRequestContext, IAuthorizationRequestContext
 {
     readonly IHttpRequestContext _transportContext = transportContext;
-    readonly ClaimsPrincipal _user = ClonePrincipal(requestContext.User);
+    ClaimsPrincipal _user = ClonePrincipal(requestContext.User);
+    IServiceProvider _requestServices = requestServices;
+    TenantId? _emissionTenant;
+    Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? _nativeRequest;
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<string, string> Query { get; } = Snapshot(requestContext.Query);
@@ -46,7 +51,7 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     public string Method { get; } = requestContext.Method ?? string.Empty;
 
     /// <inheritdoc/>
-    public IServiceProvider RequestServices { get; } = requestServices;
+    public IServiceProvider RequestServices => _requestServices;
 
     /// <inheritdoc/>
     public CancellationToken RequestAborted { get; } = requestAborted;
@@ -120,11 +125,57 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     public Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default) =>
         _transportContext.WriteResponseAsJson(value, type, cancellationToken);
 
+    /// <inheritdoc/>
+    IDisposable IAuthorizationRequestContext.BeginSelectedPrincipal(ClaimsPrincipal principal, IServiceProvider services) =>
+        BeginSelectedPrincipal(principal, services);
+
     /// <summary>
     /// Gets the frozen principal snapshot used by the explicit emission context.
     /// </summary>
     /// <returns>An isolated clone of the principal snapshot.</returns>
     internal ClaimsPrincipal GetPrincipal() => ClonePrincipal(_user);
+
+    /// <summary>
+    /// Freezes the identity selected by authorization before the subscription begins emitting.
+    /// </summary>
+    /// <param name="principal">The authenticated scheme principal.</param>
+    /// <param name="services">The owned execution provider retained until the subscription ends, when selected.</param>
+    internal void SelectAuthorizedPrincipal(ClaimsPrincipal principal, IServiceProvider? services = null)
+    {
+        _user = ClonePrincipal(principal);
+        if (services is not null)
+        {
+            _requestServices = services;
+        }
+    }
+
+    /// <summary>
+    /// Temporarily exposes the selected principal to tenant resolution during subscription admission.
+    /// </summary>
+    /// <param name="principal">The selected principal.</param>
+    /// <param name="services">The clean execution services for this subscription.</param>
+    /// <returns>A scope restoring the original subscription identity before the final snapshot is chosen.</returns>
+    internal IDisposable BeginSelectedPrincipal(ClaimsPrincipal principal, IServiceProvider services)
+    {
+        var previous = _user;
+        var previousServices = _requestServices;
+        _user = ClonePrincipal(principal);
+        _requestServices = services;
+        return new SelectedPrincipalScope(this, previous, previousServices);
+    }
+
+    /// <summary>Captures the direct stream's selected tenant and live native request scope.</summary>
+    /// <param name="tenant">The selected tenant.</param>
+    /// <param name="nativeRequest">A scope factory limited to this live HTTP request.</param>
+    internal void ConfigureEmission(TenantId tenant, Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? nativeRequest)
+    {
+        _emissionTenant = tenant;
+        _nativeRequest = nativeRequest;
+    }
+
+    /// <summary>Restores the subscriber's identity around a direct stream emission.</summary>
+    /// <returns>An operation-local identity scope.</returns>
+    internal IDisposable BeginEmission() => ObservableEmissionIdentity.Begin(this, RequestServices, GetPrincipal(), _emissionTenant, _nativeRequest);
 
     static ReadOnlyDictionary<string, string> Snapshot(IReadOnlyDictionary<string, string>? values) =>
         new(new Dictionary<string, string>(values ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase));
@@ -133,4 +184,13 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
         principal is null
             ? new ClaimsPrincipal()
             : new ClaimsPrincipal(principal.Identities.Select(identity => identity.Clone()));
+
+    sealed class SelectedPrincipalScope(ObservableQuerySubscriptionHttpRequestContext context, ClaimsPrincipal previous, IServiceProvider previousServices) : IDisposable
+    {
+        public void Dispose()
+        {
+            context._requestServices = previousServices;
+            context._user = previous;
+        }
+    }
 }

@@ -34,6 +34,9 @@ public class and_command_is_executed : Specification
         _readModels
             .GetInstanceById(typeof(AccountBalanceReadModel), _eventSourceId, default)
             .Returns(Task.FromResult<object>(new AccountBalanceReadModel(42m)));
+        _readModels
+            .Release(Arg.Any<AccountBalanceReadModel>())
+            .Returns(callInfo => Task.FromResult(callInfo.Arg<AccountBalanceReadModel>()));
         _scenario.Services.Replace(new ServiceDescriptor(typeof(IReadModels), _readModels));
     }
 

@@ -8,6 +8,7 @@ import { IIdentity } from '@cratis/arc/identity';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { GetHttpHeaders } from '@cratis/arc';
 import { ArcContext } from '../ArcContext';
+import { BrowserNavigation } from './BrowserNavigation';
 
 const defaultIdentityContext: IIdentity = {
     id: '',
@@ -104,6 +105,7 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
 
     const wrapRefresh = (identity: IIdentity): IIdentity => {
         const originalRefresh = identity.refresh.bind(identity);
+        const wasSignedIn = identity.isSet;
         return {
             ...identity,
             refresh: () => {
@@ -116,6 +118,22 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
                             detailsConstructor: props.detailsType,
                             isLoading: false
                         });
+
+                        if (wasSignedIn && !newIdentity.isSet) {
+                            // The session that was signed in when this identity was resolved has ended
+                            // server-side - the ticket expired, or the tenant/authorization it depended
+                            // on was revoked. Settling into an unset identity here would leave the tab
+                            // showing a stuck "not signed in" state that nothing in it can act on: every
+                            // command keeps failing silently and the observable connections opened while
+                            // still authenticated keep streaming stale data. A full reload sends the
+                            // browser through an ordinary top-level navigation instead, which AuthProxy
+                            // already answers correctly by redirecting to sign in. The promise still
+                            // settles normally - the reload is a side effect, not a replacement for it -
+                            // so nothing awaiting this refresh is left hanging in the moment before the
+                            // navigation actually tears the page down.
+                            BrowserNavigation.reload();
+                        }
+
                         resolve(wrappedIdentity);
                     }).catch(error => {
                         // The identity that is still in state is the one from before the refresh, and it

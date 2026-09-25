@@ -31,7 +31,7 @@ public class and_requesting_directory_with_default_file : given.a_static_files_m
     {
         _contextTask = _listener.GetContextAsync();
 
-        var responseTask = _client.GetAsync($"http://localhost:{_port}/");
+        var responseTask = _client.GetAsync($"http://{LoopbackHost}:{_port}/");
 
         var context = await _contextTask;
 

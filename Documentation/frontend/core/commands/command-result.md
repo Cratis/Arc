@@ -1,4 +1,7 @@
-# CommandResult
+---
+title: CommandResult
+description: "Read a CommandResult: success, authorization, validation, exception details, and response values, and chain handlers per outcome."
+---
 
 When a command is executed, it returns a `CommandResult<TResponse>` that provides comprehensive information about the execution outcome. The result includes success/failure status, validation errors, authorization status, exceptions, and optional response data.
 
@@ -15,10 +18,13 @@ interface ICommandResult<TResponse = object> {
     readonly hasExceptions: boolean;
     readonly validationResults: ValidationResult[];
     readonly exceptionMessages: string[];
+    readonly authorizationFailureReason: string;
     readonly exceptionStackTrace: string;
     readonly response?: TResponse;
 }
 ```
+
+`authorizationFailureReason` carries the reason a command was not authorized when the server supplies one; it is empty otherwise.
 
 ## Status Properties
 
@@ -200,10 +206,10 @@ A rejection your own rules produced and one the framework composed on your behal
 
 ### Optional Chronicle rejection handling
 
-The next two fragments apply only when using the [Chronicle command integration](../../../backend/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `retry` and `setFieldError` below represent application-owned actions, not Arc APIs.
+The next two fragments apply only when using the [Chronicle command integration](../../../backend/csharp/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `retry` and `setFieldError` below represent application-owned actions, not Arc APIs.
 
 ```typescript
-import { ValidationResultReason } from '@cratis/arc';
+import { ValidationResultReason } from '@cratis/arc/validation';
 
 const result = await command.execute();
 
@@ -260,10 +266,12 @@ if (result.hasExceptions) {
         console.error('Exception:', msg);
     });
 
-    // Full stack trace for debugging
+    // Stack trace, when the server exposes exception detail
     console.error('Stack trace:', result.exceptionStackTrace);
 }
 ```
+
+For model-bound commands, exception detail is exposed only when `ArcOptions.ExposeExceptionDetails` is `true`, which is the default in Development only. Elsewhere the server replaces the messages with a generic message, leaves `exceptionStackTrace` empty, and logs the full detail server-side; use `correlationId` to find it in the logs. Controller-based commands currently return exception messages and stack traces without that redaction, so do not rely on it for controller endpoints. See the [command result envelope](../../../http-contract.md#command-result-envelope).
 
 ## Chaining Callbacks
 
@@ -360,5 +368,5 @@ This is especially useful for debugging and support scenarios.
 ## Related Topics
 
 - [Commands](./index.md) - Core command concepts and usage
-- [React Commands](../../react/commands/index.md) - Using commands in React components
-- [Validation](../../../backend/commands/validation.md) - Understanding validation rules
+- [React Commands](../../react/commands/index.mdx) - Using commands in React components
+- [Validation](../../../backend/csharp/commands/validation.md) - Understanding validation rules

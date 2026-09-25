@@ -1,4 +1,7 @@
-# Identity
+---
+title: Identity
+description: How the frontend reads identity from the .cratis-identity cookie, falls back to /.cratis/me, and exposes it through the core identity API.
+---
 
 The frontend identity is based on information it gets from a cookie called `.cratis-identity`. The purpose of this is to be able to
 provide identity information to the client at the first render. This allows for a better developer and user experience, as there is no need
@@ -8,7 +11,7 @@ If this cookie does not exist, the client calls `/.cratis/me`. This fallback is 
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
-> a browser extension. Read more [about generating principals](../../general/generating-principal.md).
+> a browser extension. Read more [about generating principals](../../backend/csharp/development/generating-principal.md).
 
 This information found in the cookie is a base64 encoded string containing the JSON structure that is expected.
 
