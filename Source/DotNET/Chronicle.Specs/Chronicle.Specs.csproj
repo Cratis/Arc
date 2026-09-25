@@ -6,6 +6,22 @@
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
         <TargetFrameworks>net10.0</TargetFrameworks>
+        <!-- Cratis.Chronicle.CodeAnalysis's compile-time analyzers assume every type is a real,
+             running Chronicle artifact. This project unit-tests Arc's own reflection/discovery code
+             (ModelBoundReadModelRoots, EventStreamIdValuesProvider, the command pipeline's append
+             handlers) against NSubstitute mocks of IEventLog/IEventSequence and minimal fixture types
+             that never reach the real Chronicle runtime, so the analyzers fire false positives here:
+             CHR0001 treats an NSubstitute `.Received().Append(...)` verification as a real append;
+             CHR0003 wants every type referenced by [ChildrenFrom<T>] marked [EventType], but several
+             fixtures across this project reuse the same short name (e.g. ChildAdded) for unrelated
+             scenarios, and [EventType] identity is assembly-wide - marking them collides at runtime
+             with MultipleEventTypesWithSameIdFound long before the analyzer's own concern applies;
+             CHR0024 treats any type that merely uses [ChildrenFrom<T>] as a populated read model, even
+             when the property is set directly in a constructor to test discovery, not AutoMap; CHR0027
+             makes it impossible to compile the test that proves Provide() throws AmbiguousEventStreamId
+             for a command that both implements ICanProvideEventStreamId and declares [EventStreamId] -
+             which is precisely the scenario that spec constructs on purpose. Reported upstream. -->
+        <NoWarn>$(NoWarn);CHR0001;CHR0003;CHR0024;CHR0027</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Hosting" />

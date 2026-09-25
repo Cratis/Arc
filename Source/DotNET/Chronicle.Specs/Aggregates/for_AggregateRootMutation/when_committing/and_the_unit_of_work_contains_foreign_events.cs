@@ -14,10 +14,10 @@ namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutation.when_committ
 public class and_the_unit_of_work_contains_foreign_events : given.an_aggregate_mutation
 {
     [EventType]
-    class AggregateEvent;
+    record AggregateEvent;
 
     [EventType]
-    class ForeignEvent;
+    record ForeignEvent;
 
     AggregateEvent _aggregateEvent;
     AggregateRootCommitResult _result;

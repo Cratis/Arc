@@ -9,7 +9,7 @@ namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutation.when_committ
 public class with_two_uncommitted_events : given.an_aggregate_mutation
 {
     [EventType]
-    class SimpleEvent;
+    record SimpleEvent;
 
     IEnumerable<SimpleEvent> _events;
     SimpleEvent _firstEvent;

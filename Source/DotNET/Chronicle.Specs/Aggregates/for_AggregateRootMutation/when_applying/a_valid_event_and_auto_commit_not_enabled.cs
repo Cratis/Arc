@@ -10,7 +10,7 @@ namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutation.when_applyin
 public class a_valid_event_and_auto_commit_not_enabled : given.an_aggregate_mutation
 {
     [EventType]
-    class SomeEvent;
+    record SomeEvent;
 
     SomeEvent _event;
     Causation _causationResult;
