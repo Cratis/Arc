@@ -24,5 +24,5 @@ public class OrderReports : IProjectionFor<Order>
 {
     /// <inheritdoc/>
     public void Define(IProjectionBuilderFor<Order> builder) => builder
-        .From<OrderPlaced>(_ => _.Set(m => m.Sku).To(e => e.Sku));
+        .From<OrderPlaced>();
 }
