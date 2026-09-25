@@ -66,4 +66,14 @@ public static class HttpRequestContextExtensions
         context.SetResponseHeader("Connection", "keep-alive");
         context.SetResponseHeader("X-Accel-Buffering", "no");
     }
+
+    /// <summary>
+    /// Prevents identity-bearing responses from being stored by caches.
+    /// </summary>
+    /// <param name="context">The <see cref="IHttpRequestContext"/>.</param>
+    internal static void SetNoStoreResponseHeaders(this IHttpRequestContext context)
+    {
+        context.SetResponseHeader("Cache-Control", "no-store, private");
+        context.SetResponseHeader("Vary", "Cookie");
+    }
 }
