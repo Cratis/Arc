@@ -16,12 +16,19 @@
     <!-- Microsoft.OpenApi 2.0.0 (pulled in transitively by Microsoft.AspNetCore.OpenApi) has a high-severity
          advisory (GHSA-v5pm-xwqc-g5wc). Pin to the patched 2.x release. -->
     <PackageVersion Include="Microsoft.OpenApi" Version="2.12.0" />
+    <!-- Cratis.Chronicle.Testing 19.7.1 pulls in Cratis.Orleans.Storage.MongoDB, which depends on
+         both the current Orleans line (10.3.1, via Cratis.Orleans) and Orleans.Providers.MongoDB
+         9.5.0, which itself still targets Orleans 9 and drags in Microsoft.Orleans.Reminders 9.0.1.
+         A Reminders assembly from a different Orleans major than the rest of Orleans throws
+         MissingMethodException the moment a silo builds its grain services, so pin it to the same
+         version as the rest of the Orleans packages here. -->
+    <PackageVersion Include="Microsoft.Orleans.Reminders" Version="10.3.1" />
     <!-- Cratis -->
-    <PackageVersion Include="Cratis.Chronicle" Version="19.4.2" />
-    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.4.2" />
-    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.4.2" />
-    <PackageVersion Include="Cratis.Fundamentals" Version="7.19.3" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.19.3" />
+    <PackageVersion Include="Cratis.Chronicle" Version="19.7.1" />
+    <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.7.1" />
+    <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.7.1" />
+    <PackageVersion Include="Cratis.Fundamentals" Version="7.19.4" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.19.4" />
     <PackageVersion Include="Cratis.Screenplay" Version="4.12.1" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.0" />
@@ -50,7 +57,7 @@
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
     <!-- Third Party -->
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
-    <PackageVersion Include="MongoDB.Driver" Version="3.11.1" />
+    <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
     <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
          NuGet still orders it above 0.50.4, depending on it forces every consumer that also pulls a
