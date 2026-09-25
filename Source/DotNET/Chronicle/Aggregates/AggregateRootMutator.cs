@@ -52,15 +52,17 @@ public class AggregateRootMutator(
             });
         }
 
-        // We should look at improving how we set the NextSequenceNumber and instead rely only on that, perhaps by returning the last event sequence number. https://github.com/Cratis/Chronicle/issues/1400
-        if (aggregateRootContext.NextSequenceNumber == EventSequenceNumber.First)
+        // The concurrency scope covers this source, stream and source type (not just handled event types).
+        // Capture that tail even when handling events has already advanced NextSequenceNumber.
+        var tailSequenceNumber = await aggregateRootContext.EventSequence.GetTailSequenceNumber(
+            aggregateRootContext.EventSourceId,
+            aggregateRootContext.EventSourceType,
+            aggregateRootContext.EventStreamType,
+            aggregateRootContext.EventStreamId);
+        if (tailSequenceNumber.IsActualValue)
         {
-            var lastHandledEventSequenceNumber = await aggregateRootContext.EventSequence.GetTailSequenceNumber(aggregateRootContext.EventSourceId);
-            if (lastHandledEventSequenceNumber.IsActualValue)
-            {
-                aggregateRootContext.TailEventSequenceNumber = lastHandledEventSequenceNumber;
-                aggregateRootContext.HasEvents = true;
-            }
+            aggregateRootContext.TailEventSequenceNumber = tailSequenceNumber;
+            aggregateRootContext.HasEvents = true;
         }
     }
 
