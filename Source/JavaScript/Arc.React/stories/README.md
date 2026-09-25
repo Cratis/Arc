@@ -4,7 +4,7 @@ Common components and utilities for creating beautiful Storybook stories that au
 
 ## Documentation
 
-For complete documentation on using Story Components, see the [Story Components Documentation](../../../Documentation/frontend/react/stories/index.md).
+For complete documentation on using Story Components, see the [Story Components Documentation](../../../../Documentation/frontend/react/stories/index.md).
 
 The documentation covers:
 

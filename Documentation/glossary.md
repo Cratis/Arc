@@ -27,15 +27,18 @@ glossary: [C#](/arc/backend/csharp/) and
   handled.
 - **Command key** — the property that says *which* thing a command acts on.
   `[Key]` / `ICanProvideKeyForCommand` in C#, `@CommandKey` /
-  `CommandKeyProvider` on the JVM. Exactly one per command; a command that
-  creates something new has none.
+  `CommandKeyProvider` on the JVM. At most one per command; a command that
+  creates something new usually has none. Mark only one property: C# uses the
+  first `[Key]` property it finds rather than rejecting a second.
 - **Command result** — the envelope every command returns: whether it succeeded,
   the response value if any, validation results, and whether the caller was
   authorized. The frontend reads the same shape from either backend.
 - **Command filter** — a cross-cutting rule applied around command execution.
 - **Execution scope** — a lifetime concern bracketing a whole command: it begins
-  before filters and the handler and completes afterwards for every outcome,
-  which is how a transaction wraps a command rather than living inside it.
+  before filters and the handler and completes afterwards whatever they decide,
+  which is how a transaction wraps a command rather than living inside it. In
+  C#, a command rejected by its up-front role check, or sent only to be
+  validated, never begins its execution scopes.
 
 ## Read side
 
@@ -55,13 +58,15 @@ glossary: [C#](/arc/backend/csharp/) and
 ## Validation and access
 
 - **Validation result** — a rejection with a message, the members it concerns and
-  a severity. Produced before the handler runs, and surfaced in the command
-  result so the frontend can show it against the right field.
+  a severity. Usually produced by validators before the handler runs; a handler
+  can also return one. Either way it is surfaced in the command result so the
+  frontend can show it against the right field.
 - **Concept** — a wrapper giving a domain value its own type rather than passing
   a bare primitive: `ConceptAs<T>` in both implementations. Validation attached to
   a concept travels with the value everywhere it appears.
 - **Identity details** — the application's own answer to "who is this user", built
-  once per request from the authenticated principal and exposed to the frontend.
+  from the authenticated principal when the frontend asks for identity
+  (`/.cratis/me` in C#), not on every command or query request.
 - **Authorization metadata** — the roles or policy a command or query requires.
   Declared on the type and overridable per operation, so a class can be closed by
   default and one operation opened.

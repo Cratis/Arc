@@ -46,5 +46,5 @@ Both packages use the same `Microsoft.OpenApi` types for representing OpenAPI sc
 
 ## Requirements
 
-- .NET 9.0 or later
+- .NET 10.0 or later
 - Microsoft.AspNetCore.OpenApi
