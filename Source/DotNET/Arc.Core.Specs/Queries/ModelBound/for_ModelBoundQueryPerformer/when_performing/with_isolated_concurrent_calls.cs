@@ -3,7 +3,10 @@
 
 namespace Cratis.Arc.Queries.ModelBound.for_ModelBoundQueryPerformer.when_performing;
 
-public class with_concurrent_first_use : given.a_model_bound_query_performer
+/// <summary>
+/// Smoke test for per-call argument isolation during concurrent execution.
+/// </summary>
+public class with_isolated_concurrent_calls : given.a_model_bound_query_performer
 {
     public record TestReadModel(object Dependency, string Name, int Age)
     {
