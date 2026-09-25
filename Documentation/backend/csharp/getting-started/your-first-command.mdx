@@ -140,16 +140,32 @@ flowchart LR
 
 ```bash
 dotnet build -c Debug
-dotnet run --no-build --no-launch-profile --environment Development --urls http://localhost:5000
+dotnet run --no-build --no-launch-profile \
+  -e ASPNETCORE_ENVIRONMENT=Development --urls http://localhost:5000
 ```
 
 After the build, check for `src/Authors/RegisterAuthor.ts` and `src/Authors/Author.ts`. With source-file output enabled, the latter contains the `AllAuthors` query as well as the author shape. Do not edit either generated file.
 
-The host should listen on port 5000. EF creates the initial SQLite schema at startup; MongoDB should already report a writable primary. If either fails, fix storage before moving to the browser.
+The console should print `Now listening on: http://localhost:5000` and `Hosting environment: Development`. EF creates the initial SQLite schema at startup; MongoDB should already report a writable primary. If either fails, fix storage before moving to the browser.
+
+<Aside type="caution" title="Set the environment through ASPNETCORE_ENVIRONMENT">
+`--no-launch-profile` skips the Development environment that `launchSettings.json` would set, so the command sets `ASPNETCORE_ENVIRONMENT` itself. In the .NET 10 SDK, `dotnet run -e` (long form `--environment`) sets an environment *variable* as `NAME=VALUE`; `--environment Development` does not select an ASP.NET Core environment. If the log says `Hosting environment: Production`, `appsettings.Development.json` was not loaded: the MongoDB branch then stops at startup because `Server` and `Database` are required, and the authorization chapter's Development-only sign-in is never registered.
+</Aside>
 
 <Aside type="note" title="Build success is not a write test">
 This checkpoint establishes compilation, proxy output, and host/storage startup. The next lesson executes a command and verifies persisted data through the query. It does not assume that a green build proves the write worked.
 </Aside>
+
+To exercise the backend before any UI exists, call the routes the generated proxies use. From a second terminal:
+
+```bash
+curl -s -X POST http://localhost:5000/api/library/authors/register-author \
+  -H 'Content-Type: application/json' \
+  -d '{"id":"8f7c7c52-2d5d-4c1e-9a55-0c1f2b8a6f10","name":"Ursula K. Le Guin"}'
+curl -s http://localhost:5000/api/library/authors/all-authors
+```
+
+The command returns `"isSuccess":true`, and the query's `data` array contains the author. Run the command once: the id is the stored key, so repeating it reports a storage error rather than a second author. The routes come from the namespace (`Library.Authors`) plus the command or query name, and the generated `route` fields in `RegisterAuthor.ts` and `Author.ts` show the same paths. Nothing validates the name yet, so a blank name is also accepted until [chapter 2](/arc/tutorial/validation/) adds the rules.
 
 ## Continue in the browser
 

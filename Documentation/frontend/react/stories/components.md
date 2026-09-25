@@ -1,4 +1,7 @@
-# Story Components Reference
+---
+title: Story Components Reference
+description: Reference for the Story Components available for building consistent Storybook stories, with their props.
+---
 
 This page documents all available components for building Storybook stories.
 

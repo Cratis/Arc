@@ -1,4 +1,7 @@
-# Browser
+---
+title: Browser
+description: Use the INavigation and ILocalStorage abstractions in view models instead of browser globals, and know their current limits.
+---
 
 When working with view models in the MVVM pattern, you typically want to avoid direct dependencies on browser globals like `window`, `document`, or `localStorage`. This makes your code more testable and maintainable. Cratis Arc provides abstracted interfaces for common browser functionality that can be injected into your view models.
 
@@ -33,7 +36,16 @@ export class MyViewModel {
 }
 ```
 
-The `Navigation` implementation uses a `MutationObserver` to detect URL changes in the DOM, making it compatible with client-side routing libraries like React Router.
+The `Navigation` implementation watches DOM mutations with a `MutationObserver` and compares `location.href` with the URL captured when the service was created. That lets it notice client-side routing changes, such as React Router navigations, when they re-render the page.
+
+:::caution[Current limits of INavigation]
+- `previousUrl` is the URL at service creation, not the URL before the latest navigation.
+- Because the comparison is against that initial URL, once the app has navigated away, every later DOM mutation calls your callback again with the same `url`. Make callbacks idempotent; the visited-URL example below records duplicates.
+- A URL change that causes no DOM mutation is not reported.
+- `onUrlChanged` returns no unsubscribe function and `Navigation` is a singleton, so a subscribed view model is retained for the life of the app.
+
+When every navigation must be observed exactly once, use your router's location API instead.
+:::
 
 ### ILocalStorage
 

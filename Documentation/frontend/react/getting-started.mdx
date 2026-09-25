@@ -11,7 +11,7 @@ You have a backend that registers authors and streams an author list. Let's put 
 
 Complete [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) and generate its proxies with a Debug build. You need a Vite + React app with `react`, `react-dom`, `@cratis/fundamentals`, `@cratis/arc`, and `@cratis/arc.react` installed.
 
-The checkpoint below assumes generated files at `./Authors/RegisterAuthor` and `./Authors/AllAuthors`. Match those imports to your configured output directory and namespace mapping. Queries normally have their own files; source-file grouping is opt-in. There is **no generated `Bindings` startup file**.
+The checkpoint below imports from `./Authors/RegisterAuthor` and `./Authors/Author`, where the backend setup's source-file grouping places the `AllAuthors` query beside the `Author` type. Without `CratisProxiesUseSourceFileAsOutputFile`, each query gets its own file, so import `AllAuthors` from `./Authors/AllAuthors` instead. Match the paths to your configured output directory and namespace mapping. There is **no generated `Bindings` startup file**.
 
 ## Mount Arc and the author screen
 
@@ -21,7 +21,7 @@ Put this component in `App.tsx` and render it from your existing React entry poi
 import { useState } from 'react';
 import { Guid } from '@cratis/fundamentals';
 import { Arc } from '@cratis/arc.react';
-import { AllAuthors } from './Authors/AllAuthors';
+import { AllAuthors } from './Authors/Author';
 import { RegisterAuthor } from './Authors/RegisterAuthor';
 
 function Authors() {
@@ -75,18 +75,29 @@ function Authors() {
 export const App = () => <Arc><Authors /></Arc>;
 ```
 
-`<Arc>` initializes the runtime bindings and provides command, identity, messaging, and query-cache contexts. With no origin configured, requests target your current origin. For separate frontend/backend development servers, configure the [Vite proxy](.././react/vite-configuration.md).
+`<Arc>` initializes the runtime bindings and provides command, identity, messaging, and query-cache contexts. With no origin configured, requests target your current origin, so the Vite dev server must forward Arc's routes to the backend. Add both prefixes to your existing `vite.config.ts`, pointing at the port the backend checkpoint uses:
+
+```typescript title="vite.config.ts (excerpt)"
+server: {
+    proxy: {
+        '/api': { target: 'http://localhost:5000' },
+        '/.cratis': { target: 'http://localhost:5000', ws: true }
+    }
+}
+```
+
+`/api` carries the command and query requests; `/.cratis` carries the observable-query stream (Server-Sent Events by default) and identity. See [Vite configuration](.././react/vite-configuration.md) for the other options.
 
 The backend requires both `Id` and `Name`. Its `AuthorId` concept maps to a Fundamentals `Guid` in the generated command. Create an ID **once per new registration**, keep it while editing or retrying, and generate the next one only after success. Generated properties do not initialize themselves. The hook reads initial values when it creates the command, not on every render.
 
 ## Check the round trip
 
-Start the backend and frontend. You should see the author list, enter a name, and see “Author registered.” after a successful submission. The list updates when the backend's MongoDB `Observe()` source emits the changed collection. Arc transports those emissions; executing a command alone does not create a persistence subscription.
+Start the backend and frontend. You should see the author list, enter a name, and see “Author registered.” after a successful submission. The list updates when the backend's `Observe()` source emits the changed collection: MongoDB change streams, or EF Core's `SaveChanges` notifications in the same host. Arc transports those emissions; executing a command alone does not create a persistence subscription.
 
 ```mermaid
 flowchart LR
     Form[RegisterAuthor proxy] --> Backend[Arc command handler]
-    Backend --> DB[(MongoDB)]
+    Backend --> DB[(MongoDB or EF Core)]
     DB --> Observe[Observe source]
     Observe --> Query[AllAuthors hook]
     Query --> List[Author list]

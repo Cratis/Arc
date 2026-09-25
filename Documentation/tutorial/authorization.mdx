@@ -9,7 +9,9 @@ Our back office works, but it's wide open: anyone who can reach it can register 
 
 ## Prerequisites
 
-Continue with the standalone ASP.NET Core host from [chapter 1](/arc/tutorial/first-slice/). Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs`; on the JVM, import `io.cratis.arc.authorization.Roles` in the files that use it. This chapter uses the literal role name `"Librarian"`; it must match an authorization role on the authenticated principal. No domain enum or identity-details provider is required.
+Continue with the standalone ASP.NET Core host from [chapter 1](/arc/tutorial/first-slice/). Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs`; on the JVM, import `io.cratis.arc.authorization.Roles` in the files that use it. This chapter uses the role name `Librarian`; it must match an authorization role on the authenticated principal. No identity-details provider is required.
+
+On C#, the first excerpt below also declares a one-member `LibraryRole` enum; put it in its own file, `src/LibraryRole.cs`, under `namespace Library;` so every feature folder can use it. The C# excerpts pass `nameof(LibraryRole.Librarian)`, which is still the string `"Librarian"`. Arc's [ARC0011 analyzer](/arc/backend/csharp/code-analysis/#arc0011-role-names) warns about string literals in `[Roles]`; with `nameof`, a mistyped role name is a compile error instead of a silent denial. The JVM snippets pass the same name as a string.
 
 ## Gate the commands
 
@@ -69,7 +71,7 @@ Do not translate the two snippets above. A Spring Boot host authenticates throug
 
 ## Verify permissions, not just UI visibility
 
-Rebuild, restart, and test these separately. The checks are the same on both backends; only the way you present a principal differs — the headers below for the .NET fixture, whatever your JVM authentication handler accepts otherwise:
+Rebuild and restart with the checkpoint's `-e ASPNETCORE_ENVIRONMENT=Development` command, then test these separately. Both snippets above run only in Development: if the host log says `Hosting environment: Production`, the header adapter is never registered and even the `Librarian` case is rejected. The checks are the same on both backends; only the way you present a principal differs — the headers below for the .NET fixture, whatever your JVM authentication handler accepts otherwise:
 
 1. Without identity headers, protected commands and queries must reject access.
 2. With a valid local principal but no `Librarian` role, they must still reject access.

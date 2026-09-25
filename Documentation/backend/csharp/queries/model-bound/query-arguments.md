@@ -43,7 +43,7 @@ Arc converts the incoming name to `AccountName`; the predicate uses that domain 
 
 The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose.
 
-It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys likewise are not a promise of collection binding. Unsupported conversion can yield a missing/null/default value or a conversion error, rather than a useful DTO.
+It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported conversion can yield a missing/null/default value or a conversion error, rather than a useful DTO.
 
 These limitations concern the supplied HTTP readers. Already-typed arguments passed directly to `IQueryPipeline`, custom readers/converters, and [MVC DTO binding](../controller-based/query-arguments.md) are different paths. FluentValidation's ability to traverse an object does not prove HTTP can construct that object.
 
@@ -77,7 +77,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Everything else, including a plain class or an interface like `IMongoCollection<T>` or `ILogger<T>`, is treated as an injected dependency. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
+Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Anything else is injected when the container can supply it, as with `IMongoCollection<T>` or `ILogger<T>`. A type the container does not know, such as an unregistered plain class, is not injected: Arc treats it as a query argument, which the HTTP readers cannot construct. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
 
 ### Collection Arguments
 
@@ -117,7 +117,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>` makes no difference. Everything else — a plain class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container instead.
+> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>` makes no difference. Everything else — a class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container when it is registered there; an unregistered type falls back to being a query argument.
 
 ## Missing, empty, and optional values
 

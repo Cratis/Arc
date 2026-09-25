@@ -12,7 +12,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0001](./ARCCHR0001.md) | Error | Recognized aggregate event-handler candidates have supported signatures. |
 | [ARCCHR0002](#arcchr0002-ambiguous-command-identity) | Warning | Multiple candidate command identities without an explicit provider/recognized return exemption. |
 | [ARCCHR0003](./ARCCHR0003.md) | Warning | Reactor access to the default event log instead of returned side effects. |
-| [ARCCHR0004](./ARCCHR0004.md) | Warning | Explicit id supplied to `[EventType]`. |
+| [ARCCHR0004](./ARCCHR0004.md) | Warning | Redundant explicit id on `[EventType]`: empty, or equal to the type name. |
 | [ARCCHR0005](./ARCCHR0005.md) | Warning | Chronicle usage and `AddCratisArc` appear in one project without integration setup. |
 | [ARCCHR0006](./ARCCHR0006.md) | Warning | Manual reactor command execution without method- or class-level `[OnceOnly]`. |
 | [ARCCHR0007](#arcchr0007-command-handler-injects-ieventlog) | Warning | A command `Handle()` or `Provide()` parameter is `IEventLog` or an implementing type. |

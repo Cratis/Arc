@@ -52,9 +52,11 @@ that reaches a database — a uniqueness rule, a state-dependent check — is ea
 write and easy to forget, and it shows up here as time spent before the handler
 ever ran.
 
-`cratis.arc.identity.resolve` is the other common surprise: an identity-details
-provider runs per request, and one that queries a store puts that query on the
-critical path of everything.
+`cratis.arc.identity.resolve` is the other common surprise. The span covers each
+identity lookup, such as the frontend's `/.cratis/me` request. When the identity
+cookie already holds a result, the lookup returns it without calling your
+identity-details provider; otherwise the provider runs, and one that queries a
+store puts that query on the critical path of every uncached lookup.
 
 ## Metrics
 

@@ -1,4 +1,7 @@
-# Backend Integration
+---
+title: Backend Integration
+description: How core TypeScript queries map to controller-based and model-bound backend query endpoints through generated proxies.
+---
 
 Core queries map directly to backend query endpoints and generated query proxies.
 

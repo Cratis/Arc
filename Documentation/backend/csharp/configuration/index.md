@@ -1,4 +1,7 @@
-# Configuring Arc
+---
+title: Configuring Arc
+description: Configure Arc through ArcOptions from appsettings, environment variables, or code, for ASP.NET Core, Arc.Core, and Cratis hosts.
+---
 
 Arc reads all of its settings from a single `ArcOptions` object. Wherever Arc runs — an ASP.NET Core web app, an Arc.Core console or worker, or the full Cratis stack — you configure it the same way: bind `ArcOptions` from configuration, then optionally override it in code. This page is the map: the hosting models, the three configuration mechanisms, and the full `ArcOptions` tree.
 

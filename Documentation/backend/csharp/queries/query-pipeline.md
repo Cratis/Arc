@@ -12,15 +12,17 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 ```mermaid
 flowchart LR
     Request[Read request arguments] --> Paging[Validate requested paging]
-    Paging --> Resolve[Find performer and resolve dependencies]
-    Resolve --> Context[Coerce arguments and establish context]
-    Context --> Filters[Authorization filters then ordinary filters]
+    Paging --> Find[Find performer]
+    Find --> Context[Coerce arguments and establish context]
+    Context --> Authorize[Authorization filters]
+    Authorize --> Resolve[Resolve query dependencies]
+    Resolve --> Filters[Ordinary filters]
     Filters --> Performer[Invoke and await query method]
     Performer --> Render[Render data and attach metadata]
     Render --> Output[Intercept ordinary data or hand stream to transport]
 ```
 
-A non-success filter verdict stops execution before the query method. This does not imply no collaborators ran: paging validation, performer lookup, dependency resolution, and argument conversion occur before the filter chain. Custom filters/dependencies are application code, not guaranteed side-effect-free.
+A non-success filter verdict stops execution before the query method. With Arc's built-in (staged) filters, an authorization denial also stops before the query method's dependencies are resolved from the container. It does not imply no collaborators ran: paging validation, performer lookup, and argument conversion occur before authorization, and a custom filter implementation that is not staged resolves dependencies before its filters run. Custom filters/dependencies are application code, not guaranteed side-effect-free.
 
 A null method result can remain a successful model-bound result. For a stream, the pipeline passes the wrapper onward; transport handling decides how to consume and deliver values.
 
@@ -44,13 +46,13 @@ Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return 
 
 | Built-in filter | Current behavior |
 | --- | --- |
-| `AuthorizationFilter` | Uses the performer's authorization verdict; model-bound default checks Arc authentication/roles, not named policies |
+| `AuthorizationFilter` | Evaluates the query's authorization declaration: authentication, roles, and registered named policies, plus named schemes on the ASP.NET Core host |
 | `FluentValidationFilter` | Validates a matching argument model or individual supplied argument graphs |
 | `DataAnnotationValidationFilter` | Reads annotations on parameter types, not method-parameter attributes or nested DTO properties |
 
 Use `QueryResult.Unauthorized(context.CorrelationId)` for denial, not an input-validation error. `QueryResult.Success(...)` permits the next stage; it does not supply the final read data. The [query-health restriction example](query-health.md#restrict-exposure) is a complete authorization filter that targets one named query across direct model-bound and hub paths.
 
-For input rules, follow [query validation](validation.md). For current policy limitations, see [model-bound authorization](model-bound/authorization.md).
+For input rules, follow [query validation](validation.md). For roles, policies, and schemes on queries, see [model-bound authorization](model-bound/authorization.md) and [authorization](../core/authorization.md).
 
 ## Query result metadata
 

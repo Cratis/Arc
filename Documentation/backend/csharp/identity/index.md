@@ -1,4 +1,7 @@
-# Identity
+---
+title: Identity
+description: How Arc composes application identity details from an authenticated principal for the frontend, and how that differs from authorization.
+---
 
 Arc identity support composes domain-specific details from an authenticated request principal and presents them to frontend clients. It does not modify or validate the provider's token. Authentication, pipeline authorization, and identity presentation are separate concerns.
 

@@ -1,4 +1,7 @@
-# Paging
+---
+title: Paging
+description: Page enumerable query results in React with useWithPaging and useSuspenseWithPaging, backed by server-side paging.
+---
 
 Enumerable query proxies expose paging helpers. The backend must implement paging: ordinary automatic pipeline paging uses `IQueryable<T>`, while observable providers can apply paging themselves (for example MongoDB `Observe()` uses the query context's Skip/Limit).
 
@@ -10,18 +13,29 @@ For backend implementation details, see [Controller-based Paging](../../../backe
 
 ## Enabling Paging
 
-Use `useWithPaging` instead of `use`, passing a page size:
+Use `useWithPaging` instead of `use`, passing a page size. This example assumes a generated, non-observable `AllAccounts` query proxy whose items have `id`, `name`, and `balance`; adjust the import to your proxy output path:
 
 ```tsx
+import { AllAccounts } from './Accounts/AllAccounts';
+
 export const AccountList = () => {
     const [result, perform, setSorting, setPage, setPageSize] = AllAccounts.useWithPaging(25);
 
     return (
         <>
-            <DataTable value={result.data}>
-                <Column field="name" header="Name" />
-                <Column field="balance" header="Balance" />
-            </DataTable>
+            <table>
+                <thead>
+                    <tr><th>Name</th><th>Balance</th></tr>
+                </thead>
+                <tbody>
+                    {result.data.map(account => (
+                        <tr key={String(account.id)}>
+                            <td>{account.name}</td>
+                            <td>{account.balance}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
             <p>
                 Page {result.paging.page + 1} of {result.paging.totalPages}
                 ({result.paging.totalItems} total items)

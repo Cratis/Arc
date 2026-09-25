@@ -56,7 +56,7 @@ Step by step:
 2. **Command context lookup** — the resolved identity is read from the current `CommandContext`.
 3. **Guard** — if no usable identity is available, resolution fails with [`UnableToResolveReadModelFromCommandContext`](./failures.md#unabletoresolvereadmodelfromcommandcontext).
 4. **Store query** — Chronicle's read model store is queried by the resolved identity.
-5. **Subject release** — if the input command context carries a compliance `Subject` and the instance exists, Arc additionally calls `Release(instance)`. It does not pass the command subject. Chronicle resolves the release subject from the instance; materialized state may already have been released server-side. See [Subject](../compliance/subject.md).
+5. **Subject release** — if the instance exists, Arc additionally calls `Release(instance)`, whether or not the command declares a compliance `Subject`. It does not pass the command subject. Chronicle resolves the release subject from the instance; materialized state may already have been released server-side. See [Subject](../compliance/subject.md).
 6. **Result** — the instance is returned, or `null` when the projection instance does not exist.
 
 Resolution happens exactly once per command. The same instance is handed to the validator, `Provide()`, and `Handle()`.
@@ -85,7 +85,7 @@ To _change_ state, return events from `Handle()` or use an [aggregate root](../a
 
 Passive reducer models are folded in-process. Passive projection models register with no materialized sink and are resolved on demand by Chronicle. Ordinary materialized reads cross the service/JSON boundary; a passive reducer does not use that same document-deserialization path.
 
-Arc calls the non-generic `GetInstanceById(Type, key)` overload. For passive reducers, do not assume it performs the generic overload's unconditional post-reduction release: Arc's additional release is gated on an input command subject. Test sensitive state on the path you actually use.
+Arc calls the non-generic `GetInstanceById(Type, key)` overload. For passive reducers, do not assume it performs the generic overload's post-reduction release. Arc attempts its own `Release(instance)` for every existing command-side instance, and Chronicle decides from the instance whether there is anything to release. Test sensitive state on the path you actually use.
 
 On-demand state is still a snapshot, not a lock. Neither passive nor materialized read-model injection by itself binds the later append to the revision used by a decision. Use append-time constraints or an explicitly captured concurrency expectation where needed.
 

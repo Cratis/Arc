@@ -1,4 +1,7 @@
-# Messaging
+---
+title: Messaging
+description: Publish and subscribe to typed messages with the @cratis/arc/messaging messenger, including scoped parent and child messengers.
+---
 
 Arc core provides a typed publish/subscribe messenger through `@cratis/arc/messaging`.
 
@@ -7,12 +10,14 @@ Arc core provides a typed publish/subscribe messenger through `@cratis/arc/messa
 `IMessenger` publishes and subscribes by runtime type:
 
 ```ts
-import { IMessenger } from '@cratis/arc/messaging';
+import { IMessenger, Messenger } from '@cratis/arc/messaging';
 
 class UserSelected {
     constructor(readonly userId: string) {
     }
 }
+
+const messenger: IMessenger = new Messenger();
 
 messenger.subscribe(UserSelected, message => {
     console.log(message.userId);

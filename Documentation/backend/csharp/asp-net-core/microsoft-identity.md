@@ -1,4 +1,7 @@
-# Microsoft Identity
+---
+title: Microsoft Identity
+description: Build application identity details from Microsoft identity platform headers supplied by a trusted ingress.
+---
 
 Cratis' Arc provides a way to easily work with providing an object that represents properties the application finds important for describing
 the logged in user. The purpose of this is to provide details about the logged in user on the ingress level of an application and letting it

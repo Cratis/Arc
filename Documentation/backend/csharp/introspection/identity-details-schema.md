@@ -1,4 +1,7 @@
-# Introspection Identity Details Schema Endpoint
+---
+title: Introspection Identity Details Schema Endpoint
+description: Reference for GET /.cratis/identity-details/schema, which returns the JSON Schema of your identity details contract.
+---
 
 The identity details schema introspection endpoint returns JSON Schema for the identity details contract exposed by your configured identity details provider.
 

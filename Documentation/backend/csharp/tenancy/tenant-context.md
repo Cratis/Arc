@@ -1,4 +1,7 @@
-# Tenant Context Access
+---
+title: Tenant Context Access
+description: Read the resolved tenant through dependency injection, and carry a tenant into background work deliberately.
+---
 
 Once a tenant ID is resolved, Arc exposes the current tenant context through dependency injection. This is selection, not proof that the caller is a member. Background operations also need an intentional tenant execution context; do not capture a request-scoped storage service in a singleton.
 

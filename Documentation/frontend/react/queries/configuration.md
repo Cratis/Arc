@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Configuration
+description: "Reference for the <Arc> props that configure queries centrally: routing, headers, transport, hub connections, transfer mode, and caching."
+---
 
 Configure query behavior centrally through the `<Arc />` component instead of per query instance.
 
@@ -6,7 +9,7 @@ Configure query behavior centrally through the `<Arc />` component instead of pe
 
 | Prop | Type | Default | Purpose |
 | ---- | ---- | ------- | ------- |
-| `microservice` | `string` | `undefined` | Routes query requests to a named microservice in shared-ingress environments. |
+| `microservice` | `string` | `''` | Routes query requests to a named microservice in shared-ingress environments. |
 | `apiBasePath` | `string` | `''` | Prepends a base API path to query requests. |
 | `httpHeadersCallback` | `() => HeadersInit` | `undefined` | Adds headers to ordinary fetches and SSE control POSTs, not native stream handshakes. |
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Selects SSE or WebSocket transport for observable query connections. |

@@ -142,7 +142,7 @@ For subject-backed collections, omitted `transferMode` uses legacy snapshot-plus
 
 ## Authorization and exposure
 
-The hub transport endpoints themselves allow anonymous access; each subscription goes through the query pipeline's authorization filters. Model-bound [policy limitations](model-bound/authorization.md) still apply. WebSocket identity is captured at upgrade. SSE subscription identity is captured from its subscribe POST; consistently send the application's normal credentials on connection/control requests.
+The hub transport endpoints themselves allow anonymous access; each subscription goes through the query pipeline's authorization filters. The same [model-bound authorization](model-bound/authorization.md) rules apply to a subscription as to a one-shot request. WebSocket identity is captured at upgrade. SSE subscription identity is captured from its subscribe POST; consistently send the application's normal credentials on connection/control requests.
 
 The SSE control handlers verify that the POST caller is the caller that opened the GET stream. The identity is captured once when the stream opens - while that request is still in flight, so the retained context is never read again - and each subscribe and unsubscribe is compared against it on the identity identifier claim and authentication state. A mismatch returns 404, exactly as an unknown connection ID does, so the endpoints never confirm that another caller's connection exists.
 

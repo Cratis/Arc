@@ -1,5 +1,7 @@
 ```csharp
-[Roles("Librarian")]                       // only a Librarian may register an author
+public enum LibraryRole { Librarian }        // the application's role names, in one place
+
+[Roles(nameof(LibraryRole.Librarian))]     // only a Librarian may register an author
 [Command]
 public record RegisterAuthor(AuthorId Id, AuthorName Name)
 {
