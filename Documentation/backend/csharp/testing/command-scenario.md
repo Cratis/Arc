@@ -38,6 +38,8 @@ Instantiate the scenario in your spec. At construction it creates `Services` and
 
 The first `Execute` or `Validate` call builds the service provider and resolves `ICommandPipeline`. Before that call, register application services, substitutes, and options through `Services`, usually in `Establish()`. Later registrations do not rebuild the provider. Discovered validators are constructed on demand using the command scope; you do not need to manually register every validator.
 
+The provider stays local to the scenario. It does not replace the process-wide provider an Arc host sets, so a scenario can run inside a live host or alongside other scenarios, and disposing it leaves the host untouched. If you register `IDiscoverableValidators` yourself with `new DiscoverableValidators(types)`, that instance resolves validators from the host's process-wide provider rather than the scenario's, and throws `ServiceProviderNotConfigured` when no host has set one. Leave that registration to the scenario unless you mean to use the host's provider.
+
 This runs pipeline behavior, **not everything in your production host**. There is no HTTP routing, request binding, authentication middleware, or automatic copy of your host's registrations. Application services may still access external infrastructure unless you replace them. Use host/integration tests for those boundaries.
 
 To opt into console logging while debugging, use this setup fragment before the first pipeline call (with `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Logging` imported and the console logging package available):
