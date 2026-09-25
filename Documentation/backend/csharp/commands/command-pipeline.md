@@ -46,20 +46,29 @@ Resolve this caller inside the existing scope you intend to share. Passing the r
 
 ## Execute for a specific tenant
 
-An off-request worker has no HTTP tenant to inherit. Pass a `TenantId` to `Execute` so the command's filters, handler, and tenant-aware dependencies resolve under that tenant:
+An off-request worker has no HTTP tenant to inherit. Inject `ITenantScope` and begin a scope before calling the pipeline:
 
 ```csharp
+using System.Threading;
+using System.Threading.Tasks;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Tenancy;
 
-public class TenantCartJob(ICommandPipeline pipeline)
+public class TenantCartJob(ITenantScope tenants, ICommandPipeline pipeline)
 {
-    public Task<CommandResult<CartLineId>> Add(TenantId tenant, Sku sku, Quantity quantity) =>
-        pipeline.Execute<CartLineId>(new AddItemToCart(sku, quantity), tenant);
+    public async Task<CommandResult<CartLineId>> Add(TenantId tenant, Sku sku, Quantity quantity, CancellationToken stoppingToken)
+    {
+        using (tenants.Begin(tenant))
+        {
+            return await pipeline.Execute<CartLineId>(new AddItemToCart(sku, quantity), stoppingToken);
+        }
+    }
 }
 ```
 
-Both typed and untyped calls accept a tenant, with or without an existing scoped `IServiceProvider` (`Execute(command, services, tenant)`). The scope-free form creates a fresh command scope. The explicit tenant remains visible through `ITenantIdAccessor.Current` across awaits, including tenant-aware Chronicle namespace resolution; nested calls can choose another tenant without changing the caller's tenant afterward. If you pass a service provider, resolve tenant-sensitive services *during* execution rather than constructing them before choosing the tenant. An explicit tenant does not grant authorization: establish a trusted principal separately when required.
+`ITenantScope.Begin` selects a nonempty tenant for the current async flow. The explicit selection wins over the configured resolver, **including during an HTTP request** and when an authentication scheme selects a different principal. Nested scopes restore the outer tenant; disposal restores the previously resolved tenant. The scope also works with `Validate`, queries, reads through `IReadModels`, and both typed and untyped execution, including cancellation-aware calls. Selecting a tenant does not grant authorization: enforce tenant access and establish a trusted principal separately when required.
+
+**Create a new DI scope inside the tenant scope before resolving tenant-scoped services** such as Chronicle's event store or a `DbContext`. A service already resolved in an existing DI scope remains bound to that scope's original tenant, even if you change the current tenant. Scope-free pipeline `Execute` and `Validate` create their own DI scopes inside the tenant scope for you; if you pass an existing `IServiceProvider`, you are responsible for creating it after `Begin` and for disposing it. The same rule applies to other tenant-scoped reads.
 
 ## Cancellation
 

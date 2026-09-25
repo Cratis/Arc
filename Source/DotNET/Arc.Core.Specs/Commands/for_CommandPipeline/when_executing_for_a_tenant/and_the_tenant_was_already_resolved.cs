@@ -27,10 +27,15 @@ public class and_the_tenant_was_already_resolved : given.a_command_pipeline_and_
 
     async Task Because()
     {
-        await _commandPipeline.Execute(_command, new TenantId("explicit"));
+        ITenantScope tenants = _accessor;
+        using (tenants.Begin("explicit"))
+        {
+            await _commandPipeline.Execute(_command);
+        }
+
         _after = _accessor.Current;
     }
 
     [Fact] void should_use_the_explicit_tenant_during_execution() => _observed.ShouldEqual(new TenantId("explicit"));
-    [Fact] void should_restore_the_previous_tenant_after_execution() => _after.ShouldEqual(_before);
+    [Fact] void should_restore_the_previous_tenant_after_disposal() => _after.ShouldEqual(_before);
 }

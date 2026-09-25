@@ -6,19 +6,25 @@ using Cratis.DependencyInjection;
 namespace Cratis.Arc.Tenancy;
 
 /// <summary>
-/// Represents an implementation of <see cref="ITenantIdAccessor"/>.
+/// Represents the current tenant accessor and explicit <see cref="ITenantScope"/>.
 /// </summary>
 /// <param name="tenantIdResolver">The <see cref="ITenantIdResolver"/> to use for resolving tenant IDs.</param>
 [Singleton]
-public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAccessor
+public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAccessor, ITenantScope
 {
     static readonly AsyncLocal<TenantId?> _current = new();
+    static readonly AsyncLocal<TenantId?> _explicit = new();
 
     /// <inheritdoc/>
     public TenantId Current
     {
         get
         {
+            if (_explicit.Value is not null)
+            {
+                return _explicit.Value;
+            }
+
             if (_current.Value is not null)
             {
                 return _current.Value;
@@ -37,15 +43,22 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     internal TenantId? Cached => _current.Value;
 
     /// <summary>
-    /// Temporarily binds an explicitly selected tenant to this execution flow.
+    /// Gets the explicitly selected tenant, if any, without consulting the resolver.
     /// </summary>
-    /// <param name="tenant">The selected tenant.</param>
-    /// <returns>A scope restoring the previously cached tenant.</returns>
-    internal static IDisposable UseTenant(TenantId tenant)
+    internal TenantId? ExplicitTenant => _explicit.Value;
+
+    /// <inheritdoc/>
+    public IDisposable Begin(TenantId tenant)
     {
-        var previous = _current.Value;
-        _current.Value = tenant;
-        return new TenantScope(previous);
+        ArgumentNullException.ThrowIfNull(tenant);
+        if (string.IsNullOrWhiteSpace(tenant.Value))
+        {
+            throw new ArgumentException("A tenant ID must not be empty.", nameof(tenant));
+        }
+
+        var previous = _explicit.Value;
+        _explicit.Value = tenant;
+        return new ExplicitTenantScope(previous);
     }
 
     /// <summary>
@@ -53,7 +66,19 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     /// </summary>
     /// <param name="tenant">The selected tenant.</param>
     /// <returns>A scope restoring the previously cached tenant.</returns>
-    internal IDisposable UseAuthorizedTenant(TenantId tenant) => UseTenant(tenant);
+    internal IDisposable UseAuthorizedTenant(TenantId tenant) => UseTenant(_explicit.Value ?? tenant);
+
+    static TenantScope UseTenant(TenantId tenant)
+    {
+        var previous = _current.Value;
+        _current.Value = tenant;
+        return new TenantScope(previous);
+    }
+
+    sealed class ExplicitTenantScope(TenantId? previous) : IDisposable
+    {
+        public void Dispose() => _explicit.Value = previous;
+    }
 
     sealed class TenantScope(TenantId? previous) : IDisposable
     {

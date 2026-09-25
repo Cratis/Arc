@@ -1,6 +1,6 @@
 # Tenant Context Access
 
-Once a tenant ID is resolved, Arc exposes the current tenant context through dependency injection. This is selection, not proof that the caller is a member. Background operations also need an intentional tenant execution context; do not capture a request-scoped storage service in a singleton.
+Once a tenant ID is resolved, Arc exposes the current tenant context through dependency injection. This is selection, not proof that the caller is a member. Background operations also need an intentional tenant execution context; use [an explicit tenant scope](../commands/command-pipeline.md#execute-for-a-specific-tenant) and create the DI scope for tenant-scoped services inside it. Do not capture a request-scoped storage service in a singleton.
 
 ## Accessing the Current Tenant
 
