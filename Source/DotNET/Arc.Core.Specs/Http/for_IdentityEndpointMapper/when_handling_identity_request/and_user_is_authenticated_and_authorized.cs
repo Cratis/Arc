@@ -24,6 +24,8 @@ public class and_user_is_authenticated_and_authorized : given.an_identity_endpoi
 
     async Task Because() => await _capturedHandler(_httpRequestContext);
 
+    [Fact] void should_set_no_store_cache_control() => _httpRequestContext.Received(1).SetResponseHeader("Cache-Control", "no-store, private");
+    [Fact] void should_vary_on_cookie() => _httpRequestContext.Received(1).SetResponseHeader("Vary", "Cookie");
     [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).Get();
     [Fact] void should_call_write_with_result() => _identityProviderResultHandler.Received(1).SetCookieForHttpResponse(_result);
     [Fact] void should_not_set_status_code_to_unauthorized() => _httpRequestContext.DidNotReceive().StatusCode = 401;

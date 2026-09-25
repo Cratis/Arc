@@ -11,6 +11,8 @@ Normal `UseCratisArc()` activation maps `/.cratis/me` when `IProvideIdentityDeta
 
 The endpoint has anonymous metadata so it can handle identity results itself. It calls `IIdentityProvider.Get()`, returns 401 for a result marked unauthenticated, 403 for a result marked unauthorized, and otherwise writes JSON plus the `.cratis-identity` cookie. These result flags can come from the cookie-first path; this endpoint is not an independent validation of a browser's cached identity.
 
+Arc sets `Cache-Control: no-store, private` and `Vary: Cookie` on `/.cratis/me` (including its 401 and 403 responses), `/.cratis/users`, and `/.cratis/tenants`. It also sets these headers whenever `IIdentityProvider.SetCookieForHttpResponse()` writes an identity cookie, including after `ModifyDetails()`. Do not configure a shared cache to override these headers: the responses can contain per-user data and cookies. The application-wide `/.cratis/identity-details/schema` response is not covered by this identity-response policy.
+
 ## Identity details provider
 
 Arc discovers `IProvideIdentityDetails` implementations. On a fresh request without a nonempty identity cookie, it checks the request principal, constructs `IdentityProviderContext`, and invokes the provider. The ID comes from the principal's `sub` claim (or `"unknown"` when absent); the name comes from the principal, with the forwarded name header as a fallback.
