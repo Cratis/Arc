@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
@@ -21,7 +22,7 @@ public class ObservableReadModel
     static BehaviorSubject<ObservableReadModel> _singleItemSubject = new(
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
     );
-    static SubscriptionSignalingSubject _delayedSingleItemSubject = new();
+    static SubscriptionSignalingSubject<ObservableReadModel> _delayedSingleItemSubject = new();
 
     static readonly List<IDisposable> _subscriptions = [];
 
@@ -139,31 +140,12 @@ public class ObservableReadModel
 
         _singleItemSubject = new BehaviorSubject<ObservableReadModel>(
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 });
-        _delayedSingleItemSubject = new SubscriptionSignalingSubject();
+        _delayedSingleItemSubject = new SubscriptionSignalingSubject<ObservableReadModel>();
 
         // Complete old subjects to disconnect all subscribers (including old WebSocket connections)
         oldAllItems.OnCompleted();
         oldSingleItem.OnCompleted();
         oldDelayedSingleItem.OnCompleted();
-    }
-
-    sealed class SubscriptionSignalingSubject : ISubject<ObservableReadModel>
-    {
-        readonly Subject<ObservableReadModel> _subject = new();
-        readonly TaskCompletionSource _subscribed = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task Subscribed => _subscribed.Task;
-
-        public IDisposable Subscribe(IObserver<ObservableReadModel> observer)
-        {
-            var subscription = _subject.Subscribe(observer);
-            _subscribed.TrySetResult();
-            return subscription;
-        }
-
-        public void OnNext(ObservableReadModel item) => _subject.OnNext(item);
-        public void OnError(Exception error) => _subject.OnError(error);
-        public void OnCompleted() => _subject.OnCompleted();
     }
 }
 

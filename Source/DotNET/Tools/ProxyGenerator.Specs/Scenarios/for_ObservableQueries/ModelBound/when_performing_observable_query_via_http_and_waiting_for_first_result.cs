@@ -25,13 +25,18 @@ public class when_performing_observable_query_via_http_and_waiting_for_first_res
                 [ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey] = 30
             });
 
-        await ObservableReadModel.WaitForDelayedSingleSubscription().WaitAsync(TimeSpan.FromSeconds(30));
-        ObservableReadModel.UpdateDelayedSingleItem(new ObservableReadModel
+        // If the server answers without subscribing, skip publishing and surface its response instead of a timeout.
+        var subscribed = ObservableReadModel.WaitForDelayedSingleSubscription();
+        var first = await Task.WhenAny(subscribed, performTask).WaitAsync(TimeSpan.FromSeconds(30));
+        if (first == subscribed)
         {
-            Id = Guid.NewGuid(),
-            Name = "Delayed Observable Item",
-            Value = 123
-        });
+            ObservableReadModel.UpdateDelayedSingleItem(new ObservableReadModel
+            {
+                Id = Guid.NewGuid(),
+                Name = "Delayed Observable Item",
+                Value = 123
+            });
+        }
 
         _executionResult = await performTask;
     }

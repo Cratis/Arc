@@ -55,9 +55,9 @@ public class when_generating_proxies_with_documented_members : Specification
         _command = InMemoryProxyGenerator.GenerateCommand(command);
     }
 
-    [Fact] void should_not_emit_trailing_whitespace_lines_in_query() => HasWhitespaceOnlyLine(_query).ShouldBeFalse();
-    [Fact] void should_not_emit_trailing_whitespace_lines_in_observable_query() => HasWhitespaceOnlyLine(_observableQuery).ShouldBeFalse();
-    [Fact] void should_not_emit_trailing_whitespace_lines_in_command() => HasWhitespaceOnlyLine(_command).ShouldBeFalse();
+    [Fact] void should_not_emit_whitespace_only_lines_in_query() => HasWhitespaceOnlyLine(_query).ShouldBeFalse();
+    [Fact] void should_not_emit_whitespace_only_lines_in_observable_query() => HasWhitespaceOnlyLine(_observableQuery).ShouldBeFalse();
+    [Fact] void should_not_emit_whitespace_only_lines_in_command() => HasWhitespaceOnlyLine(_command).ShouldBeFalse();
 
     static bool HasWhitespaceOnlyLine(string code) => code.Split('\n').Any(line => line.TrimEnd('\r').Length > 0 && string.IsNullOrWhiteSpace(line));
 }
