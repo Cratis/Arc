@@ -54,7 +54,6 @@ public class AuthorizationEvaluation(
         };
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
-        var originalPrincipalIdentity = AuthorizationPrincipalIdentity.Capture(originalPrincipal);
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
         if (resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } &&
             selectedPrincipal?.Identity?.IsAuthenticated != true)
@@ -63,7 +62,7 @@ public class AuthorizationEvaluation(
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        return new PreparedAuthorization(target, declaration, originalPrincipal, originalPrincipalIdentity, selectedPrincipal, AuthorizationPrincipalIdentity.Capture(selectedPrincipal), resolution);
+        return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution);
     }
 
     /// <summary>
@@ -116,12 +115,28 @@ public class AuthorizationEvaluation(
             ? services.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal!, services)
             : null;
 
+        PrincipalSnapshot? evaluatedIdentity = null;
         if (declaration.RequiresAsynchronousEvaluation)
         {
-            if (selectedPrincipal is null || !await resolution.IsAuthorized(
+            if (selectedPrincipal is null)
+            {
+                return false;
+            }
+
+            // A guest policy receives a synthetic principal, but its verdict belongs to the ambient identity.
+            // Authenticated verdicts belong to the selected identity. Capture only after pre-verdict hooks have run.
+            var guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
+            evaluatedIdentity = AuthorizationPrincipalIdentity.Capture(guest ? principalAccessor.Current : selectedPrincipal);
+            if (!await resolution.IsAuthorized(
                 new AuthorizationPolicyContext(selectedPrincipal, target, resource),
                 services,
                 cancellationToken))
+            {
+                return false;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!AuthorizationPrincipalIdentity.Same(evaluatedIdentity, principalAccessor.Current))
             {
                 return false;
             }
@@ -129,18 +144,8 @@ public class AuthorizationEvaluation(
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // A guest policy receives a synthetic principal, but its verdict belongs to the original ambient identity.
-        // Authenticated verdicts belong to the selected identity. Never certify a different or mutated caller.
-        var guest = prepared.EvaluatesAnonymous && selectedPrincipal?.Identity?.IsAuthenticated != true;
-        var evaluatedIdentity = guest ? prepared.OriginalPrincipalIdentity : prepared.SelectedPrincipalIdentity;
-        if (declaration.RequiresAsynchronousEvaluation &&
-            !AuthorizationPrincipalIdentity.Same(evaluatedIdentity, principalAccessor.Current))
-        {
-            return false;
-        }
-
         using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, evaluatedIdentity, declaration, prepared.EvaluatesAnonymous)
+            ? AuthorizationEvaluator.AlreadyEvaluated(target, evaluatedIdentity!, declaration, prepared.EvaluatesAnonymous)
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
