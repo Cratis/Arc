@@ -68,7 +68,7 @@ public class ClientEnumerableObservable<T>(
                             !hasDeliveredEmission,
                             cts.Token)
                         {
-                            SubscriptionScope = queryContext.CreateSubscriptionScope()
+                            SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
                         });
 
                         if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)

@@ -72,7 +72,7 @@ public class ClientEnumerableObservableSSE<T>(
                         !hasDeliveredEmission,
                         linkedCts.Token)
                     {
-                        SubscriptionScope = queryContext.CreateSubscriptionScope()
+                        SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
                     });
 
                     if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)

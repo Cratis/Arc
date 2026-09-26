@@ -1075,7 +1075,7 @@ public class ObservableQueryDemultiplexer(
                         !hasDeliveredEmission,
                         subscriptionToken)
                     {
-                        SubscriptionScope = identity.CreateSubscriptionScope()
+                        SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
                     });
 
                     subscriptionToken.ThrowIfCancellationRequested();
@@ -1313,7 +1313,7 @@ public class ObservableQueryDemultiplexer(
                         !hasDeliveredEmission,
                         token)
                     {
-                        SubscriptionScope = identity.CreateSubscriptionScope()
+                        SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
                     });
 
                     token.ThrowIfCancellationRequested();

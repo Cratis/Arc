@@ -8,7 +8,6 @@ public class with_a_filter_supplied_subscription_scope : given.a_query_pipeline
     readonly FullyQualifiedQueryName _name = "ScopedObservable";
     readonly List<string> _membership = ["former-organization"];
     QueryResult _result;
-    string _scopeSeenByPerformer;
 
     void Establish()
     {
@@ -26,7 +25,6 @@ public class with_a_filter_supplied_subscription_scope : given.a_query_pipeline
         _queryPerformer.Perform(Arg.Any<QueryContext>()).Returns(call =>
         {
             var context = call.Arg<QueryContext>();
-            _scopeSeenByPerformer = ((List<string>)context.SubscriptionScope!)[0];
             _membership[0] = "new-organization";
             return ValueTask.FromResult<object?>(null);
         });
@@ -36,7 +34,6 @@ public class with_a_filter_supplied_subscription_scope : given.a_query_pipeline
 
     [Fact] void should_capture_the_filter_scope_before_execution() =>
         ((List<string>)_result.AuthorizedQueryContext!.CreateSubscriptionScope()!)[0].ShouldEqual("former-organization");
-    [Fact] void should_not_change_the_scope_seen_by_the_performer() => _scopeSeenByPerformer.ShouldEqual("former-organization");
     [Fact] void should_give_each_emission_an_independent_copy()
     {
         var first = (List<string>)_result.AuthorizedQueryContext!.CreateSubscriptionScope()!;

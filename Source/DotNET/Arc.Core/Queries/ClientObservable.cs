@@ -226,7 +226,7 @@ public class ClientObservable<T>(
                 !hasDeliveredEmission,
                 cts.Token)
             {
-                SubscriptionScope = queryContext.CreateSubscriptionScope()
+                SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
             });
 
             if (verdict == ObservableQueryEmissionVerdict.Allow)
