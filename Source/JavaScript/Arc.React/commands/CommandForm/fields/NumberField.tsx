@@ -17,6 +17,7 @@ interface NumberFieldComponentProps extends WrappedFieldProps<number> {
 export const NumberField = asCommandFormField<NumberFieldComponentProps>(
     (props) => (
         <input
+            id={props.id}
             type="number"
             value={props.value}
             onChange={props.onChange}

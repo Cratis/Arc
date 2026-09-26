@@ -16,6 +16,7 @@ interface SelectComponentProps extends WrappedFieldProps<string> {
 
 const SelectComponent = (props: SelectComponentProps) => (
     <select
+        id={props.id}
         value={props.value || ''}
         onChange={props.onChange}
         onBlur={props.onBlur}

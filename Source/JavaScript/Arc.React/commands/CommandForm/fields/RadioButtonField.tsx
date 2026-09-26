@@ -68,6 +68,7 @@ function RadioButtonFieldComponent<TAccessor extends RadioValueAccessor>(
             }}
         >
             <input
+                id={props.id}
                 type='radio'
                 name={props.fieldName}
                 checked={Object.is(props.currentValue, props.setValue)}

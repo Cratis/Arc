@@ -78,6 +78,7 @@ function RadioGroupFieldComponent<TAccessor extends RadioValueAccessor>(
                     }}
                 >
                     <input
+                        id={index === 0 ? props.id : undefined}
                         type='radio'
                         name={props.fieldName}
                         checked={Object.is(props.currentValue, option.value)}

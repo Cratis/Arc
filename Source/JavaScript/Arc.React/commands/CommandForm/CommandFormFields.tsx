@@ -39,6 +39,8 @@ const CommandFormFieldWrapper = ({
     const nativeResultContext = React.useContext(CommandFormNativeResultContext);
     const nativeCommandResult = nativeResultContext ? nativeResultContext.result : context.commandResult;
     const fieldProps = field.props as CommandFormFieldProps;
+    const generatedId = React.useId();
+    const fieldId = fieldProps.id ?? generatedId;
     const propertyAccessor = fieldProps.value;
 
     // An explicit fieldName wins; a dynamic accessor such as `instance => instance[name]` cannot be
@@ -97,6 +99,7 @@ const CommandFormFieldWrapper = ({
         field as React.ReactElement,
         {
             ...fieldProps,
+            id: fieldId,
             currentValue,
             propertyDescriptor,
             fieldName: propertyName,
@@ -393,6 +396,7 @@ const CommandFormFieldWrapper = ({
         <>
             {context.showTitles && fieldProps.title && (
                 <label
+                    htmlFor={fieldId}
                     style={{
                         display: 'block',
                         marginBottom: '0.5rem',

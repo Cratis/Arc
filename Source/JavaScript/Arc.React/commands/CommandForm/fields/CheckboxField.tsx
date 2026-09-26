@@ -28,6 +28,7 @@ export const CheckboxField = asCommandFormField<CheckboxFieldComponentProps>(
             }}
         >
             <input
+                id={props.id}
                 type="checkbox"
                 checked={props.value}
                 onChange={props.onChange}
@@ -35,7 +36,7 @@ export const CheckboxField = asCommandFormField<CheckboxFieldComponentProps>(
                 required={props.required}
                 style={{ width: '1.25rem', height: '1.25rem' }}
             />
-            {props.label && <label style={{ marginLeft: '0.5rem' }}>{props.label}</label>}
+            {props.label && <label htmlFor={props.id} style={{ marginLeft: '0.5rem' }}>{props.label}</label>}
         </div>
     ),
     {

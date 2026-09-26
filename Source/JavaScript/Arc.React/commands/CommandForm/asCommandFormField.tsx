@@ -32,6 +32,8 @@ export interface BaseCommandFormFieldProps<TCommand = unknown, TSource = unknown
     value(instance: TCommand): unknown;
     required?: boolean;
     title?: string;
+    /** Id of the rendered control, used to associate the field title with it. */
+    id?: string;
     description?: string;
 
     /**
@@ -82,6 +84,8 @@ export interface CommandFormFieldConfig<TValue = unknown> {
  */
 export interface WrappedFieldProps<TValue = unknown> {
     value: TValue;
+    /** Forward this id to the rendered control so the form title labels it. */
+    id?: string;
     onChange: (valueOrEvent: TValue | unknown) => void;
     onBlur?: () => void;
     invalid: boolean;
