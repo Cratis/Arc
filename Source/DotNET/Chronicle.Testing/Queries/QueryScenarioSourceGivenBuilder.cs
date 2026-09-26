@@ -24,6 +24,16 @@ public sealed class QueryScenarioSourceGivenBuilder<TReadModel>(QueryScenario<TR
             .SeedInstance(typeof(TReadModel), eventSourceId, readModel!);
 
     /// <summary>
+    /// Pins another read model type for the selected event source.
+    /// </summary>
+    /// <typeparam name="TOther">The read model type to pin.</typeparam>
+    /// <param name="readModel">The read model to pin.</param>
+    public void ReadModel<TOther>(TOther readModel)
+        where TOther : class =>
+        ((CommandScenarioReadModels)scenario.Context[ChronicleCommandScenarioExtender.ReadModelsKey])
+            .SeedInstance(typeof(TOther), eventSourceId, readModel);
+
+    /// <summary>
     /// Seeds events to be projected into a read model on demand.
     /// </summary>
     /// <param name="events">The events in occurrence order.</param>

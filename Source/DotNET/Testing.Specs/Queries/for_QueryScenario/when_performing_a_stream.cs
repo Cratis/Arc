@@ -10,6 +10,8 @@ public class when_performing_a_stream : Specification
     readonly QueryScenario<ScenarioReadModel> _scenario = new();
     Exception? _exception;
 
+    void Establish() => ScenarioReadModel.StreamInvocations = 0;
+
     async Task Because()
     {
         try
@@ -23,6 +25,7 @@ public class when_performing_a_stream : Specification
     }
 
     [Fact] void should_reject_streaming_with_a_clear_message() => _exception!.Message.ShouldContain("snapshot queries only");
+    [Fact] void should_not_invoke_the_query() => ScenarioReadModel.StreamInvocations.ShouldEqual(0);
 
     void Destroy() => _scenario.Dispose();
 }

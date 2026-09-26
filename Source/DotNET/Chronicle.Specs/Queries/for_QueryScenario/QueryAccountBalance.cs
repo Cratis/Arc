@@ -13,4 +13,11 @@ public record QueryAccountBalance(decimal Balance)
     [AllowAnonymous]
     public static Task<QueryAccountBalance> ById(string id, IReadModels readModels) =>
         readModels.GetInstanceById<QueryAccountBalance>(new ReadModelKey(id));
+
+    [AllowAnonymous]
+    public static async Task<QueryAccountBalance> FromOther(string id, IReadModels readModels)
+    {
+        var other = await readModels.GetInstanceById<OtherAccountBalance>(new ReadModelKey(id));
+        return new QueryAccountBalance(other.Balance);
+    }
 }

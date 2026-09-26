@@ -28,6 +28,23 @@ public record ScenarioReadModel(string Name)
     [Authorize(Policy = "CanRead", AuthenticationSchemes = "TestScheme")]
     public static ScenarioReadModel SchemeRestricted() => new("Should not run");
 
+    public static int StreamInvocations;
+
     [AllowAnonymous]
-    public static ISubject<ScenarioReadModel> Stream() => new Subject<ScenarioReadModel>();
+    public static ISubject<ScenarioReadModel> Stream()
+    {
+        Interlocked.Increment(ref StreamInvocations);
+        return new Subject<ScenarioReadModel>();
+    }
+
+    [Authorize(Policy = "CanRead")]
+    public static IEnumerable<ScenarioReadModel> Lazy(TrackedQueryScope scope)
+    {
+        return Enumerate();
+
+        IEnumerable<ScenarioReadModel> Enumerate()
+        {
+            yield return new ScenarioReadModel(scope.Disposed ? "Disposed too early" : "In scope");
+        }
+    }
 }
