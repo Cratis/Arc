@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound;
 
@@ -54,13 +55,12 @@ public static class TypeExtensionsModelBound
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).SingleOrDefault(_ => _.Name == "Handle") != null;
 
     /// <summary>
-    /// Determine if a type has public static methods that can be queries.
+    /// Determine if a type has public or internal static methods that can be queries.
     /// </summary>
     /// <param name="type">Type to inspect.</param>
-    /// <returns>True if the type has public static methods, false otherwise.</returns>
+    /// <returns>True if the type has public or internal static methods, false otherwise.</returns>
     public static bool HasQueryMethods(this Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            .Any(_ => !_.IsSpecialName && _.IsValidQueryFor(type));
+        type.GetQueryMethods().Any();
 
     /// <summary>
     /// Check if a method qualifies as a query performer for the specified read model type.
@@ -121,21 +121,26 @@ public static class TypeExtensionsModelBound
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Single(_ => _.Name == "Handle");
 
     /// <summary>
-    /// Get all public static methods from a type that can be queries.
+    /// Get all public or internal static methods from a type that can be queries.
     /// </summary>
     /// <param name="type">Type to inspect.</param>
-    /// <returns>Collection of public static methods.</returns>
+    /// <returns>Collection of public or internal static methods.</returns>
     public static IEnumerable<MethodInfo> GetQueryMethods(this Type type) =>
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            .Where(_ => !_.IsSpecialName && _.IsValidQueryFor(type));
+            .Where(_ => ModelBoundQueryMethod.IsCandidate(_) && _.IsValidQueryFor(type));
 
     static bool IsCollectionOfType(Type type, Type elementType)
     {
-        if (type.IsArray && type.GetElementType() == elementType)
+        if (type.IsArray)
         {
-            return true;
+            return type.GetElementType() == elementType;
         }
 
-        return type.ImplementsEnumerable();
+        // Compare names for the generic definition, but compare the argument as a Type: both it and the read
+        // model belong to the same MetadataLoadContext, while typeof(IEnumerable<>) does not.
+        return new[] { type }.Concat(type.GetInterfaces())
+            .Any(_ => _.IsGenericType &&
+                _.GetGenericTypeDefinition().FullName == "System.Collections.Generic.IEnumerable`1" &&
+                elementType.IsAssignableFrom(_.GetGenericArguments()[0]));
     }
 }
