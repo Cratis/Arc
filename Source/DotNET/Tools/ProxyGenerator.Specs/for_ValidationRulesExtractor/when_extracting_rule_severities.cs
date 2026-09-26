@@ -14,5 +14,7 @@ public class when_extracting_rule_severities : Specification
     [Fact] void should_carry_warning() => _result.Single(_ => _.PropertyName == "warning").Rules.Single().Severity.ShouldEqual(2);
     [Fact] void should_carry_information() => _result.Single(_ => _.PropertyName == "information").Rules.Single().Severity.ShouldEqual(1);
     [Fact] void should_carry_default_error() => _result.Single(_ => _.PropertyName == "error").Rules.Single().Severity.ShouldEqual(3);
+    [Fact] void should_carry_arc_extension_warning() => _result.Single(_ => _.PropertyName == "arcWarning").Rules.Single().Severity.ShouldEqual(2);
     [Fact] void should_leave_dynamic_severity_unknown() => _result.Single(_ => _.PropertyName == "dynamic").Rules.Single().Severity.ShouldBeNull();
+    [Fact] void should_leave_property_dependent_severity_unknown() => _result.Single(_ => _.PropertyName == "dynamicWithProperty").Rules.Single().Severity.ShouldBeNull();
 }

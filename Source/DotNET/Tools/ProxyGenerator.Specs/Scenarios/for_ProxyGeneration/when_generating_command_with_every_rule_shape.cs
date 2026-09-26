@@ -60,7 +60,7 @@ public class when_generating_command_with_every_rule_shape : Specification, IDis
     [Fact] void should_emit_min_length() => _generatedCode.ShouldContain(".minLength(10)");
     [Fact] void should_emit_max_length() => _generatedCode.ShouldContain(".maxLength(200)");
     [Fact] void should_emit_exact_length_as_a_range() => _generatedCode.ShouldContain(".length(4, 4)");
-    [Fact] void should_still_emit_the_rule_a_lazy_message_was_declared_on() => _generatedCode.ShouldContain("this.ruleFor(c => c.pin).length(4, 4).withSeverity(3);");
+    [Fact] void should_still_emit_the_rule_a_lazy_message_was_declared_on() => _generatedCode.ShouldContain("this.ruleFor(c => c.pin).length(4, 4);");
     [Fact] void should_not_resolve_the_lazily_declared_message() => _generatedCode.ShouldNotContain("Pin must be exactly four digits");
     [Fact] void should_emit_greater_than_or_equal() => _generatedCode.ShouldContain(".greaterThanOrEqual(18)");
     [Fact] void should_emit_less_than() => _generatedCode.ShouldContain(".lessThan(150)");

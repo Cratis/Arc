@@ -44,9 +44,13 @@ public class when_generating_command_with_severities : Specification, IDisposabl
 
     [Fact] void should_emit_warning_severity() => _generatedCode.ShouldContain("this.ruleFor(c => c.warning).notEmpty().withSeverity(2)");
     [Fact] void should_emit_information_severity() => _generatedCode.ShouldContain("this.ruleFor(c => c.information).notEmpty().withSeverity(1)");
-    [Fact] void should_defer_dynamic_severity_to_the_server() => _generatedCode.ShouldContain("this.ruleFor(c => c.dynamic).notEmpty().withSeverity(null)");
+    [Fact] void should_emit_arc_extension_warning() => _generatedCode.ShouldContain("this.ruleFor(c => c.arcWarning).notEmpty().withSeverity(2)");
+    [Fact] void should_not_emit_default_error_severity() => _generatedCode.ShouldContain("this.ruleFor(c => c.error).notEmpty();");
+    [Fact] void should_not_require_new_client_api_for_default_error() => _generatedCode.ShouldNotContain("withSeverity(3)");
+    [Fact] void should_defer_dynamic_severity_to_the_server() => _generatedCode.ShouldNotContain("this.ruleFor(c => c.dynamic)");
+    [Fact] void should_defer_property_dependent_severity_to_the_server() => _generatedCode.ShouldNotContain("this.ruleFor(c => c.dynamicWithProperty)");
     [Fact] void should_emit_the_command_policy() => _generatedCode.ShouldContain("readonly blockOnValidationSeverity = 2");
-    [Fact] void should_defer_dynamic_severity_even_without_a_policy() => _unattributedCode.ShouldContain("this.ruleFor(c => c.dynamic).notEmpty().withSeverity(null)");
+    [Fact] void should_defer_dynamic_severity_even_without_a_policy() => _unattributedCode.ShouldNotContain("this.ruleFor(c => c.dynamic)");
     [Fact] void should_produce_valid_typescript() => _diagnostics.ShouldBeEmpty();
 
     public void Dispose() => _runtime?.Dispose();

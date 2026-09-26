@@ -16,4 +16,15 @@ public record ValidationRuleDescriptor(
     object[] Arguments,
 #pragma warning restore CA1819 // Properties should not return arrays
     string? ErrorMessage,
-    int? Severity = 3);
+    int? Severity = 3)
+{
+    /// <summary>
+    /// Whether the rule has a severity that can be validated on the client.
+    /// </summary>
+    public bool HasStaticSeverity => Severity is not null;
+
+    /// <summary>
+    /// Whether the rule needs an explicit client severity instead of the Error default.
+    /// </summary>
+    public bool IsNonDefaultSeverity => Severity is not null and not 3;
+}
