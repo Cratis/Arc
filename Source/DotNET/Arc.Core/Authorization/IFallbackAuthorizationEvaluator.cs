@@ -6,7 +6,7 @@ using System.Reflection;
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
-/// Supplies baseline authorization requirements only when neither the method nor its declaring type has an explicit authorization declaration.
+/// Supplies baseline authorization requirements when a command type or query target has no explicit authorization declaration.
 /// </summary>
 /// <remarks>
 /// All requirements from all fallback evaluators must pass. Explicit declarations, including anonymous access, replace the baseline.
@@ -15,14 +15,16 @@ namespace Cratis.Arc.Authorization;
 public interface IFallbackAuthorizationEvaluator
 {
     /// <summary>
-    /// Gets the baseline requirements for a type without an explicit declaration.
+    /// Gets the baseline requirements for a command or type-targeted query without an explicit declaration.
+    /// Query methods also consult their declaring type through this overload.
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>Requirements that must all be satisfied, or an empty sequence when this evaluator does not apply.</returns>
     IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type);
 
     /// <summary>
-    /// Gets the baseline requirements for a method without an explicit declaration.
+    /// Gets the baseline requirements for a query method without an explicit declaration.
+    /// Commands and queries whose authorization target is a type do not consult this overload.
     /// </summary>
     /// <param name="method">The method to check.</param>
     /// <returns>Requirements that must all be satisfied, or an empty sequence when this evaluator does not apply.</returns>
