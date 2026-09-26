@@ -9,7 +9,7 @@ The `Cratis.Arc.OpenApi` package provides deep integration with `Microsoft.AspNe
 | [Concepts](./concepts.md) | How concept types are mapped to their underlying primitive types in the API schema. |
 | [Commands](./commands.md) | How command responses are wrapped with `CommandResult` in the API documentation. |
 | [Queries](./queries.md) | How query responses are wrapped with `QueryResult`, including pagination parameters. |
-| [Enums](./enums.md) | Current enum-name/schema-type mismatch and numeric wire behavior. |
+| [Enums](./enums.md) | Enum schemas follow the effective JSON converter's numeric or string wire values. |
 | [FromRequest Attribute](./from-request.md) | How complex model binding with `[FromRequest]` is reflected in the API schema. |
 | [Model-Bound Operations](./model-bound.md) | How minimal API command and query endpoints appear in the API documentation. |
 
@@ -25,7 +25,7 @@ builder.Services.AddOpenApi(options => options.AddConcepts());
 
 After building the app, map the document using ASP.NET's `app.MapOpenApi()` (default `/openapi/v1.json`). Keep `app.UseCratisArc()` and the host's normal startup too. Map only in intended environments or apply appropriate endpoint access controls; API documentation is not automatically private.
 
-The `AddConcepts()` method registers all schema and operation transformers automatically. It preserves string schemas for dates, times, URIs and runtime types, and describes geospatial values as GeoJSON objects. Recursive values in dictionaries with concept keys use component references rather than truncated inline schemas. For polymorphic types, the schema describes the declared base properties, while the wire format also carries the discriminator and derived properties.
+The `AddConcepts()` method registers all schema and operation transformers automatically. It preserves string schemas for dates, times, URIs and runtime types, and describes geospatial values as GeoJSON objects. Recursive values in dictionaries with concept keys use component references rather than truncated inline schemas. For polymorphic types, the schema describes the declared base properties using the concrete CLR names camel-cased by Fundamentals' derived-type converter, while the wire format also carries the discriminator and derived properties. That converter does not apply `[JsonPropertyName]` or `[JsonIgnore]` on the base interface; a concrete property marked ignored on the interface still appears on the wire and in the schema. Avoid indexers on derived types: the converter attempts to read them without arguments and cannot serialize them.
 
 ## Requirements
 

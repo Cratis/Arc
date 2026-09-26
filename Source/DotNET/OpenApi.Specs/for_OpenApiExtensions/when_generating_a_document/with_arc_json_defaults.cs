@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.given;
@@ -19,13 +20,15 @@ namespace Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document;
 public class with_arc_json_defaults : Specification
 {
     JsonNode? _document;
+    JsonNode? _wire;
 
-    async Task Because() => _document = await GenerateDocument();
+    async Task Because() => (_document, _wire) = await GenerateDocument();
 
     [Fact] void should_describe_the_concept_as_a_primitive() => Schema("SampleConcept")["type"]!.ToString().ShouldEqual("string");
     [Fact] void should_describe_the_concept_collection_as_an_array() => Schema("IEnumerableOfSampleConcept")["type"]!.ToString().ShouldEqual("array");
     [Fact] void should_describe_the_concept_collection_items() => Schema("IEnumerableOfSampleConcept")["items"]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/SampleConcept");
     [Fact] void should_preserve_the_enum_type() => Schema("SampleEnum")["type"]!.ToString().ShouldEqual("integer");
+    [Fact] void should_describe_numeric_enum_values() => Schema("SampleEnum")["enum"]!.ToJsonString().ShouldEqual("[0,1]");
     [Fact] void should_describe_dates_as_strings() => Schema("SampleDates")["properties"]!["date"]!["type"]!.ToString().ShouldEqual("string");
     [Fact] void should_describe_nullable_dates_as_strings_or_null() => Schema("SampleDates")["properties"]!["nullableDate"]!["type"]!.ToString().ShouldContain("null");
     [Fact] void should_describe_times_as_strings() => Schema("SampleDates")["properties"]!["time"]!["type"]!.ToString().ShouldEqual("string");
@@ -38,9 +41,13 @@ public class with_arc_json_defaults : Specification
     [Fact] void should_describe_geojson_polygons_as_objects() => Schema("Polygon")["properties"]!["coordinates"]!["items"]!["items"]!["items"]!["type"]!.ToString().ShouldEqual("number");
     [Fact] void should_describe_primitive_collections_as_arrays() => Schema("SampleValues")["properties"]!["names"]!["type"]!.ToString().ShouldEqual("array");
     [Fact] void should_describe_declared_polymorphic_properties() => Schema("ISampleBase")["properties"]!["name"]!["type"]!.ToString().ShouldEqual("string");
-    [Fact] void should_describe_inherited_interface_properties() => Schema("ISampleBase")["properties"]!["renamed"]!["type"]!.ToString().ShouldEqual("string");
-    [Fact] void should_exclude_ignored_interface_properties() => Schema("ISampleBase")["properties"]!["hidden"].ShouldBeNull();
-    [Fact] void should_exclude_indexers() => Schema("ISampleBase")["properties"]!["item"].ShouldBeNull();
+    [Fact] void should_describe_inherited_interface_properties_as_they_are_written() => Schema("ISampleBase")["properties"]!["id"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_include_ignored_interface_properties_that_are_written() => Schema("ISampleBase")["properties"]!["hidden"]!["type"]!.ToString().ShouldEqual("string");
+    [Fact] void should_not_apply_interface_json_property_names() => Schema("ISampleBase")["properties"]!["renamed"].ShouldBeNull();
+    [Fact] void should_describe_only_properties_present_on_the_wire() => ((JsonObject)Schema("ISampleBase")["properties"]!).All(property => _wire!.AsObject().ContainsKey(property.Key)).ShouldBeTrue();
+    [Fact] void should_serialize_ignored_and_renamed_interface_properties_by_clr_name() => _wire!["id"]!.ToString().ShouldEqual("id");
+    [Fact] void should_serialize_the_hidden_property() => _wire!["hidden"]!.ToString().ShouldEqual("hidden");
+    [Fact] void should_not_serialize_the_interface_json_property_name() => _wire!["renamed"].ShouldBeNull();
     [Fact] void should_exclude_static_properties() => Schema("ISampleBase")["properties"]!["staticValue"].ShouldBeNull();
     [Fact] void should_describe_the_complex_key_dictionary_as_an_object() => Schema("DictionaryOfSampleConceptAndstring")["type"]!.ToString().ShouldEqual("object");
     [Fact] void should_describe_the_complex_key_dictionary_values() => Schema("DictionaryOfSampleConceptAndstring")["additionalProperties"]!["type"]!.ToString().ShouldEqual("string");
@@ -48,7 +55,7 @@ public class with_arc_json_defaults : Specification
 
     JsonNode Schema(string name) => _document!["components"]!["schemas"]![name]!;
 
-    static async Task<JsonNode?> GenerateDocument()
+    static async Task<(JsonNode? Document, JsonNode? Wire)> GenerateDocument()
     {
         var builder = WebApplication.CreateBuilder();
         builder.AddCratisArc();
@@ -67,7 +74,12 @@ public class with_arc_json_defaults : Specification
         await app.StartAsync();
         var provider = app.Services.GetRequiredKeyedService<IOpenApiDocumentProvider>("v1");
         var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
-        return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
+        var context = new DefaultHttpContext { RequestServices = app.Services };
+        context.Response.Body = new MemoryStream();
+        await Results.Ok<ISampleBase>(new SampleDerived("value", 42)).ExecuteAsync(context);
+        context.Response.Body.Position = 0;
+        var wire = JsonNode.Parse(await new StreamReader(context.Response.Body, Encoding.UTF8).ReadToEndAsync());
+        return (JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1)), wire);
     }
 
     public record SampleConcept(Guid Value) : ConceptAs<Guid>(Value);
@@ -84,7 +96,6 @@ public class with_arc_json_defaults : Specification
         string Id { get; }
         [JsonIgnore]
         string Hidden { get; }
-        string this[int index] { get; }
         static string StaticValue => "static";
     }
     public interface ISampleBase : IAdditionalProperties
@@ -97,6 +108,5 @@ public class with_arc_json_defaults : Specification
     {
         public string Id => "id";
         public string Hidden => "hidden";
-        public string this[int index] => "value";
     }
 }

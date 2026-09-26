@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Cratis.Json;
 using Cratis.Serialization;
+using Cratis.Strings;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
@@ -38,10 +38,11 @@ public class DeferredSchemaDocumentTransformer(IOptionsMonitor<OpenApiOptions> o
                 schema.Properties ??= new Dictionary<string, IOpenApiSchema>();
                 var properties = type.GetInterfaces().Append(type)
                     .SelectMany(candidate => candidate.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-                    .Where(property => property.GetMethod is not null && property.GetIndexParameters().Length == 0 && property.GetCustomAttribute<JsonIgnoreAttribute>()?.Condition is not JsonIgnoreCondition.Always);
+                    .Where(property => property.GetMethod is not null && property.GetIndexParameters().Length == 0);
                 foreach (var property in properties)
                 {
-                    var name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ?? jsonOptions.PropertyNamingPolicy?.ConvertName(property.Name) ?? property.Name;
+                    // DerivedTypeJsonConverter writes concrete CLR properties with ToCamelCase, ignoring JSON attributes.
+                    var name = property.Name.ToCamelCase();
                     var propertySchema = await GetSchema(property.PropertyType, document, context, jsonOptions, cancellationToken);
                     schema.Properties[name] = nullability.Create(property).ReadState == NullabilityState.Nullable && propertySchema is OpenApiSchemaReference
                         ? new OpenApiSchema { OneOf = [new OpenApiSchema { Type = JsonSchemaType.Null }, propertySchema] }
