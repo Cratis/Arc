@@ -55,6 +55,12 @@ public class AuthorizationEvaluation(
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
+        if (resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } &&
+            selectedPrincipal?.Identity?.IsAuthenticated != true)
+        {
+            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution);
     }
@@ -98,7 +104,7 @@ public class AuthorizationEvaluation(
         var selectedPrincipal = prepared.SelectedPrincipal;
         var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
-        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal))
+        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal, prepared.EvaluatesAnonymous))
         {
             return false;
         }
@@ -109,12 +115,41 @@ public class AuthorizationEvaluation(
             ? services.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal!, services)
             : null;
 
+        PrincipalSnapshot? executionIdentity = null;
+        var guest = false;
         if (declaration.RequiresAsynchronousEvaluation)
         {
-            if (selectedPrincipal is null || !await resolution.IsAuthorized(
+            if (selectedPrincipal is null)
+            {
+                return false;
+            }
+
+            guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
+            var executionPrincipal = needsSelectedScope ? selectedPrincipal : principalAccessor.Current;
+
+            // A verdict certifies exactly the policy-input and execution identities captured immediately before
+            // evaluation (after pre-verdict hooks). Both must remain unchanged; a guest verdict never certifies
+            // an authenticated execution identity, even when authentication appears before the policy runs.
+            var policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
+            executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
+            if (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
+                          AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal)))
+            {
+                return false;
+            }
+
+            if (!await resolution.IsAuthorized(
                 new AuthorizationPolicyContext(selectedPrincipal, target, resource),
                 services,
                 cancellationToken))
+            {
+                return false;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) ||
+                !AuthorizationPrincipalIdentity.Same(executionIdentity, principalAccessor.Current) ||
+                (guest && AuthorizationEvaluator.HasAuthenticatedIdentity(principalAccessor.Current)))
             {
                 return false;
             }
@@ -122,9 +157,9 @@ public class AuthorizationEvaluation(
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Only the same target and selected principal may be checked synchronously after its asynchronous requirements.
+        // The legacy marker carries only the certified execution snapshot and guest flag; CheckMember rechecks both.
         using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, selectedPrincipal, declaration)
+            ? AuthorizationEvaluator.AlreadyEvaluated(target, executionIdentity!, declaration, guest)
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.

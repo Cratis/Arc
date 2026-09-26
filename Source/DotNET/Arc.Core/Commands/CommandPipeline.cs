@@ -269,7 +269,7 @@ public class CommandPipeline(
 
             if (preparedAuthorization is not null)
             {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
                 {
                     return CommandResult.Unauthorized(correlationId);
                 }
@@ -282,7 +282,7 @@ public class CommandPipeline(
             }
 
             identityLease.Attach(AuthorizationCommandIdentity.Enter(
-                preparedAuthorization?.SelectedPrincipal ?? serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
+                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
                 scopeFactory));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
 
@@ -488,7 +488,7 @@ public class CommandPipeline(
 
             if (preparedAuthorization is not null)
             {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
                 {
                     return CommandResult.Unauthorized(correlationId);
                 }

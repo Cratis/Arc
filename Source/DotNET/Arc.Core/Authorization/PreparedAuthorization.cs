@@ -12,7 +12,7 @@ namespace Cratis.Arc.Authorization;
 /// <param name="Target">The declared target.</param>
 /// <param name="Declaration">The effective requirements.</param>
 /// <param name="OriginalPrincipal">The caller before scheme authentication.</param>
-/// <param name="SelectedPrincipal">The authenticated scheme principal.</param>
+/// <param name="SelectedPrincipal">The authenticated scheme principal or synthetic guest.</param>
 /// <param name="Resolution">The resolved policies used for the later verdict.</param>
 internal sealed record PreparedAuthorization(
     MemberInfo Target,
@@ -24,5 +24,11 @@ internal sealed record PreparedAuthorization(
     /// <summary>
     /// Gets whether explicit scheme authentication selected a different principal.
     /// </summary>
-    internal bool PrincipalChanged => SelectedPrincipal is not null && !AuthorizationPrincipalIdentity.Same(OriginalPrincipal, SelectedPrincipal);
+    internal bool PrincipalChanged => SelectedPrincipal?.Identity?.IsAuthenticated == true &&
+        !AuthorizationPrincipalIdentity.Same(OriginalPrincipal, SelectedPrincipal);
+
+    /// <summary>
+    /// Gets whether every policy explicitly opts into evaluating unauthenticated callers.
+    /// </summary>
+    internal bool EvaluatesAnonymous => Resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true };
 }
