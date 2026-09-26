@@ -42,7 +42,9 @@ public static class OpenApiExtensions
             async context =>
             {
                 var document = GenerateOpenApiDocument(httpListenerMapper, title, version);
+#pragma warning disable IL2026, IL3050 // JsonSerializer without source-generated context. Source-generated JsonSerializerContext is the long-term fix (tracked in GitHub issue #2204 item 5)
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
+#pragma warning restore IL2026, IL3050
 
                 context.ContentType = "application/json";
                 await context.Write(json);

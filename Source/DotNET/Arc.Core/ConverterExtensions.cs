@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Cratis.Arc;
 
@@ -42,6 +43,7 @@ public static class ConverterExtensions
     /// (as produced by repeated query string keys collapsed into one value) into an enumerable of primitives,
     /// concepts, or enums.
     /// </remarks>
+    [UnconditionalSuppressMessage("AOT", "IL2067", Justification = "Activator.CreateInstance(targetType) on value-type fallback path; targetType.IsValueType ensures it has a default constructor. Source-generated type converters are the long-term fix (tracked in GitHub issue #2204).")]
     public static object? ConvertTo(this object value, Type targetType)
     {
         if (value is null)
@@ -190,6 +192,7 @@ public static class ConverterExtensions
 
         return targetType.IsInstanceOfType(list) ? list : array;
     }
+
 
     static object? ConvertToUnderlyingType(object value, Type targetType)
     {
