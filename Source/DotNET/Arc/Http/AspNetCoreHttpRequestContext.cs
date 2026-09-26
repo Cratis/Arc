@@ -13,7 +13,7 @@ namespace Cratis.Arc.AspNetCore.Http;
 /// ASP.NET Core implementation of <see cref="IHttpRequestContext"/>.
 /// </summary>
 /// <param name="httpContext">The ASP.NET Core <see cref="HttpContext"/>.</param>
-public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, IAuthorizationRequestContext
+public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext
 {
     readonly AsyncLocal<Selection?> _selected = new();
     JsonSerializerOptions? _jsonOptions;

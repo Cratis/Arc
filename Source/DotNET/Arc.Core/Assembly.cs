@@ -6,3 +6,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Cratis.Arc")]
 [assembly: InternalsVisibleTo("Cratis.Arc.MongoDB")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Specs")]
+[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]

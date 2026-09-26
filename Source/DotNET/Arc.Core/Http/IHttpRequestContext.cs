@@ -102,13 +102,6 @@ public interface IHttpRequestContext
     void SetResponseHeader(string name, string value);
 
     /// <summary>
-    /// Gets the current value of a response header.
-    /// </summary>
-    /// <param name="name">Header name.</param>
-    /// <returns>The header value, with multiple values combined as a comma-separated list, or <see langword="null"/> if the header is not set.</returns>
-    string? GetResponseHeader(string name);
-
-    /// <summary>
     /// Appends a cookie to the response.
     /// </summary>
     /// <param name="key">The cookie name.</param>
