@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Authorization;
-using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Concepts;
 using Cratis.Execution;
@@ -18,7 +17,7 @@ public class with_invalid_concept_collection_element : Specification
     ControllerQueryPerformer _performer;
     ServiceProvider _services;
     QueryContext _context;
-    MissingArgumentForQuery _exception;
+    InvalidQueryArgument _exception;
 
     void Establish()
     {
@@ -35,7 +34,7 @@ public class with_invalid_concept_collection_element : Specification
         _context = new QueryContext(_performer.FullyQualifiedName, CorrelationId.New(), Paging.NotPaged, Sorting.None, new QueryArguments { ["rates"] = "1,bad" }, [_services]);
     }
 
-    async Task Because() => _exception = await Catch.Exception(PerformQuery) as MissingArgumentForQuery;
+    async Task Because() => _exception = await Catch.Exception(PerformQuery) as InvalidQueryArgument;
 
     async Task PerformQuery() => await _performer.Perform(_context);
 
@@ -45,6 +44,7 @@ public class with_invalid_concept_collection_element : Specification
     [Fact] void should_reject_the_invalid_element() => _exception.ShouldNotBeNull();
     [Fact] void should_name_the_argument_in_the_validation_result() => _exception.ValidationResult.Members.ShouldContain("rates");
     [Fact] void should_have_a_validation_failure() => (_exception is IValidationFailure).ShouldBeTrue();
+    [Fact] void should_report_malformed_request() => _exception.ValidationResult.Reason.ShouldEqual(ValidationResultReason.MalformedRequest);
     [Fact] void should_not_invoke_the_action() => RateController.WasCalled.ShouldBeFalse();
 
     public record Rate(decimal Value) : ConceptAs<decimal>(Value);
