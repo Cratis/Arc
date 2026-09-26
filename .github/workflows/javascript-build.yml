@@ -21,6 +21,9 @@ on:
       - "**"
     paths:
       - "Source/JavaScript/**"
+      - "scripts/check-declaration-imports.cjs"
+      - ".github/workflows/javascript-build.yml"
+      - "tsconfig.json"
 
 jobs:
   build:
@@ -54,3 +57,5 @@ jobs:
         run: |
           export NODE_OPTIONS="--max-old-space-size=4096"
           yarn ci
+          yarn node scripts/check-declaration-imports.cjs --self-test
+          yarn node scripts/check-declaration-imports.cjs
