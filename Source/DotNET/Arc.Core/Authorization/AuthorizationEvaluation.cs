@@ -115,7 +115,8 @@ public class AuthorizationEvaluation(
             ? services.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal!, services)
             : null;
 
-        PrincipalSnapshot? evaluatedIdentity = null;
+        PrincipalSnapshot? executionIdentity = null;
+        var guest = false;
         if (declaration.RequiresAsynchronousEvaluation)
         {
             if (selectedPrincipal is null)
@@ -123,10 +124,20 @@ public class AuthorizationEvaluation(
                 return false;
             }
 
-            // A guest policy receives a synthetic principal, but its verdict belongs to the ambient identity.
-            // Authenticated verdicts belong to the selected identity. Capture only after pre-verdict hooks have run.
-            var guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
-            evaluatedIdentity = AuthorizationPrincipalIdentity.Capture(guest ? principalAccessor.Current : selectedPrincipal);
+            guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
+            var executionPrincipal = needsSelectedScope ? selectedPrincipal : principalAccessor.Current;
+
+            // A verdict certifies exactly the policy-input and execution identities captured immediately before
+            // evaluation (after pre-verdict hooks). Both must remain unchanged; a guest verdict never certifies
+            // an authenticated execution identity, even when authentication appears before the policy runs.
+            var policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
+            executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
+            if (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
+                          AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal)))
+            {
+                return false;
+            }
+
             if (!await resolution.IsAuthorized(
                 new AuthorizationPolicyContext(selectedPrincipal, target, resource),
                 services,
@@ -136,7 +147,9 @@ public class AuthorizationEvaluation(
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (!AuthorizationPrincipalIdentity.Same(evaluatedIdentity, principalAccessor.Current))
+            if (!AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) ||
+                !AuthorizationPrincipalIdentity.Same(executionIdentity, principalAccessor.Current) ||
+                (guest && AuthorizationEvaluator.HasAuthenticatedIdentity(principalAccessor.Current)))
             {
                 return false;
             }
@@ -144,8 +157,9 @@ public class AuthorizationEvaluation(
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        // The legacy marker carries only the certified execution snapshot and guest flag; CheckMember rechecks both.
         using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, evaluatedIdentity!, declaration, prepared.EvaluatesAnonymous)
+            ? AuthorizationEvaluator.AlreadyEvaluated(target, executionIdentity!, declaration, guest)
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.

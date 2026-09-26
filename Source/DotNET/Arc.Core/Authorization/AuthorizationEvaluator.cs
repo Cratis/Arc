@@ -63,6 +63,13 @@ public class AuthorizationEvaluator(
              (principal?.Identity?.IsAuthenticated == true && requirement.AnyOfRoles.Any(principal.IsInRole))));
 
     /// <summary>
+    /// Detects authentication on any identity, including identities added after an unauthenticated primary identity.
+    /// </summary>
+    /// <param name="principal">The principal to inspect.</param>
+    /// <returns>True if any identity is authenticated.</returns>
+    internal static bool HasAuthenticatedIdentity(ClaimsPrincipal? principal) => principal?.Identities.Any(identity => identity.IsAuthenticated) == true;
+
+    /// <summary>
     /// Allows a legacy evaluator to delegate to the default evaluator only for requirements already checked on this target and principal.
     /// </summary>
     /// <param name="target">The evaluated command type or query method.</param>
@@ -74,10 +81,10 @@ public class AuthorizationEvaluator(
         AlreadyEvaluated(target, AuthorizationPrincipalIdentity.Capture(principal), declaration, evaluatesAnonymous);
 
     /// <summary>
-    /// Marks an asynchronously evaluated identity using its snapshot from before policy execution.
+    /// Marks an asynchronously evaluated execution identity using its snapshot from immediately before policy execution.
     /// </summary>
     /// <param name="target">The evaluated command type or query method.</param>
-    /// <param name="principal">The identity captured before application code ran.</param>
+    /// <param name="principal">The execution identity captured immediately before policy evaluation.</param>
     /// <param name="declaration">The exact effective requirements already checked.</param>
     /// <param name="evaluatesAnonymous">Whether anonymous evaluation was explicitly opted in.</param>
     /// <returns>A scope removing the permission immediately after the legacy verdict.</returns>
@@ -129,6 +136,7 @@ public class AuthorizationEvaluator(
         if (declaration.RequiresAsynchronousEvaluation &&
             _alreadyEvaluated.Value is { } checkedEvaluation &&
             checkedEvaluation.Target.Equals(target) && AuthorizationPrincipalIdentity.Same(checkedEvaluation.Principal, principal) &&
+            (!checkedEvaluation.EvaluatesAnonymous || !HasAuthenticatedIdentity(principal)) &&
             SameDeclaration(checkedEvaluation.Declaration, declaration))
         {
             return CheckRoles(declaration, principal, checkedEvaluation.EvaluatesAnonymous);
