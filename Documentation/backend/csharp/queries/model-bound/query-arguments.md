@@ -41,9 +41,9 @@ Arc converts the incoming name to `AccountName`; the predicate uses that domain 
 
 ## Supported input shapes
 
-The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose.
+The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose. If a supplied scalar cannot be converted to the declared parameter type, GET and QUERY reject it with HTTP 400 and a validation error naming the argument; the query does not run.
 
-It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported conversion can yield a missing/null/default value or a conversion error, rather than a useful DTO.
+It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported DTO shapes cannot be constructed by these readers; use a supported scalar or collection argument instead.
 
 These limitations concern the supplied HTTP readers. Already-typed arguments passed directly to `IQueryPipeline`, custom readers/converters, and [MVC DTO binding](../controller-based/query-arguments.md) are different paths. FluentValidation's ability to traverse an object does not prove HTTP can construct that object.
 

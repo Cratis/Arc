@@ -128,7 +128,7 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
                             throw new InvalidCollectionQueryArgument(parameter.Type, kvp.Value);
                         }
 
-                        convertedValue = kvp.Value.ConvertTo(parameter.Type);
+                        convertedValue = kvp.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
                     }
                     catch (InvalidCollectionQueryArgument)
                     {

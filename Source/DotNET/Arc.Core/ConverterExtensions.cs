@@ -92,6 +92,50 @@ public static class ConverterExtensions
     }
 
     /// <summary>
+    /// Converts a supplied query argument without accepting a fabricated default for invalid scalar input.
+    /// Other callers of <see cref="ConvertTo"/> retain their existing conversion behavior.
+    /// </summary>
+    /// <param name="value">The supplied value.</param>
+    /// <param name="targetType">The declared parameter type.</param>
+    /// <param name="argumentName">The declared parameter name.</param>
+    /// <param name="queryName">The query receiving the argument.</param>
+    /// <returns>The converted value, or null for a missing value.</returns>
+    /// <exception cref="InvalidQueryArgument">A supplied scalar value cannot be converted.</exception>
+    internal static object? ConvertQueryArgument(this object? value, Type targetType, string argumentName, FullyQualifiedQueryName queryName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (targetType.IsNestedQueryArgumentCollection() || targetType.IsEnumerableOfQueryArgumentElement(out _))
+        {
+            return value.ConvertTo(targetType);
+        }
+
+        // Empty non-string scalars are treated as absent by the performer. String concepts can represent empty text.
+        if (value is string { Length: 0 })
+        {
+            return targetType.IsConcept() && targetType.GetConceptValueType() == typeof(string)
+                ? ConceptFactory.CreateConceptInstance(targetType, string.Empty)
+                : value;
+        }
+
+        // Preserve concept binding: invalid concepts return null and required parameters fail validation there.
+        if (targetType.IsConcept())
+        {
+            return value.ConvertTo(targetType);
+        }
+
+        if (!TryConvertCollectionElement(value, targetType, out var converted))
+        {
+            throw new InvalidQueryArgument(argumentName, targetType, queryName);
+        }
+
+        return converted;
+    }
+
+    /// <summary>
     /// Determines whether a type is an enumerable whose element type is individually convertible via
     /// <see cref="ConvertTo"/> - a primitive, a concept, or an enum.
     /// </summary>

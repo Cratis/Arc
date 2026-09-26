@@ -66,7 +66,7 @@ public class BodyQueryRequestReader : IQueryRequestReader
                 var value = kvp.Value.ValueKind == JsonValueKind.Array && parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType)
                     ? kvp.Value.EnumerateArray().Select(element => GetCollectionElement(element, elementType, parameter.Type)).ToArray()
                     : (object)rawValue;
-                var convertedValue = value.ConvertTo(parameter.Type);
+                var convertedValue = value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
                 if (convertedValue is not null)
                 {
                     arguments[kvp.Key] = convertedValue;
