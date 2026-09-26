@@ -86,7 +86,7 @@ public record ServiceStatus(string State)
 }
 ```
 
-Method authorization takes precedence over type authorization. Arc rejects conflicting `[Authorize]` and `[AllowAnonymous]` on the same target with `AmbiguousAuthorizationLevel`; do not combine them.
+Method authorization **replaces** the type declaration; it does not combine with it. For example, on a read model with type-level `[Roles("Admin")]`, a method-level `[Authorize(Policy = "PublicOrMember")]` registered with `evaluatesAnonymous: true` is reachable by guests when that policy allows them. The type-level Admin role no longer protects that method. Arc rejects conflicting `[Authorize]` and `[AllowAnonymous]` on the same target with `AmbiguousAuthorizationLevel`; do not combine them.
 
 ## The pipeline boundary
 

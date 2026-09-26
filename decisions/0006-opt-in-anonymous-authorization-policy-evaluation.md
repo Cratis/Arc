@@ -7,7 +7,6 @@ class: contract
 reversibility: costly
 decided: 2026-09-26
 decider: Sindre Alstad Wilting
-amends: 0004-evaluate-authorization-policies-asynchronously
 applies-to:
   - Source/DotNET/Arc.Core/Authorization/**
   - Source/DotNET/Arc.Core/Commands/**
@@ -20,7 +19,7 @@ applies-to:
 
 ## Context
 
-Decision 0004 made an authenticated principal mandatory before evaluating every named policy. A policy that intentionally admits guests could not express that behavior on a model-bound command or query. An attribute-level opt-in would work only for Arc's attribute, not Microsoft's supported `[Authorize]` attribute.
+Under decision 0004, Arc required an authenticated principal before evaluating any named policy. A policy that intentionally admits guests could not express that behavior on a model-bound command or query. An attribute-level opt-in would work only for Arc's attribute, not Microsoft's supported `[Authorize]` attribute.
 
 ## Decision
 
