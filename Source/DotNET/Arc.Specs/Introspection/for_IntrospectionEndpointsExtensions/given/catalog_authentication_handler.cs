@@ -20,6 +20,7 @@ public class catalog_authentication_handler(IOptionsMonitor<AuthenticationScheme
         }
 
         var claims = new[] { new Claim(ClaimTypes.Name, user.ToString()), new Claim(ClaimTypes.Role, Request.Headers["X-Test-Role"].ToString()) };
-        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name)), Scheme.Name)));
+        var authenticationType = Request.Headers.ContainsKey("X-Test-Unauthenticated") ? null : Scheme.Name;
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationType)), Scheme.Name)));
     }
 }

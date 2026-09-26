@@ -34,11 +34,23 @@ public static class IntrospectionEndpointMapper
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
     /// <param name="options">The exposure options.</param>
+    /// <exception cref="InvalidIntrospectionConfiguration">The catalog configuration is invalid or the host cannot enforce it.</exception>
     public static void MapIntrospectionEndpoints(this IEndpointMapper mapper, IntrospectionOptions options)
     {
+        var validation = IntrospectionOptionsValidator.ValidateOptions(options);
+        if (validation.Failed)
+        {
+            throw new InvalidIntrospectionConfiguration(string.Join(' ', validation.Failures));
+        }
+
         if (!options.Enabled)
         {
             return;
+        }
+
+        if (options.RequireAuthentication && mapper is IIntrospectionExposureGuard guard)
+        {
+            guard.Validate(options);
         }
 
         if (!mapper.EndpointExists(CommandsEndpointName))

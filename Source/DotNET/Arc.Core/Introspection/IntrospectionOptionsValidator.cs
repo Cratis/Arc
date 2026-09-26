@@ -13,7 +13,16 @@ public class IntrospectionOptionsValidator : IValidateOptions<ArcOptions>
     /// <inheritdoc/>
     public ValidateOptionsResult Validate(string? name, ArcOptions options)
     {
-        var introspection = options.Introspection;
+        return ValidateOptions(options.Introspection);
+    }
+
+    /// <summary>
+    /// Validates catalog exposure settings for both configured hosts and direct mapper calls.
+    /// </summary>
+    /// <param name="introspection">The catalog exposure settings.</param>
+    /// <returns>The validation result.</returns>
+    internal static ValidateOptionsResult ValidateOptions(IntrospectionOptions introspection)
+    {
         if (introspection.Roles is not null)
         {
             var roles = introspection.Roles.Split(',').Select(role => role.Trim()).ToArray();

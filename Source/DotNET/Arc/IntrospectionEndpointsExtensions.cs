@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Introspection;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -24,21 +22,6 @@ public static class IntrospectionEndpointsExtensions
         if (app is IEndpointRouteBuilder endpoints)
         {
             var options = app.ApplicationServices.GetRequiredService<IOptions<Cratis.Arc.ArcOptions>>().Value.Introspection;
-            if (options.Enabled && options.RequireAuthentication)
-            {
-                var schemes = app.ApplicationServices.GetService<IAuthenticationSchemeProvider>();
-                var defaultScheme = schemes?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() ??
-                    throw new InvalidIntrospectionConfiguration("Introspection requires a default ASP.NET Core authentication scheme when RequireAuthentication is true.");
-                if (app.ApplicationServices.GetService<IAuthorizationService>() is null)
-                {
-                    throw new InvalidIntrospectionConfiguration("Introspection requires ASP.NET Core authorization services (AddAuthorization) when RequireAuthentication is true.");
-                }
-                if (!options.TrustForwardedIdentityHeaders && UnsignedIdentityHeaderSchemes.IsReachable(app.ApplicationServices, schemes, defaultScheme, options.Roles is null))
-                {
-                    throw new InvalidIntrospectionConfiguration("The default ASP.NET Core authentication scheme trusts unsigned x-ms-client-principal headers. Protected introspection requires a trusted ingress (such as Azure App Service or Container Apps EasyAuth) that strips and sets these headers. Set Cratis:Arc:Introspection:TrustForwardedIdentityHeaders=true to opt in, or use a different authentication scheme.");
-                }
-            }
-
             var mapper = new AspNetCoreEndpointMapper(endpoints);
             mapper.MapIntrospectionEndpoints(options);
         }

@@ -38,11 +38,11 @@ Configure `Cratis:Arc:Introspection` to change that boundary:
 | Option | Default | Effect |
 | --- | --- | --- |
 | `Enabled` | `true` | `false` leaves both catalog routes unmapped. |
-| `RequireAuthentication` | `false` | `true` requires an authenticated caller. An anonymous request returns 401. |
-| `Roles` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true` and no empty entries. A role mismatch returns 403. |
+| `RequireAuthentication` | `false` | `true` requires an authenticated caller, regardless of the host's default authorization policy. |
+| `Roles` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true` and no empty entries. A caller without a listed role is denied. |
 | `TrustForwardedIdentityHeaders` | `false` | Accepts identity from unsigned forwarded headers for the protected catalog. Requires `Enabled: true` and `RequireAuthentication: true`. |
 
-Startup validation rejects `Roles` or `TrustForwardedIdentityHeaders` combinations that do not meet these requirements.
+Startup validation rejects `Roles` or `TrustForwardedIdentityHeaders` combinations that do not meet these requirements. Arc.Core responds with 401 for anonymous requests and 403 for authenticated callers without a required role. On ASP.NET Core, the response depends on the configured authentication scheme's challenge and forbid behavior: cookie authentication can redirect instead of returning 401 or 403 unless configured otherwise.
 
 The JVM backend has no equivalent options: its catalog endpoints are always anonymous. See [the HTTP contract](/arc/http-contract/#authentication-and-introspection).
 
@@ -67,7 +67,7 @@ The Microsoft Identity Platform (EasyAuth) mechanism reads `x-ms-client-principa
 
 ### ASP.NET Core host
 
-With `RequireAuthentication: true`, startup requires a default authentication scheme and `builder.Services.AddAuthorization()`. Unless `TrustForwardedIdentityHeaders: true`, startup rejects a registered `MicrosoftIdentityPlatform` handler (including subclasses) reached through the default authentication scheme or an authentication scheme listed in the authorization policy applied to the catalog. This includes forwarding through policy schemes and other `AuthenticationHandler<TOptions>` handlers via `ForwardAuthenticate` or `ForwardDefault`. Without `Roles`, the catalog applies ASP.NET Core's default authorization policy; with `Roles`, the role attribute replaces that default policy, so its authentication schemes are not applied. Arc still checks the default authentication scheme in either case.
+With `RequireAuthentication: true`, startup requires a default authentication scheme and `builder.Services.AddAuthorization()`. Unless `TrustForwardedIdentityHeaders: true`, startup rejects a registered `MicrosoftIdentityPlatform` handler (including subclasses) reached through the default authentication scheme or an authentication scheme listed in the authorization policy applied to the catalog. This includes forwarding through policy schemes and other `AuthenticationHandler<TOptions>` handlers via `ForwardAuthenticate` or `ForwardDefault`. The catalog combines ASP.NET Core's default authorization policy with an explicit authenticated-user requirement and any configured roles. Arc checks both the default authentication scheme and schemes in the default authorization policy.
 
 A reachable scheme with `ForwardDefaultSelector` cannot be resolved without a request. If any unsigned identity-header handler is registered and that scheme has no `ForwardAuthenticate` override, startup fails closed: set `TrustForwardedIdentityHeaders: true` only behind trusted ingress, or use a static authentication scheme or `ForwardAuthenticate` instead. A selector does not block startup if no unsigned header handler is registered anywhere. Custom authentication handlers that do not derive from `AuthenticationHandler<TOptions>` and other request-dependent behavior cannot be inferred from scheme configuration; audit them and prevent direct backend access. Access is enforced by ASP.NET Core's authorization middleware; do not bypass it in a custom pipeline.
 

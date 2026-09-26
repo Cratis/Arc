@@ -19,22 +19,15 @@ internal static class UnsignedIdentityHeaderSchemes
     /// <param name="services">The host services.</param>
     /// <param name="schemes">The registered authentication schemes.</param>
     /// <param name="defaultScheme">The default authentication scheme.</param>
-    /// <param name="usesDefaultPolicy">Whether the endpoints apply the default authorization policy.</param>
     /// <returns>Whether unsigned identity headers are reachable.</returns>
     /// <exception cref="InvalidIntrospectionConfiguration">A dynamic selector could forward to a registered unsigned header scheme.</exception>
-    internal static bool IsReachable(IServiceProvider services, IAuthenticationSchemeProvider schemes, AuthenticationScheme defaultScheme, bool usesDefaultPolicy)
+    internal static bool IsReachable(IServiceProvider services, IAuthenticationSchemeProvider schemes, AuthenticationScheme defaultScheme)
     {
         var registeredSchemes = schemes.GetAllSchemesAsync().GetAwaiter().GetResult();
         var headerRegistered = registeredSchemes.Any(scheme => typeof(MicrosoftIDentityPlatformAuthHandler).IsAssignableFrom(scheme.HandlerType));
         if (FollowsHeaderScheme(services, schemes, defaultScheme, headerRegistered))
         {
             return true;
-        }
-
-        // RequireAuthorization() applies the default policy; RequireAuthorization(Roles=...) does not.
-        if (!usesDefaultPolicy)
-        {
-            return false;
         }
 
         var provider = services.GetRequiredService<IAuthorizationPolicyProvider>();

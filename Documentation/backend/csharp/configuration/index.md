@@ -60,7 +60,7 @@ builder.AddCratisArc(options =>
 | `Introspection.Enabled` | `bool` | `true` | Map both command and query catalog routes. Set to `false` to remove both routes. |
 | `Introspection.RequireAuthentication` | `bool` | `false` | Require an authenticated caller for both catalog routes. Requires a default ASP.NET Core authentication scheme plus `AddAuthorization()`, or a non-header Arc.Core authentication handler (unless forwarded headers are explicitly trusted). |
 | `Introspection.Roles` | `string?` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true`. No named policy option is provided. |
-| `Introspection.TrustForwardedIdentityHeaders` | `bool` | `false` | Arc.Core only: allow its built-in identity-header handler for protected catalog routes. Requires enabled introspection and authentication; use only behind an ingress that authenticates and strips client identity headers. |
+| `Introspection.TrustForwardedIdentityHeaders` | `bool` | `false` | Allow the built-in identity-header handler to authenticate protected catalog routes on Arc.Core, or permit an ASP.NET Core authentication scheme that reads those headers. Requires enabled introspection and authentication; use only behind an ingress that authenticates and strips client identity headers. |
 | `GeneratedApis.RoutePrefix` | `string` | `api` | Base prefix for generated command and query routes. |
 | `GeneratedApis.SegmentsToSkipForRoute` | `int` | `0` | Namespace segments to drop when building a route. |
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |

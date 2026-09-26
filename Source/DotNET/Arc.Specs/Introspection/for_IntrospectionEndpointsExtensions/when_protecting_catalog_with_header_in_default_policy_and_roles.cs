@@ -19,5 +19,5 @@ public class when_protecting_catalog_with_header_in_default_policy_and_roles : S
     },
     "Administrator");
 
-    [Fact] void should_start_without_unsigned_headers() => _failure.ShouldBeNull();
+    [Fact] void should_refuse_unsigned_headers_in_default_policy() => _failure.ShouldBeOfExactType<InvalidIntrospectionConfiguration>();
 }
