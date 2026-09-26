@@ -89,8 +89,10 @@ public static class HostBuilderExtensions
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
         services.AddSingleton<ICurrentPrincipalOverride>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
         services.AddSingleton<TenantIdAccessor>();
-        services.AddSingleton<ITenantIdAccessor>(sp => sp.GetRequiredService<TenantIdAccessor>());
-        services.AddSingleton<ITenantScope>(sp => sp.GetRequiredService<TenantIdAccessor>());
+        services.TryAddSingleton<ITenantIdAccessor>(sp => sp.GetRequiredService<TenantIdAccessor>());
+        services.TryAddSingleton<ITenantScope>(sp => sp.GetRequiredService<ITenantIdAccessor>() is TenantIdAccessor accessor && accessor.GetType() == typeof(TenantIdAccessor)
+            ? accessor
+            : throw new ExplicitTenantScopeRequiresArcAccessor());
         services.AddSingleton<ArcAuthorizationPolicyRuntime>();
         services.AddSingleton<IAuthorizationPolicyRuntime>(sp => sp.GetRequiredService<ArcAuthorizationPolicyRuntime>());
         services.AddTransient<AuthorizationDeclarations>();

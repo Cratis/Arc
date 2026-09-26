@@ -13,16 +13,16 @@ namespace Cratis.Arc.Tenancy;
 public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAccessor, ITenantScope
 {
     static readonly AsyncLocal<TenantId?> _current = new();
-    static readonly AsyncLocal<TenantId?> _explicit = new();
+    static readonly AsyncLocal<ExplicitTenantFrame?> _explicit = new();
 
     /// <inheritdoc/>
     public TenantId Current
     {
         get
         {
-            if (_explicit.Value is not null)
+            if (_explicit.Value is { } frame)
             {
-                return _explicit.Value;
+                return frame.Tenant;
             }
 
             if (_current.Value is not null)
@@ -45,7 +45,7 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     /// <summary>
     /// Gets the explicitly selected tenant, if any, without consulting the resolver.
     /// </summary>
-    internal TenantId? ExplicitTenant => _explicit.Value;
+    internal TenantId? ExplicitTenant => _explicit.Value?.Tenant;
 
     /// <inheritdoc/>
     public IDisposable Begin(TenantId tenant)
@@ -56,9 +56,10 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
             throw new ArgumentException("A tenant ID must not be empty.", nameof(tenant));
         }
 
-        var previous = _explicit.Value;
-        _explicit.Value = tenant;
-        return new ExplicitTenantScope(previous);
+        var frame = new ExplicitTenantFrame(tenant, new object(), _explicit.Value);
+        _explicit.Value = frame;
+
+        return new ExplicitTenantScope(frame.Identity);
     }
 
     /// <summary>
@@ -66,7 +67,7 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     /// </summary>
     /// <param name="tenant">The selected tenant.</param>
     /// <returns>A scope restoring the previously cached tenant.</returns>
-    internal IDisposable UseAuthorizedTenant(TenantId tenant) => UseTenant(_explicit.Value ?? tenant);
+    internal IDisposable UseAuthorizedTenant(TenantId tenant) => UseTenant(_explicit.Value?.Tenant ?? tenant);
 
     static TenantScope UseTenant(TenantId tenant)
     {
@@ -75,9 +76,29 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
         return new TenantScope(previous);
     }
 
-    sealed class ExplicitTenantScope(TenantId? previous) : IDisposable
+    /// <summary>
+    /// Immutable so removing a scope in one async flow cannot mutate frames inherited by another.
+    /// </summary>
+    /// <param name="Tenant">The tenant selected by this frame.</param>
+    /// <param name="Identity">The identity of this scope across frame copies.</param>
+    /// <param name="Previous">The previously selected frame.</param>
+    sealed record ExplicitTenantFrame(TenantId Tenant, object Identity, ExplicitTenantFrame? Previous);
+
+    sealed class ExplicitTenantScope(object identity) : IDisposable
     {
-        public void Dispose() => _explicit.Value = previous;
+        public void Dispose() => _explicit.Value = Remove(_explicit.Value, identity);
+
+        static ExplicitTenantFrame? Remove(ExplicitTenantFrame? frame, object identity)
+        {
+            if (frame is null || ReferenceEquals(frame.Identity, identity))
+            {
+                return frame?.Previous;
+            }
+
+            var previous = Remove(frame.Previous, identity);
+
+            return ReferenceEquals(previous, frame.Previous) ? frame : frame with { Previous = previous };
+        }
     }
 
     sealed class TenantScope(TenantId? previous) : IDisposable
