@@ -2,10 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { vi } from 'vitest';
 import { CommandForm } from '../CommandForm';
 import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
 import { InputTextField } from '../fields/InputTextField';
+import { RadioGroupField } from '../fields/RadioGroupField';
 import { TestCommand } from '../for_CommandForm/TestCommand';
 import { a_command_form_fields_context } from './given/a_command_form_fields_context';
 import { given } from '../../../given';
@@ -18,6 +20,20 @@ const CustomField = asCommandFormField<WrappedFieldProps<string>>(
         defaultValue: '',
         extractValue: (event: unknown) => (event as React.ChangeEvent<HTMLInputElement>).target.value,
     },
+);
+
+const CustomGroupField = asCommandFormField<WrappedFieldProps<string>>(
+    (props) => (
+        <div id={props.id}>
+            {['First', 'Second'].map((option) => (
+                <label key={option}>
+                    <input type='checkbox' checked={props.value === option} onChange={() => props.onChange(option)} />
+                    {option}
+                </label>
+            ))}
+        </div>
+    ),
+    { defaultValue: '', groupRole: 'group' },
 );
 
 describe('when a field has a title', given(a_command_form_fields_context, (context) => {
@@ -58,6 +74,52 @@ describe('when a field has a title', given(a_command_form_fields_context, (conte
 
         (screen.getByLabelText('Name') as HTMLInputElement).id.should.equal('profile-name');
         (screen.getByText('Name') as HTMLLabelElement).htmlFor.should.equal('profile-name');
+    });
+
+    it('should name a radio group without selecting an option when its title is clicked', () => {
+        const onFieldChange = vi.fn();
+        render(
+            <CommandForm command={TestCommand} onFieldChange={onFieldChange}>
+                <RadioGroupField
+                    value={(command: TestCommand) => command.name}
+                    title='Choice'
+                    id='choice-group'
+                    options={[
+                        { value: 'First', label: 'First' },
+                        { value: 'Second', label: 'Second' },
+                    ]}
+                />
+            </CommandForm>,
+            { wrapper: context.createWrapper() },
+        );
+
+        const group = screen.getByRole('radiogroup', { name: 'Choice' });
+        const radios = screen.getAllByRole('radio') as HTMLInputElement[];
+        expect(group.querySelector('#choice-group')).not.toBeNull();
+        radios[0].id.should.equal('');
+        fireEvent.click(radios[1]);
+        radios[1].checked.should.equal(true);
+        expect(onFieldChange).toHaveBeenCalledTimes(1);
+
+        const onRadioChange = vi.fn();
+        radios.forEach((radio) => radio.addEventListener('change', onRadioChange));
+        fireEvent.click(screen.getByText('Choice'));
+        radios[1].checked.should.equal(true);
+        radios[0].checked.should.equal(false);
+        expect(onRadioChange).not.toHaveBeenCalled();
+        expect(onFieldChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('should name a custom multi-input field as a group', () => {
+        render(
+            <CommandForm command={TestCommand}>
+                <CustomGroupField value={(command: TestCommand) => command.name} title='Options' />
+            </CommandForm>,
+            { wrapper: context.createWrapper() },
+        );
+
+        expect(screen.getByRole('group', { name: 'Options' })).not.toBeNull();
+        screen.getAllByRole('checkbox').length.should.equal(2);
     });
 
     it('should pass the generated id through the custom field adapter', () => {

@@ -7,7 +7,7 @@ import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField';
 import type { ICommandResult } from '@cratis/arc/commands';
 import { memberMatchesField } from './memberMatchesField';
-import { isCommandFormColumn } from './commandFormMarkers';
+import { isCommandFormColumn, type CommandFormMarked } from './commandFormMarkers';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants';
 import { runCommandValidation } from './runCommandValidation';
 import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime';
@@ -41,6 +41,8 @@ const CommandFormFieldWrapper = ({
     const fieldProps = field.props as CommandFormFieldProps;
     const generatedId = React.useId();
     const fieldId = fieldProps.id ?? generatedId;
+    const groupRole = (field.type as CommandFormMarked).commandFormFieldGroupRole;
+    const titleId = `${fieldId}-title`;
     const propertyAccessor = fieldProps.value;
 
     // An explicit fieldName wins; a dynamic accessor such as `instance => instance[name]` cannot be
@@ -392,21 +394,25 @@ const CommandFormFieldWrapper = ({
         }
     }
 
-    const fieldContent = (
+    const titleStyle: React.CSSProperties = {
+        display: 'block',
+        marginBottom: '0.5rem',
+        fontWeight: 500,
+        color: 'var(--color-text)',
+    };
+    const title = context.showTitles && fieldProps.title && (groupRole ? (
+        <span id={titleId} style={titleStyle}>{fieldProps.title}</span>
+    ) : (
+        <label htmlFor={fieldId} style={titleStyle}>{fieldProps.title}</label>
+    ));
+    const fieldContent = groupRole ? (
+        <div role={groupRole} aria-labelledby={title ? titleId : undefined}>
+            {title}
+            {decoratedField}
+        </div>
+    ) : (
         <>
-            {context.showTitles && fieldProps.title && (
-                <label
-                    htmlFor={fieldId}
-                    style={{
-                        display: 'block',
-                        marginBottom: '0.5rem',
-                        fontWeight: 500,
-                        color: 'var(--color-text)',
-                    }}
-                >
-                    {fieldProps.title}
-                </label>
-            )}
+            {title}
             {decoratedField}
         </>
     );

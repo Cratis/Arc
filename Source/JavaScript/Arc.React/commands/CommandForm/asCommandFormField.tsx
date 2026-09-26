@@ -77,6 +77,8 @@ export interface CommandFormFieldConfig<TValue = unknown> {
     defaultValue: TValue;
     /** Value extractor from the change event */
     extractValue?: (event: unknown) => TValue;
+    /** For multi-input fields, render the title as the accessible name of this group instead of a control label. */
+    groupRole?: 'group' | 'radiogroup';
 }
 
 /**
@@ -150,7 +152,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
         | ((props: TComponentProps) => React.ReactElement),
     config: CommandFormFieldConfig<TComponentProps['value']>,
 ) {
-    const { defaultValue, extractValue } = config;
+    const { defaultValue, extractValue, groupRole } = config;
     const Component =
         typeof component === 'function' && !component.prototype?.render
             ? component
@@ -205,6 +207,7 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
     };
 
     const wrappedField = withCommandFormFieldBinding(BoundField);
+    wrappedField.commandFormFieldGroupRole = groupRole;
     wrappedField.commandFormFieldName =
         (component as ComponentType<TComponentProps>).displayName ||
         component.name ||

@@ -75,7 +75,7 @@ No `title` is supplied because each control renders its own label. If you use a 
 | Prop | Type | Contract |
 | --- | --- | --- |
 | `value` | `TValue` | Current display value; configured fallback is used only for `undefined`, not `null`. |
-| `id` | `string \| undefined` | Forward to the rendered input so a CommandForm `title` labels and focuses it. A caller-supplied id takes precedence over the generated one. |
+| `id` | `string \| undefined` | Forward to the rendered input for a single-input field, or to the group container for a grouped field. A caller-supplied id takes precedence over the generated one. |
 | `onChange` | `(valueOrEvent: TValue \| unknown) => void` | Forward the control's change event/value for extraction and binding. |
 | `onBlur` | `(() => void) \| undefined` | Forward to the control's blur event to preserve form blur validation. |
 | `invalid` | `boolean` | Whether this field has a displayed error. |
@@ -85,6 +85,8 @@ No `title` is supplied because each control renders its own label. If you use a 
 ## Configuration object
 
 The configuration requires `defaultValue: TValue` and optionally accepts `extractValue: (event: unknown) => TValue`. Without an extractor the emitted value is used directly. A fallback only changes display; it does not seed the command or its baseline. Define a deliberate null/empty policy for numeric/date controls rather than silently converting every empty value to a business value.
+
+For a field with multiple inputs, set `groupRole: 'group'` (or `'radiogroup'` for radio options) in the `asCommandFormField` configuration alongside `defaultValue` and any `extractValue`. CommandForm then renders the `title` as the group's accessible name, not as a label for the first option. Forward `props.id` to the group container if it needs an id; never put it on one of the options. Label each option individually. The form-rendered title is omitted when `showTitles={false}`; in that case provide an accessible group name yourself. Existing single-input adapters need no configuration change.
 
 ## How a field is recognized
 

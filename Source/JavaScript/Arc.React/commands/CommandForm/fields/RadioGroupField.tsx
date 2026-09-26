@@ -44,6 +44,7 @@ function RadioGroupFieldComponent<TAccessor extends RadioValueAccessor>(
 ): React.ReactElement {
     return (
         <div
+            id={props.id}
             className={props.className || ''}
             style={{
                 display: 'flex',
@@ -78,7 +79,6 @@ function RadioGroupFieldComponent<TAccessor extends RadioValueAccessor>(
                     }}
                 >
                     <input
-                        id={index === 0 ? props.id : undefined}
                         type='radio'
                         name={props.fieldName}
                         checked={Object.is(props.currentValue, option.value)}
@@ -96,3 +96,4 @@ function RadioGroupFieldComponent<TAccessor extends RadioValueAccessor>(
 }
 
 export const RadioGroupField = withCommandFormFieldBinding(RadioGroupFieldComponent);
+RadioGroupField.commandFormFieldGroupRole = 'radiogroup';
