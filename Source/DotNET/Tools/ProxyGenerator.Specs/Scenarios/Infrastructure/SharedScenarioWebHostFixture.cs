@@ -82,6 +82,7 @@ public sealed class SharedScenarioWebHostFixture : IAsyncLifetime
                 .AddAuthenticationSchemes("Other")
                 .RequireClaim("membership", "active"));
         builder.AddCratisArc(options => options.Tenancy.ResolverType = TenantResolverType.Claim);
+        builder.Services.AddSingleton(new for_Queries.ModelBound.HttpConceptRate(42m));
         builder.Services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyProvider, ScenarioAuthorizationPolicyProvider>());
         builder.Services.AddScoped<TenantBoundService>();
         builder.Services.AddSingleton<TenantFlowObservations>();

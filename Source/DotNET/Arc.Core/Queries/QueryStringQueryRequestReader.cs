@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Nodes;
 using Cratis.Arc.Http;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.DependencyInjection;
 using Cratis.Strings;
 
@@ -117,7 +119,22 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
                 if (parameter is not null)
                 {
-                    var convertedValue = kvp.Value.ConvertTo(parameter.Type);
+                    object? convertedValue;
+                    try
+                    {
+                        if (parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType) &&
+                            (elementType == typeof(JsonObject) || elementType == typeof(JsonArray)))
+                        {
+                            throw new InvalidCollectionQueryArgument(parameter.Type, kvp.Value);
+                        }
+
+                        convertedValue = kvp.Value.ConvertTo(parameter.Type);
+                    }
+                    catch (InvalidCollectionQueryArgument)
+                    {
+                        throw new MissingArgumentForQuery(parameter.Name, parameter.Type, performer.FullyQualifiedName);
+                    }
+
                     if (convertedValue is not null)
                     {
                         arguments[kvp.Key] = convertedValue;

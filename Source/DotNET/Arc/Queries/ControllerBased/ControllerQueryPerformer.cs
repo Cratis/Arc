@@ -6,6 +6,7 @@ using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Concepts;
 using Cratis.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -164,6 +165,15 @@ public class ControllerQueryPerformer(
             return false;
         }
 
+        // Concepts and collections of query arguments are caller-supplied, even when the container reports
+        // them as services (IEnumerable<T> is always resolvable by the default container).
+        if (parameter.ParameterType.IsConcept() ||
+            parameter.ParameterType.IsEnumerableOfQueryArgumentElement(out _) ||
+            parameter.ParameterType.IsNestedQueryArgumentCollection())
+        {
+            return false;
+        }
+
         return serviceProviderIsService.IsService(parameter.ParameterType);
     }
 
@@ -229,7 +239,15 @@ public class ControllerQueryPerformer(
                 continue;
             }
 
-            args[index] = ResolveQueryArgument(parameter, queryArguments);
+            try
+            {
+                args[index] = ResolveQueryArgument(parameter, queryArguments);
+            }
+            catch (InvalidCollectionQueryArgument)
+            {
+                throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
+            }
+
             if (args[index] is null && !IsNullableOrOptional(parameter))
             {
                 throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
@@ -284,6 +302,12 @@ public class ControllerQueryPerformer(
         if (type.IsValueType)
         {
             return Nullable.GetUnderlyingType(type) is not null;
+        }
+
+        if (type.IsConcept())
+        {
+            var nullabilityInfo = new NullabilityInfoContext().Create(parameter);
+            return nullabilityInfo.WriteState is NullabilityState.Nullable;
         }
 
         return true;

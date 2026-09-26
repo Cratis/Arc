@@ -121,6 +121,7 @@ public class QueryPipeline(
     /// <param name="arguments">The <see cref="QueryArguments"/> to coerce.</param>
     /// <param name="performer">The <see cref="IQueryPerformer"/> whose parameters describe the target types.</param>
     /// <returns>The coerced <see cref="QueryArguments"/>, or the original instance when nothing needed coercion.</returns>
+    /// <exception cref="MissingArgumentForQuery">An argument contains an invalid collection element.</exception>
     /// <remarks>
     /// One-shot transports coerce arguments at the HTTP boundary, but streaming transports (WebSocket / SSE observable
     /// queries) carry raw string arguments through verbatim. Coercing here — the single convergence point for every
@@ -144,7 +145,16 @@ public class QueryPipeline(
             var parameter = parameters.FirstOrDefault(_ => string.Equals(_.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
             if (parameter is not null)
             {
-                var convertedValue = value.ConvertTo(parameter.Type);
+                object? convertedValue;
+                try
+                {
+                    convertedValue = value.ConvertTo(parameter.Type);
+                }
+                catch (InvalidCollectionQueryArgument)
+                {
+                    throw new MissingArgumentForQuery(parameter.Name, parameter.Type, performer.FullyQualifiedName);
+                }
+
                 if (convertedValue is not null && !ReferenceEquals(convertedValue, value))
                 {
                     value = convertedValue;
@@ -281,6 +291,10 @@ public class QueryPipeline(
         catch (MissingArgumentForQuery ex)
         {
             result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
+        }
+        catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
+        {
+            result.MergeWith(QueryResult.FromException(correlationId, ex));
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
