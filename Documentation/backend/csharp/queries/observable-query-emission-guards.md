@@ -47,7 +47,9 @@ That is the whole opt-in. Guards are discovered by convention — no registratio
 
 ## Compare the scope captured at subscription time
 
-When a query filter chooses which organization's data to stream, its decision may change while the connection stays open. Put a serializable value in `QueryContext.SubscriptionScope` during filtering. Arc captures it **after the filters succeed and before the query executes**, then passes a fresh copy in `ObservableQueryEmissionContext.SubscriptionScope` on each emission. The guard can compare that original scope to current membership without rerunning the filter or changing the query arguments.
+When a query filter chooses which organization's data to stream, its decision may change while the connection stays open. Put a serializable value in `QueryContext.SubscriptionScope` during filtering in Arc's query pipeline. Arc captures it **after the filters succeed and before the query executes**, then passes a fresh copy in `ObservableQueryEmissionContext.SubscriptionScope` on each emission. Values assigned during query execution are too late and do not change the captured scope. The guard can compare that original scope to current membership without rerunning the filter or changing the query arguments.
+
+Controller-based observable queries do not run `IQueryFilters` through `QueryActionFilter.EstablishQueryContext`. Their emission guards always receive a `null` subscription scope; use a query handled by Arc's query pipeline if you need a filter-supplied scope.
 
 This application integration fragment uses `IMemberships` as an application-owned contract. Supply an implementation backed by authoritative membership state; `CurrentOrganizationId` must return the current organization, not a value cached at login. Replace the query name with your observable query's fully qualified name. The query itself must use the same filter-derived organization to select its data — setting the scope alone does not filter results.
 
@@ -113,7 +115,7 @@ public class OrganizationMustStillMatch(IMemberships memberships) : IGuardObserv
 }
 ```
 
-For example, a subscription established while membership is `former` captures `former`. If membership changes to `new` with **unchanged query arguments**, the next emission still carries `former`, and the guard returns `DenyAndTerminate`. A subscription created after the change captures `new` independently. With no scope supplied, the emission context's scope is `null`; a supplied scope that cannot be serialized and restored fails the query explicitly as `InvalidSubscriptionScope` rather than silently becoming `null`. Keep the scope small and serializable; do not put live services or mutable authorization caches in it.
+For example, a subscription established while membership is `former` captures `former`. If membership changes to `new` with **unchanged query arguments**, the next emission still carries `former`, and the guard returns `DenyAndTerminate`. A subscription created after the change captures `new` independently. With no scope supplied, the emission context's scope is `null`; a supplied scope that cannot be serialized and restored fails the query explicitly as `InvalidSubscriptionScope` rather than silently becoming `null`. Keep the scope small: prefer primitives or records of primitive values. Only data serialized by Arc's `JsonSerializerOptions` survives the snapshot. Private fields, `[JsonIgnore]` members, and derived members of non-polymorphic base-typed properties are dropped even when the remaining value can round-trip. Do not put live services or mutable authorization caches in it.
 
 ## The three verdicts
 
