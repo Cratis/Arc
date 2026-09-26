@@ -17,7 +17,7 @@ public class with_multiple_middlewares_second_handles : given.an_http_request_pi
         _secondMiddleware = new TestMiddleware(true);
         _pipeline = new HttpRequestPipeline([_firstMiddleware, _secondMiddleware], _logger);
 
-        _listener.Start();
+        StartListener();
         _client = new HttpClient();
     }
 
