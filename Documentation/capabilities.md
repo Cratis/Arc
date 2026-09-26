@@ -129,7 +129,7 @@ Not every Java contract is discovered the same way:
 
 | Capability | C# | Kotlin | Java | Notes |
 | --- | --- | --- | --- | --- |
-| In-process scenarios | Partial | Implemented | Implemented | C# has [`CommandScenario`](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Testing/Commands/CommandScenario.cs) only, with no query or observable query scenario. The JVM has command, query, and observable query scenarios; Java uses the `Blocking*` and `Async*` scenario classes. [C#](backend/csharp/testing/command-scenario.md) · [Kotlin and Java](/arc/backend/kotlin/guides/testing/) |
+| In-process scenarios | Partial | Implemented | Implemented | C# has command and snapshot query scenarios, but no observable-query scenario. The JVM has command, query, and observable query scenarios; Java uses the `Blocking*` and `Async*` scenario classes. [C# commands](backend/csharp/testing/command-scenario.md) · [C# queries](backend/csharp/testing/query-scenario.md) · [Kotlin and Java](/arc/backend/kotlin/guides/testing/) |
 
 ## Tooling and clients
 
