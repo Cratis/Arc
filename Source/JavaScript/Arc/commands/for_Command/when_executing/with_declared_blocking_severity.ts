@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Command } from '../../Command';
-import { CommandValidator } from '../../CommandValidator';
-import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor';
-import { ValidationResult } from '../../../validation/ValidationResult';
-import { ValidationResultSeverity } from '../../../validation/ValidationResultSeverity';
+import { Command } from '../../Command.js';
+import { CommandValidator } from '../../CommandValidator.js';
+import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor.js';
+import { ValidationResult } from '../../../validation/ValidationResult.js';
+import { ValidationResultSeverity } from '../../../validation/ValidationResultSeverity.js';
 
 class WarningValidator extends CommandValidator {
     severity = ValidationResultSeverity.Information;
