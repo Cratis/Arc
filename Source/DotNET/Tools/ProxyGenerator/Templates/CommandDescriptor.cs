@@ -47,4 +47,14 @@ public record CommandDescriptor(
     /// silently always false.
     /// </remarks>
     public bool HasValidationRules => ValidationRules.Any();
+
+    /// <summary>
+    /// Gets the inclusive severity at which the model-bound command blocks validation failures, if declared.
+    /// </summary>
+    public int? BlockOnValidationSeverity { get; init; }
+
+    /// <summary>
+    /// Gets whether the command declares a blocking validation severity.
+    /// </summary>
+    public bool HasBlockingValidationSeverity => BlockOnValidationSeverity is not null;
 }

@@ -14,7 +14,7 @@ Some rules need acknowledgment rather than unconditional rejection. Model-bound 
 | `Warning` | 2 | Acknowledgment-worthy feedback |
 | `Error` | 3 | Validation error |
 
-With no explicit threshold, only `Error` results remain. With a threshold, only results whose severity is **greater than** the threshold remain. Thus:
+Without a declared command policy, no explicit threshold keeps only `Error` results. With a caller threshold, only results whose severity is **greater than** the threshold remain. Thus:
 
 - `Information` blocks warnings and errors.
 - `Warning` allows warnings and blocks errors.
@@ -22,6 +22,26 @@ With no explicit threshold, only `Error` results remain. With a threshold, only 
 - `Error` allows all currently defined severities, including errors.
 
 `ICommandPipeline.Execute` and `Validate` accept the threshold in both scope-free and scope-explicit forms. Model-bound HTTP endpoints read its integer value from `X-Allowed-Severity`. Controller actions use their own MVC validation path; do not assume this header configures MVC.
+
+## Declare a blocking policy on a model-bound command
+
+Mark a model-bound command when warning or information failures must reject it even if the caller supplies a permissive threshold:
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Validation;
+
+[Command]
+[BlockOnValidationSeverity(ValidationResultSeverity.Information)]
+public record SubmitApplication(string Name)
+{
+    public void Handle() { }
+}
+```
+
+The attribute names the **lowest severity that blocks**: `Information` blocks information, warnings, and errors; `Warning` blocks warnings and errors. `Unknown` results also block any command with the attribute, because an unclassified failure must not become a successful command. The rejected result retains its original message and severity. The declared policy applies to command filters, `Provide()`, `Validate`, and in-process execution as well as HTTP. Generated TypeScript proxies carry the threshold for local validation, but the server remains authoritative.
+
+The effective threshold is the stricter of the declared policy and the caller's `allowedSeverity` or `X-Allowed-Severity`. A caller can demand *more* blocking, never less: passing `Error` or a larger integer does not permit a declared warning or information failure. This deliberately differs from the caller opt-out for controller actions in #21. Commands without the attribute retain the existing errors-only default and caller-controlled filtering.
 
 ## Create a warning
 
@@ -88,7 +108,7 @@ There is also a current ordering limitation: the filter chain stops on its first
 ## Security considerations
 
 > [!WARNING]
-> The model-bound HTTP endpoint currently accepts any parsable integer in `X-Allowed-Severity`, including `3` and larger. A caller can therefore remove Error-severity results from the filtered stages. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
+> The model-bound HTTP endpoint currently accepts any parsable integer in `X-Allowed-Severity`, including `3` and larger. For commands without a declared blocking policy, a caller can therefore remove Error-severity results from the filtered stages. Do not use validation severity for authentication, authorization, or non-overridable integrity enforcement.
 
 Return an actual authorization verdict from an [authorization filter](./command-filters.md#cross-cutting-authorization-by-namespace). `CommandResult.Unauthorized` is independent of severity filtering. Check permissions before performing work, and enforce atomic state invariants in the service or storage operation that owns the change.
 

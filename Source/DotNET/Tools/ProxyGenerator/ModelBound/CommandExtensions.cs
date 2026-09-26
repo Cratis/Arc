@@ -47,6 +47,12 @@ public static class CommandExtensions
         // Extract validation rules for the command type
         var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
 
-        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation, validationRules);
+        var severityAttribute = commandType.GetCustomAttributesData().FirstOrDefault(attribute =>
+            attribute.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverityAttribute");
+
+        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation, validationRules) with
+        {
+            BlockOnValidationSeverity = severityAttribute is null ? null : Convert.ToInt32(severityAttribute.ConstructorArguments[0].Value)
+        };
     }
 }

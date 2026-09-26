@@ -286,17 +286,19 @@ public class CommandPipeline(
                 scopeFactory));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
 
+            var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
             commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
                 [],
                 BuildContextValues(command, serviceProvider, preparedAuthorization),
-                allowedSeverity,
+                severityPolicy.AllowedSeverity,
                 ServiceProvider: serviceProvider,
                 CancellationToken: cancellationToken)
             {
-                PreparedAuthorization = preparedAuthorization
+                PreparedAuthorization = preparedAuthorization,
+                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown
             };
             contextModifier.SetCurrent(commandContext);
 
@@ -321,7 +323,7 @@ public class CommandPipeline(
             }
 
             result = await commandFilters.OnExecution(commandContext);
-            result = FilterValidationResults(result, allowedSeverity);
+            result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
             {
                 return await CompleteExecutionScopes(result);
@@ -334,9 +336,9 @@ public class CommandPipeline(
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            var resolution = await argumentResolver.Resolve(commandHandler, commandContext, serviceProvider, allowedSeverity);
+            var resolution = await argumentResolver.Resolve(commandHandler, commandContext, serviceProvider, commandContext.AllowedSeverity);
             result.MergeWith(resolution.ControlResult);
-            result = FilterValidationResults(result, allowedSeverity);
+            result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
             {
                 return await CompleteExecutionScopes(result);
@@ -370,7 +372,7 @@ public class CommandPipeline(
                 failureSource = CommandOperationFailureSource.ResponseHandling;
                 var processed = await ProcessOperationResponse(values, commandContext, correlationId, result);
                 commandContext = processed.CommandContext;
-                result = FilterValidationResults(processed.Result, allowedSeverity);
+                result = FilterValidationResults(processed.Result, commandContext);
                 operations.CaptureFailure(result, failureSource);
                 if (result.IsSuccess)
                 {
@@ -499,23 +501,25 @@ public class CommandPipeline(
             }
 
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
+            var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
             var commandContext = new CommandContext(
                 correlationId,
                 command.GetType(),
                 command,
                 [],
                 BuildContextValues(command, serviceProvider, preparedAuthorization),
-                allowedSeverity,
+                severityPolicy.AllowedSeverity,
                 ServiceProvider: serviceProvider,
                 CancellationToken: cancellationToken)
             {
-                PreparedAuthorization = preparedAuthorization
+                PreparedAuthorization = preparedAuthorization,
+                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown
             };
             contextModifier.SetCurrent(commandContext);
 
             // Run only filters (authorization and validation), skip handler execution and argument resolution
             result = await commandFilters.OnExecution(commandContext);
-            result = FilterValidationResults(result, allowedSeverity);
+            result = FilterValidationResults(result, commandContext);
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
@@ -594,7 +598,7 @@ public class CommandPipeline(
             }
         }
 
-        result = FilterValidationResults(result, commandContext.AllowedSeverity);
+        result = FilterValidationResults(result, commandContext);
         if (result.IsSuccess)
         {
             foreach (var value in ordinary.Where(value => !IsOperationControl(value) && !ReferenceEquals(value, response)))
@@ -815,15 +819,15 @@ public class CommandPipeline(
     /// Filters validation results based on the allowed severity level.
     /// </summary>
     /// <param name="result">The command result to filter. This method modifies the ValidationResults property.</param>
-    /// <param name="allowedSeverity">The maximum allowed severity level. Results with higher severity will be kept.</param>
+    /// <param name="context">The command context with the effective severity threshold.</param>
     /// <returns>The modified command result.</returns>
     /// <remarks>
-    /// When allowedSeverity is null, only errors block execution (warnings and information are filtered out).
-    /// When allowedSeverity is specified, only validation results with severity > allowedSeverity block execution.
+    /// Without a policy or caller threshold, only errors block execution. An explicit threshold keeps results
+    /// above it. Commands with a declared policy also keep Unknown results and cannot be loosened by the caller.
     /// </remarks>
-    CommandResult FilterValidationResults(CommandResult result, ValidationResultSeverity? allowedSeverity)
+    CommandResult FilterValidationResults(CommandResult result, CommandContext context)
     {
-        result.ValidationResults = [.. CommandValidationResults.Blocking(result.ValidationResults, allowedSeverity)];
+        result.ValidationResults = [.. CommandValidationResults.Blocking(result.ValidationResults, context.AllowedSeverity, context.BlockUnknownValidationSeverity)];
         return result;
     }
 
