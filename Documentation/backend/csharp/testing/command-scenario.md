@@ -218,5 +218,6 @@ Disposal is idempotent. Calling `Execute` or `Validate` afterwards throws `Objec
 
 ## Next steps
 
+- [Query scenarios](./query-scenario.md) run model-bound snapshot queries through Arc's query pipeline.
 - [Optional Chronicle testing](./chronicle.md) adds in-process event-log assertions and seeded read model state.
 - [Command pipeline](../commands/command-pipeline.md) explains the production execution path.
