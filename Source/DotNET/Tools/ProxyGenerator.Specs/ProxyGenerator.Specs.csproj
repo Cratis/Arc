@@ -17,7 +17,8 @@
         <ProjectReference Include="TestArtifacts/AssemblyNameMismatchDependency/AssemblyNameMismatchDependency.csproj" />
         <ProjectReference Include="TestArtifacts/CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
         <ProjectReference Include="TestArtifacts/FakeCommandResponseHandlerDependency/FakeCommandResponseHandlerDependency.csproj" Aliases="FakeContracts" />
-        <ProjectReference Include="TestArtifacts/ReferencedConceptCommand/ReferencedConceptCommand.csproj" />
+        <!-- Match the separate command artifact to this spec's TFM even when Release reference negotiation sees its Debug default. -->
+        <ProjectReference Include="TestArtifacts/ReferencedConceptCommand/ReferencedConceptCommand.csproj" SetTargetFramework="TargetFramework=$(TargetFramework)" />
         <ProjectReference Include="TestArtifacts/SourceFileResolverFixture/SourceFileResolverFixture.csproj" />
     </ItemGroup>
     <ItemGroup>
