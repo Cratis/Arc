@@ -150,7 +150,7 @@ The rest of `App.tsx` stays the same. See [CommandForm field types](./command-fo
 
 ### Own the whole sequence yourself
 
-When an application must control every step itself, such as a design system whose inputs cannot be wrapped as command form fields, you can drive the generated command hook directly. This is the longer route: you track the pending state, the result, and the next ID yourself, which `CommandForm` does for you above. The component replaces `Authors` from the Components version:
+When an application must control every step itself, such as a design system whose inputs cannot be wrapped as command form fields, you can drive the generated command hook directly. This is the longer route: you bind every input and track the pending state and the result yourself, which `CommandForm` does for you above. The component replaces `Authors` from the Components version:
 
 ```tsx
 import { useState } from 'react';
