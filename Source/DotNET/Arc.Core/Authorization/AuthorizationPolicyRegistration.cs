@@ -8,4 +8,10 @@ namespace Cratis.Arc.Authorization;
 /// </summary>
 /// <param name="Name">The policy name.</param>
 /// <param name="PolicyType">The registered implementation type.</param>
-public record AuthorizationPolicyRegistration(string Name, Type PolicyType);
+public record AuthorizationPolicyRegistration(string Name, Type PolicyType)
+{
+    /// <summary>
+    /// Gets whether this policy may evaluate unauthenticated callers.
+    /// </summary>
+    public bool EvaluatesAnonymous { get; init; }
+}

@@ -4,6 +4,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
 
 namespace Cratis.Arc.Authorization;
 
@@ -11,8 +12,21 @@ namespace Cratis.Arc.Authorization;
 /// Evaluates ASP.NET Core policies and authentication schemes alongside native Arc policies.
 /// </summary>
 /// <param name="native">Native Arc policy resolution.</param>
-public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime native) : IAuthorizationPolicyRuntime, IAuthorizationEmissionRuntime
+/// <param name="anonymousPolicies">Explicit anonymous policy opt-ins.</param>
+public class AspNetAuthorizationPolicyRuntime(
+    ArcAuthorizationPolicyRuntime native,
+    IEnumerable<AnonymousAspNetAuthorizationPolicyRegistration> anonymousPolicies) : IAuthorizationPolicyRuntime, IAuthorizationEmissionRuntime
 {
+    readonly string[] _anonymousPolicyNames = [.. anonymousPolicies.Select(registration => registration.Name)];
+
+    /// <summary>
+    /// Initializes the runtime with no ASP.NET Core anonymous policy opt-ins.
+    /// </summary>
+    /// <param name="native">The native Arc policy runtime.</param>
+    public AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime native) : this(native, [])
+    {
+    }
+
     /// <inheritdoc/>
     public IDisposable? BeginPrincipalScope(ClaimsPrincipal principal, IServiceProvider services)
     {
@@ -41,6 +55,7 @@ public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime nati
         var schemes = new List<string>();
         var nativeRequirements = new List<AuthorizationRequirement>();
         var aspPolicies = new List<AuthorizationPolicy>();
+        var aspPoliciesEvaluateAnonymous = true;
         foreach (var requirement in requirements)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -65,7 +80,9 @@ public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime nati
             else
             {
                 aspPolicies.Add(aspPolicy!);
-                schemes.AddRange(aspPolicy!.AuthenticationSchemes);
+                aspPoliciesEvaluateAnonymous &= _anonymousPolicyNames.Contains(requirement.Policy, StringComparer.Ordinal) &&
+                    !aspPolicy!.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any();
+                schemes.AddRange(aspPolicy.AuthenticationSchemes);
             }
         }
 
@@ -82,7 +99,10 @@ public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime nati
 
         cancellationToken.ThrowIfCancellationRequested();
         var nativeResolution = await native.Resolve(nativeRequirements, services, cancellationToken);
-        return new AspNetResolution(nativeResolution, aspPolicies.ToArray(), selectedSchemes);
+        var evaluatesAnonymous = requirements.Count > 0 && selectedSchemes.Length == 0 && aspPoliciesEvaluateAnonymous &&
+            requirements.All(requirement => requirement.AnyOfRoles.Count == 0 && !string.IsNullOrWhiteSpace(requirement.Policy)) &&
+            (nativeRequirements.Count == 0 || nativeResolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true });
+        return new AspNetResolution(nativeResolution, aspPolicies.ToArray(), selectedSchemes, evaluatesAnonymous);
     }
 
     /// <inheritdoc/>
@@ -123,8 +143,11 @@ public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime nati
     sealed class AspNetResolution(
         IAuthorizationPolicyResolution nativeResolution,
         AuthorizationPolicy[] aspPolicies,
-        string[] selectedSchemes) : IAuthorizationPolicyResolution
+        string[] selectedSchemes,
+        bool evaluatesAnonymous) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution
     {
+        public bool EvaluatesAnonymous => evaluatesAnonymous;
+
         public async Task<ClaimsPrincipal?> SelectPrincipal(ClaimsPrincipal? principal, IServiceProvider services, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

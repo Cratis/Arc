@@ -55,6 +55,12 @@ public class AuthorizationEvaluation(
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
+        if (resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } &&
+            selectedPrincipal?.Identity?.IsAuthenticated != true)
+        {
+            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution);
     }
@@ -98,7 +104,7 @@ public class AuthorizationEvaluation(
         var selectedPrincipal = prepared.SelectedPrincipal;
         var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
-        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal))
+        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal, prepared.EvaluatesAnonymous))
         {
             return false;
         }
@@ -124,7 +130,7 @@ public class AuthorizationEvaluation(
 
         // Only the same target and selected principal may be checked synchronously after its asynchronous requirements.
         using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, selectedPrincipal, declaration)
+            ? AuthorizationEvaluator.AlreadyEvaluated(target, principalAccessor.Current, declaration, prepared.EvaluatesAnonymous)
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
