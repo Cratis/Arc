@@ -34,8 +34,8 @@ internal static class ObservableEmissionIdentity
         var previous = requestAccessor.Current;
         requestAccessor.Current = context;
         IDisposable? principalScope = null;
-        IDisposable? tenantScope = null;
         IDisposable? nativeScope = null;
+        var tenantBoundary = TenantIdAccessor.Independent.BeginEmission(tenant);
         try
         {
             var principals = services.GetService<CurrentPrincipalAccessor>();
@@ -52,19 +52,14 @@ internal static class ObservableEmissionIdentity
                     : native.BeginEmissionScope(principal, services, hasLiveRequest: false);
             }
 
-            if (tenant is { } selectedTenant)
-            {
-                tenantScope = services.GetRequiredService<TenantIdAccessor>().UseAuthorizedTenant(selectedTenant);
-            }
-
-            return new Scope(requestAccessor, previous, principalScope, tenantScope, nativeScope);
+            return new Scope(requestAccessor, previous, principalScope, nativeScope, tenantBoundary);
         }
         catch
         {
-            tenantScope?.Dispose();
             nativeScope?.Dispose();
             principalScope?.Dispose();
             requestAccessor.Current = previous;
+            tenantBoundary.Dispose();
             throw;
         }
     }
@@ -73,20 +68,20 @@ internal static class ObservableEmissionIdentity
         IHttpRequestContextAccessor accessor,
         IHttpRequestContext? previous,
         IDisposable? principal,
-        IDisposable? tenant,
-        IDisposable? native) : IDisposable
+        IDisposable? native,
+        IDisposable tenantBoundary) : IDisposable
     {
         public void Dispose()
         {
             try
             {
-                tenant?.Dispose();
                 native?.Dispose();
                 principal?.Dispose();
             }
             finally
             {
                 accessor.Current = previous;
+                tenantBoundary.Dispose();
             }
         }
     }

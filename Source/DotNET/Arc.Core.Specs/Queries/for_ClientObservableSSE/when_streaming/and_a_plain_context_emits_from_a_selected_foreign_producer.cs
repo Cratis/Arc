@@ -72,7 +72,7 @@ public class and_a_plain_context_emits_from_a_selected_foreign_producer
         {
             requestAccessor.Current = foreign;
             using (principalAccessor.UseAuthorizationPrincipal(producer, services))
-            using (tenants.UseAuthorizedTenant(new TenantId("tenant-C")))
+            using (tenants.Begin("tenant-C"))
             {
                 subject.OnNext("payload");
                 await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
