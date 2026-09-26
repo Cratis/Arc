@@ -43,7 +43,7 @@ public class SessionMustStillBeActive(ISessions sessions) : IGuardObservableQuer
 }
 ```
 
-That is the whole opt-in. Guards are discovered by convention — no registration, no configuration. An application with no guard pays nothing: no context is built and nothing is dispatched, and emissions take exactly the path they took before.
+That is the whole opt-in. Guards are discovered by convention — no registration, no configuration. An application with no guard builds no emission context and dispatches nothing; emissions take their existing path. A filter that supplies a scope still incurs the subscription-time snapshot, even if no guard is installed.
 
 ## Compare the scope captured at subscription time
 
