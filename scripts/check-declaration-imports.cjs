@@ -15,6 +15,7 @@ function specifiers(file, source) {
         let literal;
         if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) literal = node.moduleSpecifier;
         if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) literal = node.moduleReference.expression;
+        if (ts.isModuleDeclaration(node) && ts.isStringLiteral(node.name)) literal = node.name;
         if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) literal = node.argument.literal;
         if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) literal = node.arguments[0];
         if (literal && ts.isStringLiteral(literal) && /^\.\.?\//.test(literal.text) && !/\.(js|mjs|cjs|json)$/.test(literal.text)) {
@@ -28,12 +29,12 @@ function specifiers(file, source) {
 }
 
 if (process.argv[2] === '--self-test') {
-    const violations = specifiers('synthetic.d.ts', "export * from './missing';\ntype T = import('./also-missing').T;\n");
-    if (violations.length !== 2 || specifiers('valid.d.ts', "export * from './valid.js';\n").length) {
+    const violations = specifiers('synthetic.d.ts', "export * from './missing';\ntype T = import('./also-missing').T;\ndeclare module './X' {}\n");
+    if (violations.length !== 3 || !violations.includes('synthetic.d.ts:3: ./X') || specifiers('valid.d.ts', "export * from './valid.js';\n").length) {
         console.error('Declaration import self-test failed');
         process.exit(1);
     }
-    console.log('Declaration import self-test passed (2 injected violations detected)');
+    console.log('Declaration import self-test passed (3 injected violations detected, including declare module ./X)');
     process.exit(0);
 }
 if (process.argv.length > 2) {

@@ -24,6 +24,10 @@ on:
       - "scripts/check-declaration-imports.cjs"
       - ".github/workflows/javascript-build.yml"
       - "tsconfig.json"
+      - "tsconfig.specs.json"
+      - "rollup.config.mjs"
+      - "vite.base.ts"
+      - "package.json"
 
 jobs:
   build:
