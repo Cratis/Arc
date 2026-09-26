@@ -46,7 +46,9 @@ These reactor fragments reuse `BookId`, `BookTitle`, `BookAddedToCatalog`, `Crea
 
 Convert the context's framework identity to `BookId` at the boundary; the command and event retain their domain types. Throwing on an unsuccessful command fails the reactor so Chronicle's failure/recovery policy applies. Logging and returning normally would acknowledge the event despite the failed indexing. A manual command has no inherited HTTP actor; configure authorization deliberately. [Returned-command execution](./reactors/command-side-effects.md#authorization-and-the-actor) explains system roles.
 
-Direct appends to another event sequence or another store remain advanced options when a returned side effect cannot express the target. [ARCCHR0003](./code-analysis/ARCCHR0003.md) documents that boundary; it is analyzer guidance, not a runtime ban on all event-log access.
+Direct appends to another event sequence or another store remain advanced options when a returned side effect cannot express the target. For the **default log**, return events unless an ordered workflow genuinely needs an append result, an observer-completion wait, or append options before it can proceed. In that case, [ARCCHR0003's ordered manual append example](./code-analysis/ARCCHR0003.md#ordered-manual-appends) shows a narrowly scoped `#pragma warning disable ARCCHR0003` with a reason and a matching restore. The warning is guidance, not a runtime ban or a reason to silence the rule across a project.
+
+Manual appends do not appear in `ReactorScenario<T>.Produced` or its `ShouldHaveProduced<T>()` assertions. Test the append outcomes and ordering separately. Suppressing the warning provides neither replay protection nor a transaction across those appends: choose replay behavior, handle failures, and make retries safe.
 
 :::caution[Design for idempotency]
 `[OnceOnly]` skips these handlers during replay, not during live retries. A handler without replay exclusion can run on replay too. Make effects safe to repeat and derive decisions from the triggering event rather than assuming an asynchronously materialized model has caught up.
