@@ -24,26 +24,28 @@ internal static class ValidatorTypes
     static readonly ConditionalWeakTable<Assembly, Dictionary<Type, Type>> _validatorsByAssembly = new();
 
     /// <summary>
-    /// Finds the first validator for a type, preferring the generated assembly.
+    /// Finds the validator for a type, rejecting duplicates across the generated and concept assemblies.
     /// </summary>
     /// <param name="generatedAssembly">The assembly being generated.</param>
     /// <param name="type">The type being validated.</param>
     /// <returns>The validator, or <see langword="null"/> if none is found.</returns>
+    /// <exception cref="MultipleValidatorsForType">More than one validator is found for the type.</exception>
     internal static Type? Find(Assembly generatedAssembly, Type type)
     {
         // A concept's validator normally lives beside the concept, not beside the command or query using it.
-        // The first lookup preserves the existing precedence for validators in the generated assembly. If the
-        // assemblies coincide, the second lookup is not made and the validator cannot be contributed twice.
-        if (_validatorsByAssembly.GetValue(generatedAssembly, Index).TryGetValue(type, out var validator))
+        _validatorsByAssembly.GetValue(generatedAssembly, Index).TryGetValue(type, out var validator);
+        if (type.Assembly != generatedAssembly && !IsFrameworkAssembly(type.Assembly) &&
+            _validatorsByAssembly.GetValue(type.Assembly, Index).TryGetValue(type, out var conceptValidator))
         {
-            return validator;
+            if (validator is not null && validator != conceptValidator)
+            {
+                throw new MultipleValidatorsForType(type, validator, conceptValidator);
+            }
+
+            return conceptValidator;
         }
 
-        return type.Assembly != generatedAssembly &&
-            !IsFrameworkAssembly(type.Assembly) &&
-            _validatorsByAssembly.GetValue(type.Assembly, Index).TryGetValue(type, out validator)
-            ? validator
-            : null;
+        return validator;
     }
 
     /// <summary>
