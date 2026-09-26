@@ -208,6 +208,7 @@ public class ObservableQueryDemultiplexer(
     /// <inheritdoc/>
     public async Task HandleSSESubscribe(IHttpRequestContext context)
     {
+        using var receipt = OperationContextScope.Begin(context.RequestServices);
         ObservableQuerySSESubscribeRequest? body;
         try
         {
@@ -625,6 +626,7 @@ public class ObservableQueryDemultiplexer(
         SemaphoreSlim writeLock,
         CancellationToken token)
     {
+        using var receipt = OperationContextScope.Begin(context.RequestServices);
         var request = DeserializeSubscriptionRequest(message.Payload);
         if (request is null || string.IsNullOrEmpty(request.QueryName))
         {
@@ -851,6 +853,7 @@ public class ObservableQueryDemultiplexer(
                 }
             }
 
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
             queryResult = await queryPipeline.Perform(fullyQualifiedName, arguments, paging, sorting, queryServiceProvider, token);
         }
         var ownedScope = queryResult.OwnedScope;

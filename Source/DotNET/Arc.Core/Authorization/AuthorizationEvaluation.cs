@@ -112,7 +112,15 @@ public class AuthorizationEvaluation(
         if (declaration.RequiresAsynchronousEvaluation)
         {
             if (selectedPrincipal is null || !await resolution.IsAuthorized(
-                new AuthorizationPolicyContext(selectedPrincipal, target, resource),
+                new AuthorizationPolicyContext(selectedPrincipal, target, resource)
+                {
+                    ReceivedAt = resource switch
+                    {
+                        CommandContext commandContext when commandContext.ReceivedAt != default => commandContext.ReceivedAt,
+                        QueryContext queryReceiptContext when queryReceiptContext.ReceivedAt != default => queryReceiptContext.ReceivedAt,
+                        _ => OperationContextScope.Current ?? (services.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
+                    }
+                },
                 services,
                 cancellationToken))
             {

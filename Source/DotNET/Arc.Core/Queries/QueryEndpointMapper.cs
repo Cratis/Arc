@@ -98,6 +98,7 @@ public static class QueryEndpointMapper
             url,
             async context =>
             {
+                using var receipt = OperationContextScope.Begin(context.RequestServices);
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
                 var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);
@@ -156,6 +157,7 @@ public static class QueryEndpointMapper
                 }
             }
 
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
             queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
         }
 
