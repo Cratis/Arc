@@ -17,7 +17,7 @@ match, the spellings do not.
 | Attribute | Valid on | Effect |
 |---|---|---|
 | `[Command]` | class | Marks a record or class as a command. Arc exposes it, validates and authorizes it, and calls its `Handle()` method. |
-| `[ReadModel]` | class | Marks a type as a read model. Its `static` methods become queries. |
+| `[ReadModel]` | class | Marks a type as a read model. Eligible public static methods become queries; private and internal helpers do not. |
 
 ```csharp
 [Command]

@@ -21,7 +21,7 @@ public class and_read_model_is_internal : Specification
             [ReadModel]
             internal class MyReadModel
             {
-                internal static MyReadModel GetById(int id) => new();
+                public static MyReadModel GetById(int id) => new();
             }
             """);
 
@@ -29,6 +29,6 @@ public class and_read_model_is_internal : Specification
     }
 
     [Fact] void should_generate_two_source_files() => _result.GeneratedTrees.Length.ShouldEqual(2);
-    [Fact] void should_include_internal_read_model_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
+    [Fact] void should_include_public_query_on_internal_read_model() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
     [Fact] void should_reference_internal_read_model_type() => _generatedSource.ShouldContain("typeof(global::TestApp.MyReadModel)");
 }
