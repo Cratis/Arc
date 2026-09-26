@@ -27,6 +27,13 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     public static readonly QueryContext NotSet = new("[NotSet]", CorrelationId.NotSet, Paging.NotPaged, Sorting.None);
 
     /// <summary>
+    /// Gets the time Arc received this query operation. Model-bound dispatch captures it before binding and authorization preparation;
+    /// MVC action filters capture it after MVC binding. This is neither network arrival nor time before application middleware.
+    /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
+    /// </summary>
+    public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
     /// Gets or sets the total number of items in the query.
     /// </summary>
     public int TotalItems { get; set; }

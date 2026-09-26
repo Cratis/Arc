@@ -132,6 +132,7 @@ public static class CommandEndpointMapper
             url,
             async context =>
             {
+                using var receipt = OperationContextScope.Begin(context.RequestServices);
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
@@ -166,6 +167,7 @@ public static class CommandEndpointMapper
                     }
                     else
                     {
+                        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
                         commandResult = validateOnly
                             ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted);

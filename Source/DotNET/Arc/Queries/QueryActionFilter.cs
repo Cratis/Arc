@@ -37,6 +37,7 @@ public class QueryActionFilter(
         if (context.HttpContext.Request.Method == HttpMethod.Get.Method &&
             context.ActionDescriptor is ControllerActionDescriptor controllerActionDescriptor)
         {
+            using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
             var queryContext = EstablishQueryContext(context.HttpContext, context.ActionDescriptor.DisplayName ?? "[NotSet]", queryContextManager);
             var treatWarningsAsErrors = context.ShouldTreatWarningsAsErrors();
             var ignoreWarnings = GetIgnoreWarningsFromRequest(context);
@@ -145,7 +146,10 @@ public class QueryActionFilter(
         var paging = httpContext.GetPagingInfo();
         var correlationId = httpContext.GetCorrelationId();
 
-        var queryContext = new QueryContext(queryName, correlationId, paging, sorting);
+        var queryContext = new QueryContext(queryName, correlationId, paging, sorting)
+        {
+            ReceivedAt = OperationContextScope.Current ?? default
+        };
         queryContextManager.Set(queryContext);
         return queryContext;
     }
