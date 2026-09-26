@@ -160,7 +160,7 @@ public static class CommandEndpointMapper
                             ? await builtInPipeline.ValidateHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await builtInPipeline.ExecuteHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
                     }
-                    else if (AuthorizationAttributeGuard.RequiresScopedEvaluation(commandType))
+                    else if (context.RequestServices.GetRequiredService<AuthorizationDeclarations>().For(commandType).RequiresAsynchronousEvaluation)
                     {
                         throw new InvalidAuthorizationConfiguration($"Command '{commandType}' requires an Arc pipeline that can prepare authorization before execution.");
                     }

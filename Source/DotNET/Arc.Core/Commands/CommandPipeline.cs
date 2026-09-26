@@ -153,7 +153,7 @@ public class CommandPipeline(
     /// <returns>The command result.</returns>
     internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        if (!AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+        if (!requestServices.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
         {
             return await ExecuteCore(command, requestServices, allowedSeverity, null, cancellationToken);
         }
@@ -184,7 +184,7 @@ public class CommandPipeline(
     /// <returns>The validation result.</returns>
     internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        if (!AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+        if (!requestServices.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
         {
             return await ValidateCore(command, requestServices, allowedSeverity, null, cancellationToken);
         }
@@ -261,7 +261,7 @@ public class CommandPipeline(
             }
 
             var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+            if (preparedAuthorization is null && serviceProvider.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
             {
                 preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
                     .Prepare(command.GetType(), serviceProvider, cancellationToken);
@@ -480,7 +480,7 @@ public class CommandPipeline(
             }
 
             var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
+            if (preparedAuthorization is null && serviceProvider.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
             {
                 preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
                     .Prepare(command.GetType(), serviceProvider, cancellationToken);
