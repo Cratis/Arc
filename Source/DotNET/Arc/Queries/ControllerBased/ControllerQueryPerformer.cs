@@ -167,7 +167,9 @@ public class ControllerQueryPerformer(
 
         // Concepts and collections of query arguments are caller-supplied, even when the container reports
         // them as services (IEnumerable<T> is always resolvable by the default container).
-        if (parameter.ParameterType.IsConcept() || parameter.ParameterType.IsEnumerableOfQueryArgumentElement(out _))
+        if (parameter.ParameterType.IsConcept() ||
+            parameter.ParameterType.IsEnumerableOfQueryArgumentElement(out _) ||
+            parameter.ParameterType.IsNestedQueryArgumentCollection())
         {
             return false;
         }
