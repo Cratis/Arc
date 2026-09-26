@@ -12,6 +12,7 @@ public class a_query_request : a_query_endpoint_mapper
 {
     protected IHttpRequestContext _context;
     protected IQueryPipeline _queryPipeline;
+    protected IQueryPerformer _performer;
     protected IObservableQueryHandler _observableQueryHandler;
     protected int? _statusCode;
 
@@ -19,14 +20,14 @@ public class a_query_request : a_query_endpoint_mapper
 
     void Establish()
     {
-        var performer = Substitute.For<IQueryPerformer>();
-        performer.Name.Returns(new QueryName("AllOrders"));
-        performer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Features.Orders.AllOrders"));
-        performer.ReadModelType.Returns(typeof(TestReadModel));
-        performer.Location.Returns(["Features", "Orders"]);
-        performer.AllowsAnonymousAccess.Returns(false);
-        performer.Parameters.Returns(new QueryParameters([]));
-        _queryPerformerProviders.Performers.Returns([performer]);
+        _performer = Substitute.For<IQueryPerformer>();
+        _performer.Name.Returns(new QueryName("AllOrders"));
+        _performer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Features.Orders.AllOrders"));
+        _performer.ReadModelType.Returns(typeof(TestReadModel));
+        _performer.Location.Returns(["Features", "Orders"]);
+        _performer.AllowsAnonymousAccess.Returns(false);
+        _performer.Parameters.Returns(new QueryParameters([]));
+        _queryPerformerProviders.Performers.Returns([_performer]);
 
         _mapper.MapQueryEndpoints(_serviceProvider);
 

@@ -18,6 +18,7 @@ public class with_collection_arguments : given.a_body_query_request_reader
         [
             new QueryParameter("ids", typeof(IEnumerable<int>)),
             new QueryParameter("names", typeof(List<string>)),
+            new QueryParameter("emptyNames", typeof(string[])),
             new QueryParameter("codes", typeof(ProductCode[])),
             new QueryParameter("sets", typeof(HashSet<int>)),
             new QueryParameter("dates", typeof(DateOnly[])),
@@ -32,6 +33,7 @@ public class with_collection_arguments : given.a_body_query_request_reader
             {
                 ["ids"] = JsonSerializer.SerializeToElement(new[] { 1, 2, 3 }),
                 ["names"] = JsonSerializer.SerializeToElement(new[] { "first,part", "second" }),
+                ["emptyNames"] = JsonSerializer.SerializeToElement(new[] { "", "x" }),
                 ["codes"] = JsonSerializer.SerializeToElement(new[] { "A", "B" }),
                 ["sets"] = JsonSerializer.SerializeToElement(new[] { 4, 5 }),
                 ["dates"] = JsonSerializer.SerializeToElement(new[] { "2026-05-12" }),
@@ -49,6 +51,7 @@ public class with_collection_arguments : given.a_body_query_request_reader
 
     [Fact] void should_bind_integer_array() => ((IEnumerable<int>)_result.Arguments["ids"]).SequenceEqual([1, 2, 3]).ShouldBeTrue();
     [Fact] void should_preserve_string_boundaries_and_commas() => ((List<string>)_result.Arguments["names"]).SequenceEqual(["first,part", "second"]).ShouldBeTrue();
+    [Fact] void should_preserve_empty_string_elements() => ((string[])_result.Arguments["emptyNames"]).SequenceEqual(["", "x"]).ShouldBeTrue();
     [Fact] void should_bind_concepts() => ((ProductCode[])_result.Arguments["codes"]).Select(_ => _.Value).SequenceEqual(["A", "B"]).ShouldBeTrue();
     [Fact] void should_bind_sets() => ((HashSet<int>)_result.Arguments["sets"]).SetEquals([4, 5]).ShouldBeTrue();
     [Fact] void should_bind_dates() => ((DateOnly[])_result.Arguments["dates"]).Single().ShouldEqual(new DateOnly(2026, 5, 12));

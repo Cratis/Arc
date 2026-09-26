@@ -63,8 +63,8 @@ public class BodyQueryRequestReader : IQueryRequestReader
 
             if (parameter is not null)
             {
-                var value = kvp.Value.ValueKind == JsonValueKind.Array && parameter.Type.IsEnumerableOfQueryArgumentElement(out _)
-                    ? kvp.Value.EnumerateArray().Select(element => element.ValueKind == JsonValueKind.Null ? null : element.ToString()).ToArray()
+                var value = kvp.Value.ValueKind == JsonValueKind.Array && parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType)
+                    ? kvp.Value.EnumerateArray().Select(element => GetCollectionElement(element, elementType, parameter.Type)).ToArray()
                     : (object)rawValue;
                 var convertedValue = value.ConvertTo(parameter.Type);
                 if (convertedValue is not null)
@@ -79,6 +79,26 @@ public class BodyQueryRequestReader : IQueryRequestReader
         }
 
         return arguments;
+    }
+
+    static string? GetCollectionElement(JsonElement element, Type elementType, Type collectionType)
+    {
+        if (element.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (typeof(System.Text.Json.Nodes.JsonNode).IsAssignableFrom(elementType) || elementType == typeof(JsonDocument))
+        {
+            return element.GetRawText();
+        }
+
+        if (element.ValueKind is JsonValueKind.Array or JsonValueKind.Object)
+        {
+            throw new InvalidCollectionQueryArgument(collectionType, element.GetRawText());
+        }
+
+        return element.ToString();
     }
 
     static Paging GetPagingInfo(QueryRequestEnvelope envelope) =>

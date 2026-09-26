@@ -3,6 +3,9 @@
 
 using System.Collections;
 using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Cratis.Arc.Queries;
 
 namespace Cratis.Arc;
 
@@ -31,7 +34,11 @@ public static class ConverterExtensions
         typeof(Guid),
         typeof(DateOnly),
         typeof(TimeOnly),
-        typeof(Uri)
+        typeof(Uri),
+        typeof(System.Text.Json.Nodes.JsonNode),
+        typeof(System.Text.Json.Nodes.JsonObject),
+        typeof(System.Text.Json.Nodes.JsonArray),
+        typeof(System.Text.Json.JsonDocument)
     ];
 
     /// <summary>
@@ -40,6 +47,7 @@ public static class ConverterExtensions
     /// <param name="value">The value to convert.</param>
     /// <param name="targetType">The target type to convert to.</param>
     /// <returns>The converted value.</returns>
+    /// <exception cref="InvalidCollectionQueryArgument">The collection shape or an element is invalid.</exception>
     /// <remarks>
     /// Supports converting primitives to their <see cref="ConceptAs{T}"/> counterparts, and a delimited string
     /// (as produced by repeated query string keys collapsed into one value) into an enumerable of primitives,
@@ -47,9 +55,19 @@ public static class ConverterExtensions
     /// </remarks>
     public static object? ConvertTo(this object value, Type targetType)
     {
+        if (targetType.IsNestedQueryArgumentCollection())
+        {
+            throw new InvalidCollectionQueryArgument(targetType, value);
+        }
+
         if (value is null)
         {
             return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+        }
+
+        if (targetType.IsEnumerableOfQueryArgumentElement(out var elementType))
+        {
+            return ConvertToEnumerable(value, targetType, elementType);
         }
 
         // If the value is already the target type, return it directly
@@ -68,11 +86,6 @@ public static class ConverterExtensions
                 return ConceptFactory.CreateConceptInstance(targetType, convertedValue);
             }
             return null;
-        }
-
-        if (targetType.IsEnumerableOfQueryArgumentElement(out var elementType))
-        {
-            return ConvertToEnumerable(value, targetType, elementType);
         }
 
         return ConvertToUnderlyingType(value, targetType);
@@ -113,6 +126,14 @@ public static class ConverterExtensions
         var scalarType = Nullable.GetUnderlyingType(elementType) ?? elementType;
         return scalarType.IsEnum || scalarType.IsConcept() || IsQueryArgumentScalar(scalarType);
     }
+
+    /// <summary>
+    /// Determines whether a collection contains another collection as its element type.
+    /// </summary>
+    /// <param name="type">The collection type.</param>
+    /// <returns>True if the element is itself a collection.</returns>
+    internal static bool IsNestedQueryArgumentCollection(this Type type) =>
+        TryGetEnumerableElementType(type, out var elementType) && TryGetEnumerableElementType(elementType, out _);
 
     static bool IsQueryArgumentScalar(Type type) =>
         type.IsPrimitive || _additionalQueryArgumentScalarTypes.Contains(type);
@@ -158,6 +179,7 @@ public static class ConverterExtensions
     /// <param name="targetType">The declared parameter type to satisfy.</param>
     /// <param name="elementType">The element type to convert each part to.</param>
     /// <returns>A collection assignable to <paramref name="targetType"/> for supported collection types.</returns>
+    /// <exception cref="InvalidCollectionQueryArgument">An element is invalid or null for a non-nullable type.</exception>
     /// <remarks>
     /// A part that itself contains a literal comma cannot round-trip through this - the collapsed
     /// <c>IReadOnlyDictionary&lt;string, string&gt;</c> query representation has already lost the boundary between
@@ -167,15 +189,35 @@ public static class ConverterExtensions
     /// </remarks>
     static object ConvertToEnumerable(object value, Type targetType, Type elementType)
     {
+        var stringValue = value.ToString() ?? string.Empty;
         var parts = value is IEnumerable values and not string
             ? values.Cast<object?>().ToArray()
-            : (value.ToString() ?? string.Empty)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Cast<object?>().ToArray();
+            : stringValue.Length == 0
+                ? []
+                : stringValue.Split(',', StringSplitOptions.TrimEntries).Cast<object?>().ToArray();
         var array = Array.CreateInstance(elementType, parts.Length);
         for (var index = 0; index < parts.Length; index++)
         {
-            array.SetValue(parts[index]?.ConvertTo(elementType), index);
+            var part = parts[index];
+            if (part is null)
+            {
+                if (Nullable.GetUnderlyingType(elementType) is null)
+                {
+                    throw new InvalidCollectionQueryArgument(targetType, part);
+                }
+
+                array.SetValue(null, index);
+                continue;
+            }
+
+            // Scalar ConvertTo deliberately retains its existing default-on-failure behavior. A collection
+            // must instead distinguish a successful conversion from a default value returned for bad input.
+            if (!TryConvertCollectionElement(part, elementType, out var converted))
+            {
+                throw new InvalidCollectionQueryArgument(targetType, part);
+            }
+
+            array.SetValue(converted, index);
         }
 
         if (targetType.IsInstanceOfType(array))
@@ -203,6 +245,87 @@ public static class ConverterExtensions
         var enumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
         var constructor = targetType.GetConstructor([enumerableType]);
         return constructor is not null ? constructor.Invoke([list]) : array;
+    }
+
+    static bool TryConvertCollectionElement(object value, Type elementType, out object? converted)
+    {
+        converted = null;
+        if (elementType.IsInstanceOfType(value))
+        {
+            converted = value;
+            return true;
+        }
+
+        var scalarType = Nullable.GetUnderlyingType(elementType) ?? elementType;
+        var text = value.ToString();
+        if (scalarType == typeof(string))
+        {
+            converted = text;
+            return true;
+        }
+
+        if (typeof(JsonNode).IsAssignableFrom(scalarType) || scalarType == typeof(JsonDocument))
+        {
+            try
+            {
+                converted = scalarType == typeof(JsonDocument) ? JsonDocument.Parse(text!) : JsonNode.Parse(text!);
+                return converted is not null && scalarType.IsInstanceOfType(converted);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        // A custom TypeConverter or a concept's underlying type can also return a default on failure.
+        // Check that the input is valid by converting through the same scalar path without accepting
+        // a fabricated default for an invalid value.
+        if (scalarType.IsConcept())
+        {
+            var conceptValueType = scalarType.GetConceptValueType();
+            if (!TryConvertCollectionElement(value, conceptValueType, out _))
+            {
+                return false;
+            }
+        }
+        else if (!CanConvertCollectionElement(text, scalarType))
+        {
+            return false;
+        }
+
+        converted = value.ConvertTo(elementType);
+        return converted is not null;
+    }
+
+    static bool CanConvertCollectionElement(string value, Type type)
+    {
+        try
+        {
+            if (type == typeof(int)) return int.TryParse(value, out _);
+            if (type == typeof(long)) return long.TryParse(value, out _);
+            if (type == typeof(short)) return short.TryParse(value, out _);
+            if (type == typeof(byte)) return byte.TryParse(value, out _);
+            if (type == typeof(bool)) return bool.TryParse(value, out _);
+            if (type == typeof(float)) return float.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out _);
+            if (type == typeof(double)) return double.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out _);
+            if (type == typeof(decimal)) return decimal.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out _);
+            if (type == typeof(DateTime)) return DateTime.TryParse(value, out _);
+            if (type == typeof(DateTimeOffset)) return DateTimeOffset.TryParse(value, out _);
+            if (type == typeof(Guid)) return Guid.TryParse(value, out _);
+            if (type.IsEnum) return Enum.TryParse(type, value, true, out _);
+
+            var converter = TypeDescriptor.GetConverter(type);
+            return converter.CanConvertFrom(typeof(string)) && converter.ConvertFromString(value) is not null;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     static object? ConvertToUnderlyingType(object value, Type targetType)

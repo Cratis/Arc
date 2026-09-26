@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Bind a scalar argument
 
-Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope, converts each value to a string, and uses the same scalar conversion path.
+Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope. Scalar values use the scalar conversion path; JSON arrays keep their element boundaries and Arc converts each element separately.
 
 This alternative read-model declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider. The query searches by an exact account name and a minimum balance:
 
@@ -81,7 +81,7 @@ Arc classifies a method parameter as a caller-supplied query argument — rather
 
 ### Collection Arguments
 
-A collection parameter — `IEnumerable<T>`, an array, `List<T>`, or `HashSet<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. This includes nullable elements and scalar types such as `DateOnly`, `TimeOnly`, and `Uri`. For GET, send the argument name repeated once per value (`?ids=1&ids=2&ids=3`); for QUERY, send a JSON array under `arguments` in the request body. Arc binds either form into the collection type your method declares.
+A collection parameter — `IEnumerable<T>`, an array, `List<T>`, or `HashSet<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. This includes nullable elements and scalar types such as `DateOnly`, `TimeOnly`, and `Uri`. For GET, send the argument name repeated once per value (`?ids=1&ids=2&ids=3`); for QUERY, send a JSON array under `arguments` in the request body. Arc binds either form into the collection type your method declares. GET collapses repeated values into a comma-delimited string, so commas inside string elements cannot round-trip; use QUERY when those boundaries matter. Invalid collection elements and null in non-nullable element types are rejected with HTTP 400. Nested collections are not supported.
 
 ```csharp
 [ReadModel]
