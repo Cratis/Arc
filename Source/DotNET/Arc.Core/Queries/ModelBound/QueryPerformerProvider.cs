@@ -96,7 +96,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
                 {
                     _queries = types.Where(t => t.IsReadModel())
                         .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                            .Where(m => m.IsValidQueryFor(t))
+                            .Where(m => ModelBoundQueryMethod.IsCandidate(m) && m.IsValidQueryFor(t))
                             .Select(m => new DiscoveredQuery(t, t.FullName ?? t.Name, m)))
                         .ToArray();
                     _types = types;
@@ -143,7 +143,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
                 var queryMethodName = fullyQualifiedQueryName[(lastDotIndex + 1)..];
                 var method = readModelType
                     .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == queryMethodName && m.IsValidQueryFor(readModelType));
+                    .FirstOrDefault(m => m.Name == queryMethodName && ModelBoundQueryMethod.IsCandidate(m) && m.IsValidQueryFor(readModelType));
 
                 if (method is not null)
                 {

@@ -57,5 +57,6 @@
     <ItemGroup>
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/ModelBoundQueryMethod.cs" Link="Queries/ModelBound/ModelBoundQueryMethod.cs" />
     </ItemGroup>
 </Project>
