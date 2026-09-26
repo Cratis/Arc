@@ -31,7 +31,7 @@ Assert.True(result.IsSuccess);
 var order = (OrderSummary)result.Data;
 ```
 
-The in-repository [query scenario specs](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Testing.Specs/Queries/for_QueryScenario/) exercise a parameterless query, concept argument conversion, rejection, and disposal with real read-model methods.
+The in-repository query scenario specs in `Source/DotNET/Testing.Specs/Queries/for_QueryScenario/` exercise a parameterless query, concept argument conversion, rejection, and disposal with real read-model methods.
 
 ## Authorization and limits
 
@@ -55,4 +55,4 @@ var result = await scenario.Perform(nameof(QueryAccountBalance.ById), new QueryA
 Assert.True(result.IsSuccess);
 ```
 
-`Given.ForEventSource(id).ReadModel(otherReadModel)` can pin another read model type used by the query. `Given.ForEventSource(id).Events(events)` also seeds history for projection on demand. The read-model query must resolve `IReadModels` from its method dependencies and read the seeded event source id; seeding does not replace arbitrary application stores or make HTTP endpoints available. See the [Chronicle query spec](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/Queries/for_QueryScenario/when_a_chronicle_read_model_is_seeded.cs) for a complete tested example.
+`Given.ForEventSource(id).ReadModel(otherReadModel)` can pin another read model type used by the query. `Given.ForEventSource(id).Events(events)` also seeds history for projection on demand. The read-model query must resolve `IReadModels` from its method dependencies and read the seeded event source id; seeding does not replace arbitrary application stores or make HTTP endpoints available. See the Chronicle query spec `Source/DotNET/Chronicle.Specs/Queries/for_QueryScenario/when_a_chronicle_read_model_is_seeded.cs` for a complete tested example.
