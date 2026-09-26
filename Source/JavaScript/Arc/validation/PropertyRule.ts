@@ -12,6 +12,7 @@ import { ValidationResultSeverity } from './ValidationResultSeverity.js';
  */
 export abstract class PropertyRule<T, TProperty> implements IValidationRule<T> {
     protected errorMessage: string;
+    private severity: ValidationResultSeverity | null = ValidationResultSeverity.Error;
 
     /**
      * Initializes a new instance of the {@link PropertyRule} class.
@@ -35,12 +36,26 @@ export abstract class PropertyRule<T, TProperty> implements IValidationRule<T> {
         return this;
     }
 
+    /**
+     * Set the severity of this rule. Null leaves an unrepresentable server-side rule to server validation.
+     * @param severity The severity, or null if it cannot be determined statically.
+     * @returns This rule instance for chaining.
+     */
+    withSeverity(severity: ValidationResultSeverity | null): this {
+        this.severity = severity;
+        return this;
+    }
+
     /** @inheritdoc */
     validate(instance: T, propertyName: string): ValidationResult[] {
+        if (this.severity === null) {
+            return [];
+        }
+
         const value = this.propertyAccessor(instance);
         if (!this.isValid(value, instance)) {
             return [new ValidationResult(
-                ValidationResultSeverity.Error,
+                this.severity,
                 this.errorMessage.replace('{PropertyName}', propertyName),
                 [propertyName],
                 null

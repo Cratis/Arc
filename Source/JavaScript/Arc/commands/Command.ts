@@ -102,17 +102,13 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     /** @inheritdoc */
     async validate(): Promise<CommandResult<TCommandResponse>> {
         const clientValidationErrors = this.validation?.validate(this) || [];
-        const filteredClientErrors = this.blockOnValidationSeverity === undefined
-            ? clientValidationErrors
-            : this.filterValidationResultsBySeverity(clientValidationErrors);
+        const filteredClientErrors = this.filterValidationResultsBySeverity(clientValidationErrors);
         if (filteredClientErrors.length > 0) {
             return CommandResult.validationFailed(filteredClientErrors) as CommandResult<TCommandResponse>;
         }
 
         const validationErrors = this.validateRequiredProperties();
-        const filteredRequiredErrors = this.blockOnValidationSeverity === undefined
-            ? validationErrors
-            : this.filterValidationResultsBySeverity(validationErrors);
+        const filteredRequiredErrors = this.filterValidationResultsBySeverity(validationErrors);
         if (filteredRequiredErrors.length > 0) {
             return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
@@ -126,28 +122,38 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
         }
 
         actualRoute = `${actualRoute}/validate`;
-        return this.performRequest(actualRoute, 'Command validation endpoint not found at route', 'Error during validation call');
+        const result = await this.performRequest(actualRoute, 'Command validation endpoint not found at route', 'Error during validation call');
+        if (result.isSuccess && clientValidationErrors.length > 0) {
+            return Object.assign(result, { validationResults: [...result.validationResults, ...clientValidationErrors] });
+        }
+        return result;
     }
 
     /** @inheritdoc */
     validateClientSide(): CommandResult<TCommandResponse> {
         const clientValidationErrors = this.validation?.validate(this) || [];
-        const filteredClientErrors = this.blockOnValidationSeverity === undefined
-            ? clientValidationErrors
-            : this.filterValidationResultsBySeverity(clientValidationErrors);
+        const filteredClientErrors = this.filterValidationResultsBySeverity(clientValidationErrors);
         if (filteredClientErrors.length > 0) {
             return CommandResult.validationFailed(filteredClientErrors) as CommandResult<TCommandResponse>;
         }
 
         const validationErrors = this.validateRequiredProperties();
-        const filteredRequiredErrors = this.blockOnValidationSeverity === undefined
-            ? validationErrors
-            : this.filterValidationResultsBySeverity(validationErrors);
+        const filteredRequiredErrors = this.filterValidationResultsBySeverity(validationErrors);
         if (filteredRequiredErrors.length > 0) {
             return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
 
-        return CommandResult.empty as unknown as CommandResult<TCommandResponse>;
+        const advisoryResults = [...clientValidationErrors, ...validationErrors];
+        if (advisoryResults.length === 0) {
+            return CommandResult.empty as CommandResult<TCommandResponse>;
+        }
+
+        return new CommandResult({
+            ...CommandResult.empty,
+            correlationId: CommandResult.empty.correlationId.toString(),
+            validationResults: advisoryResults,
+            response: null
+        }, Object, false) as CommandResult<TCommandResponse>;
     }
 
     private buildPayload(): object {
