@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ICanBeConfigured } from '../ICanBeConfigured';
-import { Paging } from './Paging';
-import { Sorting } from './Sorting';
-import { QueryHttpMethod } from './QueryHttpMethod';
+import { ICanBeConfigured } from '../ICanBeConfigured.js';
+import { Paging } from './Paging.js';
+import { Sorting } from './Sorting.js';
+import { QueryHttpMethod } from './QueryHttpMethod.js';
 
 /**
  * Defines the commonalities between all query types.

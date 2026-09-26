@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../../CommandForm';
+import { CommandForm, useCommandFormContext } from '../../CommandForm.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { a_command_form_context } from '../given/a_command_form_context';
-import { given } from '../../../../given';
+import { a_command_form_context } from '../given/a_command_form_context.js';
+import { given } from '../../../../given.js';
 import { vi } from 'vitest';
 
 let serverValidateCallCount = 0;

@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { CommandResult } from '@cratis/arc/commands';
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
-import { FakeCommand } from './FakeCommand';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
+import { FakeCommand } from './FakeCommand.js';
 
 describe('when child scope has validation failure and parent checks aggregate state', async () => {
     const failedResult = new CommandResult({

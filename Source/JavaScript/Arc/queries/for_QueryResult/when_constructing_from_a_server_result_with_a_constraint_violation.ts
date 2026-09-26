@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidationResultReason } from '../../validation/ValidationResultReason';
-import { ValidationResultSeverity } from '../../validation/ValidationResultSeverity';
-import { QueryResult } from '../QueryResult';
+import { ValidationResultReason } from '../../validation/ValidationResultReason.js';
+import { ValidationResultSeverity } from '../../validation/ValidationResultSeverity.js';
+import { QueryResult } from '../QueryResult.js';
 
 describe('when constructing from a server result with a constraint violation', () => {
     const result = new QueryResult({

@@ -14,17 +14,17 @@ import {
     IDialogMediatorHandler,
     IDialogs,
     useDialogMediator
-} from './dialogs';
-import { IViewModelDetached } from './IViewModelDetached';
+} from './dialogs/index.js';
+import { IViewModelDetached } from './IViewModelDetached.js';
 import { ArcContext } from '@cratis/arc.react';
 import { useMessenger } from '@cratis/arc.react/messaging';
-import { WellKnownBindings } from "./WellKnownBindings";
+import { WellKnownBindings } from "./WellKnownBindings.js";
 import { deepEqual, ICanBeConfigured } from '@cratis/arc';
-import { IHandleParams } from './IHandleParams';
-import { IHandleQueryParams } from './IHandleQueryParams';
-import { IHandleProps } from './IHandleProps';
-import { routeParamsTypeKey } from './params';
-import { queryParamsTypeKey } from './queryParams';
+import { IHandleParams } from './IHandleParams.js';
+import { IHandleQueryParams } from './IHandleQueryParams.js';
+import { IHandleProps } from './IHandleProps.js';
+import { routeParamsTypeKey } from './params.js';
+import { queryParamsTypeKey } from './queryParams.js';
 import { ObservableQueryFor, QueryFor } from '@cratis/arc/queries';
 import { Command } from '@cratis/arc/commands';
 import { DialogComponentsContext, DialogContextContent, IDialogComponents, useDialogContext } from '@cratis/arc.react/dialogs';

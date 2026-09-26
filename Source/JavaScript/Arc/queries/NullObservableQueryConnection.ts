@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { DataReceived } from './ObservableQueryConnection';
-import { IObservableQueryConnection } from './IObservableQueryConnection';
-import { QueryResult } from './QueryResult';
+import { DataReceived } from './ObservableQueryConnection.js';
+import { IObservableQueryConnection } from './IObservableQueryConnection.js';
+import { QueryResult } from './QueryResult.js';
 
 /**
  * Represents a {@link IObservableQueryConnection} when for instance one can't establish a connection.

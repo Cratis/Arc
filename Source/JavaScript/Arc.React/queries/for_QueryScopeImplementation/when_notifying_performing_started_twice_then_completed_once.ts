@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryScopeImplementation } from '../QueryScopeImplementation';
+import { QueryScopeImplementation } from '../QueryScopeImplementation.js';
 
 describe('when notifying performing started twice then completed once', () => {
     let callbackCallCount = 0;

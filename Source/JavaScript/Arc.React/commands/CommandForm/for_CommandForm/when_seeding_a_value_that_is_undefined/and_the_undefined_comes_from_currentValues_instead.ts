@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { act, render, waitFor } from '@testing-library/react';
-import { a_command_form_with_a_required_property, NAME_FROM_THE_LOOKUP } from './given/a_command_form_with_a_required_property';
-import { given } from '../../../../given';
+import { a_command_form_with_a_required_property, NAME_FROM_THE_LOOKUP } from './given/a_command_form_with_a_required_property.js';
+import { given } from '../../../../given.js';
 
 /**
  * The boundary of the rule the specs beside this one pin, and the reason it is a rule about seeding

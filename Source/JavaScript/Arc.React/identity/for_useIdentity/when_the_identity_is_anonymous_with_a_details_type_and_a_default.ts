@@ -4,7 +4,7 @@
 import React from 'react';
 import sinon from 'sinon';
 import { ConceptAs, field } from '@cratis/fundamentals';
-import { useIdentity } from '../useIdentity';
+import { useIdentity } from '../useIdentity.js';
 
 class UserId extends ConceptAs<string> { }
 

@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Command } from '../Command';
-import { PropertyDescriptor } from '../../reflection/PropertyDescriptor';
+import { Command } from '../Command.js';
+import { PropertyDescriptor } from '../../reflection/PropertyDescriptor.js';
 
 export interface ISomeCommand {
     someProperty: string;

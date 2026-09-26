@@ -2,11 +2,11 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { Globals } from '../../../Globals';
-import { EventSourceFactory } from '../../../EventSourceFactory';
-import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection';
-import { given } from '../../../given';
-import { HubMessageType } from '../../WebSocketHubConnection';
+import { Globals } from '../../../Globals.js';
+import { EventSourceFactory } from '../../../EventSourceFactory.js';
+import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection.js';
+import { given } from '../../../given.js';
+import { HubMessageType } from '../../WebSocketHubConnection.js';
 
 interface FakeEventSource {
     onopen: (() => void) | null;

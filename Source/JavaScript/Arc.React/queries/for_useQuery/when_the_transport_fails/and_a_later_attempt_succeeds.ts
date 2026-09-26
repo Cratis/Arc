@@ -6,10 +6,10 @@ import { renderHook, waitFor, act } from '@testing-library/react';
 import sinon from 'sinon';
 import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { useQuery } from '../../useQuery';
-import { FakeQuery, FakeQueryResult } from '../FakeQuery';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
-import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
+import { useQuery } from '../../useQuery.js';
+import { FakeQuery, FakeQueryResult } from '../FakeQuery.js';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext.js';
 
 describe('and a later attempt succeeds', () => {
     let fetchStub: sinon.SinonStub;

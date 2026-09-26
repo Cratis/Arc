@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { QueryInstanceCache } from '../../QueryInstanceCache';
-import { QueryResultWithState } from '../../QueryResultWithState';
+import { QueryInstanceCache } from '../../QueryInstanceCache.js';
+import { QueryResultWithState } from '../../QueryResultWithState.js';
 
 type Item = { id: string; name: string };
 

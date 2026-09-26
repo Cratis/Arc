@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Guid } from '@cratis/fundamentals';
-import { ValidationResult } from '../validation/ValidationResult';
+import { ValidationResult } from '../validation/ValidationResult.js';
 
 /**
  * Defines the result from executing commands.

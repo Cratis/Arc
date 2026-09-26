@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField';
+import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField.js';
 
 interface CheckboxFieldComponentProps extends WrappedFieldProps<boolean> {
     label?: string;

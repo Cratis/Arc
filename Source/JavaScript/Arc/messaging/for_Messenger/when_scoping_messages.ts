@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Messenger } from '../Messenger';
+import { Messenger } from '../Messenger.js';
 
 class MessageToSend {
     constructor(readonly something: string) { }

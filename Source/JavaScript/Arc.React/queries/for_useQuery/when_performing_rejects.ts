@@ -4,10 +4,10 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryInstanceCache, QueryResult, QueryResultWithState } from '@cratis/arc/queries';
-import { useQuery } from '../useQuery';
-import { FakeQuery, FakeQueryResult } from './FakeQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { useQuery } from '../useQuery.js';
+import { FakeQuery, FakeQueryResult } from './FakeQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 /**
  * A query whose own perform rejects - the hook accepts any performer, so it has to settle on a

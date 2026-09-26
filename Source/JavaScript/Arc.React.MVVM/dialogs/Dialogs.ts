@@ -3,9 +3,9 @@
 
 import { DialogResponse, DialogResult, IDialogComponents, ConfirmationDialogRequest, BusyIndicatorDialogRequest, CloseDialog } from '@cratis/arc.react/dialogs';
 import { DialogButtons } from '@cratis/arc.react/dialogs';
-import { IDialogs } from './IDialogs';
-import { BusyIndicator } from './BusyIndicator';
-import { IDialogMediatorHandler } from './IDialogMediatorHandler';
+import { IDialogs } from './IDialogs.js';
+import { BusyIndicator } from './BusyIndicator.js';
+import { IDialogMediatorHandler } from './IDialogMediatorHandler.js';
 
 /**
  * Represents an implementation of {@link IDialogs}.

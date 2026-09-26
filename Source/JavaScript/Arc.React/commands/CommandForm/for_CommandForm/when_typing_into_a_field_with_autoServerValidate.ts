@@ -6,10 +6,10 @@ import { render, fireEvent, act } from '@testing-library/react';
 import { Command, CommandValidator } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { vi } from 'vitest';
-import { CommandForm } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 /**
  * Counts the requests a form actually issues while someone types. Every other spec around

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ObservableQueryConnection } from '../../ObservableQueryConnection';
+import { ObservableQueryConnection } from '../../ObservableQueryConnection.js';
 import * as sinon from 'sinon';
 
 export class an_observable_query_connection {

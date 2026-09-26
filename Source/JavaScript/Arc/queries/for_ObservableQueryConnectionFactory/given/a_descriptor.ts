@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryConnectionDescriptor } from '../../ObservableQueryConnectionFactory';
-import { Globals } from '../../../Globals';
-import { QueryTransportMethod } from '../../QueryTransportMethod';
+import { QueryConnectionDescriptor } from '../../ObservableQueryConnectionFactory.js';
+import { Globals } from '../../../Globals.js';
+import { QueryTransportMethod } from '../../QueryTransportMethod.js';
 
 export class a_descriptor {
     descriptor: QueryConnectionDescriptor;

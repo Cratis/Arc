@@ -8,7 +8,7 @@ import {
     TestObservableQueryWithParameterDescriptorValues,
     TestObservableQueryWithRouteAndQueryArgs,
     TestObservableQueryWithMultipleRequiredParameters
-} from './TestQueries';
+} from './TestQueries.js';
 
 export class an_observable_query_for {
     query: TestObservableQuery;

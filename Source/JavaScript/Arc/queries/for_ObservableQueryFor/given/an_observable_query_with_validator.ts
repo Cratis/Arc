@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ObservableQueryFor } from '../../ObservableQueryFor';
-import { QueryValidator } from '../../QueryValidator';
-import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
-import '../../../validation/RuleBuilderExtensions';
+import { ObservableQueryFor } from '../../ObservableQueryFor.js';
+import { QueryValidator } from '../../QueryValidator.js';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor.js';
+import '../../../validation/RuleBuilderExtensions.js';
 
 export interface ITestParams {
     minAge: number;

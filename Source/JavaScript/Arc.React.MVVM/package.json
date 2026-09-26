@@ -1,4 +1,5 @@
 {
+    "type": "module",
     "name": "@cratis/arc.react.mvvm",
     "version": "1.0.0",
     "description": "React MVVM integration for Cratis Arc — view models, dependency injection, route parameters, and browser abstractions for CQRS applications on ASP.NET Core.",
@@ -35,24 +36,44 @@
     "exports": {
         "./package.json": "./package.json",
         ".": {
-            "types": "./dist/esm/index.d.ts",
-            "require": "./dist/cjs/index.js",
-            "import": "./dist/esm/index.js"
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
         },
         "./browser": {
-            "types": "./dist/esm/browser/index.d.ts",
-            "import": "./dist/esm/browser/index.js",
-            "require": "./dist/cjs/browser/index.js"
+            "import": {
+                "types": "./dist/esm/browser/index.d.ts",
+                "default": "./dist/esm/browser/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/browser/index.d.ts",
+                "default": "./dist/cjs/browser/index.js"
+            }
         },
         "./messaging": {
-            "types": "./dist/esm/messaging/index.d.ts",
-            "import": "./dist/esm/messaging/index.js",
-            "require": "./dist/cjs/messaging/index.js"
+            "import": {
+                "types": "./dist/esm/messaging/index.d.ts",
+                "default": "./dist/esm/messaging/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/messaging/index.d.ts",
+                "default": "./dist/cjs/messaging/index.js"
+            }
         },
         "./dialogs": {
-            "types": "./dist/esm/dialogs/index.d.ts",
-            "require": "./dist/cjs/dialogs/index.js",
-            "import": "./dist/esm/dialogs/index.js"
+            "import": {
+                "types": "./dist/esm/dialogs/index.d.ts",
+                "default": "./dist/esm/dialogs/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/dialogs/index.d.ts",
+                "default": "./dist/cjs/dialogs/index.js"
+            }
         }
     },
     "scripts": {

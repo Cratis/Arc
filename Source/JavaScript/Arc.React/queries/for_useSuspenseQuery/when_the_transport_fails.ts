@@ -4,10 +4,10 @@
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import sinon from 'sinon';
-import { useSuspenseQuery, clearSuspenseQueryCache } from '../useSuspenseQuery';
-import { QueryFailed } from '../QueryFailed';
-import { FakeSuspenseQuery } from './FakeSuspenseQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useSuspenseQuery, clearSuspenseQueryCache } from '../useSuspenseQuery.js';
+import { QueryFailed } from '../QueryFailed.js';
+import { FakeSuspenseQuery } from './FakeSuspenseQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 describe('when the transport fails', () => {

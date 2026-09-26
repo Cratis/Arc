@@ -3,8 +3,8 @@
 
 import type { PropertyDescriptor } from '@cratis/arc/reflection';
 import React, { type ComponentType } from 'react';
-import { useCommandFormContext } from './CommandFormContext';
-import { withCommandFormFieldBinding } from './withCommandFormFieldBinding';
+import { useCommandFormContext } from './CommandFormContext.js';
+import { withCommandFormFieldBinding } from './withCommandFormFieldBinding.js';
 
 /**
  * Props that will be injected by CommandFormFields into your wrapped component

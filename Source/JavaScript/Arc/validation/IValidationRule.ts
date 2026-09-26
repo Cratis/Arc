@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidationResult } from './ValidationResult';
+import { ValidationResult } from './ValidationResult.js';
 
 /**
  * Defines a validation rule that can be applied to a property.

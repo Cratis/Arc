@@ -5,8 +5,8 @@ import React from 'react';
 import { render } from '@testing-library/react';
 import { Command } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { CommandForm, useCommandInstance, useCommandFormContext, type CommandFormProps } from '../../../CommandForm';
-import { a_command_form_context } from '../../given/a_command_form_context';
+import { CommandForm, useCommandInstance, useCommandFormContext, type CommandFormProps } from '../../../CommandForm.js';
+import { a_command_form_context } from '../../given/a_command_form_context.js';
 
 /** What the command class itself declares, and therefore what survives when nothing supplies a value. */
 export const NAME_FROM_THE_COMMAND_CLASS = 'Name from the command class';

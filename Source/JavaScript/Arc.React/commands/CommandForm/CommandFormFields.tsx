@@ -1,18 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCommandFormContext, type FieldValidationInfo } from './CommandFormContext';
-import { useCommandFormFieldRegistration } from './CommandFormFieldRegistrationContext';
+import { useCommandFormContext, type FieldValidationInfo } from './CommandFormContext.js';
+import { useCommandFormFieldRegistration } from './CommandFormFieldRegistrationContext.js';
 import React from 'react';
-import type { CommandFormFieldProps } from './CommandFormField';
+import type { CommandFormFieldProps } from './CommandFormField.js';
 import type { ICommandResult } from '@cratis/arc/commands';
-import { memberMatchesField } from './memberMatchesField';
-import { isCommandFormColumn } from './commandFormMarkers';
-import { renderCommandFormDescendants } from './renderCommandFormDescendants';
-import { runCommandValidation } from './runCommandValidation';
-import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime';
-import { CommandFormFieldBinding } from './commandFormFieldBindingContext';
-import { CommandFormNativeResultContext } from './CommandFormNativeResultContext';
+import { memberMatchesField } from './memberMatchesField.js';
+import { isCommandFormColumn } from './commandFormMarkers.js';
+import { renderCommandFormDescendants } from './renderCommandFormDescendants.js';
+import { runCommandValidation } from './runCommandValidation.js';
+import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime.js';
+import { CommandFormFieldBinding } from './commandFormFieldBindingContext.js';
+import { CommandFormNativeResultContext } from './CommandFormNativeResultContext.js';
 
 export interface ColumnInfo {
     fields: React.ReactElement<CommandFormFieldProps>[];

@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Constructor } from '@cratis/fundamentals';
-import { deserializeQueryModels } from '../deserializeQueryModel';
+import { deserializeQueryModels } from '../deserializeQueryModel.js';
 
 describe('when deserializing a collection of numbers', () => {
     const result = deserializeQueryModels<number>(Number as Constructor, [42, 43]);

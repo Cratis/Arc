@@ -11,9 +11,9 @@ import {
     clearSuspenseObservableQueryCache,
     QueryFailed,
     QueryErrorBoundary,
-} from '../../queries';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { StoryContainer, StorySection, StoryBadge } from '../StoryContainer';
+} from '../../queries/index.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
+import { StoryContainer, StorySection, StoryBadge } from '../StoryContainer.js';
 
 // ---------------------------------------------------------------------------
 // Data model

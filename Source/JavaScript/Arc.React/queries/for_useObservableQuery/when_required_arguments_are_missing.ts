@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { renderHook } from '@testing-library/react';
-import { useObservableQuery } from '../useObservableQuery';
+import { useObservableQuery } from '../useObservableQuery.js';
 import {
     FakeObservableQueryWithRequiredParameters,
     FakeObservableQueryWithRequiredParametersArguments
-} from './FakeObservableQueryWithRequiredParameters';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+} from './FakeObservableQueryWithRequiredParameters.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 
 describe('when required arguments are missing', () => {
     beforeEach(() => {

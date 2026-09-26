@@ -1,21 +1,21 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import * as browser from './browser';
-import * as messaging from './messaging';
-import * as dialogs from './dialogs';
+import * as browser from './browser/index.js';
+import * as messaging from './messaging/index.js';
+import * as dialogs from './dialogs/index.js';
 import { observer } from 'mobx-react';
-export * from './Bindings';
-export * from './MVVMContext';
-export * from './withViewModel';
-export * from './IViewModelDetached';
-export * from './WellKnownBindings';
-export * from './IHandleProps';
-export * from './IHandleParams';
-export * from './IHandleQueryParams';
-export * from './params';
-export * from './queryParams';
-export * from './props';
+export * from './Bindings.js';
+export * from './MVVMContext.js';
+export * from './withViewModel.js';
+export * from './IViewModelDetached.js';
+export * from './WellKnownBindings.js';
+export * from './IHandleProps.js';
+export * from './IHandleParams.js';
+export * from './IHandleQueryParams.js';
+export * from './params.js';
+export * from './queryParams.js';
+export * from './props.js';
 
 /**
  * The sanctioned leaf-observer boundary for Cratis Arc MVVM.

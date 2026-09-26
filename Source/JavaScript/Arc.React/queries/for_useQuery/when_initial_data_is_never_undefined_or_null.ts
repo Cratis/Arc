@@ -4,13 +4,13 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import sinon from 'sinon';
-import { useQuery } from '../useQuery';
-import { FakeQuery } from './FakeQuery';
-import { FakeSingleQuery } from './FakeSingleQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useQuery } from '../useQuery.js';
+import { FakeQuery } from './FakeQuery.js';
+import { FakeSingleQuery } from './FakeSingleQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 describe('when initial data is never undefined or null', () => {
     let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };

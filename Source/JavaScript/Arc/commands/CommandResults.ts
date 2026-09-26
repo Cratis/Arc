@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Guid } from '@cratis/fundamentals';
-import { ValidationResult } from '../validation/ValidationResult';
-import { Command } from './Command';
-import { CommandResult } from './CommandResult';
-import { ICommandResult } from './ICommandResult';
+import { ValidationResult } from '../validation/ValidationResult.js';
+import { Command } from './Command.js';
+import { CommandResult } from './CommandResult.js';
+import { ICommandResult } from './ICommandResult.js';
 
 type GetSpecificState = (commandResult: CommandResult) => boolean;
 

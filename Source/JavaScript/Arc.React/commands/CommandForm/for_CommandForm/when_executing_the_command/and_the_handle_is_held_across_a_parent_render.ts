@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { CommandForm } from '../../CommandForm';
-import type { CommandFormHandle } from '../../CommandFormContext';
-import { TestCommand } from '../TestCommand';
-import { a_command_form_being_executed } from '../given/a_command_form_being_executed';
-import { given } from '../../../../given';
+import { CommandForm } from '../../CommandForm.js';
+import type { CommandFormHandle } from '../../CommandFormContext.js';
+import { TestCommand } from '../TestCommand.js';
+import { a_command_form_being_executed } from '../given/a_command_form_being_executed.js';
+import { given } from '../../../../given.js';
 
 // The regression guard for the re-attach loop. A handle rebuilt on every render re-attaches the
 // callback ref on every render, and a parent that stores what the ref hands it re-renders in response -

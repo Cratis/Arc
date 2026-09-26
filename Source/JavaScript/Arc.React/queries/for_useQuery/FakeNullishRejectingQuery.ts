@@ -3,7 +3,7 @@
 
 import { QueryFor, QueryResult } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
-import { FakeQueryResult } from './FakeQuery';
+import { FakeQueryResult } from './FakeQuery.js';
 
 /**
  * A query that rejects with a nullish value rather than an {@link Error}. `IQueryFor` only promises a

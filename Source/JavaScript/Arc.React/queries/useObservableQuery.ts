@@ -12,13 +12,13 @@ import {
 } from '@cratis/arc/queries';
 import { type Constructor, JsonSerializer } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import type { SetSorting } from './SetSorting';
-import type { SetPage } from './SetPage';
-import type { SetPageSize } from './SetPageSize';
-import { ArcContext } from '../ArcContext';
-import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
-import { serializeArgsForDependency } from './serializeArgsForDependency';
-import { useQueryScope } from './useQueryScope';
+import type { SetSorting } from './SetSorting.js';
+import type { SetPage } from './SetPage.js';
+import type { SetPageSize } from './SetPageSize.js';
+import { ArcContext } from '../ArcContext.js';
+import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
+import { serializeArgsForDependency } from './serializeArgsForDependency.js';
+import { useQueryScope } from './useQueryScope.js';
 
 /**
  * Applies a server-provided {@link ChangeSet} to a snapshot array, producing the new state.

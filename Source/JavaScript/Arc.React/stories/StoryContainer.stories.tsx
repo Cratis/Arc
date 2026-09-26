@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { Meta, StoryObj } from '@storybook/react';
-import { StoryContainer, StorySection, StoryGrid, StoryDivider, StoryBadge } from './StoryContainer';
+import { StoryContainer, StorySection, StoryGrid, StoryDivider, StoryBadge } from './StoryContainer.js';
 
 const meta: Meta<typeof StoryContainer> = {
     title: 'Stories/StoryContainer',

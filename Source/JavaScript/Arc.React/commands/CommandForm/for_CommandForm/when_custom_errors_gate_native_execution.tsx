@@ -9,11 +9,11 @@ import { Guid } from '@cratis/fundamentals';
 import { Command, CommandResult, type ICommandResult } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validation';
-import { CommandForm, type CommandFormProps } from '../CommandForm';
-import { useCommandFormContext, type CommandFormContextValue, type CommandFormHandle } from '../CommandFormContext';
-import { InputTextField } from '../fields/InputTextField';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { a_command_form_context } from './given/a_command_form_context';
+import { CommandForm, type CommandFormProps } from '../CommandForm.js';
+import { useCommandFormContext, type CommandFormContextValue, type CommandFormHandle } from '../CommandFormContext.js';
+import { InputTextField } from '../fields/InputTextField.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
 
 class ExampleCommand extends Command<{ code?: string }> {
     readonly route = '/examples/code';

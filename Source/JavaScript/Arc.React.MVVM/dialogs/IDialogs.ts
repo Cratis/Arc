@@ -3,7 +3,7 @@
 
 import { DialogResponse, DialogResult } from '@cratis/arc.react/dialogs';
 import { DialogButtons } from '@cratis/arc.react/dialogs';
-import { BusyIndicator } from './BusyIndicator';
+import { BusyIndicator } from './BusyIndicator.js';
 
 /**
  * Defines a service for working with dialogs from a view model.
