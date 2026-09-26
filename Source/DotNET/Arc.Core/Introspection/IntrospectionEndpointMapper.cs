@@ -25,6 +25,8 @@ public static class IntrospectionEndpointMapper
     /// Maps introspection endpoints for commands and queries.
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
+    /// <remarks>This overload cannot resolve configured options from <see cref="IEndpointMapper"/> and always uses defaults.</remarks>
+    [Obsolete("Use MapIntrospectionEndpoints(IEndpointMapper, IntrospectionOptions) to honor configured exposure options.")]
     public static void MapIntrospectionEndpoints(this IEndpointMapper mapper) => mapper.MapIntrospectionEndpoints(new IntrospectionOptions());
 
     /// <summary>
