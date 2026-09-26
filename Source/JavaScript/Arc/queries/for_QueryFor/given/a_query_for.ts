@@ -8,7 +8,7 @@ import {
     TestQueryForWithParameterDescriptorValues,
     TestQueryForWithMultipleRequiredParameters,
     TestQueryForWithEnumerableParameterDescriptorValues
-} from './TestQueries';
+} from './TestQueries.js';
 
 export class a_query_for {
     query: TestQueryFor;

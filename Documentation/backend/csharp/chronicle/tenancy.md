@@ -19,7 +19,7 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 }
 ```
 
-That command is tenant-aware. There is no tenant parameter, no filter, and no namespace argument — the event lands in the namespace belonging to whoever made the request.
+That command is tenant-aware. There is no tenant parameter, no filter, and no namespace argument — the event lands in the namespace belonging to whoever made the request. For off-request work, [select the tenant before the pipeline creates its DI scope](../commands/command-pipeline.md#execute-for-a-specific-tenant); Chronicle binds its scoped event store to the namespace when the service is resolved.
 
 ## The mapping rule
 

@@ -5,8 +5,8 @@ import React from 'react';
 import type {
     BaseCommandFormFieldProps,
     InjectedCommandFormFieldProps,
-} from '../asCommandFormField';
-import { withCommandFormFieldBinding } from '../withCommandFormFieldBinding';
+} from '../asCommandFormField.js';
+import { withCommandFormFieldBinding } from '../withCommandFormFieldBinding.js';
 
 type RadioValueAccessor = (instance: never) => unknown;
 type CommandType<TAccessor extends RadioValueAccessor> = Parameters<TAccessor>[0];
@@ -68,6 +68,7 @@ function RadioButtonFieldComponent<TAccessor extends RadioValueAccessor>(
             }}
         >
             <input
+                id={props.id}
                 type='radio'
                 name={props.fieldName}
                 checked={Object.is(props.currentValue, props.setValue)}

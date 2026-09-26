@@ -5,13 +5,13 @@ import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
 import { QueryInstanceCache, QueryResult } from '@cratis/arc/queries';
-import { type ArcConfiguration, ArcContext } from '../../../ArcContext';
-import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext';
-import { usePopulateFromObservableQuery } from '../usePopulateFromQuery';
+import { type ArcConfiguration, ArcContext } from '../../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext.js';
+import { usePopulateFromObservableQuery } from '../usePopulateFromQuery.js';
 import {
     FakeObservablePopulateQuery,
     type FakePopulateQueryResult,
-} from './FakePopulateQuery';
+} from './FakePopulateQuery.js';
 
 describe('when the observable query resolves', () => {
     let queryCache: QueryInstanceCache;

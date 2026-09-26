@@ -20,7 +20,7 @@ public class with_registered_route : given.a_well_known_routes_middleware
             return Task.CompletedTask;
         });
 
-        _listener.Start();
+        StartListener();
         _client = new HttpClient();
     }
 

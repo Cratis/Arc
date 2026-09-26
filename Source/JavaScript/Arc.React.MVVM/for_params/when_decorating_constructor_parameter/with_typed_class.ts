@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { injectable } from 'tsyringe';
-import { params, routeParamsTypeKey } from '../../params';
+import { params, routeParamsTypeKey } from '../../params.js';
 
 class RouteParamsType {
     id: string = '';

@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { IdentityProvider } from '../../IdentityProvider';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
+import { IdentityProvider } from '../../IdentityProvider.js';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
 
 export class an_identity_provider {
     fetchStub: sinon.SinonStub;

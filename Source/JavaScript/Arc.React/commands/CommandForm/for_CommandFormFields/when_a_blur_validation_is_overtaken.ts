@@ -6,10 +6,10 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { Command } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { vi } from 'vitest';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
-import { a_command_form_fields_context } from './given/a_command_form_fields_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandFormContext } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
+import { a_command_form_fields_context } from './given/a_command_form_fields_context.js';
+import { given } from '../../../given.js';
 
 /**
  * The blur path with autoServerValidate is the run most likely to be overtaken: it crosses the

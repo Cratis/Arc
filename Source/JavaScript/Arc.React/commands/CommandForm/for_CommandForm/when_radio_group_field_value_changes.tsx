@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { RadioGroupField } from '../fields';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { RadioGroupField } from '../fields/index.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 describe('when radio group field value changes', given(a_command_form_context, context => {
     let capturedCommand: TestCommand | null = null;

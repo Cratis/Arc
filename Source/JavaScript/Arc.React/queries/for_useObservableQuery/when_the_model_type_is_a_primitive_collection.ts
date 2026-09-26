@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { useObservableQuery } from '../useObservableQuery';
-import { FakeStringObservableQuery } from './FakeStringObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useObservableQuery } from '../useObservableQuery.js';
+import { FakeStringObservableQuery } from './FakeStringObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryResult, QueryResultWithState, QueryInstanceCache } from '@cratis/arc/queries';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 describe('when the model type is a primitive collection', () => {
     let capturedResult: QueryResultWithState<string[]> | undefined;

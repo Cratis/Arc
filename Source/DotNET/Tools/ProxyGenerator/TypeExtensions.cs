@@ -83,6 +83,27 @@ public static class TypeExtensions
         { "Cratis.Geospatial.Polygon", new(typeof(object), "Polygon", "Polygon", "@cratis/fundamentals", FromPackage: true) }
     };
 
+    /// <summary>
+    /// Scalar types convertible as individual query arguments (unlike object and geospatial DTOs in the type-shape map).
+    /// Mirrored by ConverterExtensions._additionalQueryArgumentScalarTypes and checked by the parity spec.
+    /// </summary>
+    static readonly HashSet<string> _queryArgumentScalarTypeNames =
+    [
+        typeof(string).FullName!,
+        typeof(decimal).FullName!,
+        typeof(DateTime).FullName!,
+        typeof(DateTimeOffset).FullName!,
+        typeof(TimeSpan).FullName!,
+        typeof(Guid).FullName!,
+        typeof(DateOnly).FullName!,
+        typeof(TimeOnly).FullName!,
+        typeof(Uri).FullName!,
+        typeof(System.Text.Json.Nodes.JsonNode).FullName!,
+        typeof(System.Text.Json.Nodes.JsonObject).FullName!,
+        typeof(System.Text.Json.Nodes.JsonArray).FullName!,
+        typeof(System.Text.Json.JsonDocument).FullName!
+    ];
+
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
@@ -100,6 +121,11 @@ public static class TypeExtensions
     /// Gets all assemblies gathered from the <see cref="InitializeProjectAssemblies(string, Action{string}, Action{string})"/> method.
     /// </summary>
     public static IEnumerable<Assembly> Assemblies { get; private set; } = [];
+
+    /// <summary>
+    /// Gets the managed application dependencies (projects and packages) that can declare runtime validators.
+    /// </summary>
+    internal static IEnumerable<Assembly> ValidatorAssemblies { get; private set; } = [];
 
     /// <summary>
     /// Sets the assembly-to-package mappings used to map types from specific assemblies to external TypeScript packages.
@@ -889,7 +915,11 @@ public static class TypeExtensions
         if (!type.IsEnumerable()) return false;
 
         var elementType = type.GetEnumerableElementType();
-        return elementType is not null && (elementType.IsAPrimitiveType() || elementType.IsConcept() || elementType.IsEnum);
+        if (elementType is null) return false;
+
+        var scalarType = elementType.IsNullable() ? elementType.GetGenericArguments()[0] : elementType;
+        return scalarType.IsConcept() || scalarType.IsEnum || scalarType.GetTypeInfo().IsPrimitive ||
+            (scalarType.FullName is not null && _queryArgumentScalarTypeNames.Contains(scalarType.FullName));
     }
 
     /// <summary>
@@ -1372,6 +1402,8 @@ public static class TypeExtensions
             Assemblies = [.. managedProjectAssemblyPaths
                                             .Select(LoadMetadataAssembly)
                                             .Distinct()];
+            ValidatorAssemblies = FindValidatorAssemblies(managedAppAssemblyPaths.Select(LoadMetadataAssembly).Distinct());
+            ValidatorTypes.SetWarningLogger(message);
 
             var commandResponseValueHandlerContractsAssembly = managedAppAssemblyPaths
                 .Where(_ => Path.GetFileNameWithoutExtension(_) == CommandResponseValueHandlerContractsAssemblyName)
@@ -1409,6 +1441,58 @@ public static class TypeExtensions
     /// </summary>
     /// <returns>An owner that releases the metadata graph when disposed.</returns>
     internal static IDisposable OwnProjectAssemblies() => new ProjectAssembliesLifetime(_metadataLoadContext);
+
+    /// <summary>
+    /// Finds dependencies with a direct or indirect reference to Arc Core without loading their types.
+    /// </summary>
+    /// <param name="assemblies">The managed application dependencies.</param>
+    /// <returns>Assemblies eligible to contain validators.</returns>
+    internal static Assembly[] FindValidatorAssemblies(IEnumerable<Assembly> assemblies)
+    {
+        const string core = "Cratis.Arc.Core";
+        var candidates = assemblies.ToArray();
+        var dependents = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var assembly in candidates)
+        {
+            var name = assembly.GetName().Name!;
+            foreach (var reference in assembly.GetReferencedAssemblies())
+            {
+                if (reference.Name is null)
+                {
+                    continue;
+                }
+
+                if (!dependents.TryGetValue(reference.Name, out var names))
+                {
+                    names = [];
+                    dependents.Add(reference.Name, names);
+                }
+
+                names.Add(name);
+            }
+        }
+
+        var eligible = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { core };
+        var pending = new Queue<string>();
+        pending.Enqueue(core);
+        while (pending.TryDequeue(out var referenced))
+        {
+            if (!dependents.TryGetValue(referenced, out var names))
+            {
+                continue;
+            }
+
+            foreach (var name in names)
+            {
+                if (eligible.Add(name))
+                {
+                    pending.Enqueue(name);
+                }
+            }
+        }
+
+        return [.. candidates.Where(_ => _.GetName().Name is { } name && name != core && eligible.Contains(name))];
+    }
 
     /// <summary>
     /// Find the identities of every response value type declared as consumed on the server.
@@ -1669,6 +1753,8 @@ public static class TypeExtensions
     {
         var metadataLoadContext = _metadataLoadContext;
         Assemblies = [];
+        ValidatorAssemblies = [];
+        ValidatorTypes.SetWarningLogger(_ => { });
         _assembliesByName.Clear();
         _serverHandledCommandResponseValueTypeNames = null;
         ResetWellKnownTypes();

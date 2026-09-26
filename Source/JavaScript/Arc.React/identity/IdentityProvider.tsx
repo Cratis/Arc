@@ -7,8 +7,8 @@ import { Constructor } from '@cratis/fundamentals';
 import { IIdentity } from '@cratis/arc/identity';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { GetHttpHeaders } from '@cratis/arc';
-import { ArcContext } from '../ArcContext';
-import { BrowserNavigation } from './BrowserNavigation';
+import { ArcContext } from '../ArcContext.js';
+import { BrowserNavigation } from './BrowserNavigation.js';
 
 const defaultIdentityContext: IIdentity = {
     id: '',

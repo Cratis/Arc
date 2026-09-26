@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { PropertyValidator } from './PropertyValidator';
-import { IValidationRule } from './IValidationRule';
-import { PropertyRule } from './PropertyRule';
+import { PropertyValidator } from './PropertyValidator.js';
+import { IValidationRule } from './IValidationRule.js';
+import { PropertyRule } from './PropertyRule.js';
 
 /**
  * Represents a builder for creating validation rules for a property.

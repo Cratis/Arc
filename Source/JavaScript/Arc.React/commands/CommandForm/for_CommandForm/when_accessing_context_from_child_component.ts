@@ -3,10 +3,10 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandFormContext } from '../CommandForm.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 describe("when accessing context from child component", given(a_command_form_context, context => {
     let contextValue: ReturnType<typeof useCommandFormContext> | null = null;

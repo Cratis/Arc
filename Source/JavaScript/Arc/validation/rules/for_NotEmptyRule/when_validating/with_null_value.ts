@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { NotEmptyRule } from '../../NotEmptyRule';
-import { ValidationResultSeverity } from '../../../ValidationResultSeverity';
+import { NotEmptyRule } from '../../NotEmptyRule.js';
+import { ValidationResultSeverity } from '../../../ValidationResultSeverity.js';
 
 interface TestType {
     value: string | null;

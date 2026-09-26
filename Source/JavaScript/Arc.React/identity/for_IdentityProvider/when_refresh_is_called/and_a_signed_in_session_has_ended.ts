@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { given } from '../../../given';
-import { an_identity_provider } from '../given/an_identity_provider';
-import { BrowserNavigation } from '../../BrowserNavigation';
+import { given } from '../../../given.js';
+import { an_identity_provider } from '../given/an_identity_provider.js';
+import { BrowserNavigation } from '../../BrowserNavigation.js';
 
 /**
  * A refresh that resolves an identity that was signed in into one that is not means the session ended

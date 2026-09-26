@@ -2,13 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { given } from '../../../given';
-import { Globals } from '../../../Globals';
-import { HubMessageType } from '../../WebSocketHubConnection';
-import type { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
-import { resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
-import { QueryTransportMethod } from '../../QueryTransportMethod';
-import { an_observable_query_for } from '../given/an_observable_query_for';
+import { given } from '../../../given.js';
+import { Globals } from '../../../Globals.js';
+import { HubMessageType } from '../../WebSocketHubConnection.js';
+import type { ObservableQuerySubscription } from '../../ObservableQuerySubscription.js';
+import { resetSharedMultiplexer } from '../../ObservableQueryMultiplexer.js';
+import { QueryTransportMethod } from '../../QueryTransportMethod.js';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
 
 describe(
     'when subscribing with web socket hub payload without readiness',

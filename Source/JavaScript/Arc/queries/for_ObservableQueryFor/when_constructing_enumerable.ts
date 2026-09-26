@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { an_observable_query_for } from './given/an_observable_query_for';
-import { given } from '../../given';
-import { Sorting } from '../Sorting';
-import { Paging } from '../Paging';
+import { an_observable_query_for } from './given/an_observable_query_for.js';
+import { given } from '../../given.js';
+import { Sorting } from '../Sorting.js';
+import { Paging } from '../Paging.js';
 
 
 describe('when constructing enumerable query', given(an_observable_query_for, context => {

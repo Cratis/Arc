@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { PropertyRule } from '../PropertyRule';
+import { PropertyRule } from '../PropertyRule.js';
 
 /**
  * Validation rule that checks if a string matches an email pattern.

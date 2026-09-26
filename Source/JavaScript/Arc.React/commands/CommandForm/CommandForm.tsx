@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandFormFields, CommandFormFieldWrapper } from './CommandFormFields';
+import { CommandFormFields, CommandFormFieldWrapper } from './CommandFormFields.js';
 import {
     CommandFormContext,
     useCommandFormContext,
@@ -14,32 +14,32 @@ import {
     type FieldDecoratorProps,
     type ErrorDisplayProps,
     type TooltipWrapperProps,
-} from './CommandFormContext';
+} from './CommandFormContext.js';
 import type { Constructor } from '@cratis/fundamentals';
-import { useCommand, type SetCommandValues } from '../useCommand';
+import { useCommand, type SetCommandValues } from '../useCommand.js';
 import { CommandResult, type ICommandResult } from '@cratis/arc/commands';
 import type { Command } from '@cratis/arc/commands';
 import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validation';
 import type { IObservableQueryFor, IQueryFor } from '@cratis/arc/queries';
 import { deepEqual } from '@cratis/arc';
 import React, { useMemo, useState, useCallback, useImperativeHandle } from 'react';
-import type { CommandFormFieldRegistrationDescriptor } from './CommandFormFieldRegistrationDescriptor';
-import { memberMatchesField } from './memberMatchesField';
-import { runCommandValidation } from './runCommandValidation';
-import { renderCommandFormDescendants } from './renderCommandFormDescendants';
-import { CommandFormFieldRegistrationContext } from './CommandFormFieldRegistrationContext';
-import { CommandFormNativeResultContext } from './CommandFormNativeResultContext';
-import { useIdentity } from '../../identity';
-import { markAsCommandFormColumn } from './commandFormMarkers';
+import type { CommandFormFieldRegistrationDescriptor } from './CommandFormFieldRegistrationDescriptor.js';
+import { memberMatchesField } from './memberMatchesField.js';
+import { runCommandValidation } from './runCommandValidation.js';
+import { renderCommandFormDescendants } from './renderCommandFormDescendants.js';
+import { CommandFormFieldRegistrationContext } from './CommandFormFieldRegistrationContext.js';
+import { CommandFormNativeResultContext } from './CommandFormNativeResultContext.js';
+import { useIdentity } from '../../identity/index.js';
+import { markAsCommandFormColumn } from './commandFormMarkers.js';
 import {
     usePopulateFromObservableQuery,
     usePopulateFromQuery,
-} from './usePopulateFromQuery';
-import { withoutUndefinedValues } from './withoutUndefinedValues';
-import type { ExceptionDisplayProps } from './ExceptionDisplayProps';
+} from './usePopulateFromQuery.js';
+import { withoutUndefinedValues } from './withoutUndefinedValues.js';
+import type { ExceptionDisplayProps } from './ExceptionDisplayProps.js';
 
 // Re-export for backwards compatibility
-export { useCommandFormContext } from './CommandFormContext';
+export { useCommandFormContext } from './CommandFormContext.js';
 
 export interface CommandFormProps<TCommand extends object, TResponse = object> {
     command: Constructor<TCommand>;

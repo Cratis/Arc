@@ -4,9 +4,9 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { useQuery } from '../useQuery';
-import { FakeQueryWithRequiredParameters, FakeQueryWithRequiredParametersArguments } from './FakeQueryWithRequiredParameters';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useQuery } from '../useQuery.js';
+import { FakeQueryWithRequiredParameters, FakeQueryWithRequiredParametersArguments } from './FakeQueryWithRequiredParameters.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 describe('when required argument changes', () => {

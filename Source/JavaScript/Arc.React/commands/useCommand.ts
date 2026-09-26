@@ -4,8 +4,8 @@
 import { Constructor } from '@cratis/fundamentals';
 import { useState, useCallback, useContext, useRef, useMemo, useEffect } from 'react';
 import { Command } from '@cratis/arc/commands';
-import { CommandScopeContext } from './CommandScope';
-import { ArcContext } from '../ArcContext';
+import { CommandScopeContext } from './CommandScope.js';
+import { ArcContext } from '../ArcContext.js';
 
 export type SetCommandValues<TCommandContent> = (command: TCommandContent) => void;
 export type ClearCommandValues = () => void;

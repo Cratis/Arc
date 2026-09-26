@@ -6,9 +6,9 @@ import { render, screen, act } from '@testing-library/react';
 import {
     useSuspenseObservableQuery,
     clearSuspenseObservableQueryCache,
-} from '../useSuspenseObservableQuery';
-import { FakeSuspenseObservableQuery } from './FakeSuspenseObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+} from '../useSuspenseObservableQuery.js';
+import { FakeSuspenseObservableQuery } from './FakeSuspenseObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryResult } from '@cratis/arc/queries';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

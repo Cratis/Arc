@@ -1,17 +1,17 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ICommand, PropertyChanged } from './ICommand';
-import { CommandResult } from "./CommandResult";
-import { CommandValidator } from './CommandValidator';
+import { ICommand, PropertyChanged } from './ICommand.js';
+import { CommandResult } from "./CommandResult.js";
+import { CommandValidator } from './CommandValidator.js';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
-import { Globals } from '../Globals';
-import { joinPaths } from '../joinPaths';
-import { UrlHelpers } from '../UrlHelpers';
-import { GetHttpHeaders } from '../GetHttpHeaders';
-import { PropertyDescriptor } from '../reflection/PropertyDescriptor';
-import { ValidationResult } from '../validation/ValidationResult';
-import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
+import { Globals } from '../Globals.js';
+import { joinPaths } from '../joinPaths.js';
+import { UrlHelpers } from '../UrlHelpers.js';
+import { GetHttpHeaders } from '../GetHttpHeaders.js';
+import { PropertyDescriptor } from '../reflection/PropertyDescriptor.js';
+import { ValidationResult } from '../validation/ValidationResult.js';
+import { ValidationResultSeverity } from '../validation/ValidationResultSeverity.js';
 
 type Callback = {
     callback: WeakRef<PropertyChanged>;
@@ -31,6 +31,8 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     readonly validation?: CommandValidator<any>;
     /* eslint-enable @typescript-eslint/no-explicit-any */
     readonly roles: string[] = [];
+    /** Inclusive minimum blocking severity declared by a model-bound command proxy. */
+    readonly blockOnValidationSeverity?: ValidationResultSeverity;
     abstract readonly propertyDescriptors: PropertyDescriptor[];
     abstract get requestParameters(): string[];
 
@@ -100,13 +102,19 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     /** @inheritdoc */
     async validate(): Promise<CommandResult<TCommandResponse>> {
         const clientValidationErrors = this.validation?.validate(this) || [];
-        if (clientValidationErrors.length > 0) {
-            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        const filteredClientErrors = this.blockOnValidationSeverity === undefined
+            ? clientValidationErrors
+            : this.filterValidationResultsBySeverity(clientValidationErrors);
+        if (filteredClientErrors.length > 0) {
+            return CommandResult.validationFailed(filteredClientErrors) as CommandResult<TCommandResponse>;
         }
 
         const validationErrors = this.validateRequiredProperties();
-        if (validationErrors.length > 0) {
-            return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
+        const filteredRequiredErrors = this.blockOnValidationSeverity === undefined
+            ? validationErrors
+            : this.filterValidationResultsBySeverity(validationErrors);
+        if (filteredRequiredErrors.length > 0) {
+            return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
 
         let actualRoute = this.route;
@@ -124,13 +132,19 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     /** @inheritdoc */
     validateClientSide(): CommandResult<TCommandResponse> {
         const clientValidationErrors = this.validation?.validate(this) || [];
-        if (clientValidationErrors.length > 0) {
-            return CommandResult.validationFailed(clientValidationErrors) as CommandResult<TCommandResponse>;
+        const filteredClientErrors = this.blockOnValidationSeverity === undefined
+            ? clientValidationErrors
+            : this.filterValidationResultsBySeverity(clientValidationErrors);
+        if (filteredClientErrors.length > 0) {
+            return CommandResult.validationFailed(filteredClientErrors) as CommandResult<TCommandResponse>;
         }
 
         const validationErrors = this.validateRequiredProperties();
-        if (validationErrors.length > 0) {
-            return CommandResult.validationFailed(validationErrors) as CommandResult<TCommandResponse>;
+        const filteredRequiredErrors = this.blockOnValidationSeverity === undefined
+            ? validationErrors
+            : this.filterValidationResultsBySeverity(validationErrors);
+        if (filteredRequiredErrors.length > 0) {
+            return CommandResult.validationFailed(filteredRequiredErrors) as CommandResult<TCommandResponse>;
         }
 
         return CommandResult.empty as unknown as CommandResult<TCommandResponse>;
@@ -164,6 +178,10 @@ export abstract class Command<TCommandContent = object, TCommandResponse = objec
     }
 
     private filterValidationResultsBySeverity(validationResults: ValidationResult[], allowedSeverity?: ValidationResultSeverity, ignoreWarnings?: boolean): ValidationResult[] {
+        if (this.blockOnValidationSeverity !== undefined) {
+            const effectiveAllowed = Math.min(allowedSeverity ?? ValidationResultSeverity.Error, this.blockOnValidationSeverity - 1);
+            return validationResults.filter(result => result.severity === ValidationResultSeverity.Unknown || result.severity > effectiveAllowed);
+        }
         if (ignoreWarnings === true) {
             return validationResults.filter(result => result.severity === ValidationResultSeverity.Error);
         }

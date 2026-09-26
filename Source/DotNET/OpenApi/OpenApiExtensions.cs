@@ -17,6 +17,13 @@ public static class OpenApiExtensions
     /// <param name="options">The <see cref="OpenApiOptions"/>.</param>
     public static void AddConcepts(this OpenApiOptions options) =>
         options.AddSchemaTransformer<ConceptSchemaTransformer>()
+            .AddSchemaTransformer<EnumerableConceptSchemaTransformer>()
+            .AddSchemaTransformer<ComplexKeyDictionarySchemaTransformer>()
+            .AddSchemaTransformer<DerivedTypeSchemaTransformer>()
+            .AddSchemaTransformer<PolymorphicCollectionSchemaTransformer>()
+            .AddSchemaTransformer<StringValueSchemaTransformer>()
+            .AddSchemaTransformer<GeoJsonSchemaTransformer>()
+            .AddDocumentTransformer<DeferredSchemaDocumentTransformer>()
             .AddSchemaTransformer<EnumSchemaTransformer>()
             .AddSchemaTransformer<FromRequestSchemaTransformer>()
             .AddOperationTransformer<FromRequestOperationTransformer>()

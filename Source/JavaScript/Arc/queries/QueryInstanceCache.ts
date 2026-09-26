@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResultWithState } from './QueryResultWithState';
+import { QueryResultWithState } from './QueryResultWithState.js';
 import type {
     CacheDiagnostics,
     CacheEntryDiagnostics,
-} from './ObservableQueryDiagnosticsSnapshot';
-import { reconcileQueryData } from './reconcileQueryData';
+} from './ObservableQueryDiagnosticsSnapshot.js';
+import { reconcileQueryData } from './reconcileQueryData.js';
 
 /**
  * Represents a key that uniquely identifies a query instance in the cache, based on the query type name and its serialized arguments.

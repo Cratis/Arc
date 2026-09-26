@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from '../given/a_query_for';
-import { given } from '../../../given';
-import { QueryResult } from '../../QueryResult';
+import { a_query_for } from '../given/a_query_for.js';
+import { given } from '../../../given.js';
+import { QueryResult } from '../../QueryResult.js';
 
 describe('with invalid arguments', given(a_query_for, context => {
     let result: QueryResult<string>;

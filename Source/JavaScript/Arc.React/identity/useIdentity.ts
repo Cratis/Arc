@@ -4,8 +4,8 @@
 import React from 'react';
 import { Constructor } from '@cratis/fundamentals';
 import { deserializeIdentityDetails } from '@cratis/arc/identity';
-import { IdentityProviderContext } from './IdentityProvider';
-import { IIdentityContext } from './IIdentityContext';
+import { IdentityProviderContext } from './IdentityProvider.js';
+import { IIdentityContext } from './IIdentityContext.js';
 
 /**
  * Caches details already deserialized for a given raw payload, keyed first by the raw payload object

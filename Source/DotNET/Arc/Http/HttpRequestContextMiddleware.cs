@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.AspNetCore.Http;
 
@@ -22,6 +23,7 @@ public class HttpRequestContextMiddleware(IHttpRequestContextAccessor httpReques
     /// <inheritdoc/>
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
+        using var tenantBoundary = TenantIdAccessor.Independent.BeginRequest();
         httpRequestContextAccessor.Current = new AspNetCoreHttpRequestContext(context);
         await next(context);
     }

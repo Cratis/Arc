@@ -1,18 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandScope } from './commands';
-import { IdentityProvider } from './identity';
-import { Bindings } from './Bindings';
-import { ArcConfiguration, ArcContext } from './ArcContext';
+import { CommandScope } from './commands/index.js';
+import { IdentityProvider } from './identity/index.js';
+import { Bindings } from './Bindings.js';
+import { ArcConfiguration, ArcContext } from './ArcContext.js';
 import { Constructor } from '@cratis/fundamentals';
 import { GetHttpHeaders, EventSourceFactory, Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { QueryTransportMethod, QueryInstanceCache } from '@cratis/arc/queries';
 import { resetSharedMultiplexer } from '@cratis/arc/queries';
 import { ObservableQueryDiagnostics, getSharedMultiplexer } from '@cratis/arc/queries';
 import { Messenger } from '@cratis/arc/messaging';
-import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext';
-import { MessengerScopeContext } from './messaging/MessengerScopeContext';
+import { QueryInstanceCacheContext } from './queries/QueryInstanceCacheContext.js';
+import { MessengerScopeContext } from './messaging/MessengerScopeContext.js';
 import { useRef, useEffect, useState, useCallback } from 'react';
 
 /**

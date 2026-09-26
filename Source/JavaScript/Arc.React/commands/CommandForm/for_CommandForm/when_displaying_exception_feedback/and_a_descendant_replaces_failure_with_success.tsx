@@ -4,9 +4,9 @@
 import { act } from '@testing-library/react';
 import { CommandResult } from '@cratis/arc/commands';
 import sinon from 'sinon';
-import type { ExceptionDisplayProps } from '../../index';
-import { given } from '../../../../given';
-import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
+import type { ExceptionDisplayProps } from '../../index.js';
+import { given } from '../../../../given.js';
+import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback.js';
 
 describe('when displaying exception feedback and a descendant replaces failure with success', given(a_command_form_with_exception_feedback, context => {
     let display: sinon.SinonSpy;

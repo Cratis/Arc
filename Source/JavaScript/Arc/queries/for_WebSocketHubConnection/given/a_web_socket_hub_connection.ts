@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { WebSocketHubConnection } from '../../WebSocketHubConnection';
-import { IReconnectPolicy } from '../../IReconnectPolicy';
-import { ReconnectCallback } from '../../IReconnectPolicy';
+import { WebSocketHubConnection } from '../../WebSocketHubConnection.js';
+import { IReconnectPolicy } from '../../IReconnectPolicy.js';
+import { ReconnectCallback } from '../../IReconnectPolicy.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

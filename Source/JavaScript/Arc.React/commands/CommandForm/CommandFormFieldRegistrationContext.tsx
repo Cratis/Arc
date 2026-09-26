@@ -3,8 +3,8 @@
 
 import { deepEqual } from '@cratis/arc';
 import React from 'react';
-import type { CommandFormFieldProps } from './CommandFormField';
-import type { CommandFormFieldRegistrationDescriptor } from './CommandFormFieldRegistrationDescriptor';
+import type { CommandFormFieldProps } from './CommandFormField.js';
+import type { CommandFormFieldRegistrationDescriptor } from './CommandFormFieldRegistrationDescriptor.js';
 
 export const CommandFormFieldRegistrationContext = React.createContext<
     | {

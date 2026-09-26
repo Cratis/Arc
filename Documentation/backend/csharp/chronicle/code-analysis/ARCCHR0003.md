@@ -119,29 +119,35 @@ public InvitationIssued On(UserInvited @event) => new(@event.Email);
 
 If the append targets a different event source, return `EventForEventSourceId(id, @event)` — or an `IEnumerable<object>` mixing bare events and wrappers. If it targets a different sequence or a different store, the rule does not fire in the first place.
 
-To get the build green while you work through it, suppress at the narrowest scope that unblocks you:
+## Ordered manual appends
+
+Keep the warning for ordinary default-log appends. If a reactor must inspect an append result before deciding the next append, wait for observer completion, or pass append options that returned events cannot express, a **narrow, justified suppression** is appropriate. Return events instead when you do not need that control. Do not turn the rule off project-wide to accommodate one workflow.
+
+This handler-body excerpt assumes an `IEventStore eventStore` held by the reactor, an `EventContext context`, application event records `InvitationIssued` and `InvitationTracked` (the latter accepts an `EventSequenceNumber`), and an application exception `InvitationAppendFailed`. It uses the first append's result to construct the second event:
 
 ```csharp
+// The second append needs the first append's sequence number; returned events cannot supply it here.
 #pragma warning disable ARCCHR0003
-    eventStore.EventLog.Append(context.EventSourceId, new InvitationIssued(@event.Email));
+var issued = await eventStore.EventLog.Append(context.EventSourceId, new InvitationIssued(@event.Email));
+if (!issued.IsSuccess)
+{
+    throw new InvitationAppendFailed();
+}
+var tracked = await eventStore.EventLog.Append(context.EventSourceId, new InvitationTracked(issued.SequenceNumber));
 #pragma warning restore ARCCHR0003
+if (!tracked.IsSuccess)
+{
+    throw new InvitationAppendFailed();
+}
 ```
 
-Or turn it off for a folder or the whole project from `.editorconfig`:
+Keep `#pragma warning restore ARCCHR0003` immediately after the ordered appends, and explain why returning events cannot represent this particular workflow. Handle every append failure; an earlier successful append is not undone if a later append fails. The same narrow-scope rule applies if your reason is a completion wait or append options rather than an append result.
 
-```ini
-[*.cs]
-dotnet_diagnostic.ARCCHR0003.severity = none
-```
-
-`suggestion` and `silent` are the middle settings — the rule keeps reporting in the IDE without failing the build.
-
-> [!WARNING]
-> Suppressing the diagnostic does not turn a manual append into a returned side effect. The append may work at runtime, but the handler still returns nothing Chronicle recognizes as a side effect, so `ReactorScenario<T>.Produced` stays empty and `ShouldHaveProduced<T>()` still throws. Treat a suppression as a note to come back, not as a resolution.
+Manual appends bypass the **returned-side-effect observation**: `ReactorScenario<T>.Produced` does not contain them, and `ShouldHaveProduced<T>()` cannot assert them. Add separate tests for the actual appends, their outcomes, and their order. Suppression changes only the diagnostic: it gives no replay protection or transactional guarantee. Decide replay behavior explicitly and make the workflow safe to retry.
 
 ## Why This Rule Exists
 
-The two shapes write the same event to the same sequence, so the rule's reason applies to both: replay and side-effect semantics stay Chronicle's concern only while the append goes through the return type.
+The two shapes write the same event to the same sequence, so the rule's observation boundary applies to both. Returning an event lets Chronicle observe it as a reactor side effect; manual appends need their own tests and explicit replay and failure handling.
 
 The cost shows up later, in the testing surface. `ReactorScenario<T>.Produced` is *the side effects the reactor returned from its handler methods* — a handler that returns bare `Task` and appends through an injected store produces nothing by that definition, so `ShouldHaveProduced<T>()` throws and the sanctioned assertion surface is simply unavailable. Nothing at authoring time tells you that you have left the contract; this rule does.
 

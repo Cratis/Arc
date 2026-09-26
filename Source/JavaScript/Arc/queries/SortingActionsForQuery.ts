@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IQueryFor } from './IQueryFor';
-import { SortDirection } from './SortDirection';
-import { Sorting } from './Sorting';
+import { IQueryFor } from './IQueryFor.js';
+import { SortDirection } from './SortDirection.js';
+import { Sorting } from './Sorting.js';
 
 /**
  * Represents sorting for a query.

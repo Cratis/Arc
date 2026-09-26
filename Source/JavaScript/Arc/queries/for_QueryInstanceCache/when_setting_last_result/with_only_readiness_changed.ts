@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { PagingInfo } from '../../PagingInfo';
-import { QueryInstanceCache } from '../../QueryInstanceCache';
-import { QueryResultWithState } from '../../QueryResultWithState';
+import { PagingInfo } from '../../PagingInfo.js';
+import { QueryInstanceCache } from '../../QueryInstanceCache.js';
+import { QueryResultWithState } from '../../QueryResultWithState.js';
 
 describe('when setting the last result with only readiness changed', () => {
     const key = 'MyQuery::';

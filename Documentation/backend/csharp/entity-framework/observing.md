@@ -28,7 +28,7 @@ var customer = dbContext.Customers.ObserveSingle(customer => customer.Email == e
 var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId);
 ```
 
-`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, they emit `null` and keep the subscription open: initially (a late subscriber replays that `null`), after a delete, and after an update moves the entity out of the filter. This matches MongoDB's single-document observation. Treat `null` as "not found" on the client. `ObserveById` requires a public `Id` property. Collection observation uses single-key EF metadata where available, falling back to `Id`.
+`Observe()` returns `ISubject<IEnumerable<TEntity>>`. `ObserveSingle()` and `ObserveById()` return `ISubject<TEntity>`. When no entity matches, they emit `null` and keep the subscription open: initially (a late subscriber replays that `null`), after a delete, and after an update moves the entity out of the filter. This matches MongoDB's single-document observation. Treat `null` as "not found" on the client. Observation supports EF Core indexer primary keys on named shared-type sets such as `dbContext.Set<Dictionary<string, object?>>("PropertyBag")`. `ObserveById()` filters on a mapped public CLR `Id` property when one exists; otherwise it falls back to a single, non-shadow EF primary key. Collection and single-entity observation use that primary key for identity, falling back to a mapped public CLR `Id` for composite, keyless, or shadow-key entities. Shadow-only keys without a usable CLR `Id` fail at observation setup.
 
 To customize loading, use the second callback:
 
@@ -38,7 +38,7 @@ var orders = dbContext.Orders.Observe(
     configure: set => set.Include(order => order.Lines));
 ```
 
-Arc applies the filter and current query-context paging/sorting to the configured query. Initial querying is synchronous and can throw before a subject is returned. Later re-query errors are logged, not sent as `OnError` to subscribers.
+Arc applies the filter and current query-context paging/sorting to the configured query, including sorting by mapped indexer properties. Initial querying is synchronous and can throw before a subject is returned. Later re-query errors are logged, not sent as `OnError` to subscribers.
 
 ## Provider capabilities
 

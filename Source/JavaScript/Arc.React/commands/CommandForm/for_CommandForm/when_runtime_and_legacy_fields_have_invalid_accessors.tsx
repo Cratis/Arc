@@ -4,14 +4,14 @@
 import type React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { CommandForm } from '../CommandForm';
-import type { CommandFormFieldProps } from '../CommandFormField';
-import { markAsCommandFormField } from '../commandFormMarkers';
-import { setCommandFormDevelopmentWarningsForTesting } from '../commandFormRuntime';
-import { RadioButtonField, RadioGroupField } from '../fields';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm } from '../CommandForm.js';
+import type { CommandFormFieldProps } from '../CommandFormField.js';
+import { markAsCommandFormField } from '../commandFormMarkers.js';
+import { setCommandFormDevelopmentWarningsForTesting } from '../commandFormRuntime.js';
+import { RadioButtonField, RadioGroupField } from '../fields/index.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 interface LegacyFieldProps extends CommandFormFieldProps<TestCommand> {
     testId: string;

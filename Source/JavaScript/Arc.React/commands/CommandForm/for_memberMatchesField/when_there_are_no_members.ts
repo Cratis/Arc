@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { memberMatchesField } from '../memberMatchesField';
+import { memberMatchesField } from '../memberMatchesField.js';
 
 describe('when there are no members', () => {
     const result = memberMatchesField(undefined, 'email');

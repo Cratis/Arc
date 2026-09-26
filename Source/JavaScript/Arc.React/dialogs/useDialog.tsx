@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { DialogContext, DialogContextContent } from './DialogContext';
-import { DialogResponse } from './DialogResponse';
-import { DialogResult } from './DialogResult';
-import { CloseDialog } from './CloseDialog';
+import { DialogContext, DialogContextContent } from './DialogContext.js';
+import { DialogResponse } from './DialogResponse.js';
+import { DialogResult } from './DialogResult.js';
+import { CloseDialog } from './CloseDialog.js';
 import { useCallback, useRef, useState, ComponentType, FC, ReactElement, useMemo } from 'react';
-import { ShowDialog } from './ShowDialog';
+import { ShowDialog } from './ShowDialog.js';
 
 /**
  * Use a dialog component in your application. This hook manages the visibility and properties of the dialog.

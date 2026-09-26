@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, fireEvent, act, waitFor } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../../CommandForm';
-import { asCommandFormField } from '../../asCommandFormField';
+import { CommandForm, useCommandFormContext } from '../../CommandForm.js';
+import { asCommandFormField } from '../../asCommandFormField.js';
 import { Command } from '@cratis/arc/commands';
-import { TestCommand } from '../TestCommand';
-import { a_command_form_being_executed } from '../given/a_command_form_being_executed';
-import { given } from '../../../../given';
+import { TestCommand } from '../TestCommand.js';
+import { a_command_form_being_executed } from '../given/a_command_form_being_executed.js';
+import { given } from '../../../../given.js';
 
 const SimpleTextField = asCommandFormField<{
     value: string;

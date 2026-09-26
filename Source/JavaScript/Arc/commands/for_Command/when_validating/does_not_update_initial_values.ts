@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_command } from '../given/a_command';
-import { given } from '../../../given';
+import { a_command } from '../given/a_command.js';
+import { given } from '../../../given.js';
 
 describe("when validating does not update initial values", given(a_command, context => {
     const responseData = {

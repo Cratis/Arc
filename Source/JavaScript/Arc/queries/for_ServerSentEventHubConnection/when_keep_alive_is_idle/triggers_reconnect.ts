@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection';
-import { given } from '../../../given';
-import { HubMessageType } from '../../WebSocketHubConnection';
+import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection.js';
+import { given } from '../../../given.js';
+import { HubMessageType } from '../../WebSocketHubConnection.js';
 
 const KEEP_ALIVE_MS = 500;
 
@@ -16,7 +16,7 @@ describe('when keep-alive interval elapses without any server message', given(a_
         context.setup();
 
         // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
-        const { ServerSentEventHubConnection } = require('../../ServerSentEventHubConnection');
+        const { ServerSentEventHubConnection } = require('../../ServerSentEventHubConnection.js');
         context.connection = new ServerSentEventHubConnection(
             'http://localhost/.cratis/queries/sse',
             'http://localhost/.cratis/queries/sse/subscribe',

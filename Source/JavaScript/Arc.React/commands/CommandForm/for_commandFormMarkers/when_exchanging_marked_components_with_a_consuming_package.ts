@@ -9,7 +9,7 @@ import {
     isCommandFormField,
     markAsCommandFormColumn,
     markAsCommandFormField
-} from '../commandFormMarkers';
+} from '../commandFormMarkers.js';
 
 /**
  * The cross-package contract, and the only spec that can catch this package and a consuming one

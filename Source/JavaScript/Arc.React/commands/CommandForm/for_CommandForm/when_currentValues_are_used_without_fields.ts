@@ -3,11 +3,11 @@
 
 import React, { useState } from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
-import { CommandForm, useCommandFormContext, useCommandInstance } from '../CommandForm';
+import { CommandForm, useCommandFormContext, useCommandInstance } from '../CommandForm.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 class RequiredNameCommand extends Command {
     readonly route = '/api/test';

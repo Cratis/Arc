@@ -20,7 +20,7 @@ public class for_commands : given.a_introspection_endpoint_mapper
 
         _introspectionService.Commands.Returns(_discoveredCommands);
         _introspectionService.Queries.Returns([]);
-        _mapper.MapIntrospectionEndpoints();
+        _mapper.MapIntrospectionEndpoints(new IntrospectionOptions());
     }
 
     async Task Because() => await _mappedHandlers["/.cratis/commands"](_httpRequestContext);

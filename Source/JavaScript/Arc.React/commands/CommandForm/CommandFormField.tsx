@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { markAsCommandFormField } from './commandFormMarkers';
+import { markAsCommandFormField } from './commandFormMarkers.js';
 
 /**
  * Props for the CommandFormField marker component.
@@ -24,6 +24,8 @@ export interface CommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     onChange?: (value: unknown) => void;
     required?: boolean;
     title?: string;
+    /** Id of the rendered control, used to associate the field title with it. */
+    id?: string;
     description?: string;
     propertyDescriptor?: unknown;
     fieldName?: string;

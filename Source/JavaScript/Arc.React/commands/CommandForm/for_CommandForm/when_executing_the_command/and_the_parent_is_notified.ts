@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../../CommandForm';
-import type { CommandFormState } from '../../CommandFormContext';
+import { CommandForm, useCommandFormContext } from '../../CommandForm.js';
+import type { CommandFormState } from '../../CommandFormContext.js';
 import { Command } from '@cratis/arc/commands';
-import { TestCommand } from '../TestCommand';
-import { a_command_form_being_executed } from '../given/a_command_form_being_executed';
-import { given } from '../../../../given';
+import { TestCommand } from '../TestCommand.js';
+import { a_command_form_being_executed } from '../given/a_command_form_being_executed.js';
+import { given } from '../../../../given.js';
 
 // An imperative handle cannot re-render a parent, so a submit button outside the form would never
 // follow execution without this channel. The callback is deliberately an inline arrow - the most

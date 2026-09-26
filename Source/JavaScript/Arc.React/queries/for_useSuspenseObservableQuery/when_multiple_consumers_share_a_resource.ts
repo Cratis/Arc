@@ -4,15 +4,15 @@
 import React from 'react';
 import { act, render } from '@testing-library/react';
 import { QueryResult } from '@cratis/arc/queries';
-import { type ArcConfiguration, ArcContext } from '../../ArcContext';
+import { type ArcConfiguration, ArcContext } from '../../ArcContext.js';
 import {
     clearSuspenseObservableQueryCache,
     useSuspenseObservableQuery,
-} from '../useSuspenseObservableQuery';
+} from '../useSuspenseObservableQuery.js';
 import {
     FakeSuspenseObservableQuery,
     type FakeSuspenseObservableQueryResult,
-} from './FakeSuspenseObservableQuery';
+} from './FakeSuspenseObservableQuery.js';
 
 const config: ArcConfiguration = {
     microservice: 'test-microservice',

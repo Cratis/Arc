@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { lengthBasedQueryHttpMethod } from '../../QueryHttpMethodResolver';
-import { QueryHttpMethod } from '../../QueryHttpMethod';
+import { lengthBasedQueryHttpMethod } from '../../QueryHttpMethodResolver.js';
+import { QueryHttpMethod } from '../../QueryHttpMethod.js';
 
 describe('when resolving with a long url', () => {
     let result: QueryHttpMethod;

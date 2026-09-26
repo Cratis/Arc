@@ -6,12 +6,12 @@ import { renderHook, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
 import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { useQuery } from '../../useQuery';
-import { FakeQuery } from '../FakeQuery';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
-import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
-import { QueryScopeContext } from '../../QueryScope';
-import { IQueryScope } from '../../IQueryScope';
+import { useQuery } from '../../useQuery.js';
+import { FakeQuery } from '../FakeQuery.js';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext.js';
+import { QueryScopeContext } from '../../QueryScope.js';
+import { IQueryScope } from '../../IQueryScope.js';
 
 describe('and there is no previous result', () => {
     let fetchStub: sinon.SinonStub;

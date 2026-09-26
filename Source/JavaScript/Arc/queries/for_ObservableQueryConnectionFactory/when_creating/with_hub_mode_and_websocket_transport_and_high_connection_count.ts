@@ -1,13 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_descriptor } from '../given/a_descriptor';
-import { given } from '../../../given';
-import { Globals } from '../../../Globals';
-import { QueryTransportMethod } from '../../QueryTransportMethod';
-import { createObservableQueryConnection } from '../../ObservableQueryConnectionFactory';
-import { MultiplexedObservableQueryConnection, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
-import { IObservableQueryConnection } from '../../IObservableQueryConnection';
+import { a_descriptor } from '../given/a_descriptor.js';
+import { given } from '../../../given.js';
+import { Globals } from '../../../Globals.js';
+import { QueryTransportMethod } from '../../QueryTransportMethod.js';
+import { createObservableQueryConnection } from '../../ObservableQueryConnectionFactory.js';
+import { MultiplexedObservableQueryConnection, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer.js';
+import { IObservableQueryConnection } from '../../IObservableQueryConnection.js';
 
 import * as sinon from 'sinon';
 
