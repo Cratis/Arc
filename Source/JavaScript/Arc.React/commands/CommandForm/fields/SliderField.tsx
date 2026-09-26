@@ -36,6 +36,7 @@ export const RangeField = asCommandFormField<RangeComponentProps>(
                 }}
             >
                 <input
+                    id={props.id}
                     type="range"
                     value={props.value}
                     onChange={props.onChange}

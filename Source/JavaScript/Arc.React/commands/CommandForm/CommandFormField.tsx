@@ -24,6 +24,8 @@ export interface CommandFormFieldProps<TCommand = unknown, TSource = unknown> {
     onChange?: (value: unknown) => void;
     required?: boolean;
     title?: string;
+    /** Id of the rendered control, used to associate the field title with it. */
+    id?: string;
     description?: string;
     propertyDescriptor?: unknown;
     fieldName?: string;

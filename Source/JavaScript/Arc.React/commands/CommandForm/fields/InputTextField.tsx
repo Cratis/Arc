@@ -15,6 +15,7 @@ interface InputTextComponentProps extends WrappedFieldProps<string> {
 export const InputTextField = asCommandFormField<InputTextComponentProps>(
     (props) => (
         <input
+            id={props.id}
             type={props.type || 'text'}
             value={props.value}
             onChange={props.onChange}

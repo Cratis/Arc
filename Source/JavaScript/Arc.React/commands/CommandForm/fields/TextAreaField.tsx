@@ -16,6 +16,7 @@ interface TextAreaFieldComponentProps extends WrappedFieldProps<string> {
 export const TextAreaField = asCommandFormField<TextAreaFieldComponentProps>(
     (props) => (
         <textarea
+            id={props.id}
             value={props.value}
             onChange={props.onChange}
             onBlur={props.onBlur}

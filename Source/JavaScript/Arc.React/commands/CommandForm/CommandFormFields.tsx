@@ -7,7 +7,7 @@ import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField.js';
 import type { ICommandResult } from '@cratis/arc/commands';
 import { memberMatchesField } from './memberMatchesField.js';
-import { isCommandFormColumn } from './commandFormMarkers.js';
+import { isCommandFormColumn, type CommandFormMarked } from './commandFormMarkers.js';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants.js';
 import { runCommandValidation } from './runCommandValidation.js';
 import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime.js';
@@ -39,6 +39,10 @@ const CommandFormFieldWrapper = ({
     const nativeResultContext = React.useContext(CommandFormNativeResultContext);
     const nativeCommandResult = nativeResultContext ? nativeResultContext.result : context.commandResult;
     const fieldProps = field.props as CommandFormFieldProps;
+    const generatedId = React.useId();
+    const fieldId = fieldProps.id ?? generatedId;
+    const groupRole = (field.type as CommandFormMarked).commandFormFieldGroupRole;
+    const titleId = `${fieldId}-title`;
     const propertyAccessor = fieldProps.value;
 
     // An explicit fieldName wins; a dynamic accessor such as `instance => instance[name]` cannot be
@@ -97,6 +101,7 @@ const CommandFormFieldWrapper = ({
         field as React.ReactElement,
         {
             ...fieldProps,
+            id: fieldId,
             currentValue,
             propertyDescriptor,
             fieldName: propertyName,
@@ -389,20 +394,25 @@ const CommandFormFieldWrapper = ({
         }
     }
 
-    const fieldContent = (
+    const titleStyle: React.CSSProperties = {
+        display: 'block',
+        marginBottom: '0.5rem',
+        fontWeight: 500,
+        color: 'var(--color-text)',
+    };
+    const title = context.showTitles && fieldProps.title && (groupRole ? (
+        <span id={titleId} style={titleStyle}>{fieldProps.title}</span>
+    ) : (
+        <label htmlFor={fieldId} style={titleStyle}>{fieldProps.title}</label>
+    ));
+    const fieldContent = groupRole && title ? (
+        <div role={groupRole} aria-labelledby={titleId}>
+            {title}
+            {decoratedField}
+        </div>
+    ) : (
         <>
-            {context.showTitles && fieldProps.title && (
-                <label
-                    style={{
-                        display: 'block',
-                        marginBottom: '0.5rem',
-                        fontWeight: 500,
-                        color: 'var(--color-text)',
-                    }}
-                >
-                    {fieldProps.title}
-                </label>
-            )}
+            {title}
             {decoratedField}
         </>
     );
