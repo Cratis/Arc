@@ -10,6 +10,7 @@ internal static class OperationContextScope
 {
     static readonly AsyncLocal<DateTimeOffset?> _receivedAt = new();
     static readonly AsyncLocal<ForwardingState?> _forwardTransportReceipt = new();
+    static readonly AsyncLocal<bool> _insidePipelineEntry = new();
 
     /// <summary>Gets the receipt time for the active operation.</summary>
     internal static DateTimeOffset? Current => _receivedAt.Value;
@@ -29,38 +30,57 @@ internal static class OperationContextScope
     /// <returns>A lease if this entry captured a receipt, otherwise null.</returns>
     internal static IDisposable? BeginIfNotSet(IServiceProvider? services) => Current is null ? Begin(services) : null;
 
-    /// <summary>Offers the transport receipt to the first public pipeline entry in a decorated dispatch.</summary>
+    /// <summary>Offers the transport receipt to public pipeline entries in a decorated dispatch.</summary>
     /// <returns>A lease that stops forwarding after the dispatch.</returns>
     internal static IDisposable ForwardTransportReceipt()
     {
         var previous = _forwardTransportReceipt.Value;
-        _forwardTransportReceipt.Value = new ForwardingState();
-        return new RestoreForwarding(previous);
+        var offer = new ForwardingState();
+        _forwardTransportReceipt.Value = offer;
+        return new RestoreForwarding(previous, offer);
     }
 
-    /// <summary>Consumes a forwarded transport receipt once, or starts a new direct or nested operation.</summary>
+    /// <summary>Reuses an active transport receipt at sibling pipeline entries, or starts a direct or nested operation.</summary>
     /// <param name="services">The provider containing the operation's clock.</param>
-    /// <returns>A lease for a new receipt, or null when the transport owns it.</returns>
-    internal static IDisposable? BeginPipeline(IServiceProvider? services)
+    /// <returns>A lease restoring the pipeline entry and any receipt it captured.</returns>
+    internal static IDisposable BeginPipeline(IServiceProvider? services)
     {
-        if (_forwardTransportReceipt.Value is { Available: true } forwarding && Current is not null)
+        var insidePipelineEntry = _insidePipelineEntry.Value;
+        IDisposable? receipt = null;
+        if (_forwardTransportReceipt.Value is not { IsEnded: false } || insidePipelineEntry || Current is null)
         {
-            // A shared state is needed: AsyncLocal assignments inside an awaited pipeline do not flow back to its caller.
-            forwarding.Available = false;
-            return null;
+            receipt = Begin(services);
         }
 
-        return Begin(services);
+        _insidePipelineEntry.Value = true;
+        return new RestorePipeline(insidePipelineEntry, receipt);
     }
 
     sealed class ForwardingState
     {
-        public bool Available { get; set; } = true;
+        int _ended;
+
+        public bool IsEnded => Volatile.Read(ref _ended) != 0;
+
+        public void End() => Interlocked.Exchange(ref _ended, 1);
     }
 
-    sealed class RestoreForwarding(ForwardingState? previous) : IDisposable
+    sealed class RestoreForwarding(ForwardingState? previous, ForwardingState offer) : IDisposable
     {
-        public void Dispose() => _forwardTransportReceipt.Value = previous;
+        public void Dispose()
+        {
+            offer.End();
+            _forwardTransportReceipt.Value = previous;
+        }
+    }
+
+    sealed class RestorePipeline(bool previous, IDisposable? receipt) : IDisposable
+    {
+        public void Dispose()
+        {
+            _insidePipelineEntry.Value = previous;
+            receipt?.Dispose();
+        }
     }
 
     sealed class Restore(DateTimeOffset? previous) : IDisposable

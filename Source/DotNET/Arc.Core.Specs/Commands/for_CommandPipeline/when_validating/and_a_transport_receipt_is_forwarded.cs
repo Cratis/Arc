@@ -6,7 +6,7 @@ namespace Cratis.Arc.Commands.for_CommandPipeline.when_validating;
 public class and_a_transport_receipt_is_forwarded : given.a_command_pipeline_and_a_handler_for_command
 {
     readonly DateTimeOffset _received = new(2026, 6, 7, 8, 9, 10, TimeSpan.Zero);
-    DateTimeOffset? _contextReceipt;
+    readonly List<DateTimeOffset> _contextReceipts = [];
     DateTimeOffset? _after;
 
     void Establish()
@@ -16,7 +16,7 @@ public class and_a_transport_receipt_is_forwarded : given.a_command_pipeline_and
         _serviceProvider.GetService(typeof(TimeProvider)).Returns(clock);
         _commandFilters.OnExecution(Arg.Any<CommandContext>()).Returns(call =>
         {
-            _contextReceipt = call.Arg<CommandContext>().ReceivedAt;
+            _contextReceipts.Add(call.Arg<CommandContext>().ReceivedAt);
             return CommandResult.Success(_correlationId);
         });
     }
@@ -27,10 +27,16 @@ public class and_a_transport_receipt_is_forwarded : given.a_command_pipeline_and
         {
             using var dispatch = OperationContextScope.ForwardTransportReceipt();
             await _commandPipeline.Validate(_command, _serviceProvider);
+            await _commandPipeline.Execute(_command, _serviceProvider);
         }
         _after = new OperationContextAccessor().ReceivedAt;
     }
 
-    [Fact] void should_keep_the_receipt_captured_before_the_public_entry() => _contextReceipt.ShouldEqual(_received);
+    [Fact] void should_keep_the_receipt_for_both_validation_and_execution()
+    {
+        _contextReceipts.Count.ShouldEqual(2);
+        _contextReceipts[0].ShouldEqual(_received);
+        _contextReceipts[1].ShouldEqual(_received);
+    }
     [Fact] void should_restore_the_receipt_after_dispatch() => _after.ShouldBeNull();
 }
