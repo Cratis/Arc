@@ -39,7 +39,7 @@ public class and_aggregate_root_has_handle_methods : given.an_aggregate_root_mut
             .Returns(_appendedEvents);
 
         _eventSequence
-            .GetTailSequenceNumber(_eventSourceId)
+            .GetTailSequenceNumber(_eventSourceId, _aggregateRootContext.EventSourceType, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId)
             .Returns(42UL);
 
         _eventSerializer
