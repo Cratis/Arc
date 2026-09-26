@@ -50,6 +50,17 @@ public class an_observable_query_demultiplexer : Specification
         _emissionGuards = Substitute.For<IObservableQueryEmissionGuards>();
 
         _logger = Substitute.For<ILogger<ObservableQueryDemultiplexer>>();
+        CreateDemultiplexer();
+    }
+
+    protected void UseRealQueryContextManager()
+    {
+        _queryContextManager = new QueryContextManager();
+        CreateDemultiplexer();
+    }
+
+    void CreateDemultiplexer()
+    {
         _hub = new ObservableQueryDemultiplexer(
             _queryPipeline,
             _queryContextManager,
