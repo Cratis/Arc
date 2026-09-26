@@ -56,6 +56,12 @@ public record CommandContext(
     }
 
     /// <summary>
+    /// Gets the time Arc received this command operation. Model-bound dispatch captures it before binding and authorization preparation;
+    /// MVC action filters capture it after MVC binding. This is neither network arrival nor time before application middleware.
+    /// </summary>
+    public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
     /// Gets the principal selected by scheme authentication for the rest of this command execution.
     /// </summary>
     public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }

@@ -34,7 +34,9 @@ MVC GET actions use `QueryActionFilter`, not this model-bound filter chain. The 
 
 ## Query context and renderers
 
-`IQueryContextManager.Current` exposes query identity, correlation, arguments, dependencies, paging, sorting, and total count. It describes the current operation; do not treat it as persistent per-user state.
+`IQueryContextManager.Current` exposes query identity, correlation, arguments, dependencies, paging, sorting, total count, and `ReceivedAt`. `ReceivedAt` is a `DateTimeOffset` captured when Arc receives the operation: before argument binding and authorization preparation at a model-bound HTTP endpoint, at public pipeline entry for direct calls, and separately for each hub subscribe operation. It is not network arrival time or time before application middleware; MVC action filters capture it after MVC binding. It remains the same through filters, performers, and Arc-owned replacement service scopes. It describes the current operation; do not treat it as persistent per-user state.
+
+A validator resolved from the query's service provider can inject `Cratis.Arc.IOperationContextAccessor`; its nullable `ReceivedAt` is the same value during the operation and null outside it. Nested operations get their own value and restore the outer value. Register a custom `TimeProvider` before `AddCratisArcCore()` to control receipt time in tests; Arc defaults to `TimeProvider.System` if none was registered.
 
 `QueryableQueryRenderer` handles runtime `IQueryable` values: it counts the filtered query, applies sorting, then `Skip`/`Take`. The provider controls database execution. Lists and arrays do not gain automatic slicing. See [model-bound paging](model-bound/paging.md) or [controller paging](controller-based/paging.md).
 

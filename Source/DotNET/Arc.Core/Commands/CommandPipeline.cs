@@ -94,8 +94,11 @@ public class CommandPipeline(
         Execute(command, serviceProvider, allowedSeverity, CancellationToken.None);
 
     /// <inheritdoc/>
-    public Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken) =>
-        ExecuteCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+    public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        using var receipt = OperationContextScope.Begin(serviceProvider);
+        return await ExecuteCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+    }
 
     /// <inheritdoc/>
     public Task<CommandResult<TResult>> Execute<TResult>(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity = default) =>
@@ -140,8 +143,11 @@ public class CommandPipeline(
         Validate(command, serviceProvider, allowedSeverity, CancellationToken.None);
 
     /// <inheritdoc/>
-    public Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken) =>
-        ValidateCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+    public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
+    {
+        using var receipt = OperationContextScope.Begin(serviceProvider);
+        return await ValidateCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+    }
 
     /// <summary>
     /// Prepares HTTP command authentication once and uses a fresh owned scope only when schemes change identity.
@@ -153,6 +159,7 @@ public class CommandPipeline(
     /// <returns>The command result.</returns>
     internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
+        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
         if (!AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
         {
             return await ExecuteCore(command, requestServices, allowedSeverity, null, cancellationToken);
@@ -184,6 +191,7 @@ public class CommandPipeline(
     /// <returns>The validation result.</returns>
     internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
+        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
         if (!AuthorizationAttributeGuard.RequiresScopedEvaluation(command.GetType()))
         {
             return await ValidateCore(command, requestServices, allowedSeverity, null, cancellationToken);
@@ -298,7 +306,8 @@ public class CommandPipeline(
                 CancellationToken: cancellationToken)
             {
                 PreparedAuthorization = preparedAuthorization,
-                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown
+                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown,
+                ReceivedAt = OperationContextScope.Current ?? default
             };
             contextModifier.SetCurrent(commandContext);
 
@@ -513,7 +522,8 @@ public class CommandPipeline(
                 CancellationToken: cancellationToken)
             {
                 PreparedAuthorization = preparedAuthorization,
-                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown
+                BlockUnknownValidationSeverity = severityPolicy.BlockUnknown,
+                ReceivedAt = OperationContextScope.Current ?? default
             };
             contextModifier.SetCurrent(commandContext);
 

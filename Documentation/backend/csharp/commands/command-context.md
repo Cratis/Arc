@@ -17,6 +17,9 @@ When several pipeline extensions need the same invocation metadata, carry it in 
 | `Response` | Selected caller response, if any; not the raw handler return. |
 | `ServiceProvider` | The provider for this invocation's service scope, when supplied. |
 | `CancellationToken` | The execution cancellation token. |
+| `ReceivedAt` | `DateTimeOffset` captured once when Arc receives this operation. |
+
+`ReceivedAt` is Arc receipt time, not network arrival or a timestamp before application middleware. Model-bound HTTP dispatch captures it before body/argument binding and authorization preparation; direct pipeline calls capture it on entry. A hub captures a new value for each subscribe operation, not for the connection. MVC contexts are established by action filters after MVC binding. The value stays fixed through authorization, validation, handler execution, and any Arc-owned replacement service scope. Nested operations receive their own receipt time and restore the outer value afterward.
 
 Context values are application/extension data, not automatically trusted identity claims. Use `ICurrentPrincipalAccessor` for the [authorization principal](./model-bound/authorization.md).
 
@@ -71,6 +74,8 @@ The empty response means no trace identifier was supplied. This is a metadata de
 During scope `Begin` and command filters, `Dependencies` is empty and `Response` is null. After filters, Arc resolves `Provide()` values and handler arguments and uses an updated context for handler invocation. During response processing it may create another context record with a selected response.
 
 Use the context **passed to a lifecycle callback** for its phase's dependencies and response. The ambient accessor is established earlier; do not assume a retained accessor value is replaced whenever the pipeline creates a later record copy. `Values` is shared by those copies and remains mutable.
+
+A validator resolved from the operation's service provider can inject `IOperationContextAccessor` (`Cratis.Arc`) and read its nullable `ReceivedAt`. It is null outside an Arc operation. To test time-sensitive rules, register your own `TimeProvider` before `AddCratisArcCore()`; Arc registers `TimeProvider.System` only if none exists. Do not call `DateTimeOffset.UtcNow` to reconstruct a receipt timestamp in a validator.
 
 At scope `Complete`, a successfully processed simple response is available just as a tuple-selected response is. The result can still fail during scope completion. See [response object availability](./response-value-handlers.md#response-object-availability) before using a response inside an extension.
 

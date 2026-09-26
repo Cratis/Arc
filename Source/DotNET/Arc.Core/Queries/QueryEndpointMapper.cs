@@ -98,6 +98,7 @@ public static class QueryEndpointMapper
             url,
             async context =>
             {
+                using var receipt = OperationContextScope.Begin(context.RequestServices);
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
                 var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(QueryEndpointMapper).FullName!);

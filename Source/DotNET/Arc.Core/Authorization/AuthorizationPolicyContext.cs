@@ -12,4 +12,10 @@ namespace Cratis.Arc.Authorization;
 /// <param name="Principal">The principal selected by the authorization schemes.</param>
 /// <param name="Target">The command type or query method being authorized.</param>
 /// <param name="Resource">The command or query context.</param>
-public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo Target, object Resource);
+public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo Target, object Resource)
+{
+    /// <summary>
+    /// Gets the time Arc received the operation being authorized, not the network arrival time.
+    /// </summary>
+    public DateTimeOffset ReceivedAt { get; init; }
+}

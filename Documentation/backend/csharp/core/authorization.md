@@ -65,7 +65,28 @@ using Cratis.Arc.Authorization;
 builder.Services.AddArcAuthorizationPolicy<ActiveSubscription>("ActiveSubscription");
 ```
 
-Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. An authenticated principal is required even when a policy itself permits anonymous callers. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
+Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. `ReceivedAt` is the same `DateTimeOffset` as `Resource.ReceivedAt` for an Arc pipeline operation. It remains fixed when policy evaluation is delayed or repeated, including when a selected scheme moves execution into another service scope. Arc captures it at model-bound transport dispatch before binding and authentication preparation, at direct pipeline entry, or per hub subscribe operation (not per connection). It is Arc receipt time, not network arrival time or the time before application middleware. MVC action filters establish their contexts after MVC binding. An authenticated principal is required even when a policy itself permits anonymous callers. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
+
+For a time-sensitive admission rule, use the captured receipt instead of reading the clock again after an asynchronous policy lookup. This complete policy type fragment assumes an Arc host with policies registered as above; the UTC window is illustrative, not a substitute for your application's authorization rules:
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+
+public class WeekdayAdmission : IAuthorizationPolicy
+{
+    public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var weekday = context.ReceivedAt.UtcDateTime.DayOfWeek;
+        return ValueTask.FromResult(weekday != DayOfWeek.Saturday && weekday != DayOfWeek.Sunday);
+    }
+}
+```
+
+Register this type with `builder.Services.AddArcAuthorizationPolicy<WeekdayAdmission>("WeekdayAdmission")` before `Build()`, then apply `[Authorize(Policy = "WeekdayAdmission")]`. The rule uses Arc receipt time even if evaluating the policy starts later. Set the `TimeProvider` in tests when asserting a specific receipt date.
 
 ## Protect a query
 
