@@ -32,6 +32,7 @@ public class when_binding_is_delayed : given.a_query_request
         _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>())
             .Returns(_ =>
             {
+                using var forwarded = OperationContextScope.BeginPipeline(_context.RequestServices);
                 _observed = new OperationContextAccessor().ReceivedAt;
                 return Task.FromResult(QueryResult.Success(CorrelationId.New()));
             });

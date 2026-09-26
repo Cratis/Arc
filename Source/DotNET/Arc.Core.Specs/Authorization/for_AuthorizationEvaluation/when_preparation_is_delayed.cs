@@ -9,6 +9,7 @@ namespace Cratis.Arc.Authorization.for_AuthorizationEvaluation;
 public class when_preparation_is_delayed : Specification
 {
     readonly DateTimeOffset _received = new(2026, 9, 10, 11, 12, 13, TimeSpan.Zero);
+    DateTimeOffset? _atPreparation;
     DateTimeOffset? _afterPreparation;
     DateTimeOffset? _replacementScopeReceipt;
     DateTimeOffset? _afterExit;
@@ -34,6 +35,7 @@ public class when_preparation_is_delayed : Specification
         runtime.Resolve(Arg.Any<IReadOnlyList<AuthorizationRequirement>>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(async _ =>
             {
+                _atPreparation = new OperationContextAccessor().ReceivedAt;
                 entered.TrySetResult();
                 await released.Task;
                 return resolution;
@@ -41,9 +43,10 @@ public class when_preparation_is_delayed : Specification
         var evaluation = new AuthorizationEvaluation(new AuthorizationDeclarations(anonymous, attributes), Substitute.For<IAuthorizationEvaluator>(), principalAccessor, runtime);
         using (OperationContextScope.Begin(services))
         {
+            // Dispatch received the operation before authentication preparation began.
+            clock.GetUtcNow().Returns(_received.AddDays(1));
             var preparation = evaluation.Prepare(typeof(ProtectedCommand), services, CancellationToken.None);
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(5), TimeProvider.System);
-            clock.GetUtcNow().Returns(_received.AddDays(1));
             released.TrySetResult();
             await preparation;
             _afterPreparation = new OperationContextAccessor().ReceivedAt;
@@ -56,6 +59,7 @@ public class when_preparation_is_delayed : Specification
         _afterExit = new OperationContextAccessor().ReceivedAt;
     }
 
+    [Fact] void should_keep_the_dispatch_receipt_when_preparation_starts_later() => _atPreparation.ShouldEqual(_received);
     [Fact] void should_keep_the_original_receipt_after_preparation() => _afterPreparation.ShouldEqual(_received);
     [Fact] void should_expose_the_same_receipt_in_a_replacement_scope() => _replacementScopeReceipt.ShouldEqual(_received);
     [Fact] void should_restore_the_previous_operation_after_preparation() => _afterExit.ShouldBeNull();

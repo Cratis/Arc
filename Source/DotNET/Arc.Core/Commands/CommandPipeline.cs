@@ -96,7 +96,7 @@ public class CommandPipeline(
     /// <inheritdoc/>
     public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        using var receipt = OperationContextScope.Begin(serviceProvider);
+        using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
         return await ExecuteCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
     }
 
@@ -145,7 +145,7 @@ public class CommandPipeline(
     /// <inheritdoc/>
     public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        using var receipt = OperationContextScope.Begin(serviceProvider);
+        using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
         return await ValidateCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
     }
 

@@ -853,6 +853,7 @@ public class ObservableQueryDemultiplexer(
                 }
             }
 
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
             queryResult = await queryPipeline.Perform(fullyQualifiedName, arguments, paging, sorting, queryServiceProvider, token);
         }
         var ownedScope = queryResult.OwnedScope;

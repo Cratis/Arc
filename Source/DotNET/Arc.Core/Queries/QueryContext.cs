@@ -29,6 +29,7 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// <summary>
     /// Gets the time Arc received this query operation. Model-bound dispatch captures it before binding and authorization preparation;
     /// MVC action filters capture it after MVC binding. This is neither network arrival nor time before application middleware.
+    /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
 

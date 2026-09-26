@@ -40,7 +40,7 @@ public class QueryPipeline(
     /// <inheritdoc/>
     public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
-        using var receipt = OperationContextScope.Begin(serviceProvider);
+        using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
         return await PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, cancellationToken);
     }
 

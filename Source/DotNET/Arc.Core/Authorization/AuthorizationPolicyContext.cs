@@ -16,6 +16,7 @@ public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo T
 {
     /// <summary>
     /// Gets the time Arc received the operation being authorized, not the network arrival time.
+    /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
 }

@@ -9,6 +9,7 @@ namespace Cratis.Arc;
 internal static class OperationContextScope
 {
     static readonly AsyncLocal<DateTimeOffset?> _receivedAt = new();
+    static readonly AsyncLocal<bool> _forwardTransportReceipt = new();
 
     /// <summary>Gets the receipt time for the active operation.</summary>
     internal static DateTimeOffset? Current => _receivedAt.Value;
@@ -27,6 +28,34 @@ internal static class OperationContextScope
     /// <param name="services">The provider containing the operation's clock.</param>
     /// <returns>A lease if this entry captured a receipt, otherwise null.</returns>
     internal static IDisposable? BeginIfNotSet(IServiceProvider? services) => Current is null ? Begin(services) : null;
+
+    /// <summary>Offers the transport receipt to the first public pipeline entry in a decorated dispatch.</summary>
+    /// <returns>A lease that stops forwarding after the dispatch.</returns>
+    internal static IDisposable ForwardTransportReceipt()
+    {
+        var previous = _forwardTransportReceipt.Value;
+        _forwardTransportReceipt.Value = true;
+        return new RestoreForwarding(previous);
+    }
+
+    /// <summary>Consumes a forwarded transport receipt once, or starts a new direct or nested operation.</summary>
+    /// <param name="services">The provider containing the operation's clock.</param>
+    /// <returns>A lease for a new receipt, or null when the transport owns it.</returns>
+    internal static IDisposable? BeginPipeline(IServiceProvider? services)
+    {
+        if (_forwardTransportReceipt.Value && Current is not null)
+        {
+            _forwardTransportReceipt.Value = false;
+            return null;
+        }
+
+        return Begin(services);
+    }
+
+    sealed class RestoreForwarding(bool previous) : IDisposable
+    {
+        public void Dispose() => _forwardTransportReceipt.Value = previous;
+    }
 
     sealed class Restore(DateTimeOffset? previous) : IDisposable
     {

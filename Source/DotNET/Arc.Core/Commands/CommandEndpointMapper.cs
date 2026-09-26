@@ -167,6 +167,7 @@ public static class CommandEndpointMapper
                     }
                     else
                     {
+                        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
                         commandResult = validateOnly
                             ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted);

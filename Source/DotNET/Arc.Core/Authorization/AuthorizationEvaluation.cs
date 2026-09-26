@@ -116,9 +116,9 @@ public class AuthorizationEvaluation(
                 {
                     ReceivedAt = resource switch
                     {
-                        CommandContext commandContext => commandContext.ReceivedAt,
-                        QueryContext queryReceiptContext => queryReceiptContext.ReceivedAt,
-                        _ => OperationContextScope.Current ?? default
+                        CommandContext commandContext when commandContext.ReceivedAt != default => commandContext.ReceivedAt,
+                        QueryContext queryReceiptContext when queryReceiptContext.ReceivedAt != default => queryReceiptContext.ReceivedAt,
+                        _ => OperationContextScope.Current ?? (services.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
                     }
                 },
                 services,

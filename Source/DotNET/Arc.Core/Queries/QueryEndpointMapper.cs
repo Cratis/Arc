@@ -157,6 +157,7 @@ public static class QueryEndpointMapper
                 }
             }
 
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
             queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
         }
 
