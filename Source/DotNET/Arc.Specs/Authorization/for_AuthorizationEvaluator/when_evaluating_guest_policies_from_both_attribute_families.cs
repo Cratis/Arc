@@ -15,6 +15,9 @@ public class when_evaluating_guest_policies_from_both_attribute_families : given
     bool _authenticatedPolicy;
     bool _rejected;
     bool _equivalentDeclarations;
+    bool _stacked;
+    bool _nativeOptedIn;
+    bool _aspNetOptedIn;
 
     async Task Because()
     {
@@ -24,17 +27,20 @@ public class when_evaluating_guest_policies_from_both_attribute_families : given
             .AddPolicy("Public", policy => policy.RequireAssertion(_ => true))
             .AddPolicy("Private", policy => policy.RequireAssertion(_ => false))
             .AddPolicy("Default", policy => policy.RequireAssertion(_ => true))
-            .AddPolicy("Authenticated", policy => policy.RequireAuthenticatedUser());
-        registrations.AddArcAnonymousAspNetAuthorizationPolicy("Public");
+            .AddPolicy("Authenticated", policy => policy.RequireAuthenticatedUser().RequireAssertion(_ => true));
+        registrations.AddArcAnonymousAspNetAuthorizationPolicy("public");
         registrations.AddArcAnonymousAspNetAuthorizationPolicy("Private");
         registrations.AddArcAnonymousAspNetAuthorizationPolicy("Authenticated");
+        registrations.AddArcAuthorizationPolicy<GuestNativePolicy>("NativeOpted", evaluatesAnonymous: true);
+        registrations.AddArcAuthorizationPolicy<GuestNativePolicy>("NativeDefault");
+        registrations.AddAuthorizationBuilder().AddPolicy("AspNetDefault", policy => policy.RequireAssertion(_ => true));
         var schemes = Substitute.For<IAuthenticationSchemeProvider>();
         schemes.GetSchemeAsync("Missing").Returns(Task.FromResult<AuthenticationScheme?>(
             new AuthenticationScheme("Missing", "Missing", typeof(IAuthenticationHandler))));
         registrations.AddSingleton(schemes);
         await using var services = registrations.BuildServiceProvider();
         var runtime = new AspNetAuthorizationPolicyRuntime(
-            new ArcAuthorizationPolicyRuntime([]),
+            new ArcAuthorizationPolicyRuntime(services.GetServices<AuthorizationPolicyRegistration>()),
             services.GetServices<AnonymousAspNetAuthorizationPolicyRegistration>());
         var evaluation = new AuthorizationEvaluation(ArcDeclarationsFirst(), ArcFirst(), _currentPrincipalAccessor, runtime);
         _arc = await evaluation.IsAuthorized(typeof(ArcPublic), new object(), services, CancellationToken.None);
@@ -43,6 +49,9 @@ public class when_evaluating_guest_policies_from_both_attribute_families : given
         _scheme = await evaluation.IsAuthorized(typeof(AspNetScheme), new object(), services, CancellationToken.None);
         _authenticatedPolicy = await evaluation.IsAuthorized(typeof(AspNetAuthenticated), new object(), services, CancellationToken.None);
         _rejected = await evaluation.IsAuthorized(typeof(AspNetPrivate), new object(), services, CancellationToken.None);
+        _stacked = await evaluation.IsAuthorized(typeof(Stacked), new object(), services, CancellationToken.None);
+        _nativeOptedIn = await evaluation.IsAuthorized(typeof(NativeOptedAspNetDefault), new object(), services, CancellationToken.None);
+        _aspNetOptedIn = await evaluation.IsAuthorized(typeof(AspNetOptedNativeDefault), new object(), services, CancellationToken.None);
         _equivalentDeclarations = AuthorizationEvaluator.SameDeclaration(
             ArcDeclarationsFirst().For(typeof(ArcPublic)), AspNetDeclarationsFirst().For(typeof(AspNetPublic)));
     }
@@ -53,6 +62,9 @@ public class when_evaluating_guest_policies_from_both_attribute_families : given
     [Fact] void should_require_scheme_authentication() => _scheme.ShouldBeFalse();
     [Fact] void should_require_authentication_when_policy_requires_it() => _authenticatedPolicy.ShouldBeFalse();
     [Fact] void should_obey_policy_rejection() => _rejected.ShouldBeFalse();
+    [Fact] void should_reject_a_stack_with_only_one_opt_in() => _stacked.ShouldBeFalse();
+    [Fact] void should_reject_a_native_opt_in_with_an_aspnet_default() => _nativeOptedIn.ShouldBeFalse();
+    [Fact] void should_reject_an_aspnet_opt_in_with_a_native_default() => _aspNetOptedIn.ShouldBeFalse();
     [Fact] void should_treat_both_attribute_families_as_the_same_declaration() => _equivalentDeclarations.ShouldBeTrue();
 
     [Cratis.Arc.Authorization.Authorize(Policy = "Public")]
@@ -72,4 +84,21 @@ public class when_evaluating_guest_policies_from_both_attribute_families : given
 
     [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Private")]
     public class AspNetPrivate;
+
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Public")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Default")]
+    public class Stacked;
+
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "NativeOpted")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "AspNetDefault")]
+    public class NativeOptedAspNetDefault;
+
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "Public")]
+    [Microsoft.AspNetCore.Authorization.Authorize(Policy = "NativeDefault")]
+    public class AspNetOptedNativeDefault;
+
+    public class GuestNativePolicy : IAuthorizationPolicy
+    {
+        public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken) => ValueTask.FromResult(true);
+    }
 }

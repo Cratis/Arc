@@ -45,8 +45,28 @@ public class AspNetAuthorizationPolicyRuntime(
     }
 
     /// <inheritdoc/>
-    public async Task Validate(IReadOnlyList<AuthorizationRequirement> requirements, IServiceProvider services, CancellationToken cancellationToken) =>
+    public async Task Validate(IReadOnlyList<AuthorizationRequirement> requirements, IServiceProvider services, CancellationToken cancellationToken)
+    {
+        var provider = services.GetService<IAuthorizationPolicyProvider>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var name in _anonymousPolicyNames)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(name) || !seen.Add(name) || native.HasPolicyIgnoringCase(name))
+            {
+                throw new InvalidAuthorizationConfiguration($"Anonymous ASP.NET Core authorization policy '{name}' is invalid or ambiguous.");
+            }
+
+            var policy = provider is null ? null : await provider.GetPolicyAsync(name);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (policy?.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any() != false)
+            {
+                throw new InvalidAuthorizationConfiguration($"Anonymous ASP.NET Core authorization policy '{name}' is unknown or requires authentication.");
+            }
+        }
+
         _ = await Resolve(requirements, services, cancellationToken);
+    }
 
     /// <inheritdoc/>
     public async Task<IAuthorizationPolicyResolution> Resolve(IReadOnlyList<AuthorizationRequirement> requirements, IServiceProvider services, CancellationToken cancellationToken)
@@ -80,7 +100,7 @@ public class AspNetAuthorizationPolicyRuntime(
             else
             {
                 aspPolicies.Add(aspPolicy!);
-                aspPoliciesEvaluateAnonymous &= _anonymousPolicyNames.Contains(requirement.Policy, StringComparer.Ordinal) &&
+                aspPoliciesEvaluateAnonymous &= _anonymousPolicyNames.Contains(requirement.Policy, StringComparer.OrdinalIgnoreCase) &&
                     !aspPolicy!.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any();
                 schemes.AddRange(aspPolicy.AuthenticationSchemes);
             }
