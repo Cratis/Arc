@@ -13,7 +13,7 @@ public class with_existing_endpoints : given.a_introspection_endpoint_mapper
         _mapper.EndpointExists("IntrospectQueries").Returns(true);
     }
 
-    void Because() => _mapper.MapIntrospectionEndpoints();
+    void Because() => _mapper.MapIntrospectionEndpoints(new IntrospectionOptions());
 
     [Fact] void should_not_map_commands_endpoint() => _mapper.DidNotReceive().MapGet("/.cratis/commands", Arg.Any<Func<IHttpRequestContext, Task>>(), Arg.Any<EndpointMetadata>());
     [Fact] void should_not_map_queries_endpoint() => _mapper.DidNotReceive().MapGet("/.cratis/queries", Arg.Any<Func<IHttpRequestContext, Task>>(), Arg.Any<EndpointMetadata>());
