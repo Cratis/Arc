@@ -166,6 +166,23 @@ app.UseCratisArc();
 app.Run();
 ```
 
+## Hosting under a path prefix
+
+For an app reached at `/workbench`, configure ASP.NET Core's `UsePathBase` **before** `UseRouting` and `UseCratisArc`. It removes the prefix from the request path before endpoint matching; leave Arc's generated API route prefix (normally `/api`) unchanged.
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
+
+var app = builder.Build();
+app.UsePathBase("/workbench");
+app.UseRouting();
+app.UseCratisArc();
+app.Run();
+```
+
+Set `<Arc apiBasePath="/workbench">` in the frontend and set the application router's `basename` to `/workbench` separately. Neither setting changes the server's routes; see [React provider configuration](../../../frontend/react/arc.md#hosting-under-a-path-prefix). If a reverse proxy already removes the prefix, the server sees unprefixed paths, so configure the frontend and ingress accordingly.
+
 ## Environment-Specific Configuration
 
 You can use different configurations for different environments using the standard ASP.NET Core configuration pattern:

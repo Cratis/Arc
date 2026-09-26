@@ -33,8 +33,8 @@ flowchart TD
 | `microservice` | `string` | `''`; service identifier for a configured ingress |
 | `development` | `boolean` | `false` |
 | `origin` | `string` | `''`; current origin |
-| `basePath` | `string` | `''`; application base path |
-| `apiBasePath` | `string` | `''`; additional API path prefix; do not duplicate the proxy route's `/api` |
+| `basePath` | `string` | **Deprecated.** `''`; retained in `ArcContext` for compatibility, but does not configure requests or routing |
+| `apiBasePath` | `string` | `''`; prefix for Arc requests; do not duplicate the proxy route's `/api` |
 | `httpHeadersCallback` | `() => HeadersInit` | Extra headers on fetch paths, not native streaming handshakes |
 | `detailsType` | `Constructor` | Optional constructor for the identity's application-specific details type, enabling type-safe deserialization — see [Type-safe identity with complex types](./identity.md#type-safe-identity-with-complex-types) |
 | `eventSourceFactory` | `(url: string) => EventSource` | Override the SSE client constructor |
@@ -45,6 +45,12 @@ flowchart TD
 | `queryCacheRetentionMs` | `number` | `30000`; retention after the last cache consumer releases an entry |
 
 `observableQueryDiagnostics` is a service exposed **on `ArcContext`**, not an `<Arc>` prop. See [diagnostics](./queries/observable-query-diagnostics.md).
+
+## Hosting under a path prefix
+
+If your app is served at `/workbench`, set `<Arc apiBasePath="/workbench">` so Arc's command, query, identity, and observable-query requests reach that prefix. Configure your application's router separately with `basename="/workbench"` so client-side links and routes resolve under it. Arc does not configure the router, and the deprecated `basePath` prop does neither job. Keep the generated proxy's route (normally beginning with `/api`) out of `apiBasePath`; for example, `/workbench` plus `/api/orders` produces `/workbench/api/orders`.
+
+The backend must accept the same prefix. For ASP.NET Core, see [hosting with `UsePathBase`](../../backend/csharp/asp-net-core/configuration.md#hosting-under-a-path-prefix). For the lightweight host, see [static files and fallback](../../backend/csharp/core/static-files.md#hosting-under-a-path-prefix).
 
 ## Microservice support
 
