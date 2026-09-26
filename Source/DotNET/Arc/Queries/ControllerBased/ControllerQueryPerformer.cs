@@ -165,9 +165,9 @@ public class ControllerQueryPerformer(
             return false;
         }
 
-        // A concept is a concrete type, so self-binding registers it and the container reports it as a service.
-        // It is always a caller-supplied argument, never something to resolve from the container.
-        if (parameter.ParameterType.IsConcept())
+        // Concepts and collections of query arguments are caller-supplied, even when the container reports
+        // them as services (IEnumerable<T> is always resolvable by the default container).
+        if (parameter.ParameterType.IsConcept() || parameter.ParameterType.IsEnumerableOfQueryArgumentElement(out _))
         {
             return false;
         }
@@ -237,7 +237,15 @@ public class ControllerQueryPerformer(
                 continue;
             }
 
-            args[index] = ResolveQueryArgument(parameter, queryArguments);
+            try
+            {
+                args[index] = ResolveQueryArgument(parameter, queryArguments);
+            }
+            catch (InvalidCollectionQueryArgument)
+            {
+                throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
+            }
+
             if (args[index] is null && !IsNullableOrOptional(parameter))
             {
                 throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);

@@ -3,6 +3,7 @@
 
 using System.Collections;
 using System.ComponentModel;
+using Cratis.Arc.Queries;
 
 namespace Cratis.Arc;
 
@@ -154,6 +155,7 @@ public static class ConverterExtensions
     /// <param name="targetType">The declared parameter type to satisfy.</param>
     /// <param name="elementType">The element type to convert each part to.</param>
     /// <returns>An array or list assignable to <paramref name="targetType"/>.</returns>
+    /// <exception cref="InvalidCollectionQueryArgument">An element cannot be converted.</exception>
     /// <remarks>
     /// A part that itself contains a literal comma cannot round-trip through this - the collapsed
     /// <c>IReadOnlyDictionary&lt;string, string&gt;</c> query representation has already lost the boundary between
@@ -173,7 +175,9 @@ public static class ConverterExtensions
         var array = Array.CreateInstance(elementType, parts.Length);
         for (var index = 0; index < parts.Length; index++)
         {
-            array.SetValue(parts[index].ConvertTo(elementType), index);
+            var converted = parts[index].ConvertTo(elementType)
+                ?? throw new InvalidCollectionQueryArgument(targetType, parts[index]);
+            array.SetValue(converted, index);
         }
 
         if (targetType.IsInstanceOfType(array))

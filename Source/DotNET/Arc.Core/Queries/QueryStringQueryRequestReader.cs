@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Http;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.DependencyInjection;
 using Cratis.Strings;
 
@@ -97,7 +98,16 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
                 if (parameter is not null)
                 {
-                    var convertedValue = kvp.Value.ConvertTo(parameter.Type);
+                    object? convertedValue;
+                    try
+                    {
+                        convertedValue = kvp.Value.ConvertTo(parameter.Type);
+                    }
+                    catch (InvalidCollectionQueryArgument)
+                    {
+                        throw new MissingArgumentForQuery(parameter.Name, parameter.Type, performer.FullyQualifiedName);
+                    }
+
                     if (convertedValue is not null)
                     {
                         arguments[kvp.Key] = convertedValue;

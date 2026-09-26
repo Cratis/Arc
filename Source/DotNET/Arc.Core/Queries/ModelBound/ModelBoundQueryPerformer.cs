@@ -305,7 +305,14 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
             }
             else
             {
-                args[i] = ResolveQueryArgument(parameter, queryStringParameters);
+                try
+                {
+                    args[i] = ResolveQueryArgument(parameter, queryStringParameters);
+                }
+                catch (InvalidCollectionQueryArgument)
+                {
+                    throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
+                }
             }
         }
 
