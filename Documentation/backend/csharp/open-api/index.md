@@ -12,7 +12,7 @@ The `Cratis.Arc.OpenApi` package provides deep integration with `Microsoft.AspNe
 | [Concepts](./concepts.md) | How concept types are mapped to their underlying primitive types in the API schema. |
 | [Commands](./commands.md) | How command responses are wrapped with `CommandResult` in the API documentation. |
 | [Queries](./queries.md) | How query responses are wrapped with `QueryResult`, including pagination parameters. |
-| [Enums](./enums.md) | Current enum-name/schema-type mismatch and numeric wire behavior. |
+| [Enums](./enums.md) | Enum schemas follow the effective JSON converter's numeric or string wire values. |
 | [FromRequest Attribute](./from-request.md) | How complex model binding with `[FromRequest]` is reflected in the API schema. |
 | [Model-Bound Operations](./model-bound.md) | How minimal API command and query endpoints appear in the API documentation. |
 
@@ -28,7 +28,9 @@ builder.Services.AddOpenApi(options => options.AddConcepts());
 
 After building the app, map the document using ASP.NET's `app.MapOpenApi()` (default `/openapi/v1.json`). Keep `app.UseCratisArc()` and the host's normal startup too. Map only in intended environments or apply appropriate endpoint access controls; API documentation is not automatically private.
 
-The `AddConcepts()` method registers all schema and operation transformers automatically.
+The `AddConcepts()` method registers the schema and operation transformers. By default, concept values and collections use primitive schemas, and recursive values in dictionaries keyed by concepts use component references. A custom concept converter can change the wire shape; OpenAPI leaves its schema unspecified unless you provide a matching schema transformer. The other transformers describe **effective** converters: date, time, URI and type strings, GeoJSON objects, and polymorphic base properties are handled when an application explicitly configures the corresponding Arc converter on its HTTP JSON options. `AddCratisArc()` does not install those non-concept converters on plain minimal APIs. Without them, ASP.NET's defaults determine the wire format and schema.
+
+With Fundamentals' derived-type converter explicitly enabled, the base schema lists declared interface properties by camel-cased CLR name. A plain minimal API `Results.Ok<ISampleBase>(derived)` response uses the runtime concrete type: it includes derived-only properties but **no** `_derivedTypeId` discriminator. The base schema does not list the derived-only properties. Serialization explicitly through the declared interface with Fundamentals' converter can include `_derivedTypeId`; verify the actual endpoint contract before generating clients. `[JsonPropertyName]` and `[JsonIgnore]` on a base interface do not affect this converter's concrete property writes. Avoid indexers on derived types: the converter attempts to read them without arguments and cannot serialize them.
 
 ## Requirements
 
