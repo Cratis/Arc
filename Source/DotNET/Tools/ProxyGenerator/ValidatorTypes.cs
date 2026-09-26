@@ -21,7 +21,9 @@ internal static class ValidatorTypes
     ];
 
     static readonly HashSet<string> _frameworkAssemblyNames = ["System", "Microsoft", "netstandard", "mscorlib"];
-    static readonly ConditionalWeakTable<Assembly, Dictionary<Type, List<Type>>> _validatorsByAssembly = new();
+    static readonly ConditionalWeakTable<Assembly, ValidatorIndex> _validatorsByAssembly = new();
+    static readonly HashSet<Assembly> _warnedAssemblies = [];
+    static Action<string> _warning = _ => { };
 
     /// <summary>
     /// Finds the validator for a type, rejecting duplicate discoverable validators for the requested type.
@@ -30,17 +32,22 @@ internal static class ValidatorTypes
     /// <param name="type">The type being validated.</param>
     /// <returns>The validator, or <see langword="null"/> if none is found.</returns>
     /// <exception cref="MultipleValidatorsForType">More than one discoverable validator is found for the type.</exception>
-    internal static Type? Find(Assembly generatedAssembly, Type type)
-    {
-        var assemblies = TypeExtensions.ValidatorAssemblies
-            .Select(_ => RuntimeValidatorAssemblies.For(_) ?? _)
-            .Append(generatedAssembly)
-            .Append(type.Assembly)
-            .Where(_ => !IsFrameworkAssembly(_))
-            .Distinct();
+    internal static Type? Find(Assembly generatedAssembly, Type type) => Find(
+        generatedAssembly,
+        type,
+        TypeExtensions.ValidatorAssemblies,
+        assembly => _validatorsByAssembly.GetValue(assembly, Index),
+        _warning,
+        _warnedAssemblies);
 
-        return Select(type, assemblies.SelectMany(assembly =>
-            _validatorsByAssembly.GetValue(assembly, Index).GetValueOrDefault(type) ?? []));
+    /// <summary>
+    /// Configures the generation run's existing message logger for partial dependency loads.
+    /// </summary>
+    /// <param name="warning">The generation message callback.</param>
+    internal static void SetWarningLogger(Action<string> warning)
+    {
+        _warning = warning;
+        _warnedAssemblies.Clear();
     }
 
     /// <summary>
@@ -51,7 +58,63 @@ internal static class ValidatorTypes
     /// <param name="loadTypes">The loader for types from the assembly.</param>
     /// <returns>The matching validator, or null if none exists.</returns>
     internal static Type? Find(Assembly generatedAssembly, Type type, Func<Assembly, Type[]> loadTypes) =>
-        Select(type, Index(generatedAssembly, loadTypes).GetValueOrDefault(type) ?? []);
+        SelectStrict(type, generatedAssembly, Index(generatedAssembly, loadTypes));
+
+    /// <summary>
+    /// Finds validators with supplied assemblies and type loader, for testing partial dependency loads.
+    /// </summary>
+    /// <param name="generatedAssembly">The assembly being generated.</param>
+    /// <param name="type">The requested model type.</param>
+    /// <param name="dependencies">Other application dependencies.</param>
+    /// <param name="loadTypes">The test type loader.</param>
+    /// <param name="warning">The generation message callback.</param>
+    /// <returns>The matching validator or null.</returns>
+    internal static Type? Find(Assembly generatedAssembly, Type type, IEnumerable<Assembly> dependencies, Func<Assembly, Type[]> loadTypes, Action<string> warning) =>
+        Find(generatedAssembly, type, dependencies, assembly => Index(assembly, loadTypes), warning, []);
+
+    static Type? Find(Assembly generatedAssembly, Type type, IEnumerable<Assembly> dependencies, Func<Assembly, ValidatorIndex> index, Action<string> warning, HashSet<Assembly> warnedAssemblies)
+    {
+        var generated = RuntimeValidatorAssemblies.For(generatedAssembly) ?? generatedAssembly;
+        var model = RuntimeValidatorAssemblies.For(type.Assembly) ?? type.Assembly;
+        var assemblies = dependencies
+            .Select(_ => RuntimeValidatorAssemblies.For(_) ?? _)
+            .Append(generated)
+            .Append(model)
+            .Where(_ => !IsFrameworkAssembly(_))
+            .Distinct();
+
+        var candidates = new List<Type>();
+        foreach (var assembly in assemblies)
+        {
+            var validators = index(assembly);
+            if (validators.LoadFailure is { } failure)
+            {
+                if (assembly == generated || assembly == model)
+                {
+                    throw new ValidatorTypesCouldNotBeLoaded(assembly, failure);
+                }
+
+                if (warnedAssemblies.Add(assembly))
+                {
+                    warning($"warning: Could not load all validator types from dependency assembly '{assembly.GetName().Name}'; using successfully loaded types: {string.Join("; ", failure.LoaderExceptions.Where(_ => _ is not null).Select(_ => _.Message))}");
+                }
+            }
+
+            candidates.AddRange(validators.Validators.GetValueOrDefault(type) ?? []);
+        }
+
+        return Select(type, candidates);
+    }
+
+    static Type? SelectStrict(Type type, Assembly assembly, ValidatorIndex index)
+    {
+        if (index.LoadFailure is { } failure)
+        {
+            throw new ValidatorTypesCouldNotBeLoaded(assembly, failure);
+        }
+
+        return Select(type, index.Validators.GetValueOrDefault(type) ?? []);
+    }
 
     static Type? Select(Type type, IEnumerable<Type> candidates)
     {
@@ -76,18 +139,20 @@ internal static class ValidatorTypes
             name.StartsWith("Microsoft.", StringComparison.Ordinal));
     }
 
-    static Dictionary<Type, List<Type>> Index(Assembly assembly) => Index(assembly, _ => _.GetTypes());
+    static ValidatorIndex Index(Assembly assembly) => Index(assembly, _ => _.GetTypes());
 
-    static Dictionary<Type, List<Type>> Index(Assembly assembly, Func<Assembly, Type[]> loadTypes)
+    static ValidatorIndex Index(Assembly assembly, Func<Assembly, Type[]> loadTypes)
     {
         Type[] types;
+        ReflectionTypeLoadException? loadFailure = null;
         try
         {
             types = loadTypes(assembly);
         }
         catch (ReflectionTypeLoadException exception)
         {
-            throw new ValidatorTypesCouldNotBeLoaded(assembly, exception);
+            loadFailure = exception;
+            types = [.. exception.Types.OfType<Type>()];
         }
 
         var validators = new Dictionary<Type, List<Type>>();
@@ -117,6 +182,8 @@ internal static class ValidatorTypes
             }
         }
 
-        return validators;
+        return new(validators, loadFailure);
     }
+
+    sealed record ValidatorIndex(Dictionary<Type, List<Type>> Validators, ReflectionTypeLoadException? LoadFailure);
 }

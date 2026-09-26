@@ -7,5 +7,6 @@
         <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
         <ProjectReference Include="../ReferencedConceptValidator/ReferencedConceptValidator.csproj" />
+        <ProjectReference Include="../TransitiveConceptValidator/TransitiveConceptValidator.csproj" />
     </ItemGroup>
 </Project>
