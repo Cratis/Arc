@@ -39,7 +39,7 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
         }
 
-        if (CommandValidationResults.IsBlocking(controlResult, allowedSeverity))
+        if (CommandValidationResults.IsBlocking(controlResult, context.BlockUnknownValidationSeverity ? context.AllowedSeverity : allowedSeverity, context.BlockUnknownValidationSeverity))
         {
             return new CommandHandlerArgumentResolution([], controlResult);
         }

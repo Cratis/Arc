@@ -64,4 +64,9 @@ public record CommandContext(
     /// Gets the preselected policy and scheme plan when a command must establish identity before its execution scopes.
     /// </summary>
     internal PreparedAuthorization? PreparedAuthorization { get; set; }
+
+    /// <summary>
+    /// Gets whether an Unknown-severity validation failure blocks this command.
+    /// </summary>
+    internal bool BlockUnknownValidationSeverity { get; init; }
 }

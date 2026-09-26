@@ -60,7 +60,10 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{#if HasValidationRules}}
     readonly validation: CommandValidator = new {{Name}}Validator();
 {{/if}}
-    readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrors}};
+    readonly treatWarningsAsErrors: boolean = {{lowercase TreatWarningsAsErrorsForPolicy}};
+{{#if HasBlockingValidationSeverity}}
+    readonly blockOnValidationSeverity = {{BlockOnValidationSeverity}};
+{{/if}}
     readonly roles: string[] = [{{#each Roles}}'{{this}}'{{#unless @last}}, {{/unless}}{{/each}}];
     readonly propertyDescriptors: PropertyDescriptor[] = [
         {{#Properties}}
