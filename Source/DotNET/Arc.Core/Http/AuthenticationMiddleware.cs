@@ -18,14 +18,14 @@ public class AuthenticationMiddleware(IAuthentication authentication)
     /// <param name="context">The HTTP request context.</param>
     /// <param name="metadata">The endpoint metadata.</param>
     /// <returns>True if the request is authenticated or allows anonymous access, false otherwise.</returns>
-    /// <exception cref="Introspection.InvalidIntrospectionConfiguration">Authentication is required but no handler is registered.</exception>
+    /// <exception cref="AuthenticationRequiredWithoutHandlers">Authentication is required but no handler is registered.</exception>
     public async Task<bool> Authenticate(IHttpRequestContext context, EndpointMetadata? metadata)
     {
         if (!authentication.HasHandlers)
         {
             if (metadata?.RequireAuthentication == true)
             {
-                throw new Introspection.InvalidIntrospectionConfiguration("An endpoint requires authentication, but no Arc.Core authentication handler is registered.");
+                throw new AuthenticationRequiredWithoutHandlers(metadata.Name);
             }
             return true;
         }
