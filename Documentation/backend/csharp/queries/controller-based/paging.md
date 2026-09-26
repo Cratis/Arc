@@ -38,14 +38,14 @@ public class AccountsController(IMongoCollection<DebitAccount> collection) : Con
 
 ```http
 GET /api/accounts?page=0&pageSize=25
-GET /api/accounts/positive?page=1&pageSize=10&sortby=name&sortDirection=asc
+GET /api/accounts/positive?page=1&pageSize=10&sortBy=name&sortDirection=asc
 ```
 
 The action filter establishes the paging/sorting context. `QueryableQueryRenderer` counts the filtered query, applies requested sorting, then applies `Skip`/`Take`. A database-backed LINQ provider can perform this work server-side; an in-memory queryable cannot undo earlier materialization.
 
 ## Paging contract
 
-`page` is zero-based, `pageSize` is the requested size, and `sortby`/`sortDirection` select the sort. Use positive, bounded sizes and a stable ordering. Client-requested ordering replaces the method's primary ordering; account for duplicate sort values in production.
+`page` is zero-based, `pageSize` is the requested size, and `sortBy`/`sortDirection` select the sort. GET matches these reserved keys case-insensitively, so `sortby` and `SORTBY` also work. Use positive, bounded sizes and a stable ordering. Client-requested ordering replaces the method's primary ordering; account for duplicate sort values in production.
 
 The response `paging` object has **`page`, `size`, `totalItems`, `totalPages`**. See [query result metadata](../query-pipeline.md#query-result-metadata). Without a paging request, the query is not automatically capped.
 

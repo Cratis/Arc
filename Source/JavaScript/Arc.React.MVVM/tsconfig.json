@@ -2,15 +2,7 @@
     "extends": "../../../tsconfig.json",
     "compilerOptions": {
         "rootDir": ".",
-        "outDir": "dist/esm",
-        "paths": {
-            "@cratis/arc/*": [
-                "../Arc/dist/esm/*"
-            ],
-            "@cratis/arc.react/*": [
-                "../Arc.React/dist/esm/*"
-            ]
-        }
+        "outDir": "dist/esm"
     },
     "references": [
         {

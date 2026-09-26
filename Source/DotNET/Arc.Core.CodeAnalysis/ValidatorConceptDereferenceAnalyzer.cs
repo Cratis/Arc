@@ -70,6 +70,13 @@ public class ValidatorConceptDereferenceAnalyzer : DiagnosticAnalyzer
                 continue;
             }
 
+            // A concept type or static member is not a nullable member of the validated model.
+            var conceptSymbol = context.SemanticModel.GetSymbolInfo(conceptMember, context.CancellationToken).Symbol;
+            if (conceptSymbol is null or ITypeSymbol or INamespaceSymbol || conceptSymbol.IsStatic)
+            {
+                continue;
+            }
+
             var conceptType = context.SemanticModel.GetTypeInfo(conceptMember, context.CancellationToken).Type;
             if (conceptType is null || !InheritsFromConceptAs(conceptType))
             {

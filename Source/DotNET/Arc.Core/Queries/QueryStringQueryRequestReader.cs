@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json.Nodes;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.DependencyInjection;
@@ -43,11 +44,11 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
     static Paging GetPagingInfo(IHttpRequestContext context)
     {
-        if (context.Query.TryGetValue(PageSizeQueryStringKey, out var pageSizeString) &&
+        if (TryGetReservedKey(context.Query, PageSizeQueryStringKey, out var pageSizeString) &&
             int.TryParse(pageSizeString, out var pageSize))
         {
             var page = 0;
-            if (context.Query.TryGetValue(PageQueryStringKey, out var pageString) &&
+            if (TryGetReservedKey(context.Query, PageQueryStringKey, out var pageString) &&
                 int.TryParse(pageString, out var parsedPage))
             {
                 page = parsedPage;
@@ -61,8 +62,8 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
     static Sorting GetSortingInfo(IHttpRequestContext context)
     {
-        if (context.Query.TryGetValue(SortByQueryStringKey, out var sortBy) &&
-            context.Query.TryGetValue(SortDirectionQueryStringKey, out var sortDirection))
+        if (TryGetReservedKey(context.Query, SortByQueryStringKey, out var sortBy) &&
+            TryGetReservedKey(context.Query, SortDirectionQueryStringKey, out var sortDirection))
         {
             var sortByPascal = sortBy?.ToPascalCase();
 
@@ -73,6 +74,26 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
         }
 
         return Sorting.None;
+    }
+
+    static bool TryGetReservedKey(IReadOnlyDictionary<string, string> query, string key, out string? value)
+    {
+        if (query.TryGetValue(key, out value))
+        {
+            return true;
+        }
+
+        foreach (var item in query)
+        {
+            if (string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = item.Value;
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 
     static QueryArguments GetQueryArguments(IHttpRequestContext context, IQueryPerformer performer)
@@ -101,6 +122,12 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
                     object? convertedValue;
                     try
                     {
+                        if (parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType) &&
+                            (elementType == typeof(JsonObject) || elementType == typeof(JsonArray)))
+                        {
+                            throw new InvalidCollectionQueryArgument(parameter.Type, kvp.Value);
+                        }
+
                         convertedValue = kvp.Value.ConvertTo(parameter.Type);
                     }
                     catch (InvalidCollectionQueryArgument)

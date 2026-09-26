@@ -83,6 +83,27 @@ public static class TypeExtensions
         { "Cratis.Geospatial.Polygon", new(typeof(object), "Polygon", "Polygon", "@cratis/fundamentals", FromPackage: true) }
     };
 
+    /// <summary>
+    /// Scalar types convertible as individual query arguments (unlike object and geospatial DTOs in the type-shape map).
+    /// Mirrored by ConverterExtensions._additionalQueryArgumentScalarTypes and checked by the parity spec.
+    /// </summary>
+    static readonly HashSet<string> _queryArgumentScalarTypeNames =
+    [
+        typeof(string).FullName!,
+        typeof(decimal).FullName!,
+        typeof(DateTime).FullName!,
+        typeof(DateTimeOffset).FullName!,
+        typeof(TimeSpan).FullName!,
+        typeof(Guid).FullName!,
+        typeof(DateOnly).FullName!,
+        typeof(TimeOnly).FullName!,
+        typeof(Uri).FullName!,
+        typeof(System.Text.Json.Nodes.JsonNode).FullName!,
+        typeof(System.Text.Json.Nodes.JsonObject).FullName!,
+        typeof(System.Text.Json.Nodes.JsonArray).FullName!,
+        typeof(System.Text.Json.JsonDocument).FullName!
+    ];
+
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
@@ -889,7 +910,11 @@ public static class TypeExtensions
         if (!type.IsEnumerable()) return false;
 
         var elementType = type.GetEnumerableElementType();
-        return elementType is not null && (elementType.IsAPrimitiveType() || elementType.IsConcept() || elementType.IsEnum);
+        if (elementType is null) return false;
+
+        var scalarType = elementType.IsNullable() ? elementType.GetGenericArguments()[0] : elementType;
+        return scalarType.IsConcept() || scalarType.IsEnum || scalarType.GetTypeInfo().IsPrimitive ||
+            (scalarType.FullName is not null && _queryArgumentScalarTypeNames.Contains(scalarType.FullName));
     }
 
     /// <summary>

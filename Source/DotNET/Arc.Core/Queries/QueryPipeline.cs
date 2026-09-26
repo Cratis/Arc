@@ -282,6 +282,10 @@ public class QueryPipeline(
         {
             result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
         }
+        catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
+        {
+            result.MergeWith(QueryResult.FromException(correlationId, ex));
+        }
         catch (InvalidAuthorizationConfiguration ex)
         {
             result.MergeWith(QueryResult.Unauthorized(correlationId));
