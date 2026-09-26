@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,6 +17,8 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
     Exception? _requiresAuthentication;
     Exception? _duplicate;
     Exception? _caseInsensitive;
+    Exception? _wrongCaseWithCaseSensitiveProvider;
+    Exception? _distinctNamesWithCaseSensitiveProvider;
 
     async Task Because()
     {
@@ -34,12 +37,23 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
         {
             services.AddAuthorizationBuilder().AddPolicy("Public", policy => policy.RequireAssertion(_ => true));
             services.AddArcAnonymousAspNetAuthorizationPolicy("Public");
-            services.AddArcAnonymousAspNetAuthorizationPolicy("public");
+            services.AddArcAnonymousAspNetAuthorizationPolicy("Public");
         });
         _caseInsensitive = await Start(services =>
         {
             services.AddAuthorizationBuilder().AddPolicy("Public", policy => policy.RequireAssertion(_ => true));
             services.AddArcAnonymousAspNetAuthorizationPolicy("public");
+        });
+        _wrongCaseWithCaseSensitiveProvider = await Start(services =>
+        {
+            AddCaseSensitiveProvider(services);
+            services.AddArcAnonymousAspNetAuthorizationPolicy("GUEST");
+        });
+        _distinctNamesWithCaseSensitiveProvider = await Start(services =>
+        {
+            AddCaseSensitiveProvider(services);
+            services.AddArcAnonymousAspNetAuthorizationPolicy("Guest");
+            services.AddArcAnonymousAspNetAuthorizationPolicy("guest");
         });
     }
 
@@ -47,7 +61,14 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
     [Fact] void should_reject_a_native_opt_in_even_when_casing_differs() => _native.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
     [Fact] void should_reject_deny_anonymous_even_when_other_requirements_allow_it() => _requiresAuthentication.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
     [Fact] void should_reject_ambiguous_opt_ins() => _duplicate.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
-    [Fact] void should_accept_a_case_insensitive_aspnet_name() => _caseInsensitive.ShouldBeNull();
+    [Fact] void should_accept_a_name_resolved_by_the_default_provider() => _caseInsensitive.ShouldBeNull();
+    [Fact] void should_reject_a_name_the_case_sensitive_provider_does_not_resolve() => _wrongCaseWithCaseSensitiveProvider.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
+    [Fact] void should_accept_distinct_names_resolved_by_the_case_sensitive_provider() => _distinctNamesWithCaseSensitiveProvider.ShouldBeNull();
+
+    static void AddCaseSensitiveProvider(IServiceCollection services)
+    {
+        services.AddSingleton<IAuthorizationPolicyProvider>(new CaseSensitivePolicyProvider());
+    }
 
     static async Task<Exception?> Start(Action<IServiceCollection> configure)
     {
@@ -68,6 +89,25 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
             await app.StopAsync();
         }
         return failure;
+    }
+
+    class CaseSensitivePolicyProvider : IAuthorizationPolicyProvider
+    {
+        readonly Dictionary<string, AuthorizationPolicy> _policies = new(StringComparer.Ordinal)
+        {
+            ["Guest"] = new AuthorizationPolicyBuilder().RequireAssertion(_ => true).Build(),
+            ["guest"] = new AuthorizationPolicyBuilder().RequireAssertion(_ => true).Build()
+        };
+
+        public bool AllowsCachingPolicies => false;
+
+        public Task<AuthorizationPolicy?> GetPolicyAsync(string policyName) =>
+            Task.FromResult(_policies.GetValueOrDefault(policyName));
+
+        public Task<AuthorizationPolicy> GetDefaultPolicyAsync() =>
+            Task.FromResult(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+        public Task<AuthorizationPolicy?> GetFallbackPolicyAsync() => Task.FromResult<AuthorizationPolicy?>(null);
     }
 
     public class AllowGuest : IAuthorizationPolicy
