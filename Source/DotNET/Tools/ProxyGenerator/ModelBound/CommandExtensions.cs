@@ -21,6 +21,7 @@ public static class CommandExtensions
     /// <param name="apiPrefix">The API prefix to use in the route.</param>
     /// <param name="allCommandTypes">Collection of all command types to detect conflicts.</param>
     /// <returns>Converted <see cref="CommandDescriptor"/>.</returns>
+    /// <exception cref="InvalidCommandValidationSeverity">Thrown when the declared severity is outside the supported range.</exception>
     public static CommandDescriptor ToCommandDescriptor(
         this TypeInfo commandType,
         string targetPath,
@@ -47,12 +48,28 @@ public static class CommandExtensions
         // Extract validation rules for the command type
         var validationRules = ValidationRulesExtractor.ExtractValidationRules(commandType.Assembly, commandType);
 
-        var severityAttribute = commandType.GetCustomAttributesData().FirstOrDefault(attribute =>
-            attribute.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverityAttribute");
+        CustomAttributeData? severityAttribute = null;
+        for (Type? current = commandType; current is not null; current = current.BaseType)
+        {
+            severityAttribute = current.GetCustomAttributesData().FirstOrDefault(attribute =>
+                attribute.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.BlockOnValidationSeverityAttribute");
+            if (severityAttribute is not null)
+            {
+                break;
+            }
+        }
+
+        int? severity = severityAttribute is null ? null : Convert.ToInt32(severityAttribute.ConstructorArguments[0].Value);
+
+        // The generator does not reference Arc.Core; its wire values run from Unknown (0) through Error (3).
+        if (severity is not null && (severity < 0 || severity > 3))
+        {
+            throw new InvalidCommandValidationSeverity(commandType, severity.Value);
+        }
 
         return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation, validationRules) with
         {
-            BlockOnValidationSeverity = severityAttribute is null ? null : Convert.ToInt32(severityAttribute.ConstructorArguments[0].Value)
+            BlockOnValidationSeverity = severity
         };
     }
 }

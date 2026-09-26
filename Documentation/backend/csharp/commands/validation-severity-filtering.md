@@ -14,7 +14,7 @@ Some rules need acknowledgment rather than unconditional rejection. Model-bound 
 | `Warning` | 2 | Acknowledgment-worthy feedback |
 | `Error` | 3 | Validation error |
 
-Without a declared command policy, no explicit threshold keeps only `Error` results. With a caller threshold, only results whose severity is **greater than** the threshold remain. Thus:
+For commands without a declared policy, omitting the threshold keeps only `Error` results. With a caller threshold, only results whose severity is **greater than** the threshold remain. Thus:
 
 - `Information` blocks warnings and errors.
 - `Warning` allows warnings and blocks errors.
@@ -39,7 +39,7 @@ public record SubmitApplication(string Name)
 }
 ```
 
-The attribute names the **lowest severity that blocks**: `Information` blocks information, warnings, and errors; `Warning` blocks warnings and errors. `Unknown` results also block any command with the attribute, because an unclassified failure must not become a successful command. The rejected result retains its original message and severity. The declared policy applies to command filters, `Provide()`, `Validate`, and in-process execution as well as HTTP. Generated TypeScript proxies carry the threshold for local validation, but the server remains authoritative.
+The attribute names the **lowest severity that blocks**: `Information` blocks information, warnings, and errors; `Warning` blocks warnings and errors. `Unknown` results also block any command with the attribute, because an unclassified failure must not become a successful command. The rejected result retains its original message and severity. The declared policy is inherited by derived command types and applies to command filters, `Provide()`, `Validate`, and in-process execution as well as HTTP, when commands run through Arc's built-in `CommandPipeline`. It does not apply to controller-action DTOs, which use the MVC validation path, or to custom `ICommandPipeline` implementations unless they implement the policy themselves. Generated TypeScript proxies carry the threshold for local validation and treat warnings as errors when the declared severity is `Warning` or stricter, but the server remains authoritative.
 
 The effective threshold is the stricter of the declared policy and the caller's `allowedSeverity` or `X-Allowed-Severity`. A caller can demand *more* blocking, never less: passing `Error` or a larger integer does not permit a declared warning or information failure. This deliberately differs from the caller opt-out for controller actions in #21. Commands without the attribute retain the existing errors-only default and caller-controlled filtering.
 

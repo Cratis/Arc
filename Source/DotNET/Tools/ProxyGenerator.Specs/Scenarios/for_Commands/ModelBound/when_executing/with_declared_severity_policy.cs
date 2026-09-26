@@ -25,15 +25,16 @@ public class with_declared_severity_policy : given.a_scenario_web_application
         var results = new List<PolicyResponse>();
         foreach (var level in new[] { "warning", "information" })
         {
-            results.Add(await Send(level, route, false));
-            results.Add(await Send(level, route, true));
+            results.Add(await Send(level, route, false, false));
+            results.Add(await Send(level, route, true, false));
+            results.Add(await Send(level, route, true, true));
         }
         _results = [.. results];
     }
 
-    async Task<PolicyResponse> Send(string level, string route, bool permissive)
+    async Task<PolicyResponse> Send(string level, string route, bool permissive, bool validateOnly)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, route)
+        using var request = new HttpRequestMessage(HttpMethod.Post, validateOnly ? $"{route}/validate" : route)
         {
             Content = JsonContent.Create(new SeverityPolicyCommand(level))
         };
@@ -45,10 +46,10 @@ public class with_declared_severity_policy : given.a_scenario_web_application
         return (await response.Content.ReadFromJsonAsync<PolicyResponse>())!;
     }
 
-    [Fact] void should_reject_all_four_requests() => _results.All(result => !result.IsSuccess).ShouldBeTrue();
+    [Fact] void should_reject_all_six_requests() => _results.All(result => !result.IsSuccess).ShouldBeTrue();
     [Fact] void should_keep_the_severity_and_message() => _results.Select((result, index) =>
-        result.ValidationResults.Single().Severity.GetInt32() == (int)(index < 2 ? ValidationResultSeverity.Warning : ValidationResultSeverity.Information) &&
-        result.ValidationResults.Single().Message == (index < 2 ? "Keep warning message" : "Keep information message"))
+        result.ValidationResults.Single().Severity.GetInt32() == (int)(index < 3 ? ValidationResultSeverity.Warning : ValidationResultSeverity.Information) &&
+        result.ValidationResults.Single().Message == (index < 3 ? "Keep warning message" : "Keep information message"))
         .All(matches => matches).ShouldBeTrue();
     [Fact] void should_not_invoke_the_handler() => SeverityPolicyCommand.Handled.ShouldEqual(0);
 }

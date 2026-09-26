@@ -57,4 +57,9 @@ public record CommandDescriptor(
     /// Gets whether the command declares a blocking validation severity.
     /// </summary>
     public bool HasBlockingValidationSeverity => BlockOnValidationSeverity is not null;
+
+    /// <summary>
+    /// Gets whether warning results block locally, including model-bound commands that declare a warning or stricter policy.
+    /// </summary>
+    public bool TreatWarningsAsErrorsForPolicy => TreatWarningsAsErrors || BlockOnValidationSeverity is >= 0 and <= 2;
 }

@@ -10,7 +10,7 @@ namespace Cratis.Arc.Commands.ModelBound;
 /// Unknown-severity failures also block a command with this attribute.
 /// </summary>
 /// <param name="severity">The lowest severity that blocks the command.</param>
-[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+[AttributeUsage(AttributeTargets.Class, Inherited = true)]
 public sealed class BlockOnValidationSeverityAttribute(ValidationResultSeverity severity) : Attribute
 {
     /// <summary>

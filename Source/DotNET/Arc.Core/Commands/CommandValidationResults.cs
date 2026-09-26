@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Validation;
 
@@ -12,6 +13,8 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 static class CommandValidationResults
 {
+    static readonly ConcurrentDictionary<Type, (bool HasPolicy, ValidationResultSeverity Severity)> _policies = new();
+
     /// <summary>
     /// Combines a caller threshold with the command's declared blocking floor. Only attributed commands
     /// reject Unknown; unannotated commands keep their existing filtering behavior.
@@ -22,7 +25,19 @@ static class CommandValidationResults
     /// <exception cref="InvalidCommandValidationSeverity">Thrown when the declared severity is unsupported.</exception>
     public static (ValidationResultSeverity? AllowedSeverity, bool BlockUnknown) ForCommand(Type commandType, ValidationResultSeverity? callerSeverity)
     {
-        if (Attribute.GetCustomAttribute(commandType, typeof(BlockOnValidationSeverityAttribute)) is not BlockOnValidationSeverityAttribute policy)
+        var policy = _policies.GetOrAdd(commandType, static type =>
+        {
+            for (var current = type; current is not null; current = current.BaseType)
+            {
+                if (Attribute.GetCustomAttribute(current, typeof(BlockOnValidationSeverityAttribute), inherit: false) is BlockOnValidationSeverityAttribute attribute)
+                {
+                    return (true, attribute.Severity);
+                }
+            }
+
+            return (false, ValidationResultSeverity.Unknown);
+        });
+        if (!policy.HasPolicy)
         {
             return (callerSeverity, false);
         }

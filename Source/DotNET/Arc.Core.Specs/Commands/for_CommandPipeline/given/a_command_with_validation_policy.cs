@@ -13,6 +13,13 @@ public class a_command_with_validation_policy : a_command_pipeline
     protected record StrictCommand;
 
     [Command]
+    protected record DerivedStrictCommand : StrictCommand;
+
+    [Command]
+    [BlockOnValidationSeverity((ValidationResultSeverity)99)]
+    protected record InvalidPolicyCommand;
+
+    [Command]
     protected record LegacyCommand;
 
     protected ICommandHandler _handler;
