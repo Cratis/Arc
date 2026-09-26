@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Execution;
+using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Execution;
@@ -46,6 +47,11 @@ public class ArcOptions
     /// Gets or sets the options for generated API endpoints (commands and queries).
     /// </summary>
     public ApiEndpointOptions GeneratedApis { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets the exposure options for command and query introspection.
+    /// </summary>
+    public IntrospectionOptions Introspection { get; set; } = new();
 
     /// <summary>
     /// Gets or sets the options for observable queries.

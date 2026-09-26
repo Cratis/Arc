@@ -1,13 +1,16 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authentication;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
 
@@ -23,6 +26,7 @@ public static class ArcApplicationExtensions
     /// </summary>
     /// <param name="app">The <see cref="ArcApplication"/>.</param>
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
+    /// <exception cref="InvalidIntrospectionConfiguration">Authentication is required but no handler is configured.</exception>
     public static ArcApplication UseCratisArc(this ArcApplication app)
     {
         if (app.IsCratisArcConfigured)
@@ -30,8 +34,20 @@ public static class ArcApplicationExtensions
             return app;
         }
 
+        var introspection = app.Services.GetRequiredService<IOptions<ArcOptions>>().Value.Introspection;
+        if (introspection.Enabled && introspection.RequireAuthentication)
+        {
+            var authentication = app.Services.GetRequiredService<IAuthentication>();
+            var hasTrustedHandler = app.Services.GetRequiredService<IInstancesOf<IAuthenticationHandler>>()
+                .Any(handler => handler is not MicrosoftIdentityPlatformAuthenticationHandler);
+            if (!authentication.HasHandlers || (!hasTrustedHandler && !introspection.TrustForwardedIdentityHeaders))
+            {
+                throw new InvalidIntrospectionConfiguration("Introspection requires an Arc.Core authentication handler other than the forwarded-header handler, or TrustForwardedIdentityHeaders=true behind trusted ingress.");
+            }
+        }
+
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
-        app.EndpointMapper.MapIntrospectionEndpoints();
+        app.EndpointMapper.MapIntrospectionEndpoints(introspection);
         app.EndpointMapper.MapCommandEndpoints(app.Services);
         app.EndpointMapper.MapQueryEndpoints(app.Services);
         app.EndpointMapper.MapObservableQueryDemultiplexerEndpoints(app.Services);

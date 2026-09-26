@@ -5,6 +5,7 @@ using System.Diagnostics.Metrics;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
+using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Conversion;
@@ -84,6 +85,7 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, IntrospectionOptionsValidator>());
 
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());

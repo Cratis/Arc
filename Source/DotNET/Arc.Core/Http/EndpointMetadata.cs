@@ -20,4 +20,15 @@ public record EndpointMetadata(
     bool AllowAnonymous = false,
     Type? RequestBodyType = default,
     Type? ResponseType = default,
-    bool ExcludeFromApiDescription = false);
+    bool ExcludeFromApiDescription = false)
+{
+    /// <summary>
+    /// Gets whether this endpoint explicitly requires an authenticated caller.
+    /// </summary>
+    public bool RequireAuthentication { get; init; }
+
+    /// <summary>
+    /// Gets comma-separated roles, any one of which grants access to an authenticated caller.
+    /// </summary>
+    public string? Roles { get; init; }
+}

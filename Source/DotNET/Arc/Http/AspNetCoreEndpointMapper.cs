@@ -3,6 +3,7 @@
 
 using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Http;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -90,6 +91,17 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         if (metadata.AllowAnonymous)
         {
             builder.AllowAnonymous();
+        }
+        else if (metadata.RequireAuthentication)
+        {
+            if (metadata.Roles is not null)
+            {
+                builder.RequireAuthorization(new AuthorizeAttribute { Roles = metadata.Roles });
+            }
+            else
+            {
+                builder.RequireAuthorization();
+            }
         }
 
         if (metadata.RequestBodyType is not null)
