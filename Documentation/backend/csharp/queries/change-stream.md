@@ -7,9 +7,9 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Transfer modes
 
-The observable-query hub can compare collection snapshots and send a `ChangeSet` describing added, replaced, and removed items. This is a transport-level comparison of query results, not a Chronicle event stream or a promise of durable replay.
+The observable-query hub can compare collection snapshots with stable item identities and send a `ChangeSet` describing added, replaced, and removed items. This is a transport-level comparison of query results, not a Chronicle event stream or a promise of durable replay.
 
-Set `transferMode` on the [hub subscription request](observable-query-demultiplexer.md). The modes below describe subject-backed **collection** emissions:
+Set `transferMode` on the [hub subscription request](observable-query-demultiplexer.md). The modes below describe subject-backed **collection** emissions whose items have an `Id` property. Without one, every mode sends full `data` without a change set:
 
 | Mode | First emission | Later emissions |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ For items with an `Id` property (case-insensitive), `ChangeSetComputor` compares
 - `replaced`: the identity remains but its serialized representation differs.
 - `removed`: an identity disappears; entries are removed **items**, not merely ID strings.
 
-Without an `Id` property, full serialized JSON is used as the comparison key. Changes then appear as removal/addition rather than replacement. Use stable, unique identifiers when clients must reconcile collection state.
+If collection items have no `Id` property, Arc sends the complete current snapshot in `data` without a change set on every emission, even in `delta` mode, and logs one warning per subscription. To get deltas, give each item a stable, unique `Id`. A concept-valued `Id` works too. The public `ChangeSetComputor.ComputeByJson` utility remains available for explicit JSON comparisons, but observable-query transfer does not use that fallback.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ Illustrative **payload fragment** for a later delta-mode frame; the surrounding 
 }
 ```
 
-When no change set is present, treat `data` as the current snapshot. A reconnect/replacement subscription starts with a fresh snapshot; a change set is not a resume token. Under delta mode, do not replace client state with null just because the later frame omits full data.
+When no change set is present, replace client state with `data` as the current snapshot (including after reconnect). A reconnect/replacement subscription starts with a fresh snapshot; a change set is not a resume token. Under delta mode, do not replace client state with null just because the later frame omits full data.
 
 ## Backend API
 

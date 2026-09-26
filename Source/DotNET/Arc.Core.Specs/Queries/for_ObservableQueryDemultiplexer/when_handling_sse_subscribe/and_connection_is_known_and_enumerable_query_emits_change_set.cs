@@ -18,7 +18,9 @@ public class and_connection_is_known_and_enumerable_query_emits_change_set : giv
     IHttpRequestContext _subscribeContext;
     CancellationTokenSource _connectionCancellation;
     ConcurrentQueue<string> _messages;
-    BehaviorSubject<IEnumerable<string>> _subject;
+    BehaviorSubject<IEnumerable<Item>> _subject;
+
+    record Item(string Id);
     string _connectionId;
 
     void Establish()
@@ -27,7 +29,7 @@ public class and_connection_is_known_and_enumerable_query_emits_change_set : giv
         _messages = [];
         _connectionId = string.Empty;
 
-        _subject = new BehaviorSubject<IEnumerable<string>>([]);
+        _subject = new BehaviorSubject<IEnumerable<Item>>([]);
         _queryPipeline.Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>())
             .Returns(_ =>
             {
@@ -64,11 +66,11 @@ public class and_connection_is_known_and_enumerable_query_emits_change_set : giv
         await _hub.HandleSSESubscribe(_subscribeContext);
 
         // First update — all items reported as Added (no previous snapshot).
-        _subject.OnNext(["item-a"]);
+        _subject.OnNext([new Item("item-a")]);
         await WaitFor(() => CountQueryResultMessages() >= 1);
 
         // Second update — item-b is new, so the ChangeSet should show it as Added.
-        _subject.OnNext(["item-a", "item-b"]);
+        _subject.OnNext([new Item("item-a"), new Item("item-b")]);
         await WaitFor(() => CountQueryResultMessages() >= 2);
 
         await _connectionCancellation.CancelAsync();
