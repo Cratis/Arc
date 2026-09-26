@@ -106,7 +106,7 @@ this.ruleFor((c) => c.name).minLength(2);
 this.ruleFor((c) => c.name).maxLength(50);
 ```
 
-Each extracted rule gets its own statement. The command template attaches the validator automatically, so you do not instantiate a second validator in the component.
+Each extracted rule gets its own statement. Rules with Error severity use the client's default and emit no `.withSeverity` call; `.WithSeverity(Severity.Warning)` and `.WithSeverity(Severity.Info)` emit `.withSeverity(2)` and `.withSeverity(1)`. Every generated command uses these rule severities: without `[BlockOnValidationSeverity]`, only Error rules block locally; with it, rules at or above the declared severity block. A runtime-dependent `.WithSeverity(...)` delegate cannot be projected faithfully: the generator omits that rule from client validation so it cannot incorrectly block a request, and the server evaluates it on the request. Previously generated proxies without per-rule severities retain their existing Error default. If your application changes FluentValidation's `ValidatorOptions.Global.Severity`, generated proxies still assume Error for rules without explicit severity: extraction runs at build time, not under the request's global settings. The command template attaches the validator automatically, so you do not instantiate a second validator in the component.
 
 ## DataAnnotations reference
 
@@ -181,7 +181,7 @@ For a direct `ConceptAs<T>` property on an extracted command/query DTO, or a dir
 ## Limitations to account for
 
 - `Must`, `MustAsync`, custom validators, and dependency-backed business checks are not translated into browser logic.
-- Conditions (`When`/`Unless`), rule sets, cascade behavior, per-rule severity, and other FluentValidation execution semantics are not reproduced by the emitted rule statements. A recognized rule inside a condition can become **unconditional** on the client. Do not assume unsupported semantics are safely skipped; inspect and test generated behavior.
+- Conditions (`When`/`Unless`), rule sets, cascade behavior, runtime-dependent severity, and other FluentValidation execution semantics are not reproduced by the emitted rule statements. A recognized rule inside a condition can become **unconditional** on the client. Do not assume unsupported semantics are safely skipped; inspect and test generated behavior.
 - Nested object/collection validation is not a general object-graph translation. Keep server-only rules in an appropriate server-only form and test boundary values against both client and server.
 - Constructors run during extraction. A parameterless constructor is preferred; otherwise reference dependencies are passed as `null` and value dependencies receive default values. If construction or reflection fails, extraction can return no FluentValidation rules. A green build is not proof that those rules were emitted.
 - Do not perform I/O or dereference services while constructing rules. Capturing a service for a deferred server predicate is different from calling it in the constructor.
