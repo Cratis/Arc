@@ -56,7 +56,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
                 m.MethodKind == MethodKind.Ordinary &&
                 m.IsStatic &&
                 m.TypeParameters.Length == 0 &&
-                m.DeclaredAccessibility == Accessibility.Public &&
+                m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
                 !m.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute") &&
                 IsValidQueryMethod(m, typeSymbol))
             .Select(m => m.Name)

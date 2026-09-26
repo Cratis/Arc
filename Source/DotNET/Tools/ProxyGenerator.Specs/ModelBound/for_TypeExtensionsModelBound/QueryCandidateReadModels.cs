@@ -16,12 +16,15 @@ public record QueryCandidateReadModel(int Id)
 
     private static IEnumerable<QueryCandidateReadModel> PrivateHelper() => [];
     internal static IEnumerable<QueryCandidateReadModel> InternalHelper() => [];
+    public static IEnumerable<DerivedQueryCandidateReadModel> Derived() => [];
     [CompilerGenerated]
     public static QueryCandidateReadModel Generated() => new(0);
     public static QueryCandidateReadModel Default => new(0);
     public static IEnumerable<string> WrongCollection() => [];
     public static string WrongScalar() => string.Empty;
 }
+
+public record DerivedQueryCandidateReadModel() : QueryCandidateReadModel(0);
 
 [ReadModel]
 public record ReadModelWithOnlyLocalFunction(int Id)

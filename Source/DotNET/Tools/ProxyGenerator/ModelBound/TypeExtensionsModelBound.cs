@@ -55,10 +55,10 @@ public static class TypeExtensionsModelBound
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).SingleOrDefault(_ => _.Name == "Handle") != null;
 
     /// <summary>
-    /// Determine if a type has public static methods that can be queries.
+    /// Determine if a type has public or internal static methods that can be queries.
     /// </summary>
     /// <param name="type">Type to inspect.</param>
-    /// <returns>True if the type has public static methods, false otherwise.</returns>
+    /// <returns>True if the type has public or internal static methods, false otherwise.</returns>
     public static bool HasQueryMethods(this Type type) =>
         type.GetQueryMethods().Any();
 
@@ -121,10 +121,10 @@ public static class TypeExtensionsModelBound
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).Single(_ => _.Name == "Handle");
 
     /// <summary>
-    /// Get all public static methods from a type that can be queries.
+    /// Get all public or internal static methods from a type that can be queries.
     /// </summary>
     /// <param name="type">Type to inspect.</param>
-    /// <returns>Collection of public static methods.</returns>
+    /// <returns>Collection of public or internal static methods.</returns>
     public static IEnumerable<MethodInfo> GetQueryMethods(this Type type) =>
         type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
             .Where(_ => ModelBoundQueryMethod.IsCandidate(_) && _.IsValidQueryFor(type));
@@ -141,6 +141,6 @@ public static class TypeExtensionsModelBound
         return new[] { type }.Concat(type.GetInterfaces())
             .Any(_ => _.IsGenericType &&
                 _.GetGenericTypeDefinition().FullName == "System.Collections.Generic.IEnumerable`1" &&
-                _.GetGenericArguments()[0] == elementType);
+                elementType.IsAssignableFrom(_.GetGenericArguments()[0]));
     }
 }

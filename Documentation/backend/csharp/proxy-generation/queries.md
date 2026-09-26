@@ -5,7 +5,7 @@ description: Query discovery, parameter names, hook tuples, and paging eligibili
 
 ## Discovery and output
 
-The generator supports [controller-based queries](../queries/controller-based/index.md) with `[HttpGet]` and eligible static query methods on model-bound `[ReadModel]` types. Only public static methods with supported return shapes qualify: private and internal helpers, compiler-generated methods (including local functions), special-name methods, and open generic methods are excluded. Injected dependencies are not client parameters. See [model-bound queries](../queries/model-bound/index.md) for backend definitions.
+The generator supports [controller-based queries](../queries/controller-based/index.md) with `[HttpGet]` and eligible static query methods on model-bound `[ReadModel]` types. Only public or internal static methods with supported return shapes qualify: private helpers, compiler-generated methods (including local functions), special-name methods, and open generic methods are excluded. Injected dependencies are not client parameters. See [model-bound queries](../queries/model-bound/index.md) for backend definitions.
 
 One-shot queries return a scalar model or collection. A model-bound observable query returns `ISubject<T>` of the read model or a collection of it, and generates an observable client; the runtime does not discover a model-bound method returning a bare `IObservable<T>`, and [ARC0001](../code-analysis/ARC0001.md) reports it. A model-bound method returning `IAsyncEnumerable<T>` is served at runtime but currently gets **no** generated proxy, so call it without a proxy or return `ISubject<T>` instead. Their transport can be SSE or WebSocket; the backend source must actually emit updates. No Chronicle integration is required.
 

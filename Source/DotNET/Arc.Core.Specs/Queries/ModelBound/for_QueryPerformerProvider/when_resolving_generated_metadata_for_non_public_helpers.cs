@@ -31,5 +31,7 @@ public class when_resolving_generated_metadata_for_non_public_helpers : Specific
 
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
-    [Fact] void should_only_resolve_the_public_query() => _provider.Performers.Select(_ => _.FullyQualifiedName.Value).Single().ShouldEqual($"{typeof(QueryCandidateReadModel).FullName}.{nameof(QueryCandidateReadModel.ById)}");
+    [Fact] void should_resolve_only_two_queries() => _provider.Performers.Count().ShouldEqual(2);
+    [Fact] void should_resolve_the_public_query() => _provider.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(QueryCandidateReadModel).FullName}.{nameof(QueryCandidateReadModel.ById)}").ShouldBeTrue();
+    [Fact] void should_resolve_the_internal_query() => _provider.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(QueryCandidateReadModel).FullName}.InternalHelper").ShouldBeTrue();
 }

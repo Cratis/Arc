@@ -27,5 +27,5 @@ public class when_initializing_with_internal_read_model : Specification
 
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
-    [Fact] void should_not_expose_an_internal_method() => _provider.Performers.ShouldBeEmpty();
+    [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
 }

@@ -11,13 +11,13 @@ namespace Cratis.Arc.Queries.ModelBound;
 internal static class ModelBoundQueryMethod
 {
     /// <summary>
-    /// Checks whether a method is an ordinary, publicly declared static query candidate.
+    /// Checks whether a method is an ordinary public or internal static query candidate.
     /// </summary>
     /// <param name="method">The method to check.</param>
     /// <returns>True when the method is eligible for query return-type validation.</returns>
     /// <remarks>Attribute names are compared rather than runtime types because proxy generation uses MetadataLoadContext.</remarks>
     internal static bool IsCandidate(MethodInfo method) =>
-        method.IsPublic &&
+        (method.IsPublic || method.IsAssembly) &&
         method.IsStatic &&
         !method.IsSpecialName &&
         !method.Name.Contains('<') &&

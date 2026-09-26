@@ -36,6 +36,8 @@ public class when_discovering_metadata_loaded_query_candidates : Specification
 
     void Destroy() => _context.Dispose();
 
-    [Fact] void should_discover_one_query() => _methods.Length.ShouldEqual(1);
-    [Fact] void should_discover_the_public_collection_query() => _methods.Single().Name.ShouldEqual(nameof(QueryCandidateReadModel.All));
+    [Fact] void should_discover_three_queries() => _methods.Length.ShouldEqual(3);
+    [Fact] void should_discover_the_public_collection_query() => _methods.Any(_ => _.Name == nameof(QueryCandidateReadModel.All)).ShouldBeTrue();
+    [Fact] void should_discover_the_internal_query() => _methods.Any(_ => _.Name == "InternalHelper").ShouldBeTrue();
+    [Fact] void should_discover_the_derived_collection_query() => _methods.Any(_ => _.Name == nameof(QueryCandidateReadModel.Derived)).ShouldBeTrue();
 }

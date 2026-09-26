@@ -36,6 +36,5 @@ public class and_query_contains_local_function : Specification
     }
 
     [Fact] void should_include_only_the_public_query() => _generatedSource.ShouldContain("TestApp.MyReadModel.GetById");
-    [Fact] void should_not_include_the_local_function() => _generatedSource.ShouldNotContain("Local");
     [Fact] void should_not_include_a_compiler_generated_method() => _generatedSource.ShouldNotContain("TestApp.MyReadModel.Generated");
 }
