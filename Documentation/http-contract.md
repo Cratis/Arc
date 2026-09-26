@@ -35,8 +35,8 @@ HTTP evidence that backs the JVM side.
 | `/.cratis/queries/sse` | `GET` | Multiplexed SSE hub; the stream opens with a `Connected` message carrying the connection ID. |
 | `/.cratis/queries/sse/subscribe` | `POST` | Adds or revision-replaces a subscription on an established SSE connection. |
 | `/.cratis/queries/sse/unsubscribe` | `POST` | Cancels a subscription or records its revision tombstone. |
-| `/.cratis/commands` | `GET` | Anonymous command introspection metadata. |
-| `/.cratis/queries` | `GET` | Anonymous query introspection metadata. |
+| `/.cratis/commands` | `GET` | Command introspection metadata; anonymous by default. See [the divergence note](#introspection-access-is-configurable-on-net). |
+| `/.cratis/queries` | `GET` | Query introspection metadata; anonymous by default. See [the divergence note](#introspection-access-is-configurable-on-net). |
 | `/.cratis/queries/health` | `GET`, `QUERY` | Current observable connection and subscription health, served as an observable query. |
 | `/.cratis/me` | `GET` | Registered only when an identity details provider is registered. |
 | `/.cratis/identity-details/schema` | `GET` | Always registered; returns `{}` when no provider is registered. |
@@ -220,8 +220,10 @@ recognizes the request decides the outcome:
   request at all.
 
 An artifact marked to allow anonymous access proceeds without an authenticated result.
-The introspection, development-user, development-tenant, and identity-schema routes are
-anonymous endpoints.
+The development-user, development-tenant, and identity-schema routes are anonymous
+endpoints. The introspection routes are anonymous by default; the C# host can unmap them
+or require authentication (see
+[Introspection access is configurable on .NET](#introspection-access-is-configurable-on-net)).
 
 `/.cratis/commands` returns, for each command, its name, namespace, route, type, a
 single-line documentation summary taken from the source language's doc comments (empty
@@ -229,10 +231,11 @@ when the artifact carries none), and a JSON schema for the payload. `/.cratis/qu
 returns the same for each query plus its fully qualified query name and an arguments
 schema whose `required` list holds the parameters the query actually requires.
 
-:::caution[Introspection is anonymous on both implementations]
-These endpoints expose operation names, types, routes, and schemas to any caller,
-regardless of whether that caller may execute the operations. If that metadata is
-sensitive, restrict these exact paths at trusted ingress.
+:::caution[Introspection is anonymous by default]
+In their default configuration these endpoints expose operation names, types, routes, and
+schemas to any caller, regardless of whether that caller may execute the operations. On
+the JVM they are always anonymous. If that metadata is sensitive, restrict these exact
+paths at trusted ingress, or on C# configure the introspection options.
 :::
 
 ## Command result envelope
@@ -544,6 +547,33 @@ tenant header explicitly rather than relying on host-side inference.
 
 **Why it matters**: the 401 a client sees is the same either way, but *where* credentials
 are validated - and therefore which configuration governs them - is not.
+
+### Introspection access is configurable on .NET
+
+- **C#**: `Cratis:Arc:Introspection` controls `/.cratis/commands` and `/.cratis/queries`.
+  `Enabled` (default `true`) maps or unmaps both routes. `RequireAuthentication` (default
+  `false`) makes an anonymous request return 401. `Roles` (default unset, requires
+  `RequireAuthentication`) makes a caller without any listed role receive 403.
+  `TrustForwardedIdentityHeaders` (default `false`) is the opt-in to accept identity from
+  unsigned forwarded headers for the protected catalog:
+  - Under ASP.NET Core, when the default authentication scheme is the unsigned
+    forwarded-header scheme, startup rejects `RequireAuthentication: true` unless the
+    opt-in is set.
+  - Under the `HttpListener` host, the built-in forwarded-header handler ignores those
+    headers for the protected catalog without the opt-in, and startup rejects a
+    configuration whose only handler is that one. A custom handler that relies on
+    forwarded headers must check the opt-in itself and return an anonymous result
+    without it, so the request returns 401.
+  - With no authentication handler at all, a request to an endpoint marked as requiring
+    authentication fails with `AuthenticationRequiredWithoutHandlers` rather than
+    proceeding.
+- **JVM**: the introspection routes are always anonymous; there is no option to unmap or
+  protect them.
+
+**Why it matters**: a client or tool reading the catalog can get 401 or 403, or a missing
+route, from a C# host but not from a JVM host. Only opt in to forwarded identity headers
+behind trusted ingress that authenticates callers, strips client-supplied identity
+headers, and prevents direct backend access.
 
 ### Correlation identifier edge cases
 

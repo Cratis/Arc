@@ -85,11 +85,15 @@ The handler requires all three headers, rejects an invalid principal representat
 > [!WARNING]
 > These headers are not signed credentials. Deploy this mechanism only behind trusted ingress that authenticates callers, strips caller-supplied identity headers, writes its own values, and prevents direct access to the backend. A custom `X-User-ID` or `X-User-Role` header needs the same protections. Adding a bearer validator does not make a separately accepted forwarded-header mechanism safe.
 
+For protected introspection catalogs, this handler ignores the forwarded headers and returns `AuthenticationResult.Anonymous` unless `Cratis:Arc:Introspection:TrustForwardedIdentityHeaders` is `true`. If it is the only registered handler, startup rejects `RequireAuthentication: true` without that opt-in. See [Introspection](../introspection/index.md#arccore-httplistener-host).
+
+Arc cannot detect a custom handler that reads forwarded headers. If yours does, check the same option through `IOptions<ArcOptions>` and return `AuthenticationResult.Anonymous` when it is `false` and `context.GetEndpointMetadata()?.RequireAuthentication == true`. The request then returns 401.
+
 In the ASP.NET Core package, the corresponding registration is `builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication()`. It is not the Core registration API. See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for that host's setup and local-development principals.
 
 ## Endpoint enforcement and limits
 
-The lightweight authentication middleware installs the successful principal on `IHttpRequestContext.User`. With handlers present, an endpoint not explicitly allowing anonymous access returns HTTP 401 if authentication does not succeed. An endpoint with `AllowAnonymous = true` proceeds even when credentials fail. If **no handlers** are available, the middleware currently proceeds without authenticating; metadata alone is not a fail-closed protection in that configuration.
+The lightweight authentication middleware installs the successful principal on `IHttpRequestContext.User`. With handlers present, an endpoint not explicitly allowing anonymous access returns HTTP 401 if authentication does not succeed. An endpoint with `AllowAnonymous = true` proceeds even when credentials fail. If **no handlers** are available, the middleware proceeds without authenticating, except for an endpoint whose metadata sets `RequireAuthentication = true`: for that endpoint it throws `AuthenticationRequiredWithoutHandlers` (`Cratis.Arc.Http`) instead of letting the request through. Metadata without `RequireAuthentication` is not a fail-closed protection in that configuration.
 
 Every handler still runs on an `AllowAnonymous` endpoint, even when it ultimately lets the request through, because establishing `context.User` there is often still wanted - Arc's own identity and observable query demultiplexer endpoints, and introspection by default, are anonymous yet can still depend on the principal being set for a signed-in caller. Introspection can instead require authentication through `ArcOptions.Introspection`. A handler that only ever *rejects* - never establishes an identity worth keeping - should not do that rejection work, including any logging, for a request the endpoint never required a credential for.
 
