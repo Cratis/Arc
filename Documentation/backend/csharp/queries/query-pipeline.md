@@ -54,6 +54,23 @@ Use `QueryResult.Unauthorized(context.CorrelationId)` for denial, not an input-v
 
 For input rules, follow [query validation](validation.md). For roles, policies, and schemes on queries, see [model-bound authorization](model-bound/authorization.md) and [authorization](../core/authorization.md).
 
+## Compose outside `AddCratisArc`
+
+If your host builds its own service collection, register the pipeline and its authorization-principal scope alongside your query services. This is a registration fragment for an existing `IServiceCollection` named `services`, not a standalone host:
+
+```csharp
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries;
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddTransient<AuthorizationPrincipalScope>();
+services.AddTransient<IQueryPipeline, QueryPipeline>();
+```
+
+Supply the pipeline's constructor services: `ICorrelationIdAccessor`, `IQueryContextManager`, `IQueryFilters`, `IQueryPerformerProviders`, `IQueryRenderers`, `IReadModelInterceptors`, `IDiscoverableValidators`, and `IActivitySource<QueryPipeline>`. Supply `CurrentPrincipalAccessor`, `IAuthorizationPolicyRuntime`, `TenantIdAccessor`, and `ITenantIdResolver` for `AuthorizationPrincipalScope`; the two concrete accessors also need `IHttpRequestContextAccessor` and `ITenantIdResolver`, respectively. Register a runtime appropriate to your host; `ArcAuthorizationPolicyRuntime` does not authenticate named schemes. Pass an execution-scoped `IServiceProvider` to `IQueryPipeline.Perform`. The pipeline resolves `AuthorizationPrincipalScope` only when authorization supplies a selected principal, so a successful ordinary query does not prove that the scope is registered. `Begin` remains internal; host code should not manipulate it directly.
+
+If you want all Core services rather than manual composition, `IServiceCollection.AddCratisArcCore()` registers these services and the rest of Arc Core. It does not configure the ASP.NET Core host or map endpoints; see [Core configuration](../configuration/index.md).
+
 ## Query result metadata
 
 The backend `Cratis.Arc.Queries.QueryResult` is **nongeneric**, with `object Data`. Generated TypeScript query results can be typed; that does not create a C# `QueryResult<T>` API. Normal query methods return data rather than constructing this infrastructure envelope.
