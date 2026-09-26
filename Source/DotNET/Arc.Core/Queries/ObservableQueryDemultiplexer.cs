@@ -441,13 +441,29 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         Action onCompleted,
+        CancellationToken token) =>
+        SubscribeToStreamingData(context, streamingData, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, null, token);
+
+    IDisposable? SubscribeToStreamingData(
+        IHttpRequestContext context,
+        object streamingData,
+        string queryId,
+        PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
+        Func<QueryResult, CancellationToken, Task> onNext,
+        Func<string, string, CancellationToken, Task> onError,
+        Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
+        QueryContext? authorizedQueryContext,
         CancellationToken token)
     {
         var type = streamingData.GetType();
 
         if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
         {
-            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
+            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token);
         }
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
@@ -895,7 +911,7 @@ public class ObservableQueryDemultiplexer(
             IDisposable? subscription = null;
             try
             {
-                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
+                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, queryResult.AuthorizedQueryContext, token);
                 if (subscription is StreamingQuerySubscription lifetime && ownedScope is not null)
                 {
                     lifetime.AddResource(ownedScope);
@@ -930,6 +946,7 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         Action onCompleted,
+        QueryContext? authorizedQueryContext,
         CancellationToken token)
     {
         var elementType = subjectType.GetInterfaces()
@@ -940,7 +957,7 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, token])!;
+        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token])!;
     }
 
     StreamingQuerySubscription SubscribeToSubjectOfType<T>(
@@ -955,6 +972,7 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         Action onCompleted,
+        QueryContext? authorizedQueryContext,
         CancellationToken token)
     {
         IEnumerable<object>? previousItems = null;
@@ -968,11 +986,9 @@ public class ObservableQueryDemultiplexer(
         // when the underlying subject delivers the next value before the previous one has finished interception.
         var emissionGate = new SemaphoreSlim(1, 1);
 
-        // Capture the per-subscription query context here, while the AsyncLocal still carries the
-        // context set up by the query pipeline. Observer callbacks below are invoked from the MongoDB
-        // change-stream thread, where AsyncLocal flow does not reach, so reading the manager from
-        // inside the callback would return QueryContext.NotSet and overwrite the real paging info.
-        var subscriptionQueryContext = queryContextManager.Current;
+        // The pipeline's context survives its AsyncLocal boundary. Keep the instance so provider updates to
+        // TotalItems remain visible on later emissions; custom pipelines can still use the ambient context.
+        var subscriptionQueryContext = authorizedQueryContext ?? queryContextManager.Current;
 
         var interceptionScope = serviceProvider.CreateScope();
         var lifetime = new StreamingQuerySubscription(token);
