@@ -9,7 +9,7 @@ namespace Cratis.Arc;
 internal static class OperationContextScope
 {
     static readonly AsyncLocal<DateTimeOffset?> _receivedAt = new();
-    static readonly AsyncLocal<bool> _forwardTransportReceipt = new();
+    static readonly AsyncLocal<ForwardingState?> _forwardTransportReceipt = new();
 
     /// <summary>Gets the receipt time for the active operation.</summary>
     internal static DateTimeOffset? Current => _receivedAt.Value;
@@ -34,7 +34,7 @@ internal static class OperationContextScope
     internal static IDisposable ForwardTransportReceipt()
     {
         var previous = _forwardTransportReceipt.Value;
-        _forwardTransportReceipt.Value = true;
+        _forwardTransportReceipt.Value = new ForwardingState();
         return new RestoreForwarding(previous);
     }
 
@@ -43,16 +43,22 @@ internal static class OperationContextScope
     /// <returns>A lease for a new receipt, or null when the transport owns it.</returns>
     internal static IDisposable? BeginPipeline(IServiceProvider? services)
     {
-        if (_forwardTransportReceipt.Value && Current is not null)
+        if (_forwardTransportReceipt.Value is { Available: true } forwarding && Current is not null)
         {
-            _forwardTransportReceipt.Value = false;
+            // A shared state is needed: AsyncLocal assignments inside an awaited pipeline do not flow back to its caller.
+            forwarding.Available = false;
             return null;
         }
 
         return Begin(services);
     }
 
-    sealed class RestoreForwarding(bool previous) : IDisposable
+    sealed class ForwardingState
+    {
+        public bool Available { get; set; } = true;
+    }
+
+    sealed class RestoreForwarding(ForwardingState? previous) : IDisposable
     {
         public void Dispose() => _forwardTransportReceipt.Value = previous;
     }

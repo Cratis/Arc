@@ -21,16 +21,25 @@ public class when_a_decorated_pipeline_forwards_a_transport_receipt : Specificat
         using (OperationContextScope.Begin(services))
         {
             using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
-            await Task.Yield();
-            using var pipelineReceipt = OperationContextScope.BeginPipeline(services);
-            _forwarded = new OperationContextAccessor().ReceivedAt;
-            using (OperationContextScope.BeginPipeline(services))
-            {
-                _nested = new OperationContextAccessor().ReceivedAt;
-            }
+            await EnterPublicPipeline();
+            await EnterPublicPipeline();
             _restored = new OperationContextAccessor().ReceivedAt;
         }
         _after = new OperationContextAccessor().ReceivedAt;
+
+        async Task EnterPublicPipeline()
+        {
+            using var receipt = OperationContextScope.BeginPipeline(services);
+            await Task.Yield();
+            if (_forwarded is null)
+            {
+                _forwarded = new OperationContextAccessor().ReceivedAt;
+            }
+            else
+            {
+                _nested = new OperationContextAccessor().ReceivedAt;
+            }
+        }
     }
 
     [Fact] void should_preserve_the_receipt_through_the_forwarded_entry() => _forwarded.ShouldEqual(_received);
