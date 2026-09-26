@@ -48,7 +48,7 @@ See [Microsoft Identity integration](microsoft-identity.md) for one authenticati
 ASP.NET's fallback policy applies to endpoints without applicable authorization metadata. Its default policy applies when Microsoft `[Authorize]` supplies no named policy. Explicit anonymous metadata bypasses these policies.
 
 > [!WARNING]
-> Normal Arc activation maps development-user/tenant discovery, introspection, and identity-schema endpoints with anonymous metadata, including in Production. A fallback policy does **not** protect them. Review [production discovery exposure](../introspection/index.md) and restrict access at trusted ingress where necessary. Do not assume the word “development” is an environment check.
+> Normal Arc activation maps development-user/tenant discovery and identity-schema endpoints with anonymous metadata, including in Production. Command/query introspection also defaults to anonymous, but can be disabled or protected through `ArcOptions.Introspection`. A fallback policy does **not** protect endpoints that remain explicitly anonymous. Review [production discovery exposure](../introspection/index.md) and restrict other discovery routes at trusted ingress where necessary. Do not assume the word “development” is an environment check.
 
 ## Role-based authorization
 

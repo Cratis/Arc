@@ -39,6 +39,8 @@ Configuration-bindable settings can be supplied three ways, layered in this orde
 builder.AddCratisArc(options =>
 {
     options.GeneratedApis.RoutePrefix = "v1/api";   // overrides appsettings / env
+    options.Introspection.RequireAuthentication = true;
+    options.Introspection.Roles = "Administrator,Operator";
 });
 ```
 
@@ -55,6 +57,10 @@ builder.AddCratisArc(options =>
 | `Tenancy.ClaimType` | `string` | `tenant_id` | The claim used when `ResolverType` is `Claim`. |
 | `Tenancy.FixedTenantId` | `string` | `development` | The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. |
 | `Tenancy.DevelopmentTenantId` | `string` | `development` | The same value under its original name — reading or writing either key sets both. Supply only one; if both are present the binder's property order decides. |
+| `Introspection.Enabled` | `bool` | `true` | Map both command and query catalog routes. Set to `false` to remove both routes. |
+| `Introspection.RequireAuthentication` | `bool` | `false` | Require an authenticated caller for both catalog routes. Requires a default ASP.NET Core authentication scheme plus `AddAuthorization()`, or a non-header Arc.Core authentication handler (unless forwarded headers are explicitly trusted). |
+| `Introspection.Roles` | `string?` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true`. No named policy option is provided. |
+| `Introspection.TrustForwardedIdentityHeaders` | `bool` | `false` | Arc.Core only: allow its built-in identity-header handler for protected catalog routes. Requires enabled introspection and authentication; use only behind an ingress that authenticates and strips client identity headers. |
 | `GeneratedApis.RoutePrefix` | `string` | `api` | Base prefix for generated command and query routes. |
 | `GeneratedApis.SegmentsToSkipForRoute` | `int` | `0` | Namespace segments to drop when building a route. |
 | `GeneratedApis.IncludeCommandNameInRoute` | `bool` | `true` | Append the command name as the last route segment. |
@@ -64,6 +70,24 @@ builder.AddCratisArc(options =>
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |
 | `Hosting.ApplicationUrl` | `string` | `http://+:5001/` | The listen URL — **Arc.Core only** (ignored under ASP.NET Core). |
 | `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | Generated Arc endpoints use these options; manual serialization must opt in. MVC receives only the naming policy and converters, not null/number handling or other settings. Configure in code only; see the [MVC serialization boundary](../asp-net-core/configuration.md#json-serialization). |
+
+For example, the equivalent `appsettings.json` keys are:
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "Introspection": {
+        "Enabled": true,
+        "RequireAuthentication": true,
+        "Roles": "Administrator,Operator"
+      }
+    }
+  }
+}
+```
+
+These settings cover the command and query catalogs, not the separately mapped identity-details schema. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
 
