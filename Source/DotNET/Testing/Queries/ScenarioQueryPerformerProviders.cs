@@ -19,7 +19,7 @@ internal sealed class ScenarioQueryPerformerProviders<TReadModel>(IServiceProvid
 {
     readonly Dictionary<FullyQualifiedQueryName, IQueryPerformer> _performers = typeof(TReadModel)
         .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-        .Where(method => typeof(TReadModel).IsReadModel() && method.IsValidQueryFor(typeof(TReadModel)))
+        .Where(method => typeof(TReadModel).IsReadModel() && ModelBoundQueryMethod.IsCandidate(method) && method.IsValidQueryFor(typeof(TReadModel)))
         .Select(method => new ModelBoundQueryPerformer(
             typeof(TReadModel),
             typeof(TReadModel).FullName ?? typeof(TReadModel).Name,
