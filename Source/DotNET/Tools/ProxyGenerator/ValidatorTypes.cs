@@ -46,6 +46,16 @@ internal static class ValidatorTypes
             : null;
     }
 
+    /// <summary>
+    /// Finds a validator using a supplied type loader, for testing assembly load failures.
+    /// </summary>
+    /// <param name="generatedAssembly">The assembly to inspect.</param>
+    /// <param name="type">The type being validated.</param>
+    /// <param name="loadTypes">The loader for types from the assembly.</param>
+    /// <returns>The matching validator, or null if none exists.</returns>
+    internal static Type? Find(Assembly generatedAssembly, Type type, Func<Assembly, Type[]> loadTypes) =>
+        Index(generatedAssembly, loadTypes).TryGetValue(type, out var validator) ? validator : null;
+
     static bool IsFrameworkAssembly(Assembly assembly)
     {
         var name = assembly.GetName().Name;
@@ -54,45 +64,40 @@ internal static class ValidatorTypes
             name.StartsWith("Microsoft.", StringComparison.Ordinal));
     }
 
-    static Dictionary<Type, Type> Index(Assembly assembly)
+    static Dictionary<Type, Type> Index(Assembly assembly) => Index(assembly, _ => _.GetTypes());
+
+    static Dictionary<Type, Type> Index(Assembly assembly, Func<Assembly, Type[]> loadTypes)
     {
         Type[] types;
         try
         {
-            types = assembly.GetTypes();
+            types = loadTypes(assembly);
         }
         catch (ReflectionTypeLoadException exception)
         {
-            // An unloadable unrelated type must not hide validators that were loaded successfully.
-            types = [.. exception.Types.OfType<Type>()];
+            throw new ValidatorTypesCouldNotBeLoaded(assembly, exception);
         }
 
         var validators = new Dictionary<Type, Type>();
         foreach (var candidate in types.OrderBy(_ => _.FullName, StringComparer.Ordinal))
         {
-            try
+            if (candidate.IsAbstract || candidate.IsInterface)
             {
-                if (candidate.IsAbstract || candidate.IsInterface)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                for (var baseType = candidate.BaseType; baseType is not null; baseType = baseType.BaseType)
+            for (var baseType = candidate.BaseType; baseType is not null; baseType = baseType.BaseType)
+            {
+                if (baseType.IsGenericType && _validatorBaseTypes.Contains(baseType.GetGenericTypeDefinition().FullName!))
                 {
-                    if (baseType.IsGenericType && _validatorBaseTypes.Contains(baseType.GetGenericTypeDefinition().FullName!))
+                    var validatedType = baseType.GetGenericArguments()[0];
+                    if (validators.TryGetValue(validatedType, out var existing) && existing != candidate)
                     {
-                        var validatedType = baseType.GetGenericArguments()[0];
-                        validators.TryAdd(validatedType, candidate);
+                        throw new MultipleValidatorsForType(validatedType, existing, candidate);
                     }
+
+                    validators.TryAdd(validatedType, candidate);
                 }
-            }
-            catch (TypeLoadException)
-            {
-                // An unresolved base type does not invalidate other validators in the same assembly.
-            }
-            catch (FileNotFoundException)
-            {
-                // A referenced assembly may be missing even if this candidate type was loaded.
             }
         }
 
