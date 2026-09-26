@@ -28,7 +28,7 @@ public class when_evaluating_guest_policies_from_both_attribute_families : given
             .AddPolicy("Private", policy => policy.RequireAssertion(_ => false))
             .AddPolicy("Default", policy => policy.RequireAssertion(_ => true))
             .AddPolicy("Authenticated", policy => policy.RequireAuthenticatedUser().RequireAssertion(_ => true));
-        registrations.AddArcAnonymousAspNetAuthorizationPolicy("public");
+        registrations.AddArcAnonymousAspNetAuthorizationPolicy("Public");
         registrations.AddArcAnonymousAspNetAuthorizationPolicy("Private");
         registrations.AddArcAnonymousAspNetAuthorizationPolicy("Authenticated");
         registrations.AddArcAuthorizationPolicy<GuestNativePolicy>("NativeOpted", evaluatesAnonymous: true);

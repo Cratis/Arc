@@ -48,7 +48,7 @@ public class AspNetAuthorizationPolicyRuntime(
     public async Task Validate(IReadOnlyList<AuthorizationRequirement> requirements, IServiceProvider services, CancellationToken cancellationToken)
     {
         var provider = services.GetService<IAuthorizationPolicyProvider>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var name in _anonymousPolicyNames)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -100,7 +100,7 @@ public class AspNetAuthorizationPolicyRuntime(
             else
             {
                 aspPolicies.Add(aspPolicy!);
-                aspPoliciesEvaluateAnonymous &= _anonymousPolicyNames.Contains(requirement.Policy, StringComparer.OrdinalIgnoreCase) &&
+                aspPoliciesEvaluateAnonymous &= _anonymousPolicyNames.Contains(requirement.Policy, StringComparer.Ordinal) &&
                     !aspPolicy!.Requirements.OfType<DenyAnonymousAuthorizationRequirement>().Any();
                 schemes.AddRange(aspPolicy.AuthenticationSchemes);
             }
