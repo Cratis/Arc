@@ -16,7 +16,7 @@ Use attributes from `Cratis.Arc.Authorization`:
 | `[Roles("Admin", "Manager")]` | The same OR-role check; derives from Arc's `AuthorizeAttribute`. |
 | `[Authorize(Policy = "ActiveSubscription")]` | Requires authentication and the named policy to succeed asynchronously. |
 | `[AllowAnonymous]` | Explicitly allows anonymous access. |
-| No authorization attribute | No authentication or role requirement from the Arc evaluator. |
+| No authorization attribute | No authentication or role requirement unless a fallback evaluator supplies one. |
 
 Every authorization attribute on a declaration applies: stacked roles and policies are combined with AND. Register each policy before starting the host; an unknown or duplicate policy fails startup, and an unresolved policy at runtime never grants access. The standalone Arc host cannot authenticate named schemes: `AuthenticationSchemes` fails startup (and [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) flags it). Use [ASP.NET Core integration](../asp-net-core/authorization.md) for actual scheme authentication.
 
@@ -87,6 +87,29 @@ public record ServiceStatus(string State)
 ```
 
 Method authorization takes precedence over type authorization. Arc rejects conflicting `[Authorize]` and `[AllowAnonymous]` on the same target with `AmbiguousAuthorizationLevel`; do not combine them.
+
+## Set baseline requirements without overriding anonymous access
+
+Implement `IFallbackAuthorizationEvaluator` when you want an authentication or role requirement for commands and queries that have no explicit authorization declaration. Arc discovers implementations by convention; do not register one manually. This example requires the `Member` role by default in an existing Arc host:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Cratis.Arc.Authorization;
+
+public class MembersByDefault : IFallbackAuthorizationEvaluator
+{
+    public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
+        [AuthorizationRequirement.FromRoles("Member")];
+
+    public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) => [];
+}
+```
+
+An unannotated command type and an unannotated query method now require the `Member` role. On queries, Arc first checks the method and its declaring type for explicit declarations; only if neither has one does it consult the fallback evaluators. The type and method fallback requirements then **all** apply, including requirements supplied by different evaluators. `[AllowAnonymous]` on a method permits anonymous access even when its type has a baseline; a method-level `[Authorize]` or type-level `[Authorize]` replaces the baseline. The same rule applies to controller-based queries executed through Arc's query pipeline. MVC controller actions, including controller-based commands, use ASP.NET Core's authorization boundary instead; configure its [`FallbackPolicy`](../asp-net-core/authorization.md#protecting-all-endpoints-by-default) to protect actions without authorization metadata. An unauthenticated or wrong-role caller is denied before an Arc command or query runs.
+
+Use `IAuthorizationAttributeEvaluator` only to report **explicit** declarations from another attribute family. Its requirements still conflict with `[AllowAnonymous]` on the same member and raise `AmbiguousAuthorizationLevel`; they do not turn into a baseline automatically. Baseline evaluators return requirements, not authorization verdicts or cached principal-specific results. For resource-dependent checks, use a named policy or a pipeline filter instead.
 
 ## The pipeline boundary
 

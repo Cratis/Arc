@@ -29,10 +29,9 @@ using Cratis.Arc;
 using Microsoft.AspNetCore.Authorization;
 
 builder.AddCratisArc();
-builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
+builder.Services.AddAuthorization(options => options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .Build());
 
 var app = builder.Build();
 app.UseAuthentication();
@@ -45,7 +44,9 @@ See [Microsoft Identity integration](microsoft-identity.md) for one authenticati
 
 ## Protecting all endpoints by default
 
-ASP.NET's fallback policy applies to endpoints without applicable authorization metadata. Its default policy applies when Microsoft `[Authorize]` supplies no named policy. Explicit anonymous metadata bypasses these policies.
+ASP.NET's `AuthorizationOptions.FallbackPolicy`, configured above with `builder.Services.AddAuthorization(...)`, applies to HTTP endpoints without applicable authorization metadata, including MVC controller actions. Its default policy applies when Microsoft `[Authorize]` supplies no named policy. Explicit anonymous metadata bypasses these policies.
+
+Arc's [`IFallbackAuthorizationEvaluator`](../core/authorization.md#set-baseline-requirements-without-overriding-anonymous-access) is separate: it supplies baseline requirements for model-bound commands and queries on both Arc hosts, and for controller-based queries executed through Arc's query pipeline in the ASP.NET Core host. It also covers server-side pipeline invocations that never pass through ASP.NET middleware. It does **not** authorize MVC controller actions, including controller-based commands; use ASP.NET Core's `FallbackPolicy` to require authorization for actions without explicit authorization metadata.
 
 > [!WARNING]
 > Normal Arc activation maps development-user/tenant discovery and identity-schema endpoints with anonymous metadata, including in Production. Command/query introspection also defaults to anonymous, but can be disabled or protected through `ArcOptions.Introspection`. A fallback policy does **not** protect endpoints that remain explicitly anonymous. Review [production discovery exposure](../introspection/index.md) and restrict other discovery routes at trusted ingress where necessary. Do not assume the word “development” is an environment check.
