@@ -169,6 +169,6 @@ The command returns `"isSuccess":true`, and the query's `data` array contains th
 
 ## Continue in the browser
 
-[Your first full-stack slice](/arc/tutorial/first-slice/) explains these same backend files and supplies the Vite bootstrap, Components prerequisites, providers, mounting, and dev proxy configuration; do not create a second copy of the backend types. [Frontend getting started](/arc/frontend/react/getting-started/) is the **Arc-only alternative for an existing Vite app**, using ordinary HTML without Components. With this tutorial's source-file grouping, use `./Authors/Author` for its `AllAuthors` import.
+[Your first full-stack slice](/arc/tutorial/first-slice/) explains these same backend files and supplies the Vite bootstrap, Components prerequisites, providers, mounting, and dev proxy configuration; do not create a second copy of the backend types. [Frontend getting started](/arc/frontend/react/getting-started/) is the **alternative for an existing Vite app**: an inline `CommandForm` with Components fields, plus a route without Components. With this tutorial's source-file grouping, use `./Authors/Author` for its `AllAuthors` import.
 
 Go deeper in [Commands](/arc/backend/csharp/commands/) and [Queries](/arc/backend/csharp/queries/). If you later choose event sourcing, [add Chronicle explicitly](/arc/backend/csharp/chronicle/add-event-sourcing/); retaining a query's public contract is a migration goal, not a guarantee that its storage implementation never changes.
