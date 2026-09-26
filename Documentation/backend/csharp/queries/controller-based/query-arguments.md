@@ -74,7 +74,7 @@ A filter on caller-supplied IDs is not owner authorization. This example deliber
 
 ## Defaults, sorting, and paging
 
-Nullable/defaulted scalar action arguments support optional input according to MVC's binding rules. For Arc-generated controller query endpoints, a supplied scalar that cannot be converted to its declared parameter type is rejected with HTTP 400 and a named validation error for both GET and QUERY; the action does not run. MVC's own model-binding responses can differ. For Arc paging, prefer returning `IQueryable<T>` and using [the paging context](paging.md) instead of slicing twice.
+Nullable/defaulted scalar action arguments support optional input according to MVC's binding rules. For Arc-generated controller query endpoints, invalid supplied scalars, concepts, and collection elements are rejected with HTTP 400 and a malformed-request validation error naming the argument and its type for both GET and QUERY; the action does not run. This includes nullable and defaulted concept parameters when an invalid value is supplied, rather than treating that value as missing. MVC's own model-binding responses can differ. For Arc paging, prefer returning `IQueryable<T>` and using [the paging context](paging.md) instead of slicing twice.
 
 If composing a MongoDB fluent query yourself, use expression-based sorting such as `SortBy(account => account.Name)`, or a `Builders<T>.Sort` definition passed to `Sort(...)`. There is no `SortBy(string)` overload. Constrain client-selectable sort fields to your intended public fields.
 
