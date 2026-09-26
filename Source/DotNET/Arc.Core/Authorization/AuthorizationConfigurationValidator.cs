@@ -42,7 +42,7 @@ public class AuthorizationConfigurationValidator(
             }
             else
             {
-                await runtime.Validate([], scope.ServiceProvider, cancellationToken);
+                throw new InvalidAuthorizationConfiguration("ASP.NET Core anonymous policy opt-ins require a runtime that validates them at startup.");
             }
         }
         foreach (var handler in handlers.Handlers)

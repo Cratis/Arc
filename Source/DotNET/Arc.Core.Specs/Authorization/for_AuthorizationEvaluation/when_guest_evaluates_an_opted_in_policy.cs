@@ -10,6 +10,7 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
 {
     bool _allowed;
     bool _denied;
+    bool _mutatedGuestDenied;
     bool _defaultDenied;
     bool _roleDenied;
     bool _stackedDenied;
@@ -39,6 +40,7 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
         _allowed = await evaluation.IsAuthorized(typeof(GuestCommand), new object(), services, CancellationToken.None);
         _guestWasEmpty = GuestPolicy.WasEmpty;
         _denied = await evaluation.IsAuthorized(typeof(RejectedCommand), new object(), services, CancellationToken.None);
+        _mutatedGuestDenied = await evaluation.IsAuthorized(typeof(MutatingGuestCommand), new object(), services, CancellationToken.None);
         _defaultDenied = await evaluation.IsAuthorized(typeof(DefaultCommand), new object(), services, CancellationToken.None);
         _roleDenied = await evaluation.IsAuthorized(typeof(RoleCommand), new object(), services, CancellationToken.None);
         _stackedDenied = await evaluation.IsAuthorized(typeof(StackedCommand), new object(), services, CancellationToken.None);
@@ -51,6 +53,7 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
     [Fact] void should_authorize_an_opted_in_guest() => _allowed.ShouldBeTrue();
     [Fact] void should_pass_an_empty_unauthenticated_principal() => _guestWasEmpty.ShouldBeTrue();
     [Fact] void should_obey_the_policy_rejection() => _denied.ShouldBeFalse();
+    [Fact] void should_deny_a_policy_that_mutates_the_synthetic_guest() => _mutatedGuestDenied.ShouldBeFalse();
     [Fact] void should_require_authentication_without_opt_in() => _defaultDenied.ShouldBeFalse();
     [Fact] void should_require_authentication_for_roles() => _roleDenied.ShouldBeFalse();
     [Fact] void should_require_every_stacked_requirement_to_opt_in() => _stackedDenied.ShouldBeFalse();
@@ -64,6 +67,9 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
 
     [Authorize(Policy = "Guest")]
     public record RejectedCommand;
+
+    [Authorize(Policy = "Guest")]
+    public record MutatingGuestCommand;
 
     [Authorize(Policy = "Default")]
     public record DefaultCommand;
@@ -89,6 +95,11 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
         public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken)
         {
             WasEmpty = context.Principal.Identity?.IsAuthenticated == false && !context.Principal.Claims.Any();
+            if (context.Target == typeof(MutatingGuestCommand))
+            {
+                context.Principal.AddIdentity(new ClaimsIdentity([new Claim("guest", "mutated")]));
+            }
+
             return ValueTask.FromResult(context.Target != typeof(RejectedCommand));
         }
     }
