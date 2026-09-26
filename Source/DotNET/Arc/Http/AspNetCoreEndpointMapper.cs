@@ -25,6 +25,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
 
     readonly HashSet<string> _mapped = new(StringComparer.Ordinal);
     IReadOnlySet<string>? _preExisting;
+    bool _trustForwardedIdentityHeaders;
 
     /// <summary>
     /// Gets the names of the endpoints that were already registered when this mapper started mapping.
@@ -68,6 +69,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         {
             throw new InvalidIntrospectionConfiguration("The default ASP.NET Core authentication scheme trusts unsigned x-ms-client-principal headers. Protected introspection requires a trusted ingress (such as Azure App Service or Container Apps EasyAuth) that strips and sets these headers. Set Cratis:Arc:Introspection:TrustForwardedIdentityHeaders=true to opt in, or use a different authentication scheme.");
         }
+        _trustForwardedIdentityHeaders = options.TrustForwardedIdentityHeaders;
     }
 
     void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
@@ -121,6 +123,21 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
                 policy.RequireRole(metadata.Roles.Split(',').Select(role => role.Trim()).ToArray());
             }
             builder.RequireAuthorization(policy.Build());
+
+            if ((metadata.Name == IntrospectionEndpointMapper.CommandsEndpointName ||
+                 metadata.Name == IntrospectionEndpointMapper.QueriesEndpointName) &&
+                !_trustForwardedIdentityHeaders)
+            {
+                builder.AddEndpointFilter(async (context, next) =>
+                {
+                    if (await UnsignedIdentityHeaderSchemes.AuthenticatedWithHeaders(context.HttpContext))
+                    {
+                        return Results.Challenge();
+                    }
+
+                    return await next(context);
+                });
+            }
         }
 
         if (metadata.RequestBodyType is not null)

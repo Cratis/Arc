@@ -39,6 +39,26 @@ internal static class UnsignedIdentityHeaderSchemes
         });
     }
 
+    /// <summary>
+    /// Detects an identity produced by the unsigned header handler, even when a policy or route group
+    /// forwards authentication to that handler after endpoint conventions have been applied.
+    /// </summary>
+    /// <param name="context">The catalog request.</param>
+    /// <returns>Whether the authenticated principal includes an unsigned header identity.</returns>
+    internal static async Task<bool> AuthenticatedWithHeaders(HttpContext context)
+    {
+        var schemes = context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>();
+        var headerSchemeNames = (await schemes.GetAllSchemesAsync())
+            .Where(scheme => typeof(MicrosoftIDentityPlatformAuthHandler).IsAssignableFrom(scheme.HandlerType))
+            .Select(scheme => scheme.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        // The header handler assigns Scheme.Name as the identity's AuthenticationType. Forwarding
+        // returns the target handler's ticket and preserves that type in the authorized principal.
+        return context.User.Identities.Any(identity => identity.IsAuthenticated &&
+            identity.AuthenticationType is { } authenticationType && headerSchemeNames.Contains(authenticationType));
+    }
+
     static bool FollowsHeaderScheme(IServiceProvider services, IAuthenticationSchemeProvider schemes, AuthenticationScheme scheme, bool headerRegistered)
     {
         var visited = new HashSet<string>(StringComparer.Ordinal);

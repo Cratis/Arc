@@ -552,13 +552,17 @@ are validated - and therefore which configuration governs them - is not.
 
 - **C#**: `Cratis:Arc:Introspection` controls `/.cratis/commands` and `/.cratis/queries`.
   `Enabled` (default `true`) maps or unmaps both routes. `RequireAuthentication` (default
-  `false`) makes an anonymous request return 401. `Roles` (default unset, requires
-  `RequireAuthentication`) makes a caller without any listed role receive 403.
+  `false`) makes an anonymous request return 401 on Arc.Core. `Roles` (default unset,
+  requires `RequireAuthentication`) makes a caller without any listed role receive 403
+  on Arc.Core. On ASP.NET Core, the response depends on the authentication scheme's
+  challenge or forbid behavior (for example, cookies can redirect).
   `TrustForwardedIdentityHeaders` (default `false`) is the opt-in to accept identity from
   unsigned forwarded headers for the protected catalog:
-  - Under ASP.NET Core, when the default authentication scheme is the unsigned
-    forwarded-header scheme, startup rejects `RequireAuthentication: true` unless the
-    opt-in is set.
+  - Under ASP.NET Core, startup rejects `RequireAuthentication: true` when the default
+    authentication scheme or a scheme in the default policy reaches the unsigned
+    forwarded-header handler, unless the opt-in is set. Catalog requests authenticated
+    through that handler are also challenged at runtime, including when a route group
+    or named policy supplies the scheme.
   - Under the `HttpListener` host, the built-in forwarded-header handler ignores those
     headers for the protected catalog without the opt-in, and startup rejects a
     configuration whose only handler is that one. A custom handler that relies on
