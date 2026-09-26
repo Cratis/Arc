@@ -29,6 +29,15 @@ public class AuthorizationConfigurationValidator(
         using var scope = scopeFactory.CreateScope();
         var declarations = scope.ServiceProvider.GetRequiredService<AuthorizationDeclarations>();
         var runtime = scope.ServiceProvider.GetRequiredService<IAuthorizationPolicyRuntime>();
+        if (scope.ServiceProvider.GetServices<AnonymousAspNetAuthorizationPolicyRegistration>().Any())
+        {
+            if (runtime is ArcAuthorizationPolicyRuntime)
+            {
+                throw new InvalidAuthorizationConfiguration("ASP.NET Core anonymous policy opt-ins require the ASP.NET Core Arc host.");
+            }
+
+            await runtime.Validate([], scope.ServiceProvider, cancellationToken);
+        }
         foreach (var handler in handlers.Handlers)
         {
             cancellationToken.ThrowIfCancellationRequested();

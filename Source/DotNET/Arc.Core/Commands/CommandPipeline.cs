@@ -282,7 +282,7 @@ public class CommandPipeline(
             }
 
             identityLease.Attach(AuthorizationCommandIdentity.Enter(
-                preparedAuthorization?.SelectedPrincipal ?? serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
+                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
                 scopeFactory));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
 

@@ -16,6 +16,8 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
     bool _guestWasEmpty;
     bool _sameDeclaration;
     bool _differentDeclaration;
+    bool _methodReplacesRoles;
+    bool _typeStillRequiresRoles;
 
     async Task Because()
     {
@@ -40,6 +42,8 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
         _defaultDenied = await evaluation.IsAuthorized(typeof(DefaultCommand), new object(), services, CancellationToken.None);
         _roleDenied = await evaluation.IsAuthorized(typeof(RoleCommand), new object(), services, CancellationToken.None);
         _stackedDenied = await evaluation.IsAuthorized(typeof(StackedCommand), new object(), services, CancellationToken.None);
+        _methodReplacesRoles = await evaluation.IsAuthorized(typeof(RestrictedReadModel).GetMethod(nameof(RestrictedReadModel.Public))!, new object(), services, CancellationToken.None);
+        _typeStillRequiresRoles = await evaluation.IsAuthorized(typeof(RestrictedReadModel), new object(), services, CancellationToken.None);
         _sameDeclaration = AuthorizationEvaluator.SameDeclaration(declarations.For(typeof(GuestCommand)), declarations.For(typeof(GuestCommand)));
         _differentDeclaration = AuthorizationEvaluator.SameDeclaration(declarations.For(typeof(GuestCommand)), declarations.For(typeof(RoleCommand)));
     }
@@ -50,6 +54,8 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
     [Fact] void should_require_authentication_without_opt_in() => _defaultDenied.ShouldBeFalse();
     [Fact] void should_require_authentication_for_roles() => _roleDenied.ShouldBeFalse();
     [Fact] void should_require_every_stacked_requirement_to_opt_in() => _stackedDenied.ShouldBeFalse();
+    [Fact] void should_allow_an_opted_in_method_replacing_type_roles() => _methodReplacesRoles.ShouldBeTrue();
+    [Fact] void should_still_deny_the_type_level_roles() => _typeStillRequiresRoles.ShouldBeFalse();
     [Fact] void should_compare_the_evaluated_declaration() => _sameDeclaration.ShouldBeTrue();
     [Fact] void should_not_reuse_the_guest_verdict_for_a_role_declaration() => _differentDeclaration.ShouldBeFalse();
 
@@ -68,6 +74,13 @@ public class when_guest_evaluates_an_opted_in_policy : Specification
     [Authorize(Policy = "Guest")]
     [Authorize]
     public record StackedCommand;
+
+    [Roles("Admin")]
+    public static class RestrictedReadModel
+    {
+        [Authorize(Policy = "Guest")]
+        public static void Public() { }
+    }
 
     public class GuestPolicy : IAuthorizationPolicy
     {

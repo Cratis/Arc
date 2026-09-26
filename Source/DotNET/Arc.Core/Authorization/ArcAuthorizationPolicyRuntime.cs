@@ -56,6 +56,12 @@ public class ArcAuthorizationPolicyRuntime(IEnumerable<AuthorizationPolicyRegist
         return matches.Length == 1;
     }
 
+    /// <summary>Detects a native name that would conflict with an ASP.NET Core anonymous opt-in.</summary>
+    /// <param name="name">The ASP.NET Core policy name.</param>
+    /// <returns>Whether a native policy has this name, ignoring case.</returns>
+    internal bool HasPolicyIgnoringCase(string name) =>
+        _registrations.Any(registration => string.Equals(registration.Name, name, StringComparison.OrdinalIgnoreCase));
+
     AuthorizationPolicyRegistration PolicyFor(string name) =>
         _registrations.Single(registration => registration.Name == name);
 
