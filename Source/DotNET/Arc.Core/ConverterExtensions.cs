@@ -59,7 +59,7 @@ public static class ConverterExtensions
         if (targetType.IsConcept())
         {
             var underlyingType = targetType.GetConceptValueType();
-            var convertedValue = ConvertToUnderlyingType(value, underlyingType);
+            var convertedValue = ConvertToUnderlyingType(value, underlyingType, returnNullOnFailure: true);
             if (convertedValue is not null)
             {
                 return ConceptFactory.CreateConceptInstance(targetType, convertedValue);
@@ -191,11 +191,11 @@ public static class ConverterExtensions
         return targetType.IsInstanceOfType(list) ? list : array;
     }
 
-    static object? ConvertToUnderlyingType(object value, Type targetType)
+    static object? ConvertToUnderlyingType(object value, Type targetType, bool returnNullOnFailure = false)
     {
         if (value is null)
         {
-            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
         }
 
         // If the value is already the target type, return it directly
@@ -207,7 +207,7 @@ public static class ConverterExtensions
         var stringValue = value.ToString();
         if (string.IsNullOrEmpty(stringValue))
         {
-            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
         }
 
         var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
@@ -251,9 +251,9 @@ public static class ConverterExtensions
         }
         catch (Exception)
         {
-            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
         }
 
-        return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+        return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
     }
 }

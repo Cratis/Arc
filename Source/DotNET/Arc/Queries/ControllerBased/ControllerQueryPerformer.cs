@@ -294,6 +294,12 @@ public class ControllerQueryPerformer(
             return Nullable.GetUnderlyingType(type) is not null;
         }
 
+        if (type.IsConcept())
+        {
+            var nullabilityInfo = new NullabilityInfoContext().Create(parameter);
+            return nullabilityInfo.WriteState is NullabilityState.Nullable;
+        }
+
         return true;
     }
 
