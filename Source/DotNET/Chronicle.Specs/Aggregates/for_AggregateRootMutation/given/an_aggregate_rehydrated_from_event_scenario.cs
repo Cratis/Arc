@@ -61,7 +61,7 @@ public class an_aggregate_rehydrated_from_event_scenario : Specification
             _eventSourceId,
             aggregateRoot.GetEventStreamType(),
             EventStreamId.Default,
-            _scenario.EventSequence,
+            await GetRehydrationEventSequence(),
             aggregateRoot,
             unitOfWork,
             EventSequenceNumber.First,
@@ -73,6 +73,8 @@ public class an_aggregate_rehydrated_from_event_scenario : Specification
         await mutator.Rehydrate();
         _mutation = new AggregateRootMutation(_context, Substitute.For<IAggregateRootMutator>(), _scenario.EventSequence);
     }
+
+    protected virtual Task<IEventSequence> GetRehydrationEventSequence() => Task.FromResult<IEventSequence>(_scenario.EventSequence);
 
     protected async Task<AppendResult> AppendFromLoadedAggregate()
     {
