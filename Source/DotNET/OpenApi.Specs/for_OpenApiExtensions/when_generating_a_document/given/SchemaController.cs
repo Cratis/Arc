@@ -9,5 +9,5 @@ namespace Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.gi
 public class SchemaController : ControllerBase
 {
     [HttpGet("/controller")]
-    public IEnumerable<with_arc_json_defaults.SampleConcept> Get() => [new with_arc_json_defaults.SampleConcept(Guid.NewGuid())];
+    public IEnumerable<with_explicit_arc_converters.SampleConcept> Get() => [new with_explicit_arc_converters.SampleConcept(Guid.NewGuid())];
 }

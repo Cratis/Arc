@@ -4,20 +4,23 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Cratis.Arc;
 using Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.given;
 using Cratis.Concepts;
 using Cratis.Geospatial;
+using Cratis.Json;
 using Cratis.Serialization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
 namespace Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document;
 
-public class with_arc_json_defaults : Specification
+public class with_explicit_arc_converters : Specification
 {
     JsonNode? _document;
     JsonNode? _wire;
@@ -40,15 +43,11 @@ public class with_arc_json_defaults : Specification
     [Fact] void should_describe_geojson_lines_as_objects() => Schema("LineString")["properties"]!["coordinates"]!["items"]!["items"]!["type"]!.ToString().ShouldEqual("number");
     [Fact] void should_describe_geojson_polygons_as_objects() => Schema("Polygon")["properties"]!["coordinates"]!["items"]!["items"]!["items"]!["type"]!.ToString().ShouldEqual("number");
     [Fact] void should_describe_primitive_collections_as_arrays() => Schema("SampleValues")["properties"]!["names"]!["type"]!.ToString().ShouldEqual("array");
-    [Fact] void should_describe_declared_polymorphic_properties() => Schema("ISampleBase")["properties"]!["name"]!["type"]!.ToString().ShouldEqual("string");
-    [Fact] void should_describe_inherited_interface_properties_as_they_are_written() => Schema("ISampleBase")["properties"]!["id"]!["type"]!.ToString().ShouldEqual("string");
-    [Fact] void should_include_ignored_interface_properties_that_are_written() => Schema("ISampleBase")["properties"]!["hidden"]!["type"]!.ToString().ShouldEqual("string");
-    [Fact] void should_not_apply_interface_json_property_names() => Schema("ISampleBase")["properties"]!["renamed"].ShouldBeNull();
-    [Fact] void should_describe_only_properties_present_on_the_wire() => ((JsonObject)Schema("ISampleBase")["properties"]!).All(property => _wire!.AsObject().ContainsKey(property.Key)).ShouldBeTrue();
-    [Fact] void should_serialize_ignored_and_renamed_interface_properties_by_clr_name() => _wire!["id"]!.ToString().ShouldEqual("id");
-    [Fact] void should_serialize_the_hidden_property() => _wire!["hidden"]!.ToString().ShouldEqual("hidden");
-    [Fact] void should_not_serialize_the_interface_json_property_name() => _wire!["renamed"].ShouldBeNull();
-    [Fact] void should_exclude_static_properties() => Schema("ISampleBase")["properties"]!["staticValue"].ShouldBeNull();
+    [Fact] void should_describe_exactly_the_declared_polymorphic_properties() => ((JsonObject)Schema("ISampleBase")["properties"]!).Select(property => property.Key).Order().ToArray().ShouldEqual(["hidden", "id", "name"]);
+    [Fact] void should_describe_declared_polymorphic_properties_as_strings() => ((JsonObject)Schema("ISampleBase")["properties"]!).All(property => property.Value?["type"]?.ToString() == "string").ShouldBeTrue();
+    [Fact] void should_serialize_derived_properties_beyond_the_base_schema() => _wire!.AsObject().Select(property => property.Key).Order().ToArray().ShouldEqual(["count", "hidden", "id", "name"]);
+    [Fact] void should_not_write_a_discriminator_for_the_runtime_typed_minimal_api_response() => _wire!["_derivedTypeId"].ShouldBeNull();
+    [Fact] void should_serialize_the_derived_property() => _wire!["count"]!.ToString().ShouldEqual("42");
     [Fact] void should_describe_the_complex_key_dictionary_as_an_object() => Schema("DictionaryOfSampleConceptAndstring")["type"]!.ToString().ShouldEqual("object");
     [Fact] void should_describe_the_complex_key_dictionary_values() => Schema("DictionaryOfSampleConceptAndstring")["additionalProperties"]!["type"]!.ToString().ShouldEqual("string");
     [Fact] void should_describe_controller_response_using_the_same_options() => _document!["paths"]!["/controller"]!["get"]!["responses"]!["200"]!["content"]!["text/json"]!["schema"]!["$ref"]!.ToString().ShouldEqual("#/components/schemas/IEnumerableOfSampleConcept");
@@ -59,6 +58,16 @@ public class with_arc_json_defaults : Specification
     {
         var builder = WebApplication.CreateBuilder();
         builder.AddCratisArc();
+
+        // Non-concept Arc converters are opt-in for plain minimal APIs.
+        builder.Services.AddOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>().PostConfigure<IOptions<ArcOptions>>((options, arc) =>
+        {
+            foreach (var converter in arc.Value.JsonSerializerOptions.Converters.Where(converter =>
+                converter is DerivedTypeJsonConverterFactory or DateOnlyJsonConverter or TimeOnlyJsonConverter or TypeJsonConverter or UriJsonConverter or PointJsonConverter or LineStringJsonConverter or PolygonJsonConverter))
+            {
+                options.SerializerOptions.Converters.Add(converter);
+            }
+        });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddOpenApi(options => options.AddConcepts());
         builder.Services.AddControllers().AddApplicationPart(typeof(SchemaController).Assembly);

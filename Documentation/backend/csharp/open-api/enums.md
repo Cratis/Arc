@@ -17,7 +17,7 @@ public enum InvoiceStatus
 }
 ```
 
-With Arc's default numeric serialization, the schema is:
+With ASP.NET Core's default numeric serialization for plain minimal APIs (and Arc's own default numeric serialization for its endpoints), the schema is:
 
 ```json
 {
@@ -30,7 +30,7 @@ If the effective HTTP JSON options use a `JsonStringEnumConverter` instead, the 
 
 ## Configuration boundary
 
-Arc-generated endpoints serialize with `ArcOptions.JsonSerializerOptions`. ASP.NET's `ConfigureHttpJsonOptions` configures plain minimal API endpoints, not Arc-generated endpoints. It preserves application converter precedence: a string enum converter registered before Arc's converters writes strings for plain minimal APIs. Appending a string converter after an existing matching converter cannot override that converter, because the first match wins. The OpenAPI transformer uses the JSON options for the schema's endpoint; keep them aligned with the endpoint's actual response.
+Arc-generated endpoints serialize with `ArcOptions.JsonSerializerOptions`. ASP.NET's `ConfigureHttpJsonOptions` configures plain minimal API endpoints, not Arc-generated endpoints. Plain minimal APIs retain ASP.NET Core's enum serialization by default, including long-backed values greater than `int.MaxValue`; Arc does not append its enum converter there. A `JsonStringEnumConverter` registered with `ConfigureHttpJsonOptions` writes strings for plain minimal APIs and changes their schema to string values. The first matching application converter wins. The OpenAPI transformer uses the JSON options for the schema's endpoint; keep them aligned with the endpoint's actual response.
 
 ## See also
 

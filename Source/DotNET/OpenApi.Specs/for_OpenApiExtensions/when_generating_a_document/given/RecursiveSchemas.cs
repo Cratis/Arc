@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Nodes;
+using Cratis.Arc;
 using Cratis.Concepts;
 using Cratis.Serialization;
 using Microsoft.AspNetCore.Builder;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
 namespace Cratis.Arc.OpenApi.for_OpenApiExtensions.when_generating_a_document.given;
@@ -25,6 +27,7 @@ public static class RecursiveSchemas
     {
         var builder = WebApplication.CreateBuilder();
         builder.AddCratisArc();
+        ConfigureDerivedTypes(builder);
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddOpenApi(options => options.AddConcepts());
         await using var app = builder.Build();
@@ -48,6 +51,7 @@ public static class RecursiveSchemas
         builder.AddCratisArc();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddOpenApi(options => options.AddConcepts());
+        ConfigureDerivedTypes(builder);
         await using var app = builder.Build();
         app.MapGet("/dictionary", () => TypedResults.Ok(new Dictionary<SomeConcept, TValue>()));
         await app.StartAsync();
@@ -62,6 +66,7 @@ public static class RecursiveSchemas
         builder.AddCratisArc();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Services.AddOpenApi(options => options.AddConcepts());
+        ConfigureDerivedTypes(builder);
         await using var app = builder.Build();
         if (polymorphic)
         {
@@ -77,6 +82,10 @@ public static class RecursiveSchemas
         var document = await provider.GetOpenApiDocumentAsync(CancellationToken.None);
         return JsonNode.Parse(await document.SerializeAsJsonAsync(OpenApiSpecVersion.OpenApi3_1));
     }
+
+    static void ConfigureDerivedTypes(WebApplicationBuilder builder) =>
+        builder.Services.AddOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>().PostConfigure<IOptions<ArcOptions>>((options, arc) =>
+            options.SerializerOptions.Converters.Add(arc.Value.JsonSerializerOptions.Converters.OfType<DerivedTypeJsonConverterFactory>().Single()));
 
     public static bool ReferencesResolve(JsonNode document) => References(document).All(reference =>
         reference.StartsWith("#/components/schemas/", StringComparison.Ordinal) &&
