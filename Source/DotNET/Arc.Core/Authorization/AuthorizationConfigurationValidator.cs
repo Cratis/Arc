@@ -36,7 +36,14 @@ public class AuthorizationConfigurationValidator(
                 throw new InvalidAuthorizationConfiguration("ASP.NET Core anonymous policy opt-ins require the ASP.NET Core Arc host.");
             }
 
-            await runtime.Validate([], scope.ServiceProvider, cancellationToken);
+            if (runtime is IAnonymousAspNetAuthorizationPolicyValidator aspNetValidator)
+            {
+                await aspNetValidator.ValidateAnonymousPolicies(scope.ServiceProvider, cancellationToken);
+            }
+            else
+            {
+                await runtime.Validate([], scope.ServiceProvider, cancellationToken);
+            }
         }
         foreach (var handler in handlers.Handlers)
         {
