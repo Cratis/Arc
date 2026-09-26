@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 
 namespace Cratis.Arc.Introspection.for_IntrospectionEndpointsExtensions;
 
+[Collection("UsesCurrentDirectory")]
 public class when_requiring_authentication_without_a_scheme : Specification
 {
     Exception? _failure;
