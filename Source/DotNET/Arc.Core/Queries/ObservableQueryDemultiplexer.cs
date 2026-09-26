@@ -908,7 +908,8 @@ public class ObservableQueryDemultiplexer(
                 queryResult.AuthorizedPrincipal ?? principal,
                 arcOptions.Value.JsonSerializerOptions)
             {
-                AuthorizedTenant = queryResult.AuthorizedTenant ?? queryServiceProvider.GetService<TenantIdAccessor>()?.Current
+                AuthorizedTenant = queryResult.AuthorizedTenant ?? queryServiceProvider.GetService<TenantIdAccessor>()?.Current,
+                SubscriptionScopeSnapshot = queryResult.AuthorizedQueryContext?.SubscriptionScopeSnapshot
             };
 
             IDisposable? subscription = null;
@@ -1076,7 +1077,10 @@ public class ObservableQueryDemultiplexer(
                         correlationId,
                         interceptionScope.ServiceProvider,
                         !hasDeliveredEmission,
-                        subscriptionToken));
+                        subscriptionToken)
+                    {
+                        SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
+                    });
 
                     subscriptionToken.ThrowIfCancellationRequested();
 
@@ -1330,7 +1334,10 @@ public class ObservableQueryDemultiplexer(
                         correlationId,
                         guardServiceProvider,
                         !hasDeliveredEmission,
-                        token));
+                        token)
+                    {
+                        SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
+                    });
 
                     token.ThrowIfCancellationRequested();
 
