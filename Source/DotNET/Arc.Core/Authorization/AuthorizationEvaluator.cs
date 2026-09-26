@@ -70,10 +70,21 @@ public class AuthorizationEvaluator(
     /// <param name="declaration">The exact effective requirements already checked.</param>
     /// <param name="evaluatesAnonymous">Whether anonymous evaluation was explicitly opted in.</param>
     /// <returns>A scope removing the permission immediately after the legacy verdict.</returns>
-    internal static IDisposable AlreadyEvaluated(MemberInfo target, ClaimsPrincipal? principal, AuthorizationDeclaration declaration, bool evaluatesAnonymous = false)
+    internal static IDisposable AlreadyEvaluated(MemberInfo target, ClaimsPrincipal? principal, AuthorizationDeclaration declaration, bool evaluatesAnonymous = false) =>
+        AlreadyEvaluated(target, AuthorizationPrincipalIdentity.Capture(principal), declaration, evaluatesAnonymous);
+
+    /// <summary>
+    /// Marks an asynchronously evaluated identity using its snapshot from before policy execution.
+    /// </summary>
+    /// <param name="target">The evaluated command type or query method.</param>
+    /// <param name="principal">The identity captured before application code ran.</param>
+    /// <param name="declaration">The exact effective requirements already checked.</param>
+    /// <param name="evaluatesAnonymous">Whether anonymous evaluation was explicitly opted in.</param>
+    /// <returns>A scope removing the permission immediately after the legacy verdict.</returns>
+    internal static IDisposable AlreadyEvaluated(MemberInfo target, PrincipalSnapshot principal, AuthorizationDeclaration declaration, bool evaluatesAnonymous = false)
     {
         var previous = _alreadyEvaluated.Value;
-        _alreadyEvaluated.Value = new AuthorizedEvaluation(target, AuthorizationPrincipalIdentity.Capture(principal), declaration, evaluatesAnonymous);
+        _alreadyEvaluated.Value = new AuthorizedEvaluation(target, principal, declaration, evaluatesAnonymous);
         return new EvaluationScope(previous);
     }
 
