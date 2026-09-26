@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -134,7 +135,20 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
         _cancellationTokenSource = new CancellationTokenSource();
         _listener.Start();
-        _listenerTask = Listen(_cancellationTokenSource.Token);
+
+        // The accept loop outlives Start; it must not capture a tenant selected by the caller.
+        if (ExecutionContext.IsFlowSuppressed())
+        {
+            _listenerTask = Listen(_cancellationTokenSource.Token);
+        }
+        else
+        {
+            using (ExecutionContext.SuppressFlow())
+            {
+                _listenerTask = Listen(_cancellationTokenSource.Token);
+            }
+        }
+
         _isStarted = true;
 
         _logger.HttpListenerStarted(string.Join(", ", _listener.Prefixes));
@@ -254,6 +268,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
 
     async Task HandleRequest(HttpListenerContext context)
     {
+        using var tenantBoundary = TenantIdAccessor.Independent.BeginRequest();
         try
         {
             var method = context.Request.HttpMethod;

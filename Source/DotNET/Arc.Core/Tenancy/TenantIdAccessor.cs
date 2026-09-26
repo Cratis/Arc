@@ -77,6 +77,30 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
     }
 
     /// <summary>
+    /// Boundaries that isolate independently initiated work from the ambient tenant scope.
+    /// </summary>
+    internal static class Independent
+    {
+        /// <summary>Starts a fresh request flow.</summary>
+        /// <returns>A scope restoring the previous flow.</returns>
+        internal static IDisposable BeginRequest() => Begin(null);
+
+        /// <summary>Restores the subscriber tenant without inheriting the producer's selection.</summary>
+        /// <param name="tenant">The captured subscriber tenant.</param>
+        /// <returns>A scope restoring the producer flow.</returns>
+        internal static IDisposable BeginEmission(TenantId? tenant) => Begin(tenant);
+
+        static IndependentFlow Begin(TenantId? tenant)
+        {
+            var previousExplicit = _explicit.Value;
+            var previousCurrent = _current.Value;
+            _explicit.Value = null;
+            _current.Value = tenant;
+            return new IndependentFlow(previousExplicit, previousCurrent);
+        }
+    }
+
+    /// <summary>
     /// Immutable so removing a scope in one async flow cannot mutate frames inherited by another.
     /// </summary>
     /// <param name="Tenant">The tenant selected by this frame.</param>
@@ -98,6 +122,15 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
             var previous = Remove(frame.Previous, identity);
 
             return ReferenceEquals(previous, frame.Previous) ? frame : frame with { Previous = previous };
+        }
+    }
+
+    sealed class IndependentFlow(ExplicitTenantFrame? previousExplicit, TenantId? previousCurrent) : IDisposable
+    {
+        public void Dispose()
+        {
+            _current.Value = previousCurrent;
+            _explicit.Value = previousExplicit;
         }
     }
 
