@@ -122,8 +122,7 @@ public class QueryPipeline(
     /// <param name="arguments">The <see cref="QueryArguments"/> to coerce.</param>
     /// <param name="performer">The <see cref="IQueryPerformer"/> whose parameters describe the target types.</param>
     /// <returns>The coerced <see cref="QueryArguments"/>, or the original instance when nothing needed coercion.</returns>
-    /// <exception cref="MissingArgumentForQuery">An argument contains an invalid collection element.</exception>
-    /// <exception cref="InvalidQueryArgument">A scalar argument cannot be converted.</exception>
+    /// <exception cref="InvalidQueryArgument">A scalar or collection argument cannot be converted.</exception>
     /// <remarks>
     /// One-shot transports coerce arguments at the HTTP boundary, but streaming transports (WebSocket / SSE observable
     /// queries) carry raw string arguments through verbatim. Coercing here — the single convergence point for every
@@ -147,15 +146,7 @@ public class QueryPipeline(
             var parameter = parameters.FirstOrDefault(_ => string.Equals(_.Name, kvp.Key, StringComparison.OrdinalIgnoreCase));
             if (parameter is not null)
             {
-                object? convertedValue;
-                try
-                {
-                    convertedValue = value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
-                }
-                catch (InvalidCollectionQueryArgument)
-                {
-                    throw new MissingArgumentForQuery(parameter.Name, parameter.Type, performer.FullyQualifiedName);
-                }
+                var convertedValue = value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
 
                 if (convertedValue is not null && !ReferenceEquals(convertedValue, value))
                 {

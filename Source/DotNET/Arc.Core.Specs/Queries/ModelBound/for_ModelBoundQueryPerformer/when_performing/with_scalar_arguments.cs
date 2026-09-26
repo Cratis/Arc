@@ -4,6 +4,7 @@
 using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.Arc.Validation;
+using Cratis.Concepts;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,6 +28,26 @@ public class with_scalar_arguments : Specification
             return new(count, id, date, state, enabled);
         }
     }
+
+    public record AccountId(Guid Value) : ConceptAs<Guid>(Value);
+
+    public record ConceptReadModel
+    {
+        public static bool WasCalled { get; set; }
+
+        public static ConceptReadModel Query(AccountId required, AccountId? optional = null, AccountId defaulted = null!)
+        {
+            WasCalled = true;
+            return new ConceptReadModel();
+        }
+    }
+
+    static ModelBoundQueryPerformer ConceptPerformer() => new(
+        typeof(ConceptReadModel),
+        typeof(ConceptReadModel).FullName!,
+        typeof(ConceptReadModel).GetMethod(nameof(ConceptReadModel.Query))!,
+        Substitute.For<IServiceProviderIsService>(),
+        Substitute.For<Cratis.Arc.Authorization.IAuthorizationEvaluator>());
 
     static ModelBoundQueryPerformer Performer() => new(
         typeof(TestReadModel),
@@ -75,6 +96,56 @@ public class with_scalar_arguments : Specification
             failure.ValidationResult.Members.ShouldContainOnly(name);
             failure.ValidationResult.Reason.ShouldEqual(ValidationResultReason.MalformedRequest);
             TestReadModel.WasCalled.ShouldBeFalse();
+        }
+    }
+
+    [Theory]
+    [InlineData("required")]
+    [InlineData("optional")]
+    [InlineData("defaulted")]
+    async Task should_reject_invalid_concepts_without_invoking_the_model(string name)
+    {
+        var performer = ConceptPerformer();
+        foreach (var read in new Func<ModelBoundQueryPerformer, Dictionary<string, string>, Task<QueryArguments>>[] { ReadGet, ReadBody })
+        {
+            ConceptReadModel.WasCalled = false;
+            var error = await Catch.Exception(() => read(performer, new() { [name] = "not-a-guid" }));
+            (error is InvalidQueryArgument).ShouldBeTrue();
+            ((InvalidQueryArgument)error).ValidationResult.Members.ShouldContainOnly(name);
+            ((InvalidQueryArgument)error).ValidationResult.Reason.ShouldEqual(ValidationResultReason.MalformedRequest);
+            ConceptReadModel.WasCalled.ShouldBeFalse();
+        }
+
+        ConceptReadModel.WasCalled = false;
+        var directError = await Catch.Exception(async () => await performer.Perform(new QueryContext(
+            performer.FullyQualifiedName,
+            CorrelationId.New(),
+            Paging.NotPaged,
+            Sorting.None,
+            new QueryArguments { [name] = "not-a-guid" },
+            [])));
+        (directError is InvalidQueryArgument).ShouldBeTrue();
+        ConceptReadModel.WasCalled.ShouldBeFalse();
+    }
+
+    [Fact]
+    async Task should_bind_valid_concepts_and_leave_omitted_optional_concepts_absent()
+    {
+        var performer = ConceptPerformer();
+        var id = Guid.NewGuid();
+        foreach (var read in new Func<ModelBoundQueryPerformer, Dictionary<string, string>, Task<QueryArguments>>[] { ReadGet, ReadBody })
+        {
+            ConceptReadModel.WasCalled = false;
+            var arguments = await read(performer, new() { ["required"] = id.ToString() });
+            ((AccountId)arguments["required"]).Value.ShouldEqual(id);
+            await performer.Perform(new QueryContext(
+                performer.FullyQualifiedName,
+                CorrelationId.New(),
+                Paging.NotPaged,
+                Sorting.None,
+                arguments,
+                []));
+            ConceptReadModel.WasCalled.ShouldBeTrue();
         }
     }
 

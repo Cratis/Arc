@@ -100,7 +100,7 @@ public static class ConverterExtensions
     /// <param name="argumentName">The declared parameter name.</param>
     /// <param name="queryName">The query receiving the argument.</param>
     /// <returns>The converted value, or null for a missing value.</returns>
-    /// <exception cref="InvalidQueryArgument">A supplied scalar value cannot be converted.</exception>
+    /// <exception cref="InvalidQueryArgument">A supplied scalar or collection value cannot be converted.</exception>
     internal static object? ConvertQueryArgument(this object? value, Type targetType, string argumentName, FullyQualifiedQueryName queryName)
     {
         if (value is null)
@@ -110,7 +110,14 @@ public static class ConverterExtensions
 
         if (targetType.IsNestedQueryArgumentCollection() || targetType.IsEnumerableOfQueryArgumentElement(out _))
         {
-            return value.ConvertTo(targetType);
+            try
+            {
+                return value.ConvertTo(targetType);
+            }
+            catch (InvalidCollectionQueryArgument)
+            {
+                throw new InvalidQueryArgument(argumentName, targetType, queryName);
+            }
         }
 
         // Empty non-string scalars are treated as absent by the performer. String concepts can represent empty text.
@@ -119,12 +126,6 @@ public static class ConverterExtensions
             return targetType.IsConcept() && targetType.GetConceptValueType() == typeof(string)
                 ? ConceptFactory.CreateConceptInstance(targetType, string.Empty)
                 : value;
-        }
-
-        // Preserve concept binding: invalid concepts return null and required parameters fail validation there.
-        if (targetType.IsConcept())
-        {
-            return value.ConvertTo(targetType);
         }
 
         if (!TryConvertCollectionElement(value, targetType, out var converted))

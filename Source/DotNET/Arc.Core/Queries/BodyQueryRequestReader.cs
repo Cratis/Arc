@@ -64,7 +64,7 @@ public class BodyQueryRequestReader : IQueryRequestReader
             if (parameter is not null)
             {
                 var value = kvp.Value.ValueKind == JsonValueKind.Array && parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType)
-                    ? kvp.Value.EnumerateArray().Select(element => GetCollectionElement(element, elementType, parameter.Type)).ToArray()
+                    ? kvp.Value.EnumerateArray().Select(element => GetCollectionElement(element, elementType, parameter, performer.FullyQualifiedName)).ToArray()
                     : (object)rawValue;
                 var convertedValue = value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
                 if (convertedValue is not null)
@@ -81,7 +81,7 @@ public class BodyQueryRequestReader : IQueryRequestReader
         return arguments;
     }
 
-    static string? GetCollectionElement(JsonElement element, Type elementType, Type collectionType)
+    static string? GetCollectionElement(JsonElement element, Type elementType, QueryParameter parameter, FullyQualifiedQueryName queryName)
     {
         if (element.ValueKind == JsonValueKind.Null)
         {
@@ -95,7 +95,7 @@ public class BodyQueryRequestReader : IQueryRequestReader
 
         if (element.ValueKind is JsonValueKind.Array or JsonValueKind.Object)
         {
-            throw new InvalidCollectionQueryArgument(collectionType, element.GetRawText());
+            throw new InvalidQueryArgument(parameter.Name, parameter.Type, queryName);
         }
 
         return element.ToString();

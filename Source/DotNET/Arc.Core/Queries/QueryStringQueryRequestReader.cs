@@ -3,7 +3,6 @@
 
 using System.Text.Json.Nodes;
 using Cratis.Arc.Http;
-using Cratis.Arc.Queries.ModelBound;
 using Cratis.DependencyInjection;
 using Cratis.Strings;
 
@@ -119,21 +118,13 @@ public class QueryStringQueryRequestReader : IQueryRequestReader
 
                 if (parameter is not null)
                 {
-                    object? convertedValue;
-                    try
+                    if (parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType) &&
+                        (elementType == typeof(JsonObject) || elementType == typeof(JsonArray)))
                     {
-                        if (parameter.Type.IsEnumerableOfQueryArgumentElement(out var elementType) &&
-                            (elementType == typeof(JsonObject) || elementType == typeof(JsonArray)))
-                        {
-                            throw new InvalidCollectionQueryArgument(parameter.Type, kvp.Value);
-                        }
+                        throw new InvalidQueryArgument(parameter.Name, parameter.Type, performer.FullyQualifiedName);
+                    }
 
-                        convertedValue = kvp.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
-                    }
-                    catch (InvalidCollectionQueryArgument)
-                    {
-                        throw new MissingArgumentForQuery(parameter.Name, parameter.Type, performer.FullyQualifiedName);
-                    }
+                    var convertedValue = kvp.Value.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
 
                     if (convertedValue is not null)
                     {

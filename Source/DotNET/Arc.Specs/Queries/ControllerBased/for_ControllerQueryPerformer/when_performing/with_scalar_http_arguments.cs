@@ -7,6 +7,7 @@ using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Concepts;
 using Cratis.Execution;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -25,11 +26,13 @@ public class with_scalar_http_arguments : Specification
         Inactive = 1
     }
 
+    public record AccountId(Guid Value) : ConceptAs<Guid>(Value);
+
     public record ScalarModel
     {
         public static bool WasCalled { get; set; }
 
-        public static int Query(int count, Guid id, DateOnly date, Status state, bool enabled)
+        public static int Query(int count, Guid id, DateOnly date, Status state, bool enabled, AccountId required, AccountId[] ids, AccountId? optional = null, AccountId defaulted = null!)
         {
             WasCalled = true;
             return count;
@@ -41,7 +44,7 @@ public class with_scalar_http_arguments : Specification
         public static bool WasCalled { get; set; }
 
         [HttpGet]
-        public int Query(int count, Guid id, DateOnly date, Status state, bool enabled)
+        public int Query(int count, Guid id, DateOnly date, Status state, bool enabled, AccountId required, AccountId[] ids, AccountId? optional = null, AccountId defaulted = null!)
         {
             WasCalled = true;
             return count;
@@ -67,7 +70,7 @@ public class with_scalar_http_arguments : Specification
                 isService,
                 evaluator);
 
-    static async Task<(int Status, JsonDocument Response, IQueryPipeline Pipeline)> Invoke(bool controller, string method, string name, string value)
+    static async Task<(int Status, JsonDocument Response, IQueryPipeline Pipeline)> Invoke(bool controller, string method, string name, string value, bool asArray = false)
     {
         await using var classificationServices = new ServiceCollection().BuildServiceProvider();
         var performer = Performer(controller, classificationServices.GetRequiredService<IServiceProviderIsService>(), Substitute.For<IAuthorizationEvaluator>());
@@ -104,7 +107,7 @@ public class with_scalar_http_arguments : Specification
             httpContext.Request.ContentType = "application/json";
             httpContext.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
             {
-                arguments = new Dictionary<string, string> { [name] = value }
+                arguments = new Dictionary<string, object> { [name] = asArray ? value.Split(',') : value }
             })));
         }
 
@@ -140,6 +143,75 @@ public class with_scalar_http_arguments : Specification
             ScalarModel.WasCalled.ShouldBeFalse();
             ScalarController.WasCalled.ShouldBeFalse();
         }
+    }
+
+    [Theory]
+    [InlineData(false, "GET")]
+    [InlineData(false, "QUERY")]
+    [InlineData(true, "GET")]
+    [InlineData(true, "QUERY")]
+    async Task should_return_http_400_for_invalid_concepts_even_if_optional(bool controller, string method)
+    {
+        foreach (var name in new[] { "required", "optional", "defaulted" })
+        {
+            ScalarModel.WasCalled = false;
+            ScalarController.WasCalled = false;
+            var (status, response, pipeline) = await Invoke(controller, method, name, "not-a-guid");
+            using (response)
+            {
+                status.ShouldEqual(400);
+                var validation = response.RootElement.GetProperty("validationResults").EnumerateArray().Single();
+                validation.GetProperty("members").EnumerateArray().Single().GetString().ShouldEqual(name);
+                validation.GetProperty("reason").GetString().ShouldEqual("malformedRequest");
+                validation.GetProperty("message").GetString().ShouldContain(name);
+                response.RootElement.GetProperty("exceptionMessages").GetArrayLength().ShouldEqual(0);
+            }
+            await pipeline.DidNotReceive().Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>());
+            ScalarModel.WasCalled.ShouldBeFalse();
+            ScalarController.WasCalled.ShouldBeFalse();
+        }
+    }
+
+    [Theory]
+    [InlineData(false, "GET")]
+    [InlineData(false, "QUERY")]
+    [InlineData(true, "GET")]
+    [InlineData(true, "QUERY")]
+    async Task should_return_http_400_for_invalid_collection_elements(bool controller, string method)
+    {
+        var id = Guid.NewGuid();
+        var (status, response, pipeline) = await Invoke(controller, method, "ids", $"{id},not-a-guid", asArray: true);
+        using (response)
+        {
+            status.ShouldEqual(400);
+            var validation = response.RootElement.GetProperty("validationResults").EnumerateArray().Single();
+            validation.GetProperty("members").EnumerateArray().Single().GetString().ShouldEqual("ids");
+            validation.GetProperty("reason").GetString().ShouldEqual("malformedRequest");
+            validation.GetProperty("message").GetString().ShouldContain("'ids' of type 'AccountId[]'");
+        }
+        await pipeline.DidNotReceive().Perform(Arg.Any<FullyQualifiedQueryName>(), Arg.Any<QueryArguments>(), Arg.Any<Paging>(), Arg.Any<Sorting>(), Arg.Any<IServiceProvider>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData(false, "GET")]
+    [InlineData(false, "QUERY")]
+    [InlineData(true, "GET")]
+    [InlineData(true, "QUERY")]
+    async Task should_return_http_200_for_valid_concepts(bool controller, string method)
+    {
+        var id = Guid.NewGuid();
+        var (status, response, pipeline) = await Invoke(controller, method, "required", id.ToString());
+        using (response)
+        {
+            status.ShouldEqual(200);
+        }
+        await pipeline.Received(1).Perform(
+            Arg.Any<FullyQualifiedQueryName>(),
+            Arg.Is<QueryArguments>(arguments => ((AccountId)arguments["required"]).Value == id),
+            Arg.Any<Paging>(),
+            Arg.Any<Sorting>(),
+            Arg.Any<IServiceProvider>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]

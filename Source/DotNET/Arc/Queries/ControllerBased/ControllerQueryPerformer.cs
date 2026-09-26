@@ -239,14 +239,7 @@ public class ControllerQueryPerformer(
                 continue;
             }
 
-            try
-            {
-                args[index] = ResolveQueryArgument(parameter, queryArguments, FullyQualifiedName);
-            }
-            catch (InvalidCollectionQueryArgument)
-            {
-                throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
-            }
+            args[index] = ResolveQueryArgument(parameter, queryArguments, FullyQualifiedName);
 
             if (args[index] is null && !IsNullableOrOptional(parameter))
             {
