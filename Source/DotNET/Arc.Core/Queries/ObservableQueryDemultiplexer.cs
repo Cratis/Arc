@@ -1114,8 +1114,8 @@ public class ObservableQueryDemultiplexer(
                     // Use the same case-insensitive Id convention as ChangeSetComputor, including concept-valued Ids.
                     // An empty collection with no discoverable item type is a snapshot until an item establishes one.
                     hasStableIdentity = itemType is not null && ChangeSetComputor.FindIdentityProperty(itemType) is not null;
-                    if (!hasStableIdentity && itemType is not null &&
-                        (itemType != typeof(object) || currentItems.Length > 0 || previousItems?.Any() is true) &&
+                    if (!hasStableIdentity &&
+                        (currentItems.Length > 0 || previousItems?.Any() is true) &&
                         !hasWarnedAboutMissingIdentity)
                     {
                         logger.CollectionWithoutIdentity(queryId, identity.QueryName.ToString());
