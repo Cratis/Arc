@@ -124,19 +124,19 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
             }
             builder.RequireAuthorization(policy.Build());
 
-            if ((metadata.Name == IntrospectionEndpointMapper.CommandsEndpointName ||
-                 metadata.Name == IntrospectionEndpointMapper.QueriesEndpointName) &&
-                !_trustForwardedIdentityHeaders)
+            if (metadata.Name == IntrospectionEndpointMapper.CommandsEndpointName ||
+                metadata.Name == IntrospectionEndpointMapper.QueriesEndpointName)
             {
-                builder.AddEndpointFilter(async (context, next) =>
+                builder.WithMetadata(new ProtectedIntrospectionCatalog(_trustForwardedIdentityHeaders));
+                if (!_trustForwardedIdentityHeaders)
                 {
-                    if (await UnsignedIdentityHeaderSchemes.AuthenticatedWithHeaders(context.HttpContext))
-                    {
-                        return Results.Challenge();
-                    }
-
-                    return await next(context);
-                });
+                    // Authentication can run before routing in a custom pipeline. Reject a header
+                    // authentication that succeeded before the endpoint metadata was available.
+                    builder.AddEndpointFilter(async (context, next) =>
+                        UnsignedIdentityHeaderSchemes.AuthenticatedBeforeRouting(context.HttpContext)
+                            ? Results.Unauthorized()
+                            : await next(context));
+                }
             }
         }
 

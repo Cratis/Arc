@@ -2,8 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
-using System.Text.Json;
-using Cratis.Arc.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -15,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.Introspection.for_IntrospectionEndpointsExtensions;
 
 [Collection("UsesCurrentDirectory")]
-public class when_a_route_group_forwards_to_derived_unsigned_headers : Specification
+public class when_a_group_transforms_unsigned_header_identity : Specification
 {
     HttpStatusCode _status;
 
@@ -25,31 +23,21 @@ public class when_a_route_group_forwards_to_derived_unsigned_headers : Specifica
         builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
         builder.Services.AddAuthentication("Clean")
             .AddScheme<AuthenticationSchemeOptions, given.catalog_authentication_handler>("Clean", _ => { })
-            .AddPolicyScheme("Forwarded", null, options => options.ForwardDefault = "Headers")
-            .AddScheme<AuthenticationSchemeOptions, given.derived_header_handler>("Headers", _ => { });
+            .AddScheme<AuthenticationSchemeOptions, Identity.MicrosoftIDentityPlatformAuthHandler>("Headers", _ => { });
+        builder.Services.AddTransient<IClaimsTransformation, given.normalizing_claims>();
         builder.Services.AddAuthorization();
         builder.AddCratisArc();
         await using var app = builder.Build();
-        var group = app.MapGroup("/group").RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = "Forwarded" });
+        var group = app.MapGroup("/group").RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = "Headers" });
         new AspNetCoreEndpointMapper(group).MapIntrospectionEndpoints(new IntrospectionOptions { RequireAuthentication = true });
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         using var client = new HttpClient { BaseAddress = new Uri(address) };
-        var principal = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            userId = "forged",
-            userDetails = "attacker@example.com",
-            userRoles = new[] { "Administrator" },
-            claims = Array.Empty<object>()
-        }));
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/group/.cratis/commands");
-        request.Headers.Add(MicrosoftIdentityPlatformHeaders.IdentityIdHeader, "forged");
-        request.Headers.Add(MicrosoftIdentityPlatformHeaders.IdentityNameHeader, "attacker");
-        request.Headers.Add(MicrosoftIdentityPlatformHeaders.PrincipalHeader, principal);
+        using var request = given.forged_catalog_request.Create("/group/.cratis/commands");
         using var response = await client.SendAsync(request);
         _status = response.StatusCode;
         await app.StopAsync();
     }
 
-    [Fact] void should_challenge_the_request() => _status.ShouldEqual(HttpStatusCode.Unauthorized);
+    [Fact] void should_not_authorize_the_rebuilt_identity() => _status.ShouldEqual(HttpStatusCode.Unauthorized);
 }

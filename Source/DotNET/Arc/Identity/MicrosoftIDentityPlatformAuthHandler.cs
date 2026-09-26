@@ -3,6 +3,7 @@
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Cratis.Arc.Introspection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -33,6 +34,12 @@ public class MicrosoftIDentityPlatformAuthHandler(
     /// <inheritdoc/>
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        var catalog = Context.GetEndpoint()?.Metadata.GetMetadata<ProtectedIntrospectionCatalog>();
+        if (catalog is { TrustForwardedIdentityHeaders: false })
+        {
+            return Task.FromResult(AuthenticateResult.NoResult());
+        }
+
         if (!Request.IsValidIdentityRequest())
         {
             return Task.FromResult(AuthenticateResult.Fail("Not authenticated - headers missing"));
@@ -73,6 +80,10 @@ public class MicrosoftIDentityPlatformAuthHandler(
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
+        if (Context.GetEndpoint() is null)
+        {
+            UnsignedIdentityHeaderSchemes.RecordAuthenticationBeforeRouting(Context);
+        }
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }

@@ -560,9 +560,9 @@ are validated - and therefore which configuration governs them - is not.
   unsigned forwarded headers for the protected catalog:
   - Under ASP.NET Core, startup rejects `RequireAuthentication: true` when the default
     authentication scheme or a scheme in the default policy reaches the unsigned
-    forwarded-header handler, unless the opt-in is set. Catalog requests authenticated
-    through that handler are also challenged at runtime, including when a route group
-    or named policy supplies the scheme.
+    forwarded-header handler, unless the opt-in is set. At runtime the handler ignores
+    headers for protected catalog endpoints, including when a route group or named policy
+    supplies the scheme. Catalog requests authenticated before routing are rejected with 401.
   - Under the `HttpListener` host, the built-in forwarded-header handler ignores those
     headers for the protected catalog without the opt-in, and startup rejects a
     configuration whose only handler is that one. A custom handler that relies on

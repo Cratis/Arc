@@ -24,7 +24,9 @@ public class when_a_route_group_authenticates_with_unsigned_headers : Specificat
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseKestrel(options => options.Listen(IPAddress.Loopback, 0));
-        builder.Services.AddAuthentication("Clean")
+
+        // Only an authenticate default is available; the group scheme must handle challenges.
+        builder.Services.AddAuthentication(options => options.DefaultAuthenticateScheme = "Clean")
             .AddScheme<AuthenticationSchemeOptions, given.catalog_authentication_handler>("Clean", _ => { })
             .AddScheme<AuthenticationSchemeOptions, MicrosoftIDentityPlatformAuthHandler>("Headers", _ => { });
         builder.Services.AddAuthorization();

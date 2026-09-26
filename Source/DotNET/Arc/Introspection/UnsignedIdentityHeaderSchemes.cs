@@ -13,6 +13,8 @@ namespace Cratis.Arc.Introspection;
 /// </summary>
 internal static class UnsignedIdentityHeaderSchemes
 {
+    static readonly object _authenticatedBeforeRoutingKey = new();
+
     /// <summary>
     /// Checks the default authentication scheme and any schemes used by the applied default authorization policy.
     /// </summary>
@@ -40,24 +42,17 @@ internal static class UnsignedIdentityHeaderSchemes
     }
 
     /// <summary>
-    /// Detects an identity produced by the unsigned header handler, even when a policy or route group
-    /// forwards authentication to that handler after endpoint conventions have been applied.
+    /// Records successful header authentication before endpoint routing has completed.
+    /// </summary>
+    /// <param name="context">The request whose endpoint is not yet known.</param>
+    internal static void RecordAuthenticationBeforeRouting(HttpContext context) => context.Items[_authenticatedBeforeRoutingKey] = true;
+
+    /// <summary>
+    /// Checks request-local authentication provenance, independently of claims transformation.
     /// </summary>
     /// <param name="context">The catalog request.</param>
-    /// <returns>Whether the authenticated principal includes an unsigned header identity.</returns>
-    internal static async Task<bool> AuthenticatedWithHeaders(HttpContext context)
-    {
-        var schemes = context.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>();
-        var headerSchemeNames = (await schemes.GetAllSchemesAsync())
-            .Where(scheme => typeof(MicrosoftIDentityPlatformAuthHandler).IsAssignableFrom(scheme.HandlerType))
-            .Select(scheme => scheme.Name)
-            .ToHashSet(StringComparer.Ordinal);
-
-        // The header handler assigns Scheme.Name as the identity's AuthenticationType. Forwarding
-        // returns the target handler's ticket and preserves that type in the authorized principal.
-        return context.User.Identities.Any(identity => identity.IsAuthenticated &&
-            identity.AuthenticationType is { } authenticationType && headerSchemeNames.Contains(authenticationType));
-    }
+    /// <returns>Whether unsigned headers authenticated before routing selected an endpoint.</returns>
+    internal static bool AuthenticatedBeforeRouting(HttpContext context) => context.Items.ContainsKey(_authenticatedBeforeRoutingKey);
 
     static bool FollowsHeaderScheme(IServiceProvider services, IAuthenticationSchemeProvider schemes, AuthenticationScheme scheme, bool headerRegistered)
     {
