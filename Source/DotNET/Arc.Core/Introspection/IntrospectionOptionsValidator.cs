@@ -14,10 +14,14 @@ public class IntrospectionOptionsValidator : IValidateOptions<ArcOptions>
     public ValidateOptionsResult Validate(string? name, ArcOptions options)
     {
         var introspection = options.Introspection;
-        if (introspection.Roles is not null &&
-            (!introspection.RequireAuthentication || introspection.Roles.Split(',').Any(role => string.IsNullOrWhiteSpace(role))))
+        if (introspection.Roles is not null)
         {
-            return ValidateOptionsResult.Fail("Cratis:Arc:Introspection:Roles requires RequireAuthentication=true and a comma-separated list of nonempty roles.");
+            var roles = introspection.Roles.Split(',').Select(role => role.Trim()).ToArray();
+            if (!introspection.RequireAuthentication || roles.Any(string.IsNullOrWhiteSpace))
+            {
+                return ValidateOptionsResult.Fail("Cratis:Arc:Introspection:Roles requires RequireAuthentication=true and a comma-separated list of nonempty roles.");
+            }
+            introspection.Roles = string.Join(',', roles);
         }
 
         if (introspection.TrustForwardedIdentityHeaders && (!introspection.Enabled || !introspection.RequireAuthentication))

@@ -19,12 +19,12 @@ public class IntrospectionOptions
     public bool RequireAuthentication { get; set; }
 
     /// <summary>
-    /// Gets or sets comma-separated roles, any one of which grants access. Requires authentication.
+    /// Gets or sets comma-separated roles, any one of which grants access. Roles are trimmed; empty roles are rejected. Requires authentication.
     /// </summary>
     public string? Roles { get; set; }
 
     /// <summary>
-    /// Gets or sets whether the Arc.Core host trusts identity headers forwarded by a trusted ingress.
+    /// Gets or sets whether the host trusts identity headers forwarded by a trusted ingress.
     /// Defaults to false; never enable when clients can reach the listener directly or set identity headers.
     /// </summary>
     public bool TrustForwardedIdentityHeaders { get; set; }
