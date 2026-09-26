@@ -21,7 +21,7 @@ public class and_requesting_unknown_route : given.a_fallback_middleware
 
         _middleware.ConfigureFallback("index.html", _testDirectory);
 
-        _listener.Start();
+        StartListener();
         _client = new HttpClient();
     }
 
