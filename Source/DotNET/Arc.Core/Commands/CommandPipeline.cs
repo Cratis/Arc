@@ -277,7 +277,7 @@ public class CommandPipeline(
 
             if (preparedAuthorization is not null)
             {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
                 {
                     return CommandResult.Unauthorized(correlationId);
                 }
@@ -497,7 +497,7 @@ public class CommandPipeline(
 
             if (preparedAuthorization is not null)
             {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
                 {
                     return CommandResult.Unauthorized(correlationId);
                 }

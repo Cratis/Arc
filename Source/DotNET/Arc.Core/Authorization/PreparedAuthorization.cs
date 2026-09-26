@@ -24,5 +24,11 @@ internal sealed record PreparedAuthorization(
     /// <summary>
     /// Gets whether explicit scheme authentication selected a different principal.
     /// </summary>
-    internal bool PrincipalChanged => SelectedPrincipal is not null && !AuthorizationPrincipalIdentity.Same(OriginalPrincipal, SelectedPrincipal);
+    internal bool PrincipalChanged => SelectedPrincipal?.Identity?.IsAuthenticated == true &&
+        !AuthorizationPrincipalIdentity.Same(OriginalPrincipal, SelectedPrincipal);
+
+    /// <summary>
+    /// Gets whether every policy explicitly opts into evaluating unauthenticated callers.
+    /// </summary>
+    internal bool EvaluatesAnonymous => Resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true };
 }
