@@ -9,5 +9,5 @@ namespace Cratis.Arc.ProxyGenerator;
 /// <param name="type">The type validated by both validators.</param>
 /// <param name="first">The first validator.</param>
 /// <param name="second">The second validator.</param>
-internal class MultipleValidatorsForType(Type type, Type first, Type second)
+internal sealed class MultipleValidatorsForType(Type type, Type first, Type second)
     : Exception($"Multiple validators for '{type.FullName}': '{first.FullName}' and '{second.FullName}'.");
