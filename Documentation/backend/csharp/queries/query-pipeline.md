@@ -64,7 +64,7 @@ using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 
 services.AddTransient<AuthorizationPrincipalScope>();
-services.AddSingleton<IQueryPipeline, QueryPipeline>();
+services.AddTransient<IQueryPipeline, QueryPipeline>();
 ```
 
 Supply the pipeline's constructor services: `ICorrelationIdAccessor`, `IQueryContextManager`, `IQueryFilters`, `IQueryPerformerProviders`, `IQueryRenderers`, `IReadModelInterceptors`, `IDiscoverableValidators`, and `IActivitySource<QueryPipeline>`. Supply `CurrentPrincipalAccessor`, `IAuthorizationPolicyRuntime`, `TenantIdAccessor`, and `ITenantIdResolver` for `AuthorizationPrincipalScope`; the two concrete accessors also need `IHttpRequestContextAccessor` and `ITenantIdResolver`, respectively. Register a runtime appropriate to your host; `ArcAuthorizationPolicyRuntime` does not authenticate named schemes. Pass an execution-scoped `IServiceProvider` to `IQueryPipeline.Perform`. The pipeline resolves `AuthorizationPrincipalScope` only when authorization supplies a selected principal, so a successful ordinary query does not prove that the scope is registered. `Begin` remains internal; host code should not manipulate it directly.

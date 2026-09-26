@@ -60,7 +60,7 @@ public class when_composing_without_the_arc_host : Specification
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<TenantIdAccessor>();
         services.AddTransient<AuthorizationPrincipalScope>();
-        services.AddSingleton<IQueryPipeline, QueryPipeline>();
+        services.AddTransient<IQueryPipeline, QueryPipeline>();
 
         _provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         _principalScope = _provider.GetRequiredService<AuthorizationPrincipalScope>();
