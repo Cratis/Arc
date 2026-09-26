@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Cratis.Strings;
@@ -62,7 +63,10 @@ public class BodyQueryRequestReader : IQueryRequestReader
 
             if (parameter is not null)
             {
-                var convertedValue = rawValue.ConvertTo(parameter.Type);
+                var value = kvp.Value.ValueKind == JsonValueKind.Array && parameter.Type.IsEnumerableOfQueryArgumentElement(out _)
+                    ? kvp.Value.EnumerateArray().Select(element => element.ValueKind == JsonValueKind.Null ? null : element.ToString()).ToArray()
+                    : (object)rawValue;
+                var convertedValue = value.ConvertTo(parameter.Type);
                 if (convertedValue is not null)
                 {
                     arguments[kvp.Key] = convertedValue;

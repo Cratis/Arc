@@ -17,8 +17,8 @@ public static class ConverterExtensions
     /// </summary>
     /// <remarks>
     /// This is the runtime's own notion of "primitive" for query-argument purposes - it intentionally does not
-    /// match the proxy generator's TypeScript-shape-oriented primitive map (which also treats <see cref="DateOnly"/>,
-    /// <see cref="TimeOnly"/>, and geospatial types as primitive because they map to known TypeScript types). Kept in
+    /// match the proxy generator's TypeScript-shape-oriented primitive map (which also treats geospatial types
+    /// as primitive because they map to known TypeScript types). Kept in
     /// sync with <see cref="IsEnumerableOfQueryArgumentElement"/> and <see cref="ConvertToUnderlyingType"/>.
     /// </remarks>
     static readonly HashSet<Type> _additionalQueryArgumentScalarTypes =
@@ -28,7 +28,10 @@ public static class ConverterExtensions
         typeof(DateTime),
         typeof(DateTimeOffset),
         typeof(TimeSpan),
-        typeof(Guid)
+        typeof(Guid),
+        typeof(DateOnly),
+        typeof(TimeOnly),
+        typeof(Uri)
     ];
 
     /// <summary>
@@ -107,7 +110,8 @@ public static class ConverterExtensions
         }
 
         elementType = candidateElementType;
-        return elementType.IsEnum || elementType.IsConcept() || IsQueryArgumentScalar(elementType);
+        var scalarType = Nullable.GetUnderlyingType(elementType) ?? elementType;
+        return scalarType.IsEnum || scalarType.IsConcept() || IsQueryArgumentScalar(scalarType);
     }
 
     static bool IsQueryArgumentScalar(Type type) =>
@@ -150,10 +154,10 @@ public static class ConverterExtensions
     /// Converts a value into an enumerable of <paramref name="elementType"/>, splitting a delimited string
     /// (the shape a repeated query string key collapses into) and converting each part individually.
     /// </summary>
-    /// <param name="value">The raw value - typically a comma-separated string.</param>
+    /// <param name="value">The raw value - a comma-separated GET string or the individual QUERY body values.</param>
     /// <param name="targetType">The declared parameter type to satisfy.</param>
     /// <param name="elementType">The element type to convert each part to.</param>
-    /// <returns>An array or list assignable to <paramref name="targetType"/>.</returns>
+    /// <returns>A collection assignable to <paramref name="targetType"/> for supported collection types.</returns>
     /// <remarks>
     /// A part that itself contains a literal comma cannot round-trip through this - the collapsed
     /// <c>IReadOnlyDictionary&lt;string, string&gt;</c> query representation has already lost the boundary between
@@ -163,17 +167,15 @@ public static class ConverterExtensions
     /// </remarks>
     static object ConvertToEnumerable(object value, Type targetType, Type elementType)
     {
-        var stringValue = value.ToString();
-        if (string.IsNullOrEmpty(stringValue))
-        {
-            return Array.CreateInstance(elementType, 0);
-        }
-
-        var parts = stringValue.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = value is IEnumerable values and not string
+            ? values.Cast<object?>().ToArray()
+            : (value.ToString() ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Cast<object?>().ToArray();
         var array = Array.CreateInstance(elementType, parts.Length);
         for (var index = 0; index < parts.Length; index++)
         {
-            array.SetValue(parts[index].ConvertTo(elementType), index);
+            array.SetValue(parts[index]?.ConvertTo(elementType), index);
         }
 
         if (targetType.IsInstanceOfType(array))
@@ -181,14 +183,26 @@ public static class ConverterExtensions
             return array;
         }
 
-        // A concrete collection type (e.g. List<T>) that an array cannot satisfy directly.
         var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType))!;
         foreach (var item in array)
         {
             list.Add(item);
         }
 
-        return targetType.IsInstanceOfType(list) ? list : array;
+        if (targetType.IsInstanceOfType(list))
+        {
+            return list;
+        }
+
+        var setType = typeof(HashSet<>).MakeGenericType(elementType);
+        if (targetType.IsAssignableFrom(setType))
+        {
+            return Activator.CreateInstance(setType, list)!;
+        }
+
+        var enumerableType = typeof(IEnumerable<>).MakeGenericType(elementType);
+        var constructor = targetType.GetConstructor([enumerableType]);
+        return constructor is not null ? constructor.Invoke([list]) : array;
     }
 
     static object? ConvertToUnderlyingType(object value, Type targetType)
