@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Method requirements
 
-Declare queries as non-generic static methods on an `[ReadModel]` type. Prefer public methods, give each query a descriptive name, and return the declaring model or a [supported wrapper around it](return-types.md). Ordinary helper methods returning another type are not query endpoints. Avoid overloaded query names: the method name is part of the query's identity.
+Declare queries as non-generic **public or internal static** methods on a `[ReadModel]` type. Give each query a descriptive name and return the declaring model or a [supported wrapper around it](return-types.md). Private static helpers, local functions, compiler-generated methods, and property accessors are not query endpoints. Ordinary helper methods returning another type are not query endpoints. Avoid overloaded query names: the method name is part of the query's identity.
 
 Dependencies are resolved by type, not by parameter position. C# still requires optional parameters to follow required parameters, including required service parameters.
 

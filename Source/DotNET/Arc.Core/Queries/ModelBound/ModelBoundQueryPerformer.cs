@@ -191,7 +191,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         return null;
     }
 
-    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryStringParameters)
+    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryStringParameters, FullyQualifiedQueryName queryName)
     {
         var matchingQueryParam = queryStringParameters.FirstOrDefault(kvp =>
             string.Equals(kvp.Key, parameter.Name, StringComparison.OrdinalIgnoreCase));
@@ -208,7 +208,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
             return parameter.HasDefaultValue ? parameter.DefaultValue : null;
         }
 
-        return matchingQueryParam.Value.ConvertTo(parameter.ParameterType);
+        return matchingQueryParam.Value.ConvertQueryArgument(parameter.ParameterType, parameter.Name ?? "unknown", queryName);
     }
 
     static bool CanRepresentEmptyString(Type type) =>
@@ -305,14 +305,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
             }
             else
             {
-                try
-                {
-                    args[i] = ResolveQueryArgument(parameter, queryStringParameters);
-                }
-                catch (InvalidCollectionQueryArgument)
-                {
-                    throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
-                }
+                args[i] = ResolveQueryArgument(parameter, queryStringParameters, FullyQualifiedName);
             }
         }
 

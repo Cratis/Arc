@@ -92,6 +92,7 @@ public static class QueryHttpExtensions
     /// <param name="httpContext">The HTTP context.</param>
     /// <param name="performer">The query performer to get for.</param>
     /// <returns>A dictionary of custom parameters.</returns>
+    /// <exception cref="InvalidQueryArgument">A supplied scalar argument cannot be converted.</exception>
     public static QueryArguments GetQueryArguments(this HttpContext httpContext, IQueryPerformer performer)
     {
         var arguments = new QueryArguments();
@@ -117,7 +118,7 @@ public static class QueryHttpExtensions
 
                 if (parameter is not null)
                 {
-                    var convertedValue = stringValue.ConvertTo(parameter.Type);
+                    var convertedValue = stringValue.ConvertQueryArgument(parameter.Type, parameter.Name, performer.FullyQualifiedName);
                     if (convertedValue is not null)
                     {
                         arguments[kvp.Key] = convertedValue;
