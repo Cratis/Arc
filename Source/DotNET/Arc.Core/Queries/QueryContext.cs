@@ -37,13 +37,26 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
 
     /// <summary>
+    /// Gets or sets the serializable effective scope selected by a query filter for this subscription.
+    /// An absent scope is <see langword="null"/>.
+    /// </summary>
+    public object? SubscriptionScope { get; set; }
+
+    /// <summary>
     /// Gets the operation-local authorization plan prepared by a host before creating a fresh execution scope.
     /// </summary>
     internal PreparedAuthorization? PreparedAuthorization { get; set; }
+
+    /// <summary>Gets or sets the immutable scope snapshot captured after filtering and before query execution.</summary>
+    internal ObservableQuerySubscriptionScopeSnapshot? SubscriptionScopeSnapshot { get; set; }
 
     /// <summary>Gets or sets the captured tenant used after the direct query pipeline returns.</summary>
     internal TenantId? EmissionTenant { get; set; }
 
     /// <summary>Gets or sets the still-live direct request's native scope factory.</summary>
     internal Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? NativeEmissionRequest { get; set; }
+
+    /// <summary>Gets an independent copy of the admitted subscription scope for an emission.</summary>
+    /// <returns>A fresh scope copy, or null when none was supplied.</returns>
+    internal object? CreateSubscriptionScope() => SubscriptionScopeSnapshot?.CreateScope();
 }

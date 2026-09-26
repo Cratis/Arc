@@ -51,6 +51,9 @@ public class ObservableQueryEmissionGuards(
         var argumentsSnapshot = new ObservableQueryArgumentsSnapshot(
             context.Arguments,
             arcOptions.Value.JsonSerializerOptions);
+        var scopeSnapshot = context.SubscriptionScope is { } scope
+            ? new ObservableQuerySubscriptionScopeSnapshot(scope, arcOptions.Value.JsonSerializerOptions)
+            : null;
 
         foreach (var guardType in _guardTypes)
         {
@@ -83,7 +86,8 @@ public class ObservableQueryEmissionGuards(
                 var guardContext = context with
                 {
                     Arguments = argumentsSnapshot.CreateArguments(),
-                    Principal = ClonePrincipal(principalSnapshot)
+                    Principal = ClonePrincipal(principalSnapshot),
+                    SubscriptionScope = scopeSnapshot?.CreateScope()
                 };
                 verdict = await guard.Guard(guardContext);
             }

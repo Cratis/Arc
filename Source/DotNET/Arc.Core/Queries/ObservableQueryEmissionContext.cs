@@ -38,4 +38,11 @@ public record ObservableQueryEmissionContext(
     CorrelationId CorrelationId,
     IServiceProvider ServiceProvider,
     bool IsFirstEmission,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    /// <summary>
+    /// Gets the independent snapshot of the scope selected by the query filters at subscription time,
+    /// or <see langword="null"/> if no scope was supplied.
+    /// </summary>
+    public object? SubscriptionScope { get; init; }
+}

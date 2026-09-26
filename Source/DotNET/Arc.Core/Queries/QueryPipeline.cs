@@ -13,6 +13,7 @@ using Cratis.Traces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -253,6 +254,15 @@ public class QueryPipeline(
             if (!result.IsSuccess)
             {
                 return result;
+            }
+
+            // Capture the filter's effective scope before the performer can mutate its original value.
+            // Every emission reconstructs its own copy from this baseline.
+            if (context.SubscriptionScope is { } subscriptionScope)
+            {
+                var serializerOptions = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.JsonSerializerOptions
+                    ?? new ArcOptions().JsonSerializerOptions;
+                context.SubscriptionScopeSnapshot = new ObservableQuerySubscriptionScopeSnapshot(subscriptionScope, serializerOptions);
             }
 
             result.AuthorizedPrincipal = context.AuthorizedPrincipal;

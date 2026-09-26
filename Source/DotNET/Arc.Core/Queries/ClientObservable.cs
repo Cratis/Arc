@@ -224,7 +224,10 @@ public class ClientObservable<T>(
                 queryContext.CorrelationId,
                 context.RequestServices,
                 !hasDeliveredEmission,
-                cts.Token));
+                cts.Token)
+            {
+                SubscriptionScope = queryContext.CreateSubscriptionScope()
+            });
 
             if (verdict == ObservableQueryEmissionVerdict.Allow)
             {

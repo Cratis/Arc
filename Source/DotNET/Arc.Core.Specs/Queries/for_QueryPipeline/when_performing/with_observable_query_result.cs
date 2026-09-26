@@ -49,6 +49,7 @@ public class with_observable_query_result : given.a_query_pipeline
 
     [Fact] void should_return_successful_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_capture_any_exception() => _result.ExceptionMessages.ShouldBeEmpty();
+    [Fact] void should_keep_the_unsupplied_scope_null() => _result.AuthorizedQueryContext!.CreateSubscriptionScope().ShouldBeNull();
     [Fact] void should_return_the_subject_untouched() => _result.Data.ShouldEqual(_subject);
     [Fact] void should_not_invoke_the_read_model_interceptors() =>
         _readModelInterceptors.DidNotReceive().Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>());

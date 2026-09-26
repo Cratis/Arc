@@ -66,7 +66,10 @@ public class ClientEnumerableObservable<T>(
                             queryContext.CorrelationId,
                             context.RequestServices,
                             !hasDeliveredEmission,
-                            cts.Token));
+                            cts.Token)
+                        {
+                            SubscriptionScope = queryContext.CreateSubscriptionScope()
+                        });
 
                         if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
                         {
