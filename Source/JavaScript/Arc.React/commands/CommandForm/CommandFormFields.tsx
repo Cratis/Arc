@@ -6,6 +6,8 @@ import { useCommandFormFieldRegistration } from './CommandFormFieldRegistrationC
 import React from 'react';
 import type { CommandFormFieldProps } from './CommandFormField.js';
 import type { ICommandResult } from '@cratis/arc/commands';
+import { ValidationResultSeverity } from '@cratis/arc/validation';
+import { blocksCommandValidation } from './blocksCommandValidation.js';
 import { memberMatchesField } from './memberMatchesField.js';
 import { isCommandFormColumn, type CommandFormMarked } from './commandFormMarkers.js';
 import { renderCommandFormDescendants } from './renderCommandFormDescendants.js';
@@ -38,6 +40,7 @@ const CommandFormFieldWrapper = ({
     const context = useCommandFormContext<unknown>();
     const nativeResultContext = React.useContext(CommandFormNativeResultContext);
     const nativeCommandResult = nativeResultContext ? nativeResultContext.result : context.commandResult;
+    const policy = (context.commandInstance as { blockOnValidationSeverity?: ValidationResultSeverity } | undefined)?.blockOnValidationSeverity;
     const fieldProps = field.props as CommandFormFieldProps;
     const generatedId = React.useId();
     const fieldId = fieldProps.id ?? generatedId;
@@ -139,7 +142,7 @@ const CommandFormFieldWrapper = ({
                                 )
                                 .map((vr) => vr.message) || [];
                         const validationInfo: FieldValidationInfo = {
-                            isValid: prevErrors.length === 0,
+                            isValid: !context.commandResult?.validationResults?.some(vr => memberMatchesField(vr.members, propertyName) && blocksCommandValidation(vr, policy)),
                             errors: prevErrors,
                         };
                         context.onFieldChange(
@@ -201,7 +204,7 @@ const CommandFormFieldWrapper = ({
                             context.setCommandResult({
                                 ...validationResult,
                                 validationResults: mergedValidationResults,
-                                isValid: mergedValidationResults.length === 0,
+                                isValid: validationResult.isValid && !mergedValidationResults.some(vr => blocksCommandValidation(vr, policy)),
                             });
                         }
                     }
@@ -250,7 +253,7 @@ const CommandFormFieldWrapper = ({
                                 context.setCommandResult({
                                     ...validationResult,
                                     validationResults: mergedValidationResults,
-                                    isValid: mergedValidationResults.length === 0,
+                                    isValid: validationResult.isValid && !mergedValidationResults.some(vr => blocksCommandValidation(vr, policy)),
                                 });
                             }
                         }
@@ -268,7 +271,7 @@ const CommandFormFieldWrapper = ({
                                 )
                                 .map((vr) => vr.message) || [];
                         const validationInfo: FieldValidationInfo = {
-                            isValid: fieldErrors.length === 0,
+                            isValid: !validationResult.validationResults?.some(vr => memberMatchesField(vr.members, propertyName) && blocksCommandValidation(vr, policy)),
                             errors: fieldErrors,
                         };
                         context.onFieldChange(
