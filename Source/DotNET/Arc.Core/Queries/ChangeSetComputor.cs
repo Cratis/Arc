@@ -32,12 +32,14 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     /// Discovers the property that represents the identity of an item.
     /// </summary>
     /// <remarks>
-    /// Looks for a property conventionally named <c>Id</c> (case-insensitive).
+    /// Looks for a property conventionally named <c>Id</c> (case-insensitive), including inherited interface properties.
     /// </remarks>
     /// <param name="type">The item type to inspect.</param>
     /// <returns>The identity <see cref="PropertyInfo"/>, or <see langword="null"/> if not found.</returns>
     public static PropertyInfo? FindIdentityProperty(Type type) =>
-        type.GetProperties()
+        type.GetProperties().FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase)) ??
+        type.GetInterfaces()
+            .SelectMany(_ => _.GetProperties())
             .FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>

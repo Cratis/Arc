@@ -4,9 +4,8 @@
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_subscribe;
 
 /// <summary>
-/// A suppressed emission must not move the delta baseline. The client never saw it, so the next delivered
-/// <see cref="ChangeSet"/> has to be computed against the last state it actually received — otherwise the changes that
-/// happened while the guard was withholding are folded into "already delivered" and vanish, with no error anywhere.
+/// A suppressed emission must not advance the delivered state. For collections without identity, the next
+/// allowed emission must contain the complete current snapshot, including changes made while the guard withheld data.
 /// </summary>
 public class and_guard_suppresses_then_allows : given.a_guarded_sse_connection
 {
@@ -31,10 +30,10 @@ public class and_guard_suppresses_then_allows : given.a_guarded_sse_connection
     [Fact] void should_withhold_exactly_one_emission() => QueryResultsFor(FirstQueryId).Count.ShouldEqual(2);
 
     [Fact]
-    void should_report_everything_that_changed_since_the_last_delivered_emission() =>
-        QueryResultsFor(FirstQueryId)[1].ChangeSet!.Added.Count().ShouldEqual(2);
+    void should_send_the_complete_current_snapshot_after_suppression() =>
+        ((System.Text.Json.JsonElement)QueryResultsFor(FirstQueryId)[1].Data).GetArrayLength().ShouldEqual(3);
 
     [Fact]
-    void should_not_report_anything_as_removed() =>
-        QueryResultsFor(FirstQueryId)[1].ChangeSet!.Removed.Count().ShouldEqual(0);
+    void should_not_send_a_change_set() =>
+        QueryResultsFor(FirstQueryId)[1].ChangeSet.ShouldBeNull();
 }

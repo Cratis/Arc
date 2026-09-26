@@ -66,6 +66,8 @@ See [Observing Collections](../../mongodb/observing-collections.md#when-the-obse
 
 The method must still return the declaring read model or a supported wrapper around it. `Task<ISubject<T>>` is allowed; arbitrary `IObservable<T>` is not a model-bound discovery shape. See [return types](return-types.md).
 
+For hub collection subscriptions, each item needs a stable, unique `Id` property to receive change sets (including in `delta` mode). An `Id` concept like `AccountId` in the example works. Without an `Id`, Arc sends the complete collection on every emission without a change set and logs a warning once per subscription. See [collection change streams](../change-stream.md) for transfer modes.
+
 ## Custom observable logic
 
 Return the provider subject directly when it expresses the read. Rx operators such as `Select`, `CombineLatest`, or `Sample` produce observables; adapting them to Arc's subject contract must preserve both [subscription lifetime and terminal errors](#subscription-lifetime). This keeps derived streams safe to disconnect, not just able to forward values.
