@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle;
@@ -51,6 +52,9 @@ public class a_command_pipeline_with_event_handlers : Specification
             .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
             .Returns(_ => new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution([], CommandResult.Success(_correlationId))));
         _serviceProvider = Substitute.For<IServiceProvider>();
+        _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
 
         var serviceScope = Substitute.For<IServiceScope>();
         serviceScope.ServiceProvider.Returns(_serviceProvider);
