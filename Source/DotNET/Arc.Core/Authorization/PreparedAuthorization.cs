@@ -12,13 +12,17 @@ namespace Cratis.Arc.Authorization;
 /// <param name="Target">The declared target.</param>
 /// <param name="Declaration">The effective requirements.</param>
 /// <param name="OriginalPrincipal">The caller before scheme authentication.</param>
-/// <param name="SelectedPrincipal">The authenticated scheme principal.</param>
+/// <param name="OriginalPrincipalIdentity">The caller's identity captured before selection or policy evaluation.</param>
+/// <param name="SelectedPrincipal">The authenticated scheme principal or synthetic guest.</param>
+/// <param name="SelectedPrincipalIdentity">The selected identity captured before policy evaluation.</param>
 /// <param name="Resolution">The resolved policies used for the later verdict.</param>
 internal sealed record PreparedAuthorization(
     MemberInfo Target,
     AuthorizationDeclaration Declaration,
     ClaimsPrincipal? OriginalPrincipal,
+    PrincipalSnapshot OriginalPrincipalIdentity,
     ClaimsPrincipal? SelectedPrincipal,
+    PrincipalSnapshot SelectedPrincipalIdentity,
     IAuthorizationPolicyResolution Resolution)
 {
     /// <summary>
