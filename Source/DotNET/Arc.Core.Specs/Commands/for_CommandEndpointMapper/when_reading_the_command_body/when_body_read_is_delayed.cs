@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.for_QueryEndpointMapper.given;
 using Cratis.Execution;
@@ -43,6 +44,9 @@ public class when_body_read_is_delayed : Specification
             .AddSingleton(pipeline)
             .AddSingleton(Options.Create(new ArcOptions()))
             .AddSingleton(correlationIdAccessor)
+            .AddSingleton(new AuthorizationDeclarations(
+                new KnownInstancesOf<IAnonymousEvaluator>([]),
+                new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])))
             .BuildServiceProvider();
         var mappingServices = new ServiceCollection()
             .AddSingleton(handlers)
