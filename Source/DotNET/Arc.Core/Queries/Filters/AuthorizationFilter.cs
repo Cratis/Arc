@@ -51,7 +51,15 @@ public class AuthorizationFilter(IQueryPerformerProviders queryPerformerProvider
         }
         else
         {
-            allowed = performer.IsAuthorized(context);
+            try
+            {
+                allowed = performer.IsAuthorized(context);
+            }
+            catch (AsynchronousAuthorizationRequired)
+            {
+                context.CancellationToken.ThrowIfCancellationRequested();
+                return QueryResult.Unauthorized(context.CorrelationId);
+            }
         }
 
         context.CancellationToken.ThrowIfCancellationRequested();
