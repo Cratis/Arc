@@ -1,11 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.ReferencedConceptCommand</AssemblyName>
-        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.ReferencedConceptCommand</RootNamespace>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.ReferencedConceptValidator</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.ReferencedConceptValidator</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../../../../Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../CommandResponseHandlerDependency/CommandResponseHandlerDependency.csproj" />
-        <ProjectReference Include="../ReferencedConceptValidator/ReferencedConceptValidator.csproj" />
     </ItemGroup>
 </Project>

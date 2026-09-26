@@ -102,6 +102,11 @@ public static class TypeExtensions
     public static IEnumerable<Assembly> Assemblies { get; private set; } = [];
 
     /// <summary>
+    /// Gets the managed application dependencies (projects and packages) that can declare runtime validators.
+    /// </summary>
+    internal static IEnumerable<Assembly> ValidatorAssemblies { get; private set; } = [];
+
+    /// <summary>
     /// Sets the assembly-to-package mappings used to map types from specific assemblies to external TypeScript packages.
     /// </summary>
     /// <param name="mappings">Dictionary mapping assembly names to package names.</param>
@@ -1372,6 +1377,11 @@ public static class TypeExtensions
             Assemblies = [.. managedProjectAssemblyPaths
                                             .Select(LoadMetadataAssembly)
                                             .Distinct()];
+            ValidatorAssemblies = [.. managedAppAssemblyPaths
+                .Select(LoadMetadataAssembly)
+                .Where(_ => _.GetName().Name != "Cratis.Arc.Core" &&
+                    _.GetReferencedAssemblies().Any(reference => reference.Name == "Cratis.Arc.Core"))
+                .Distinct()];
 
             var commandResponseValueHandlerContractsAssembly = managedAppAssemblyPaths
                 .Where(_ => Path.GetFileNameWithoutExtension(_) == CommandResponseValueHandlerContractsAssemblyName)
@@ -1669,6 +1679,7 @@ public static class TypeExtensions
     {
         var metadataLoadContext = _metadataLoadContext;
         Assemblies = [];
+        ValidatorAssemblies = [];
         _assembliesByName.Clear();
         _serverHandledCommandResponseValueTypeNames = null;
         ResetWellKnownTypes();
