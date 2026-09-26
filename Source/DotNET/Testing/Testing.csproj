@@ -8,5 +8,6 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+        <InternalsVisibleTo Include="Cratis.Arc.Testing.Specs" />
     </ItemGroup>
 </Project>
