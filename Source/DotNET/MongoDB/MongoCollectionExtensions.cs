@@ -76,7 +76,7 @@ public static class MongoCollectionExtensions
     public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
-        FindOptions? options = null) => collection.Observe(false, filter, options);
+        FindOptions? options = null) => collection.Observe(filter, false, options);
 
     /// <summary>Observe a single matching document using the current query context.</summary>
     /// <param name="collection">The collection to observe.</param>
@@ -87,7 +87,7 @@ public static class MongoCollectionExtensions
     public static ISubject<TDocument> ObserveSingle<TDocument>(
         this IMongoCollection<TDocument> collection,
         FilterDefinition<TDocument>? filter = null,
-        FindOptions? options = null) => collection.ObserveSingle(false, filter, options);
+        FindOptions? options = null) => collection.ObserveSingle(filter, false, options);
 
     /// <summary>Observe a document by id using the current query context.</summary>
     /// <param name="collection">The collection to observe.</param>
@@ -152,7 +152,31 @@ public static class MongoCollectionExtensions
     /// Create an observable query that will observe the collection for changes matching the filter criteria.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
+    /// <param name="filterDefinition">The MongoDB filter.</param>
     /// <param name="ignoreQueryContext">Whether to read the full filtered source without client paging, sorting, or total count updates.</param>
+    /// <param name="options">Optional options.</param>
+    /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
+    /// <returns><see cref="ISubject{T}"/> with a collection of the type for the collection.</returns>
+    /// <example><c>collection.Observe(filterDefinition, ignoreQueryContext: true)</c>.</example>
+    public static ISubject<IEnumerable<TDocument>> Observe<TDocument>(
+        this IMongoCollection<TDocument> collection,
+        FilterDefinition<TDocument>? filterDefinition,
+        bool ignoreQueryContext,
+        FindOptions? options = null)
+    {
+        filterDefinition ??= FilterDefinition<TDocument>.Empty;
+        return collection.Observe<TDocument, IEnumerable<TDocument>>(
+            () => collection.Find(filterDefinition, options),
+            filterDefinition,
+            ignoreQueryContext,
+            (documents, changes, observable) => observable.OnNext(new ObservedCollection<TDocument>([.. documents], changes)));
+    }
+
+    /// <summary>
+    /// Observe matching documents with the query-context option before the MongoDB filter.
+    /// </summary>
+    /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
@@ -161,21 +185,37 @@ public static class MongoCollectionExtensions
         this IMongoCollection<TDocument> collection,
         bool ignoreQueryContext,
         FilterDefinition<TDocument>? filter = null,
-        FindOptions? options = null)
-    {
-        filter ??= FilterDefinition<TDocument>.Empty;
-        return collection.Observe<TDocument, IEnumerable<TDocument>>(
-            () => collection.Find(filter, options),
-            filter,
-            ignoreQueryContext,
-            (documents, changes, observable) => observable.OnNext(new ObservedCollection<TDocument>([.. documents], changes)));
-    }
+        FindOptions? options = null) => collection.Observe(filter, ignoreQueryContext, options);
 
     /// <summary>
     /// Create an observable query that will observe the collection for changes matching the filter criteria.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
+    /// <param name="filterDefinition">The MongoDB filter.</param>
     /// <param name="ignoreQueryContext">Whether to read the full filtered source without client paging, sorting, or total count updates.</param>
+    /// <param name="options">Optional options.</param>
+    /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
+    /// <returns>
+    /// An <see cref="ISubject{T}"/> with a single instance of the type; emits <see langword="default"/> when
+    /// no document matches — after the observed document is deleted, after an update or replace moves it out
+    /// of the filter, or when the initial query finds none.
+    /// </returns>
+    /// <example><c>collection.ObserveSingle(filterDefinition, ignoreQueryContext: true)</c>.</example>
+    public static ISubject<TDocument> ObserveSingle<TDocument>(
+        this IMongoCollection<TDocument> collection,
+        FilterDefinition<TDocument>? filterDefinition,
+        bool ignoreQueryContext,
+        FindOptions? options = null)
+    {
+        filterDefinition ??= FilterDefinition<TDocument>.Empty;
+        return collection.ObserveSingle(() => collection.Find(filterDefinition, options), filterDefinition, ignoreQueryContext);
+    }
+
+    /// <summary>
+    /// Observe a single matching document with the query-context option before the MongoDB filter.
+    /// </summary>
+    /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
@@ -188,11 +228,7 @@ public static class MongoCollectionExtensions
         this IMongoCollection<TDocument> collection,
         bool ignoreQueryContext,
         FilterDefinition<TDocument>? filter = null,
-        FindOptions? options = null)
-    {
-        filter ??= FilterDefinition<TDocument>.Empty;
-        return collection.ObserveSingle(() => collection.Find(filter, options), filter, ignoreQueryContext);
-    }
+        FindOptions? options = null) => collection.ObserveSingle(filter, ignoreQueryContext, options);
 
     /// <summary>
     /// Create an observable query that will observe a single document based on Id of the document in the collection for changes matching the filter criteria.

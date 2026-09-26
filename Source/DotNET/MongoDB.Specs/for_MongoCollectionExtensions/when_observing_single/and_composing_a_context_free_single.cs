@@ -29,4 +29,6 @@ public class and_composing_a_context_free_single : given.a_composed_observation
     [Fact] void should_not_page_the_single_observation() => _auxiliaryFindOptions.Skip.ShouldBeNull();
     [Fact] void should_not_sort_the_single_observation() => _auxiliaryFindOptions.Sort.ShouldBeNull();
     [Fact] void should_not_replace_the_primary_total() => _total.ShouldEqual(_documents.Count);
+    [Fact] async Task should_not_count_the_auxiliary_source() => await _auxiliary.DidNotReceive().CountDocumentsAsync(
+        Arg.Any<FilterDefinition<ObservedDocument>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>());
 }

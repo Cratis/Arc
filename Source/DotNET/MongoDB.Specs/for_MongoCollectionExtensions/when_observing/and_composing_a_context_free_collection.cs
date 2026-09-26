@@ -53,6 +53,8 @@ public class and_composing_a_context_free_collection : given.a_composed_observat
     [Fact] void should_not_sort_the_auxiliary_source() => _auxiliaryFindOptions.Sort.ShouldBeNull();
     [Fact] void should_emit_the_full_auxiliary_source() => _initialSecondary.ShouldContainOnly(_auxiliaryDocuments);
     [Fact] void should_retain_the_primary_total_after_concurrent_first_emissions() => _initialTotal.ShouldEqual(_documents.Count);
+    [Fact] async Task should_not_count_the_auxiliary_source() => await _auxiliary.DidNotReceive().CountDocumentsAsync(
+        Arg.Any<FilterDefinition<ObservedDocument>>(), Arg.Any<CountOptions>(), Arg.Any<CancellationToken>());
     [Fact] void should_keep_all_auxiliary_items_after_an_insert() => _updatedSecondary.Count().ShouldEqual(_auxiliaryDocuments.Count + 1);
     [Fact] void should_not_change_the_primary_total_on_auxiliary_updates() => _updatedTotal.ShouldEqual(_documents.Count);
 }

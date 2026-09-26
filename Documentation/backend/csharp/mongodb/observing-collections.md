@@ -44,7 +44,7 @@ This overload does not expose `Sort` or `Limit` properties through `FindOptions`
 
 ### Compose a primary observation with auxiliary sources
 
-When a query combines observations from several collections, client paging and sorting belong to the primary source. Pass `ignoreQueryContext: true` to an auxiliary observation to read **all** documents matching its filter without client paging or sorting. This also prevents that source from writing the query's `TotalItems`, both at startup and on changes:
+When a query combines observations from several collections, client paging and sorting belong to the primary source. Existing composed queries must opt in on each auxiliary observation to get this behavior; otherwise those observations still use the client query context. Pass `ignoreQueryContext: true` to an auxiliary observation to read **all** documents matching its filter without client paging or sorting. This also prevents that source from writing the query's `TotalItems`, both at startup and on changes:
 
 ```csharp
 var primary = authors.Observe();
