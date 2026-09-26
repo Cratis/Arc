@@ -85,7 +85,7 @@ public static class DbSetObserveExtensions
         where TEntity : class
     {
         var parameter = Expression.Parameter(typeof(TEntity), "e");
-        var idProperty = GetIdProperty(dbSet);
+        var idProperty = GetClrIdProperty(dbSet.EntityType) ?? GetIdProperty(dbSet);
         var property = Expression.Call(typeof(EF), nameof(EF.Property), [idProperty.ClrType], parameter, Expression.Constant(idProperty.Name));
         var constant = Expression.Constant(id, typeof(TId));
         var equals = Expression.Equal(property, constant);
@@ -173,7 +173,7 @@ public static class DbSetObserveExtensions
             var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
             var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
             queryContext.TotalItems = initialBaseQuery.Count();
-            var query = BuildQuery(initialBaseQuery, queryContext);
+            var query = BuildQuery(initialBaseQuery, queryContext, entityType);
             initialEntities = query.ToList();
         }
 
@@ -222,7 +222,7 @@ public static class DbSetObserveExtensions
                 // Build the query using the fresh DbSet
                 var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
                 queryContext.TotalItems = baseQuery.Count();
-                var newQuery = BuildQuery(baseQuery, queryContext);
+                var newQuery = BuildQuery(baseQuery, queryContext, entityType);
                 var newEntities = newQuery.ToList();
                 entities.ReinitializeWithEntities(newEntities);
                 onNext(entities, subject);
@@ -340,9 +340,10 @@ public static class DbSetObserveExtensions
     {
         var entityType = dbSet.EntityType;
         var primaryKey = entityType.FindPrimaryKey();
-        var idProperty = primaryKey?.Properties.Count == 1
-            ? primaryKey.Properties[0]
-            : entityType.FindProperty("Id")
+        var keyProperty = primaryKey?.Properties.Count == 1 ? primaryKey.Properties[0] : null;
+        var idProperty = keyProperty?.IsShadowProperty() == false
+            ? keyProperty
+            : GetClrIdProperty(entityType) ?? keyProperty
                 ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
 
         if (idProperty.IsShadowProperty())
@@ -353,10 +354,16 @@ public static class DbSetObserveExtensions
         return idProperty;
     }
 
-    static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
+    static IProperty? GetClrIdProperty(IEntityType entityType)
+    {
+        var property = entityType.FindProperty("Id");
+        return property?.PropertyInfo?.GetMethod?.IsPublic == true ? property : null;
+    }
+
+    static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
         where TEntity : class
     {
-        query = AddSorting(query, queryContext);
+        query = AddSorting(query, queryContext, entityType);
         query = AddPaging(query, queryContext);
         return query;
     }
@@ -374,16 +381,20 @@ public static class DbSetObserveExtensions
         return query;
     }
 
-    static IQueryable<TEntity> AddSorting<TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
+    static IQueryable<TEntity> AddSorting<TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
         where TEntity : class
     {
         if (queryContext.Sorting != Sorting.None)
         {
-            var property = typeof(TEntity).GetProperty(queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
-            if (property is not null)
+            var fieldName = queryContext.Sorting.Field.Value.ToPascalCase();
+            var property = typeof(TEntity).GetProperty(fieldName, BindingFlags.Instance | BindingFlags.Public);
+            var indexerProperty = property is null ? entityType.FindProperty(fieldName) : null;
+            if (property is not null || indexerProperty?.IsIndexerProperty() == true)
             {
                 var parameter = Expression.Parameter(typeof(TEntity), "x");
-                var propertyAccess = Expression.Property(parameter, property);
+                var propertyAccess = property is not null
+                    ? (Expression)Expression.Property(parameter, property)
+                    : Expression.Call(typeof(EF), nameof(EF.Property), [indexerProperty!.ClrType], parameter, Expression.Constant(indexerProperty.Name));
                 var lambda = Expression.Lambda(propertyAccess, parameter);
 
                 var methodName = queryContext.Sorting.Direction == SortDirection.Ascending
@@ -393,7 +404,7 @@ public static class DbSetObserveExtensions
                 var orderByMethod = typeof(Queryable)
                     .GetMethods()
                     .First(m => m.Name == methodName && m.GetParameters().Length == 2)
-                    .MakeGenericMethod(typeof(TEntity), property.PropertyType);
+                    .MakeGenericMethod(typeof(TEntity), propertyAccess.Type);
 
                 query = (IQueryable<TEntity>)orderByMethod.Invoke(null, [query, lambda])!;
             }

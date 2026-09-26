@@ -28,10 +28,25 @@ public class ShadowKeyEntity
     public string Name { get; set; } = string.Empty;
 }
 
+public class ShadowKeyWithIdEntity
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
+public class SeparateKeyEntity
+{
+    public int Key { get; set; }
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+}
+
 public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
 {
     public DbSet<TestEntity> TestEntities { get; set; }
     public DbSet<ShadowKeyEntity> ShadowKeyEntities { get; set; }
+    public DbSet<ShadowKeyWithIdEntity> ShadowKeyWithIdEntities { get; set; }
+    public DbSet<SeparateKeyEntity> SeparateKeyEntities { get; set; }
 
     public DbSet<Dictionary<string, object?>> PropertyBags => Set<Dictionary<string, object?>>("PropertyBag");
 
@@ -39,6 +54,9 @@ public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(
     {
         modelBuilder.Entity<ShadowKeyEntity>().Property<int>("ShadowId");
         modelBuilder.Entity<ShadowKeyEntity>().HasKey("ShadowId");
+        modelBuilder.Entity<ShadowKeyWithIdEntity>().Property<int>("ShadowId");
+        modelBuilder.Entity<ShadowKeyWithIdEntity>().HasKey("ShadowId");
+        modelBuilder.Entity<SeparateKeyEntity>().HasKey(entity => entity.Key);
         modelBuilder.SharedTypeEntity<Dictionary<string, object?>>("PropertyBag", entity =>
         {
             entity.IndexerProperty<int>("Id");
