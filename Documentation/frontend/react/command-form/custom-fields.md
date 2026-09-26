@@ -23,7 +23,8 @@ interface MyFieldProps extends WrappedFieldProps<string> {
 
 export const MyField = asCommandFormField<MyFieldProps>(
     function TextInput(props: MyFieldProps) {
-        const id = useId();
+        const generatedId = useId();
+        const id = props.id ?? generatedId;
         return (
             <div>
                 <label htmlFor={id}>{props.label}</label>
@@ -67,13 +68,14 @@ export function ProfileForm() {
 }
 ```
 
-No `title` is supplied because each control renders its own label. `maxLength` constrains normal typing but does not validate programmatically supplied values. CommandForm uses `noValidate`; keep length/format/required rules on the command.
+No `title` is supplied because each control renders its own label. If you use a form-rendered `title` instead, forward `props.id` to the control; do not render a second label with the same text. `maxLength` constrains normal typing but does not validate programmatically supplied values. CommandForm uses `noValidate`; keep length/format/required rules on the command.
 
 ## WrappedFieldProps
 
 | Prop | Type | Contract |
 | --- | --- | --- |
 | `value` | `TValue` | Current display value; configured fallback is used only for `undefined`, not `null`. |
+| `id` | `string \| undefined` | Forward to the rendered input so a CommandForm `title` labels and focuses it. A caller-supplied id takes precedence over the generated one. |
 | `onChange` | `(valueOrEvent: TValue \| unknown) => void` | Forward the control's change event/value for extraction and binding. |
 | `onBlur` | `(() => void) \| undefined` | Forward to the control's blur event to preserve form blur validation. |
 | `invalid` | `boolean` | Whether this field has a displayed error. |
@@ -107,6 +109,7 @@ type HandRolledProps = CommandFormFieldProps & InjectedCommandFormFieldProps;
 
 export const HandRolledField = withCommandFormFieldBinding((props: HandRolledProps) => (
     <input
+        id={props.id}
         aria-label={props.title}
         value={String(props.currentValue ?? '')}
         onChange={event => props.onValueChange?.(event.target.value)}
@@ -136,8 +139,9 @@ interface PrimeInputTextFieldProps extends WrappedFieldProps<string> {
 
 export const PrimeInputTextField = asCommandFormField<PrimeInputTextFieldProps>(
     function PrimeTextInput(props: PrimeInputTextFieldProps) {
-        const id = useId();
-        const { label, value, onChange, invalid, required, errors, ...rest } = props;
+        const generatedId = useId();
+        const { label, value, onChange, invalid, required, errors, id: providedId, ...rest } = props;
+        const id = providedId ?? generatedId;
         void errors;
         return (
             <div>
