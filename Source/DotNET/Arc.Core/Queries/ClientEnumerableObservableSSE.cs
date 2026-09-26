@@ -70,7 +70,10 @@ public class ClientEnumerableObservableSSE<T>(
                         queryContext.CorrelationId,
                         context.RequestServices,
                         !hasDeliveredEmission,
-                        linkedCts.Token));
+                        linkedCts.Token)
+                    {
+                        SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
+                    });
 
                     if (verdict == ObservableQueryEmissionVerdict.DenyAndTerminate)
                     {

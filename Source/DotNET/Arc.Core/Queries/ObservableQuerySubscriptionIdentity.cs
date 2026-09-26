@@ -57,8 +57,19 @@ internal sealed class ObservableQuerySubscriptionIdentity(
     internal TenantId? AuthorizedTenant { get; init; }
 
     /// <summary>
+    /// Gets the immutable snapshot captured after query filters ran.
+    /// </summary>
+    internal ObservableQuerySubscriptionScopeSnapshot? SubscriptionScopeSnapshot { get; init; }
+
+    /// <summary>
     /// Creates independent query arguments from the immutable subscription baseline.
     /// </summary>
     /// <returns>A deep clone of the subscription arguments.</returns>
     public QueryArguments CreateArguments() => _arguments.CreateArguments();
+
+    /// <summary>
+    /// Creates a fresh copy of the scope for this emission.
+    /// </summary>
+    /// <returns>The captured scope, or null when none was supplied.</returns>
+    internal object? CreateSubscriptionScope() => SubscriptionScopeSnapshot?.CreateScope();
 }

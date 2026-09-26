@@ -38,4 +38,21 @@ public record ObservableQueryEmissionContext(
     CorrelationId CorrelationId,
     IServiceProvider ServiceProvider,
     bool IsFirstEmission,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    /// <summary>The scope supplied by a public caller or the independent copy handed to a guard.</summary>
+    object? _subscriptionScope;
+
+    /// <summary>
+    /// Gets the independent snapshot of the scope selected by the query filters at subscription time,
+    /// or <see langword="null"/> if no scope was supplied.
+    /// </summary>
+    public object? SubscriptionScope
+    {
+        get => _subscriptionScope ?? SubscriptionScopeSnapshot?.CreateScope();
+        init => _subscriptionScope = value;
+    }
+
+    /// <summary>Gets the already-validated subscription-time scope snapshot for Arc's streaming transports.</summary>
+    internal ObservableQuerySubscriptionScopeSnapshot? SubscriptionScopeSnapshot { get; init; }
+}

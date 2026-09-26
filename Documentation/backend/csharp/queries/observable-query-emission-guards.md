@@ -43,7 +43,79 @@ public class SessionMustStillBeActive(ISessions sessions) : IGuardObservableQuer
 }
 ```
 
-That is the whole opt-in. Guards are discovered by convention — no registration, no configuration. An application with no guard pays nothing: no context is built and nothing is dispatched, and emissions take exactly the path they took before.
+That is the whole opt-in. Guards are discovered by convention — no registration, no configuration. An application with no guard builds no emission context and dispatches nothing; emissions take their existing path. A filter that supplies a scope still incurs the subscription-time snapshot, even if no guard is installed.
+
+## Compare the scope captured at subscription time
+
+When a query filter chooses which organization's data to stream, its decision may change while the connection stays open. Put a serializable value in `QueryContext.SubscriptionScope` during filtering in Arc's query pipeline. Arc captures it **after the filters succeed and before the query executes**, then passes a fresh copy in `ObservableQueryEmissionContext.SubscriptionScope` on each emission. Values assigned during query execution are too late and do not change the captured scope. The guard can compare that original scope to current membership without rerunning the filter or changing the query arguments.
+
+Controller-based observable queries do not run `IQueryFilters` through `QueryActionFilter.EstablishQueryContext`. Their emission guards always receive a `null` subscription scope; use a query handled by Arc's query pipeline if you need a filter-supplied scope.
+
+This application integration fragment uses `IMemberships` as an application-owned contract. Supply an implementation backed by authoritative membership state; `CurrentOrganizationId` must return the current organization, not a value cached at login. Replace the query name with your observable query's fully qualified name. The query itself must use the same filter-derived organization to select its data — setting the scope alone does not filter results.
+
+```csharp
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries;
+
+namespace Application.Security;
+
+public interface IMemberships
+{
+    Task<string?> CurrentOrganizationId(ClaimsPrincipal principal, CancellationToken cancellationToken);
+}
+
+public class CaptureOrganizationScope(ICurrentPrincipalAccessor principalAccessor, IMemberships memberships) : IQueryFilter
+{
+    public async Task<QueryResult> OnPerform(QueryContext context)
+    {
+        if (context.Name.Value != "Application.Queries.ForCurrentOrganization")
+        {
+            return QueryResult.Success(context.CorrelationId);
+        }
+
+        var principal = principalAccessor.Current;
+        if (principal is null)
+        {
+            return QueryResult.Unauthorized(context.CorrelationId);
+        }
+
+        var organizationId = await memberships.CurrentOrganizationId(principal, context.CancellationToken);
+        if (organizationId is null)
+        {
+            return QueryResult.Unauthorized(context.CorrelationId);
+        }
+
+        context.SubscriptionScope = organizationId;
+        return QueryResult.Success(context.CorrelationId);
+    }
+}
+
+public class OrganizationMustStillMatch(IMemberships memberships) : IGuardObservableQueryEmission
+{
+    public async Task<ObservableQueryEmissionVerdict> Guard(ObservableQueryEmissionContext context)
+    {
+        if (context.QueryName.Value != "Application.Queries.ForCurrentOrganization")
+        {
+            return ObservableQueryEmissionVerdict.Allow;
+        }
+
+        if (context.Principal is null || context.SubscriptionScope is not string originalOrganization)
+        {
+            return ObservableQueryEmissionVerdict.DenyAndTerminate;
+        }
+
+        var currentOrganization = await memberships.CurrentOrganizationId(context.Principal, context.CancellationToken);
+        return currentOrganization == originalOrganization
+            ? ObservableQueryEmissionVerdict.Allow
+            : ObservableQueryEmissionVerdict.DenyAndTerminate;
+    }
+}
+```
+
+For example, a subscription established while membership is `former` captures `former`. If membership changes to `new` with **unchanged query arguments**, the next emission still carries `former`, and the guard returns `DenyAndTerminate`. A subscription created after the change captures `new` independently. With no scope supplied, the emission context's scope is `null`; a supplied scope that cannot be serialized and restored fails the query explicitly as `InvalidSubscriptionScope` rather than silently becoming `null`. Keep the scope small: prefer primitives or records of primitive values. Only data serialized by Arc's `JsonSerializerOptions` survives the snapshot. Private fields, `[JsonIgnore]` members, and derived members of non-polymorphic base-typed properties are dropped even when the remaining value can round-trip. Do not put live services or mutable authorization caches in it.
 
 ## The three verdicts
 
@@ -59,7 +131,7 @@ That is the whole opt-in. Guards are discovered by convention — no registratio
 
 ## What the guard is told
 
-`ObservableQueryEmissionContext` carries the fully qualified query name, the coerced query arguments, the caller's `ClaimsPrincipal`, the correlation id, whether this is the first emission on the subscription, the subscription's cancellation token, and the `IServiceProvider` to resolve from.
+`ObservableQueryEmissionContext` carries the fully qualified query name, the coerced query arguments, the captured `SubscriptionScope` (or `null`), the caller's `ClaimsPrincipal`, the correlation id, whether this is the first emission on the subscription, the subscription's cancellation token, and the `IServiceProvider` to resolve from. Each guard receives its own copy of the scope and arguments; mutation by one guard cannot change another guard's input or a later emission.
 
 The principal is handed over **explicitly**. Emissions arrive on the producing stream's own thread, where the request's `AsyncLocal` context does not flow, so a guard that reached for an ambient accessor would see the wrong identity — or none at all.
 

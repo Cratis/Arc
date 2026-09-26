@@ -51,6 +51,7 @@ public class ObservableQueryEmissionGuards(
         var argumentsSnapshot = new ObservableQueryArgumentsSnapshot(
             context.Arguments,
             arcOptions.Value.JsonSerializerOptions);
+        var scopeSnapshot = context.SubscriptionScopeSnapshot;
 
         foreach (var guardType in _guardTypes)
         {
@@ -80,10 +81,16 @@ public class ObservableQueryEmissionGuards(
 
             try
             {
+                // External callers supply a scope value; Arc transports already carry the validated snapshot.
+                // Keep validation inside this try so an unrepresentable value fails closed like a guard failure.
+                scopeSnapshot ??= context.SubscriptionScope is { } scope
+                    ? new ObservableQuerySubscriptionScopeSnapshot(scope, arcOptions.Value.JsonSerializerOptions)
+                    : null;
                 var guardContext = context with
                 {
                     Arguments = argumentsSnapshot.CreateArguments(),
-                    Principal = ClonePrincipal(principalSnapshot)
+                    Principal = ClonePrincipal(principalSnapshot),
+                    SubscriptionScope = scopeSnapshot?.CreateScope()
                 };
                 verdict = await guard.Guard(guardContext);
             }

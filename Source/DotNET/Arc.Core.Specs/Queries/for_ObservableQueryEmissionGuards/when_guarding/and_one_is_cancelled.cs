@@ -23,7 +23,11 @@ public class and_one_is_cancelled : given.all_dependencies
         // A bare substitute answers false to IsEnabled, which would make the source-generated log method return
         // before ever reaching Log - and this spec would then pass whether or not the cancellation is logged.
         _logger.IsEnabled(Arg.Any<LogLevel>()).Returns(true);
-        _context = _context with { CancellationToken = _subscriptionEnded };
+        _context = _context with
+        {
+            CancellationToken = _subscriptionEnded,
+            SubscriptionScope = new List<string> { "former-organization" }
+        };
         _first.Failure = new OperationCanceledException(_subscriptionEnded);
         DiscoverGuards(typeof(FirstGuard), typeof(SecondGuard));
     }
