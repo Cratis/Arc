@@ -18,14 +18,18 @@ internal class ConfigureHttpJsonOptionsFromArcOptions(IOptions<ArcOptions> arcOp
     {
         var serializerOptions = options.SerializerOptions;
 
-        // Preserve Arc's ordering: dictionary keys, concept collections, then individual concepts.
+        // Use ASP.NET's collection behavior for items while preserving Arc's concept collection schema handling.
         if (!serializerOptions.Converters.Any(existing => existing is ComplexKeyDictionaryJsonConverterFactory))
         {
             serializerOptions.Converters.Add(new ConceptKeyDictionaryJsonConverterFactory());
         }
 
-        foreach (var converter in arcOptions.Value.JsonSerializerOptions.Converters.Where(converter =>
-            converter is EnumerableConceptAsJsonConverterFactory or ConceptAsJsonConverterFactory))
+        if (!serializerOptions.Converters.Any(existing => existing is EnumerableConceptAsJsonConverterFactory))
+        {
+            serializerOptions.Converters.Add(new ConceptEnumerableJsonConverterFactory());
+        }
+
+        foreach (var converter in arcOptions.Value.JsonSerializerOptions.Converters.Where(converter => converter is ConceptAsJsonConverterFactory))
         {
             if (!serializerOptions.Converters.Any(existing => existing.GetType() == converter.GetType()))
             {

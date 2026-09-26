@@ -46,7 +46,7 @@ public class and_minimal_api_options_are_configured_after_arc : Specification
     [Fact] void should_preserve_explicit_camel_case() => _options.SerializerOptions.PropertyNamingPolicy.ShouldEqual(JsonNamingPolicy.CamelCase);
     [Fact] void should_preserve_application_converter_order() => _options.SerializerOptions.Converters[0].ShouldEqual(_converter);
     [Fact] void should_not_duplicate_arc_converters() => _options.SerializerOptions.Converters.OfType<ConceptAsJsonConverterFactory>().Single().ShouldEqual(_arcConverter);
-    [Fact] void should_only_append_concept_related_factories() => _options.SerializerOptions.Converters.Where(converter => converter != _converter && converter != _arcConverter).Select(converter => converter.GetType().Name).ToArray().ShouldEqual(["ConceptKeyDictionaryJsonConverterFactory", "EnumerableConceptAsJsonConverterFactory"]);
+    [Fact] void should_only_append_concept_related_factories() => _options.SerializerOptions.Converters.Where(converter => converter != _converter && converter != _arcConverter).Select(converter => converter.GetType().Name).ToArray().ShouldEqual(["ConceptKeyDictionaryJsonConverterFactory", "ConceptEnumerableJsonConverterFactory"]);
     [Fact] void should_not_apply_the_dictionary_converter_to_nonconcept_keys() => _options.SerializerOptions.Converters.OfType<ComplexKeyDictionaryJsonConverterFactory>().Single().CanConvert(typeof(Dictionary<OtherKey, string>)).ShouldBeFalse();
     [Fact] void should_preserve_application_wire_format() => _json.ShouldEqual("{\"url\":\"url\",\"choice\":\"Second\"}");
 
