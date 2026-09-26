@@ -128,12 +128,14 @@ public static class ConverterExtensions
     }
 
     /// <summary>
-    /// Determines whether a collection contains another collection as its element type.
+    /// Determines whether a collection contains another collection as its element type, excluding supported JSON nodes.
     /// </summary>
     /// <param name="type">The collection type.</param>
     /// <returns>True if the element is itself a collection.</returns>
     internal static bool IsNestedQueryArgumentCollection(this Type type) =>
-        TryGetEnumerableElementType(type, out var elementType) && TryGetEnumerableElementType(elementType, out _);
+        TryGetEnumerableElementType(type, out var elementType) &&
+        !typeof(JsonNode).IsAssignableFrom(elementType) &&
+        TryGetEnumerableElementType(elementType, out _);
 
     static bool IsQueryArgumentScalar(Type type) =>
         type.IsPrimitive || _additionalQueryArgumentScalarTypes.Contains(type);

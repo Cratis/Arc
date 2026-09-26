@@ -19,6 +19,10 @@ public class with_http_collection_arguments : Specification
         public static TestReadModel Nested(int[][] ids) => new([], [], [], [], []);
 
         public static IEnumerable<JsonNode> Json(IEnumerable<JsonNode> nodes) => nodes;
+
+        public static IEnumerable<JsonObject> JsonObjects(IEnumerable<JsonObject> objects) => objects;
+
+        public static IEnumerable<JsonArray> JsonArrays(IEnumerable<JsonArray> arrays) => arrays;
     }
 
     static ModelBoundQueryPerformer Performer(string method = nameof(TestReadModel.Query))
@@ -128,6 +132,30 @@ public class with_http_collection_arguments : Specification
         var nodes = (IEnumerable<JsonNode>)(await performer.Perform(context))!;
         nodes.First()["id"]!.GetValue<int>().ShouldEqual(1);
         nodes.Last().AsArray().Count.ShouldEqual(2);
+    }
+
+    [Fact]
+    async Task should_bind_json_objects_and_arrays_through_model_bound_queries()
+    {
+        var objectsPerformer = Performer(nameof(TestReadModel.JsonObjects));
+        var arraysPerformer = Performer(nameof(TestReadModel.JsonArrays));
+        objectsPerformer.Dependencies.ShouldBeEmpty();
+        arraysPerformer.Dependencies.ShouldBeEmpty();
+        var objectsArguments = await ReadBody(objectsPerformer, new()
+        {
+            ["objects"] = JsonSerializer.SerializeToElement(new[] { new { id = 1 }, new { id = 2 } })
+        });
+        var arraysArguments = await ReadBody(arraysPerformer, new()
+        {
+            ["arrays"] = JsonSerializer.SerializeToElement(new int[][] { [1, 2], [3, 4] })
+        });
+
+        var objectsContext = new QueryContext(objectsPerformer.FullyQualifiedName, CorrelationId.New(), Paging.NotPaged, Sorting.None, objectsArguments, []);
+        var arraysContext = new QueryContext(arraysPerformer.FullyQualifiedName, CorrelationId.New(), Paging.NotPaged, Sorting.None, arraysArguments, []);
+        var objects = (IEnumerable<JsonObject>)(await objectsPerformer.Perform(objectsContext))!;
+        var arrays = (IEnumerable<JsonArray>)(await arraysPerformer.Perform(arraysContext))!;
+        objects.Select(node => node["id"]!.GetValue<int>()).SequenceEqual([1, 2]).ShouldBeTrue();
+        arrays.Last()[1]!.GetValue<int>().ShouldEqual(4);
     }
 
     [Fact]

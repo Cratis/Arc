@@ -27,9 +27,35 @@ public class with_runtime_parity : Specification
         foreach (var elementType in elementTypes)
         {
             var collection = typeof(IEnumerable<>).MakeGenericType(elementType);
+            var supported = collection.IsEnumerableOfPrimitiveOrConcept();
             Assert.True(
-                collection.IsEnumerableOfPrimitiveOrConcept() == collection.IsEnumerableOfQueryArgumentElement(out _),
+                supported == collection.IsEnumerableOfQueryArgumentElement(out _),
                 $"Element type: {elementType}");
+            if (supported)
+            {
+                var input = (Nullable.GetUnderlyingType(elementType) ?? elementType) switch
+                {
+                    var type when type == typeof(char) => "x",
+                    var type when type == typeof(bool) => "true",
+                    var type when type == typeof(DateTime) || type == typeof(DateTimeOffset) => "2026-05-12T14:30:45Z",
+                    var type when type == typeof(Guid) => "11111111-1111-1111-1111-111111111111",
+                    var type when type == typeof(TimeSpan) || type == typeof(TimeOnly) => "14:30:45",
+                    var type when type == typeof(DateOnly) => "2026-05-12",
+                    var type when type == typeof(Uri) => "https://example.com/a",
+                    var type when type == typeof(JsonNode) || type == typeof(JsonObject) || type == typeof(JsonDocument) => "{\"id\":1}",
+                    var type when type == typeof(JsonArray) => "[1,2]",
+                    var type when type == typeof(SampleConcept) || type == typeof(string) => "example",
+                    var type when type == typeof(DayOfWeek) => "Monday",
+                    _ => "1"
+                };
+                object? converted = null;
+                var error = Record.Exception(() => converted = new[] { input }.ConvertTo(collection));
+                Assert.True(error is null, $"Failed to convert element type {elementType}: {error}");
+                Assert.NotNull(converted);
+                var element = Assert.Single(((System.Collections.IEnumerable)converted).Cast<object>());
+                Assert.True((Nullable.GetUnderlyingType(elementType) ?? elementType).IsInstanceOfType(element),
+                    $"Failed to convert element type: {elementType}");
+            }
         }
     }
 }

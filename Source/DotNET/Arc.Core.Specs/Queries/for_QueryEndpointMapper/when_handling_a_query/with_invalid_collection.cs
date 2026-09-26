@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Cratis.Arc.Validation;
 
 namespace Cratis.Arc.Queries.for_QueryEndpointMapper.when_handling_a_query;
@@ -52,6 +53,20 @@ public class with_invalid_collection : given.a_query_request
         _performer.Parameters.Returns(new QueryParameters([new QueryParameter("ids", typeof(int[][]))]));
         SetBody(JsonSerializer.SerializeToElement(new[] { new[] { 1, 2 } }));
         await _mapper.HandlerFor("QUERY")(_context);
+        AssertValidationResponse();
+    }
+
+    [Theory]
+    [InlineData(typeof(JsonObject))]
+    [InlineData(typeof(JsonArray))]
+    async Task should_return_bad_request_for_json_node_collections_on_get(Type elementType)
+    {
+        var collectionType = typeof(IEnumerable<>).MakeGenericType(elementType);
+        _performer.Parameters.Returns(new QueryParameters([new QueryParameter("ids", collectionType)]));
+        _context.Query.Returns(new Dictionary<string, string> { ["ids"] = elementType == typeof(JsonObject) ? "{\"id\":1}" : "[1,2]" });
+
+        await _mapper.HandlerFor("GET")(_context);
+
         AssertValidationResponse();
     }
 
