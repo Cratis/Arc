@@ -146,6 +146,10 @@ With this configuration:
 - `/dashboard/users/123` → Serves `wwwroot/index.html` (SPA route)
 - `/api/users` → Handled by a command or query only if one is mapped to that route; otherwise an unmatched GET also serves `wwwroot/index.html`
 
+## Hosting under a path prefix
+
+In the lightweight Arc.Core host, `app.UsePathBase("/workbench")` prefixes endpoints mapped **after** that call, including Arc endpoints when called before `app.UseCratisArc()`. It does not prefix static files or scope `MapFallbackToFile()` to `/workbench`. Set `StaticFileOptions.RequestPath` explicitly for assets you want under that path, and account for the fallback's behavior on unmatched GET requests separately. In the frontend, set `apiBasePath` for Arc requests and your router's `basename` for navigation; see [React provider configuration](../../../frontend/react/arc.md#hosting-under-a-path-prefix).
+
 ## Multiple Static File Configurations
 
 You can call `UseStaticFiles()` multiple times to serve from different directories:
