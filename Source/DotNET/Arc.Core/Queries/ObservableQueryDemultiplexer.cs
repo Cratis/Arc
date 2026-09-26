@@ -977,6 +977,7 @@ public class ObservableQueryDemultiplexer(
     {
         IEnumerable<object>? previousItems = null;
         var hasDeliveredEmission = false;
+        var hasWarnedAboutMissingIdentity = false;
         var isTerminated = false;
         var isDeltaMode = string.Equals(transferMode, "delta", StringComparison.OrdinalIgnoreCase);
         var isFullMode = string.Equals(transferMode, "full", StringComparison.OrdinalIgnoreCase);
@@ -1097,10 +1098,31 @@ public class ObservableQueryDemultiplexer(
                 // Delta mode: skip computation on first emission (full snapshot is sent instead).
                 // Full mode: skip computation entirely (client always receives the full snapshot).
                 ChangeSet? changeSet = null;
+                var hasStableIdentity = false;
                 if (interceptedData is IEnumerable enumerable and not string)
                 {
                     var currentItems = enumerable.Cast<object>().ToArray();
-                    if (!isFullMode && (!isDeltaMode || !isFirstEmission))
+                    var itemType = (currentItems.FirstOrDefault() ?? previousItems?.FirstOrDefault())?.GetType();
+                    if (itemType is null)
+                    {
+                        var collectionType = typeof(T);
+                        itemType = (collectionType.IsGenericType && collectionType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+                            ? collectionType
+                            : collectionType.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IEnumerable<>)))?.GetGenericArguments()[0];
+                    }
+
+                    // Use the same case-insensitive Id convention as ChangeSetComputor, including concept-valued Ids.
+                    // An empty collection with no discoverable item type is a snapshot until an item establishes one.
+                    hasStableIdentity = itemType is not null && ChangeSetComputor.FindIdentityProperty(itemType) is not null;
+                    if (!hasStableIdentity &&
+                        (currentItems.Length > 0 || previousItems?.Any() is true) &&
+                        !hasWarnedAboutMissingIdentity)
+                    {
+                        logger.CollectionWithoutIdentity(queryId, identity.QueryName.ToString());
+                        hasWarnedAboutMissingIdentity = true;
+                    }
+
+                    if (hasStableIdentity && !isFullMode && (!isDeltaMode || !isFirstEmission))
                     {
                         // A provider that watches its data source already knows which items changed, and says so on
                         // the emission. Taking it at its word makes the delta cost proportional to what changed rather
@@ -1122,19 +1144,17 @@ public class ObservableQueryDemultiplexer(
                 {
                     CorrelationId = correlationId,
 
-                    // Delta mode subsequent emissions omit Data; client reconstructs from ChangeSet.
-                    // First emission always includes the full snapshot regardless of mode.
-                    Data = isDeltaMode && !isFirstEmission ? null! : interceptedData!,
+                    // Delta mode omits Data on subsequent identity-based emissions; without identity,
+                    // every emission carries the full snapshot and no change set.
+                    Data = isDeltaMode && !isFirstEmission && hasStableIdentity ? null! : interceptedData!,
                     IsAuthorized = true,
                     ValidationResults = [],
                     ExceptionMessages = [],
                     ExceptionStackTrace = string.Empty,
                     Paging = paging,
 
-                    // Delta mode first emission: no ChangeSet (full snapshot is the initial state).
-                    // Full mode: no ChangeSet (Data is always the complete current state).
-                    // Legacy/delta subsequent: include computed ChangeSet.
-                    ChangeSet = isFullMode || (isDeltaMode && isFirstEmission) ? null : changeSet
+                    // Only identity-based legacy emissions and subsequent delta emissions carry a change set.
+                    ChangeSet = changeSet
                 };
 
                 if (subscriptionQueryContext is not null && subscriptionQueryContext != QueryContext.NotSet)
