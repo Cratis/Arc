@@ -5,16 +5,16 @@ import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
 import { QueryInstanceCache, QueryResult } from '@cratis/arc/queries';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
 import {
     FakeObservablePopulateQuery,
     type FakePopulateQueryResult,
-} from '../for_usePopulateFromQuery/FakePopulateQuery';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext';
-import { given } from '../../../given';
+} from '../for_usePopulateFromQuery/FakePopulateQuery.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext.js';
+import { given } from '../../../given.js';
 
 interface TestFieldProps extends WrappedFieldProps<string> {
     testId: string;

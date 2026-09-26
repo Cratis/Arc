@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryFor } from '../../QueryFor';
+import { QueryFor } from '../../QueryFor.js';
 import { Constructor } from '@cratis/fundamentals';
-import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor.js';
 
 export class TestQueryFor extends QueryFor<string, { id: string }> {
     readonly route = '/api/test/{id}';

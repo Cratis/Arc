@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { CommandForm } from '../CommandForm';
-import { CommandFormField } from '../CommandFormField';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm } from '../CommandForm.js';
+import { CommandFormField } from '../CommandFormField.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 describe("when showTitles is false", given(a_command_form_context, context => {
     let container: HTMLElement;

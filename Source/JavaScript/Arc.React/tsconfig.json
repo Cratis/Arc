@@ -8,7 +8,7 @@
             // Only specs use this unpublished cross-package test helper. Mapping all of @cratis/arc/*
             // makes SWC inline Arc's runtime (and its rxjs imports) into the published React bundle.
             "@cratis/arc/helpers/*": [
-                "../Arc/helpers/*"
+                "../Arc/helpers/*.ts"
             ]
         }
     },

@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
-import { FakeQuery } from './FakeQuery';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
+import { FakeQuery } from './FakeQuery.js';
 
 describe('when adding a query', () => {
     const scope = new CommandScopeImplementation(() => {});

@@ -3,8 +3,8 @@
 
 import { act } from '@testing-library/react';
 import sinon from 'sinon';
-import { given } from '../../../../given';
-import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
+import { given } from '../../../../given.js';
+import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback.js';
 
 describe('when displaying exception feedback with messages and no exception flag', given(a_command_form_with_exception_feedback, context => {
     let onException: sinon.SinonSpy;

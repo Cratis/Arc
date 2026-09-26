@@ -3,6 +3,9 @@
 
 using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Http;
+using Cratis.Arc.Introspection;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -14,7 +17,7 @@ namespace Microsoft.AspNetCore.Builder;
 /// </remarks>
 /// <param name="endpoints">The <see cref="IEndpointRouteBuilder"/>.</param>
 /// <param name="groupPrefix">Optional group prefix for all routes.</param>
-public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? groupPrefix = null) : IEndpointMapper
+public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? groupPrefix = null) : IEndpointMapper, IIntrospectionExposureGuard
 {
     readonly RouteGroupBuilder _group = string.IsNullOrEmpty(groupPrefix)
             ? endpoints.MapGroup(string.Empty)
@@ -22,6 +25,7 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
 
     readonly HashSet<string> _mapped = new(StringComparer.Ordinal);
     IReadOnlySet<string>? _preExisting;
+    bool _trustForwardedIdentityHeaders;
 
     /// <summary>
     /// Gets the names of the endpoints that were already registered when this mapper started mapping.
@@ -49,6 +53,24 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
 
     /// <inheritdoc/>
     public bool EndpointExists(string name) => _mapped.Contains(name) || PreExisting.Contains(name);
+
+    /// <inheritdoc/>
+    void IIntrospectionExposureGuard.Validate(IntrospectionOptions options)
+    {
+        var services = endpoints.ServiceProvider;
+        var schemes = services.GetService<IAuthenticationSchemeProvider>();
+        var defaultScheme = schemes?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() ??
+            throw new InvalidIntrospectionConfiguration("Introspection requires a default ASP.NET Core authentication scheme when RequireAuthentication is true.");
+        if (services.GetService<IAuthorizationService>() is null)
+        {
+            throw new InvalidIntrospectionConfiguration("Introspection requires ASP.NET Core authorization services (AddAuthorization) when RequireAuthentication is true.");
+        }
+        if (!options.TrustForwardedIdentityHeaders && UnsignedIdentityHeaderSchemes.IsReachable(services, schemes, defaultScheme))
+        {
+            throw new InvalidIntrospectionConfiguration("The default ASP.NET Core authentication scheme trusts unsigned x-ms-client-principal headers. Protected introspection requires a trusted ingress (such as Azure App Service or Container Apps EasyAuth) that strips and sets these headers. Set Cratis:Arc:Introspection:TrustForwardedIdentityHeaders=true to opt in, or use a different authentication scheme.");
+        }
+        _trustForwardedIdentityHeaders = options.TrustForwardedIdentityHeaders;
+    }
 
     void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
     {
@@ -90,6 +112,32 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         if (metadata.AllowAnonymous)
         {
             builder.AllowAnonymous();
+        }
+        else if (metadata.RequireAuthentication)
+        {
+            var defaultPolicy = endpoints.ServiceProvider.GetService<IAuthorizationPolicyProvider>()?.GetDefaultPolicyAsync().GetAwaiter().GetResult();
+            var policy = defaultPolicy is null ? new AuthorizationPolicyBuilder() : new AuthorizationPolicyBuilder(defaultPolicy);
+            policy.RequireAuthenticatedUser();
+            if (metadata.Roles is not null)
+            {
+                policy.RequireRole(metadata.Roles.Split(',').Select(role => role.Trim()).ToArray());
+            }
+            builder.RequireAuthorization(policy.Build());
+
+            if (metadata.Name == IntrospectionEndpointMapper.CommandsEndpointName ||
+                metadata.Name == IntrospectionEndpointMapper.QueriesEndpointName)
+            {
+                builder.WithMetadata(new ProtectedIntrospectionCatalog(_trustForwardedIdentityHeaders));
+                if (!_trustForwardedIdentityHeaders)
+                {
+                    // Authentication can run before routing in a custom pipeline. Reject a header
+                    // authentication that succeeded before the endpoint metadata was available.
+                    builder.AddEndpointFilter(async (context, next) =>
+                        UnsignedIdentityHeaderSchemes.AuthenticatedBeforeRouting(context.HttpContext)
+                            ? Results.Unauthorized()
+                            : await next(context));
+                }
+            }
         }
 
         if (metadata.RequestBodyType is not null)

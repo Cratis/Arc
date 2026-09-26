@@ -48,6 +48,9 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\AssemblyNameMismatchDependency\AssemblyNameMismatchDependency.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\CommandResponseHandlerDependency\CommandResponseHandlerDependency.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\FakeCommandResponseHandlerDependency\FakeCommandResponseHandlerDependency.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptCommand\ReferencedConceptCommand.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptValidator\ReferencedConceptValidator.csproj" />
+        <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\TransitiveConceptValidator\TransitiveConceptValidator.csproj" />
     </Folder>
     <Folder Name="/TestApps/">
         <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />

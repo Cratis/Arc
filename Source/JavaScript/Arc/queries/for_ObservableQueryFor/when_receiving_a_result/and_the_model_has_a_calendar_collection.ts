@@ -3,14 +3,14 @@
 
 import * as sinon from 'sinon';
 import { DateOnly, TimeOnly } from '@cratis/fundamentals';
-import { an_observable_query_for } from '../given/an_observable_query_for';
-import type { TestCalendarItem } from '../given/TestQueries';
-import { given } from '../../../given';
-import { Globals } from '../../../Globals';
-import type { EventSourceFactory } from '../../../EventSourceFactory';
-import type { QueryResult } from '../../QueryResult';
-import { QueryTransportMethod } from '../../QueryTransportMethod';
-import type { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
+import type { TestCalendarItem } from '../given/TestQueries.js';
+import { given } from '../../../given.js';
+import { Globals } from '../../../Globals.js';
+import type { EventSourceFactory } from '../../../EventSourceFactory.js';
+import type { QueryResult } from '../../QueryResult.js';
+import { QueryTransportMethod } from '../../QueryTransportMethod.js';
+import type { ObservableQuerySubscription } from '../../ObservableQuerySubscription.js';
 
 interface FakeEventSource {
     onmessage: ((event: MessageEvent) => void) | null;

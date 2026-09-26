@@ -3,11 +3,11 @@
 
 import { IQueryFor, QueryResultWithState, Sorting, Paging } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
-import { SetSorting } from './SetSorting';
-import { SetPage } from './SetPage';
-import { SetPageSize } from './SetPageSize';
-import { PerformQuery, useQuery, useQueryWithPaging } from './useQuery';
-import { useSuspenseQuery, useSuspenseQueryWithPaging } from './useSuspenseQuery';
+import { SetSorting } from './SetSorting.js';
+import { SetPage } from './SetPage.js';
+import { SetPageSize } from './SetPageSize.js';
+import { PerformQuery, useQuery, useQueryWithPaging } from './useQuery.js';
+import { useSuspenseQuery, useSuspenseQueryWithPaging } from './useSuspenseQuery.js';
 
 /**
  * Represents a conditional query binding that conditionally executes the query hooks based on a boolean condition.

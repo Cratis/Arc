@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
-import { FakeCommand } from './FakeCommand';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
+import { FakeCommand } from './FakeCommand.js';
 
 describe('when none of the added commands has changes', () => {
     const scope = new CommandScopeImplementation(() => {});

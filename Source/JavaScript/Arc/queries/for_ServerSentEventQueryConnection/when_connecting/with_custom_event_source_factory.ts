@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { Globals } from '../../../Globals';
-import { EventSourceFactory } from '../../../EventSourceFactory';
-import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection';
-import { QueryResult } from '../../QueryResult';
+import { Globals } from '../../../Globals.js';
+import { EventSourceFactory } from '../../../EventSourceFactory.js';
+import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection.js';
+import { QueryResult } from '../../QueryResult.js';
 
 interface FakeEventSource {
     onmessage: ((event: MessageEvent) => void) | null;

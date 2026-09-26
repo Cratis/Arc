@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 const SimpleTextField = asCommandFormField<{ value: unknown; onChange: (value: unknown) => void; invalid: boolean; required: boolean; errors: string[]; 'data-testid'?: string }>(
     (props) => {

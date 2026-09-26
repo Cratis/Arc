@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ReconnectPolicy } from '../../../ReconnectPolicy';
+import { ReconnectPolicy } from '../../../ReconnectPolicy.js';
 
 describe('when scheduling and delay is capped at max', () => {
     let policy: ReconnectPolicy;

@@ -89,6 +89,7 @@ public static class IdentityEndpointMapper
             "/.cratis/me",
             async context =>
             {
+                context.SetNoStoreResponseHeaders();
                 var identityProvider = context.RequestServices.GetRequiredService<IIdentityProvider>();
                 var result = await identityProvider.Get();
 
@@ -130,6 +131,7 @@ public static class IdentityEndpointMapper
             "/.cratis/users",
             async context =>
             {
+                context.SetNoStoreResponseHeaders();
                 var users = new List<User>();
                 if (context.RequestServices.GetService<IInstancesOf<ICanProvideUsers>>() is IInstancesOf<ICanProvideUsers> providers)
                 {
@@ -162,6 +164,7 @@ public static class IdentityEndpointMapper
             "/.cratis/tenants",
             async context =>
             {
+                context.SetNoStoreResponseHeaders();
                 var tenants = new List<Tenant>();
                 if (context.RequestServices.GetService<IInstancesOf<ICanProvideTenants>>() is IInstancesOf<ICanProvideTenants> providers)
                 {

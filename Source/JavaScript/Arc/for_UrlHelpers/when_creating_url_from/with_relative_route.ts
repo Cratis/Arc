@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { UrlHelpers } from '../../UrlHelpers';
+import { UrlHelpers } from '../../UrlHelpers.js';
 
 
 describe("with_relative_route", () => {

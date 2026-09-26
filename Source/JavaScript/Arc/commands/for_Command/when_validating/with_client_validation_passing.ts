@@ -1,13 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Command } from '../../Command';
-import { CommandValidator } from '../../CommandValidator';
-import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor';
-import '../../../validation/RuleBuilderExtensions';
+import { Command } from '../../Command.js';
+import { CommandValidator } from '../../CommandValidator.js';
+import { PropertyDescriptor } from '../../../reflection/PropertyDescriptor.js';
+import '../../../validation/RuleBuilderExtensions.js';
 import sinon from 'sinon';
-import { CommandResult } from '../../CommandResult';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
+import { CommandResult } from '../../CommandResult.js';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
 
 interface ITestCommand {
     email: string;

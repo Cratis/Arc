@@ -4,7 +4,7 @@
 import { container } from 'tsyringe';
 import { IMessenger, Messenger } from '@cratis/arc/messaging';
 import { Constructor } from '@cratis/fundamentals';
-import { ILocalStorage, INavigation, Navigation } from './browser';
+import { ILocalStorage, INavigation, Navigation } from './browser/index.js';
 import { IdentityProvider, IIdentityProvider } from '@cratis/arc/identity';
 
 export class Bindings {

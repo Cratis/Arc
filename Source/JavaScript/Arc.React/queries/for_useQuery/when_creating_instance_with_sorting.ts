@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { useQuery } from '../useQuery';
-import { FakeQuery } from './FakeQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useQuery } from '../useQuery.js';
+import { FakeQuery } from './FakeQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { Sorting } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 

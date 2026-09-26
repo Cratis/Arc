@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Paging } from '../Paging';
-import { Sorting } from '../Sorting';
-import { BuildQueryHttpRequestOptions } from '../QueryHttpRequest';
+import { Paging } from '../Paging.js';
+import { Sorting } from '../Sorting.js';
+import { BuildQueryHttpRequestOptions } from '../QueryHttpRequest.js';
 
 /**
  * Builds a minimal set of options for exercising {@link executeQueryHttpRequest}.

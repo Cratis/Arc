@@ -3,8 +3,8 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { IdentityProviderContext } from '../IdentityProvider';
-import { RequireRole } from '../RequireRole';
+import { IdentityProviderContext } from '../IdentityProvider.js';
+import { RequireRole } from '../RequireRole.js';
 
 /**
  * A context composed by hand - a spec, a Storybook decorator - carries no answer to "are you still

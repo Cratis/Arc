@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { field, Guid } from '@cratis/fundamentals';
-import { given } from '../../../given';
-import { an_identity_provider } from '../given/an_identity_provider';
+import { given } from '../../../given.js';
+import { an_identity_provider } from '../given/an_identity_provider.js';
 
 class UserDetails {
     @field(Guid)

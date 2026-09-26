@@ -25,7 +25,7 @@ public class a_concept_schema_and_context : Specification
 
     protected void SetupContextForType(Type type)
     {
-        var jsonTypeInfo = JsonTypeInfo.CreateJsonTypeInfo(type, new JsonSerializerOptions());
+        var jsonTypeInfo = JsonTypeInfo.CreateJsonTypeInfo(type, new JsonSerializerOptions().ConfigureArcDefaults());
         _context = new OpenApiSchemaTransformerContext
         {
             DocumentName = "test",

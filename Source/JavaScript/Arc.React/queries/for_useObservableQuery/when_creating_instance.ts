@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { useObservableQuery } from '../useObservableQuery';
-import { FakeObservableQuery } from './FakeObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useObservableQuery } from '../useObservableQuery.js';
+import { FakeObservableQuery } from './FakeObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryInstanceCache, QueryResult } from '@cratis/arc/queries';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

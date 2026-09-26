@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../../CommandForm';
-import { useIsCommandExecuting } from '../../CommandFormContext';
+import { CommandForm, useCommandFormContext } from '../../CommandForm.js';
+import { useIsCommandExecuting } from '../../CommandFormContext.js';
 import { Command } from '@cratis/arc/commands';
-import { TestCommand } from '../TestCommand';
-import { a_command_form_being_executed } from '../given/a_command_form_being_executed';
-import { given } from '../../../../given';
+import { TestCommand } from '../TestCommand.js';
+import { a_command_form_being_executed } from '../given/a_command_form_being_executed.js';
+import { given } from '../../../../given.js';
 
 // Nothing stops a second submission while the first is still in flight. A flag would be cleared by
 // whichever one settles first and the form would report itself idle with a command still running, so

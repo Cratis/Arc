@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ServerSentEventHubConnection } from '../../ServerSentEventHubConnection';
-import { IReconnectPolicy, ReconnectCallback } from '../../IReconnectPolicy';
+import { ServerSentEventHubConnection } from '../../ServerSentEventHubConnection.js';
+import { IReconnectPolicy, ReconnectCallback } from '../../IReconnectPolicy.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

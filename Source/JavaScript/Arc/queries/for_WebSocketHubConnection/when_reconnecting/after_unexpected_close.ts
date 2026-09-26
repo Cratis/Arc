@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { a_web_socket_hub_connection } from '../given/a_web_socket_hub_connection';
-import { given } from '../../../given';
-import { ReconnectCallback } from '../../IReconnectPolicy';
+import { a_web_socket_hub_connection } from '../given/a_web_socket_hub_connection.js';
+import { given } from '../../../given.js';
+import { ReconnectCallback } from '../../IReconnectPolicy.js';
 
 describe('when the connection closes unexpectedly', given(a_web_socket_hub_connection, context => {
     beforeEach(() => {

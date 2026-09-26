@@ -1,4 +1,5 @@
 {
+    "type": "module",
     "name": "@cratis/arc.react",
     "version": "1.0.0",
     "description": "React hooks, forms, dialogs, identity, and observable query composition for Cratis Arc — the CQRS application framework for ASP.NET Core.",
@@ -35,39 +36,74 @@
     "exports": {
         "./package.json": "./package.json",
         ".": {
-            "types": "./dist/esm/index.d.ts",
-            "require": "./dist/cjs/index.js",
-            "import": "./dist/esm/index.js"
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
         },
         "./commands": {
-            "types": "./dist/esm/commands/index.d.ts",
-            "require": "./dist/cjs/commands/index.js",
-            "import": "./dist/esm/commands/index.js"
+            "import": {
+                "types": "./dist/esm/commands/index.d.ts",
+                "default": "./dist/esm/commands/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/commands/index.d.ts",
+                "default": "./dist/cjs/commands/index.js"
+            }
         },
         "./queries": {
-            "types": "./dist/esm/queries/index.d.ts",
-            "require": "./dist/cjs/queries/index.js",
-            "import": "./dist/esm/queries/index.js"
+            "import": {
+                "types": "./dist/esm/queries/index.d.ts",
+                "default": "./dist/esm/queries/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/queries/index.d.ts",
+                "default": "./dist/cjs/queries/index.js"
+            }
         },
         "./dialogs": {
-            "types": "./dist/esm/dialogs/index.d.ts",
-            "require": "./dist/cjs/dialogs/index.js",
-            "import": "./dist/esm/dialogs/index.js"
+            "import": {
+                "types": "./dist/esm/dialogs/index.d.ts",
+                "default": "./dist/esm/dialogs/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/dialogs/index.d.ts",
+                "default": "./dist/cjs/dialogs/index.js"
+            }
         },
         "./messaging": {
-            "types": "./dist/esm/messaging/index.d.ts",
-            "require": "./dist/cjs/messaging/index.js",
-            "import": "./dist/esm/messaging/index.js"
+            "import": {
+                "types": "./dist/esm/messaging/index.d.ts",
+                "default": "./dist/esm/messaging/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/messaging/index.d.ts",
+                "default": "./dist/cjs/messaging/index.js"
+            }
         },
         "./identity": {
-            "types": "./dist/esm/identity/index.d.ts",
-            "require": "./dist/cjs/identity/index.js",
-            "import": "./dist/esm/identity/index.js"
+            "import": {
+                "types": "./dist/esm/identity/index.d.ts",
+                "default": "./dist/esm/identity/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/identity/index.d.ts",
+                "default": "./dist/cjs/identity/index.js"
+            }
         },
         "./stories": {
-            "types": "./dist/esm/stories/index.d.ts",
-            "require": "./dist/cjs/stories/index.js",
-            "import": "./dist/esm/stories/index.js"
+            "import": {
+                "types": "./dist/esm/stories/index.d.ts",
+                "default": "./dist/esm/stories/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/stories/index.d.ts",
+                "default": "./dist/cjs/stories/index.js"
+            }
         },
         "./stories/styles.css": "./dist/esm/stories/stories.css"
     },

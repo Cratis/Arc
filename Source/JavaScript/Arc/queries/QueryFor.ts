@@ -1,20 +1,20 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IQueryFor } from './IQueryFor';
-import { QueryResult } from "./QueryResult";
-import { QueryValidator } from './QueryValidator';
-import { ValidateRequestArguments } from './ValidateRequestArguments';
+import { IQueryFor } from './IQueryFor.js';
+import { QueryResult } from "./QueryResult.js";
+import { QueryValidator } from './QueryValidator.js';
+import { ValidateRequestArguments } from './ValidateRequestArguments.js';
 import { Constructor } from '@cratis/fundamentals';
-import { Paging } from './Paging';
-import { Globals } from '../Globals';
-import { Sorting } from './Sorting';
-import { GetHttpHeaders } from '../GetHttpHeaders';
-import { ParameterDescriptor } from '../reflection/ParameterDescriptor';
-import { ParametersHelper } from '../reflection/ParametersHelper';
-import { QueryHttpMethod } from './QueryHttpMethod';
-import { executeQueryHttpRequest } from './QueryHttpRequest';
-import { isAbortError } from './isAbortError';
+import { Paging } from './Paging.js';
+import { Globals } from '../Globals.js';
+import { Sorting } from './Sorting.js';
+import { GetHttpHeaders } from '../GetHttpHeaders.js';
+import { ParameterDescriptor } from '../reflection/ParameterDescriptor.js';
+import { ParametersHelper } from '../reflection/ParametersHelper.js';
+import { QueryHttpMethod } from './QueryHttpMethod.js';
+import { executeQueryHttpRequest } from './QueryHttpRequest.js';
+import { isAbortError } from './isAbortError.js';
 
 /**
  * Represents an implementation of {@link IQueryFor}.

@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React, { ReactNode, Suspense } from 'react';
-import { QueryErrorBoundary, QueryErrorBoundaryProps } from './QueryErrorBoundary';
+import { QueryErrorBoundary, QueryErrorBoundaryProps } from './QueryErrorBoundary.js';
 
 /**
  * Props for {@link QueryBoundary}.

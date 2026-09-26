@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IValidationRule } from './IValidationRule';
-import { ValidationResult } from './ValidationResult';
-import { ValidationResultSeverity } from './ValidationResultSeverity';
+import { IValidationRule } from './IValidationRule.js';
+import { ValidationResult } from './ValidationResult.js';
+import { ValidationResultSeverity } from './ValidationResultSeverity.js';
 
 /**
  * Base class for property-based validation rules.

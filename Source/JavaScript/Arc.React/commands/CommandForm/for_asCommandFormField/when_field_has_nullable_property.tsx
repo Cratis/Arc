@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField';
-import { CommandFormContext } from '../CommandFormContext';
-import { TestCommand } from './TestCommand';
+import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField.js';
+import { CommandFormContext } from '../CommandFormContext.js';
+import { TestCommand } from './TestCommand.js';
 
 interface TestFieldProps extends WrappedFieldProps<string> {
     placeholder?: string;

@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField';
+import { asCommandFormField, WrappedFieldProps } from '../asCommandFormField.js';
 
 interface TextAreaFieldComponentProps extends WrappedFieldProps<string> {
     placeholder?: string;
@@ -16,6 +16,7 @@ interface TextAreaFieldComponentProps extends WrappedFieldProps<string> {
 export const TextAreaField = asCommandFormField<TextAreaFieldComponentProps>(
     (props) => (
         <textarea
+            id={props.id}
             value={props.value}
             onChange={props.onChange}
             onBlur={props.onBlur}

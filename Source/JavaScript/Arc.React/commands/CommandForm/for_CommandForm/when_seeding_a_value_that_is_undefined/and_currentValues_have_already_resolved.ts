@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { waitFor } from '@testing-library/react';
-import { a_command_form_with_a_required_property, NAME_FROM_THE_LOOKUP } from './given/a_command_form_with_a_required_property';
-import { given } from '../../../../given';
+import { a_command_form_with_a_required_property, NAME_FROM_THE_LOOKUP } from './given/a_command_form_with_a_required_property.js';
+import { given } from '../../../../given.js';
 
 /**
  * initialValues is written out by the caller as one object literal covering every property of the

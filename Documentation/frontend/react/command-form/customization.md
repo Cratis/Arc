@@ -7,7 +7,7 @@ Change presentation without creating another command instance. CommandForm expos
 
 ## Custom titles
 
-`showTitles={false}` hides the default titles. Supply accessible labels in your own controls rather than substituting headings and assuming they label an input. The built-in title renderer does not supply an `htmlFor`/input-ID association, and the built-in text field does not accept every native ARIA/ID prop. For explicit label associations, use a [custom field](./custom-fields.md).
+`showTitles={false}` hides the default titles. Supply accessible labels in your own controls rather than substituting headings and assuming they label an input. For single-input fields, the built-in title renderer associates its label with the control using a generated id, or a caller-provided `id` when supplied. Custom single-input fields must forward that id to their input. For radio groups and custom grouped fields, the title names the group without activating an option; [custom fields](./custom-fields.md#configuration-object) explains how to declare a group.
 
 ## Custom error rendering
 

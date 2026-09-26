@@ -4,8 +4,8 @@
 import { act } from '@testing-library/react';
 import { CommandResult } from '@cratis/arc/commands';
 import sinon from 'sinon';
-import { given } from '../../../../given';
-import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
+import { given } from '../../../../given.js';
+import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback.js';
 
 describe('when displaying exception feedback with a descendant result', given(a_command_form_with_exception_feedback, context => {
     let result: CommandResult;

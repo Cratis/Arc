@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Bind a scalar argument
 
-Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope, converts each value to a string, and uses the same scalar conversion path.
+Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope. Scalar values use the scalar conversion path; JSON arrays keep their element boundaries and Arc converts each element separately.
 
 This alternative read-model declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider. The query searches by an exact account name and a minimum balance:
 
@@ -81,7 +81,7 @@ Arc classifies a method parameter as a caller-supplied query argument — rather
 
 ### Collection Arguments
 
-A collection parameter — `IEnumerable<T>`, an array, or `List<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. Everything else about it works the same as a single value; the caller just sends the argument name repeated once per value (`?ids=1&ids=2&ids=3`), and Arc binds it back into the collection type your method declares.
+A collection parameter — `IEnumerable<T>`, an array, `List<T>`, or `HashSet<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. This includes nullable elements and scalar types such as `DateOnly`, `TimeOnly`, and `Uri`. For GET, send the argument name repeated once per value (`?ids=1&ids=2&ids=3`); for QUERY, send a JSON array under `arguments` in the request body. Arc binds either form into the collection type your method declares. GET collapses repeated values into a comma-delimited string and splits on every comma, so any element whose text contains a comma (including a `Uri`) cannot round-trip; use QUERY for those values. Collections of `JsonObject` or `JsonArray` elements require QUERY; GET rejects them with HTTP 400. Invalid collection elements and null in non-nullable element types are rejected with HTTP 400. Nested CLR collections such as `int[][]` are not supported; `JsonArray` elements in QUERY are supported.
 
 ```csharp
 [ReadModel]
@@ -117,7 +117,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>` makes no difference. Everything else — a class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container when it is registered there; an unregistered type falls back to being a query argument.
+> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>`/`HashSet<T>` makes no difference. Everything else — a class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container when it is registered there; an unregistered type falls back to being a query argument.
 
 ## Missing, empty, and optional values
 

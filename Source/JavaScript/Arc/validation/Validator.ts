@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidationResult } from './ValidationResult';
-import { PropertyValidator } from './PropertyValidator';
-import { RuleBuilder } from './RuleBuilder';
+import { ValidationResult } from './ValidationResult.js';
+import { PropertyValidator } from './PropertyValidator.js';
+import { RuleBuilder } from './RuleBuilder.js';
 
 /**
  * Represents a validator for a type that builds validation rules programmatically.

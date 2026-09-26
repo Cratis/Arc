@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Constructor } from '@cratis/fundamentals';
-import { IIdentity } from './IIdentity';
+import { IIdentity } from './IIdentity.js';
 
 /**
  * Defines the identity provider.

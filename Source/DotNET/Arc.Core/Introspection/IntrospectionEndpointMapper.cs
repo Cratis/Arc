@@ -11,15 +11,48 @@ namespace Cratis.Arc.Introspection;
 /// </summary>
 public static class IntrospectionEndpointMapper
 {
-    const string CommandsEndpointName = "IntrospectCommands";
-    const string QueriesEndpointName = "IntrospectQueries";
+    /// <summary>
+    /// The command catalog endpoint name.
+    /// </summary>
+    internal const string CommandsEndpointName = "IntrospectCommands";
+
+    /// <summary>
+    /// The query catalog endpoint name.
+    /// </summary>
+    internal const string QueriesEndpointName = "IntrospectQueries";
 
     /// <summary>
     /// Maps introspection endpoints for commands and queries.
     /// </summary>
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
-    public static void MapIntrospectionEndpoints(this IEndpointMapper mapper)
+    /// <remarks>This overload cannot resolve configured options from <see cref="IEndpointMapper"/> and always uses defaults.</remarks>
+    [Obsolete("Use MapIntrospectionEndpoints(IEndpointMapper, IntrospectionOptions) to honor configured exposure options.")]
+    public static void MapIntrospectionEndpoints(this IEndpointMapper mapper) => mapper.MapIntrospectionEndpoints(new IntrospectionOptions());
+
+    /// <summary>
+    /// Maps introspection endpoints using the configured exposure options.
+    /// </summary>
+    /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
+    /// <param name="options">The exposure options.</param>
+    /// <exception cref="InvalidIntrospectionConfiguration">The catalog configuration is invalid or the host cannot enforce it.</exception>
+    public static void MapIntrospectionEndpoints(this IEndpointMapper mapper, IntrospectionOptions options)
     {
+        var validation = IntrospectionOptionsValidator.ValidateOptions(options);
+        if (validation.Failed)
+        {
+            throw new InvalidIntrospectionConfiguration(string.Join(' ', validation.Failures));
+        }
+
+        if (!options.Enabled)
+        {
+            return;
+        }
+
+        if (options.RequireAuthentication && mapper is IIntrospectionExposureGuard guard)
+        {
+            guard.Validate(options);
+        }
+
         if (!mapper.EndpointExists(CommandsEndpointName))
         {
             mapper.MapGet(
@@ -33,8 +66,12 @@ public static class IntrospectionEndpointMapper
                     CommandsEndpointName,
                     "Introspect available command endpoints",
                     ["Cratis Introspection"],
-                    AllowAnonymous: true,
-                    ResponseType: typeof(List<CommandIntrospectionMetadata>)));
+                    AllowAnonymous: !options.RequireAuthentication,
+                    ResponseType: typeof(List<CommandIntrospectionMetadata>))
+                {
+                    RequireAuthentication = options.RequireAuthentication,
+                    Roles = options.Roles
+                });
         }
 
         if (!mapper.EndpointExists(QueriesEndpointName))
@@ -50,8 +87,12 @@ public static class IntrospectionEndpointMapper
                     QueriesEndpointName,
                     "Introspect available query endpoints",
                     ["Cratis Introspection"],
-                    AllowAnonymous: true,
-                    ResponseType: typeof(List<QueryIntrospectionMetadata>)));
+                    AllowAnonymous: !options.RequireAuthentication,
+                    ResponseType: typeof(List<QueryIntrospectionMetadata>))
+                {
+                    RequireAuthentication = options.RequireAuthentication,
+                    Roles = options.Roles
+                });
         }
     }
 }
