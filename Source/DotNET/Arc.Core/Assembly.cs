@@ -7,3 +7,4 @@ using System.Runtime.CompilerServices;
 [assembly: InternalsVisibleTo("Cratis.Arc.MongoDB")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Specs")]
 [assembly: InternalsVisibleTo("Cratis.Arc.Testing")]
+[assembly: InternalsVisibleTo("DynamicProxyGenAssembly2")]

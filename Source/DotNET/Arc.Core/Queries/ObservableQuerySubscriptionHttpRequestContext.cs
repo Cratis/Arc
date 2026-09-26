@@ -24,7 +24,7 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     IHttpRequestContext requestContext,
     IHttpRequestContext transportContext,
     IServiceProvider requestServices,
-    CancellationToken requestAborted) : IHttpRequestContext, IAuthorizationRequestContext
+    CancellationToken requestAborted) : IHttpRequestContext, ICanReadResponseHeaders, IAuthorizationRequestContext
 {
     readonly IHttpRequestContext _transportContext = transportContext;
     ClaimsPrincipal _user = ClonePrincipal(requestContext.User);
@@ -107,7 +107,7 @@ internal sealed class ObservableQuerySubscriptionHttpRequestContext(
     public void SetResponseHeader(string name, string value) => _transportContext.SetResponseHeader(name, value);
 
     /// <inheritdoc/>
-    public string? GetResponseHeader(string name) => _transportContext.GetResponseHeader(name);
+    public string? GetResponseHeader(string name) => (_transportContext as ICanReadResponseHeaders)?.GetResponseHeader(name);
 
     /// <inheritdoc/>
     public void AppendCookie(string key, string value, CookieOptions options) => _transportContext.AppendCookie(key, value, options);

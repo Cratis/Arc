@@ -85,7 +85,7 @@ public static class HttpRequestContextExtensions
     static void AddVaryResponseHeaderToken(this IHttpRequestContext context, string token)
     {
         const string varyHeader = "Vary";
-        var tokens = (context.GetResponseHeader(varyHeader) ?? string.Empty)
+        var tokens = ((context is ICanReadResponseHeaders reader ? reader.GetResponseHeader(varyHeader) : null) ?? string.Empty)
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
         if (tokens.Any(existing => existing == "*" || existing.Equals(token, StringComparison.OrdinalIgnoreCase)))
