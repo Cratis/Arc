@@ -42,6 +42,29 @@ public class TestCommandWithCustomMessagesValidator : BaseValidator<TestCommandW
     }
 }
 
+public class TestCommandWithSeverities
+{
+    public string Warning { get; set; } = string.Empty;
+    public string Information { get; set; } = string.Empty;
+    public string Dynamic { get; set; } = string.Empty;
+    public string DynamicWithProperty { get; set; } = string.Empty;
+    public string ArcWarning { get; set; } = string.Empty;
+    public string Error { get; set; } = string.Empty;
+}
+
+public class TestCommandWithSeveritiesValidator : BaseValidator<TestCommandWithSeverities>
+{
+    public TestCommandWithSeveritiesValidator()
+    {
+        RuleFor(x => x.Warning).NotEmpty().WithSeverity(Severity.Warning);
+        RuleFor(x => x.Information).NotEmpty().WithSeverity(Severity.Info);
+        RuleFor(x => x.Dynamic).NotEmpty().WithSeverity(x => x.Dynamic.Length > 0 ? Severity.Error : Severity.Info);
+        RuleFor(x => x.DynamicWithProperty).NotEmpty().WithSeverity((command, value) => value.Length > 0 ? Severity.Warning : Severity.Error);
+        RuleFor(x => x.ArcWarning).NotEmpty().WithSeverity(ValidationResultSeverity.Warning);
+        RuleFor(x => x.Error).NotEmpty();
+    }
+}
+
 public class TestCommandWithoutValidator
 {
     public string Name { get; set; } = string.Empty;

@@ -190,7 +190,7 @@ public static class ValidationRulesExtractor
 
         foreach (var rule in rules)
         {
-            var key = $"{rule.RuleName}({string.Join(',', rule.Arguments.Select(_ => _?.ToString() ?? string.Empty))}):{rule.ErrorMessage}";
+            var key = $"{rule.RuleName}({string.Join(',', rule.Arguments.Select(_ => _?.ToString() ?? string.Empty))}):{rule.ErrorMessage}:{rule.Severity}";
             if (seen.Add(key))
             {
                 distinct.Add(rule);
@@ -515,7 +515,7 @@ public static class ValidationRulesExtractor
         }
 
         var ruleDescriptor = ExtractRuleFromValidator(validator, options);
-        return ruleDescriptor != null ? [ruleDescriptor] : [];
+        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(options) }] : [];
     }
 
     static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)
@@ -574,6 +574,46 @@ public static class ValidationRulesExtractor
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Reads only FluentValidation's constant severity provider, without invoking request-dependent delegates.
+    /// </summary>
+    /// <param name="component">The FluentValidation rule component.</param>
+    /// <returns>The Arc severity, or null if it cannot be determined statically.</returns>
+    static int? GetSeverity(object component)
+    {
+        var property = component.GetType().GetProperty("SeverityProvider", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (property is null)
+        {
+            return null;
+        }
+
+        var provider = property.GetValue(component);
+        if (provider is null)
+        {
+            return 3; // FluentValidation defaults to Error.
+        }
+
+        if (provider is not Delegate severityProvider ||
+            severityProvider.Method.DeclaringType?.DeclaringType?.FullName != "FluentValidation.DefaultValidatorOptions")
+        {
+            return null;
+        }
+
+        var fields = severityProvider.Target?.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (fields is not { Length: 1 } || fields[0].Name != "severity" || fields[0].FieldType.FullName != "FluentValidation.Severity")
+        {
+            return null;
+        }
+
+        return fields[0].GetValue(severityProvider.Target)?.ToString() switch
+        {
+            "Info" => 1,
+            "Warning" => 2,
+            "Error" => 3,
+            _ => null
+        };
     }
 
     static string? GetCustomErrorMessage(object component)
