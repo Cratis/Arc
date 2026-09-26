@@ -3,8 +3,8 @@
 
 import sinon from 'sinon';
 import { CommandResult } from '@cratis/arc/commands';
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
-import { FakeCommand } from './FakeCommand';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
+import { FakeCommand } from './FakeCommand.js';
 
 describe('when executing command again after validation failure', async () => {
     const failedResult = new CommandResult({

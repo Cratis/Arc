@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { ColumnInfo } from './CommandFormFields';
-import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor';
+import { ColumnInfo } from './CommandFormFields.js';
+import { getPropertyNameFromAccessor } from './getPropertyNameFromAccessor.js';
 
 /**
  * Extracts a command's initial values from a population source (a query result, or a plain object),

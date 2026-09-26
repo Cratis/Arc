@@ -3,11 +3,11 @@
 
 import type React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { RadioButtonField, RadioGroupField } from '../fields';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { RadioButtonField, RadioGroupField } from '../fields/index.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 const CustomLayout = ({ children }: { children: React.ReactNode }) => (
     <section data-testid='custom-radio-layout'>{children}</section>

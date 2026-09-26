@@ -3,8 +3,8 @@
 
 import React, { useEffect, useMemo } from 'react';
 import { Messenger } from '@cratis/arc/messaging';
-import { useMessenger } from './useMessenger';
-import { MessengerScopeContext } from './MessengerScopeContext';
+import { useMessenger } from './useMessenger.js';
+import { MessengerScopeContext } from './MessengerScopeContext.js';
 
 export interface IMessengerScopeProps {
     children?: JSX.Element | JSX.Element[];

@@ -5,8 +5,8 @@ import React from 'react';
 import type {
     BaseCommandFormFieldProps,
     InjectedCommandFormFieldProps,
-} from '../asCommandFormField';
-import { withCommandFormFieldBinding } from '../withCommandFormFieldBinding';
+} from '../asCommandFormField.js';
+import { withCommandFormFieldBinding } from '../withCommandFormFieldBinding.js';
 
 type RadioValueAccessor = (instance: never) => unknown;
 type CommandType<TAccessor extends RadioValueAccessor> = Parameters<TAccessor>[0];

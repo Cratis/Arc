@@ -2,16 +2,16 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Observable, Subject } from 'rxjs';
-import { QueryInstanceCache } from './QueryInstanceCache';
-import { ObservableQueryMultiplexer } from './ObservableQueryMultiplexer';
-import { IObservableQueryDiagnostics } from './IObservableQueryDiagnostics';
+import { QueryInstanceCache } from './QueryInstanceCache.js';
+import { ObservableQueryMultiplexer } from './ObservableQueryMultiplexer.js';
+import { IObservableQueryDiagnostics } from './IObservableQueryDiagnostics.js';
 import {
     ObservableQueryDiagnosticsSnapshot,
     MultiplexerDiagnostics,
     TransportDiagnostics,
     HealthDiagnostics,
     OwnershipDiagnostics,
-} from './ObservableQueryDiagnosticsSnapshot';
+} from './ObservableQueryDiagnosticsSnapshot.js';
 
 /**
  * Implements the {@link IObservableQueryDiagnostics} contract by collecting live state from

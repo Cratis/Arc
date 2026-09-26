@@ -2,13 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import type { CommandFormFieldProps } from './CommandFormField';
-import { CommandFormFieldWrapper } from './CommandFormFields';
-import { useIsCommandFormFieldBound } from './commandFormFieldBindingContext';
+import type { CommandFormFieldProps } from './CommandFormField.js';
+import { CommandFormFieldWrapper } from './CommandFormFields.js';
+import { useIsCommandFormFieldBound } from './commandFormFieldBindingContext.js';
 import {
     markAsRuntimeBindingCommandFormField,
     type CommandFormMarked,
-} from './commandFormMarkers';
+} from './commandFormMarkers.js';
 
 /**
  * Gives a marked field the ability to bind itself when it is rendered behind an opaque custom component.

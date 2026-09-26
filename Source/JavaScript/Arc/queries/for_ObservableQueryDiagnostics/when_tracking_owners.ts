@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { describe, it } from 'vitest';
-import { ObservableQueryDiagnostics, QueryInstanceCache } from '../../queries';
+import { ObservableQueryDiagnostics, QueryInstanceCache } from '../../queries/index.js';
 
 describe('when tracking query owners', () => {
     it('should publish diagnostics snapshots through an observable', () => {

@@ -10,13 +10,13 @@ import {
     QueryResultWithState,
 } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { FakePopulateQuery } from '../for_usePopulateFromQuery/FakePopulateQuery';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext.js';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { FakePopulateQuery } from '../for_usePopulateFromQuery/FakePopulateQuery.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 interface TestFieldProps extends WrappedFieldProps<string | number> {
     testId: string;

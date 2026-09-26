@@ -3,8 +3,8 @@
 
 import { Constructor } from '@cratis/fundamentals';
 import { CloseDialog, DialogResponse } from '@cratis/arc.react/dialogs';
-import { IDialogMediatorHandler } from './IDialogMediatorHandler';
-import { DialogRegistration, DialogRequest } from './DialogRegistration';
+import { IDialogMediatorHandler } from './IDialogMediatorHandler.js';
+import { DialogRegistration, DialogRequest } from './DialogRegistration.js';
 
 /**
  * Represents an implementation of {@link IDialogMediatorHandler}

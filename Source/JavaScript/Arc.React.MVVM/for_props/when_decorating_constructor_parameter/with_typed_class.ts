@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { injectable } from 'tsyringe';
-import { props as propsDecorator, propsTypeKey } from '../../props';
+import { props as propsDecorator, propsTypeKey } from '../../props.js';
 
 class ComponentProps {
     title: string = '';

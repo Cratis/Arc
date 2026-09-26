@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import * as sinon from 'sinon';
-import { given } from '../../../given';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
-import type { QueryResult } from '../../QueryResult';
-import { an_observable_query_for } from '../given/an_observable_query_for';
+import { given } from '../../../given.js';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
+import type { QueryResult } from '../../QueryResult.js';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
 
 describe(
     'when performing with a not ready result',

@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { act } from '@testing-library/react';
-import { given } from '../../../../given';
-import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
+import { given } from '../../../../given.js';
+import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback.js';
 
 describe('when displaying exception feedback with an exception flag and no messages', given(a_command_form_with_exception_feedback, context => {
     beforeEach(async () => {

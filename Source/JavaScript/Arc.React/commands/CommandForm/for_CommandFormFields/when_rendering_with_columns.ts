@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { CommandForm } from '../CommandForm';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { TestCommand } from '../for_CommandForm/TestCommand';
-import { a_command_form_fields_context } from './given/a_command_form_fields_context';
-import { given } from '../../../given';
+import { CommandForm } from '../CommandForm.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { TestCommand } from '../for_CommandForm/TestCommand.js';
+import { a_command_form_fields_context } from './given/a_command_form_fields_context.js';
+import { given } from '../../../given.js';
 
 type SimpleTextFieldProps = WrappedFieldProps<string>;
 

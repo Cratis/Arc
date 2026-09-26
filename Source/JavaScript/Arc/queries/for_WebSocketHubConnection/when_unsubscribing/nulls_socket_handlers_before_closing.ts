@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { a_web_socket_hub_connection } from '../given/a_web_socket_hub_connection';
-import { given } from '../../../given';
+import { a_web_socket_hub_connection } from '../given/a_web_socket_hub_connection.js';
+import { given } from '../../../given.js';
 
 describe('when unsubscribing the only query, nulls socket handlers before closing the socket', given(a_web_socket_hub_connection, context => {
     let handlersWereNullWhenClosed: { onopen: boolean; onclose: boolean; onerror: boolean; onmessage: boolean };

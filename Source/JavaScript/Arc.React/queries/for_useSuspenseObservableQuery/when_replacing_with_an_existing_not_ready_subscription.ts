@@ -4,16 +4,16 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { QueryResult, SortDirection, Sorting } from '@cratis/arc/queries';
-import { type ArcConfiguration, ArcContext } from '../../ArcContext';
-import type { SetSorting } from '../SetSorting';
+import { type ArcConfiguration, ArcContext } from '../../ArcContext.js';
+import type { SetSorting } from '../SetSorting.js';
 import {
     clearSuspenseObservableQueryCache,
     useSuspenseObservableQuery,
-} from '../useSuspenseObservableQuery';
+} from '../useSuspenseObservableQuery.js';
 import {
     FakeSuspenseObservableQuery,
     type FakeSuspenseObservableQueryResult,
-} from './FakeSuspenseObservableQuery';
+} from './FakeSuspenseObservableQuery.js';
 
 const config: ArcConfiguration = {
     microservice: 'test-microservice',

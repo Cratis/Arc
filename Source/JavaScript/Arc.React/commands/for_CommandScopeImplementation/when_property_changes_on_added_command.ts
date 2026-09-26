@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
 import { PropertyChanged } from '@cratis/arc/commands';
-import { FakeCommand } from './FakeCommand';
+import { FakeCommand } from './FakeCommand.js';
 
 describe('when property changes on added command', () => {
     const setHasChanges = sinon.stub();

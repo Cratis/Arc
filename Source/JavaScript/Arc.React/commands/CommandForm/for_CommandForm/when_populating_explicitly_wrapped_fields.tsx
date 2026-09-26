@@ -4,13 +4,13 @@
 import { render, waitFor } from '@testing-library/react';
 import type sinon from 'sinon';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { CommandFormFieldWrapper } from '../CommandFormFields';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { FakePopulateQuery } from '../for_usePopulateFromQuery/FakePopulateQuery';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { CommandFormFieldWrapper } from '../CommandFormFields.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { FakePopulateQuery } from '../for_usePopulateFromQuery/FakePopulateQuery.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 interface TestFieldProps extends WrappedFieldProps<string | number> {
     testId: string;

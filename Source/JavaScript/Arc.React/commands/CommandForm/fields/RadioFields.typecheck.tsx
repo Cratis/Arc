@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { TestCommand } from '../for_CommandForm/TestCommand';
-import { RadioButtonField } from './RadioButtonField';
-import { RadioGroupField } from './RadioGroupField';
+import { TestCommand } from '../for_CommandForm/TestCommand.js';
+import { RadioButtonField } from './RadioButtonField.js';
+import { RadioGroupField } from './RadioGroupField.js';
 
 const validRadioButtonField = (
     <RadioButtonField

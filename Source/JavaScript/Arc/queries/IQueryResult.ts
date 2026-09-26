@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidationResult } from '../validation/ValidationResult';
-import { PagingInfo } from './PagingInfo';
-import { ChangeSet } from './ChangeSet';
+import { ValidationResult } from '../validation/ValidationResult.js';
+import { PagingInfo } from './PagingInfo.js';
+import { ChangeSet } from './ChangeSet.js';
 
 /**
  * Defines the result from executing a query.

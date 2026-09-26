@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { given } from '../../../given';
-import { an_identity_provider } from '../given/an_identity_provider';
+import { given } from '../../../given.js';
+import { an_identity_provider } from '../given/an_identity_provider.js';
 
 /**
  * The loading flag is not a first-paint concern. A refresh is how an application picks up a sign-in or

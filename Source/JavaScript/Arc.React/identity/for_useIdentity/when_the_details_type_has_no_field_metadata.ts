@@ -3,7 +3,7 @@
 
 import React from 'react';
 import sinon from 'sinon';
-import { useIdentity } from '../useIdentity';
+import { useIdentity } from '../useIdentity.js';
 
 // Deliberately undecorated - no @field members. Deserializing into this would construct
 // `new UndecoratedDetails()` and copy nothing, discarding whatever the server sent.

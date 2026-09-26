@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { an_observable_query_with_validator } from '../given/an_observable_query_with_validator';
-import { QueryResult } from '../../QueryResult';
-import { given } from '../../../given';
+import { an_observable_query_with_validator } from '../given/an_observable_query_with_validator.js';
+import { QueryResult } from '../../QueryResult.js';
+import { given } from '../../../given.js';
 
 describe('when performing with client validation failing', given(an_observable_query_with_validator, context => {
     let result: QueryResult<string>;

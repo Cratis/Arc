@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { Bindings } from '../Bindings';
+import { Bindings } from '../Bindings.js';
 import { Globals, EventSourceFactory } from '@cratis/arc';
-import { bindings_context } from './given/bindings_context';
-import { given } from '../given';
+import { bindings_context } from './given/bindings_context.js';
+import { given } from '../given.js';
 
 describe('when initializing bindings with a custom event source factory', given(bindings_context, () => {
     let originalFactory: EventSourceFactory | undefined;

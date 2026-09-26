@@ -1,13 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { an_observable_query_for } from '../given/an_observable_query_for';
-import { given } from '../../../given';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
+import { given } from '../../../given.js';
 
 import * as sinon from 'sinon';
-import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
-import { Sorting } from '../../Sorting';
-import { SortDirection } from '../../SortDirection';
+import { ObservableQuerySubscription } from '../../ObservableQuerySubscription.js';
+import { Sorting } from '../../Sorting.js';
+import { SortDirection } from '../../SortDirection.js';
 
 describe('with sorting', given(an_observable_query_for, context => {
     let callback: sinon.SinonStub;

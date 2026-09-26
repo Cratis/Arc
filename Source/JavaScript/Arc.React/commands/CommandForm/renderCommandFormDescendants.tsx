@@ -2,12 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import type { CommandFormFieldProps } from './CommandFormField';
+import type { CommandFormFieldProps } from './CommandFormField.js';
 import {
     canBindCommandFormFieldAtRuntime,
     isCommandFormColumn,
     isCommandFormField,
-} from './commandFormMarkers';
+} from './commandFormMarkers.js';
 
 /**
  * Recursively preserves framework-owned and intrinsic child trees while replacing marked fields.

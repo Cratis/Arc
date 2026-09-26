@@ -1,17 +1,17 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ICommand, PropertyChanged } from './ICommand';
-import { CommandResult } from "./CommandResult";
-import { CommandValidator } from './CommandValidator';
+import { ICommand, PropertyChanged } from './ICommand.js';
+import { CommandResult } from "./CommandResult.js";
+import { CommandValidator } from './CommandValidator.js';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
-import { Globals } from '../Globals';
-import { joinPaths } from '../joinPaths';
-import { UrlHelpers } from '../UrlHelpers';
-import { GetHttpHeaders } from '../GetHttpHeaders';
-import { PropertyDescriptor } from '../reflection/PropertyDescriptor';
-import { ValidationResult } from '../validation/ValidationResult';
-import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
+import { Globals } from '../Globals.js';
+import { joinPaths } from '../joinPaths.js';
+import { UrlHelpers } from '../UrlHelpers.js';
+import { GetHttpHeaders } from '../GetHttpHeaders.js';
+import { PropertyDescriptor } from '../reflection/PropertyDescriptor.js';
+import { ValidationResult } from '../validation/ValidationResult.js';
+import { ValidationResultSeverity } from '../validation/ValidationResultSeverity.js';
 
 type Callback = {
     callback: WeakRef<PropertyChanged>;

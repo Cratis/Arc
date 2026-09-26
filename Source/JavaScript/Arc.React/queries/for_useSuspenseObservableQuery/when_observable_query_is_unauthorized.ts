@@ -4,16 +4,16 @@
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
 import { QueryResult } from '@cratis/arc/queries';
-import { type ArcConfiguration, ArcContext } from '../../ArcContext';
-import { QueryUnauthorized } from '../QueryUnauthorized';
+import { type ArcConfiguration, ArcContext } from '../../ArcContext.js';
+import { QueryUnauthorized } from '../QueryUnauthorized.js';
 import {
     clearSuspenseObservableQueryCache,
     useSuspenseObservableQuery,
-} from '../useSuspenseObservableQuery';
+} from '../useSuspenseObservableQuery.js';
 import {
     FakeSuspenseObservableQuery,
     type FakeSuspenseObservableQueryResult,
-} from './FakeSuspenseObservableQuery';
+} from './FakeSuspenseObservableQuery.js';
 
 let capturedError: Error | null = null;
 

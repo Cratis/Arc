@@ -4,14 +4,14 @@
 import { IQueryFor, QueryResultWithState, QueryResult, Paging, Sorting } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
-import { SetSorting } from './SetSorting';
-import { SetPage } from './SetPage';
-import { SetPageSize } from './SetPageSize';
-import { ArcContext } from '../ArcContext';
-import { useCommandScope } from '../commands/useCommandScope';
-import { QueryInstanceCacheContext } from './QueryInstanceCacheContext';
-import { serializeArgsForDependency } from './serializeArgsForDependency';
-import { useQueryScope } from './useQueryScope';
+import { SetSorting } from './SetSorting.js';
+import { SetPage } from './SetPage.js';
+import { SetPageSize } from './SetPageSize.js';
+import { ArcContext } from '../ArcContext.js';
+import { useCommandScope } from '../commands/useCommandScope.js';
+import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
+import { serializeArgsForDependency } from './serializeArgsForDependency.js';
+import { useQueryScope } from './useQueryScope.js';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.

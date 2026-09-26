@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandResult } from '../../CommandResult';
+import { CommandResult } from '../../CommandResult.js';
 
 describe('when chaining callbacks and result is unauthorized', () => {
     const result = new CommandResult({

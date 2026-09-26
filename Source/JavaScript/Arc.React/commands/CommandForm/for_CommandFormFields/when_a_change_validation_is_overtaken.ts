@@ -5,10 +5,10 @@ import React from 'react';
 import { act, fireEvent, render } from '@testing-library/react';
 import { Command, CommandResult, CommandValidator, type ICommandResult } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
-import { a_command_form_fields_context } from './given/a_command_form_fields_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandFormContext } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
+import { a_command_form_fields_context } from './given/a_command_form_fields_context.js';
+import { given } from '../../../given.js';
 
 /**
  * The token decides what isValid says, and it has to decide what the screen says as well: a message

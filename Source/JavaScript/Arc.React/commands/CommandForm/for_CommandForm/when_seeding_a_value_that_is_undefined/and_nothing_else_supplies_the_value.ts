@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { waitFor } from '@testing-library/react';
-import { a_command_form_with_a_required_property, NAME_FROM_THE_COMMAND_CLASS } from './given/a_command_form_with_a_required_property';
-import { given } from '../../../../given';
+import { a_command_form_with_a_required_property, NAME_FROM_THE_COMMAND_CLASS } from './given/a_command_form_with_a_required_property.js';
+import { given } from '../../../../given.js';
 
 /**
  * With nothing underneath it, a seed of undefined has nothing to overwrite - but it still decides

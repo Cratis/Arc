@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ObservableQueryFor } from '../../ObservableQueryFor';
+import { ObservableQueryFor } from '../../ObservableQueryFor.js';
 import { Constructor, DateOnly, field, TimeOnly } from '@cratis/fundamentals';
-import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor.js';
 
 export class TestObservableQuery extends ObservableQueryFor<string, { id: string }> {
     readonly route = '/api/test/{id}';

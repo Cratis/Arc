@@ -1,4 +1,5 @@
 {
+    "type": "module",
     "name": "@cratis/arc.react",
     "version": "1.0.0",
     "description": "React hooks, forms, dialogs, identity, and observable query composition for Cratis Arc — the CQRS application framework for ASP.NET Core.",

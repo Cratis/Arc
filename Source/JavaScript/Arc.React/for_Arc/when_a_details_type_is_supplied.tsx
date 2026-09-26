@@ -7,8 +7,8 @@ import sinon from 'sinon';
 import { DateOnly, field, Guid } from '@cratis/fundamentals';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { Arc } from '../Arc';
-import { useIdentity } from '../identity';
+import { Arc } from '../Arc.js';
+import { useIdentity } from '../identity/index.js';
 
 class TheDetails {
     @field(Guid)

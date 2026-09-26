@@ -1,14 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from '../given/a_query_for';
-import { given } from '../../../given';
+import { a_query_for } from '../given/a_query_for.js';
+import { given } from '../../../given.js';
 
 import * as sinon from 'sinon';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
-import { QueryResult } from '../../QueryResult';
-import { Sorting } from '../../Sorting';
-import { SortDirection } from '../../SortDirection';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
+import { QueryResult } from '../../QueryResult.js';
+import { Sorting } from '../../Sorting.js';
+import { SortDirection } from '../../SortDirection.js';
 
 describe('with sorting', given(a_query_for, context => {
     let result: QueryResult<string>;
