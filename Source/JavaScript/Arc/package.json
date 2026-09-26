@@ -36,39 +36,74 @@
     "exports": {
         "./package.json": "./package.json",
         ".": {
-            "types": "./dist/esm/index.d.ts",
-            "require": "./dist/cjs/index.js",
-            "import": "./dist/esm/index.js"
+            "import": {
+                "types": "./dist/esm/index.d.ts",
+                "default": "./dist/esm/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/index.d.ts",
+                "default": "./dist/cjs/index.js"
+            }
         },
         "./commands": {
-            "types": "./dist/esm/commands/index.d.ts",
-            "import": "./dist/esm/commands/index.js",
-            "require": "./dist/cjs/commands/index.js"
+            "import": {
+                "types": "./dist/esm/commands/index.d.ts",
+                "default": "./dist/esm/commands/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/commands/index.d.ts",
+                "default": "./dist/cjs/commands/index.js"
+            }
         },
         "./identity": {
-            "types": "./dist/esm/identity/index.d.ts",
-            "import": "./dist/esm/identity/index.js",
-            "require": "./dist/cjs/identity/index.js"
+            "import": {
+                "types": "./dist/esm/identity/index.d.ts",
+                "default": "./dist/esm/identity/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/identity/index.d.ts",
+                "default": "./dist/cjs/identity/index.js"
+            }
         },
         "./messaging": {
-            "types": "./dist/esm/messaging/index.d.ts",
-            "import": "./dist/esm/messaging/index.js",
-            "require": "./dist/cjs/messaging/index.js"
+            "import": {
+                "types": "./dist/esm/messaging/index.d.ts",
+                "default": "./dist/esm/messaging/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/messaging/index.d.ts",
+                "default": "./dist/cjs/messaging/index.js"
+            }
         },
         "./queries": {
-            "types": "./dist/esm/queries/index.d.ts",
-            "import": "./dist/esm/queries/index.js",
-            "require": "./dist/cjs/queries/index.js"
+            "import": {
+                "types": "./dist/esm/queries/index.d.ts",
+                "default": "./dist/esm/queries/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/queries/index.d.ts",
+                "default": "./dist/cjs/queries/index.js"
+            }
         },
         "./validation": {
-            "types": "./dist/esm/validation/index.d.ts",
-            "import": "./dist/esm/validation/index.js",
-            "require": "./dist/cjs/validation/index.js"
+            "import": {
+                "types": "./dist/esm/validation/index.d.ts",
+                "default": "./dist/esm/validation/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/validation/index.d.ts",
+                "default": "./dist/cjs/validation/index.js"
+            }
         },
         "./reflection": {
-            "types": "./dist/esm/reflection/index.d.ts",
-            "import": "./dist/esm/reflection/index.js",
-            "require": "./dist/cjs/reflection/index.js"
+            "import": {
+                "types": "./dist/esm/reflection/index.d.ts",
+                "default": "./dist/esm/reflection/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/reflection/index.d.ts",
+                "default": "./dist/cjs/reflection/index.js"
+            }
         }
     },
     "scripts": {

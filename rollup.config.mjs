@@ -9,7 +9,7 @@
 import { swc } from 'rollup-plugin-swc3';
 import commonjs from 'rollup-plugin-commonjs';
 import peerDepsExternal from 'rollup-plugin-peer-deps-external';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, readdirSync, copyFileSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -38,7 +38,25 @@ function generatePackageJson(cjsPath, esmPath) {
                 'utf-8'
             );
 
-            console.log('\u2713 Generated package.json files for CJS and ESM outputs');
+            // tsc -b writes ESM declarations; reuse their module-neutral signatures in
+            // the CJS tree so NodeNext classifies them under its commonjs package.json.
+            let declarations = 0;
+            function copyDeclarations(from, to) {
+                for (const entry of readdirSync(from, { withFileTypes: true })) {
+                    const source = join(from, entry.name);
+                    const target = join(to, entry.name);
+                    if (entry.isDirectory() && !entry.name.startsWith('for_')) {
+                        copyDeclarations(source, target);
+                    } else if (entry.isFile() && /\.d\.ts(\.map)?$/.test(entry.name)) {
+                        mkdirSync(to, { recursive: true });
+                        copyFileSync(source, target);
+                        if (entry.name.endsWith('.d.ts')) declarations++;
+                    }
+                }
+            }
+            copyDeclarations(esmDir, cjsDir);
+            if (!declarations) throw new Error(`No declarations to copy from ${esmDir}`);
+            console.log(`Generated package.json files and ${declarations} CJS declarations`);
         }
     };
 }
