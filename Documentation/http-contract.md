@@ -14,12 +14,25 @@ behavior genuinely differs, it is not on this page - it is in
 [Where the implementations differ](#where-the-implementations-differ), which names both
 behaviors so a client author can see the edge before hitting it.
 
+:::note[Arc for TypeScript]
+A third implementation, [Arc for TypeScript](/arc/backend/typescript/) on Node.js, is in
+source preview. The statements on this page are verified for the C# and JVM implementations.
+Arc for TypeScript follows this contract for the capabilities it implements, and a paired
+suite checks a bounded set of routes against a C# host. Where it differs, for example by
+capping `X-Allowed-Severity` at Warning or by answering 401 rather than 403 to an anonymous
+caller on a protected operation when authentication handlers are configured, its
+[HTTP contract reference](/arc/backend/typescript/reference/http-contract/) and
+[capability reference](/arc/backend/typescript/reference/capabilities/#deliberate-differences)
+say so.
+:::
+
 :::note[This is the contract, not a host guide]
 Configuration keys, framework registration, and runtime tuning are implementation
 concerns. See the [C# backend documentation](/arc/backend/csharp/) and the
 [Kotlin and Java backend documentation](/arc/backend/kotlin/) for those, and the
 [JVM conformance notes](/arc/backend/kotlin/reference/http-contract/) for the paired
-HTTP evidence that backs the JVM side.
+HTTP evidence that backs the JVM side. For Arc for TypeScript, see its
+[backend documentation](/arc/backend/typescript/).
 :::
 
 ## Routes and methods
@@ -572,6 +585,7 @@ identifiers on a C# host if two providers contribute the same one.
 - [C# backend documentation](/arc/backend/csharp/)
 - [Kotlin and Java backend documentation](/arc/backend/kotlin/)
 - [JVM conformance notes](/arc/backend/kotlin/reference/http-contract/)
+- [Arc for TypeScript HTTP contract reference](/arc/backend/typescript/reference/http-contract/)
 - [Glossary](glossary.md)
 - [Understanding the proxy boundary](understanding-the-proxy-boundary.mdx)
 - [Understanding identity and access](understanding-identity-and-access.mdx)
