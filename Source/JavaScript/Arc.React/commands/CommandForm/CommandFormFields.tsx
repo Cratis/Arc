@@ -405,8 +405,8 @@ const CommandFormFieldWrapper = ({
     ) : (
         <label htmlFor={fieldId} style={titleStyle}>{fieldProps.title}</label>
     ));
-    const fieldContent = groupRole ? (
-        <div role={groupRole} aria-labelledby={title ? titleId : undefined}>
+    const fieldContent = groupRole && title ? (
+        <div role={groupRole} aria-labelledby={titleId}>
             {title}
             {decoratedField}
         </div>

@@ -135,3 +135,33 @@ describe('when a field has a title', given(a_command_form_fields_context, (conte
         (screen.getByText('Name') as HTMLLabelElement).htmlFor.should.equal(input.id);
     });
 }));
+
+describe('when a radio group has no rendered title', given(a_command_form_fields_context, (context) => {
+    const renderRadioGroup = (title?: string, showTitles = true) => render(
+        <CommandForm command={TestCommand} showTitles={showTitles}>
+            <RadioGroupField
+                value={(command: TestCommand) => command.name}
+                title={title}
+                options={[
+                    { value: 'First', label: 'First' },
+                    { value: 'Second', label: 'Second' },
+                ]}
+            />
+        </CommandForm>,
+        { wrapper: context.createWrapper() },
+    );
+
+    it('should not render an unnamed radiogroup when no title was supplied', () => {
+        renderRadioGroup();
+
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        screen.getAllByRole('radio').length.should.equal(2);
+    });
+
+    it('should not render an unnamed radiogroup when titles are hidden', () => {
+        renderRadioGroup('Choice', false);
+
+        expect(screen.queryByRole('radiogroup')).toBeNull();
+        screen.getAllByRole('radio').length.should.equal(2);
+    });
+}));
