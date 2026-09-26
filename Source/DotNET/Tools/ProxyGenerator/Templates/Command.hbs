@@ -39,7 +39,7 @@ export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
         super();
         {{#each ValidationRules}}
         {{#each Rules}}
-        this.ruleFor(c => c.{{camelcase ../PropertyName}}).{{RuleName}}({{ruleargs Arguments}}){{#if ErrorMessage}}.withMessage({{jsstring ErrorMessage}}){{/if}};
+        this.ruleFor(c => c.{{camelcase ../PropertyName}}).{{RuleName}}({{ruleargs Arguments}}){{#if ErrorMessage}}.withMessage({{jsstring ErrorMessage}}){{/if}}{{#if Severity}}.withSeverity({{Severity}}){{else}}.withSeverity(null){{/if}};
         {{/each}}
         {{/each}}
     }

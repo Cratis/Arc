@@ -96,17 +96,18 @@ Build with the [generator configured](getting-started.md). A successful checkpoi
 This is an **excerpt from its generated validator constructor**, not a separate file to maintain:
 
 ```typescript
-this.ruleFor((c) => c.age).greaterThanOrEqual(18);
+this.ruleFor((c) => c.age).greaterThanOrEqual(18).withSeverity(3);
 this.ruleFor((c) => c.email)
     .notEmpty()
-    .withMessage('Email address is required');
-this.ruleFor((c) => c.email).emailAddress();
-this.ruleFor((c) => c.name).notEmpty();
-this.ruleFor((c) => c.name).minLength(2);
-this.ruleFor((c) => c.name).maxLength(50);
+    .withMessage('Email address is required')
+    .withSeverity(3);
+this.ruleFor((c) => c.email).emailAddress().withSeverity(3);
+this.ruleFor((c) => c.name).notEmpty().withSeverity(3);
+this.ruleFor((c) => c.name).minLength(2).withSeverity(3);
+this.ruleFor((c) => c.name).maxLength(50).withSeverity(3);
 ```
 
-Each extracted rule gets its own statement. The command template attaches the validator automatically, so you do not instantiate a second validator in the component.
+Each extracted rule gets its own statement. The numeric severity is Arc's `ValidationResultSeverity.Error` here; `.WithSeverity(Severity.Warning)` and `.WithSeverity(Severity.Info)` emit `2` and `1`. A command with `[BlockOnValidationSeverity]` uses these rule severities when deciding whether to block locally. A runtime-dependent `.WithSeverity(...)` delegate cannot be projected faithfully: its generated rule does not block locally, and the server evaluates it on the request. Previously generated proxies without per-rule severities retain their existing Error default. The command template attaches the validator automatically, so you do not instantiate a second validator in the component.
 
 ## DataAnnotations reference
 
@@ -155,9 +156,10 @@ After generation, its validator constructor contains these statements (an **outp
 ```typescript
 this.ruleFor((c) => c.name)
     .notEmpty()
-    .withMessage('Name is required');
-this.ruleFor((c) => c.phoneNumber).phone();
-this.ruleFor((c) => c.website).url();
+    .withMessage('Name is required')
+    .withSeverity(3);
+this.ruleFor((c) => c.phoneNumber).phone().withSeverity(3);
+this.ruleFor((c) => c.website).url().withSeverity(3);
 ```
 
 `url()` and `phone()` are dedicated client APIs, not the previously documented handwritten regular expressions.
