@@ -7,7 +7,7 @@ using Cratis.Types;
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
-/// Resolves the effective authorization declaration, including both attribute families.
+/// Resolves explicit authorization declarations before consulting baseline fallback evaluators.
 /// </summary>
 /// <param name="anonymousEvaluators">The anonymous declarations.</param>
 /// <param name="attributeEvaluators">The restricted declarations.</param>
@@ -15,12 +15,30 @@ public class AuthorizationDeclarations(
     IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
     IInstancesOf<IAuthorizationAttributeEvaluator> attributeEvaluators)
 {
+    readonly IEnumerable<IFallbackAuthorizationEvaluator> _fallbackEvaluators = [];
+
+    /// <summary>
+    /// Resolves explicit declarations and discovers baseline requirements by convention.
+    /// </summary>
+    /// <param name="anonymousEvaluators">The anonymous declarations.</param>
+    /// <param name="attributeEvaluators">The restricted declarations.</param>
+    /// <param name="fallbackEvaluators">Baseline requirements used only when no explicit declaration applies.</param>
+    public AuthorizationDeclarations(
+        IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
+        IInstancesOf<IAuthorizationAttributeEvaluator> attributeEvaluators,
+        IInstancesOf<IFallbackAuthorizationEvaluator> fallbackEvaluators) : this(anonymousEvaluators, attributeEvaluators) =>
+        _fallbackEvaluators = fallbackEvaluators;
+
     /// <summary>
     /// Resolves the effective declaration on a type.
     /// </summary>
     /// <param name="type">The declared type.</param>
     /// <returns>The declaration.</returns>
-    public AuthorizationDeclaration For(Type type) => Resolve(type, evaluator => evaluator.IsAnonymousAllowed(type), evaluator => evaluator.GetAuthorizationRequirements(type));
+    public AuthorizationDeclaration For(Type type)
+    {
+        var declaration = Resolve(type, evaluator => evaluator.IsAnonymousAllowed(type), evaluator => evaluator.GetAuthorizationRequirements(type));
+        return declaration.IsExplicit ? declaration : Baseline(_fallbackEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(type)));
+    }
 
     /// <summary>
     /// Resolves the effective declaration on a method, falling back to its declaring type.
@@ -30,26 +48,50 @@ public class AuthorizationDeclarations(
     public AuthorizationDeclaration For(MethodInfo method)
     {
         var declaration = Resolve(method, evaluator => evaluator.IsAnonymousAllowed(method), evaluator => evaluator.GetAuthorizationRequirements(method));
-        return declaration.IsExplicit ? declaration : method.DeclaringType is { } type ? For(type) : declaration;
+        if (declaration.IsExplicit)
+        {
+            return declaration;
+        }
+
+        if (method.DeclaringType is { } type)
+        {
+            declaration = Resolve(type, evaluator => evaluator.IsAnonymousAllowed(type), evaluator => evaluator.GetAuthorizationRequirements(type));
+            if (declaration.IsExplicit)
+            {
+                return declaration;
+            }
+        }
+
+        return Baseline(_fallbackEvaluators.SelectMany(evaluator => evaluator.GetAuthorizationRequirements(method)
+            .Concat(method.DeclaringType is { } declaringType ? evaluator.GetAuthorizationRequirements(declaringType) : [])));
     }
+
+    static AuthorizationDeclaration Baseline(IEnumerable<AuthorizationRequirement> requirements) =>
+        new(false, false, requirements.ToArray());
 
     AuthorizationDeclaration Resolve(
         MemberInfo member,
         Func<IAnonymousEvaluator, bool?> ask,
         Func<IAuthorizationAttributeEvaluator, IEnumerable<AuthorizationRequirement>> requirementsOf)
     {
-        var answers = anonymousEvaluators.Select(ask).Where(answer => answer.HasValue).Select(answer => answer!.Value).ToArray();
-        if (answers.Contains(true) && answers.Contains(false))
+        var answers = anonymousEvaluators.Select(evaluator => (Evaluator: evaluator, Answer: ask(evaluator)))
+            .Where(result => result.Answer.HasValue).ToArray();
+        var anonymous = answers.FirstOrDefault(result => result.Answer == true).Evaluator;
+        var restricted = answers.FirstOrDefault(result => result.Answer == false).Evaluator;
+        if (anonymous is not null && restricted is not null)
         {
-            throw new AmbiguousAuthorizationLevel(member);
+            throw new AmbiguousAuthorizationLevel(member, anonymous.GetType(), restricted.GetType());
         }
 
-        var requirements = attributeEvaluators.SelectMany(requirementsOf).ToArray();
-        if (answers.Contains(true) && requirements.Length > 0)
+        var requirements = attributeEvaluators.Select(evaluator => (Evaluator: evaluator, Requirements: requirementsOf(evaluator).ToArray())).ToArray();
+        if (anonymous is not null && requirements.FirstOrDefault(result => result.Requirements.Length > 0).Evaluator is { } conflicting)
         {
-            throw new AmbiguousAuthorizationLevel(member);
+            throw new AmbiguousAuthorizationLevel(member, anonymous.GetType(), conflicting.GetType());
         }
 
-        return new AuthorizationDeclaration(answers.Contains(true), answers.Contains(true) || requirements.Length > 0, requirements);
+        return new AuthorizationDeclaration(
+            anonymous is not null,
+            anonymous is not null || requirements.Any(result => result.Requirements.Length > 0),
+            requirements.SelectMany(result => result.Requirements).ToArray());
     }
 }

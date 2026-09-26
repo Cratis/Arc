@@ -22,6 +22,21 @@ public class AuthorizationEvaluator(
     readonly AuthorizationDeclarations _declarations = new(anonymousEvaluators, authorizationAttributeEvaluators);
 
     /// <summary>
+    /// Initializes the evaluator with baseline requirements discovered by convention.
+    /// </summary>
+    /// <param name="currentPrincipalAccessor">The current principal.</param>
+    /// <param name="anonymousEvaluators">The anonymous attribute evaluators.</param>
+    /// <param name="authorizationAttributeEvaluators">The authorization attribute evaluators.</param>
+    /// <param name="fallbackEvaluators">Baseline requirements used only when no explicit declaration applies.</param>
+    public AuthorizationEvaluator(
+        ICurrentPrincipalAccessor currentPrincipalAccessor,
+        IInstancesOf<IAnonymousEvaluator> anonymousEvaluators,
+        IInstancesOf<IAuthorizationAttributeEvaluator> authorizationAttributeEvaluators,
+        IInstancesOf<IFallbackAuthorizationEvaluator> fallbackEvaluators)
+        : this(currentPrincipalAccessor, anonymousEvaluators, authorizationAttributeEvaluators) =>
+        _declarations = new(anonymousEvaluators, authorizationAttributeEvaluators, fallbackEvaluators);
+
+    /// <summary>
     /// Checks the authentication and roles of an already selected principal.
     /// </summary>
     /// <param name="declaration">The effective declaration.</param>
