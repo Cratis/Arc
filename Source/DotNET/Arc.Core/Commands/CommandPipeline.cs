@@ -347,7 +347,14 @@ public class CommandPipeline(
             commandContext = commandContext with { Dependencies = resolution.Arguments };
 
             cancellationToken.ThrowIfCancellationRequested();
-            if ((preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && commandContext.AuthorizedExecution is null) ||
+
+            // A custom attribute evaluator can declare a policy without a recognized Authorize attribute, so
+            // preparation may not have run. An omitted or replaced authorization filter must not turn that into
+            // permission to invoke the handler. Resolving the declaration does not run the policy again.
+            var missingVerdict = commandContext.AuthorizedExecution is null &&
+                (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true ||
+                 (serviceProvider.GetService<AuthorizationDeclarations>()?.For(command.GetType()).RequiresAsynchronousEvaluation == true));
+            if (missingVerdict ||
                 (commandContext.AuthorizedExecution is { } verdict &&
                  !verdict.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>())))
             {

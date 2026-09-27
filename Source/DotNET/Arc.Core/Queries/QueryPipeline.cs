@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries.ModelBound;
@@ -271,7 +272,24 @@ public class QueryPipeline(
                 result.AuthorizedTenant = serviceProvider.GetRequiredService<TenantIdAccessor>().Current;
             }
             cancellationToken.ThrowIfCancellationRequested();
-            if ((prepared?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
+
+            // Direct Perform calls do not prepare custom evaluator declarations without recognized attribute metadata.
+            // Resolve the effective target before invocation if the filters supplied no verdict; this only reads the
+            // declaration and never runs the policy a second time.
+            var declaration = prepared?.Declaration;
+            if (context.AuthorizedExecution is null && declaration is null &&
+                serviceProvider.GetService<AuthorizationDeclarations>() is { } declarations)
+            {
+                var target = QueryAuthorizationTarget.For(queryPerformer, declarations);
+                declaration = target switch
+                {
+                    MethodInfo method => declarations.For(method),
+                    Type type => declarations.For(type),
+                    _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+                };
+            }
+
+            if ((declaration?.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
                 (context.AuthorizedExecution is { } verdict &&
                  !verdict.IsCurrent(
                      QueryAuthorizationTarget.For(queryPerformer, serviceProvider.GetRequiredService<AuthorizationDeclarations>()),

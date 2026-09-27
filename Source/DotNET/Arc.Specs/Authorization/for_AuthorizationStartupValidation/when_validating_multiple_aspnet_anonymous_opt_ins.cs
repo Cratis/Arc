@@ -5,6 +5,7 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Authorization.for_AuthorizationStartupValidation;
@@ -19,6 +20,7 @@ public class when_validating_multiple_aspnet_anonymous_opt_ins : Specification
     async Task Because()
     {
         var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.AddCratisArc();
         builder.Services.AddArcAnonymousAspNetAuthorizationPolicy("Public");
         builder.Services.AddArcAnonymousAspNetAuthorizationPolicy("Guest");
