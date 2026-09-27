@@ -7,7 +7,6 @@ using Cratis.Arc.DependencyInjection;
 using Cratis.Reflection;
 using Cratis.Types;
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -124,7 +123,7 @@ public class DiscoverableValidators : IDiscoverableValidators
         var registered = serviceProvider.GetService(validatorType);
         if (registered is not null)
         {
-            foreach (var safety in serviceProvider.GetServices<ICommandDependencySafety>())
+            foreach (var safety in serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [])
             {
                 safety.ValidateRegisteredValidator(validatorType);
             }

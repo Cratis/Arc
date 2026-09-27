@@ -6,7 +6,6 @@ using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -27,7 +26,7 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         var provided = await provideInvoker.Invoke(context, serviceProvider);
         foreach (var value in provided)
         {
-            foreach (var safety in serviceProvider.GetServices<ICommandDependencySafety>())
+            foreach (var safety in serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [])
             {
                 safety.ValidateProvided(value);
             }
