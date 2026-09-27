@@ -36,15 +36,15 @@ static class ParameterDependencyResolver
             throw new CannotResolveDependency(parameter, failure);
         }
 
-        if (dependency is not null)
+        // A protected decision dependency must never use nullable binding as an escape hatch: even a
+        // registered factory returning null is a missing guard, not an optional dependency.
+        if (CommandDecisionPolicy.IsProtected)
         {
-            if (CommandDecisionPolicy.IsProtected)
-            {
-                serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
-                    .ValidateCommandDependency(parameter.ParameterType, dependency);
-            }
-            return dependency;
+            serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
+                .ValidateCommandDependency(parameter.ParameterType, dependency);
         }
+
+        if (dependency is not null) return dependency;
 
         if (IsNullable(parameter))
         {

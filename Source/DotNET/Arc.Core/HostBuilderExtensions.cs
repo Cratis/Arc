@@ -8,7 +8,6 @@ using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
-using Cratis.Arc.Validation;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -80,10 +79,6 @@ public static class HostBuilderExtensions
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
     public static IServiceCollection AddCratisArcCore(this IServiceCollection services)
     {
-        // Preserve registrations supplied by the application; only undo the blanket convention self-bindings
-        // for validators. Otherwise every discoverable validator is registered and none can be constructed safely
-        // per invocation in protected decision mode.
-        var existingRegistrations = services.ToHashSet();
         GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
 
         TypeConverters.Register();
@@ -130,15 +125,6 @@ public static class HostBuilderExtensions
             .AddTypeDiscovery()
             .AddBindingsByConvention()
             .AddSelfBindings();
-
-        foreach (var descriptor in services.Where(descriptor =>
-            !existingRegistrations.Contains(descriptor) &&
-            descriptor.ImplementationType == descriptor.ServiceType &&
-            descriptor.ServiceType.GetInterfaces().Any(interfaceType =>
-                interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>))).ToArray())
-        {
-            services.Remove(descriptor);
-        }
 
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();

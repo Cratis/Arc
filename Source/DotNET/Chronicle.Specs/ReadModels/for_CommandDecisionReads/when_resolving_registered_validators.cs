@@ -14,12 +14,12 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 public class when_resolving_registered_validators
 {
     [Fact]
-    public void should_refuse_registered_reader_dependencies_before_constructing_the_validator()
+    public void should_ignore_a_registered_validator_factory_and_refuse_foreign_reader()
     {
         var constructions = 0;
         var readsResolved = 0;
         using var provider = new ServiceCollection()
-            .AddSingleton<ICommandDependencySafety, DecisionDependencySafety>()
+            .AddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>()
             .AddTransient(_ =>
             {
                 readsResolved++;
@@ -36,27 +36,45 @@ public class when_resolving_registered_validators
 
         Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(ReaderCommand), provider, out _));
         Assert.Equal(0, constructions);
-        Assert.Equal(0, readsResolved);
+        Assert.Equal(1, readsResolved);
     }
 
     [Fact]
-    public void should_refuse_registered_token_dependencies_before_folding()
+    public void should_ignore_a_registered_validator_factory_and_refuse_foreign_token()
     {
         var folds = 0;
+        var validatorFactories = 0;
         using var provider = new ServiceCollection()
-            .AddSingleton<ICommandDependencySafety, DecisionDependencySafety>()
+            .AddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>()
             .AddTransient(_ =>
             {
                 folds++;
                 return DecisionFixtures.Protected<TokenModel>("source");
             })
-            .AddSingleton(services => new TokenValidator(services.GetRequiredService<DecisionRead<TokenModel>>()))
+            .AddSingleton(services =>
+            {
+                validatorFactories++;
+                return new TokenValidator(services.GetRequiredService<DecisionRead<TokenModel>>());
+            })
             .BuildServiceProvider();
         var validators = new DiscoverableValidators(TypeCatalog.Instance);
         using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedReaderCommand));
 
         Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(TokenCommand), provider, out _));
-        Assert.Equal(0, folds);
+        Assert.Equal(1, folds);
+        Assert.Equal(0, validatorFactories);
+    }
+
+    [Fact]
+    public void should_refuse_null_reader_and_token_after_a_valid_direct_shape_preflight()
+    {
+        var safety = new DecisionDependencySafety();
+        safety.ValidateValidatorDependencyShape(typeof(IDecisionReads));
+        safety.ValidateValidatorDependencyShape(typeof(DecisionRead<TokenModel>));
+        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependency(typeof(IDecisionReads), null));
+        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependency(typeof(DecisionRead<TokenModel>), null));
+        Assert.Throws<InvalidOperationException>(() => safety.ValidateCommandDependency(typeof(IDecisionReads), null));
+        Assert.Throws<InvalidOperationException>(() => safety.ValidateCommandDependency(typeof(DecisionRead<TokenModel>), null));
     }
 
     [Fact]

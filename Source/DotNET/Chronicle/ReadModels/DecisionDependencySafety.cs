@@ -32,37 +32,50 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
     }
 
     /// <inheritdoc/>
-    public void ValidateCommandDependency(Type dependencyType, object dependency)
+    public void ValidateCommandDependency(Type dependencyType, object? dependency)
     {
         if (dependencyType == typeof(IDecisionReads) && dependency is not CommandDecisionReads)
         {
             throw new InvalidOperationException("A protected command requires the command-aware IDecisionReads reader.");
         }
 
-        if (dependencyType.IsGenericType && dependencyType.GetGenericTypeDefinition() == typeof(DecisionRead<>))
+        if (IsDecisionRead(dependencyType))
         {
+            if (dependency is null)
+            {
+                throw new InvalidOperationException("A protected command requires a directly issued DecisionRead<T> token.");
+            }
             CommandDecisionReads.VerifyProvided(dependency);
         }
     }
 
     /// <inheritdoc/>
+    public void ValidateValidatorDependencyShape(Type dependencyType)
+    {
+        if (dependencyType == typeof(IDecisionReads) || IsDecisionRead(dependencyType)) return;
+
+        throw new InvalidOperationException($"Protected validator dependency '{dependencyType}' is unsupported; use a directly issued DecisionRead<T> or command-aware IDecisionReads.");
+    }
+
+    /// <inheritdoc/>
     public void ValidateValidatorDependency(Type dependencyType, object? dependency)
     {
+        ValidateValidatorDependencyShape(dependencyType);
         if (dependencyType == typeof(IDecisionReads))
         {
-            if (dependency is not (null or CommandDecisionReads))
+            if (dependency is not CommandDecisionReads)
             {
                 throw new InvalidOperationException("A protected validator requires the command-aware IDecisionReads reader.");
             }
             return;
         }
 
-        if (dependencyType.IsGenericType && dependencyType.GetGenericTypeDefinition() == typeof(DecisionRead<>))
+        if (dependency is null)
         {
-            if (dependency is not null) CommandDecisionReads.VerifyProvided(dependency);
-            return;
+            throw new InvalidOperationException("A protected validator requires a directly issued DecisionRead<T> token.");
         }
-
-        throw new InvalidOperationException($"Protected validator dependency '{dependencyType}' is unsupported; use a directly issued DecisionRead<T> or command-aware IDecisionReads.");
+        CommandDecisionReads.VerifyProvided(dependency);
     }
+
+    static bool IsDecisionRead(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>);
 }

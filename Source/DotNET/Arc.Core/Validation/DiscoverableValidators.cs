@@ -112,25 +112,21 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// Constructs a validator from the supplied provider.
     /// </summary>
     /// <remarks>
-    /// This follows command parameter binding semantics: nullable dependencies may resolve to null, while
-    /// non-nullable dependencies that resolve to null fail with <see cref="CannotResolveValidatorDependency"/>.
+    /// Legacy commands follow command parameter binding semantics. Protected validators are freshly constructed
+    /// from closed direct decision dependencies regardless of any registered validator instance or factory.
     /// </remarks>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
-    /// <exception cref="InvalidOperationException">The protected command uses a registered validator or unsupported dependency.</exception>
+    /// <exception cref="InvalidOperationException">The protected command uses an unsupported or missing decision dependency.</exception>
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
         var isService = serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
         if (CommandDecisionPolicy.IsProtected)
         {
-            // Constructor inspection cannot certify an already-created, factory-built, or transitively constructed
-            // validator. A registration probe is required; an unknown provider must fail closed before GetService.
-            if (isService?.IsService(validatorType) != false)
-            {
-                throw new InvalidOperationException($"Registered validator '{validatorType}' cannot run in a protected decision command; use an unregistered per-invocation validator.");
-            }
-
+            // Ignore every validator registration, including convention self-bindings and explicit factories or
+            // instances. Never resolve a registered instance or infer safety from its constructor: only the
+            // directly inspected constructor and its per-invocation dependencies can be certified.
             var support = serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>();
             var constructor = validatorType.GetConstructors()
                 .OrderByDescending(_ => _.GetParameters().Length)
@@ -138,7 +134,7 @@ public class DiscoverableValidators : IDiscoverableValidators
             var parameters = constructor.GetParameters();
 
             // Preflight the entire shape before constructing any dependency or folding any decision read.
-            foreach (var parameter in parameters) support.ValidateValidatorDependency(parameter.ParameterType, null);
+            foreach (var parameter in parameters) support.ValidateValidatorDependencyShape(parameter.ParameterType);
             var arguments = ParameterDependencyResolver.Resolve(
                 serviceProvider,
                 parameters,

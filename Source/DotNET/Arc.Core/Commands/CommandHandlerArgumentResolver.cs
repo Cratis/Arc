@@ -6,6 +6,7 @@ using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -77,6 +78,11 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
             else if (candidates.Find(parameterType.IsInstanceOfType) is { } match)
             {
+                if (CommandDecisionPolicy.IsProtected)
+                {
+                    serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
+                        .ValidateCommandDependency(parameterType, match);
+                }
                 arguments[i] = match;
                 candidates.Remove(match);
             }
