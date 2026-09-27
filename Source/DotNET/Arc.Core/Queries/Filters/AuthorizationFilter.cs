@@ -37,12 +37,15 @@ public class AuthorizationFilter(IQueryPerformerProviders queryPerformerProvider
         bool allowed;
         if (context.ServiceProvider is { } services)
         {
-            var declarations = services.GetRequiredService<AuthorizationDeclarations>();
+            var declarations = services.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            var evaluation = services.GetService<AuthorizationEvaluation>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
             var target = QueryAuthorizationTarget.For(performer, declarations);
             Func<bool>? legacyVerdict = performer is IFrameworkAuthorizationQueryTarget { HasIndependentLegacyVerdict: false }
                 ? null
                 : () => performer.IsAuthorized(context);
-            allowed = await services.GetRequiredService<AuthorizationEvaluation>().IsAuthorized(
+            allowed = await evaluation.IsAuthorized(
                 target,
                 context,
                 services,
