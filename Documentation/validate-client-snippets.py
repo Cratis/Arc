@@ -294,6 +294,10 @@ USING_ARC_CHRONICLE_TESTING = "using Cratis.Arc.Chronicle.Testing.Commands;"
 # extension. Unlisted snippets compile as declarations with DEFAULT_USINGS only;
 # add an entry here when a snippet needs more context than that.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/chronicle/event-from-command": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
         fixtures=("loan",),
