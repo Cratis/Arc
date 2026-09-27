@@ -347,6 +347,12 @@ public class CommandPipeline(
             commandContext = commandContext with { Dependencies = resolution.Arguments };
 
             cancellationToken.ThrowIfCancellationRequested();
+            if (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true &&
+                commandContext.AuthorizedExecution?.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>()) != true)
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             var response = await commandHandler.Handle(commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))

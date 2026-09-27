@@ -271,6 +271,15 @@ public class QueryPipeline(
                 result.AuthorizedTenant = serviceProvider.GetRequiredService<TenantIdAccessor>().Current;
             }
             cancellationToken.ThrowIfCancellationRequested();
+            if ((prepared?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
+                (context.AuthorizedExecution is { } verdict &&
+                 !verdict.IsCurrent(
+                     QueryAuthorizationTarget.For(queryPerformer, serviceProvider.GetRequiredService<AuthorizationDeclarations>()),
+                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>())))
+            {
+                return QueryResult.Unauthorized(correlationId);
+            }
+
             var data = await queryPerformer.Perform(context);
             if (data is null)
             {
@@ -296,6 +305,10 @@ public class QueryPipeline(
         catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
         {
             result.MergeWith(QueryResult.FromException(correlationId, ex));
+        }
+        catch (AuthorizationIdentityChanged)
+        {
+            return QueryResult.Unauthorized(correlationId);
         }
         catch (InvalidAuthorizationConfiguration ex)
         {

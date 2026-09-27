@@ -115,6 +115,7 @@ public class AuthorizationEvaluation(
             ? services.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal!, services)
             : null;
 
+        PrincipalSnapshot? policyIdentity = null;
         PrincipalSnapshot? executionIdentity = null;
         var guest = false;
         if (declaration.RequiresAsynchronousEvaluation)
@@ -129,10 +130,11 @@ public class AuthorizationEvaluation(
 
             // A verdict certifies exactly the policy-input and execution identities captured immediately before
             // evaluation (after pre-verdict hooks). Without a selected scope, authenticated policy input must
-            // match the execution identity by content at that instant. Both must remain unchanged afterward.
-            // A synthetic guest is deliberately distinct from the ambient unauthenticated caller, but its verdict
-            // never certifies an authenticated execution identity.
-            var policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
+            // match the execution identity by content at that instant. Both are revalidated after every callback
+            // that runs application code, immediately before the verdict is published. A synthetic guest is
+            // deliberately distinct from the ambient unauthenticated caller, but its verdict never certifies
+            // an authenticated execution identity.
+            policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
             executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
             if ((!needsSelectedScope && !guest && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal)) ||
                 (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
@@ -150,9 +152,7 @@ public class AuthorizationEvaluation(
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (!AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) ||
-                !AuthorizationPrincipalIdentity.Same(executionIdentity, principalAccessor.Current) ||
-                (guest && AuthorizationEvaluator.HasAuthenticatedIdentity(principalAccessor.Current)))
+            if (!IdentityUnchanged(policyIdentity, executionIdentity, selectedPrincipal, guest))
             {
                 return false;
             }
@@ -178,18 +178,33 @@ public class AuthorizationEvaluation(
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        if (declaration.RequiresAsynchronousEvaluation && !IdentityUnchanged(policyIdentity!, executionIdentity!, selectedPrincipal!, guest))
+        {
+            return false;
+        }
+
         var identity = principalChanged
             ? new ClaimsPrincipal(selectedPrincipal!.Identities.Select(claimsIdentity => claimsIdentity.Clone()))
+            : null;
+        var authorizedExecution = declaration.RequiresAsynchronousEvaluation
+            ? new AuthorizedExecution(target, executionIdentity!, guest)
             : null;
         if (resource is QueryContext queryContext)
         {
             queryContext.AuthorizedPrincipal = identity;
+            queryContext.AuthorizedExecution = authorizedExecution;
         }
         else if (resource is CommandContext commandContext)
         {
             commandContext.AuthorizedPrincipal = identity;
+            commandContext.AuthorizedExecution = authorizedExecution;
         }
 
         return true;
     }
+
+    bool IdentityUnchanged(PrincipalSnapshot policyIdentity, PrincipalSnapshot executionIdentity, ClaimsPrincipal selectedPrincipal, bool guest) =>
+        AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) &&
+        AuthorizationPrincipalIdentity.Same(executionIdentity, principalAccessor.Current) &&
+        (!guest || !AuthorizationEvaluator.HasAuthenticatedIdentity(principalAccessor.Current));
 }
