@@ -1,6 +1,6 @@
 ---
 title: Backend
-description: Choose the Arc backend implementation for your language, and see what every implementation agrees on.
+description: Choose the Arc backend implementation for your language and compare shared concepts with capability-specific behavior.
 ---
 
 Arc's backend gives commands, queries, validation, authorization and proxy
@@ -25,24 +25,14 @@ the host you run it on and the API surface you write against.
   [capability reference](/arc/backend/typescript/reference/capabilities/)
   gives the status of each capability.
 
-## What every implementation shares
+## What the implementations share
 
-The pieces below are contracts rather than APIs, so they hold across languages.
-A client generated from the C# backend talks to the JVM backend, and the other
-way round, without changes. Arc for TypeScript follows the same contract for
-the capabilities it implements; a paired suite checks a bounded set of routes
-against a C# host.
-
-- The HTTP contract — routes, request and response envelopes, status codes, and
-  correlation.
-- The command and query result shape, including validation results and their
-  severities.
-- Observable queries and their transports, and how collection changes are
-  transferred.
-- Identity, authorization and tenant resolution semantics.
-
-Where an implementation deliberately differs, its own pages say so rather than
-leaving you to infer it.
+These implementations share the application-boundary model and frontend
+packages. Wire compatibility is capability-specific; implementation references
+document supported behavior and deliberate differences. The [HTTP contract](/arc/http-contract/)
+describes the shared contract verified for C# and JVM, while the TypeScript
+[capability reference](/arc/backend/typescript/reference/capabilities/) identifies
+what its source preview supports.
 
 ## The frontend is shared
 

@@ -3,16 +3,13 @@ title: HTTP contract
 description: The language-neutral Arc wire contract - routes, headers, envelopes, statuses, identity, and validation values - plus where the C# and JVM implementations differ.
 ---
 
-Arc ships two backend implementations: [C# on ASP.NET Core](/arc/backend/csharp/) and
-[Kotlin and Java on Spring Boot](/arc/backend/kotlin/). They are one product because
-they speak one wire protocol. A TypeScript client generated from a C# backend has to
-work against a JVM backend, and the same `fetch` call has to mean the same thing on
-both.
+This page describes the shared wire contract verified for [C# on ASP.NET Core](/arc/backend/csharp/)
+and [Kotlin and Java on Spring Boot](/arc/backend/kotlin/). It covers the common
+routes, envelopes, headers, and statuses for clients targeting either host.
 
-This page is that protocol. Every statement here is true of both implementations. Where
-behavior genuinely differs, it is not on this page - it is in
-[Where the implementations differ](#where-the-implementations-differ), which names both
-behaviors so a client author can see the edge before hitting it.
+The common sections apply to both implementations. Where behavior differs, see
+[Where the implementations differ](#where-the-implementations-differ), which names
+both behaviors so a client author can see the edge before hitting it.
 
 :::note[Arc for TypeScript]
 A third implementation, [Arc for TypeScript](/arc/backend/typescript/) on Node.js, is in
