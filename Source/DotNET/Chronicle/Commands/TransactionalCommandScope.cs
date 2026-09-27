@@ -68,7 +68,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     public void Begin(CommandContext context)
     {
         CommandDecisionReads.Begin(context.Type);
-        var frame = new TransactionFrame(ActiveFrame());
+        var frame = new TransactionFrame(context.Values, ActiveFrame());
         _frames.Value = frame;
         if (context.ServiceProvider is not { } serviceProvider || CommandTransaction.TryGetActive(out _))
         {
@@ -108,17 +108,21 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     /// <inheritdoc/>
     public async Task Complete(CommandContext context, CommandResult result)
     {
+        var frame = ActiveFrame();
+        if (frame is null || !ReferenceEquals(frame.Values, context.Values))
+        {
+            // Begin may have thrown before this scope created a frame. Do not complete an enclosing command.
+            return;
+        }
+
         // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
         CommandDecisionReads.End();
-        var frame = ActiveFrame();
-        var owned = frame?.Owned;
-        if (frame is not null)
-        {
-            // Complete is async; a change to AsyncLocal.Value inside it does not propagate to its caller.
-            // Mark the shared frame instead so a resumed outer command still owns its transaction.
-            frame.Completed = true;
-            _frames.Value = frame.Previous;
-        }
+        var owned = frame.Owned;
+
+        // Complete is async; a change to AsyncLocal.Value inside it does not propagate to its caller.
+        // Mark the shared frame instead so a resumed outer command still owns its transaction.
+        frame.Completed = true;
+        _frames.Value = frame.Previous;
         if (owned is null)
         {
             return;
@@ -218,8 +222,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public bool ImmediateUncertain { get; set; }
     }
 
-    sealed class TransactionFrame(TransactionFrame? previous)
+    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous)
     {
+        public CommandContextValues Values { get; } = values;
         public TransactionFrame? Previous { get; } = previous;
         public OwnedTransaction? Owned { get; set; }
         public bool Completed { get; set; }

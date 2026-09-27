@@ -59,8 +59,8 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
             return await inner.Get<T>(key, cancellationToken);
         }
 
-        var mode = validation is not null ? ReadMode.Validation :
-            invocation.CommandType.IsDefined(typeof(UnprotectedAttribute), true) ? ReadMode.Unprotected : ReadMode.Protected;
+        var mode = invocation.CommandType.IsDefined(typeof(UnprotectedAttribute), true) ? ReadMode.Unprotected :
+            validation is not null ? ReadMode.Validation : ReadMode.Protected;
 
         IUnitOfWork? unitOfWork = null;
         if (mode == ReadMode.Protected)

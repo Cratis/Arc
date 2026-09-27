@@ -63,6 +63,9 @@ public static class ReadModelServiceCollectionExtensions
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
 
+        // This public entry point also registers DecisionRead<T>. Never leave it bound to Chronicle's raw reader.
+        services.AddCommandAwareDecisionReads();
+
         foreach (var readModelType in readModelTypes)
         {
             var closedType = typeof(DecisionRead<>).MakeGenericType(readModelType);

@@ -7,6 +7,7 @@ using Cratis.Arc.DependencyInjection;
 using Cratis.Reflection;
 using Cratis.Types;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -119,14 +120,23 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <returns>The constructed validator instance.</returns>
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
+        // A registered validator can resolve decision reads during construction. Check it before GetService
+        // constructs it, using the provider's registration probe to preserve per-invocation construction for
+        // unregistered validators. Without a probe, fail closed for unsafe constructors.
+        var safetyChecks = serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [];
+        var isService = serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
+        if (isService?.IsService(validatorType) != false)
+        {
+            foreach (var safety in safetyChecks)
+            {
+                safety.ValidateRegisteredValidator(validatorType);
+            }
+        }
+
         // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
         var registered = serviceProvider.GetService(validatorType);
         if (registered is not null)
         {
-            foreach (var safety in serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [])
-            {
-                safety.ValidateRegisteredValidator(validatorType);
-            }
             return registered;
         }
 

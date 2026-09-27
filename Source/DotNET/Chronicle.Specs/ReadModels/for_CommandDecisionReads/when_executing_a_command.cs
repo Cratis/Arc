@@ -3,12 +3,14 @@
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Transactions;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 
@@ -171,6 +173,22 @@ public class when_executing_a_command
     }
 
     [Fact]
+    public void should_register_command_aware_resolution_from_direct_add_read_models()
+    {
+        var artifacts = Substitute.For<IClientArtifactsProvider>();
+        artifacts.Projections.Returns([typeof(for_ReadModelServiceCollectionExtensions.ProjectionForReadModel)]);
+        artifacts.ModelBoundProjections.Returns([]);
+        artifacts.Reducers.Returns([]);
+        var services = new ServiceCollection().AddReadModels(artifacts);
+
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(IDecisionReads) &&
+            descriptor.Lifetime == ServiceLifetime.Scoped && descriptor.ImplementationFactory is not null);
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(DecisionRead<for_ReadModelServiceCollectionExtensions.ProjectionReadModel>));
+        Assert.Contains(services, descriptor => descriptor.ServiceType == typeof(ICommandDependencySafety) &&
+            descriptor.ImplementationType == typeof(DecisionDependencySafety));
+    }
+
+    [Fact]
     public async Task should_keep_validation_only_reads_detached_and_refold_when_executing_with_the_same_provider()
     {
         var (store, _, unit) = DecisionFixtures.Transaction();
@@ -203,6 +221,31 @@ public class when_executing_a_command
     }
 
     [Fact]
+    public async Task should_not_complete_outer_frame_when_nested_begin_never_reached_this_scope()
+    {
+        var (_, log, unit) = DecisionFixtures.Transaction();
+        var manager = Substitute.For<IUnitOfWorkManager>();
+        manager.Begin(Arg.Any<CorrelationId>()).Returns(unit);
+        var services = Substitute.For<IServiceProvider>();
+        services.GetService(typeof(IUnitOfWorkManager)).Returns(manager);
+        var scope = new TransactionalCommandScope();
+        var outerId = CorrelationId.New();
+        var outer = new CommandContext(outerId, typeof(Command), new Command(), [], new(), ServiceProvider: services);
+        var nested = new CommandContext(CorrelationId.New(), typeof(NestedCommand), new NestedCommand(), [], new(), ServiceProvider: services);
+        log.AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>>())
+            .Returns(AppendManyResult.Success(outerId, []));
+        scope.Begin(outer);
+        unit.AddDecisionRead(DecisionFixtures.Protected<Model>("source"));
+        await scope.Complete(nested, CommandResult.Error(nested.CorrelationId, "nested Begin failed"));
+        Assert.False(unit.IsCompleted);
+        Assert.True(CommandTransaction.TryGetActive(out var active));
+        Assert.Same(unit, active);
+        await scope.Complete(outer, CommandResult.Success(outerId));
+        Assert.True(unit.IsCompleted);
+        Assert.False(CommandTransaction.TryGetActive(out _));
+    }
+
+    [Fact]
     public async Task should_restore_the_owning_scope_after_a_nested_command_completes()
     {
         var (_, log, unit) = DecisionFixtures.Transaction();
@@ -228,7 +271,32 @@ public class when_executing_a_command
         Assert.False(CommandTransaction.TryGetActive(out _));
     }
 
+    [Fact]
+    public async Task should_use_legacy_reads_for_unprotected_commands_during_validation()
+    {
+        var (store, _, _) = DecisionFixtures.Transaction();
+        var inner = Substitute.For<IDecisionReads>();
+        var legacy = Substitute.For<IReadModels>();
+        var model = new Model();
+        legacy.GetInstanceById<Model>((ReadModelKey)"source").Returns(model);
+        legacy.Release(model).Returns(model);
+        var reader = new CommandDecisionReads(inner, store, legacy);
+        var begin = typeof(CommandValidationExecution).GetMethod("Begin", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(begin);
+        using (Assert.IsType<IDisposable>(begin.Invoke(null, [typeof(UnprotectedCommand)]), exactMatch: false))
+        {
+            var read = await reader.Get<Model>((ReadModelKey)"source");
+            Assert.False(read.IsProtected);
+            Assert.Same(model, read.Instance);
+        }
+
+        await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source");
+        await legacy.Received(1).GetInstanceById<Model>((ReadModelKey)"source");
+    }
+
     public class Model;
     public class Command;
     public class NestedCommand;
+    [Unprotected]
+    public class UnprotectedCommand;
 }
