@@ -113,7 +113,7 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// </summary>
     /// <remarks>
     /// Legacy commands follow command parameter binding semantics. Protected validators are freshly constructed
-    /// from closed direct decision dependencies regardless of any registered validator instance or factory.
+    /// from closed direct decision dependencies only when registrations have certified convention provenance.
     /// </remarks>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
@@ -124,9 +124,15 @@ public class DiscoverableValidators : IDiscoverableValidators
         var isService = serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
         if (CommandDecisionPolicy.IsProtected)
         {
-            // Ignore every validator registration, including convention self-bindings and explicit factories or
-            // instances. Never resolve a registered instance or infer safety from its constructor: only the
-            // directly inspected constructor and its per-invocation dependencies can be certified.
+            // Never resolve an application-registered validator: its factory or instance may add rules that
+            // constructing the discovered type would omit. Supplied providers without registration provenance
+            // are refused even for apparently unregistered validators.
+            var provenance = serviceProvider.GetServices<ValidatorRegistrationProvenance>().ToArray();
+            if (provenance.Length != 1)
+            {
+                throw new InvalidOperationException("Protected validator resolution requires Arc registration provenance in the command provider.");
+            }
+            provenance[0].Validate(validatorType);
             var support = serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>();
             var constructor = validatorType.GetConstructors()
                 .OrderByDescending(_ => _.GetParameters().Length)

@@ -31,7 +31,17 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
 
     /// <inheritdoc/>
     public DecisionReadAdmission Admit<T>()
-        where T : class => inner.Admit<T>();
+        where T : class
+    {
+        try
+        {
+            return inner.Admit<T>();
+        }
+        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && ex is not OperationCanceledException)
+        {
+            throw new DecisionReadAcquisitionException(ex);
+        }
+    }
 
     /// <inheritdoc/>
     public Task<DecisionRead<T>> GetDetached<T>(ReadModelKey key, CancellationToken cancellationToken = default)
@@ -39,7 +49,8 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     {
         if (CommandDecisionPolicy.IsProtected || (CurrentInvocation() is not null && !CommandValidationExecution.IsActive))
         {
-            throw new InvalidOperationException("Detached decision reads cannot be used inside an executing command.");
+            var refusal = new InvalidOperationException("Detached decision reads cannot be used inside an executing command.");
+            throw CommandDecisionPolicy.IsProtected ? new DecisionReadAcquisitionException(refusal) : refusal;
         }
 
         return inner.GetDetached<T>(key, cancellationToken);
@@ -49,60 +60,72 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     public async Task<DecisionRead<T>> Get<T>(ReadModelKey key, CancellationToken cancellationToken = default)
         where T : class
     {
-        var validation = CommandValidationExecution.Current;
-        var invocation = validation is { } validating
-            ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, CommandDecisionPolicy.Token, null))
-            : CurrentInvocation();
-        if (!CommandDecisionPolicy.IsActive)
+        try
         {
-            if (invocation is not null) throw new InvalidOperationException("Decision reads require a command pipeline protection profile.");
-
-            // Outside a command, preserve the Chronicle client contract (including its ambient UOW requirement).
-            return await inner.Get<T>(key, cancellationToken);
+            return await GetForInvocation();
+        }
+        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && ex is not (OperationCanceledException or DecisionReadAcquisitionException))
+        {
+            throw new DecisionReadAcquisitionException(ex);
         }
 
-        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy)
+        async Task<DecisionRead<T>> GetForInvocation()
         {
-            throw new InvalidOperationException("Protected decision reads require [ProtectedDecision] on the command. Mark intentional advisory reads [Unprotected].");
-        }
-        if (invocation is null || !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token))
-        {
-            throw new InvalidOperationException("Protected decision reads require an active command transaction or validation invocation.");
-        }
-
-        var mode = CommandDecisionPolicy.Mode == CommandDecisionMode.Unprotected ? ReadMode.Unprotected :
-            validation is not null ? ReadMode.Validation : ReadMode.Protected;
-
-        IUnitOfWork? unitOfWork = null;
-        if (mode == ReadMode.Protected)
-        {
-            if (!CommandTransaction.TryGetActive(out unitOfWork)) throw new DecisionReadRequiresUnitOfWork();
-            if (unitOfWork is not UnitOfWork)
+            var validation = CommandValidationExecution.Current;
+            var invocation = validation is { } validating
+                ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, CommandDecisionPolicy.Token, null))
+                : CurrentInvocation();
+            if (!CommandDecisionPolicy.IsActive)
             {
-                throw new InvalidOperationException("Protected command decisions require Chronicle's owner-capable UnitOfWork.");
+                if (invocation is not null) throw new InvalidOperationException("Decision reads require a command pipeline protection profile.");
+
+                // Outside a command, preserve the Chronicle client contract (including its ambient UOW requirement).
+                return await inner.Get<T>(key, cancellationToken);
             }
-        }
 
-        // The target is part of the cache key: a supplied provider may resolve the same model and key from another
-        // store or namespace. Concurrent resolutions within one invocation share one in-flight fold.
-        var cacheKey = (typeof(T), (string)key, mode, (string)eventStore.Name, (string)eventStore.Namespace);
-        async Task<object> CreateRead() => mode == ReadMode.Unprotected
-            ? DecisionRead<T>.Unprotected(key, await ReadLegacy<T>(key))
-            : await inner.GetDetached<T>(key, cancellationToken);
-        var task = invocation.Reads.GetOrAdd(
-            cacheKey,
-            static (_, readFactory) => new Lazy<Task<object>>(readFactory, LazyThreadSafetyMode.ExecutionAndPublication),
-            CreateRead);
-        var read = (DecisionRead<T>)await task.Value;
-        if (mode == ReadMode.Protected)
-        {
-            // Do not trust Chronicle's ambient UOW here: a supplied provider or nested invocation can carry another
-            // ambient manager. Re-enrollment is intentional even when a cached token is returned.
-            unitOfWork!.AddDecisionRead(read);
-        }
+            if (CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy)
+            {
+                throw new InvalidOperationException("Protected decision reads require [ProtectedDecision] on the command. Mark intentional advisory reads [Unprotected].");
+            }
+            if (invocation is null || !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token))
+            {
+                throw new InvalidOperationException("Protected decision reads require an active command transaction or validation invocation.");
+            }
 
-        invocation.Issued.TryAdd(read, 0);
-        return read;
+            var mode = CommandDecisionPolicy.Mode == CommandDecisionMode.Unprotected ? ReadMode.Unprotected :
+                validation is not null ? ReadMode.Validation : ReadMode.Protected;
+
+            IUnitOfWork? unitOfWork = null;
+            if (mode == ReadMode.Protected)
+            {
+                if (!CommandTransaction.TryGetActive(out unitOfWork)) throw new DecisionReadRequiresUnitOfWork();
+                if (unitOfWork is not UnitOfWork)
+                {
+                    throw new InvalidOperationException("Protected command decisions require Chronicle's owner-capable UnitOfWork.");
+                }
+            }
+
+            // The target is part of the cache key: a supplied provider may resolve the same model and key from another
+            // store or namespace. Concurrent resolutions within one invocation share one in-flight fold.
+            var cacheKey = (typeof(T), (string)key, mode, (string)eventStore.Name, (string)eventStore.Namespace);
+            async Task<object> CreateRead() => mode == ReadMode.Unprotected
+                ? DecisionRead<T>.Unprotected(key, await ReadLegacy<T>(key))
+                : await inner.GetDetached<T>(key, cancellationToken);
+            var task = invocation.Reads.GetOrAdd(
+                cacheKey,
+                static (_, readFactory) => new Lazy<Task<object>>(readFactory, LazyThreadSafetyMode.ExecutionAndPublication),
+                CreateRead);
+            var read = (DecisionRead<T>)await task.Value;
+            if (mode == ReadMode.Protected)
+            {
+                // Do not trust Chronicle's ambient UOW here: a supplied provider or nested invocation can carry another
+                // ambient manager. Re-enrollment is intentional even when a cached token is returned.
+                unitOfWork!.AddDecisionRead(read);
+            }
+
+            invocation.Issued.TryAdd(read, 0);
+            return read;
+        }
     }
 
     /// <summary>Starts an invocation with its own cache and provenance.</summary>

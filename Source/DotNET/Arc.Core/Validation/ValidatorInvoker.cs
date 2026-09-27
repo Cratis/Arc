@@ -47,11 +47,10 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             return validationResult.Errors.Select(_ =>
                 new ValidationResult(ToSeverity(_.Severity), _.ErrorMessage, [MemberFor(path, _.PropertyName, isConcept)], _.CustomState ?? null!)).ToArray();
         }
-        catch (Exception ex) when (ex is not OperationCanceledException && !CommandDecisionPolicy.IsProtected)
+        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadAcquisitionException))
         {
-            // Protected command failures must reach the pipeline as non-filterable exceptions: turning a failed
-            // decision acquisition into an ordinary validation Error lets an allowed-severity override run the handler.
-            // A legacy validator that dereferences a null concept member throws while validating hostile or partial
+            // Failed decision acquisition must remain non-filterable, even with an allowed-severity override.
+            // A validator that dereferences a null concept member throws while validating hostile or partial
             // input. Surface it as a validation failure (HTTP 400) rather than letting it propagate to a server
             // error (HTTP 500). The detail is logged server-side and never returned to the client. Cancellation
             // is deliberately excluded so a cancelled request is not mistaken for invalid input.

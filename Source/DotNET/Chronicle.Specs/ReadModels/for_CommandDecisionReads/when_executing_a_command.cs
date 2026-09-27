@@ -111,6 +111,27 @@ public class when_executing_a_command
     }
 
     [Fact]
+    public void should_signal_protected_admission_refusals_as_non_filterable_acquisition_failures()
+    {
+        var (store, _, _) = DecisionFixtures.Transaction();
+        var inner = Substitute.For<IDecisionReads>();
+        inner.Admit<Model>().Returns(_ => throw new InvalidOperationException("admission refused"));
+        var reader = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
+        var failure = Assert.Throws<DecisionReadAcquisitionException>(reader.Admit<Model>);
+        Assert.Equal("admission refused", failure.Message);
+    }
+
+    [Fact]
+    public async Task should_signal_detached_read_refusal_in_protected_validation()
+    {
+        var (store, _, _) = DecisionFixtures.Transaction();
+        var reader = new CommandDecisionReads(Substitute.For<IDecisionReads>(), store, Substitute.For<IReadModels>());
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
+        await Assert.ThrowsAsync<DecisionReadAcquisitionException>(() => reader.GetDetached<Model>((ReadModelKey)"source"));
+    }
+
+    [Fact]
     public async Task should_refuse_a_custom_unit_of_work_before_any_protected_fold()
     {
         var (store, _, _) = DecisionFixtures.Transaction();
@@ -121,7 +142,7 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => reader.Get<Model>((ReadModelKey)"source"));
+            await Assert.ThrowsAsync<DecisionReadAcquisitionException>(() => reader.Get<Model>((ReadModelKey)"source"));
             await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source");
         }
         finally

@@ -8,6 +8,7 @@ using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
+using Cratis.Arc.Validation;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -123,8 +124,14 @@ public static class HostBuilderExtensions
             .AddCratisArcMeter()
             .AddCratisArcActivitySource()
             .AddTypeDiscovery()
-            .AddBindingsByConvention()
-            .AddSelfBindings();
+            .AddBindingsByConvention();
+
+        var existingBindings = services.ToHashSet();
+        services.AddSelfBindings();
+        services.RemoveAll<ValidatorRegistrationProvenance>();
+        services.AddSingleton(new ValidatorRegistrationProvenance(
+            services,
+            services.Where(_ => !existingBindings.Contains(_) && _.ImplementationType == _.ServiceType).ToHashSet()));
 
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();

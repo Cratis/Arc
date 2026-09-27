@@ -10,6 +10,7 @@ using Cratis.Arc.Testing.Commands;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Concepts;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -32,16 +33,16 @@ public class when_protecting_validator_construction
         scenario.Services.AddScoped<ScopedHeldValidator>();
         var key = EventSourceId.New();
         var command = new ScopedCommand(key);
-        Assert.Contains("Protected validator dependency", (await scenario.Validate(command)).ExceptionMessages.Single());
+        Assert.Contains("Registered validator", (await scenario.Validate(command)).ExceptionMessages.Single());
         scenario.AppendConcurrently(key, new when_using_decision_mode.DecisionStateChanged());
-        Assert.Contains("Protected validator dependency", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Contains("Registered validator", (await scenario.Execute(command)).ExceptionMessages.Single());
         Assert.Equal(0, constructions);
         Assert.Equal(0, ScopedCommand.Handles);
         Assert.Empty(scenario.AppendedEvents);
     }
 
     [Fact]
-    public async Task factory_and_prebuilt_registrations_with_opaque_dependencies_are_ignored_and_refused_by_shape()
+    public async Task factory_and_prebuilt_registrations_are_refused_before_resolving_dependencies()
     {
         await using var factoryScenario = new CommandScenario<FactoryCommand>().UseDecisionReads();
         var factoryCalls = 0;
@@ -52,8 +53,8 @@ public class when_protecting_validator_construction
                 (ReadModelKey)"old", null)));
         });
         var key = EventSourceId.New();
-        Assert.Contains("Protected validator dependency", (await factoryScenario.Validate(new FactoryCommand(key))).ExceptionMessages.Single());
-        Assert.Contains("Protected validator dependency", (await factoryScenario.Execute(new FactoryCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Registered validator", (await factoryScenario.Validate(new FactoryCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Registered validator", (await factoryScenario.Execute(new FactoryCommand(key))).ExceptionMessages.Single());
         Assert.Equal(0, factoryCalls);
         Assert.Empty(factoryScenario.AppendedEvents);
 
@@ -61,37 +62,76 @@ public class when_protecting_validator_construction
         var prebuilt = new PrebuiltHeldValidator(new HeldRead(DecisionRead<when_using_decision_mode.DecisionState>.Unprotected(
             (ReadModelKey)"old", null)));
         prebuiltScenario.Services.AddSingleton(prebuilt);
-        Assert.Contains("Protected validator dependency", (await prebuiltScenario.Validate(new PrebuiltCommand(key))).ExceptionMessages.Single());
-        Assert.Contains("Protected validator dependency", (await prebuiltScenario.Execute(new PrebuiltCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Registered validator", (await prebuiltScenario.Validate(new PrebuiltCommand(key))).ExceptionMessages.Single());
+        Assert.Contains("Registered validator", (await prebuiltScenario.Execute(new PrebuiltCommand(key))).ExceptionMessages.Single());
         Assert.Empty(prebuiltScenario.AppendedEvents);
     }
 
     [Fact]
-    public async Task factory_and_instance_validators_are_ignored_in_favor_of_fresh_direct_dependencies()
+    public async Task factory_added_ownership_rule_cannot_disappear_in_a_protected_command()
     {
-        DirectValidator.Seen.Clear();
-        await using var factoryScenario = new CommandScenario<DirectCommand>().UseDecisionReads();
-        var factoryCalls = 0;
-        factoryScenario.Services.AddSingleton<DirectValidator>(_ =>
+        await using var scenario = new CommandScenario<OwnershipCommand>().UseDecisionReads();
+        var factories = 0;
+        scenario.Services.AddSingleton<OwnershipValidator>(_ =>
         {
-            factoryCalls++;
-            throw new InvalidOperationException("Must not resolve a registered validator factory.");
+            factories++;
+            var validator = new OwnershipValidator();
+            validator.RuleFor(command => command.EventSourceId).Must(_ => false).WithMessage("ownership denied");
+            return validator;
         });
-        (await factoryScenario.Execute(new DirectCommand(EventSourceId.New()))).ShouldBeSuccessful();
-        Assert.Equal(0, factoryCalls);
-        Assert.Single(DirectValidator.Seen);
-        Assert.True(DirectValidator.Seen[0].IsProtected);
-        Assert.Single(factoryScenario.AppendedEvents);
+        var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()));
+        Assert.Contains("Registered validator", result.ExceptionMessages.Single());
+        Assert.Equal(0, factories);
+        Assert.Equal(0, OwnershipCommand.Handles);
+        Assert.Empty(scenario.AppendedEvents);
+    }
 
+    [Fact]
+    public async Task explicit_validator_instance_with_a_direct_token_constructor_is_refused()
+    {
+        await using var scenario = new CommandScenario<DirectCommand>().UseDecisionReads();
+        scenario.Services.AddSingleton(new DirectValidator(
+            DecisionRead<when_using_decision_mode.DecisionState>.Unprotected((ReadModelKey)"old", null)));
         DirectValidator.Seen.Clear();
-        await using var instanceScenario = new CommandScenario<DirectCommand>().UseDecisionReads();
-        var instance = new DirectValidator(DecisionRead<when_using_decision_mode.DecisionState>.Unprotected((ReadModelKey)"old", null));
-        DirectValidator.Seen.Clear();
-        instanceScenario.Services.AddSingleton(instance);
-        (await instanceScenario.Execute(new DirectCommand(EventSourceId.New()))).ShouldBeSuccessful();
-        Assert.Single(DirectValidator.Seen);
-        Assert.True(DirectValidator.Seen[0].IsProtected);
-        Assert.Single(instanceScenario.AppendedEvents);
+        Assert.Contains("Registered validator", (await scenario.Execute(new DirectCommand(EventSourceId.New()))).ExceptionMessages.Single());
+        Assert.Empty(DirectValidator.Seen);
+        Assert.Empty(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task explicit_registration_after_arc_conventions_is_also_refused()
+    {
+        await using var scenario = new CommandScenario<DirectCommand>().UseDecisionReads();
+        (await scenario.Validate(new DirectCommand(EventSourceId.New()))).ShouldBeSuccessful();
+        var factories = 0;
+        scenario.Services.AddTransient<DirectValidator>(_ =>
+        {
+            factories++;
+            throw new InvalidOperationException("Application factory must not run.");
+        });
+        await using var provider = scenario.Services.BuildServiceProvider();
+        var pipeline = provider.GetRequiredService<ICommandPipeline>();
+        Assert.Contains("Registered validator", (await pipeline.Execute(new DirectCommand(EventSourceId.New()), provider)).ExceptionMessages.Single());
+        Assert.Equal(0, factories);
+    }
+
+    [Fact]
+    public async Task duplicate_validator_bindings_are_refused_before_any_factory_runs()
+    {
+        await using var scenario = new CommandScenario<DirectCommand>().UseDecisionReads();
+        var factories = 0;
+        scenario.Services.AddTransient<DirectValidator>(_ =>
+        {
+            factories++;
+            throw new InvalidOperationException("First factory must not run.");
+        });
+        scenario.Services.AddScoped<DirectValidator>(_ =>
+        {
+            factories++;
+            throw new InvalidOperationException("Second factory must not run.");
+        });
+        Assert.Contains("Registered validator", (await scenario.Execute(new DirectCommand(EventSourceId.New()))).ExceptionMessages.Single());
+        Assert.Equal(0, factories);
     }
 
     [Fact]
@@ -126,6 +166,16 @@ public class when_protecting_validator_construction
     }
 
     [Fact]
+    public async Task convention_self_bound_validator_can_use_a_direct_token_in_protected_mode()
+    {
+        await using var scenario = new CommandScenario<DirectCommand>().UseDecisionReads();
+        (await scenario.Validate(new DirectCommand(EventSourceId.New()))).ShouldBeSuccessful();
+        Assert.Contains(scenario.Services, descriptor => descriptor.ServiceType == typeof(DirectValidator) &&
+            descriptor.ImplementationType == typeof(DirectValidator));
+        (await scenario.Execute(new DirectCommand(EventSourceId.New()))).ShouldBeSuccessful();
+    }
+
+    [Fact]
     public async Task nullable_validator_token_resolving_null_cannot_skip_the_guard()
     {
         await using var scenario = new CommandScenario<NullableValidatorCommand>().UseDecisionReads();
@@ -149,6 +199,18 @@ public class when_protecting_validator_construction
         provideScenario.Services.AddTransient<DecisionRead<when_using_decision_mode.DecisionState>>(_ => null!);
         Assert.Contains("directly issued DecisionRead", (await provideScenario.Execute(new NullableProvideCommand(key))).ExceptionMessages.Single());
         Assert.Empty(provideScenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task protected_validator_dereferencing_a_null_concept_returns_a_generic_bad_request()
+    {
+        await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
+        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null));
+        Assert.Empty(result.ExceptionMessages);
+        Assert.Equal(ValidatorInvoker.CouldNotValidateMessage, result.ValidationResults.Single().Message);
+        Assert.Equal(ValidationResultReason.ValidatorFailed, result.ValidationResults.Single().Reason);
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, EndpointRouteHelper.GetStatusCode(result.IsSuccess, result.IsAuthorized, result.IsValid));
+        Assert.Equal(0, NullConceptCommand.Handles);
     }
 
     [Fact]
@@ -229,6 +291,39 @@ public class when_protecting_validator_construction
         Assert.Equal(2, ReaderValidator.Constructions);
         Assert.Single(scenario.AppendedEvents);
     }
+
+    public record ConceptName(string Value) : ConceptAs<string>(Value);
+
+    [Command]
+    [ProtectedDecision]
+    public record NullConceptCommand(EventSourceId EventSourceId, ConceptName? Name)
+    {
+        public static int Handles;
+        public when_using_decision_mode.DecisionFinished Handle()
+        {
+            Handles++;
+            return new(false);
+        }
+    }
+
+    public class NullConceptValidator : CommandValidator<NullConceptCommand>
+    {
+        public NullConceptValidator() => RuleFor(_ => _.Name!.Value).NotEmpty();
+    }
+
+    [Command]
+    [ProtectedDecision]
+    public record OwnershipCommand(EventSourceId EventSourceId)
+    {
+        public static int Handles;
+        public when_using_decision_mode.DecisionFinished Handle()
+        {
+            Handles++;
+            return new(false);
+        }
+    }
+
+    public class OwnershipValidator : CommandValidator<OwnershipCommand>;
 
     public record HeldRead(DecisionRead<when_using_decision_mode.DecisionState> Read);
 

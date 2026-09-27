@@ -14,7 +14,7 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 public class when_resolving_registered_validators
 {
     [Fact]
-    public void should_ignore_a_registered_validator_factory_and_refuse_foreign_reader()
+    public void should_refuse_a_supplied_provider_without_registration_provenance_before_resolving_the_reader()
     {
         var constructions = 0;
         var readsResolved = 0;
@@ -36,11 +36,11 @@ public class when_resolving_registered_validators
 
         Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(ReaderCommand), provider, out _));
         Assert.Equal(0, constructions);
-        Assert.Equal(1, readsResolved);
+        Assert.Equal(0, readsResolved);
     }
 
     [Fact]
-    public void should_ignore_a_registered_validator_factory_and_refuse_foreign_token()
+    public void should_refuse_a_supplied_provider_without_registration_provenance_before_resolving_the_token()
     {
         var folds = 0;
         var validatorFactories = 0;
@@ -61,7 +61,7 @@ public class when_resolving_registered_validators
         using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedReaderCommand));
 
         Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(TokenCommand), provider, out _));
-        Assert.Equal(1, folds);
+        Assert.Equal(0, folds);
         Assert.Equal(0, validatorFactories);
     }
 
