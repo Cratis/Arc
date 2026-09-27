@@ -49,7 +49,7 @@ Arc loads the author for the command key, then injects it alongside the collecti
 | Acquire data using current state           | `Provide()` / `provide`                        |
 | Compute and perform the write or response  | `Handle()` / `handle`                          |
 
-All three positions receive the provider-owned instance in C#. On the JVM the registry resolves it for `provide` and `handle`; a validator that needs current state injects its own repository, as the fragments below show.
+All three positions receive the provider-owned instance in C#. On the JVM the registry resolves it for `provide` and `handle`; a validator that needs current state injects its own repository, as the fragments below show. In TypeScript, a validator does not take a read model as a constructor parameter either; the TypeScript fragments inject an application-owned repository, and a validator can instead read one inside an async rule with `readModelForValidation`.
 
 :::tip[Use current state to decide the write]
 Keep state acquisition in the provider or `Provide()`. On the C# backend, for immediate inline writes, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
@@ -59,7 +59,7 @@ For example, a **validator fragment** beside the command can reject a rename to 
 
 <ArcBackendTabs snippet="scenarios/use-current-state-in-a-command/rename-author-validator" />
 
-In C# the nullable validator parameter turns absence into a business rejection before the non-nullable handler runs. **Provider-owned resolution reaches the JVM validator differently:** Arc.Kotlin resolves an owned read model for the `handle` and `provide` parameters, not into a `CommandValidator` constructor, so the JVM sibling injects its own repository and looks the author up itself. The rule, the message, and the member it is reported against are the same. See [Provide data to a command handler](./provide-data-to-a-command.mdx) for combining state with external data.
+In C# the nullable validator parameter turns absence into a business rejection before the non-nullable handler runs. **Provider-owned resolution reaches the JVM validator differently:** Arc.Kotlin resolves an owned read model for the `handle` and `provide` parameters, not into a `CommandValidator` constructor, so the JVM sibling injects its own repository and looks the author up itself. The TypeScript sibling does the same with an injected application-owned repository. The rule, the message, and the member it is reported against are the same. See [Provide data to a command handler](./provide-data-to-a-command.mdx) for combining state with external data.
 
 ## Say what absence means
 
@@ -75,7 +75,7 @@ For an operation requiring an existing order, a non-nullable dependency can inst
 
 <ArcBackendTabs snippet="scenarios/use-current-state-in-a-command/required-order-state" />
 
-The two tabs put the same statement in the position each backend supports. C# declares the requirement on the validator's non-nullable constructor parameter; the JVM declares it on the handler's non-nullable parameter, because that is where an owned read model is resolved there. Either way, a missing record rejects the command before your code decides anything.
+The tabs put the same statement in the position each backend supports. C# declares the requirement on the validator's non-nullable constructor parameter; the JVM and TypeScript declare it on the handler's read-model parameter, because their validators do not take read models as constructor parameters. Either way, a missing record rejects the command before your code decides anything.
 
 [ARC0006](../backend/csharp/code-analysis/ARC0006.md) warns on non-nullable read-model dependencies in C# so the choice is explicit.
 
@@ -93,13 +93,13 @@ The event-source identity is stated differently. C# also accepts an `EventSource
 
 A `SettleLedgerValidator` can reject a nonpositive balance; an order validator can similarly gate on `ReadyForSubmission`. Those are state checks, not concurrency guarantees.
 
-Chronicle testing can seed either events or a pinned read model. These are **alternative setup fragments** for a configured Chronicle command scenario:
-
-<ArcBackendTabs snippet="scenarios/use-current-state-in-a-command/seed-events" />
+A Chronicle command scenario can pin the read model the command reads. This **setup fragment** supplies that state directly:
 
 <ArcBackendTabs snippet="scenarios/use-current-state-in-a-command/pin-read-model" />
 
-Seeding events is the same idea on both backends: state the facts for the event source and let every read model derived from them materialize. Pinning is where they differ — C# pins through the Chronicle-specific `Given.ForEventSource(id).ReadModel(...)`, while Arc.Kotlin pins through the scenario's own ownership registry with `withReadModelForKey`, which works identically for a Chronicle-, JPA-, or MongoDB-owned read model and also proves the command carries the key it should.
+C# pins through the Chronicle-specific `Given.ForEventSource(id).ReadModel(...)`. TypeScript pins with `givenReadModel(AccountBalance, id, instance)`; `given.forEventSource(id).readModel(instance)` does the same. Arc.Kotlin pins through the scenario's own ownership registry with `withReadModelForKey`, which works for Chronicle-, JPA-, or MongoDB-owned read models and also proves the command carries the key it should.
+
+Seeding events instead of pinning establishes event-source history, but what it gives the command differs by backend. In C#, seeded events given with `Given.ForEventSource(id).Events(...)` materialize reducer- and projection-backed read models. In TypeScript, the in-memory `ChronicleCommandScenario` materializes reducer-backed read models from seeded events and rejects projection-backed ones with seeded history; test those with `ChronicleKernelScenario`. On the JVM, seeded events populate only the in-memory event log, not the command read-model registry, so pin the read model the command reads.
 
 See [Chronicle testing](../backend/csharp/testing/chronicle.md) and the [JVM testing guide](/arc/backend/kotlin/guides/testing/) for the complete fixtures. Standalone tests instead seed their provider or register application-service fakes as in [Test a command](./test-a-command.mdx).
 
