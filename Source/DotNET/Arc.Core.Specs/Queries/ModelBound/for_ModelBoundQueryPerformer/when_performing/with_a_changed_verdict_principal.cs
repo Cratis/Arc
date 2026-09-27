@@ -47,6 +47,7 @@ public class with_a_changed_verdict_principal : given.a_model_bound_query_perfor
     [Fact] void should_throw_when_the_verdict_principal_is_no_longer_current() => _error.ShouldBeOfExactType<AuthorizationIdentityChanged>();
     [Fact] void should_not_invoke_the_method() => _invoked.ShouldBeFalse();
 
+    [Authorize(Policy = "Allowed")]
     public record ProtectedQuery
     {
         public static Action? OnInvoke { get; set; }
