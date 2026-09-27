@@ -118,37 +118,55 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
+    /// <exception cref="InvalidOperationException">The protected command uses a registered validator or unsupported dependency.</exception>
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
-        // A registered validator can resolve decision reads during construction. Check it before GetService
-        // constructs it, using the provider's registration probe to preserve per-invocation construction for
-        // unregistered validators. Without a probe, fail closed for unsafe constructors.
-        var safetyChecks = serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [];
         var isService = serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
+        if (CommandDecisionPolicy.IsProtected)
+        {
+            // Constructor inspection cannot certify an already-created, factory-built, or transitively constructed
+            // validator. A registration probe is required; an unknown provider must fail closed before GetService.
+            if (isService?.IsService(validatorType) != false)
+            {
+                throw new InvalidOperationException($"Registered validator '{validatorType}' cannot run in a protected decision command; use an unregistered per-invocation validator.");
+            }
+
+            var support = serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>();
+            var constructor = validatorType.GetConstructors()
+                .OrderByDescending(_ => _.GetParameters().Length)
+                .First();
+            var parameters = constructor.GetParameters();
+
+            // Preflight the entire shape before constructing any dependency or folding any decision read.
+            foreach (var parameter in parameters) support.ValidateValidatorDependency(parameter.ParameterType, null);
+            var arguments = ParameterDependencyResolver.Resolve(
+                serviceProvider,
+                parameters,
+                parameter => new CannotResolveValidatorDependency(validatorType, parameter));
+            for (var index = 0; index < parameters.Length; index++)
+            {
+                support.ValidateValidatorDependency(parameters[index].ParameterType, arguments[index]);
+            }
+            return constructor.Invoke(arguments);
+        }
+
+        // Legacy commands retain registered validators of every lifetime and their existing construction rules.
+        var safetyChecks = serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [];
         if (isService?.IsService(validatorType) != false)
         {
-            foreach (var safety in safetyChecks)
-            {
-                safety.ValidateRegisteredValidator(validatorType);
-            }
+            foreach (var safety in safetyChecks) safety.ValidateRegisteredValidator(validatorType);
         }
 
-        // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
         var registered = serviceProvider.GetService(validatorType);
-        if (registered is not null)
-        {
-            return registered;
-        }
+        if (registered is not null) return registered;
 
-        var constructor = validatorType.GetConstructors()
+        var legacyConstructor = validatorType.GetConstructors()
             .OrderByDescending(_ => _.GetParameters().Length)
             .First();
-
-        var arguments = ParameterDependencyResolver.Resolve(
+        var legacyArguments = ParameterDependencyResolver.Resolve(
             serviceProvider,
-            constructor.GetParameters(),
+            legacyConstructor.GetParameters(),
             parameter => new CannotResolveValidatorDependency(validatorType, parameter));
-
-        return constructor.Invoke(arguments);
+        return legacyConstructor.Invoke(legacyArguments);
     }
 }

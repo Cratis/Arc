@@ -32,6 +32,7 @@ public class when_resolving_registered_validators
             })
             .BuildServiceProvider();
         var validators = new DiscoverableValidators(TypeCatalog.Instance);
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedReaderCommand));
 
         Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(ReaderCommand), provider, out _));
         Assert.Equal(0, constructions);
@@ -52,6 +53,7 @@ public class when_resolving_registered_validators
             .AddSingleton(services => new TokenValidator(services.GetRequiredService<DecisionRead<TokenModel>>()))
             .BuildServiceProvider();
         var validators = new DiscoverableValidators(TypeCatalog.Instance);
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedReaderCommand));
 
         Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(TokenCommand), provider, out _));
         Assert.Equal(0, folds);
@@ -78,6 +80,8 @@ public class when_resolving_registered_validators
     }
 }
 
+[ProtectedDecision]
+public record ProtectedReaderCommand;
 public record ReaderCommand;
 public record TokenCommand;
 public class TokenModel;

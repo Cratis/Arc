@@ -29,6 +29,7 @@ public class when_resolving_an_unprotected_read_twice : Specification
         store.Name.Returns((EventStoreName)"store");
         store.Namespace.Returns((EventStoreNamespaceName)"namespace");
         var reader = new CommandDecisionReads(_inner, store, _readModels);
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(UnprotectedCommand));
         CommandDecisionReads.Begin(typeof(UnprotectedCommand));
         try
         {

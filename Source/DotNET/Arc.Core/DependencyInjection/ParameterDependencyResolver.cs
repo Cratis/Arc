@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Commands;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -37,6 +38,11 @@ static class ParameterDependencyResolver
 
         if (dependency is not null)
         {
+            if (CommandDecisionPolicy.IsProtected)
+            {
+                serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
+                    .ValidateCommandDependency(parameter.ParameterType, dependency);
+            }
             return dependency;
         }
 

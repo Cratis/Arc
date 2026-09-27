@@ -159,6 +159,15 @@ public class CommandPipeline(
     /// <returns>The command result.</returns>
     internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        try
+        {
+            EnsureDecisionSupport(requestServices);
+        }
+        catch (Exception exception)
+        {
+            return CommandResult.FromException(GetCorrelationId(), exception);
+        }
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
         var declaration = GetHostedDeclaration(command.GetType(), requestServices);
         if (declaration is null)
@@ -197,6 +206,15 @@ public class CommandPipeline(
     /// <returns>The validation result.</returns>
     internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        try
+        {
+            EnsureDecisionSupport(requestServices);
+        }
+        catch (Exception exception)
+        {
+            return CommandResult.FromException(GetCorrelationId(), exception);
+        }
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
         var declaration = GetHostedDeclaration(command.GetType(), requestServices);
         if (declaration is null)
@@ -240,6 +258,16 @@ public class CommandPipeline(
         }
     }
 
+    static void EnsureDecisionSupport(IServiceProvider services)
+    {
+        if (CommandDecisionPolicy.IsProtected)
+        {
+            var support = services.GetService<ICommandProtectedDecisionSupport>() ??
+                throw new InvalidOperationException("Protected decisions require a command-aware Chronicle decision reader in the command provider.");
+            support.EnsureSupported(services);
+        }
+    }
+
     async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)
     {
         try
@@ -267,6 +295,7 @@ public class CommandPipeline(
     async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
         using var execution = CommandValidationExecution.Suspend();
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
@@ -291,6 +320,7 @@ public class CommandPipeline(
         using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
+            EnsureDecisionSupport(serviceProvider);
             handlerProviders.TryGetHandlerFor(command, out var commandHandler);
             if (commandHandler is null)
             {
@@ -526,6 +556,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
         using var validation = CommandValidationExecution.Begin(command.GetType());
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -533,6 +564,7 @@ public class CommandPipeline(
         using var span = activitySource.Validate(command.GetType().FullName ?? command.GetType().Name);
         try
         {
+            EnsureDecisionSupport(serviceProvider);
             handlerProviders.TryGetHandlerFor(command, out var commandHandler);
             if (commandHandler is null)
             {

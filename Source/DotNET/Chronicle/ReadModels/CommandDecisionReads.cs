@@ -37,7 +37,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     public Task<DecisionRead<T>> GetDetached<T>(ReadModelKey key, CancellationToken cancellationToken = default)
         where T : class
     {
-        if (CurrentInvocation() is not null && !CommandValidationExecution.IsActive)
+        if (CommandDecisionPolicy.IsProtected || (CurrentInvocation() is not null && !CommandValidationExecution.IsActive))
         {
             throw new InvalidOperationException("Detached decision reads cannot be used inside an executing command.");
         }
@@ -51,15 +51,26 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     {
         var validation = CommandValidationExecution.Current;
         var invocation = validation is { } validating
-            ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, null))
+            ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, CommandDecisionPolicy.Token, null))
             : CurrentInvocation();
-        if (invocation is null)
+        if (!CommandDecisionPolicy.IsActive)
         {
+            if (invocation is not null) throw new InvalidOperationException("Decision reads require a command pipeline protection profile.");
+
             // Outside a command, preserve the Chronicle client contract (including its ambient UOW requirement).
             return await inner.Get<T>(key, cancellationToken);
         }
 
-        var mode = invocation.CommandType.IsDefined(typeof(UnprotectedAttribute), true) ? ReadMode.Unprotected :
+        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy)
+        {
+            throw new InvalidOperationException("Protected decision reads require [ProtectedDecision] on the command. Mark intentional advisory reads [Unprotected].");
+        }
+        if (invocation is null || !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token))
+        {
+            throw new InvalidOperationException("Protected decision reads require an active command transaction or validation invocation.");
+        }
+
+        var mode = CommandDecisionPolicy.Mode == CommandDecisionMode.Unprotected ? ReadMode.Unprotected :
             validation is not null ? ReadMode.Validation : ReadMode.Protected;
 
         IUnitOfWork? unitOfWork = null;
@@ -96,7 +107,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
 
     /// <summary>Starts an invocation with its own cache and provenance.</summary>
     /// <param name="commandType">The command type.</param>
-    internal static void Begin(Type commandType) => _invocation.Value = new Invocation(commandType, CurrentInvocation());
+    internal static void Begin(Type commandType) => _invocation.Value = new Invocation(commandType, CommandDecisionPolicy.Token, CurrentInvocation());
 
     /// <summary>Restores the enclosing invocation, if any.</summary>
     internal static void End()
@@ -114,7 +125,11 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     /// <exception cref="InvalidOperationException">The supplied token was issued by another invocation.</exception>
     internal static void VerifyProvided(object value)
     {
-        if (value is IDecisionRead read && (CurrentInvocation() is not { } invocation || !invocation.Issued.ContainsKey(read)))
+        var validation = CommandValidationExecution.Current;
+        var invocation = validation is { } validating && _validationInvocations.TryGetValue(validating.Token, out var activeValidation)
+            ? activeValidation : CurrentInvocation();
+        if (value is IDecisionRead read && (invocation is null ||
+            !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token) || !invocation.Issued.ContainsKey(read)))
         {
             throw new InvalidOperationException("A DecisionRead returned by Provide must be issued for this command invocation.");
         }
@@ -134,9 +149,10 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         return instance is null ? null : await readModels.Release(instance);
     }
 
-    sealed class Invocation(Type commandType, Invocation? previous)
+    sealed class Invocation(Type commandType, object? policyToken, Invocation? previous)
     {
         public Type CommandType { get; } = commandType;
+        public object? PolicyToken { get; } = policyToken;
         public Invocation? Previous { get; } = previous;
         public bool Completed { get; set; }
         public ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace), Lazy<Task<object>>> Reads { get; } = new();

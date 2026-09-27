@@ -25,6 +25,7 @@ public class when_executing_a_command
         inner.GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>()).Returns(token);
         var reader = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         CommandTransaction.Current = unit;
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
@@ -55,19 +56,23 @@ public class when_executing_a_command
         inner.GetDetached<Model>((ReadModelKey)"other", Arg.Any<CancellationToken>()).Returns(first, nested);
         var reader = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         CommandTransaction.Current = unit;
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
             Assert.Same(first, await reader.Get<Model>((ReadModelKey)"other"));
-            CommandDecisionReads.Begin(typeof(NestedCommand));
-            try
+            using (DecisionPolicyForSpecs.Begin(typeof(NestedCommand)))
             {
-                Assert.Same(nested, await reader.Get<Model>((ReadModelKey)"other"));
-                Assert.Throws<InvalidOperationException>(() => CommandDecisionReads.VerifyProvided(first));
-            }
-            finally
-            {
-                CommandDecisionReads.End();
+                CommandDecisionReads.Begin(typeof(NestedCommand));
+                try
+                {
+                    Assert.Same(nested, await reader.Get<Model>((ReadModelKey)"other"));
+                    Assert.Throws<InvalidOperationException>(() => CommandDecisionReads.VerifyProvided(first));
+                }
+                finally
+                {
+                    CommandDecisionReads.End();
+                }
             }
             Assert.Same(first, await reader.Get<Model>((ReadModelKey)"other"));
             Assert.True(unit.HasEnrolledDecisionReads);
@@ -90,6 +95,7 @@ public class when_executing_a_command
         var firstProvider = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         var secondProvider = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         CommandTransaction.Current = unit;
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
@@ -111,6 +117,7 @@ public class when_executing_a_command
         var inner = Substitute.For<IDecisionReads>();
         var reader = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         CommandTransaction.Current = Substitute.For<IUnitOfWork>();
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
@@ -199,6 +206,7 @@ public class when_executing_a_command
         var reader = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         var begin = typeof(CommandValidationExecution).GetMethod("Begin", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(begin);
+        using (var policyForValidation = DecisionPolicyForSpecs.Begin(typeof(Command)))
         using (var validation = Assert.IsType<IDisposable>(begin.Invoke(null, [typeof(Command)]), exactMatch: false))
         {
             Assert.Same(advisory, await reader.Get<Model>((ReadModelKey)"source"));
@@ -206,6 +214,7 @@ public class when_executing_a_command
             Assert.False(unit.HasEnrolledDecisionReads);
         }
         CommandTransaction.Current = unit;
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
@@ -283,6 +292,7 @@ public class when_executing_a_command
         var reader = new CommandDecisionReads(inner, store, legacy);
         var begin = typeof(CommandValidationExecution).GetMethod("Begin", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
         Assert.NotNull(begin);
+        using (var policyForValidation = DecisionPolicyForSpecs.Begin(typeof(UnprotectedCommand)))
         using (Assert.IsType<IDisposable>(begin.Invoke(null, [typeof(UnprotectedCommand)]), exactMatch: false))
         {
             var read = await reader.Get<Model>((ReadModelKey)"source");
@@ -295,7 +305,9 @@ public class when_executing_a_command
     }
 
     public class Model;
+    [ProtectedDecision]
     public class Command;
+    [ProtectedDecision]
     public class NestedCommand;
     [Unprotected]
     public class UnprotectedCommand;

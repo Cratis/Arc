@@ -97,6 +97,7 @@ public static class ReadModelServiceCollectionExtensions
     public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
     {
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
+        services.TryAddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>();
         services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
             sp.GetRequiredService<IEventStore>().GetDecisionReads(),
             sp.GetRequiredService<IEventStore>(),

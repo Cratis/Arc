@@ -14,6 +14,7 @@ using Cratis.Chronicle.Keys;
 using Cratis.Chronicle.Projections.ModelBound;
 using Cratis.Chronicle.ReadModels;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario;
 
@@ -143,6 +144,18 @@ public class when_using_decision_mode
     }
 
     [Fact]
+    public async Task protected_nested_command_enrolls_its_own_decision_in_the_outer_transaction()
+    {
+        await using var scenario = new CommandScenario<DecideAfterProtectedNested>().UseDecisionReads();
+        var outer = EventSourceId.New();
+        var nested = EventSourceId.New();
+        scenario.AppendConcurrently(nested, new DecisionStateChanged());
+        var result = await scenario.Execute(new DecideAfterProtectedNested(outer, nested));
+        result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
+        Assert.Empty(scenario.AppendedEvents);
+    }
+
+    [Fact]
     public async Task nested_completion_keeps_capturing_outer_commit()
     {
         await using var scenario = new CommandScenario<DecideAfterNested>().UseDecisionReads();
@@ -213,7 +226,50 @@ public class when_using_decision_mode
         Assert.Throws<NotSupportedException>(scenario.UseDecisionReads);
     }
 
+    [Fact]
+    public async Task unmarked_read_is_refused_before_a_returned_event_can_append()
+    {
+        await using var scenario = new CommandScenario<UnmarkedRead>().UseDecisionReads();
+        var result = await scenario.Execute(new UnmarkedRead(EventSourceId.New()));
+        Assert.Contains("[ProtectedDecision]", result.ExceptionMessages.Single());
+        Assert.Empty(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task unmarked_explicit_key_get_is_refused_before_folding()
+    {
+        await using var scenario = new CommandScenario<UnmarkedExplicitRead>().UseDecisionReads();
+        var result = await scenario.Execute(new UnmarkedExplicitRead(EventSourceId.New()));
+        Assert.Contains("[ProtectedDecision]", result.ExceptionMessages.Single());
+        Assert.Empty(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task supplied_provider_without_guard_refuses_before_validation_or_handler_work()
+    {
+        await using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
+        scenario.Services.RemoveAll<ICommandProtectedDecisionSupport>();
+        var command = new DecideAtSource(EventSourceId.New());
+        Assert.Contains("command-aware Chronicle", (await scenario.Validate(command)).ExceptionMessages.Single());
+        Assert.Contains("command-aware Chronicle", (await scenario.Execute(command)).ExceptionMessages.Single());
+        Assert.Empty(scenario.AppendedEvents);
+    }
+
     [Command]
+    public record UnmarkedRead(EventSourceId EventSourceId)
+    {
+        public DecisionFinished Handle(DecisionRead<DecisionState> read) => new(read.Exists);
+    }
+
+    [Command]
+    public record UnmarkedExplicitRead(EventSourceId EventSourceId)
+    {
+        public async Task<DecisionFinished> Handle(IDecisionReads reads) =>
+            new((await reads.Get<DecisionState>((ReadModelKey)EventSourceId)).Exists);
+    }
+
+    [Command]
+    [ProtectedDecision]
     public record AppendTransactionallyAfterDecision(EventSourceId EventSourceId)
     {
         public async Task Handle(DecisionRead<DecisionState> read, IEventLog log) =>
@@ -221,6 +277,7 @@ public class when_using_decision_mode
     }
 
     [Command]
+    [ProtectedDecision]
     public record DecideAfterNested(EventSourceId EventSourceId, EventSourceId NestedSource)
     {
         public async Task<DecisionFinished> Handle(ICommandPipeline pipeline, IDecisionReads reads)
@@ -231,12 +288,31 @@ public class when_using_decision_mode
     }
 
     [Command]
+    [ProtectedDecision]
+    public record DecideAfterProtectedNested(EventSourceId EventSourceId, EventSourceId NestedSource)
+    {
+        public async Task<DecisionFinished> Handle(ICommandPipeline pipeline, DecisionRead<DecisionState> read)
+        {
+            (await pipeline.Execute(new ProtectedNestedRead(NestedSource))).ShouldBeSuccessful();
+            return new DecisionFinished(read.Exists);
+        }
+    }
+
+    [Command]
+    [ProtectedDecision]
+    public record ProtectedNestedRead(EventSourceId EventSourceId)
+    {
+        public DecisionFinished Handle(DecisionRead<DecisionState> read) => new(read.Exists);
+    }
+
+    [Command]
     public record NestedDecisionEvent(EventSourceId EventSourceId)
     {
         public DecisionFinished Handle() => new(false);
     }
 
     [Command]
+    [ProtectedDecision]
     public record DecideWithReservation(EventSourceId EventSourceId, Guid ReservationKey)
     {
         public (DecisionFinished Event, ReserveOnboardingCapacity Operation) Handle(DecisionRead<DecisionState> read) =>
@@ -244,6 +320,7 @@ public class when_using_decision_mode
     }
 
     [Command]
+    [ProtectedDecision]
     public record DecideForAnotherSource(EventSourceId EventSourceId, EventSourceId Other)
     {
         public async Task<DecisionFinished> Handle(IDecisionReads reads) =>
@@ -251,6 +328,7 @@ public class when_using_decision_mode
     }
 
     [Command]
+    [ProtectedDecision]
     public record CheckAtSource(EventSourceId EventSourceId)
     {
         public void Handle(DecisionRead<DecisionState> read)
@@ -266,6 +344,7 @@ public class when_using_decision_mode
     }
 
     [Command]
+    [ProtectedDecision]
     public record DecideAtSource(EventSourceId EventSourceId)
     {
         public object Handle(DecisionRead<DecisionState> state) => new DecisionFinished(state.Exists);

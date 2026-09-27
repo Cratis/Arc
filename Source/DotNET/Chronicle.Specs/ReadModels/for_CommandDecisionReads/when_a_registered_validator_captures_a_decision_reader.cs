@@ -9,9 +9,16 @@ public class when_a_registered_validator_captures_a_decision_reader : Specificat
 {
     Exception _exception;
 
-    void Because() => _exception = Record.Exception(() => new DecisionDependencySafety().ValidateRegisteredValidator(typeof(UnsafeValidator)));
+    void Because()
+    {
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedCommand));
+        _exception = Record.Exception(() => new DecisionDependencySafety().ValidateRegisteredValidator(typeof(UnsafeValidator)));
+    }
 
     [Fact] void should_fail_closed_instead_of_capturing_a_scoped_reader() => _exception.ShouldBeOfExactType<InvalidOperationException>();
+
+    [ProtectedDecision]
+    public class ProtectedCommand;
 
     public class UnsafeValidator(IDecisionReads reads)
     {
