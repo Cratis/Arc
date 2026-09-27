@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
+
 namespace Cratis.Arc.Commands.for_CommandPipeline.when_executing;
 
 /// <summary>
@@ -16,6 +18,8 @@ public class and_an_explicit_service_provider_is_supplied : given.a_command_pipe
     void Establish()
     {
         _explicitServiceProvider = Substitute.For<IServiceProvider>();
+        var declarations = _serviceProvider.GetService(typeof(AuthorizationDeclarations));
+        _explicitServiceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(declarations);
         _commandFilters.OnExecution(Arg.Do<CommandContext>(context => _capturedContext = context))
             .Returns(CommandResult.Success(_correlationId));
     }

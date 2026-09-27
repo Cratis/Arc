@@ -25,6 +25,7 @@ public class CommandActionFilter(
     {
         if (context.HttpContext.Request.Method == HttpMethod.Post.Method)
         {
+            using var receipt = OperationContextScope.BeginIfNotSet(context.HttpContext.RequestServices);
             EstablishCommandContext(context);
 
             var exceptionMessages = new List<string>();
@@ -167,7 +168,10 @@ public class CommandActionFilter(
             command,
             [],
             values,
-            CancellationToken: context.HttpContext.RequestAborted);
+            CancellationToken: context.HttpContext.RequestAborted)
+        {
+            ReceivedAt = OperationContextScope.Current ?? default
+        };
 
         contextModifier.SetCurrent(commandContext);
     }

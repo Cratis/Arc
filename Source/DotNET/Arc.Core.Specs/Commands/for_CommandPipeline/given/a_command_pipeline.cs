@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Cratis.Traces;
@@ -42,6 +43,9 @@ public class a_command_pipeline : Specification
             .Resolve(Arg.Any<ICommandHandler>(), Arg.Any<CommandContext>(), Arg.Any<IServiceProvider>(), Arg.Any<ValidationResultSeverity?>())
             .Returns(_ => new ValueTask<CommandHandlerArgumentResolution>(new CommandHandlerArgumentResolution([], CommandResult.Success(_correlationId))));
         _serviceProvider = Substitute.For<IServiceProvider>();
+        _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
         _serviceScope = Substitute.For<IServiceScope>();
         _serviceScope.ServiceProvider.Returns(_serviceProvider);
         _serviceScopeFactory = Substitute.For<IServiceScopeFactory>();
