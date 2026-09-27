@@ -194,7 +194,7 @@ public class AuthorizationEvaluation(
             ? new ClaimsPrincipal(selectedPrincipal!.Identities.Select(claimsIdentity => claimsIdentity.Clone()))
             : null;
         var authorizedExecution = declaration.RequiresAsynchronousEvaluation
-            ? new AuthorizedExecution(target, executionIdentity!, guest)
+            ? new AuthorizedExecution(target, executionIdentity!, declaration, guest)
             : null;
         if (resource is QueryContext queryContext)
         {

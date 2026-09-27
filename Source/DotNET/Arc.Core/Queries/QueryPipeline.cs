@@ -88,7 +88,8 @@ public class QueryPipeline(
             return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
         }
 
-        var declarations = requestServices.GetRequiredService<AuthorizationDeclarations>();
+        var declarations = requestServices.GetService<AuthorizationDeclarations>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
         var target = QueryAuthorizationTarget.For(performer, declarations);
         var declaration = target switch
         {
@@ -284,24 +285,22 @@ public class QueryPipeline(
             // Re-resolve even after a successful no-policy filter: a custom evaluator can change requirements on the
             // same target before invocation. Caching that absence could bypass a newly required policy. This costs
             // another declaration lookup on the no-policy path, but does not run a policy a second time.
-            var declaration = prepared?.Declaration;
-            if (context.AuthorizedExecution is null && declaration is null &&
-                serviceProvider.GetService<AuthorizationDeclarations>() is { } declarations)
+            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            var target = QueryAuthorizationTarget.For(queryPerformer, declarations);
+            var declaration = target switch
             {
-                var target = QueryAuthorizationTarget.For(queryPerformer, declarations);
-                declaration = target switch
-                {
-                    MethodInfo method => declarations.For(method),
-                    Type type => declarations.For(type),
-                    _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-                };
-            }
+                MethodInfo method => declarations.For(method),
+                Type type => declarations.For(type),
+                _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+            };
 
-            if ((declaration?.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
+            if ((declaration.RequiresAsynchronousEvaluation && context.AuthorizedExecution is null) ||
                 (context.AuthorizedExecution is { } verdict &&
                  !verdict.IsCurrent(
-                     QueryAuthorizationTarget.For(queryPerformer, serviceProvider.GetRequiredService<AuthorizationDeclarations>()),
-                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>())))
+                     target,
+                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
+                     declaration)))
             {
                 return QueryResult.Unauthorized(correlationId);
             }

@@ -166,7 +166,10 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         var args = GetMethodArguments(dependencies, queryStringParameters);
         if ((context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
             (context.AuthorizedExecution is { } verdict &&
-             !verdict.IsCurrent(AuthorizationMethod, context.ServiceProvider!.GetRequiredService<ICurrentPrincipalAccessor>())))
+             !verdict.IsCurrent(
+                 AuthorizationMethod,
+                 context.ServiceProvider!.GetRequiredService<ICurrentPrincipalAccessor>(),
+                 context.ServiceProvider.GetRequiredService<AuthorizationDeclarations>().For(AuthorizationMethod))))
         {
             throw new AuthorizationIdentityChanged();
         }

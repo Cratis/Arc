@@ -125,24 +125,10 @@ public class AuthorizationEvaluator(
             return false;
         }
 
-        var remaining = current.Requirements.ToList();
-        foreach (var checkedRequirement in checkedDeclaration.Requirements)
-        {
-            var match = remaining.FindIndex(requirement =>
-                string.Equals(checkedRequirement.Policy, requirement.Policy, StringComparison.Ordinal) &&
-                checkedRequirement.AnyOfRoles.Order(StringComparer.Ordinal)
-                    .SequenceEqual(requirement.AnyOfRoles.Order(StringComparer.Ordinal)) &&
-                checkedRequirement.AuthenticationSchemes.Order(StringComparer.Ordinal)
-                    .SequenceEqual(requirement.AuthenticationSchemes.Order(StringComparer.Ordinal)));
-            if (match < 0)
-            {
-                return false;
-            }
-
-            remaining.RemoveAt(match);
-        }
-
-        return true;
+        return checkedDeclaration.Requirements.Zip(current.Requirements).All(pair =>
+            string.Equals(pair.First.Policy, pair.Second.Policy, StringComparison.Ordinal) &&
+            pair.First.AnyOfRoles.SequenceEqual(pair.Second.AnyOfRoles, StringComparer.Ordinal) &&
+            pair.First.AuthenticationSchemes.SequenceEqual(pair.Second.AuthenticationSchemes, StringComparer.Ordinal));
     }
 
     bool CheckMember(MemberInfo target, AuthorizationDeclaration declaration)
