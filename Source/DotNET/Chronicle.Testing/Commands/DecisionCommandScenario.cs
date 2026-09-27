@@ -4,6 +4,7 @@
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing.Events;
+using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
@@ -14,7 +15,7 @@ internal sealed class DecisionCommandScenario
     readonly List<AppendedEventWithResult> _commandEvents;
     readonly HashSet<EventSequenceNumber> _excludedSequenceNumbers = [];
     bool _setupOrCompeting;
-    bool _executing;
+    int _executionDepth;
 
     /// <summary>Creates a scenario sharing a real testing store with the command.</summary>
     /// <param name="store">The shared store.</param>
@@ -22,10 +23,11 @@ internal sealed class DecisionCommandScenario
     public DecisionCommandScenario(EventStoreForTesting store, List<AppendedEventWithResult> commandEvents)
     {
         Store = store;
+        EventLog = new EventLogForScenario(store.EventLog, store.UnitOfWorkManager);
         _commandEvents = commandEvents;
         Store.EventLog.AppendOperations.Subscribe(events =>
         {
-            if (_executing && !_setupOrCompeting)
+            if (_executionDepth > 0 && !_setupOrCompeting)
                 _commandEvents.AddRange(events.Where(_ => _.Result.IsSuccess && !_excludedSequenceNumbers.Contains(_.Result.SequenceNumber)));
         });
     }
@@ -33,11 +35,14 @@ internal sealed class DecisionCommandScenario
     /// <summary>Gets the store used for seeding, decision reads and command commits.</summary>
     public EventStoreForTesting Store { get; }
 
-    /// <summary>Marks the command execution window.</summary>
-    public void Begin() => _executing = true;
+    /// <summary>Gets the log with the store's real unit-of-work manager for transactional appends.</summary>
+    public IEventLog EventLog { get; }
 
-    /// <summary>Ends the command execution window.</summary>
-    public void End() => _executing = false;
+    /// <summary>Marks a command execution frame, including nested commands.</summary>
+    public void Begin() => _executionDepth++;
+
+    /// <summary>Ends this command execution frame without ending an enclosing command's capture.</summary>
+    public void End() => _executionDepth--;
 
     /// <summary>Schedules a competing append before the owner commits.</summary>
     /// <param name="source">The competitor's source.</param>
@@ -45,7 +50,7 @@ internal sealed class DecisionCommandScenario
     /// <exception cref="InvalidOperationException">Execution already started.</exception>
     public void QueueCompetingAppend(EventSourceId source, object[] events)
     {
-        if (_executing) throw new InvalidOperationException("Queue competing events before executing the command.");
+        if (_executionDepth > 0) throw new InvalidOperationException("Queue competing events before executing the command.");
         _competitors.Enqueue((source, events));
     }
 
@@ -56,7 +61,7 @@ internal sealed class DecisionCommandScenario
     /// <exception cref="InvalidOperationException">Execution already started.</exception>
     public async Task Seed(EventSourceId source, object[] events)
     {
-        if (_executing) throw new InvalidOperationException("Seed events before executing the command.");
+        if (_executionDepth > 0) throw new InvalidOperationException("Seed events before executing the command.");
         _setupOrCompeting = true;
         try
         {
@@ -78,6 +83,8 @@ internal sealed class DecisionCommandScenario
     /// <exception cref="InvalidOperationException">A competing append failed.</exception>
     public async Task AppendCompetingEvents()
     {
+        // A nested command shares this scenario but must not drain the outer command's competitor queue.
+        if (_executionDepth != 1) return;
         _setupOrCompeting = true;
         try
         {
@@ -85,7 +92,9 @@ internal sealed class DecisionCommandScenario
             {
                 foreach (var @event in batch.Events)
                 {
-                    var result = await Store.EventLog.Append(batch.Source, @event);
+                    // A competitor is not an immediate append by the owner command. Its distinct correlation
+                    // keeps the owner's commit observation eligible for operation compensation on conflict.
+                    var result = await Store.EventLog.Append(batch.Source, @event, correlationId: CorrelationId.New());
                     Exclude(result.SequenceNumber);
                     if (!result.IsSuccess) throw new InvalidOperationException("A competing event could not be appended.");
                 }

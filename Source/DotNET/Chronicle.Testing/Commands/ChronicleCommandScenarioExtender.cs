@@ -105,7 +105,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         services.Replace(ServiceDescriptor.Singleton<IEventStore>(store));
         services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager>(store.UnitOfWorkManager));
         services.Replace(ServiceDescriptor.Singleton<IReadModels>(store.ReadModels));
-        services.Replace(ServiceDescriptor.Singleton<IEventLog>(store.EventLog));
+        services.Replace(ServiceDescriptor.Singleton<IEventLog>(scenario.EventLog));
         services.Replace(ServiceDescriptor.Singleton<IEventSequence>(store.EventLog));
         services.AddCommandAwareDecisionReads();
 

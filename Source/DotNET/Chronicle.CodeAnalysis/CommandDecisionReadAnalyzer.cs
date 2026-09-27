@@ -57,13 +57,15 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     {
         var syntax = (InvocationExpressionSyntax)context.Node;
         if (context.SemanticModel.GetEnclosingSymbol(syntax.SpanStart, context.CancellationToken) is not IMethodSymbol enclosing ||
-            !InDecision(enclosing, out var command) || HasUnprotected(command) ||
             context.SemanticModel.GetSymbolInfo(syntax, context.CancellationToken).Symbol is not IMethodSymbol called)
         {
             return;
         }
 
-        if (called.Name == "GetInstanceById" && Implements(called.ContainingType, ChronicleReadModels) && !HasUnprotected(enclosing))
+        var immediateAppend = IsImmediateAppend(syntax, called, context.SemanticModel, context.CancellationToken);
+        if (!InDecision(enclosing, out var command, immediateAppend) || HasUnprotected(command)) return;
+
+        if (called.Name == "GetInstanceById" && Implements(called.ContainingType, ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
@@ -72,7 +74,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
                 called.TypeArguments.FirstOrDefault()?.Name ?? "read model"));
         }
 
-        if (!IsImmediateAppend(syntax, called, context.SemanticModel, context.CancellationToken))
+        if (!immediateAppend)
         {
             return;
         }
@@ -92,10 +94,10 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         }
     }
 
-    static bool InDecision(IMethodSymbol method, out INamedTypeSymbol command)
+    static bool InDecision(IMethodSymbol method, out INamedTypeSymbol command, bool allowImmediateAppend = false)
     {
         command = method.ContainingType;
-        if (IsCommand(command))
+        if (IsCommand(command) || (allowImmediateAppend && HasCommandAttribute(command)))
         {
             return method.Name == "Handle" || method.Name == "Provide";
         }
@@ -113,7 +115,9 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    static bool IsCommand(INamedTypeSymbol type) => type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == CommandAttribute) &&
+    static bool HasCommandAttribute(INamedTypeSymbol type) => type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == CommandAttribute);
+
+    static bool IsCommand(INamedTypeSymbol type) => HasCommandAttribute(type) &&
         type.GetMembers("Handle").OfType<IMethodSymbol>().Any(_ => ProducesEvents(_.ReturnType) || _.Parameters.Any(p => IsAggregate(p.Type)));
 
     static bool HasUnprotected(ISymbol symbol) => symbol.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == UnprotectedAttribute);
@@ -148,6 +152,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 
     static bool IsEventValue(ITypeSymbol type)
     {
+        if (type is IArrayTypeSymbol array) return IsEventValue(array.ElementType);
         if (type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" ||
             type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventForEventSourceId" ||
             type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "Cratis.Chronicle.Events.EventTypeAttribute"))

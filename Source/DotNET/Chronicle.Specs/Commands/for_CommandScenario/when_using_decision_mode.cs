@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands.for_CommandScenario.operations;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Commands;
@@ -8,6 +9,7 @@ using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Keys;
 using Cratis.Chronicle.Projections.ModelBound;
 using Cratis.Chronicle.ReadModels;
@@ -117,6 +119,63 @@ public class when_using_decision_mode
     }
 
     [Fact]
+    public async Task transactional_append_uses_the_decision_store_unit_of_work_manager()
+    {
+        await using var scenario = new CommandScenario<AppendTransactionallyAfterDecision>().UseDecisionReads();
+        var source = EventSourceId.New();
+        (await scenario.Execute(new AppendTransactionallyAfterDecision(source))).ShouldBeSuccessful();
+        scenario.AppendedEvents.Count.ShouldEqual(1);
+        (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task nested_command_does_not_drain_competitor_before_outer_read()
+    {
+        await using var scenario = new CommandScenario<DecideAfterNested>().UseDecisionReads();
+        var source = EventSourceId.New();
+        var nested = EventSourceId.New();
+        scenario.AppendConcurrently(source, new DecisionStateChanged());
+        var result = await scenario.Execute(new DecideAfterNested(source, nested));
+        result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
+        scenario.AppendedEvents.Count.ShouldEqual(0);
+        (await scenario.EventLog.HasEventsFor(nested)).ShouldBeFalse();
+        (await scenario.EventLog.HasEventsFor(source)).ShouldBeTrue(); // The competitor remains.
+    }
+
+    [Fact]
+    public async Task nested_completion_keeps_capturing_outer_commit()
+    {
+        await using var scenario = new CommandScenario<DecideAfterNested>().UseDecisionReads();
+        var source = EventSourceId.New();
+        var nested = EventSourceId.New();
+        (await scenario.Execute(new DecideAfterNested(source, nested))).ShouldBeSuccessful();
+        scenario.AppendedEvents.Count.ShouldEqual(2);
+        scenario.AppendedEvents.Any(_ => _.Event.Context.EventSourceId == source).ShouldBeTrue();
+        scenario.AppendedEvents.Any(_ => _.Event.Context.EventSourceId == nested).ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task competitor_conflict_compensates_operations_when_owner_did_not_commit()
+    {
+        await using var scenario = new CommandScenario<DecideWithReservation>().UseDecisionReads();
+        var reservations = Substitute.For<IOnboardingReservations>();
+        scenario.Services.AddSingleton(reservations);
+        var source = EventSourceId.New();
+        var reservation = Guid.NewGuid();
+        scenario.AppendConcurrently(source, new DecisionStateChanged());
+        var result = await scenario.Execute(new DecideWithReservation(source, reservation));
+        result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
+        scenario.ShouldHaveExecutedOperation<ReserveOnboardingCapacity>();
+        scenario.ShouldHaveCompensatedOperation<ReserveOnboardingCapacity>();
+        result.Recovery.CommitDisposition.ShouldEqual(CommandCommitDisposition.NotCommitted);
+        await reservations.Received(1).Cancel(reservation, Arg.Any<CancellationToken>());
+        scenario.AppendedEvents.Count.ShouldEqual(0);
+        var stored = await scenario.EventLog.GetFromSequenceNumber(EventSequenceNumber.First, source);
+        stored.Count.ShouldEqual(1);
+        Assert.IsType<DecisionStateChanged>(stored[0].Content);
+    }
+
+    [Fact]
     public void pinned_model_is_refused_in_decision_mode()
     {
         using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
@@ -152,6 +211,36 @@ public class when_using_decision_mode
         using var scenario = new CommandScenario<DecideAtSource>();
         scenario.Services.AddSingleton<ICommandExecutionScope>(new DecisionScenarioConcurrentAppendScope());
         Assert.Throws<NotSupportedException>(scenario.UseDecisionReads);
+    }
+
+    [Command]
+    public record AppendTransactionallyAfterDecision(EventSourceId EventSourceId)
+    {
+        public async Task Handle(DecisionRead<DecisionState> read, IEventLog log) =>
+            await log.Transactional.Append(EventSourceId, new DecisionFinished(read.Exists));
+    }
+
+    [Command]
+    public record DecideAfterNested(EventSourceId EventSourceId, EventSourceId NestedSource)
+    {
+        public async Task<DecisionFinished> Handle(ICommandPipeline pipeline, IDecisionReads reads)
+        {
+            (await pipeline.Execute(new NestedDecisionEvent(NestedSource))).ShouldBeSuccessful();
+            return new DecisionFinished((await reads.Get<DecisionState>((ReadModelKey)EventSourceId)).Exists);
+        }
+    }
+
+    [Command]
+    public record NestedDecisionEvent(EventSourceId EventSourceId)
+    {
+        public DecisionFinished Handle() => new(false);
+    }
+
+    [Command]
+    public record DecideWithReservation(EventSourceId EventSourceId, Guid ReservationKey)
+    {
+        public (DecisionFinished Event, ReserveOnboardingCapacity Operation) Handle(DecisionRead<DecisionState> read) =>
+            (new(read.Exists), new(ReservationKey));
     }
 
     [Command]

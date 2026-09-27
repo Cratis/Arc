@@ -19,6 +19,7 @@ public class when_analyzing_command_decisions
         using Cratis.Arc.Chronicle.ReadModels;
         using Cratis.Arc.Validation;
         using Cratis.Arc.Chronicle.Aggregates;
+        using Cratis.Chronicle;
         using Cratis.Chronicle.Events;
         using Cratis.Chronicle.EventSequences;
         using Cratis.Chronicle.Keys;
@@ -79,6 +80,31 @@ public class when_analyzing_command_decisions
             }
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
                 .WithSeverity(DiagnosticSeverity.Info));
+
+    [Fact]
+    public async Task void_returning_handler_with_decision_and_store_append_reports_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public async Task Handle(DecisionRead<State> read, IEventStore store)
+                {
+                    await store.EventLog.Append(EventSourceId, new Created());
+                }
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
+                .WithSeverity(DiagnosticSeverity.Info));
+
+    [Fact]
+    public async Task event_array_returning_handler_with_plain_model_reports_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public Created[] Handle(State state) => [new Created()];
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State"));
 
     [Fact]
     public async Task validator_plain_model_and_explicit_legacy_read_report_info() =>

@@ -38,7 +38,7 @@ public static class CommandScenarioChronicleExtensions
         /// </summary>
         public IEventLog EventLog =>
             scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision)
-                ? ((DecisionCommandScenario)decision).Store.EventLog
+                ? ((DecisionCommandScenario)decision).EventLog
                 : ((EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey]).EventLog;
 
         /// <summary>
