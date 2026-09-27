@@ -89,7 +89,7 @@ public class WeekdayAdmission : IAuthorizationPolicy
 
 Register this type with `builder.Services.AddArcAuthorizationPolicy<WeekdayAdmission>("WeekdayAdmission")` before `Build()`, then apply `[Authorize(Policy = "WeekdayAdmission")]`. The rule uses Arc receipt time even if evaluating the policy starts later and denies a missing receipt. Set the `TimeProvider` in tests when asserting a specific receipt date.
 
-Arc rechecks the execution principal after policy and legacy evaluator callbacks and immediately before invoking a protected command handler or query performer. If authorization requirements change or a policy verdict is missing before invocation, the pipeline denies access. Application callbacks are trusted; these checks do not sandbox principal mutations, identity channels, or work that happens before the verdict.
+For policy- or scheme-protected declarations, Arc rechecks the execution principal and effective requirements after policy and legacy evaluator callbacks and before invoking a command handler or query action. A model-bound or controller-based query also checks immediately before calling its method. A changed declaration or missing asynchronous verdict denies access. Roles-only and plain `[Authorize]` declarations are decided synchronously, without an asynchronous verdict to recheck. As [decision 0006](../../../../decisions/0006-opt-in-anonymous-authorization-policy-evaluation.md) notes, application callbacks remain trusted: these checks do not sandbox principal mutations, identity channels, or work before the verdict, and they do not recheck deferred query enumeration or observable emissions.
 
 ## Protect a query
 
