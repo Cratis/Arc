@@ -443,6 +443,54 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             public record UpdateProfile(ProfileName Name, EmailAddress Email);
         """,
     ),
+    "arc-without-event-sourcing/author-read-model": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_REACTIVE, USING_MONGO),
+    ),
+    "arc-without-event-sourcing/register-author": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_MONGO,),
+    ),
+    "arc-without-event-sourcing/rename-author": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_MONGO,),
+    ),
+    "arc-without-event-sourcing/standalone-host": SnippetContext(
+        kind="body",
+        usings=("using Microsoft.AspNetCore.Builder;",),
+        prelude="string[] args = [];",
+    ),
+    "tutorial/authorization/development-header-adapter": SnippetContext(
+        kind="body",
+        usings=("using Microsoft.AspNetCore.Builder;", "using Microsoft.Extensions.DependencyInjection;"),
+        prelude="var builder = WebApplication.CreateBuilder();",
+    ),
+    "tutorial/authorization/development-authentication-middleware": SnippetContext(
+        kind="body",
+        usings=("using Microsoft.AspNetCore.Builder;", "using Microsoft.AspNetCore.Authentication;"),
+        prelude="var app = WebApplication.CreateBuilder().Build();",
+    ),
+    "tutorial/validation/relational-duplicate-name-rule": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION, "using Microsoft.EntityFrameworkCore;"),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Author> Authors => Set<Author>(); }",
+    ),
+    "tutorial/validation/mongodb-unique-index": SnippetContext(
+        kind="body",
+        fixtures=("library",),
+        usings=(USING_MONGO, "using Microsoft.AspNetCore.Builder;", "using Microsoft.Extensions.DependencyInjection;"),
+        prelude="var app = WebApplication.CreateBuilder().Build();",
+    ),
+    "tutorial/books-and-relationships/relational-add-book": SnippetContext(
+        fixtures=("library",),
+        usings=("using Microsoft.EntityFrameworkCore;",),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Book> Books => Set<Book>(); }",
+    ),
+    "tutorial/first-slice/relational-author-slice": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_REACTIVE, "using Microsoft.EntityFrameworkCore;"),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Author> Authors => Set<Author>(); }",
+    ),
     "tutorial/first-slice/author-slice": SnippetContext(
         # The chapter's own RegisterAuthor and Author shadow the fixture's, which is the
         # point of the page - the reader is looking at the files they wrote.
@@ -748,6 +796,7 @@ def generate_project(sources: list[Path]) -> str:
         <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
         <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../../Source/DotNET/MongoDB/MongoDB.csproj" />
+        <ProjectReference Include="../../Source/DotNET/EntityFrameworkCore/EntityFrameworkCore.csproj" />
         <!-- Cratis.Arc.Testing - the CommandScenario<T> and CommandResult assertions the
              test-a-command snippets are teaching. -->
         <ProjectReference Include="../../Source/DotNET/Testing/Testing.csproj" />

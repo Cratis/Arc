@@ -182,4 +182,4 @@ In an application **with** Chronicle, the data annotations `[Key]` is not used b
 
 - [Read models in commands](./injecting-into-commands.md) — where to declare the dependency and what nullability means.
 - [When resolution fails](./failures.md) — every error and what it means.
-- [Arc without event sourcing](../../../../arc-without-event-sourcing.md) — the whole slice, with the data stored straight in a collection.
+- [Arc without event sourcing](../../../../arc-without-event-sourcing.mdx) — the whole slice, with the data stored straight in a collection.

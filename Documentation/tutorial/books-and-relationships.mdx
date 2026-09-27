@@ -33,21 +33,11 @@ On the JVM, the same four declarations go in a `books` package beside the `autho
 
    <ArcBackendTabs snippet="tutorial/books-and-relationships/add-book" />
 
-   **On the relational branch**, the C# handler takes the context and saves through it:
+   **On the relational branch**, .NET takes the context and saves through it. The JVM and TypeScript handlers still use a repository; its implementation supplies the relational write:
 
-   ```csharp
-   [Command]
-   public record AddBook(AuthorId AuthorId, BookId BookId, BookTitle Title)
-   {
-       public async Task Handle(LibraryDbContext db)
-       {
-           db.Books.Add(new Book(BookId, AuthorId, Title));
-           await db.SaveChangesAsync();
-       }
-   }
-   ```
+   <ArcBackendTabs snippet="tutorial/books-and-relationships/relational-add-book" />
 
-   The JVM handler is the same either way — `BookRepository` is a `MongoRepository` or a `JpaRepository`, and the command never knows which.
+   On the JVM, `BookRepository` is a `MongoRepository` or a `JpaRepository`, and the command never knows which.
 
 
 ## Read a catalog back, filtered

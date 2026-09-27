@@ -36,26 +36,9 @@ These are **excerpts from the backend checkpoint**, not additional files. Each t
 
 The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, and through `@FromServices` on `handle` and the companion-object query function on the JVM. Returning `Task` or `Unit` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and neither backend needs a controller or a duplicated transport model.
 
-**If you chose the relational branch**, the C# excerpts inject `LibraryDbContext` instead of the collection and are otherwise the same slice:
+**If you chose the relational branch**, .NET injects `LibraryDbContext` instead of the collection. The JVM and TypeScript backend snippets use repositories, whose implementations supply the relational storage:
 
-```csharp
-[Command]
-public record RegisterAuthor(AuthorId Id, AuthorName Name)
-{
-    public async Task Handle(LibraryDbContext db)
-    {
-        db.Authors.Add(new Author(Id, Name));
-        await db.SaveChangesAsync();
-    }
-}
-
-[ReadModel]
-public record Author(AuthorId Id, AuthorName Name)
-{
-    public static ISubject<IEnumerable<Author>> AllAuthors(LibraryDbContext db) =>
-        db.Authors.Observe();
-}
-```
+<ArcBackendTabs snippet="tutorial/first-slice/relational-author-slice" />
 
 On the JVM, the relational branch changes no Arc code at all: `AuthorRepository` extends `JpaRepository` rather than `MongoRepository`, and the observable query resolves [`JpaObservableQuery` instead of `MongoObservableQuery`](/arc/backend/kotlin/guides/spring-data/observable-snapshots/).
 

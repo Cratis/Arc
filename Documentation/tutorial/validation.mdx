@@ -39,21 +39,9 @@ Uniqueness is the harder kind of "no", because it depends on what's already ther
 
    The handler doesn't change — `Handle()` on C#, `handle` on the JVM, both still the clean write from chapter 1. The validator runs first; if it fails, the handler never executes.
 
-   **On the relational branch**, the C# validator injects the context instead of the collection:
+   **On the relational branch**, the .NET validator injects the context instead of the collection. The JVM and TypeScript validators still ask their repository; its persistence implementation supplies the relational lookup:
 
-   ```csharp
-   public class RegisterAuthorValidator : CommandValidator<RegisterAuthor>
-   {
-       public RegisterAuthorValidator(LibraryDbContext db)
-       {
-           RuleFor(c => c.Name)
-               .MustAsync(async (name, ct) => !await db.Authors.AnyAsync(a => a.Name == name, ct))
-               .WithMessage("An author with that name is already registered.");
-       }
-   }
-   ```
-
-   The JVM validator is unchanged by that choice: it already asks a repository, and which Spring Data module backs that repository is not its business.
+   <ArcBackendTabs snippet="tutorial/validation/relational-duplicate-name-rule" />
 
 
 ## Install the database constraint
@@ -62,17 +50,9 @@ A check-then-write has a race: two registrations can both pass validation. The v
 
 <Tabs syncKey="db">
 <TabItem label="MongoDB" icon="seti:db">
-Add this block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`:
+In the .NET host, add the following block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`. Other hosts must install their own database constraint before accepting writes; the Arc validators do not create it. The other tabs mark this .NET driver-specific step as unavailable, **not** unique indexes in those databases:
 
-```csharp
-using (var scope = app.Services.CreateScope())
-{
-    var authors = scope.ServiceProvider.GetRequiredService<IMongoCollection<Author>>();
-    await authors.Indexes.CreateOneAsync(new CreateIndexModel<Author>(
-        Builders<Author>.IndexKeys.Ascending(author => author.Name),
-        new CreateIndexOptions { Unique = true, Name = "unique_author_name" }));
-}
-```
+<ArcBackendTabs snippet="tutorial/validation/mongodb-unique-index" />
 
 Restart the host and require index creation to succeed. Existing duplicate names must be resolved first; do not ignore an index-creation failure. This uses the configured collection and concept serializer rather than guessing stored field names.
 </TabItem>

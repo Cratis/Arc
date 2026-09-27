@@ -5,7 +5,7 @@
 - name: Why Arc
   href: why-arc.md
 - name: CQRS without event sourcing
-  href: arc-without-event-sourcing.md
+  href: arc-without-event-sourcing.mdx
 - name: Vertical slices
   href: vertical-slices.md
 - name: Understanding the proxy boundary
