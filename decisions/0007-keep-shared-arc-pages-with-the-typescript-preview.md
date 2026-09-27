@@ -1,5 +1,5 @@
 ---
-id: 0005-keep-shared-arc-pages-with-the-typescript-preview
+id: 0007-keep-shared-arc-pages-with-the-typescript-preview
 title: Keep shared Arc pages in Arc after the TypeScript preview appears
 status: accepted
 stage: implemented
