@@ -350,7 +350,9 @@ public class CommandPipeline(
 
             // A custom attribute evaluator can declare a policy without a recognized Authorize attribute, so
             // preparation may not have run. An omitted or replaced authorization filter must not turn that into
-            // permission to invoke the handler. Resolving the declaration does not run the policy again.
+            // permission to invoke the handler. Re-resolve even after a successful no-policy filter: a custom
+            // evaluator can change requirements on the same target between the filter and invocation. A cached
+            // no-policy marker would hide that change. This repeats declaration lookup, not policy evaluation.
             var missingVerdict = commandContext.AuthorizedExecution is null &&
                 (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true ||
                  (serviceProvider.GetService<AuthorizationDeclarations>()?.For(command.GetType()).RequiresAsynchronousEvaluation == true));

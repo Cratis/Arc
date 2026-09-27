@@ -5,6 +5,7 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Authorization.for_AuthorizationStartupValidation;
@@ -80,6 +81,7 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
     static async Task<Exception?> Start(Action<IServiceCollection> configure)
     {
         var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.AddCratisArc();
         configure(builder.Services);
         var handlers = Substitute.For<ICommandHandlerProviders>();

@@ -274,8 +274,9 @@ public class QueryPipeline(
             cancellationToken.ThrowIfCancellationRequested();
 
             // Direct Perform calls do not prepare custom evaluator declarations without recognized attribute metadata.
-            // Resolve the effective target before invocation if the filters supplied no verdict; this only reads the
-            // declaration and never runs the policy a second time.
+            // Re-resolve even after a successful no-policy filter: a custom evaluator can change requirements on the
+            // same target before invocation. Caching that absence could bypass a newly required policy. This costs
+            // another declaration lookup on the no-policy path, but does not run a policy a second time.
             var declaration = prepared?.Declaration;
             if (context.AuthorizedExecution is null && declaration is null &&
                 serviceProvider.GetService<AuthorizationDeclarations>() is { } declarations)
