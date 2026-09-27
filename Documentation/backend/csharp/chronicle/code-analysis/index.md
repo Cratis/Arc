@@ -19,6 +19,8 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0008](./ARCCHR0008.md) | Warning | Data annotations `[Key]` used where Chronicle key resolution applies. |
 | [ARCCHR0009](./ARCCHR0009.md) | Warning | Likely secret command values lack audit exclusion metadata. |
 | [ARCCHR0010](./ARCCHR0010.md) | Warning | A keyless command returns a raw Guid beside statically identifiable untargeted events. |
+| [ARCCHR0011](#arcchr0011-unguarded-legacy-decision-reads) | Info | Recognizable legacy read-model parameters or `IReadModels.GetInstanceById` calls in event-producing command/validator code. |
+| [ARCCHR0012](#arcchr0012-immediate-append-with-a-decision-read) | Info | Direct immediate `IEventLog.Append*` in a command taking a protected decision read. |
 
 ## ARCCHR0002: ambiguous command identity
 
@@ -29,6 +31,14 @@ This analyzer's candidate convention includes implicit conversions; runtime disc
 ## ARCCHR0007: command handler injects IEventLog
 
 Prefer [returned events](../commands/events.md). This rule matches `IEventLog` (and implementing-type) parameters on `Handle()` and `Provide()`, including read-only use; it does not inspect whether they append. Deliberate exact-revision reads or advanced explicit transactional appends may warrant a narrow suppression. The API remains supported at runtime, with the boundaries in [Transactional commands](../commands/transactional-commands.md). A warning is not a runtime prohibition.
+
+## ARCCHR0011: unguarded legacy decision reads
+
+A plain Chronicle-backed read model in an event-producing command's `Handle`, `Provide`, or convention-discovered `CommandValidator<T>` does **not** guard the resulting decision. A direct `IReadModels.GetInstanceById` in those methods is likewise advisory. Switch to `DecisionRead<T>` or `IDecisionReads` where the [shape is admitted](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands). `[Unprotected]` on the command acknowledges intentional legacy reads; on a parameter or method it only suppresses this diagnostic, not runtime behavior. The analyzer only recognizes explicit event return types, aggregate parameters, model-bound Chronicle attributes, and source-declared projection/reducer artifacts. Aliases, erased return types, indirect service calls and projections defined in external assemblies can be missed. It does not certify a command safe when quiet.
+
+## ARCCHR0012: immediate append with a decision read
+
+A direct `IEventLog.Append*` (also via `IEventStore.EventLog`) in a command that takes `DecisionRead<T>` or `IDecisionReads` writes immediately and cannot be undone if owner commit later conflicts. Return events or use the explicit `Transactional` style. This Info diagnostic matches direct calls, not helper chains or aliases, and does not flag `Transactional.Append`. It is advisory, not a substitute for the runtime ownership checks or Chronicle's [rollback issue](https://github.com/Cratis/Chronicle/issues/4292).
 
 ## Quick fixes
 

@@ -1,15 +1,20 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
+using Cratis.Chronicle.Testing.Events;
 using Cratis.Chronicle.Testing.EventSequences;
 using Cratis.Chronicle.Testing.ReadModels;
 using Cratis.Chronicle.Transactions;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
@@ -47,6 +52,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// </summary>
     internal const string ReadModelsKey = "Chronicle.ReadModels";
 
+    /// <summary>Key for the opt-in single-log decision scenario.</summary>
+    internal const string DecisionScenarioKey = "Chronicle.DecisionScenario";
+
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
     {
@@ -72,5 +80,50 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
         context[ReadModelsKey] = readModels;
+    }
+
+    /// <summary>Switches a scenario to Chronicle's in-process protected decision reader before its first execution.</summary>
+    /// <param name="services">The services of the uninitialized scenario.</param>
+    /// <param name="context">The scenario context.</param>
+    /// <exception cref="InvalidOperationException">Legacy state has already been seeded, or no transactional scope was discovered.</exception>
+    /// <exception cref="NotSupportedException">Custom execution scopes cannot be safely ordered around the owner.</exception>
+    internal static void EnableDecisionReads(IServiceCollection services, IDictionary<string, object> context)
+    {
+        if (context.ContainsKey(DecisionScenarioKey)) return;
+        if (((CommandScenarioReadModels)context[ReadModelsKey]).HasSeededState() ||
+            !((EventScenario)context[ContextKey]).EventLog.GetTailSequenceNumber().GetAwaiter().GetResult().IsUnavailable)
+        {
+            throw new InvalidOperationException("Enable decision reads before seeding legacy EventScenario or read model state.");
+        }
+        if (services.Any(_ => _.ServiceType == typeof(IInstancesOf<ICommandExecutionScope>) || _.ServiceType == typeof(ICommandExecutionScope)))
+        {
+            throw new NotSupportedException("Decision scenarios cannot order custom execution scopes safely. Use a host integration test for that scope combination.");
+        }
+        var store = new EventStoreForTesting(serviceProvider: null, clientArtifactsProvider: Defaults.Instance.ClientArtifactsProvider);
+        var commandEvents = new List<AppendedEventWithResult>();
+        var scenario = new DecisionCommandScenario(store, commandEvents);
+        services.Replace(ServiceDescriptor.Singleton<IEventStore>(store));
+        services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager>(store.UnitOfWorkManager));
+        services.Replace(ServiceDescriptor.Singleton<IReadModels>(store.ReadModels));
+        services.Replace(ServiceDescriptor.Singleton<IEventLog>(store.EventLog));
+        services.Replace(ServiceDescriptor.Singleton<IEventSequence>(store.EventLog));
+        services.AddCommandAwareDecisionReads();
+
+        // Explicit ordering is essential: scopes complete in reverse order. The competitor must append before the
+        // transactional scope completes, otherwise the assertion would be a false positive after owner commit.
+        services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(sp =>
+        {
+            var types = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandExecutionScope>()
+                .Where(type => type != typeof(DecisionScenarioConcurrentAppendScope) && type != typeof(DecisionScenarioCommandCaptureScope))
+                .ToArray();
+            var scopes = types.Select(type => (ICommandExecutionScope)ActivatorUtilities.GetServiceOrCreateInstance(sp, type)).ToList();
+            var ownerIndex = scopes.FindIndex(scope => scope is TransactionalCommandScope);
+            if (ownerIndex < 0) throw new InvalidOperationException("Decision scenarios require TransactionalCommandScope.");
+            scopes.Insert(ownerIndex, new DecisionScenarioCommandCaptureScope(scenario));
+            scopes.Insert(ownerIndex + 2, new DecisionScenarioConcurrentAppendScope(scenario));
+            return new KnownInstancesOf<ICommandExecutionScope>(scopes);
+        });
+        context[DecisionScenarioKey] = scenario;
+        context[AppendedEventsKey] = commandEvents;
     }
 }

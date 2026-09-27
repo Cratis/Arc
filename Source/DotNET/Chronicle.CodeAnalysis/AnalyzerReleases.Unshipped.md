@@ -11,3 +11,5 @@ ARCCHR0007|Arc.Chronicle|Warning|Command handler must not inject IEventLog
 ARCCHR0008|Arc.Chronicle|Warning|Command key marked with the data annotations Key attribute
 ARCCHR0009|Arc.Chronicle|Warning|Command property reads as a secret and should be marked [NotAudited]
 ARCCHR0010|Arc.Chronicle|Warning|Raw Guid response does not set the event source id
+ARCCHR0011|Arc.Chronicle|Info|Plain read model in event-producing command is unprotected
+ARCCHR0012|Arc.Chronicle|Info|Immediate append bypasses protected decision

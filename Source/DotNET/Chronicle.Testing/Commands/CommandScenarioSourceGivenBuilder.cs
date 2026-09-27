@@ -31,8 +31,15 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
     /// materialized from these events through its own reducer or projection — no read model type is named here.
     /// </summary>
     /// <param name="events">The events that happened, in order.</param>
-    public void Events(params object[] events) =>
+    public void Events(params object[] events)
+    {
+        if (_scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
+        {
+            ((DecisionCommandScenario)decision).Seed(_eventSourceId, events).GetAwaiter().GetResult();
+            return;
+        }
         ReadModels().SeedEvents(_eventSourceId, events);
+    }
 
     /// <summary>
     /// Pins a materialized read model instance for the event source, used when a test wants the command to observe a
@@ -40,9 +47,14 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
     /// </summary>
     /// <typeparam name="TReadModel">Type of read model to pin. Inferred from <paramref name="readModel"/>.</typeparam>
     /// <param name="readModel">The read model instance.</param>
+    /// <exception cref="NotSupportedException">Pinned state cannot supply a protected decision read.</exception>
     public void ReadModel<TReadModel>(TReadModel readModel)
-        where TReadModel : class =>
+        where TReadModel : class
+    {
+        if (_scenario.Context.ContainsKey(ChronicleCommandScenarioExtender.DecisionScenarioKey))
+            throw new NotSupportedException("Pinned read models cannot provide protected decision tokens. Seed events into the decision-mode log instead.");
         ReadModels().SeedInstance(typeof(TReadModel), _eventSourceId, readModel);
+    }
 
     CommandScenarioReadModels ReadModels() =>
         (CommandScenarioReadModels)_scenario.Context[ChronicleCommandScenarioExtender.ReadModelsKey];
