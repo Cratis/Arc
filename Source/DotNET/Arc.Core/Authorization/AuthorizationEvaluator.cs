@@ -113,6 +113,11 @@ public class AuthorizationEvaluator(
     /// <summary>
     /// Compares effective requirements by content so another declaration cannot reuse an authorization verdict.
     /// </summary>
+    /// <remarks>
+    /// Requirements are combined with AND and each role list is any-of, so neither their order nor repeated roles change the verdict.
+    /// Repeated requirements must still match one for one. Scheme order is significant: it decides which authenticated identity
+    /// becomes the primary identity, including across requirements.
+    /// </remarks>
     /// <param name="checkedDeclaration">The already evaluated requirements.</param>
     /// <param name="current">The requirements being checked now.</param>
     /// <returns>Whether they describe the same effective authorization.</returns>
@@ -125,11 +130,31 @@ public class AuthorizationEvaluator(
             return false;
         }
 
-        return checkedDeclaration.Requirements.Zip(current.Requirements).All(pair =>
-            string.Equals(pair.First.Policy, pair.Second.Policy, StringComparison.Ordinal) &&
-            pair.First.AnyOfRoles.SequenceEqual(pair.Second.AnyOfRoles, StringComparer.Ordinal) &&
-            pair.First.AuthenticationSchemes.SequenceEqual(pair.Second.AuthenticationSchemes, StringComparer.Ordinal));
+        if (!checkedDeclaration.Requirements.SelectMany(requirement => requirement.AuthenticationSchemes)
+                .SequenceEqual(current.Requirements.SelectMany(requirement => requirement.AuthenticationSchemes), StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        var unmatched = current.Requirements.ToList();
+        foreach (var requirement in checkedDeclaration.Requirements)
+        {
+            var match = unmatched.FindIndex(candidate => SameRequirement(requirement, candidate));
+            if (match < 0)
+            {
+                return false;
+            }
+
+            unmatched.RemoveAt(match);
+        }
+
+        return true;
     }
+
+    static bool SameRequirement(AuthorizationRequirement checkedRequirement, AuthorizationRequirement current) =>
+        string.Equals(checkedRequirement.Policy, current.Policy, StringComparison.Ordinal) &&
+        new HashSet<string>(checkedRequirement.AnyOfRoles, StringComparer.Ordinal).SetEquals(current.AnyOfRoles) &&
+        checkedRequirement.AuthenticationSchemes.SequenceEqual(current.AuthenticationSchemes, StringComparer.Ordinal);
 
     bool CheckMember(MemberInfo target, AuthorizationDeclaration declaration)
     {
