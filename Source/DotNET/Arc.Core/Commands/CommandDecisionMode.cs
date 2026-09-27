@@ -9,7 +9,7 @@ public enum CommandDecisionMode
     /// <summary>No protected decisions; existing commands and validators remain unchanged.</summary>
     Legacy = 0,
 
-    /// <summary>Protected decision reads and restricted per-invocation validators.</summary>
+    /// <summary>Protected decision reads; discoverable validators are refused.</summary>
     Protected = 1,
 
     /// <summary>Explicitly advisory and unguarded decisions.</summary>

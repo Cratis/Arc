@@ -17,7 +17,7 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 public class when_executing_a_command
 {
     [Fact]
-    public async Task should_reuse_protected_reads_across_handle_provide_and_validator_and_enroll_each_resolution()
+    public async Task should_reuse_protected_reads_across_handle_and_provide_and_enroll_each_resolution()
     {
         var (store, _, unit) = DecisionFixtures.Transaction();
         var inner = Substitute.For<IDecisionReads>();
@@ -31,9 +31,7 @@ public class when_executing_a_command
         {
             var handle = await reader.Get<Model>((ReadModelKey)"source");
             var provide = await reader.Get<Model>((ReadModelKey)"source");
-            var validator = await reader.Get<Model>((ReadModelKey)"source");
             Assert.Same(handle, provide);
-            Assert.Same(handle, validator);
             CommandDecisionReads.VerifyProvided(provide);
             await inner.Received(1).GetDetached<Model>((ReadModelKey)"source", Arg.Any<CancellationToken>());
             Assert.True(unit.HasEnrolledDecisionReads);

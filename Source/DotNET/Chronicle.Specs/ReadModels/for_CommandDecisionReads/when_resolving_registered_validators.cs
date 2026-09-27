@@ -14,7 +14,7 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 public class when_resolving_registered_validators
 {
     [Fact]
-    public void should_refuse_a_supplied_provider_without_registration_provenance_before_resolving_the_reader()
+    public void should_refuse_a_supplied_provider_before_resolving_the_reader()
     {
         var constructions = 0;
         var readsResolved = 0;
@@ -40,7 +40,7 @@ public class when_resolving_registered_validators
     }
 
     [Fact]
-    public void should_refuse_a_supplied_provider_without_registration_provenance_before_resolving_the_token()
+    public void should_refuse_a_supplied_provider_before_resolving_the_token()
     {
         var folds = 0;
         var validatorFactories = 0;
@@ -66,11 +66,11 @@ public class when_resolving_registered_validators
     }
 
     [Fact]
-    public void should_refuse_null_reader_and_token_after_a_valid_direct_shape_preflight()
+    public void should_refuse_every_validator_dependency_shape_but_keep_command_dependency_guards()
     {
         var safety = new DecisionDependencySafety();
-        safety.ValidateValidatorDependencyShape(typeof(IDecisionReads));
-        safety.ValidateValidatorDependencyShape(typeof(DecisionRead<TokenModel>));
+        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependencyShape(typeof(IDecisionReads)));
+        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependencyShape(typeof(DecisionRead<TokenModel>)));
         Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependency(typeof(IDecisionReads), null));
         Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependency(typeof(DecisionRead<TokenModel>), null));
         Assert.Throws<InvalidOperationException>(() => safety.ValidateCommandDependency(typeof(IDecisionReads), null));

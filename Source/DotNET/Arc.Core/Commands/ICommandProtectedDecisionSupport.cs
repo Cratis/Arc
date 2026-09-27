@@ -10,11 +10,11 @@ public interface ICommandProtectedDecisionSupport
     /// <param name="services">The command's service provider.</param>
     void EnsureSupported(IServiceProvider services);
 
-    /// <summary>Checks the closed, direct dependency shape before constructing a validator or resolving its dependencies.</summary>
+    /// <summary>Compatibility hook; protected validator dependencies are unsupported (Arc#2831).</summary>
     /// <param name="dependencyType">The constructor parameter type.</param>
     void ValidateValidatorDependencyShape(Type dependencyType);
 
-    /// <summary>Checks a resolved validator dependency, including null values.</summary>
+    /// <summary>Compatibility hook; protected validator dependencies are unsupported (Arc#2831).</summary>
     /// <param name="dependencyType">The constructor parameter type.</param>
     /// <param name="dependency">The resolved value.</param>
     void ValidateValidatorDependency(Type dependencyType, object? dependency);

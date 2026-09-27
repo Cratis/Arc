@@ -18,7 +18,7 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
     {
         if (CommandDecisionPolicy.IsProtected)
         {
-            throw new InvalidOperationException($"Registered validator '{validatorType}' cannot run in a protected decision command; use an unregistered per-invocation validator.");
+            throw new InvalidOperationException($"Registered validator '{validatorType}' cannot run in a protected decision command; see Arc#2831.");
         }
     }
 
@@ -50,32 +50,11 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
     }
 
     /// <inheritdoc/>
-    public void ValidateValidatorDependencyShape(Type dependencyType)
-    {
-        if (dependencyType == typeof(IDecisionReads) || IsDecisionRead(dependencyType)) return;
-
-        throw new InvalidOperationException($"Protected validator dependency '{dependencyType}' is unsupported; use a directly issued DecisionRead<T> or command-aware IDecisionReads.");
-    }
+    public void ValidateValidatorDependencyShape(Type dependencyType) =>
+        throw new InvalidOperationException($"Protected validator dependency '{dependencyType}' is unsupported; discoverable validators cannot run in protected decision commands (Arc#2831).");
 
     /// <inheritdoc/>
-    public void ValidateValidatorDependency(Type dependencyType, object? dependency)
-    {
-        ValidateValidatorDependencyShape(dependencyType);
-        if (dependencyType == typeof(IDecisionReads))
-        {
-            if (dependency is not CommandDecisionReads)
-            {
-                throw new InvalidOperationException("A protected validator requires the command-aware IDecisionReads reader.");
-            }
-            return;
-        }
-
-        if (dependency is null)
-        {
-            throw new InvalidOperationException("A protected validator requires a directly issued DecisionRead<T> token.");
-        }
-        CommandDecisionReads.VerifyProvided(dependency);
-    }
+    public void ValidateValidatorDependency(Type dependencyType, object? dependency) => ValidateValidatorDependencyShape(dependencyType);
 
     static bool IsDecisionRead(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>);
 }

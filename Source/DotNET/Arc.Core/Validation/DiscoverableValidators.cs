@@ -72,6 +72,11 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
+            if (CommandDecisionPolicy.IsProtected)
+            {
+                throw new InvalidOperationException($"Discoverable validator '{value}' cannot run in a protected decision command; see Arc#2831.");
+            }
+
             validator = (Construct(serviceProvider, value) as IValidator)!;
             return true;
         }
@@ -111,46 +116,13 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <summary>
     /// Constructs a validator from the supplied provider.
     /// </summary>
-    /// <remarks>
-    /// Legacy commands follow command parameter binding semantics. Protected validators are freshly constructed
-    /// from closed direct decision dependencies only when registrations have certified convention provenance.
-    /// </remarks>
+    /// <remarks>Legacy commands follow command parameter binding semantics.</remarks>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
-    /// <exception cref="InvalidOperationException">The protected command uses an unsupported or missing decision dependency.</exception>
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
         var isService = serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
-        if (CommandDecisionPolicy.IsProtected)
-        {
-            // Never resolve an application-registered validator: its factory or instance may add rules that
-            // constructing the discovered type would omit. Supplied providers without registration provenance
-            // are refused even for apparently unregistered validators.
-            var provenance = serviceProvider.GetServices<ValidatorRegistrationProvenance>().ToArray();
-            if (provenance.Length != 1)
-            {
-                throw new InvalidOperationException("Protected validator resolution requires Arc registration provenance in the command provider.");
-            }
-            provenance[0].Validate(validatorType);
-            var support = serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>();
-            var constructor = validatorType.GetConstructors()
-                .OrderByDescending(_ => _.GetParameters().Length)
-                .First();
-            var parameters = constructor.GetParameters();
-
-            // Preflight the entire shape before constructing any dependency or folding any decision read.
-            foreach (var parameter in parameters) support.ValidateValidatorDependencyShape(parameter.ParameterType);
-            var arguments = ParameterDependencyResolver.Resolve(
-                serviceProvider,
-                parameters,
-                parameter => new CannotResolveValidatorDependency(validatorType, parameter));
-            for (var index = 0; index < parameters.Length; index++)
-            {
-                support.ValidateValidatorDependency(parameters[index].ParameterType, arguments[index]);
-            }
-            return constructor.Invoke(arguments);
-        }
 
         // Legacy commands retain registered validators of every lifetime and their existing construction rules.
         var safetyChecks = serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [];
