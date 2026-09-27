@@ -132,6 +132,7 @@ public static class CommandEndpointMapper
             url,
             async context =>
             {
+                using var receipt = OperationContextScope.Begin(context.RequestServices);
                 var correlationIdAccessor = context.RequestServices.GetRequiredService<ICorrelationIdAccessor>();
                 var commandPipeline = context.RequestServices.GetRequiredService<ICommandPipeline>();
                 var arcOptions = context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value;
@@ -160,12 +161,13 @@ public static class CommandEndpointMapper
                             ? await builtInPipeline.ValidateHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await builtInPipeline.ExecuteHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
                     }
-                    else if (AuthorizationAttributeGuard.RequiresScopedEvaluation(commandType))
+                    else if (context.RequestServices.GetRequiredService<AuthorizationDeclarations>().For(commandType).RequiresAsynchronousEvaluation)
                     {
                         throw new InvalidAuthorizationConfiguration($"Command '{commandType}' requires an Arc pipeline that can prepare authorization before execution.");
                     }
                     else
                     {
+                        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
                         commandResult = validateOnly
                             ? await commandPipeline.Validate(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await commandPipeline.Execute(command!, context.RequestServices, allowedSeverity, context.RequestAborted);

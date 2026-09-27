@@ -29,7 +29,8 @@ public class and_requirements_change_without_an_authorization_filter : given.a_c
             new KnownInstancesOf<IAuthorizationAttributeEvaluator>([_evaluator]));
         _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(declarations);
 
-        // This is an ordinary filter, not Arc's authorization filter. The first lookup sees no policy.
+        // This is an ordinary filter, not Arc's authorization filter. Preflight and filter see no policy;
+        // the last lookup before invocation sees the new policy.
         _commandFilters.OnExecution(Arg.Any<CommandContext>()).Returns(context =>
         {
             declarations.For(context.Arg<CommandContext>().Type).RequiresAsynchronousEvaluation.ShouldBeFalse();
@@ -39,7 +40,7 @@ public class and_requirements_change_without_an_authorization_filter : given.a_c
 
     async Task Because() => _result = await _commandPipeline.Execute(new CustomPolicyCommand(), _serviceProvider);
 
-    [Fact] void should_read_the_changed_requirements_before_invocation() => _evaluator.Reads.ShouldEqual(2);
+    [Fact] void should_read_the_changed_requirements_before_invocation() => _evaluator.Reads.ShouldEqual(3);
     [Fact] void should_deny_the_new_policy() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_not_invoke_the_handler() => _handler.DidNotReceive().Handle(Arg.Any<CommandContext>());
 
@@ -52,7 +53,7 @@ public class and_requirements_change_without_an_authorization_filter : given.a_c
         public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(Type type) => null;
         public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(MethodInfo method) => null;
         public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
-            type == typeof(CustomPolicyCommand) && ++Reads > 1
+            type == typeof(CustomPolicyCommand) && ++Reads > 2
                 ? [AuthorizationRequirement.FromAttribute(null, "NewPolicy", null)] : [];
     }
 }

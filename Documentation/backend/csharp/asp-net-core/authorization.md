@@ -29,10 +29,9 @@ using Cratis.Arc;
 using Microsoft.AspNetCore.Authorization;
 
 builder.AddCratisArc();
-builder.Services.AddAuthorizationBuilder()
-    .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build());
+builder.Services.AddAuthorization(options => options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .Build());
 
 var app = builder.Build();
 app.UseAuthentication();
@@ -45,7 +44,9 @@ See [Microsoft Identity integration](microsoft-identity.md) for one authenticati
 
 ## Protecting all endpoints by default
 
-ASP.NET's fallback policy applies to endpoints without applicable authorization metadata. Its default policy applies when Microsoft `[Authorize]` supplies no named policy. Explicit anonymous metadata bypasses these policies.
+ASP.NET's `AuthorizationOptions.FallbackPolicy`, configured above with `builder.Services.AddAuthorization(...)`, applies to HTTP endpoints without applicable authorization metadata, including MVC controller actions. Its default policy applies when Microsoft `[Authorize]` supplies no named policy. Explicit anonymous metadata bypasses these policies.
+
+Arc's [`IFallbackAuthorizationEvaluator`](../core/authorization.md#set-baseline-requirements-without-overriding-anonymous-access) is separate: it supplies baseline requirements for model-bound commands and queries on both Arc hosts, and for controller-based queries reached through Arc's observable hub path in the ASP.NET Core host. It also covers server-side pipeline invocations that never pass through ASP.NET middleware. Direct HTTP GET and WebSocket requests to controller-based queries are MVC actions, not covered by `IFallbackAuthorizationEvaluator`. Use ASP.NET Core's `FallbackPolicy` to require authorization for those actions and controller-based commands without explicit authorization metadata.
 
 > [!WARNING]
 > Normal Arc activation maps development-user/tenant discovery and identity-schema endpoints with anonymous metadata, including in Production. Command/query introspection also defaults to anonymous, but can be disabled or protected through `ArcOptions.Introspection`. A fallback policy does **not** protect endpoints that remain explicitly anonymous. Review [production discovery exposure](../introspection/index.md) and restrict other discovery routes at trusted ingress where necessary. Do not assume the word “development” is an environment check.
@@ -120,7 +121,9 @@ app.MapGet("/reports/availability", () => new { Available = true })
     .RequireAuthorization("ReportsReader");
 ```
 
-This protects that HTTP endpoint. To protect a model-bound command or query through **every** Arc route instead, annotate its type or query method with `[Cratis.Arc.Authorization.Authorize(Policy = "ReportsReader")]` or Microsoft's `[Authorize(Policy = "ReportsReader")]`. Arc evaluates the named policy inside its pipeline; it never assumes middleware has run. ASP.NET Core policy handlers receive the Arc `CommandContext` or `QueryContext` as their resource, not an MVC action resource.
+This protects that HTTP endpoint. To protect a model-bound command or query through **every** Arc route instead, annotate its type or query method with `[Cratis.Arc.Authorization.Authorize(Policy = "ReportsReader")]` or Microsoft's `[Authorize(Policy = "ReportsReader")]`. Arc evaluates the named policy inside its pipeline; it never assumes middleware has run. ASP.NET Core policy handlers receive the Arc `CommandContext` or `QueryContext` as their resource, not an MVC action resource. For an Arc pipeline invocation, that resource's `ReceivedAt` is fixed at Arc dispatch before binding and scheme authentication; it survives the scheme-selected service scope. It is not network arrival time or a timestamp from before application middleware. MVC authorization is a separate boundary and does not use this Arc resource.
+
+Arc requires authentication before evaluating ASP.NET Core policies by default. For a policy that intentionally permits guests, register it with ASP.NET Core and then opt it in for Arc pipeline evaluation with `builder.Services.AddArcAnonymousAspNetAuthorizationPolicy("PublicOrMember")`. The policy must not call `RequireAuthenticatedUser()` (or include `DenyAnonymousAuthorizationRequirement`) or specify `AuthenticationSchemes`: a scheme-selected policy cannot evaluate a guest. Arc asks the ASP.NET Core policy provider for the opt-in name at startup and rejects missing, ambiguous, native Arc, authentication-required, or scheme-selected policies. The opt-in name must match the name in the command or query's policy declaration exactly, including case. Even if a provider resolves names without regard to case, an opt-in for `Guest` does not opt in `guest`. The standalone Core host cannot use this ASP.NET Core opt-in. Only declarations made entirely of opted-in policies without roles or authentication schemes can evaluate guests; the policies still decide whether to grant access. The opt-in changes Arc pipeline behavior, not MVC authorization or ASP.NET Core middleware.
 
 Arc requires authentication before evaluating ASP.NET Core policies by default. For a policy that intentionally permits guests, register it with ASP.NET Core and then opt it in for Arc pipeline evaluation with `builder.Services.AddArcAnonymousAspNetAuthorizationPolicy("PublicOrMember")`. The policy must not call `RequireAuthenticatedUser()` (or include `DenyAnonymousAuthorizationRequirement`) or specify `AuthenticationSchemes`: a scheme-selected policy cannot evaluate a guest. Arc asks the ASP.NET Core policy provider for the opt-in name at startup and rejects missing, ambiguous, native Arc, authentication-required, or scheme-selected policies. The opt-in name must match the name in the command or query's policy declaration exactly, including case. Even if a provider resolves names without regard to case, an opt-in for `Guest` does not opt in `guest`. The standalone Core host cannot use this ASP.NET Core opt-in. Only declarations made entirely of opted-in policies without roles or authentication schemes can evaluate guests; the policies still decide whether to grant access. The opt-in changes Arc pipeline behavior, not MVC authorization or ASP.NET Core middleware.
 

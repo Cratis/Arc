@@ -75,7 +75,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         EnsureInitialized();
 
         var method = typeof(TReadModel).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            .FirstOrDefault(candidate => candidate.Name == methodName && candidate.IsValidQueryFor(typeof(TReadModel)));
+            .FirstOrDefault(candidate => candidate.Name == methodName && ModelBoundQueryMethod.IsCandidate(candidate) && candidate.IsValidQueryFor(typeof(TReadModel)));
         if (method is not null && IsStreamingType(UnwrapTask(method.ReturnType)))
         {
             throw new StreamingQueryNotSupported(methodName);

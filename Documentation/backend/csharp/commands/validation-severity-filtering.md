@@ -3,7 +3,7 @@ title: Validation severity filtering
 description: Select warning thresholds without mistaking overridable validation for authorization.
 ---
 
-Some rules need acknowledgment rather than unconditional rejection. Model-bound Arc commands accept an `allowedSeverity` threshold for validation filters and `Provide()` control results. Results that the threshold permits are **removed**, not returned as advisory messages alongside success.
+Some rules need acknowledgment rather than unconditional rejection. Model-bound Arc commands accept an `allowedSeverity` threshold for validation filters and `Provide()` control results. Results that the threshold permits are **removed**, not returned as advisory messages alongside success. Command filters continue past permitted failures, so an error from a later filter still rejects the command.
 
 ## Thresholds
 
@@ -103,7 +103,7 @@ Filtering applies after command filters and during `Provide()` argument resoluti
 
 The built-in response handler recognizes only a singular Arc `ValidationResult`. A validation array returned by `Handle()` is response data, not a collection of validation failures. `Provide()` separately supports `IEnumerable<ValidationResult>` control values.
 
-There is also a current ordering limitation: the filter chain stops on its first unsuccessful result **before** the pipeline applies severity filtering. If that result contains only subsequently allowed warnings, execution may resume without running later ordinary filters. Do not assume every filter ran just because execution continued. Authorization filters run first, but critical invariants still need enforcement at the operation/storage boundary; a validator is not a concurrency or integrity guarantee.
+Authorization filters run first; ordinary filters continue after non-blocking validation failures and stop on a blocking failure. Critical invariants still need enforcement at the operation/storage boundary; a validator is not a concurrency or integrity guarantee.
 
 ## Security considerations
 

@@ -23,6 +23,11 @@ export interface ArcProps {
     microservice?: string;
     development?: boolean;
     origin?: string;
+    /**
+     * @deprecated This prop does not configure routing or API requests. Use apiBasePath for
+     * Arc requests and your application's router basename for client-side routes.
+     * The value remains available in ArcContext for compatibility.
+     */
     basePath?: string;
     apiBasePath?: string;
     httpHeadersCallback?: GetHttpHeaders;

@@ -611,9 +611,7 @@ const CommandFormComponent = <TCommand extends object = object, TResponse = obje
 
     // Custom errors independently veto validity; an in-flight native validation cannot clear them.
     // Default to false until the first silent validation completes.
-    const isCommandValid = silentValidationResult
-        ? (silentValidationResult.validationResults?.length ?? 0) === 0
-        : false;
+    const isCommandValid = silentValidationResult?.isValid ?? false;
     const isValid = isCommandValid && !hasCustomFieldErrors(customFieldErrors);
 
     // isAuthorized checks if the current user has at least one of the roles required by the command.

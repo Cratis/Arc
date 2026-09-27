@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
@@ -21,6 +22,7 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ReadModelServiceCollectionExtensions
 {
+    static readonly ConditionalWeakTable<IClientArtifactsProvider, ReadModelDiscovery> _discoveryByArtifacts = new();
     static readonly MethodInfo _releaseMethod = typeof(IReadModels)
         .GetMethods()
         .Single(_ =>
@@ -51,17 +53,9 @@ public static class ReadModelServiceCollectionExtensions
     {
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
-        var modelBoundReadModels = ModelBoundReadModelRoots.Discover(clientArtifactsProvider.ModelBoundProjections)
-            .Where(type => type.IsClass && !type.IsAbstract);
-
-        // A read model is registered for command-scope resolution because it is resolvable by key through
-        // IReadModels. That resolvability comes from a Chronicle backing artifact, so the set is the union of the
-        // read model types behind each backing kind. Adding a future backing kind is one more ReadModelTargetsFrom.
-        var readModelTypes = ReadModelTargetsFrom(clientArtifactsProvider.Projections, typeof(IProjectionFor<>))
-            .Concat(modelBoundReadModels)
-            .Concat(ReadModelTargetsFrom(clientArtifactsProvider.Reducers, typeof(IReducerFor<>)))
-            .Distinct()
-            .ToArray();
+        var readModelTypes = _discoveryByArtifacts
+            .GetValue(clientArtifactsProvider, _ => new ReadModelDiscovery())
+            .GetTypes(clientArtifactsProvider);
 
         // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
@@ -141,6 +135,47 @@ public static class ReadModelServiceCollectionExtensions
         catch (Exception exception)
         {
             throw new InvalidOperationException($"Failed to release read model '{readModelType.FullName}'.", exception);
+        }
+    }
+
+    sealed class ReadModelDiscovery
+    {
+        readonly object _gate = new();
+        Type[] _projections = [];
+        Type[] _modelBoundProjections = [];
+        Type[] _reducers = [];
+        Type[] _readModelTypes = [];
+        bool _initialized;
+
+        public Type[] GetTypes(IClientArtifactsProvider artifacts)
+        {
+            // Artifact providers can be configured between registrations. Compare their actual type sets rather than
+            // assuming that one provider instance always describes the same universe.
+            var projections = artifacts.Projections.ToArray();
+            var modelBoundProjections = artifacts.ModelBoundProjections.ToArray();
+            var reducers = artifacts.Reducers.ToArray();
+            lock (_gate)
+            {
+                if (!_initialized || !projections.SequenceEqual(_projections) ||
+                    !modelBoundProjections.SequenceEqual(_modelBoundProjections) || !reducers.SequenceEqual(_reducers))
+                {
+                    var modelBoundReadModels = ModelBoundReadModelRoots.Discover(modelBoundProjections)
+                        .Where(type => type.IsClass && !type.IsAbstract);
+
+                    // Each backing kind contributes only read models that can be resolved by key through IReadModels.
+                    _readModelTypes = ReadModelTargetsFrom(projections, typeof(IProjectionFor<>))
+                        .Concat(modelBoundReadModels)
+                        .Concat(ReadModelTargetsFrom(reducers, typeof(IReducerFor<>)))
+                        .Distinct()
+                        .ToArray();
+                    _projections = projections;
+                    _modelBoundProjections = modelBoundProjections;
+                    _reducers = reducers;
+                    _initialized = true;
+                }
+
+                return _readModelTypes;
+            }
         }
     }
 }

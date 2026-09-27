@@ -208,6 +208,7 @@ public class ObservableQueryDemultiplexer(
     /// <inheritdoc/>
     public async Task HandleSSESubscribe(IHttpRequestContext context)
     {
+        using var receipt = OperationContextScope.Begin(context.RequestServices);
         ObservableQuerySSESubscribeRequest? body;
         try
         {
@@ -441,13 +442,29 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         Action onCompleted,
+        CancellationToken token) =>
+        SubscribeToStreamingData(context, streamingData, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, null, token);
+
+    IDisposable? SubscribeToStreamingData(
+        IHttpRequestContext context,
+        object streamingData,
+        string queryId,
+        PagingInfo paging,
+        string? transferMode,
+        CorrelationId correlationId,
+        ObservableQuerySubscriptionIdentity identity,
+        Func<QueryResult, CancellationToken, Task> onNext,
+        Func<string, string, CancellationToken, Task> onError,
+        Func<string, CancellationToken, Task> onUnauthorized,
+        Action onCompleted,
+        QueryContext? authorizedQueryContext,
         CancellationToken token)
     {
         var type = streamingData.GetType();
 
         if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
         {
-            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
+            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token);
         }
 
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
@@ -609,6 +626,7 @@ public class ObservableQueryDemultiplexer(
         SemaphoreSlim writeLock,
         CancellationToken token)
     {
+        using var receipt = OperationContextScope.Begin(context.RequestServices);
         var request = DeserializeSubscriptionRequest(message.Payload);
         if (request is null || string.IsNullOrEmpty(request.QueryName))
         {
@@ -835,6 +853,7 @@ public class ObservableQueryDemultiplexer(
                 }
             }
 
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
             queryResult = await queryPipeline.Perform(fullyQualifiedName, arguments, paging, sorting, queryServiceProvider, token);
         }
         var ownedScope = queryResult.OwnedScope;
@@ -889,13 +908,14 @@ public class ObservableQueryDemultiplexer(
                 queryResult.AuthorizedPrincipal ?? principal,
                 arcOptions.Value.JsonSerializerOptions)
             {
-                AuthorizedTenant = queryResult.AuthorizedTenant ?? queryServiceProvider.GetService<TenantIdAccessor>()?.Current
+                AuthorizedTenant = queryResult.AuthorizedTenant ?? queryServiceProvider.GetService<TenantIdAccessor>()?.Current,
+                SubscriptionScopeSnapshot = queryResult.AuthorizedQueryContext?.SubscriptionScopeSnapshot
             };
 
             IDisposable? subscription = null;
             try
             {
-                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, token);
+                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, onNext, onError, onUnauthorized, onCompleted, queryResult.AuthorizedQueryContext, token);
                 if (subscription is StreamingQuerySubscription lifetime && ownedScope is not null)
                 {
                     lifetime.AddResource(ownedScope);
@@ -930,6 +950,7 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         Action onCompleted,
+        QueryContext? authorizedQueryContext,
         CancellationToken token)
     {
         var elementType = subjectType.GetInterfaces()
@@ -940,7 +961,7 @@ public class ObservableQueryDemultiplexer(
             .GetMethod(nameof(SubscribeToSubjectOfType), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
             .MakeGenericMethod(elementType);
 
-        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, token])!;
+        return (IDisposable)method.Invoke(this, [context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token])!;
     }
 
     StreamingQuerySubscription SubscribeToSubjectOfType<T>(
@@ -955,10 +976,12 @@ public class ObservableQueryDemultiplexer(
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         Action onCompleted,
+        QueryContext? authorizedQueryContext,
         CancellationToken token)
     {
         IEnumerable<object>? previousItems = null;
         var hasDeliveredEmission = false;
+        var hasWarnedAboutMissingIdentity = false;
         var isTerminated = false;
         var isDeltaMode = string.Equals(transferMode, "delta", StringComparison.OrdinalIgnoreCase);
         var isFullMode = string.Equals(transferMode, "full", StringComparison.OrdinalIgnoreCase);
@@ -968,11 +991,9 @@ public class ObservableQueryDemultiplexer(
         // when the underlying subject delivers the next value before the previous one has finished interception.
         var emissionGate = new SemaphoreSlim(1, 1);
 
-        // Capture the per-subscription query context here, while the AsyncLocal still carries the
-        // context set up by the query pipeline. Observer callbacks below are invoked from the MongoDB
-        // change-stream thread, where AsyncLocal flow does not reach, so reading the manager from
-        // inside the callback would return QueryContext.NotSet and overwrite the real paging info.
-        var subscriptionQueryContext = queryContextManager.Current;
+        // The pipeline's context survives its AsyncLocal boundary. Keep the instance so provider updates to
+        // TotalItems remain visible on later emissions; custom pipelines can still use the ambient context.
+        var subscriptionQueryContext = authorizedQueryContext ?? queryContextManager.Current;
 
         var interceptionScope = serviceProvider.CreateScope();
         var lifetime = new StreamingQuerySubscription(token);
@@ -1056,7 +1077,10 @@ public class ObservableQueryDemultiplexer(
                         correlationId,
                         interceptionScope.ServiceProvider,
                         !hasDeliveredEmission,
-                        subscriptionToken));
+                        subscriptionToken)
+                    {
+                        SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
+                    });
 
                     subscriptionToken.ThrowIfCancellationRequested();
 
@@ -1081,10 +1105,31 @@ public class ObservableQueryDemultiplexer(
                 // Delta mode: skip computation on first emission (full snapshot is sent instead).
                 // Full mode: skip computation entirely (client always receives the full snapshot).
                 ChangeSet? changeSet = null;
+                var hasStableIdentity = false;
                 if (interceptedData is IEnumerable enumerable and not string)
                 {
                     var currentItems = enumerable.Cast<object>().ToArray();
-                    if (!isFullMode && (!isDeltaMode || !isFirstEmission))
+                    var itemType = (currentItems.FirstOrDefault() ?? previousItems?.FirstOrDefault())?.GetType();
+                    if (itemType is null)
+                    {
+                        var collectionType = typeof(T);
+                        itemType = (collectionType.IsGenericType && collectionType.GetGenericTypeDefinition() == typeof(IEnumerable<>)
+                            ? collectionType
+                            : collectionType.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IEnumerable<>)))?.GetGenericArguments()[0];
+                    }
+
+                    // Use the same case-insensitive Id convention as ChangeSetComputor, including concept-valued Ids.
+                    // An empty collection with no discoverable item type is a snapshot until an item establishes one.
+                    hasStableIdentity = itemType is not null && ChangeSetComputor.FindIdentityProperty(itemType) is not null;
+                    if (!hasStableIdentity &&
+                        (currentItems.Length > 0 || previousItems?.Any() is true) &&
+                        !hasWarnedAboutMissingIdentity)
+                    {
+                        logger.CollectionWithoutIdentity(queryId, identity.QueryName.ToString());
+                        hasWarnedAboutMissingIdentity = true;
+                    }
+
+                    if (hasStableIdentity && !isFullMode && (!isDeltaMode || !isFirstEmission))
                     {
                         // A provider that watches its data source already knows which items changed, and says so on
                         // the emission. Taking it at its word makes the delta cost proportional to what changed rather
@@ -1106,19 +1151,17 @@ public class ObservableQueryDemultiplexer(
                 {
                     CorrelationId = correlationId,
 
-                    // Delta mode subsequent emissions omit Data; client reconstructs from ChangeSet.
-                    // First emission always includes the full snapshot regardless of mode.
-                    Data = isDeltaMode && !isFirstEmission ? null! : interceptedData!,
+                    // Delta mode omits Data on subsequent identity-based emissions; without identity,
+                    // every emission carries the full snapshot and no change set.
+                    Data = isDeltaMode && !isFirstEmission && hasStableIdentity ? null! : interceptedData!,
                     IsAuthorized = true,
                     ValidationResults = [],
                     ExceptionMessages = [],
                     ExceptionStackTrace = string.Empty,
                     Paging = paging,
 
-                    // Delta mode first emission: no ChangeSet (full snapshot is the initial state).
-                    // Full mode: no ChangeSet (Data is always the complete current state).
-                    // Legacy/delta subsequent: include computed ChangeSet.
-                    ChangeSet = isFullMode || (isDeltaMode && isFirstEmission) ? null : changeSet
+                    // Only identity-based legacy emissions and subsequent delta emissions carry a change set.
+                    ChangeSet = changeSet
                 };
 
                 if (subscriptionQueryContext is not null && subscriptionQueryContext != QueryContext.NotSet)
@@ -1291,7 +1334,10 @@ public class ObservableQueryDemultiplexer(
                         correlationId,
                         guardServiceProvider,
                         !hasDeliveredEmission,
-                        token));
+                        token)
+                    {
+                        SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
+                    });
 
                     token.ThrowIfCancellationRequested();
 

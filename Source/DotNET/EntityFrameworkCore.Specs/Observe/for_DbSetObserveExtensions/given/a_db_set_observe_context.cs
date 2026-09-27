@@ -1,10 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Data.Common;
 using Cratis.Arc.Queries;
 using Cratis.Execution;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -21,6 +23,30 @@ public class TestEntity
     public string Name { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
+}
+
+public class AuxiliaryEntity
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+}
+
+public class AuxiliaryCountInterceptor : DbCommandInterceptor
+{
+    int _countQueries;
+
+    public int CountQueries => Volatile.Read(ref _countQueries);
+
+    public override InterceptionResult<DbDataReader> ReaderExecuting(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
+    {
+        if (command.CommandText.Contains("AuxiliaryEntities", StringComparison.Ordinal) && command.CommandText.Contains("COUNT(", StringComparison.OrdinalIgnoreCase))
+        {
+            Interlocked.Increment(ref _countQueries);
+        }
+
+        return result;
+    }
 }
 
 public class ShadowKeyEntity
@@ -44,6 +70,7 @@ public class SeparateKeyEntity
 public class TestDbContext(DbContextOptions<TestDbContext> options) : DbContext(options)
 {
     public DbSet<TestEntity> TestEntities { get; set; }
+    public DbSet<AuxiliaryEntity> AuxiliaryEntities { get; set; }
     public DbSet<ShadowKeyEntity> ShadowKeyEntities { get; set; }
     public DbSet<ShadowKeyWithIdEntity> ShadowKeyWithIdEntities { get; set; }
     public DbSet<SeparateKeyEntity> SeparateKeyEntities { get; set; }
@@ -80,6 +107,7 @@ public class a_db_set_observe_context : Specification
     protected IEntityChangeTracker _entityChangeTracker;
     protected QueryContext _queryContext;
     protected ILogger _logger;
+    protected AuxiliaryCountInterceptor _auxiliaryCountInterceptor;
     SqliteConnection _connection;
 
     void Establish()
@@ -94,6 +122,7 @@ public class a_db_set_observe_context : Specification
         _connection.Open();
 
         // Set up service collection
+        _auxiliaryCountInterceptor = new AuxiliaryCountInterceptor();
         var services = new ServiceCollection();
         services.AddLogging(builder => builder
             .SetMinimumLevel(LogLevel.Warning)
@@ -115,7 +144,7 @@ public class a_db_set_observe_context : Specification
             var entityChangeTracker = serviceProvider.GetRequiredService<IEntityChangeTracker>();
             var interceptorLogger = serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
             options.UseSqlite(connection)
-                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger));
+                   .AddInterceptors(new ObserveInterceptor(entityChangeTracker, interceptorLogger), _auxiliaryCountInterceptor);
         });
 
         _serviceProvider = services.BuildServiceProvider();
@@ -135,7 +164,7 @@ public class a_db_set_observe_context : Specification
         var interceptorLogger = _serviceProvider.GetRequiredService<ILogger<ObserveInterceptor>>();
         var options = new DbContextOptionsBuilder<TestDbContext>()
             .UseSqlite(_connection)
-            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger))
+            .AddInterceptors(new ObserveInterceptor(_entityChangeTracker, interceptorLogger), _auxiliaryCountInterceptor)
             .Options;
 
         _dbContext = new TestDbContext(options);

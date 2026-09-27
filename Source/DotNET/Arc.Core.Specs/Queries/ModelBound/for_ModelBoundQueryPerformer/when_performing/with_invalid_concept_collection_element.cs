@@ -8,7 +8,7 @@ namespace Cratis.Arc.Queries.ModelBound.for_ModelBoundQueryPerformer.when_perfor
 
 public class with_invalid_concept_collection_element : given.a_model_bound_query_performer
 {
-    MissingArgumentForQuery _exception;
+    InvalidQueryArgument _exception;
 
     public record Rate(decimal Value) : ConceptAs<decimal>(Value);
 
@@ -29,10 +29,11 @@ public class with_invalid_concept_collection_element : given.a_model_bound_query
         EstablishPerformer<TestReadModel>(nameof(TestReadModel.Query), parameters: new QueryArguments { ["rates"] = "1,bad" });
     }
 
-    async Task Because() => _exception = await Catch.Exception(PerformQuery) as MissingArgumentForQuery;
+    async Task Because() => _exception = await Catch.Exception(PerformQuery) as InvalidQueryArgument;
 
     [Fact] void should_reject_the_invalid_element() => _exception.ShouldNotBeNull();
     [Fact] void should_name_the_argument_in_the_validation_result() => _exception.ValidationResult.Members.ShouldContain("rates");
     [Fact] void should_have_a_validation_failure() => (_exception is IValidationFailure).ShouldBeTrue();
+    [Fact] void should_report_malformed_request() => _exception.ValidationResult.Reason.ShouldEqual(ValidationResultReason.MalformedRequest);
     [Fact] void should_not_invoke_the_query() => TestReadModel.WasCalled.ShouldBeFalse();
 }

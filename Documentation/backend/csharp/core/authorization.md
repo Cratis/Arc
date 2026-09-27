@@ -16,7 +16,7 @@ Use attributes from `Cratis.Arc.Authorization`:
 | `[Roles("Admin", "Manager")]` | The same OR-role check; derives from Arc's `AuthorizeAttribute`. |
 | `[Authorize(Policy = "ActiveSubscription")]` | Requires authentication by default and the named policy to succeed asynchronously. An explicitly opted-in policy may evaluate guests. |
 | `[AllowAnonymous]` | Explicitly allows anonymous access. |
-| No authorization attribute | No authentication or role requirement from the Arc evaluator. |
+| No authorization attribute | No authentication or role requirement unless a fallback evaluator supplies one. |
 
 Every authorization attribute on a declaration applies: stacked roles and policies are combined with AND. Register each policy before starting the host; an unknown or duplicate policy fails startup, and an unresolved policy at runtime never grants access. The standalone Arc host cannot authenticate named schemes: `AuthenticationSchemes` fails startup (and [ARC0021](../code-analysis/index.md#arc0021-unevaluated-authorization-settings) flags it). Use [ASP.NET Core integration](../asp-net-core/authorization.md) for actual scheme authentication.
 
@@ -65,7 +65,31 @@ using Cratis.Arc.Authorization;
 builder.Services.AddArcAuthorizationPolicy<ActiveSubscription>("ActiveSubscription");
 ```
 
-Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. By default, an authenticated principal is required even when a policy itself permits anonymous callers. To evaluate an unauthenticated caller, explicitly register a guest-aware Arc policy with `builder.Services.AddArcAuthorizationPolicy<PublicOrMember>("PublicOrMember", evaluatesAnonymous: true)`; the policy must decide whether the guest is allowed. The policy receives an empty unauthenticated `ClaimsPrincipal` for guests. For ASP.NET Core-registered policies, register the policy as usual and also call `builder.Services.AddArcAnonymousAspNetAuthorizationPolicy("PublicOrMember")`; the policy must not require an authenticated user. Both Arc and Microsoft's `[Authorize(Policy = "PublicOrMember")]` work identically on the ASP.NET Core host. Every stacked requirement must be an opted-in policy without roles or authentication schemes to evaluate a guest; roles and schemes always require authentication. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
+Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. `ReceivedAt` is the same `DateTimeOffset` as `Resource.ReceivedAt` for an Arc pipeline operation. It remains fixed when policy evaluation is delayed or repeated, including when a selected scheme moves execution into another service scope. Arc captures it at model-bound transport dispatch before binding and authentication preparation, at direct pipeline entry, or per hub subscribe operation (not per connection). It is Arc receipt time, not network arrival time or the time before application middleware. MVC action filters establish their contexts after MVC binding. By default, an authenticated principal is required even when a policy itself permits anonymous callers. To evaluate an unauthenticated caller, explicitly register a guest-aware Arc policy with `builder.Services.AddArcAuthorizationPolicy<PublicOrMember>("PublicOrMember", evaluatesAnonymous: true)`; the policy must decide whether the guest is allowed. The policy receives an empty unauthenticated `ClaimsPrincipal` for guests. For ASP.NET Core-registered policies, register the policy as usual and also call `builder.Services.AddArcAnonymousAspNetAuthorizationPolicy("PublicOrMember")`; the policy must not require an authenticated user. Both Arc and Microsoft's `[Authorize(Policy = "PublicOrMember")]` work identically on the ASP.NET Core host. Every stacked requirement must be an opted-in policy without roles or authentication schemes to evaluate a guest; roles and schemes always require authentication. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
+
+For a time-sensitive admission rule, use the captured receipt instead of reading the clock again after an asynchronous policy lookup. This complete policy type fragment assumes an Arc host with policies registered as above; the UTC window is illustrative, not a substitute for your application's authorization rules:
+
+```csharp
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+
+public class WeekdayAdmission : IAuthorizationPolicy
+{
+    public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (context.ReceivedAt == default) return ValueTask.FromResult(false);
+        var weekday = context.ReceivedAt.UtcDateTime.DayOfWeek;
+        return ValueTask.FromResult(weekday != DayOfWeek.Saturday && weekday != DayOfWeek.Sunday);
+    }
+}
+```
+
+Register this type with `builder.Services.AddArcAuthorizationPolicy<WeekdayAdmission>("WeekdayAdmission")` before `Build()`, then apply `[Authorize(Policy = "WeekdayAdmission")]`. The rule uses Arc receipt time even if evaluating the policy starts later and denies a missing receipt. Set the `TimeProvider` in tests when asserting a specific receipt date.
+
+Arc rechecks the execution principal after policy and legacy evaluator callbacks and immediately before invoking a protected command handler or query performer. If authorization requirements change or a policy verdict is missing before invocation, the pipeline denies access. Application callbacks are trusted; these checks do not sandbox principal mutations, identity channels, or work that happens before the verdict.
 
 ## Protect a query
 
@@ -87,6 +111,29 @@ public record ServiceStatus(string State)
 ```
 
 Method authorization **replaces** the type declaration; it does not combine with it. For example, on a read model with type-level `[Roles("Admin")]`, a method-level `[Authorize(Policy = "PublicOrMember")]` registered with `evaluatesAnonymous: true` is reachable by guests when that policy allows them. The type-level Admin role no longer protects that method. Arc rejects conflicting `[Authorize]` and `[AllowAnonymous]` on the same target with `AmbiguousAuthorizationLevel`; do not combine them.
+
+## Set baseline requirements without overriding anonymous access
+
+Implement `IFallbackAuthorizationEvaluator` when you want an authentication or role requirement for commands and queries that have no explicit authorization declaration. Arc discovers implementations by convention; do not register one manually. This example requires the `Member` role by default in an existing Arc host:
+
+```csharp
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using Cratis.Arc.Authorization;
+
+public class MembersByDefault : IFallbackAuthorizationEvaluator
+{
+    public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type) =>
+        [AuthorizationRequirement.FromRoles("Member")];
+
+    public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(MethodInfo method) => [];
+}
+```
+
+An unannotated command type and an unannotated query now require the `Member` role. Commands and queries whose authorization target is a type consult only `GetAuthorizationRequirements(Type)`; `GetAuthorizationRequirements(MethodInfo)` applies only to query methods. Put a baseline intended for all commands in the `Type` overload. For query methods, Arc first checks the method and its declaring type for explicit declarations; only if neither has one does it consult the fallback evaluators. The type and method fallback requirements then **all** apply, including requirements supplied by different evaluators. `[AllowAnonymous]` on a method permits anonymous access even when its type has a baseline; a method-level `[Authorize]` or type-level `[Authorize]` replaces the baseline. Controller-based queries reached through Arc's observable hub path use the query pipeline and can receive this baseline. Direct HTTP GET and WebSocket requests to controller-based queries are MVC actions, not covered by `IFallbackAuthorizationEvaluator`; configure ASP.NET Core's [`FallbackPolicy`](../asp-net-core/authorization.md#protecting-all-endpoints-by-default) to protect those actions without authorization metadata, including controller-based commands. An unauthenticated or wrong-role caller is denied before an Arc command or query runs.
+
+Use `IAuthorizationAttributeEvaluator` only to report **explicit** declarations from another attribute family. Its requirements still conflict with `[AllowAnonymous]` on the same member and raise `AmbiguousAuthorizationLevel`; they do not turn into a baseline automatically. Baseline evaluators return requirements, not authorization verdicts or cached principal-specific results. For resource-dependent checks, use a named policy or a pipeline filter instead.
 
 ## The pipeline boundary
 

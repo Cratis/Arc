@@ -4,6 +4,7 @@
 import { PropertyValidator } from './PropertyValidator.js';
 import { IValidationRule } from './IValidationRule.js';
 import { PropertyRule } from './PropertyRule.js';
+import { ValidationResultSeverity } from './ValidationResultSeverity.js';
 
 /**
  * Represents a builder for creating validation rules for a property.
@@ -43,6 +44,18 @@ export class RuleBuilder<T, TProperty> {
     withMessage(message: string): RuleBuilder<T, TProperty> {
         if (this.lastRule && this.lastRule instanceof PropertyRule) {
             this.lastRule.withMessage(message);
+        }
+        return this;
+    }
+
+    /**
+     * Set the severity of the last property rule.
+     * @param severity The rule's severity, or null when it is determined only on the server.
+     * @returns The rule builder for chaining.
+     */
+    withSeverity(severity: ValidationResultSeverity | null): RuleBuilder<T, TProperty> {
+        if (this.lastRule && this.lastRule instanceof PropertyRule) {
+            this.lastRule.withSeverity(severity);
         }
         return this;
     }

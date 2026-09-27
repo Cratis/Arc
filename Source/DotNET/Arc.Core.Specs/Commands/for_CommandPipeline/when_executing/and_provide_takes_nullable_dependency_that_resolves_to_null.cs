@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,7 @@ public class and_provide_takes_nullable_dependency_that_resolves_to_null : given
     {
         _command = new();
         _provider = new ServiceCollection()
+            .AddSingleton((AuthorizationDeclarations)_serviceProvider.GetService(typeof(AuthorizationDeclarations))!)
             .AddScoped<Dependency>(_ => null!)
             .BuildServiceProvider();
 

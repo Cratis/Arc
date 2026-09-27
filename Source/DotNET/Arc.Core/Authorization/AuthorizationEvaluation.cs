@@ -131,9 +131,8 @@ public class AuthorizationEvaluation(
             // A verdict certifies exactly the policy-input and execution identities captured immediately before
             // evaluation (after pre-verdict hooks). Without a selected scope, authenticated policy input must
             // match the execution identity by content at that instant. Both are revalidated after every callback
-            // that runs application code, immediately before the verdict is published. A synthetic guest is
-            // deliberately distinct from the ambient unauthenticated caller, but its verdict never certifies
-            // an authenticated execution identity.
+            // that runs application code and before the verdict is published. A synthetic guest is distinct from
+            // the ambient unauthenticated caller, but cannot certify an authenticated execution identity.
             policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
             executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
             if ((!needsSelectedScope && !guest && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal)) ||
@@ -144,7 +143,15 @@ public class AuthorizationEvaluation(
             }
 
             if (!await resolution.IsAuthorized(
-                new AuthorizationPolicyContext(selectedPrincipal, target, resource),
+                new AuthorizationPolicyContext(selectedPrincipal, target, resource)
+                {
+                    ReceivedAt = resource switch
+                    {
+                        CommandContext commandContext when commandContext.ReceivedAt != default => commandContext.ReceivedAt,
+                        QueryContext queryReceiptContext when queryReceiptContext.ReceivedAt != default => queryReceiptContext.ReceivedAt,
+                        _ => OperationContextScope.Current ?? (services.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
+                    }
+                },
                 services,
                 cancellationToken))
             {

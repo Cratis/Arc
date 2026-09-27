@@ -40,6 +40,19 @@ var orders = dbContext.Orders.Observe(
 
 Arc applies the filter and current query-context paging/sorting to the configured query, including sorting by mapped indexer properties. Initial querying is synchronous and can throw before a subject is returned. Later re-query errors are logged, not sent as `OnError` to subscribers.
 
+### Compose a primary observation with auxiliary sources
+
+When a query combines observations from several DbSets, client paging and sorting belong to the primary source. Existing composed queries must opt in on each auxiliary observation to get this behavior; otherwise those observations still use the client query context. Pass `ignoreQueryContext: true` to an auxiliary observation to read **all** entities matching its filter without client paging or sorting. This also prevents that source from writing the query's `TotalItems`, both at startup and on changes:
+
+```csharp
+var primary = dbContext.Orders.Observe();
+var auxiliary = dbContext.Customers.Observe(ignoreQueryContext: true);
+var selected = dbContext.Customers.ObserveSingle(customer => customer.Email == email, ignoreQueryContext: true);
+var byId = dbContext.Customers.ObserveById<Customer, CustomerId>(customerId, ignoreQueryContext: true);
+```
+
+These query-method fragments assume the `dbContext`, `email`, and `customerId` from the examples above. The option is available on filtered and filterless `Observe` and `ObserveSingle` calls, as well as `ObserveById`; the optional `configure` callback still works. The primary observation keeps its usual paging, sorting, and `TotalItems` behavior; **you** decide which source is primary. `TotalItems` describes the primary DbSet's filtered count, not the size of an arbitrary result you derive by combining sources. If your composed result has different pagination semantics, compute its count explicitly rather than treating a DbSet's count as the composed count.
+
 ## Provider capabilities
 
 | Provider | In-process writes | External writes and prerequisites |

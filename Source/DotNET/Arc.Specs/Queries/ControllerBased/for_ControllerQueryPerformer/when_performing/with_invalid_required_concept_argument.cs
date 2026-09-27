@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Authorization;
-using Cratis.Arc.Queries.ModelBound;
 using Cratis.Concepts;
 using Cratis.Execution;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +16,7 @@ public class with_invalid_required_concept_argument : Specification
     ControllerQueryPerformer _performer;
     ServiceProvider _services;
     QueryContext _context;
-    MissingArgumentForQuery _exception;
+    InvalidQueryArgument _exception;
 
     void Establish()
     {
@@ -34,14 +33,14 @@ public class with_invalid_required_concept_argument : Specification
         _context = new QueryContext(_performer.FullyQualifiedName, CorrelationId.New(), Paging.NotPaged, Sorting.None, new QueryArguments { ["rate"] = "not-a-decimal" }, [_services]);
     }
 
-    async Task Because() => _exception = await Catch.Exception(PerformQuery) as MissingArgumentForQuery;
+    async Task Because() => _exception = await Catch.Exception(PerformQuery) as InvalidQueryArgument;
 
     async Task PerformQuery() => await _performer.Perform(_context);
 
     void Destroy() => _services.Dispose();
 
     [Fact] void should_reject_the_invalid_concept() => _exception.ShouldNotBeNull();
-    [Fact] void should_name_the_invalid_argument() => _exception.ParameterName.ShouldEqual("rate");
+    [Fact] void should_name_the_invalid_argument() => _exception.ValidationResult.Members.ShouldContainOnly("rate");
     [Fact] void should_not_call_the_action() => RateController.WasCalled.ShouldBeFalse();
 
     public record Rate(decimal Value) : ConceptAs<decimal>(Value);

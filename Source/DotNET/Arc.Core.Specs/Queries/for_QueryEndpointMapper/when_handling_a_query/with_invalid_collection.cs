@@ -19,7 +19,7 @@ public class with_invalid_collection : given.a_query_request
     {
         _context.Query.Returns(new Dictionary<string, string> { ["ids"] = "1,invalid" });
         await _mapper.HandlerFor("GET")(_context);
-        AssertValidationResponse(ValidationResultReason.Rule, "ids");
+        AssertValidationResponse();
     }
 
     [Fact]
@@ -67,7 +67,7 @@ public class with_invalid_collection : given.a_query_request
 
         await _mapper.HandlerFor("GET")(_context);
 
-        AssertValidationResponse(ValidationResultReason.Rule, "ids");
+        AssertValidationResponse();
     }
 
     void SetBody(JsonElement ids) =>
@@ -77,14 +77,13 @@ public class with_invalid_collection : given.a_query_request
                 Arguments = new Dictionary<string, JsonElement> { ["ids"] = ids }
             }));
 
-    void AssertValidationResponse() => AssertValidationResponse(ValidationResultReason.MalformedRequest, "arguments");
-
-    void AssertValidationResponse(ValidationResultReason reason, string member)
+    void AssertValidationResponse()
     {
         _statusCode.ShouldEqual(400);
         _context.Received(1).WriteResponseAsJson(
             Arg.Is<QueryResult>(result => !result.IsValid && !result.HasExceptions &&
-                result.ValidationResults.Any(validation => validation.Reason == reason && validation.Members.Contains(member))),
+                result.ValidationResults.Any(validation => validation.Reason == ValidationResultReason.MalformedRequest &&
+                    validation.Members.Single() == "ids" && validation.Message.Contains("'ids' of type '"))),
             typeof(QueryResult),
             Arg.Any<CancellationToken>());
         _queryPipeline.DidNotReceive().Perform(

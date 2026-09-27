@@ -13,7 +13,7 @@ namespace Cratis.Arc.Authorization;
 /// <param name="runtime">The active host's authorization runtime.</param>
 /// <param name="tenantIds">The cached tenant for this execution flow.</param>
 /// <param name="tenantResolver">Resolves the tenant under the selected identity.</param>
-internal class AuthorizationPrincipalScope(
+public class AuthorizationPrincipalScope(
     CurrentPrincipalAccessor accessor,
     IAuthorizationPolicyRuntime runtime,
     TenantIdAccessor tenantIds,

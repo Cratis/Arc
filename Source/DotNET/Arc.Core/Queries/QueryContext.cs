@@ -27,6 +27,13 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     public static readonly QueryContext NotSet = new("[NotSet]", CorrelationId.NotSet, Paging.NotPaged, Sorting.None);
 
     /// <summary>
+    /// Gets the time Arc received this query operation. Model-bound dispatch captures it before binding and authorization preparation;
+    /// MVC action filters capture it after MVC binding. This is neither network arrival nor time before application middleware.
+    /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
+    /// </summary>
+    public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
     /// Gets or sets the total number of items in the query.
     /// </summary>
     public int TotalItems { get; set; }
@@ -35,6 +42,12 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// Gets the principal selected during authorization, for a long-lived subscription's identity snapshot.
     /// </summary>
     public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
+
+    /// <summary>
+    /// Gets or sets the serializable effective scope selected by a query filter for this subscription.
+    /// An absent scope is <see langword="null"/>.
+    /// </summary>
+    public object? SubscriptionScope { get; set; }
 
     /// <summary>
     /// Gets the operation-local authorization plan prepared by a host before creating a fresh execution scope.
@@ -46,9 +59,16 @@ public record QueryContext(FullyQualifiedQueryName Name, CorrelationId Correlati
     /// </summary>
     internal AuthorizedExecution? AuthorizedExecution { get; set; }
 
+    /// <summary>Gets or sets the immutable scope snapshot captured after filtering and before query execution.</summary>
+    internal ObservableQuerySubscriptionScopeSnapshot? SubscriptionScopeSnapshot { get; set; }
+
     /// <summary>Gets or sets the captured tenant used after the direct query pipeline returns.</summary>
     internal TenantId? EmissionTenant { get; set; }
 
     /// <summary>Gets or sets the still-live direct request's native scope factory.</summary>
     internal Func<ClaimsPrincipal, IServiceProvider, IDisposable?>? NativeEmissionRequest { get; set; }
+
+    /// <summary>Gets an independent copy of the admitted subscription scope for an emission.</summary>
+    /// <returns>A fresh scope copy, or null when none was supplied.</returns>
+    internal object? CreateSubscriptionScope() => SubscriptionScopeSnapshot?.CreateScope();
 }

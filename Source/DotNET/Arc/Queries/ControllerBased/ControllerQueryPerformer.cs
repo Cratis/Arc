@@ -239,14 +239,7 @@ public class ControllerQueryPerformer(
                 continue;
             }
 
-            try
-            {
-                args[index] = ResolveQueryArgument(parameter, queryArguments);
-            }
-            catch (InvalidCollectionQueryArgument)
-            {
-                throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
-            }
+            args[index] = ResolveQueryArgument(parameter, queryArguments, FullyQualifiedName);
 
             if (args[index] is null && !IsNullableOrOptional(parameter))
             {
@@ -272,7 +265,7 @@ public class ControllerQueryPerformer(
         return serviceProvider.GetRequiredService(parameter.ParameterType);
     }
 
-    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryArguments)
+    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryArguments, FullyQualifiedQueryName queryName)
     {
         var parameterWasProvided = queryArguments.TryGetValue(parameter.Name ?? string.Empty, out var value);
         if (!parameterWasProvided)
@@ -286,7 +279,7 @@ public class ControllerQueryPerformer(
             return parameter.HasDefaultValue ? parameter.DefaultValue : null;
         }
 
-        return value?.ConvertTo(parameter.ParameterType);
+        return value.ConvertQueryArgument(parameter.ParameterType, parameter.Name ?? "unknown", queryName);
     }
 
     static bool CanRepresentEmptyString(Type type) => type == typeof(string);

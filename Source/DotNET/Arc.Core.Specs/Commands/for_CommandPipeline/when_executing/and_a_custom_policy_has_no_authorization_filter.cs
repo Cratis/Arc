@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Security.Claims;
 using Cratis.Arc.Authorization;
 
 namespace Cratis.Arc.Commands.for_CommandPipeline.when_executing;
@@ -28,7 +29,16 @@ public class and_a_custom_policy_has_no_authorization_filter : given.a_command_p
         anonymous.GetEnumerator().Returns(_ => Array.Empty<IAnonymousEvaluator>().AsEnumerable().GetEnumerator());
         var attributes = Substitute.For<IInstancesOf<IAuthorizationAttributeEvaluator>>();
         attributes.GetEnumerator().Returns(_ => new IAuthorizationAttributeEvaluator[] { new CustomPolicyDeclaration() }.AsEnumerable().GetEnumerator());
-        _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(anonymous, attributes));
+        var declarations = new AuthorizationDeclarations(anonymous, attributes);
+        var accessor = Substitute.For<ICurrentPrincipalAccessor>();
+        accessor.Current.Returns(new ClaimsPrincipal(new ClaimsIdentity([], "test")));
+        _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(declarations);
+        _serviceProvider.GetService(typeof(ICurrentPrincipalAccessor)).Returns(accessor);
+        _serviceProvider.GetService(typeof(AuthorizationEvaluation)).Returns(new AuthorizationEvaluation(
+            declarations,
+            Substitute.For<IAuthorizationEvaluator>(),
+            accessor,
+            new ArcAuthorizationPolicyRuntime([new AuthorizationPolicyRegistration("Custom", typeof(AllowingPolicy))])));
     }
 
     async Task Because()
@@ -48,6 +58,11 @@ public class and_a_custom_policy_has_no_authorization_filter : given.a_command_p
     [Fact] void should_not_invoke_the_handler() => _handler.DidNotReceive().Handle(Arg.Any<CommandContext>());
 
     public record CustomPolicyCommand;
+
+    public class AllowingPolicy : IAuthorizationPolicy
+    {
+        public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken) => ValueTask.FromResult(true);
+    }
 
     class CustomPolicyDeclaration : IAuthorizationAttributeEvaluator
     {
