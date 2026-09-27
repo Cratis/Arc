@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandTransaction;
@@ -11,15 +12,18 @@ public class when_a_completed_unit_has_enrolled_decision_reads : Specification
 
     void Establish()
     {
-        _unitOfWork = Substitute.For<IUnitOfWork>();
-        _unitOfWork.IsCompleted.Returns(true);
-        _unitOfWork.HasEnrolledDecisionReads.Returns(true);
+        var (_, _, unit) = DecisionFixtures.Transaction();
+        unit.AddDecisionRead(DecisionFixtures.Protected<object>("source"));
+        unit.Rollback().GetAwaiter().GetResult();
+        _unitOfWork = unit;
     }
 
-    void Because() => CommandTransaction.Current = _unitOfWork;
-
-    [Fact] void should_refuse_the_immediate_append_even_after_completion() =>
+    [Fact]
+    void should_refuse_the_immediate_append_even_after_completion()
+    {
+        CommandTransaction.Current = _unitOfWork;
         Assert.Throws<InvalidOperationException>(CommandTransaction.RefuseImmediateAppend);
+    }
 
     void Cleanup()
     {

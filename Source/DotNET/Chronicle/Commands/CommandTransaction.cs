@@ -35,7 +35,7 @@ internal static class CommandTransaction
     /// <exception cref="InvalidOperationException">The retained command unit enrolled a decision read.</exception>
     internal static void RefuseImmediateAppend()
     {
-        if (_retained.Value?.HasEnrolledDecisionReads == true)
+        if (_retained.Value is UnitOfWork { HasEnrolledDecisionReads: true })
         {
             throw new InvalidOperationException("A command with enrolled decision reads cannot append returned events outside its transaction.");
         }

@@ -33,7 +33,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 [Singleton]
 public class TransactionalCommandScope : ICommandOperationExecutionScope
 {
-    static readonly AsyncLocal<OwnedTransaction?> _owned = new();
+    static readonly AsyncLocal<TransactionFrame?> _frames = new();
     static readonly ConditionalWeakTable<CommandContextValues, CommitObservation> _observations = new();
 
     /// <inheritdoc/>
@@ -68,11 +68,12 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     public void Begin(CommandContext context)
     {
         CommandDecisionReads.Begin(context.Type);
+        var frame = new TransactionFrame(ActiveFrame());
+        _frames.Value = frame;
         if (context.ServiceProvider is not { } serviceProvider || CommandTransaction.TryGetActive(out _))
         {
             // A nested command joins the outermost command's transaction, and without a service provider there is
             // nothing to own — either way this frame must not inherit ownership from an outer frame.
-            _owned.Value = null;
             return;
         }
 
@@ -101,7 +102,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         });
 
         CommandTransaction.Current = unitOfWork;
-        _owned.Value = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
+        frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
     }
 
     /// <inheritdoc/>
@@ -109,12 +110,20 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     {
         // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
         CommandDecisionReads.End();
-        if (_owned.Value is not { } owned)
+        var frame = ActiveFrame();
+        var owned = frame?.Owned;
+        if (frame is not null)
+        {
+            // Complete is async; a change to AsyncLocal.Value inside it does not propagate to its caller.
+            // Mark the shared frame instead so a resumed outer command still owns its transaction.
+            frame.Completed = true;
+            _frames.Value = frame.Previous;
+        }
+        if (owned is null)
         {
             return;
         }
 
-        _owned.Value = null;
         CommandTransaction.Current = null;
         owned.Subscription?.Dispose();
 
@@ -152,7 +161,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
                 }
                 else
                 {
-                    if (unitOfWork.HasEnrolledDecisionReads)
+                    if (unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true })
                     {
                         throw new InvalidOperationException("Protected command decisions require Chronicle's owner-capable UnitOfWork.");
                     }
@@ -169,7 +178,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
             if (!commitResult.IsSuccess)
             {
-                var conflicts = unitOfWork.GetDecisionConflicts().ToArray();
+                var conflicts = unitOfWork is UnitOfWork protectedUnit ? protectedUnit.GetDecisionConflicts().ToArray() : [];
                 var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
                 var mapped = new AggregateRootCommitResult
                 {
@@ -193,6 +202,13 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         }
     }
 
+    static TransactionFrame? ActiveFrame()
+    {
+        var frame = _frames.Value;
+        while (frame?.Completed == true) frame = frame.Previous;
+        return frame;
+    }
+
     sealed class CommitObservation(IUnitOfWork unitOfWork)
     {
         public IUnitOfWork UnitOfWork { get; } = unitOfWork;
@@ -200,6 +216,13 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public bool CompletionObserved { get; set; }
         public bool ImmediateCommitted { get; set; }
         public bool ImmediateUncertain { get; set; }
+    }
+
+    sealed class TransactionFrame(TransactionFrame? previous)
+    {
+        public TransactionFrame? Previous { get; } = previous;
+        public OwnedTransaction? Owned { get; set; }
+        public bool Completed { get; set; }
     }
 
     sealed record OwnedTransaction(IUnitOfWork UnitOfWork, DecisionReadCommitOwner? Owner, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);

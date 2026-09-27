@@ -37,7 +37,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     public Task<DecisionRead<T>> GetDetached<T>(ReadModelKey key, CancellationToken cancellationToken = default)
         where T : class
     {
-        if (_invocation.Value is not null && !CommandValidationExecution.IsActive)
+        if (CurrentInvocation() is not null && !CommandValidationExecution.IsActive)
         {
             throw new InvalidOperationException("Detached decision reads cannot be used inside an executing command.");
         }
@@ -52,7 +52,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         var validation = CommandValidationExecution.Current;
         var invocation = validation is { } validating
             ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, null))
-            : _invocation.Value;
+            : CurrentInvocation();
         if (invocation is null)
         {
             // Outside a command, preserve the Chronicle client contract (including its ambient UOW requirement).
@@ -96,20 +96,35 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
 
     /// <summary>Starts an invocation with its own cache and provenance.</summary>
     /// <param name="commandType">The command type.</param>
-    internal static void Begin(Type commandType) => _invocation.Value = new Invocation(commandType, _invocation.Value);
+    internal static void Begin(Type commandType) => _invocation.Value = new Invocation(commandType, CurrentInvocation());
 
     /// <summary>Restores the enclosing invocation, if any.</summary>
-    internal static void End() => _invocation.Value = _invocation.Value?.Previous;
+    internal static void End()
+    {
+        var invocation = CurrentInvocation();
+        if (invocation is not null)
+        {
+            invocation.Completed = true;
+            _invocation.Value = invocation.Previous;
+        }
+    }
 
     /// <summary>Refuses decision tokens not issued during the current invocation.</summary>
     /// <param name="value">The value returned by Provide.</param>
     /// <exception cref="InvalidOperationException">The supplied token was issued by another invocation.</exception>
     internal static void VerifyProvided(object value)
     {
-        if (value is IDecisionRead read && (_invocation.Value is not { } invocation || !invocation.Issued.ContainsKey(read)))
+        if (value is IDecisionRead read && (CurrentInvocation() is not { } invocation || !invocation.Issued.ContainsKey(read)))
         {
             throw new InvalidOperationException("A DecisionRead returned by Provide must be issued for this command invocation.");
         }
+    }
+
+    static Invocation? CurrentInvocation()
+    {
+        var invocation = _invocation.Value;
+        while (invocation?.Completed == true) invocation = invocation.Previous;
+        return invocation;
     }
 
     async Task<T?> ReadLegacy<T>(ReadModelKey key)
@@ -123,6 +138,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     {
         public Type CommandType { get; } = commandType;
         public Invocation? Previous { get; } = previous;
+        public bool Completed { get; set; }
         public ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace), Lazy<Task<object>>> Reads { get; } = new();
         public ConcurrentDictionary<IDecisionRead, byte> Issued { get; } = new(ReferenceEqualityComparer.Instance);
     }
