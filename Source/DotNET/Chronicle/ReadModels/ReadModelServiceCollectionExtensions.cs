@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
@@ -62,6 +63,41 @@ public static class ReadModelServiceCollectionExtensions
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
 
+        foreach (var readModelType in readModelTypes)
+        {
+            var closedType = typeof(DecisionRead<>).MakeGenericType(readModelType);
+
+            // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
+            services.TryAddTransient(closedType, sp =>
+            {
+                try
+                {
+                    return typeof(ReadModelServiceCollectionExtensions)
+                        .GetMethod(nameof(ResolveDecisionRead), BindingFlags.NonPublic | BindingFlags.Static)!
+                        .MakeGenericMethod(readModelType)
+                        .Invoke(null, [sp])!;
+                }
+                catch (TargetInvocationException exception) when (exception.InnerException is not null)
+                {
+                    ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
+                    throw;
+                }
+            });
+        }
+
+        return services;
+    }
+
+    /// <summary>Adds the command invocation guard around Chronicle's decision reader.</summary>
+    /// <param name="services">Services to configure for command-side decision reads.</param>
+    /// <returns>These same services for further registrations.</returns>
+    public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
+    {
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
+        services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
+            sp.GetRequiredService<IEventStore>().GetDecisionReads(),
+            sp.GetRequiredService<IEventStore>(),
+            sp.GetRequiredService<IReadModels>()));
         return services;
     }
 
@@ -103,6 +139,15 @@ public static class ReadModelServiceCollectionExtensions
         // release on the command's subject skipped it for most commands regardless of what the read model
         // actually carried.
         return readModel is null ? readModel : ReleaseReadModel(readModels, readModelType, readModel);
+    }
+
+    static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
+        where T : class
+    {
+        var context = services.GetRequiredService<ICommandContextAccessor>().Current;
+        var key = context.GetEventSourceId();
+        if (key == EventSourceId.Unspecified) throw new UnableToResolveReadModelFromCommandContext(typeof(T));
+        return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken).GetAwaiter().GetResult();
     }
 
     /// <summary>

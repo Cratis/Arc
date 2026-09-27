@@ -102,6 +102,7 @@ internal static class CommandTransactionAppender
     {
         if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
+            CommandTransaction.RefuseImmediateAppend();
             return false;
         }
 

@@ -35,6 +35,7 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
         }
         else
         {
+            CommandTransaction.RefuseImmediateAppend();
             var result = await eventLog.AppendMany(
                 events,
                 concurrencyScopes: response.ConcurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value));

@@ -16,6 +16,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 internal static class CommandTransaction
 {
     static readonly AsyncLocal<IUnitOfWork?> _current = new();
+    static readonly AsyncLocal<IUnitOfWork?> _retained = new();
 
     /// <summary>
     /// Gets or sets the unit of work for the command currently executing in this async flow.
@@ -23,7 +24,21 @@ internal static class CommandTransaction
     internal static IUnitOfWork? Current
     {
         get => _current.Value;
-        set => _current.Value = value;
+        set
+        {
+            _current.Value = value;
+            if (value is not null) _retained.Value = value;
+        }
+    }
+
+    /// <summary>Refuses immediate returned-event fallbacks after any protected enrollment, even after completion.</summary>
+    /// <exception cref="InvalidOperationException">The retained command unit enrolled a decision read.</exception>
+    internal static void RefuseImmediateAppend()
+    {
+        if (_retained.Value?.HasEnrolledDecisionReads == true)
+        {
+            throw new InvalidOperationException("A command with enrolled decision reads cannot append returned events outside its transaction.");
+        }
     }
 
     /// <summary>

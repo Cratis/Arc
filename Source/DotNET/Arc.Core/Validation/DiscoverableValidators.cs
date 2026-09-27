@@ -2,10 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Reflection;
 using Cratis.Types;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -122,6 +124,10 @@ public class DiscoverableValidators : IDiscoverableValidators
         var registered = serviceProvider.GetService(validatorType);
         if (registered is not null)
         {
+            foreach (var safety in serviceProvider.GetServices<ICommandDependencySafety>())
+            {
+                safety.ValidateRegisteredValidator(validatorType);
+            }
             return registered;
         }
 

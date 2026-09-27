@@ -180,6 +180,14 @@ This fragment assumes an asynchronous aggregate mutation and `Cratis.Arc.Chronic
 
 Read models never emit events. Materialized models can lag; passive models are still snapshots rather than locks. For concurrent invariants, verify the aggregate's revision enforcement or use a Chronicle [constraint](/chronicle/constraints/) at append time.
 
+## Decision reads for event-dependent commands
+
+A plain `T` read-model parameter remains advisory: it does not protect a command from a concurrent append. For a direct event-source-keyed Chronicle projection, inject `DecisionRead<T>` into an unregistered command validator, `Provide()`, or `Handle()` and use `.Instance` / `.Exists`. Inject `IDecisionReads` and call `Get<T>(otherKey)` to guard a different event source. Every protected read must be enrolled in the command's owner-capable Chronicle unit of work; a successful command with no returned events still validates its reads at completion. A conflict returns `concurrencyViolation` without exposing sequence numbers, and the command is not retried.
+
+`Validate` is advisory: it reads a detached snapshot and does not validate or append. `[Unprotected]` on a **command class** makes its `DecisionRead<T>` dependencies use the legacy, unguarded read path. On a plain model parameter or `Handle`/`Provide` method the attribute is only an acknowledgement for tooling; parameter-level runtime opt-out is unsupported. A `DecisionRead<T>` returned from `Provide()` must have been issued in that invocation. Explicitly registered validators whose constructors take `DecisionRead<T>` are refused because their lifetime cannot be established; use a convention-discovered, unregistered validator instead. Custom unit-of-work implementations continue to work for legacy commands but cannot own protected decisions.
+
+Protection requires a projection admitted by Chronicle for direct event-source-keyed reads; joins, reducers, passive/incomplete definitions, converting keys and other refused shapes cannot be made safe by injection. Chronicle's decision-read limitations also apply: revisions, redactions, migrations, definition changes and foreign writers are not guarded. Immediate `IEventLog.Append*` calls made inside a handler are **not** protected; return events for transactional enrollment instead. A command that manually commits a protected aggregate before its owner finishes is refused.
+
 ## Read models from other providers
 
 Injection is not Chronicle-only. A read model backed by Entity Framework Core or MongoDB is injected into a command exactly the same way, and everything on this page — the three positions, and what nullability means — applies unchanged.

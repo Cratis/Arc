@@ -3,7 +3,9 @@
 
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
 using Cratis.DependencyInjection;
@@ -65,6 +67,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     /// <inheritdoc/>
     public void Begin(CommandContext context)
     {
+        CommandDecisionReads.Begin(context.Type);
         if (context.ServiceProvider is not { } serviceProvider || CommandTransaction.TryGetActive(out _))
         {
             // A nested command joins the outermost command's transaction, and without a service provider there is
@@ -75,6 +78,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
 
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
         var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
+        var owner = (unitOfWork as UnitOfWork)?.ClaimDecisionReadCommitOwnership();
         var failedAppends = new List<AppendedEventWithResult>();
         var observation = new CommitObservation(unitOfWork);
         _observations.Remove(context.Values);
@@ -97,12 +101,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         });
 
         CommandTransaction.Current = unitOfWork;
-        _owned.Value = new OwnedTransaction(unitOfWork, subscription, failedAppends, observation);
+        _owned.Value = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
     }
 
     /// <inheritdoc/>
     public async Task Complete(CommandContext context, CommandResult result)
     {
+        // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
+        CommandDecisionReads.End();
         if (_owned.Value is not { } owned)
         {
             return;
@@ -140,7 +146,18 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             {
                 var hasEvents = unitOfWork.GetEvents().Any();
                 observation.Disposition = CommandCommitDisposition.Unknown;
-                await unitOfWork.Commit();
+                if (owned.Owner is not null)
+                {
+                    await ((UnitOfWork)unitOfWork).CommitAsOwner(owned.Owner);
+                }
+                else
+                {
+                    if (unitOfWork.HasEnrolledDecisionReads)
+                    {
+                        throw new InvalidOperationException("Protected command decisions require Chronicle's owner-capable UnitOfWork.");
+                    }
+                    await unitOfWork.Commit();
+                }
                 observation.CompletionObserved = true;
                 observation.Disposition = unitOfWork.GetAppendErrors().Any()
                     ? CommandCommitDisposition.Unknown
@@ -152,7 +169,19 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
             if (!commitResult.IsSuccess)
             {
-                result.MergeWith(commitResult.ToCommandResult(result.CorrelationId));
+                var conflicts = unitOfWork.GetDecisionConflicts().ToArray();
+                var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
+                var mapped = new AggregateRootCommitResult
+                {
+                    ConstraintViolations = commitResult.ConstraintViolations,
+                    ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
+                    Errors = commitResult.Errors,
+                    ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ValidationResult.Error(
+                        $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
+                        state: new { readModel = _.ReadModelType.Name, key = (string)_.Key },
+                        reason: ValidationResultReason.ConcurrencyViolation))).ToArray()
+                };
+                result.MergeWith(mapped.ToCommandResult(result.CorrelationId));
             }
         }
         else if (!unitOfWork.IsCompleted)
@@ -173,5 +202,5 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public bool ImmediateUncertain { get; set; }
     }
 
-    sealed record OwnedTransaction(IUnitOfWork UnitOfWork, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
+    sealed record OwnedTransaction(IUnitOfWork UnitOfWork, DecisionReadCommitOwner? Owner, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
 }

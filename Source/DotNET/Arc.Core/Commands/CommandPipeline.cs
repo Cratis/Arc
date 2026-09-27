@@ -266,6 +266,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
+        using var execution = CommandValidationExecution.Suspend();
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
@@ -525,6 +526,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
+        using var validation = CommandValidationExecution.Begin(command.GetType());
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();

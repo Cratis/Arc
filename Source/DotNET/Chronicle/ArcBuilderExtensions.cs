@@ -53,6 +53,9 @@ public static class ArcBuilderExtensions
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
 
+        // Register after Chronicle: its own IDecisionReads registration otherwise replaces the command-aware one.
+        builder.Services.AddCommandAwareDecisionReads();
+
         return builder;
     }
 }
