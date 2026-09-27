@@ -163,6 +163,8 @@ public class CommandPipeline(
         var declarations = requestServices.GetService<AuthorizationDeclarations>();
         if (declarations is null)
         {
+            requestServices.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(
+                new InvalidAuthorizationConfiguration("Authorization declarations are unavailable."));
             return CommandResult.Unauthorized(GetCorrelationId());
         }
 
@@ -201,6 +203,8 @@ public class CommandPipeline(
         var declarations = requestServices.GetService<AuthorizationDeclarations>();
         if (declarations is null)
         {
+            requestServices.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(
+                new InvalidAuthorizationConfiguration("Authorization declarations are unavailable."));
             return CommandResult.Unauthorized(GetCorrelationId());
         }
 

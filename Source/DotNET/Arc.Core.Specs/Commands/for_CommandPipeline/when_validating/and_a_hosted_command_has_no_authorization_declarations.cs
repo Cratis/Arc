@@ -4,7 +4,7 @@
 using Cratis.Arc.Authorization;
 using Microsoft.Extensions.Logging;
 
-namespace Cratis.Arc.Commands.for_CommandPipeline.when_executing;
+namespace Cratis.Arc.Commands.for_CommandPipeline.when_validating;
 
 public class and_a_hosted_command_has_no_authorization_declarations : given.a_command_pipeline
 {
@@ -21,7 +21,7 @@ public class and_a_hosted_command_has_no_authorization_declarations : given.a_co
     }
 
     async Task Because() => _error = await Catch.Exception(async () =>
-        _result = await _commandPipeline.ExecuteHosted(new ProtectedCommand(), _serviceProvider, null, CancellationToken.None));
+        _result = await _commandPipeline.ValidateHosted(new ProtectedCommand(), _serviceProvider, null, CancellationToken.None));
 
     [Fact] void should_not_throw_an_unhandled_configuration_error() => _error.ShouldBeNull();
     [Fact] void should_return_a_result() => _result.ShouldNotBeNull();
