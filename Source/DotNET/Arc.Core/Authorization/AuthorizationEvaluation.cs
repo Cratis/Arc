@@ -46,12 +46,7 @@ public class AuthorizationEvaluation(
     internal async Task<PreparedAuthorization> Prepare(MemberInfo target, IServiceProvider services, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var declaration = target switch
-        {
-            Type type => declarations.For(type),
-            MethodInfo method => declarations.For(method),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
+        var declaration = DeclarationFor(target);
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
@@ -89,12 +84,7 @@ public class AuthorizationEvaluation(
             throw new InvalidAuthorizationConfiguration("The prepared authorization target does not match the executing command.");
         }
 
-        var currentDeclaration = target switch
-        {
-            Type type => declarations.For(type),
-            MethodInfo method => declarations.For(method),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
+        var currentDeclaration = DeclarationFor(target);
         var declaration = prepared.Declaration;
         if (!AuthorizationEvaluator.SameDeclaration(declaration, currentDeclaration))
         {
@@ -159,7 +149,7 @@ public class AuthorizationEvaluation(
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IdentityUnchanged(policyIdentity, executionIdentity, selectedPrincipal, guest))
+            if (!IdentityUnchanged(policyIdentity, executionIdentity, selectedPrincipal, guest) || !DeclarationUnchanged(target, declaration))
             {
                 return false;
             }
@@ -185,7 +175,8 @@ public class AuthorizationEvaluation(
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (declaration.RequiresAsynchronousEvaluation && !IdentityUnchanged(policyIdentity!, executionIdentity!, selectedPrincipal!, guest))
+        if (declaration.RequiresAsynchronousEvaluation &&
+            (!IdentityUnchanged(policyIdentity!, executionIdentity!, selectedPrincipal!, guest) || !DeclarationUnchanged(target, declaration)))
         {
             return false;
         }
@@ -209,6 +200,22 @@ public class AuthorizationEvaluation(
 
         return true;
     }
+
+    AuthorizationDeclaration DeclarationFor(MemberInfo target) => target switch
+    {
+        Type type => declarations.For(type),
+        MethodInfo method => declarations.For(method),
+        _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+    };
+
+    /// <summary>
+    /// Checks that policy and legacy callbacks, which run application code, left the evaluated requirements in effect.
+    /// </summary>
+    /// <param name="target">The protected member.</param>
+    /// <param name="declaration">The requirements the verdict evaluated.</param>
+    /// <returns>Whether the verdict still certifies the current requirements.</returns>
+    bool DeclarationUnchanged(MemberInfo target, AuthorizationDeclaration declaration) =>
+        AuthorizationEvaluator.SameDeclaration(declaration, DeclarationFor(target));
 
     bool IdentityUnchanged(PrincipalSnapshot policyIdentity, PrincipalSnapshot executionIdentity, ClaimsPrincipal selectedPrincipal, bool guest) =>
         AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) &&

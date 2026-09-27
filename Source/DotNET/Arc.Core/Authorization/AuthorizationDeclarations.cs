@@ -67,7 +67,19 @@ public class AuthorizationDeclarations(
     }
 
     static AuthorizationDeclaration Baseline(IEnumerable<AuthorizationRequirement> requirements) =>
-        new(false, false, requirements.ToArray());
+        new(false, false, Copy(requirements));
+
+    /// <summary>
+    /// Copies requirements so a declaration never shares role or scheme lists with an evaluator that could mutate them later.
+    /// </summary>
+    /// <param name="requirements">The evaluator's requirements.</param>
+    /// <returns>Independent copies.</returns>
+    static AuthorizationRequirement[] Copy(IEnumerable<AuthorizationRequirement> requirements) =>
+        requirements.Select(requirement => requirement with
+        {
+            AnyOfRoles = requirement.AnyOfRoles.ToArray(),
+            AuthenticationSchemes = requirement.AuthenticationSchemes.ToArray()
+        }).ToArray();
 
     AuthorizationDeclaration Resolve(
         MemberInfo member,
@@ -83,7 +95,7 @@ public class AuthorizationDeclarations(
             throw new AmbiguousAuthorizationLevel(member, anonymous.GetType(), restricted.GetType());
         }
 
-        var requirements = attributeEvaluators.Select(evaluator => (Evaluator: evaluator, Requirements: requirementsOf(evaluator).ToArray())).ToArray();
+        var requirements = attributeEvaluators.Select(evaluator => (Evaluator: evaluator, Requirements: Copy(requirementsOf(evaluator)))).ToArray();
         if (anonymous is not null && requirements.FirstOrDefault(result => result.Requirements.Length > 0).Evaluator is { } conflicting)
         {
             throw new AmbiguousAuthorizationLevel(member, anonymous.GetType(), conflicting.GetType());
