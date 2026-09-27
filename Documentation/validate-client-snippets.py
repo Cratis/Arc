@@ -394,18 +394,9 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="declaration",
         fixtures=("ledger",),
     ),
-    "scenarios/use-current-state-in-a-command/seed-events": SnippetContext(
+    "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
         # The Chronicle testing surface lives in Cratis.Arc.Chronicle.Testing; the generated
         # enclosing record stands in for the spec class the fragment is a member of.
-        kind="member",
-        fixtures=("ledger",),
-        usings=(USING_ARC_CHRONICLE_TESTING, USING_ARC_TESTING),
-        prelude="""
-            readonly CommandScenario<Withdraw> _scenario = new();
-            readonly AccountId _accountId = new(Guid.NewGuid());
-        """,
-    ),
-    "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
         kind="member",
         fixtures=("ledger",),
         usings=(USING_ARC_CHRONICLE_TESTING, USING_ARC_TESTING),
