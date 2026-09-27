@@ -21,9 +21,18 @@ public class AuthorizationFilter(IAuthorizationEvaluator authorizationHelper) : 
             return CommandResult.Unauthorized(context.CorrelationId);
         }
 
-        var allowed = context.ServiceProvider is { } services
-            ? await services.GetRequiredService<AuthorizationEvaluation>().IsAuthorized(context.Type, context, services, null, authorizationHelper, context.CancellationToken)
-            : authorizationHelper.IsAuthorized(context.Type);
+        bool allowed;
+        try
+        {
+            allowed = context.ServiceProvider is { } services
+                ? await services.GetRequiredService<AuthorizationEvaluation>().IsAuthorized(context.Type, context, services, null, authorizationHelper, context.CancellationToken)
+                : authorizationHelper.IsAuthorized(context.Type);
+        }
+        catch (AsynchronousAuthorizationRequired) when (context.ServiceProvider is null)
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            return CommandResult.Unauthorized(context.CorrelationId);
+        }
         context.CancellationToken.ThrowIfCancellationRequested();
         return allowed ? CommandResult.Success(context.CorrelationId) : CommandResult.Unauthorized(context.CorrelationId);
     }

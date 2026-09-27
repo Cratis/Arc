@@ -13,6 +13,7 @@ public class and_the_first_guard_mutates_its_context : given.all_dependencies
     void Establish()
     {
         _context.Arguments["nested"] = _nested;
+        _context = _context with { SubscriptionScope = new NestedArgument(["old-organization"], [["member"]], new ArgumentId("organization")) };
         DiscoverGuards(typeof(FirstGuard), typeof(SecondGuard));
         _first.OnGuard = context =>
         {
@@ -22,6 +23,7 @@ public class and_the_first_guard_mutates_its_context : given.all_dependencies
             nested.Values[0] = "mutated";
             nested.Values.Add("injected");
             nested.Tags[0][0] = "mutated-tag";
+            ((NestedArgument)context.SubscriptionScope!).Values[0] = "new-organization";
         };
     }
 
@@ -31,6 +33,12 @@ public class and_the_first_guard_mutates_its_context : given.all_dependencies
         await _guards.Guard(_context);
     }
 
+    [Fact] void should_give_the_second_guard_the_old_scope_despite_mutation() =>
+        ((NestedArgument)_second.Calls[0].SubscriptionScope!).Values.ShouldEqual(["old-organization"]);
+    [Fact] void should_give_the_next_emission_the_old_scope() =>
+        ((NestedArgument)_second.Calls[1].SubscriptionScope!).Values.ShouldEqual(["old-organization"]);
+    [Fact] void should_leave_the_original_scope_unchanged() =>
+        ((NestedArgument)_context.SubscriptionScope!).Values.ShouldEqual(["old-organization"]);
     [Fact] void should_give_the_second_guard_pristine_claims_on_the_first_emission() =>
         _second.Calls[0].Principal!.HasClaim("mutated", "true").ShouldBeFalse();
     [Fact] void should_give_the_second_guard_pristine_arguments_on_the_first_emission() =>

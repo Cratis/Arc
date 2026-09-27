@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Traces;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,9 @@ public class an_operation_pipeline : for_CommandPipeline.given.a_command_pipelin
         _log = new();
         _services = new();
         _services.AddSingleton(_log);
+        _services.AddSingleton(new AuthorizationDeclarations(
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
         var anyCommand = Arg.Any<object>();
         var anyHandler = Arg.Any<ICommandHandler>();
         _commandHandlerProviders.TryGetHandlerFor(anyCommand, out anyHandler).Returns(call =>

@@ -13,6 +13,7 @@ using Cratis.Traces;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -38,8 +39,11 @@ public class QueryPipeline(
     IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
 {
     /// <inheritdoc/>
-    public Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default) =>
-        PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, cancellationToken);
+    public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
+    {
+        using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
+        return await PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, cancellationToken);
+    }
 
     /// <summary>
     /// Prepares HTTP or hub policy metadata once and creates a clean scope only if a scheme changes identity.
@@ -55,6 +59,7 @@ public class QueryPipeline(
     // Also called by Cratis.Arc.Testing through InternalsVisibleTo; keep its hosted authorization and scope-ownership contract compatible.
     internal async Task<QueryResult> PerformHosted(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
     {
+        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
         try
         {
             return await PerformHostedCore(queryName, arguments, paging, sorting, requestServices, cancellationToken);
@@ -200,7 +205,8 @@ public class QueryPipeline(
             var coercedArguments = CoerceArguments(arguments, queryPerformer);
             var context = new QueryContext(queryName, correlationId, paging, sorting, coercedArguments, ServiceProvider: serviceProvider, CancellationToken: cancellationToken)
             {
-                PreparedAuthorization = prepared
+                PreparedAuthorization = prepared,
+                ReceivedAt = OperationContextScope.Current ?? default
             };
 
             // Install the prepared identity before any filter is discovered or constructed. Filter constructors can
@@ -253,6 +259,15 @@ public class QueryPipeline(
             if (!result.IsSuccess)
             {
                 return result;
+            }
+
+            // Capture the filter's effective scope before the performer can mutate its original value.
+            // Every emission reconstructs its own copy from this baseline.
+            if (context.SubscriptionScope is { } subscriptionScope)
+            {
+                var serializerOptions = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.JsonSerializerOptions
+                    ?? new ArcOptions().JsonSerializerOptions;
+                context.SubscriptionScopeSnapshot = new ObservableQuerySubscriptionScopeSnapshot(subscriptionScope, serializerOptions);
             }
 
             result.AuthorizedPrincipal = context.AuthorizedPrincipal;
