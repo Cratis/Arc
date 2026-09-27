@@ -32,7 +32,7 @@ public class with_changed_requirements_and_no_authorization_filter : given.a_que
         // This is a replacement filter, not Arc's authorization filter. Its lookup sees no policy.
         query_filters.OnPerform(Arg.Any<QueryContext>()).Returns(_ =>
         {
-            declarations.For(typeof(CustomPolicyQuery).GetMethod(nameof(CustomPolicyQuery.Load))!).RequiresAsynchronousEvaluation.ShouldBeFalse();
+            declarations.For(typeof(CustomPolicyQuery).GetMethod(nameof(CustomPolicyQuery.Load))).RequiresAsynchronousEvaluation.ShouldBeFalse();
             return Task.FromResult(QueryResult.Success(_correlationId));
         });
     }
