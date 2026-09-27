@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection';
-import { QueryResult } from '../../QueryResult';
+import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection.js';
+import { QueryResult } from '../../QueryResult.js';
 
 /**
  * Unlike a WebSocket, an EventSource treats the server ending its response as the signal to retry - roughly every

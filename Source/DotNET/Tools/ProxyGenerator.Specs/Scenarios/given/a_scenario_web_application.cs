@@ -42,6 +42,11 @@ public class a_scenario_web_application : Specification, IDisposable
     /// </summary>
     protected string? ServerUrl { get; set; }
 
+    /// <summary>
+    /// Whether this scenario needs the JavaScript runtime in addition to the HTTP host.
+    /// </summary>
+    protected virtual bool RequiresJavaScriptRuntime => true;
+
     void Establish()
     {
         // Reset static test data for test isolation — must happen before each test class runs
@@ -59,8 +64,11 @@ public class a_scenario_web_application : Specification, IDisposable
         ServerUrl = SharedScenarioWebHostFixture.Current.ServerUrl;
         HttpClient = new HttpClient { BaseAddress = new Uri(ServerUrl) };
 
-        Runtime = new JavaScriptRuntime();
-        Bridge = new JavaScriptHttpBridge(Runtime, HttpClient, ServerUrl);
+        if (RequiresJavaScriptRuntime)
+        {
+            Runtime = new JavaScriptRuntime();
+            Bridge = new JavaScriptHttpBridge(Runtime, HttpClient, ServerUrl);
+        }
     }
 
     /// <summary>

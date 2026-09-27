@@ -60,4 +60,7 @@ internal static partial class ObservableQueryDemultiplexerLogMessages
 
     [LoggerMessage(LogLevel.Information, "An emission guard denied query id '{QueryId}' mid-stream — terminating the subscription")]
     internal static partial void EmissionDenied(this ILogger<ObservableQueryDemultiplexer> logger, string queryId);
+
+    [LoggerMessage(LogLevel.Warning, "Observable query '{QueryName}' (subscription '{QueryId}') sends full collection snapshots without change sets because its items have no Id property; delta transfer requires a stable identity (Id) on each item")]
+    internal static partial void CollectionWithoutIdentity(this ILogger<ObservableQueryDemultiplexer> logger, string queryId, string queryName);
 }

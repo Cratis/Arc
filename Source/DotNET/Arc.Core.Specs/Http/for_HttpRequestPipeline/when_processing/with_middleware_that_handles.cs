@@ -15,7 +15,7 @@ public class with_middleware_that_handles : given.an_http_request_pipeline
         _middleware = new TestMiddleware(true);
         _pipeline = new HttpRequestPipeline([_middleware], _logger);
 
-        _listener.Start();
+        StartListener();
         _client = new HttpClient();
     }
 

@@ -83,9 +83,10 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
         foreach (var item in items)
         {
-            var (eventSourceId, @event) = item is EventForEventSourceId wrapped
-                ? (wrapped.EventSourceId, wrapped.Event)
-                : (commandContext.GetEventSourceId(), item);
+            // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
+            var (eventSourceId, @event, tags, occurred) = item is EventForEventSourceId wrapped
+                ? (wrapped.EventSourceId, wrapped.Event, wrapped.SuppliedTags(), wrapped.Occurred)
+                : (commandContext.GetEventSourceId(), item, null, null);
 
             if (!concurrencyScopesByEventSourceId.TryGetValue(eventSourceId, out var concurrencyScope))
             {
@@ -93,7 +94,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 concurrencyScopesByEventSourceId[eventSourceId] = concurrencyScope;
             }
 
-            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope))
+            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred))
             {
                 continue;
             }
@@ -105,7 +106,9 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 commandContext.GetEventStreamId(),
                 commandContext.GetEventSourceType(),
                 correlationId: default,
+                tags: tags,
                 concurrencyScope: concurrencyScope,
+                occurred: occurred,
                 subject: commandContext.GetSubject());
 
             if (!result.IsSuccess)

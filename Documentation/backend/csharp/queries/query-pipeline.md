@@ -12,15 +12,17 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 ```mermaid
 flowchart LR
     Request[Read request arguments] --> Paging[Validate requested paging]
-    Paging --> Resolve[Find performer and resolve dependencies]
-    Resolve --> Context[Coerce arguments and establish context]
-    Context --> Filters[Authorization filters then ordinary filters]
+    Paging --> Find[Find performer]
+    Find --> Context[Coerce arguments and establish context]
+    Context --> Authorize[Authorization filters]
+    Authorize --> Resolve[Resolve query dependencies]
+    Resolve --> Filters[Ordinary filters]
     Filters --> Performer[Invoke and await query method]
     Performer --> Render[Render data and attach metadata]
     Render --> Output[Intercept ordinary data or hand stream to transport]
 ```
 
-A non-success filter verdict stops execution before the query method. This does not imply no collaborators ran: paging validation, performer lookup, dependency resolution, and argument conversion occur before the filter chain. Custom filters/dependencies are application code, not guaranteed side-effect-free.
+A non-success filter verdict stops execution before the query method. With Arc's built-in (staged) filters, an authorization denial also stops before the query method's dependencies are resolved from the container. It does not imply no collaborators ran: paging validation, performer lookup, and argument conversion occur before authorization, and a custom filter implementation that is not staged resolves dependencies before its filters run. Custom filters/dependencies are application code, not guaranteed side-effect-free.
 
 A null method result can remain a successful model-bound result. For a stream, the pipeline passes the wrapper onward; transport handling decides how to consume and deliver values.
 
@@ -32,7 +34,9 @@ MVC GET actions use `QueryActionFilter`, not this model-bound filter chain. The 
 
 ## Query context and renderers
 
-`IQueryContextManager.Current` exposes query identity, correlation, arguments, dependencies, paging, sorting, and total count. It describes the current operation; do not treat it as persistent per-user state.
+`IQueryContextManager.Current` exposes query identity, correlation, arguments, dependencies, paging, sorting, total count, and `ReceivedAt`. `ReceivedAt` is a `DateTimeOffset` captured when Arc receives the operation: before argument binding and authorization preparation at a model-bound HTTP endpoint, at public pipeline entry for direct calls, and separately for each hub subscribe operation. It is not network arrival time or time before application middleware; MVC action filters capture it after MVC binding. It remains the same through filters, performers, and Arc-owned replacement service scopes. During a decorated transport dispatch, sibling public pipeline calls (including a query followed by a command) share the transport receipt. A pipeline call started from inside another pipeline entry captures a new receipt and restores the outer value afterward. Work that starts a pipeline after the dispatch finishes captures a fresh receipt, even if its execution context was created during dispatch. `ReceivedAt` describes the current operation; do not treat it as persistent per-user state.
+
+A validator resolved from the query's service provider can inject `Cratis.Arc.IOperationContextAccessor`; its nullable `ReceivedAt` is the same value during the operation and null outside it. MVC-bound validators running during model binding, before the query action filter starts the receipt, also see null. Nested operations get their own value and restore the outer value. Register a custom `TimeProvider` before or after `AddCratisArcCore()` to control receipt time in tests; Arc uses `TryAddSingleton<TimeProvider>` for `TimeProvider.System`, so an app registration takes precedence regardless of order.
 
 `QueryableQueryRenderer` handles runtime `IQueryable` values: it counts the filtered query, applies sorting, then `Skip`/`Take`. The provider controls database execution. Lists and arrays do not gain automatic slicing. See [model-bound paging](model-bound/paging.md) or [controller paging](controller-based/paging.md).
 
@@ -44,13 +48,31 @@ Model-bound filters implement `IQueryFilter.OnPerform(QueryContext)` and return 
 
 | Built-in filter | Current behavior |
 | --- | --- |
-| `AuthorizationFilter` | Uses the performer's authorization verdict; model-bound default checks Arc authentication/roles, not named policies |
+| `AuthorizationFilter` | Evaluates the query's authorization declaration: authentication, roles, and registered named policies, plus named schemes on the ASP.NET Core host |
 | `FluentValidationFilter` | Validates a matching argument model or individual supplied argument graphs |
 | `DataAnnotationValidationFilter` | Reads annotations on parameter types, not method-parameter attributes or nested DTO properties |
 
 Use `QueryResult.Unauthorized(context.CorrelationId)` for denial, not an input-validation error. `QueryResult.Success(...)` permits the next stage; it does not supply the final read data. The [query-health restriction example](query-health.md#restrict-exposure) is a complete authorization filter that targets one named query across direct model-bound and hub paths.
 
-For input rules, follow [query validation](validation.md). For current policy limitations, see [model-bound authorization](model-bound/authorization.md).
+For input rules, follow [query validation](validation.md). For roles, policies, and schemes on queries, see [model-bound authorization](model-bound/authorization.md) and [authorization](../core/authorization.md).
+
+## Compose outside `AddCratisArc`
+
+If your host builds its own service collection, register the pipeline and its authorization-principal scope alongside your query services. This is a registration fragment for an existing `IServiceCollection` named `services`, not a standalone host:
+
+```csharp
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries;
+using Microsoft.Extensions.DependencyInjection;
+
+services.AddTransient<AuthorizationDeclarations>();
+services.AddTransient<AuthorizationPrincipalScope>();
+services.AddTransient<IQueryPipeline, QueryPipeline>();
+```
+
+`AuthorizationDeclarations` resolves each query's authorization declarations, including fallback requirements, from `IInstancesOf<>` of the anonymous, attribute and fallback evaluators, so register Cratis type discovery (`IInstancesOf<>`) as well; without it the pipeline cannot authorize and fails. Supply the pipeline's constructor services: `ICorrelationIdAccessor`, `IQueryContextManager`, `IQueryFilters`, `IQueryPerformerProviders`, `IQueryRenderers`, `IReadModelInterceptors`, `IDiscoverableValidators`, and `IActivitySource<QueryPipeline>`. Supply `CurrentPrincipalAccessor`, `IAuthorizationPolicyRuntime`, `TenantIdAccessor`, and `ITenantIdResolver` for `AuthorizationPrincipalScope`; the two concrete accessors also need `IHttpRequestContextAccessor` and `ITenantIdResolver`, respectively. Register a runtime appropriate to your host; `ArcAuthorizationPolicyRuntime` does not authenticate named schemes. Pass an execution-scoped `IServiceProvider` to `IQueryPipeline.Perform`. The pipeline resolves `AuthorizationPrincipalScope` only when authorization supplies a selected principal, so a successful ordinary query does not prove that the scope is registered. `Begin` remains internal; host code should not manipulate it directly.
+
+If you want all Core services rather than manual composition, `IServiceCollection.AddCratisArcCore()` registers these services and the rest of Arc Core. It does not configure the ASP.NET Core host or map endpoints; see [Core configuration](../configuration/index.md).
 
 ## Query result metadata
 

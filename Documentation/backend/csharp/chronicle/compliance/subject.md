@@ -97,7 +97,7 @@ Append metadata and read-model release have different sources of identity:
 
 - Materialized reads can already be released by the server using stored subject metadata.
 - Arc's query interceptor calls `Release(instance)`. The Chronicle client resolves the release subject from the read-model instance, not from the query caller.
-- For command dependencies, Arc calls the non-generic `GetInstanceById(Type, key)`. It makes an additional `Release(instance)` call only when the input command context carries a subject and the instance exists. It does **not** pass that command subject to `Release`.
+- For command dependencies, Arc calls the non-generic `GetInstanceById(Type, key)`. It makes an additional `Release(instance)` call whenever the instance exists, whether or not the command declares a subject. It does **not** pass a command subject to `Release`; Chronicle resolves the subject from the read-model instance.
 
 This distinction matters for passive reducers, which can construct state in-process rather than receiving an already-released materialized document. Do not assume every dependency path decrypts identically, or that returning a subject from `Handle()` can repair a dependency already loaded. Model the read model's subject explicitly and test materialized and passive paths separately. See [PII release behavior](./pii.md).
 

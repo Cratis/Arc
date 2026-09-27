@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Globals } from '../Globals';
-import { IObservableQueryConnection } from './IObservableQueryConnection';
-import { DataReceived } from './ObservableQueryConnection';
-import { QueryResult } from './QueryResult';
+import { Globals } from '../Globals.js';
+import { IObservableQueryConnection } from './IObservableQueryConnection.js';
+import { DataReceived } from './ObservableQueryConnection.js';
+import { QueryResult } from './QueryResult.js';
 
 /**
  * The SSE demultiplexer route used when connecting through the multiplexed observable query endpoint.

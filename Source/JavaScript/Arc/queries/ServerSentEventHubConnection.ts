@@ -1,18 +1,18 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Globals } from '../Globals';
-import type { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
-import type { DataReceived } from './ObservableQueryConnection';
-import { HubConnectionKeepAlive } from './HubConnectionKeepAlive';
-import type { IReconnectPolicy } from './IReconnectPolicy';
-import { ReconnectPolicy } from './ReconnectPolicy';
-import { QueryResult } from './QueryResult';
+import { Globals } from '../Globals.js';
+import type { IObservableQueryHubConnection } from './IObservableQueryHubConnection.js';
+import type { DataReceived } from './ObservableQueryConnection.js';
+import { HubConnectionKeepAlive } from './HubConnectionKeepAlive.js';
+import type { IReconnectPolicy } from './IReconnectPolicy.js';
+import { ReconnectPolicy } from './ReconnectPolicy.js';
+import { QueryResult } from './QueryResult.js';
 import {
     type HubMessage,
     HubMessageType,
     type SubscriptionRequest,
-} from './WebSocketHubConnection';
+} from './WebSocketHubConnection.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

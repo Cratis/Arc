@@ -4,11 +4,11 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { useCommand } from '../useCommand';
-import { FakeCommand } from './FakeCommand';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { CommandScope } from '../CommandScope';
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
+import { useCommand } from '../useCommand.js';
+import { FakeCommand } from './FakeCommand.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
+import { CommandScope } from '../CommandScope.js';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
 
 describe('when registering with command scope', () => {
     let addCommandSpy: sinon.SinonSpy;

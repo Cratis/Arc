@@ -1,13 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { an_observable_query_for } from '../given/an_observable_query_for';
-import { given } from '../../../given';
-import { Globals } from '../../../Globals';
-import { QueryTransportMethod } from '../../QueryTransportMethod';
-import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
-import { HubMessageType } from '../../WebSocketHubConnection';
-import { resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
+import { given } from '../../../given.js';
+import { Globals } from '../../../Globals.js';
+import { QueryTransportMethod } from '../../QueryTransportMethod.js';
+import { ObservableQuerySubscription } from '../../ObservableQuerySubscription.js';
+import { HubMessageType } from '../../WebSocketHubConnection.js';
+import { resetSharedMultiplexer } from '../../ObservableQueryMultiplexer.js';
 
 import * as sinon from 'sinon';
 

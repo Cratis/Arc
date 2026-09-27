@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ObservableQuerySubscription } from './ObservableQuerySubscription';
-import { QueryResult } from './QueryResult';
-import { IQuery } from './IQuery';
-import { IHaveParameters } from '../reflection/IHaveParameters';
+import { ObservableQuerySubscription } from './ObservableQuerySubscription.js';
+import { QueryResult } from './QueryResult.js';
+import { IQuery } from './IQuery.js';
+import { IHaveParameters } from '../reflection/IHaveParameters.js';
 
 /**
  * The delegate type representing the callback of result from the server.

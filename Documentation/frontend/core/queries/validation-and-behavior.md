@@ -30,9 +30,10 @@ query.subscribe(result => {
 }, { minAge: -5 });
 ```
 
-Because `subscribe()` validates the arguments it is given, a subscription started before its arguments are available
-is rejected rather than left open. Gate it with `ObservableQueryWhen` so the subscription only starts once the
-arguments exist:
+Missing arguments behave differently from arguments that break a rule. When a required argument is absent and no
+generated client rule (such as `notEmpty()`) has already rejected it, `subscribe()` opens no connection and delivers the query's default value as an empty result whose `isSuccess` and
+`isValid` are both `true`, so the screen cannot tell "no arguments yet" from "no data". Gate the subscription with
+`ObservableQueryWhen` so it only starts once the arguments exist:
 
 In a React component, use the generated wrapper (illustrative fragment):
 

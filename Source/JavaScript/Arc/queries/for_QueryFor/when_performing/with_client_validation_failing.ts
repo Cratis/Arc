@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryFor } from '../../QueryFor';
-import { QueryValidator } from '../../QueryValidator';
-import { QueryResult } from '../../QueryResult';
-import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
-import '../../../validation/RuleBuilderExtensions';
+import { QueryFor } from '../../QueryFor.js';
+import { QueryValidator } from '../../QueryValidator.js';
+import { QueryResult } from '../../QueryResult.js';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor.js';
+import '../../../validation/RuleBuilderExtensions.js';
 
 interface TestParams {
     minAge: number;

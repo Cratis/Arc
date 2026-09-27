@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { given } from '../../given';
-import { a_role_gate, forbiddenText, loadingText } from './given/a_role_gate';
+import { given } from '../../given.js';
+import { a_role_gate, forbiddenText, loadingText } from './given/a_role_gate.js';
 
 /**
  * A refresh is how an application picks up a sign-in or a freshly granted role, and for the length of

@@ -3,7 +3,7 @@
 
 import React from 'react';
 import sinon from 'sinon';
-import { useIdentity } from '../useIdentity';
+import { useIdentity } from '../useIdentity.js';
 
 describe('when the identity is anonymous with no default', () => {
     let useContextStub: sinon.SinonStub;

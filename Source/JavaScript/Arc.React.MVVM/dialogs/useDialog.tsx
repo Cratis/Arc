@@ -4,7 +4,7 @@
 import { useEffect, ComponentType, FC, useCallback } from 'react';
 import { Constructor } from '@cratis/fundamentals';
 import { DialogResult, ShowDialog, useDialog as useDialogBase } from '@cratis/arc.react/dialogs';
-import { useDialogMediator } from './DialogMediator';
+import { useDialogMediator } from './DialogMediator.js';
 
 /**
  * Use a dialog request for showing a dialog, similar to useDialog.

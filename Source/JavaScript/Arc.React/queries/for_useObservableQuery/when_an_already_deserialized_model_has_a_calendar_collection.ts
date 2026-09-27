@@ -5,10 +5,10 @@ import React from 'react';
 import { act, render } from '@testing-library/react';
 import { DateOnly, TimeOnly } from '@cratis/fundamentals';
 import { QueryInstanceCache, type QueryResult, type QueryResultWithState } from '@cratis/arc/queries';
-import { useObservableQuery } from '../useObservableQuery';
-import { FakeCalendarChild, FakeCalendarItem, FakeCalendarObservableQuery } from './FakeCalendarObservableQuery';
-import { type ArcConfiguration, ArcContext } from '../../ArcContext';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { useObservableQuery } from '../useObservableQuery.js';
+import { FakeCalendarChild, FakeCalendarItem, FakeCalendarObservableQuery } from './FakeCalendarObservableQuery.js';
+import { type ArcConfiguration, ArcContext } from '../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 describe('when an already deserialized model has a calendar collection', () => {
     let calendarDate: DateOnly;

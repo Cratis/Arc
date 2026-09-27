@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { GreaterThanOrEqualRule } from '../../ComparisonRules';
+import { GreaterThanOrEqualRule } from '../../ComparisonRules.js';
 
 interface TestType {
     value: number;

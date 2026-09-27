@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection';
-import { given } from '../../../given';
-import type { ReconnectCallback } from '../../IReconnectPolicy';
+import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection.js';
+import { given } from '../../../given.js';
+import type { ReconnectCallback } from '../../IReconnectPolicy.js';
 
 describe(
     'when an immediate SSE open wins a pending backoff race',

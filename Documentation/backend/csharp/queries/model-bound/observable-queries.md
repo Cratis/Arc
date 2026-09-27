@@ -48,7 +48,8 @@ This is also what happens when a `[ReadModel]` marked `[RemovedWith<T>]` is remo
 Guard against it on the frontend the same way you guard against "not loaded yet" — with `result.hasData` (or `result.isReady` if you need to tell "no result yet" apart from "ready, but nothing matches"):
 
 ```tsx
-const [result] = GetAccountObservable.use(accountId);
+// ObserveAccount is the generated proxy for the query method above
+const [result] = ObserveAccount.use({ id: accountId });
 
 if (!result.isReady) {
     return <Spinner />;
@@ -64,6 +65,8 @@ return <AccountDetails account={result.data} />;
 See [Observing Collections](../../mongodb/observing-collections.md#when-the-observed-document-is-gone) for the MongoDB-level detail.
 
 The method must still return the declaring read model or a supported wrapper around it. `Task<ISubject<T>>` is allowed; arbitrary `IObservable<T>` is not a model-bound discovery shape. See [return types](return-types.md).
+
+For hub collection subscriptions, each item needs a stable, unique `Id` property to receive change sets (including in `delta` mode). An `Id` concept like `AccountId` in the example works. Without an `Id`, Arc sends the complete collection on every emission without a change set and logs a warning once per subscription. See [collection change streams](../change-stream.md) for transfer modes.
 
 ## Custom observable logic
 

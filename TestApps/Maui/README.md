@@ -19,7 +19,7 @@ This test app exists to investigate how IL trimming and AOT compilation affect a
 
 | Requirement | Version | Notes |
 |---|---|---|
-| .NET SDK | 10.0.100+ | Install from [dot.net/download](https://dotnet.microsoft.com/download) |
+| .NET SDK | 10.0.400+ | The repository `global.json` requires the 10.0.400 feature band or later. Install from [dot.net/download](https://dotnet.microsoft.com/download) |
 | .NET MAUI workload | 10.0.20+ | See [Install workloads](#install-workloads) below |
 | Node.js | 20+ | Required to build the ArcCore React frontend |
 | Yarn | 4.x | `npm install -g yarn` |

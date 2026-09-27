@@ -4,7 +4,7 @@
 import { ICommand, CommandResult, CommandResults } from '@cratis/arc/commands';
 import { ValidationResult } from '@cratis/arc/validation';
 import { IQueryFor } from '@cratis/arc/queries';
-import { ICommandScope } from './ICommandScope';
+import { ICommandScope } from './ICommandScope.js';
 
 /**
  * Defines the callbacks that can be provided to a {@link CommandScopeImplementation}.

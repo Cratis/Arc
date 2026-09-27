@@ -4,7 +4,9 @@
     "Licensed under the MIT license. See LICENSE file in the project root for full license information.",
     "Project-owned override: Arc's package-graph specs pack Release outputs with --no-build --no-restore.",
     "The preceding Debug build restores net10.0 only. Prepare the Release package graph immediately before specs, as package-graph-verification.yml does.",
-    "Keep every Debug spec enabled and propagate any prerequisite or test failure."
+    "Keep every Debug spec enabled and propagate any prerequisite or test failure.",
+    "Arc's root package.json only orchestrates workspaces; lint:ci and compile scripts live in each published package under Source/JavaScript.",
+    "The frontend gates run each package in turn and fail when any package fails. Each package tsconfig includes its specs, so frontend-compile also compiles specs; tsc -b is used because project references cannot disable emit, and its output goes to the ignored dist folders."
   ],
   "gates": [
     {
@@ -19,6 +21,38 @@
         "-c",
         "set -euo pipefail; dotnet build Source/DotNET/Cratis/Cratis.csproj --configuration Release; dotnet build Source/DotNET/Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj --configuration Release; dotnet test --configuration Debug --no-build"
       ]
+    },
+    {
+      "id": "frontend-lint",
+      "description": "yarn lint:ci in every published package — zero errors",
+      "workingDirectory": ".",
+      "requires": {
+        "commands": ["bash", "yarn"]
+      },
+      "command": [
+        "bash",
+        "-c",
+        "set -uo pipefail; failed=0; count=0; for package in Arc Arc.React Arc.React.MVVM Arc.Vite; do count=$((count + 1)); echo \"== Source/JavaScript/$package\"; (cd \"Source/JavaScript/$package\" && yarn lint:ci) || { echo \"FAILED: Source/JavaScript/$package\"; failed=1; }; done; echo \"Checked $count packages\"; exit $failed"
+      ]
+    },
+    {
+      "id": "frontend-compile",
+      "description": "tsc -b in every published package, specs included — zero errors",
+      "workingDirectory": ".",
+      "requires": {
+        "commands": ["bash", "yarn"]
+      },
+      "command": [
+        "bash",
+        "-c",
+        "set -uo pipefail; failed=0; count=0; for package in Arc Arc.React Arc.React.MVVM Arc.Vite; do count=$((count + 1)); echo \"== Source/JavaScript/$package\"; (cd \"Source/JavaScript/$package\" && yarn run -T tsc -b) || { echo \"FAILED: Source/JavaScript/$package\"; failed=1; }; done; echo \"Checked $count packages\"; exit $failed"
+      ]
+    },
+    {
+      "id": "frontend-compile-specs",
+      "description": "Covered by frontend-compile: each package tsconfig includes its specs",
+      "workingDirectory": ".",
+      "changed": []
     }
   ]
 }

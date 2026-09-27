@@ -6,10 +6,10 @@ import { renderHook, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 import { QueryInstanceCache } from '@cratis/arc/queries';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
-import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext';
-import { usePopulateFromQuery } from '../usePopulateFromQuery';
-import { FakePopulateQuery, FakePopulateQueryResult } from './FakePopulateQuery';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../../../queries/QueryInstanceCacheContext.js';
+import { usePopulateFromQuery } from '../usePopulateFromQuery.js';
+import { FakePopulateQuery, FakePopulateQueryResult } from './FakePopulateQuery.js';
 
 describe('when the query resolves', () => {
     let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };

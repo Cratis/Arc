@@ -1,4 +1,7 @@
-# Backend Integration
+---
+title: Backend Integration
+description: How core TypeScript commands map to controller-based and model-bound backend command endpoints through generated proxies.
+---
 
 Core commands are designed to align with backend command endpoints and generated proxies.
 

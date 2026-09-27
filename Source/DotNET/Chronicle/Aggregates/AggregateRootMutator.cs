@@ -25,6 +25,13 @@ public class AggregateRootMutator(
     /// <inheritdoc/>
     public async Task Rehydrate()
     {
+        // Capture the scoped tail before reading events, so an append during the read cannot be accepted as seen.
+        var tailSequenceNumber = await aggregateRootContext.EventSequence.GetTailSequenceNumber(
+            aggregateRootContext.EventSourceId,
+            aggregateRootContext.EventSourceType,
+            aggregateRootContext.EventStreamType,
+            aggregateRootContext.EventStreamId);
+
         var events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
         if (eventHandlers.HasHandleMethods)
         {
@@ -52,15 +59,10 @@ public class AggregateRootMutator(
             });
         }
 
-        // We should look at improving how we set the NextSequenceNumber and instead rely only on that, perhaps by returning the last event sequence number. https://github.com/Cratis/Chronicle/issues/1400
-        if (aggregateRootContext.NextSequenceNumber == EventSequenceNumber.First)
+        if (tailSequenceNumber.IsActualValue)
         {
-            var lastHandledEventSequenceNumber = await aggregateRootContext.EventSequence.GetTailSequenceNumber(aggregateRootContext.EventSourceId);
-            if (lastHandledEventSequenceNumber.IsActualValue)
-            {
-                aggregateRootContext.TailEventSequenceNumber = lastHandledEventSequenceNumber;
-                aggregateRootContext.HasEvents = true;
-            }
+            aggregateRootContext.TailEventSequenceNumber = tailSequenceNumber;
+            aggregateRootContext.HasEvents = true;
         }
     }
 

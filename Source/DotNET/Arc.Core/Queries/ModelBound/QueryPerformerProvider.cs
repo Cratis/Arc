@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,9 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// </summary>
 public class QueryPerformerProvider : IQueryPerformerProvider
 {
+    static readonly ConditionalWeakTable<ITypes, QueryDiscovery> _queriesByUniverse = new();
+    static readonly ConditionalWeakTable<IDictionary<string, Type>, GeneratedQueryDiscovery> _generatedQueries = new();
+
     readonly Dictionary<FullyQualifiedQueryName, IQueryPerformer> _performers;
 
     /// <summary>
@@ -58,18 +62,12 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         Func<Type, string, MethodInfo, ModelBoundQueryPerformer> createPerformer)
     {
         var generatedMetadata = queryMetadataRegistry.All;
-        if (generatedMetadata.Count > 0)
-        {
-            _performers = CreatePerformersFromGeneratedMetadata(generatedMetadata, createPerformer)
-                .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
-            return;
-        }
+        var queries = generatedMetadata.Count > 0
+            ? _generatedQueries.GetValue(generatedMetadata, _ => new GeneratedQueryDiscovery()).GetQueries(generatedMetadata)
+            : _queriesByUniverse.GetValue(types, _ => new QueryDiscovery()).GetQueries(types);
 
-        var readModelTypes = types.All.Where(t => t.IsReadModel());
-        _performers = readModelTypes
-            .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .Where(m => m.IsValidQueryFor(t))
-                .Select(m => createPerformer(t, t.FullName ?? t.Name, m)))
+        _performers = queries
+            .Select(query => createPerformer(query.ReadModelType, query.ReadModelTypeName, query.Method))
             .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
     }
 
@@ -80,31 +78,78 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     public bool TryGetPerformerFor(FullyQualifiedQueryName query, [NotNullWhen(true)] out IQueryPerformer? performer) =>
         _performers.TryGetValue(query, out performer);
 
-    static IEnumerable<ModelBoundQueryPerformer> CreatePerformersFromGeneratedMetadata(
-        IDictionary<string, Type> generatedMetadata,
-        Func<Type, string, MethodInfo, ModelBoundQueryPerformer> createPerformer)
+    readonly record struct DiscoveredQuery(Type ReadModelType, string ReadModelTypeName, MethodInfo Method);
+
+    sealed class QueryDiscovery
     {
-        foreach (var (fullyQualifiedQueryName, readModelType) in generatedMetadata)
+        readonly object _gate = new();
+        Type[] _types = [];
+        DiscoveredQuery[] _queries = [];
+        bool _initialized;
+
+        public DiscoveredQuery[] GetQueries(ITypes universe)
         {
-            var lastDotIndex = fullyQualifiedQueryName.LastIndexOf('.');
-            if (lastDotIndex < 0 || lastDotIndex >= fullyQualifiedQueryName.Length - 1)
+            var types = universe.All.ToArray();
+            lock (_gate)
             {
-                continue;
+                if (!_initialized || !types.SequenceEqual(_types))
+                {
+                    _queries = types.Where(t => t.IsReadModel())
+                        .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                            .Where(m => ModelBoundQueryMethod.IsCandidate(m) && m.IsValidQueryFor(t))
+                            .Select(m => new DiscoveredQuery(t, t.FullName ?? t.Name, m)))
+                        .ToArray();
+                    _types = types;
+                    _initialized = true;
+                }
+
+                return _queries;
             }
+        }
+    }
 
-            var readModelTypeName = fullyQualifiedQueryName[..lastDotIndex];
-            var queryMethodName = fullyQualifiedQueryName[(lastDotIndex + 1)..];
+    sealed class GeneratedQueryDiscovery
+    {
+        readonly object _gate = new();
+        KeyValuePair<string, Type>[] _snapshot = [];
+        DiscoveredQuery[] _queries = [];
 
-            var method = readModelType
-                .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                .FirstOrDefault(m => m.Name == queryMethodName && m.IsValidQueryFor(readModelType));
-
-            if (method is null)
+        public DiscoveredQuery[] GetQueries(IDictionary<string, Type> metadata)
+        {
+            var current = metadata.ToArray();
+            lock (_gate)
             {
-                continue;
-            }
+                if (!current.SequenceEqual(_snapshot))
+                {
+                    _queries = Discover(current).ToArray();
+                    _snapshot = current;
+                }
 
-            yield return createPerformer(readModelType, readModelTypeName, method);
+                return _queries;
+            }
+        }
+
+        static IEnumerable<DiscoveredQuery> Discover(IEnumerable<KeyValuePair<string, Type>> metadata)
+        {
+            foreach (var (fullyQualifiedQueryName, readModelType) in metadata)
+            {
+                var lastDotIndex = fullyQualifiedQueryName.LastIndexOf('.');
+                if (lastDotIndex < 0 || lastDotIndex >= fullyQualifiedQueryName.Length - 1)
+                {
+                    continue;
+                }
+
+                var readModelTypeName = fullyQualifiedQueryName[..lastDotIndex];
+                var queryMethodName = fullyQualifiedQueryName[(lastDotIndex + 1)..];
+                var method = readModelType
+                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+                    .FirstOrDefault(m => m.Name == queryMethodName && ModelBoundQueryMethod.IsCandidate(m) && m.IsValidQueryFor(readModelType));
+
+                if (method is not null)
+                {
+                    yield return new DiscoveredQuery(readModelType, readModelTypeName, method);
+                }
+            }
         }
     }
 }

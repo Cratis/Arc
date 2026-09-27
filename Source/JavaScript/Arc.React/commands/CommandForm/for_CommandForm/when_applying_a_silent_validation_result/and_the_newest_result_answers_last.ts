@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { render } from '@testing-library/react';
-import { a_command_form_with_a_validation_probe, accepted, rejected } from './given/a_command_form_with_a_validation_probe';
-import { given } from '../../../../given';
+import { a_command_form_with_a_validation_probe, accepted, rejected } from './given/a_command_form_with_a_validation_probe.js';
+import { given } from '../../../../given.js';
 
 /**
  * The other direction, and the reason the guard cannot simply prefer whatever arrived first. Nothing

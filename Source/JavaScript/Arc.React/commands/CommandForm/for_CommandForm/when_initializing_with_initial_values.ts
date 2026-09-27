@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { CommandForm, useCommandInstance } from '../CommandForm';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { CommandFormField } from '../CommandFormField';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandFormField } from '../CommandFormField.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 describe("when initializing with initial values", given(a_command_form_context, context => {
     let capturedCommand: TestCommand | null = null;

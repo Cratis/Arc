@@ -27,6 +27,9 @@ export type CommandFormMarked = {
     /** Set when the component can bind itself after crossing an opaque custom component. */
     canBindCommandFormFieldAtRuntime?: boolean;
 
+    /** Accessibility role for a field with multiple controls, whose title names the group. */
+    commandFormFieldGroupRole?: 'group' | 'radiogroup';
+
     /** Human-readable implementation name used in development diagnostics. */
     commandFormFieldName?: string;
 

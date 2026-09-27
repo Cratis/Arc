@@ -1,4 +1,7 @@
-# Queries
+---
+title: Queries
+description: How the OpenAPI query transformer describes Arc's QueryResult envelope, paging, and sorting for controller queries.
+---
 
 Arc queries return results wrapped in a `QueryResult` envelope that carries the data along with paging metadata and error information. The `QueryResultOperationTransformer` ensures this is accurately reflected in the generated API documentation.
 

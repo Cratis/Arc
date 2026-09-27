@@ -3,7 +3,7 @@
 
 import { Constructor } from '@cratis/fundamentals';
 import { useEffect, useRef } from 'react';
-import { useMessenger } from './useMessenger';
+import { useMessenger } from './useMessenger.js';
 
 /**
  * Subscribes to messages of type {@link TMessage} from the nearest {@link MessengerScope}

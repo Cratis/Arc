@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { ArcContext, ArcConfiguration } from '../../../../ArcContext';
+import { ArcContext, ArcConfiguration } from '../../../../ArcContext.js';
 
 export class a_command_form_fields_context {
     arcConfig: ArcConfiguration;

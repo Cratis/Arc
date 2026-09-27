@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { given } from '../../given';
-import { an_observable_query_connection_with_websocket } from './given/an_observable_query_connection_with_websocket';
-import { QueryResult } from '../QueryResult';
-import { WebSocketMessageType } from '../WebSocketMessage';
+import { given } from '../../given.js';
+import { an_observable_query_connection_with_websocket } from './given/an_observable_query_connection_with_websocket.js';
+import { QueryResult } from '../QueryResult.js';
+import { WebSocketMessageType } from '../WebSocketMessage.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

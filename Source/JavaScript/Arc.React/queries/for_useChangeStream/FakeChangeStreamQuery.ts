@@ -4,8 +4,8 @@
 import React from 'react';
 import { IChangeStreamFor, ObservableQueryFor, QueryResult, ObservableQuerySubscription, OnNextResult, QueryInstanceCache } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
-import { ArcConfiguration, ArcContext } from '../../ArcContext';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { ArcConfiguration, ArcContext } from '../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 export interface FakeItem {
     id: string;

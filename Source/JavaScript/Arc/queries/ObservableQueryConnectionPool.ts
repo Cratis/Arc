@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryConnection } from './IObservableQueryConnection';
-import { DataReceived } from './ObservableQueryConnection';
+import { IObservableQueryConnection } from './IObservableQueryConnection.js';
+import { DataReceived } from './ObservableQueryConnection.js';
 
 /**
  * Tracks the number of active subscribers assigned to each pool slot.

@@ -7,8 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 import { renderToStaticMarkup } from 'react-dom/server';
 
-import { StoryBadge, StoryContainer, StoryDivider, StoryGrid, StorySection } from '../stories';
-import type { BadgeVariant, StoryContainerProps } from '../stories';
+import { StoryBadge, StoryContainer, StoryDivider, StoryGrid, StorySection } from '../stories/index.js';
+import type { BadgeVariant, StoryContainerProps } from '../stories/index.js';
 
 /**
  * The story kit renders class names and nothing else - every visual promise it makes is a rule in a

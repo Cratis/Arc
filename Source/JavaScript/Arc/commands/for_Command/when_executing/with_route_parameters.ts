@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
-import { CommandWithRouteParams } from '../CommandWithRouteParams';
-import { given } from '../../../given';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
+import { CommandWithRouteParams } from '../CommandWithRouteParams.js';
+import { given } from '../../../given.js';
 
 describe("when executing with route parameters", given(class {
     command: CommandWithRouteParams;

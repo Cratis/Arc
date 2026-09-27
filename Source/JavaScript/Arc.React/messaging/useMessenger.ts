@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { ArcContext } from '../ArcContext';
-import { MessengerScopeContext } from './MessengerScopeContext';
+import { ArcContext } from '../ArcContext.js';
+import { MessengerScopeContext } from './MessengerScopeContext.js';
 import { IMessenger } from '@cratis/arc/messaging';
 
 /**

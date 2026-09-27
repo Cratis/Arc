@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ICanBeConfigured } from '../ICanBeConfigured';
-import { CommandResult } from './CommandResult';
-import { PropertyDescriptor } from '../reflection/PropertyDescriptor';
-import { ValidationResultSeverity } from '../validation/ValidationResultSeverity';
+import { ICanBeConfigured } from '../ICanBeConfigured.js';
+import { CommandResult } from './CommandResult.js';
+import { PropertyDescriptor } from '../reflection/PropertyDescriptor.js';
+import { ValidationResultSeverity } from '../validation/ValidationResultSeverity.js';
 
 /**
  * Callback for when a property changes.

@@ -4,9 +4,9 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import sinon from 'sinon';
-import { useQuery } from '../useQuery';
-import { FakeQuery } from './FakeQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useQuery } from '../useQuery.js';
+import { FakeQuery } from './FakeQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

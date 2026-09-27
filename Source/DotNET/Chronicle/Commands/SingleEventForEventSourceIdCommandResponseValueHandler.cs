@@ -34,7 +34,13 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
             commandContext,
             concurrencyScopeStrategies.GetFor(eventLog),
             eventForEventSourceId.EventSourceId);
-        if (!eventLog.TryEnrollForCommand(eventForEventSourceId.EventSourceId, eventForEventSourceId.Event, commandContext, concurrencyScope))
+        if (!eventLog.TryEnrollForCommand(
+                eventForEventSourceId.EventSourceId,
+                eventForEventSourceId.Event,
+                commandContext,
+                concurrencyScope,
+                eventForEventSourceId.SuppliedTags(),
+                eventForEventSourceId.Occurred))
         {
             var result = await eventLog.Append(
                 eventForEventSourceId.EventSourceId,
@@ -43,7 +49,9 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
                 commandContext.GetEventStreamId(),
                 commandContext.GetEventSourceType(),
                 correlationId: default,
+                tags: eventForEventSourceId.SuppliedTags(),
                 concurrencyScope: concurrencyScope,
+                occurred: eventForEventSourceId.Occurred,
                 subject: commandContext.GetSubject());
 
             if (!result.IsSuccess)

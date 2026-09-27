@@ -13,7 +13,7 @@ namespace Cratis.Arc.Authorization;
 /// <param name="runtime">The active host's authorization runtime.</param>
 /// <param name="tenantIds">The cached tenant for this execution flow.</param>
 /// <param name="tenantResolver">Resolves the tenant under the selected identity.</param>
-internal class AuthorizationPrincipalScope(
+public class AuthorizationPrincipalScope(
     CurrentPrincipalAccessor accessor,
     IAuthorizationPolicyRuntime runtime,
     TenantIdAccessor tenantIds,
@@ -36,9 +36,16 @@ internal class AuthorizationPrincipalScope(
         try
         {
             hostScope = runtime.BeginPrincipalScope(principal, services);
-            var resolved = tenantResolver.Resolve();
-            var selectedTenant = string.IsNullOrEmpty(resolved) ? TenantId.NotSet : new TenantId(resolved);
-            tenantScope = tenantIds.UseAuthorizedTenant(selectedTenant);
+            if (tenantIds.ExplicitTenant is { } explicitTenant)
+            {
+                tenantScope = tenantIds.UseAuthorizedTenant(explicitTenant);
+            }
+            else
+            {
+                var resolved = tenantResolver.Resolve();
+                var selectedTenant = string.IsNullOrEmpty(resolved) ? TenantId.NotSet : new TenantId(resolved);
+                tenantScope = tenantIds.UseAuthorizedTenant(selectedTenant);
+            }
             return new CombinedScope(arcScope, hostScope, tenantScope);
         }
         catch

@@ -1,4 +1,7 @@
-# Using a View Model
+---
+title: Using a View Model
+description: "Give a React component a view model with withViewModel(): dependencies, props, route and query parameters, and lifecycle."
+---
 
 Every React functional component can have a view model. This is accomplished using the `withViewModel()` method.
 
@@ -343,15 +346,19 @@ change.
 
 ### Handling Query Params
 
-For the scenario were the query params are changing while the component is not unloaded, implementing the `IHandleParams<>`
+For the scenario were the query params are changing while the component is not unloaded, implementing the `IHandleQueryParams<>`
 interface is a better option. It is a generic interface, but the generic argument is optional and is defaulted to
 `object` if not specified.
 
 ```ts
 import { IHandleQueryParams } from '@cratis/arc.react.mvvm';
 
-export class MyViewModel implements IHandleQueryParams<Params>  {
-    handleQueryParams(queryParams: QueryParams): void {
+type SearchParams = {
+    term: string;
+};
+
+export class MyViewModel implements IHandleQueryParams<SearchParams> {
+    handleQueryParams(queryParams: SearchParams): void {
         // Do things based on query params
     }
 }
@@ -375,3 +382,7 @@ export class MyViewModel implements IViewModelDetached {
     }
 }
 ```
+
+:::caution[Not called in development mode]
+`withViewModel()` reliably disposes the view model, and calls `detached()`, on unmount only when `<Arc>` runs with `development` unset or `false`. With `<Arc development>`, an ordinary unmount skips disposal, although React StrictMode's repeated effects can still trigger it. Treat `detached()` as not guaranteed during development, and do not rely on it to release resources there.
+:::

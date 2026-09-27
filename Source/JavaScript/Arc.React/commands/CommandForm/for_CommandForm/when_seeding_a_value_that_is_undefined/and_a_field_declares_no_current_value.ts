@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { waitFor } from '@testing-library/react';
-import { CommandFormField } from '../../CommandFormField';
-import { a_command_form_with_a_required_property, NAME_FROM_THE_LOOKUP, RequiredNameCommand } from './given/a_command_form_with_a_required_property';
-import { given } from '../../../../given';
+import { CommandFormField } from '../../CommandFormField.js';
+import { a_command_form_with_a_required_property, NAME_FROM_THE_LOOKUP, RequiredNameCommand } from './given/a_command_form_with_a_required_property.js';
+import { given } from '../../../../given.js';
 
 /**
  * A field's currentValue prop is the other half of the seed layer, and a field that has nothing to

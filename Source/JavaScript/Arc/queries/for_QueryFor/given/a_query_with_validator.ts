@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryFor } from '../../QueryFor';
-import { QueryValidator } from '../../QueryValidator';
-import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
+import { QueryFor } from '../../QueryFor.js';
+import { QueryValidator } from '../../QueryValidator.js';
+import { ParameterDescriptor } from '../../../reflection/ParameterDescriptor.js';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
 import sinon from 'sinon';
-import '../../../validation/RuleBuilderExtensions';
+import '../../../validation/RuleBuilderExtensions.js';
 
 interface ITestResult {
     data: string;

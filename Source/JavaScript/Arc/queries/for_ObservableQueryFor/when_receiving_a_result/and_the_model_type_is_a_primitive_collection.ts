@@ -2,13 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import * as sinon from 'sinon';
-import { an_observable_query_for } from '../given/an_observable_query_for';
-import { given } from '../../../given';
-import { Globals } from '../../../Globals';
-import { EventSourceFactory } from '../../../EventSourceFactory';
-import { QueryResult } from '../../QueryResult';
-import { QueryTransportMethod } from '../../QueryTransportMethod';
-import { ObservableQuerySubscription } from '../../ObservableQuerySubscription';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
+import { given } from '../../../given.js';
+import { Globals } from '../../../Globals.js';
+import { EventSourceFactory } from '../../../EventSourceFactory.js';
+import { QueryResult } from '../../QueryResult.js';
+import { QueryTransportMethod } from '../../QueryTransportMethod.js';
+import { ObservableQuerySubscription } from '../../ObservableQuerySubscription.js';
 
 interface FakeEventSource {
     onmessage: ((event: MessageEvent) => void) | null;

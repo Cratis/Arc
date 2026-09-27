@@ -1,4 +1,7 @@
-# Identity Contracts
+---
+title: Identity Contracts
+description: Reference for IdentityProviderContext and IdentityDetails, the input and output of an identity details provider.
+---
 
 Identity providers work with two key contracts: `IdentityProviderContext` as input and `IdentityDetails` as output.
 

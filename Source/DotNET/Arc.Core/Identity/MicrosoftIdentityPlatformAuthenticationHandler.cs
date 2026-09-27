@@ -24,6 +24,14 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
+        if (context.GetEndpointMetadata() is { RequireAuthentication: true } metadata &&
+            (metadata.Name == Introspection.IntrospectionEndpointMapper.CommandsEndpointName ||
+             metadata.Name == Introspection.IntrospectionEndpointMapper.QueriesEndpointName) &&
+            !options.Value.Introspection.TrustForwardedIdentityHeaders)
+        {
+            return Task.FromResult(AuthenticationResult.Anonymous);
+        }
+
         var headers = context.Headers;
 
         if (!headers.ContainsKey(MicrosoftIdentityPlatformHeaders.IdentityIdHeader) ||

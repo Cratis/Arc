@@ -7,7 +7,7 @@ description: A reactor handler calls ICommandPipeline.Execute without declaring 
 
 A reactor handler that calls `ICommandPipeline.Execute` produces a side effect — running a command, which can itself append events, call external systems, or both. When the observer replays (redaction, revision, an observer rewind), the same handler runs again for the same event unless something says otherwise, so `Execute` runs again and the side effect repeats.
 
-This rule fires whenever a handler Chronicle would actually dispatch to reaches `ICommandPipeline.Execute` — directly, or through any number of private helpers on the same reactor — without a decision for what replay should do: neither `[OnceOnly]` nor a `[Replay]` handler for the same event type.
+This rule fires whenever a handler Chronicle would actually dispatch to reaches `ICommandPipeline.Execute` — directly, or through any number of private helpers on the same reactor — without a decision for what replay should do: neither `[OnceOnly]` nor a `[Replay]` handler for the same event type. A public or protected `[Replay]` handler inherited from a base reactor (including a constructed generic base) counts as that decision; a private base method does not, because Chronicle cannot dispatch to it on the derived reactor.
 
 ## Severity
 
@@ -88,11 +88,11 @@ The rule reads calls within one reactor's own declared members. A few shapes rea
 | Shape | Why it is missed |
 |---|---|
 | `Execute` called through a helper on a different type the reactor delegates to | The call graph this rule walks is limited to methods declared on the reactor itself |
-| A handler inherited from a base type | The rule inspects the reactor type's own declared members, not members it inherits |
+| `Execute` called inside a handler inherited from a base type | The rule records calls in the reactor's own method bodies; inherited `[Replay]` handlers are recognized as replay decisions for those calls, but an inherited call to `Execute` is not traced back to the derived reactor |
 | An event type recognized only through a base type or interface, rather than as the parameter's exact declared type | Dispatch-candidate detection looks for `[EventType]` on the parameter's own type |
 | A reactor that returns a command for `ICommandPipeline` to execute, rather than calling `Execute` itself | There is no `Execute` invocation for the rule to find — nothing here indicates a side effect needing a replay decision |
 
-None of this is a suppression mechanism to reach for. It is the boundary of a call-graph rule confined to one type: it catches the call you write directly or through a private helper, not one reached through another type entirely.
+None of this is a suppression mechanism to reach for. The call graph is confined to the reactor's own methods: it catches the call you write directly or through a private helper, not one reached through an inherited body or another type entirely.
 
 ## When The Rule Is Wrong
 

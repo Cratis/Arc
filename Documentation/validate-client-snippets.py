@@ -112,6 +112,11 @@ FIXTURES: dict[str, DomainFixture] = {
 
             public record Book(BookId Id, AuthorId AuthorId, BookTitle Title);
 
+            public enum LibraryRole
+            {
+                Librarian
+            }
+
             public record RegisterAuthor(AuthorId Id, AuthorName Name)
             {
                 public Task Handle(IMongoCollection<Author> authors) =>

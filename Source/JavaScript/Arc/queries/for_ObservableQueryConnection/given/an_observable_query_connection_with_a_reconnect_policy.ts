@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ObservableQueryConnection } from '../../ObservableQueryConnection';
-import { IReconnectPolicy } from '../../IReconnectPolicy';
+import { ObservableQueryConnection } from '../../ObservableQueryConnection.js';
+import { IReconnectPolicy } from '../../IReconnectPolicy.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -4,9 +4,9 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { useQueryWithPaging } from '../useQuery';
-import { FakeQuery } from '../for_useQuery/FakeQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useQueryWithPaging } from '../useQuery.js';
+import { FakeQuery } from '../for_useQuery/FakeQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 import { Paging } from '@cratis/arc/queries';
 

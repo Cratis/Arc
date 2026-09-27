@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.ProxyGenerator.Specs.TransitiveConceptValidator</AssemblyName>
+        <RootNamespace>Cratis.Arc.ProxyGenerator.Specs.TransitiveConceptValidator</RootNamespace>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../ReferencedConceptValidator/ReferencedConceptValidator.csproj" />
+    </ItemGroup>
+    <!-- Discovery source generation adds direct Core references unrelated to this validator. -->
+    <Target Name="OmitDiscoveryGeneratorForTransitiveFixture" BeforeTargets="CoreCompile">
+        <ItemGroup>
+            <Analyzer Remove="@(Analyzer)" />
+        </ItemGroup>
+    </Target>
+</Project>

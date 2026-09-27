@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from './given/a_query_for';
-import { given } from '../../given';
-import { Globals } from '../../Globals';
-import { TestQueryFor } from './given/TestQueries';
+import { a_query_for } from './given/a_query_for.js';
+import { given } from '../../given.js';
+import { Globals } from '../../Globals.js';
+import { TestQueryFor } from './given/TestQueries.js';
 
 describe('when constructing with globals origin', given(a_query_for, () => {
     let originalOrigin: string | undefined;

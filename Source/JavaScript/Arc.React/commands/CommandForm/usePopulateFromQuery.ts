@@ -10,9 +10,9 @@ import {
 import type { ParameterDescriptor } from '@cratis/arc/reflection';
 import type { Constructor } from '@cratis/fundamentals';
 import { useMemo } from 'react';
-import { useObservableQuery } from '../../queries/useObservableQuery';
-import { useQuery } from '../../queries/useQuery';
-import { QueryReturnsMultipleInstances } from '../../queries/QueryReturnsMultipleInstances';
+import { useObservableQuery } from '../../queries/useObservableQuery.js';
+import { useQuery } from '../../queries/useQuery.js';
+import { QueryReturnsMultipleInstances } from '../../queries/QueryReturnsMultipleInstances.js';
 
 /* eslint-disable @typescript-eslint/no-empty-object-type */
 class NoPopulationQuery extends QueryFor<Record<string, never>> {

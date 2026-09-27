@@ -4,15 +4,15 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { CommandForm, useCommandInstance } from '../CommandForm';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
 import {
     asCommandFormField,
     type InjectedCommandFormFieldProps,
     type WrappedFieldProps,
-} from '../asCommandFormField';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+} from '../asCommandFormField.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 interface TestFieldProps extends WrappedFieldProps<string> {
     testId: string;

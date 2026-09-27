@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from '../given/a_query_for';
-import { given } from '../../../given';
+import { a_query_for } from '../given/a_query_for.js';
+import { given } from '../../../given.js';
 import * as sinon from 'sinon';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
-import { QueryResult } from '../../QueryResult';
-import { QueryHttpMethod } from '../../QueryHttpMethod';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
+import { QueryResult } from '../../QueryResult.js';
+import { QueryHttpMethod } from '../../QueryHttpMethod.js';
 
 describe('with query http method', given(a_query_for, context => {
     let result: QueryResult<string>;

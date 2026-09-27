@@ -16,6 +16,9 @@ public class and_provider_does_not_implement_generic_interface : given.an_identi
 
     async Task Because() => await _mappedHandlers["/.cratis/identity-details/schema"](_httpRequestContext);
 
+    [Fact] void should_not_set_cache_control() => _httpRequestContext.DidNotReceive().SetResponseHeader("Cache-Control", Arg.Any<string>());
+    [Fact] void should_not_set_vary() => _httpRequestContext.DidNotReceive().SetResponseHeader("Vary", Arg.Any<string>());
+
     [Fact]
     void should_write_generic_object_schema()
     {

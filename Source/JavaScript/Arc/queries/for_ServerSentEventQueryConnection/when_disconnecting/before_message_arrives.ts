@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection';
+import { ServerSentEventQueryConnection } from '../../ServerSentEventQueryConnection.js';
 
 describe('when disconnecting prevents further message delivery', () => {
     let fakeEventSource: Record<string, unknown>;

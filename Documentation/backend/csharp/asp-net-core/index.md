@@ -1,4 +1,7 @@
-# ASP.NET Core Integration
+---
+title: ASP.NET Core Integration
+description: What the Cratis.Arc package adds for ASP.NET Core hosts, and where to find configuration, authorization, and integration guides.
+---
 
 The Arc provides enhanced capabilities for ASP.NET Core applications, building upon the core Arc features with web-specific functionality. Install `Cratis.Arc` for this host (`Cratis.Arc.Core` alone is the lightweight alternative). Register with `WebApplicationBuilder.AddCratisArc()` and activate with `WebApplication.UseCratisArc()`. No event store is required. OpenAPI/Swagger have separate optional packages.
 

@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { given } from '../../../given';
-import { an_observable_query_connection_with_a_reconnect_policy } from '../given/an_observable_query_connection_with_a_reconnect_policy';
-import { QueryResult } from '../../QueryResult';
-import { WebSocketMessageType } from '../../WebSocketMessage';
+import { given } from '../../../given.js';
+import { an_observable_query_connection_with_a_reconnect_policy } from '../given/an_observable_query_connection_with_a_reconnect_policy.js';
+import { QueryResult } from '../../QueryResult.js';
+import { WebSocketMessageType } from '../../WebSocketMessage.js';
 
 describe('when receiving unauthorized it terminates without reconnecting', given(an_observable_query_connection_with_a_reconnect_policy, context => {
     const unauthorizedResult = {

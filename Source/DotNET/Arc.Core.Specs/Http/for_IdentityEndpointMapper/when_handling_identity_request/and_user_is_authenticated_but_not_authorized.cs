@@ -24,6 +24,8 @@ public class and_user_is_authenticated_but_not_authorized : given.an_identity_en
 
     async Task Because() => await _capturedHandler(_httpRequestContext);
 
+    [Fact] void should_set_no_store_cache_control() => _httpRequestContext.Received(1).SetResponseHeader("Cache-Control", "no-store, private");
+    [Fact] void should_vary_on_cookie() => _httpRequestContext.Received(1).SetResponseHeader("Vary", "Cookie");
     [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).Get();
     [Fact] void should_not_call_write() => _identityProviderResultHandler.DidNotReceive().SetCookieForHttpResponse(Arg.Any<IdentityProviderResult>());
     [Fact] void should_set_status_code_to_forbidden() => _httpRequestContext.Received().StatusCode = 403;

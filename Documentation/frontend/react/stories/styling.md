@@ -1,4 +1,7 @@
-# Styling Reference
+---
+title: Styling Reference
+description: Reference for the stylesheet, CSS variables, and utility classes behind Arc.React Story Components.
+---
 
 The story components use a comprehensive set of CSS variables and utility classes for consistent theming.
 
@@ -22,7 +25,7 @@ no such copy happens. One import you can see beats an import that works in some 
 
 ## CSS Variables
 
-All variables automatically update based on the current Storybook theme (dark/light mode).
+The color variables switch between the dark and light palettes when the page's `data-theme` attribute changes; see [theme support](theme-support.md#switching-themes). Spacing, radius, and shadow variables are shared by both palettes.
 
 ### Colors
 

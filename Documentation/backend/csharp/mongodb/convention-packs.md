@@ -23,7 +23,7 @@ Cratis Applications automatically registers several convention packs:
 Applies your configured naming policy to all property names. The `RegisterConventionAsPack` calls in this built-in section describe private Arc initialization; they are not public APIs to call from application code:
 
 ```csharp
-// Registered automatically with name: "Naming policy convention"
+// Registered automatically with name: "Naming policy based name convention"
 RegisterConventionAsPack(
     conventionPackFilters, 
     NamingPolicyNameConvention.ConventionName, 
@@ -341,7 +341,7 @@ public static class ConventionPacks
 
 public class NamingPolicyNameConvention
 {
-    public const string ConventionName = "Naming policy convention";
+    public const string ConventionName = "Naming policy based name convention";
 }
 ```
 

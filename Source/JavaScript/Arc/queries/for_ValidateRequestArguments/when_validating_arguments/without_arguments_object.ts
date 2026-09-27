@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidateRequestArguments } from '../../ValidateRequestArguments';
+import { ValidateRequestArguments } from '../../ValidateRequestArguments.js';
 
 describe('when validating arguments without an arguments object', () => {
     let result: boolean;

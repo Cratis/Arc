@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { useObservableQuery } from '../../useObservableQuery';
-import { FakeGuidObservableQuery, FakeGuidItem } from '../FakeGuidObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
+import { useObservableQuery } from '../../useObservableQuery.js';
+import { FakeGuidObservableQuery, FakeGuidItem } from '../FakeGuidObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
 import { QueryResult, QueryResultWithState, QueryInstanceCache } from '@cratis/arc/queries';
 import { Guid } from '@cratis/fundamentals';
-import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext.js';
 
 describe('when items are added as delta and item is identified by a guid', () => {
     let capturedResult: QueryResultWithState<FakeGuidItem[]> | undefined;

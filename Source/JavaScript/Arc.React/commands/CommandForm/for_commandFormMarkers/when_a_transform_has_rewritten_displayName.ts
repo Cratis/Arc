@@ -8,7 +8,7 @@ import {
     isCommandFormField,
     markAsCommandFormColumn,
     markAsCommandFormField
-} from '../commandFormMarkers';
+} from '../commandFormMarkers.js';
 
 /**
  * A field used to be recognized only by `component.displayName === 'CommandFormField'`, so any transform that set

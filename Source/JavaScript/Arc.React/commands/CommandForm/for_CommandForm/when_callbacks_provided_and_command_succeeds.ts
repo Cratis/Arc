@@ -3,10 +3,10 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
-import { TestCommandWithResponse, TestCommandResponse } from './TestCommandWithResponse';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandFormContext } from '../CommandForm.js';
+import { TestCommandWithResponse, TestCommandResponse } from './TestCommandWithResponse.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 import { CommandResult } from '@cratis/arc/commands';
 
 describe("when callbacks are provided and command succeeds", given(a_command_form_context, context => {

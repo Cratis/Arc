@@ -3,7 +3,7 @@
 
 import { createContext, useContext } from 'react';
 import type { Constructor } from '@cratis/fundamentals';
-import type { SetCommandValues } from '../useCommand';
+import type { SetCommandValues } from '../useCommand.js';
 import type { ICommandResult } from '@cratis/arc/commands';
 
 export type BeforeExecuteCallback<TCommand> = (values: TCommand) => TCommand;

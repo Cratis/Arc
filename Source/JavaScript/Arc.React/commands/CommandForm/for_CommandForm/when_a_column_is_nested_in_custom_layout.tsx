@@ -4,12 +4,12 @@
 import type React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { setCommandFormDevelopmentWarningsForTesting } from '../commandFormRuntime';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { setCommandFormDevelopmentWarningsForTesting } from '../commandFormRuntime.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 interface TestFieldProps extends WrappedFieldProps<string> {
     testId: string;

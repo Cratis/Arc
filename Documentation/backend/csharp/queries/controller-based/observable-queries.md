@@ -42,7 +42,7 @@ public class AccountsController(IMongoCollection<DebitAccount> collection) : Con
 }
 ```
 
-The filter is applied by the database observer. This is standalone Arc database observation, not a Chronicle projection. `ObserveSingle` does not emit a null value when no document matches; use an observed collection when an empty result must represent disappearance.
+The filter is applied by the database observer. This is standalone Arc database observation, not a Chronicle projection. When no document matches, `ObserveSingle` emits `null` and keeps the subscription open: at the start, after a delete, or after an update moves the document out of the filter. Treat `null` as "not found" on the client. See [model-bound observable queries](../model-bound/observable-queries.md) for the same behavior.
 
 ## Keep MVC and model-bound handling distinct
 

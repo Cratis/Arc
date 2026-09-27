@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { useCommand } from '../useCommand';
-import { FakeCommand } from './FakeCommand';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useCommand } from '../useCommand.js';
+import { FakeCommand } from './FakeCommand.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 
 describe('when creating instance', () => {
     let capturedCommand: FakeCommand | null = null;

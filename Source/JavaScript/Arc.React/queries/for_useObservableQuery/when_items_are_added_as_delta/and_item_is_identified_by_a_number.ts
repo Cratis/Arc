@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { useObservableQuery } from '../../useObservableQuery';
-import { FakeNumericObservableQuery, FakeNumericObservableQueryResult } from '../FakeNumericObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
+import { useObservableQuery } from '../../useObservableQuery.js';
+import { FakeNumericObservableQuery, FakeNumericObservableQueryResult } from '../FakeNumericObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
 import { QueryResult, QueryResultWithState, QueryInstanceCache } from '@cratis/arc/queries';
-import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext.js';
 
 describe('when items are added as delta and item is identified by a number', () => {
     let capturedResult: QueryResultWithState<FakeNumericObservableQueryResult[]> | undefined;

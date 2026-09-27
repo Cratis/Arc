@@ -4,9 +4,9 @@
 import { act, render, type RenderResult } from '@testing-library/react';
 import { CommandResult } from '@cratis/arc/commands';
 import type { ValidationResult } from '@cratis/arc/validation';
-import { CommandForm, useCommandFormContext, useSetCommandResult, type CommandFormProps } from '../../CommandForm';
-import { TestCommand } from '../TestCommand';
-import { a_command_form_context } from './a_command_form_context';
+import { CommandForm, useCommandFormContext, useSetCommandResult, type CommandFormProps } from '../../CommandForm.js';
+import { TestCommand } from '../TestCommand.js';
+import { a_command_form_context } from './a_command_form_context.js';
 
 export class a_command_form_with_exception_feedback extends a_command_form_context {
     readonly privateMessage = 'Synthetic private database credential: never-display-this';

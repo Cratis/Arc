@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { DataReceived } from './ObservableQueryConnection';
-import { SubscriptionRequest } from './WebSocketHubConnection';
+import { DataReceived } from './ObservableQueryConnection.js';
+import { SubscriptionRequest } from './WebSocketHubConnection.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

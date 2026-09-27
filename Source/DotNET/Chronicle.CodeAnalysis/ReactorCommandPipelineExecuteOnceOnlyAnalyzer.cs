@@ -83,7 +83,7 @@ public class ReactorCommandPipelineExecuteOnceOnlyAnalyzer : DiagnosticAnalyzer
 
     static void ReportUndecidedHandlers(SymbolAnalysisContext context, INamedTypeSymbol reactorType, ReactorState state)
     {
-        var candidates = reactorType.GetMembers().OfType<IMethodSymbol>().Where(IsHandlerCandidate).ToArray();
+        var candidates = GetHandlerCandidates(reactorType).ToArray();
 
         foreach (var execution in state.Executions)
         {
@@ -101,6 +101,34 @@ public class ReactorCommandPipelineExecuteOnceOnlyAnalyzer : DiagnosticAnalyzer
                 DiagnosticDescriptors.ARCCHR0006_ReactorCommandPipelineExecuteNeedsReplayDecision,
                 execution.Value,
                 FormatNames(handlers)));
+        }
+    }
+
+    /// <summary>
+    /// Enumerates the effective methods visible to Chronicle's instance-method reflection, including inherited
+    /// non-private methods but excluding base declarations replaced by an override.
+    /// </summary>
+    /// <param name="reactorType">The concrete reactor type.</param>
+    /// <returns>Handler candidates available on the reactor.</returns>
+    static IEnumerable<IMethodSymbol> GetHandlerCandidates(INamedTypeSymbol reactorType)
+    {
+        var overriddenMethods = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
+
+        for (var type = reactorType; type is not null; type = type.BaseType)
+        {
+            foreach (var method in type.GetMembers().OfType<IMethodSymbol>())
+            {
+                if ((SymbolEqualityComparer.Default.Equals(type, reactorType) || method.DeclaredAccessibility != Accessibility.Private) &&
+                    !overriddenMethods.Contains(method) && IsHandlerCandidate(method))
+                {
+                    yield return method;
+                }
+
+                for (var overridden = method.OverriddenMethod; overridden is not null; overridden = overridden.OverriddenMethod)
+                {
+                    overriddenMethods.Add(overridden);
+                }
+            }
         }
     }
 

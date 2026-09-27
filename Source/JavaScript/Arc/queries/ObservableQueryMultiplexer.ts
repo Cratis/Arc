@@ -1,12 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryConnection } from './IObservableQueryConnection';
-import { IObservableQueryHubConnection } from './IObservableQueryHubConnection';
-import { DataReceived } from './ObservableQueryConnection';
-import { SubscriptionRequest } from './WebSocketHubConnection';
-import { Globals } from '../Globals';
-import { MultiplexerConnectionState } from './ObservableQueryDiagnosticsSnapshot';
+import { IObservableQueryConnection } from './IObservableQueryConnection.js';
+import { IObservableQueryHubConnection } from './IObservableQueryHubConnection.js';
+import { DataReceived } from './ObservableQueryConnection.js';
+import { SubscriptionRequest } from './WebSocketHubConnection.js';
+import { Globals } from '../Globals.js';
+import { MultiplexerConnectionState } from './ObservableQueryDiagnosticsSnapshot.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -1,4 +1,7 @@
-# Resolving Tenant IDs
+---
+title: Resolving Tenant IDs
+description: Reference for Arc's built-in tenant ID resolvers (header, query, claim, subdomain, fixed, and development).
+---
 
 Arc resolves tenant IDs through pluggable strategies. Each request is evaluated by the configured resolver, and the resulting tenant ID becomes the active tenant context for the request lifecycle.
 
@@ -36,7 +39,7 @@ Default parameter name: `tenantId`
 
 ### Claim Resolver
 
-Resolves the tenant ID from a claim on the authenticated user.
+Resolves the tenant ID from a claim on the request's user. The resolver does not check that the user is authenticated, and it does not check that the user belongs to that tenant: authentication middleware must run first, and membership is a separate authorization rule.
 
 ```csharp
 builder.AddCratisArc(options =>

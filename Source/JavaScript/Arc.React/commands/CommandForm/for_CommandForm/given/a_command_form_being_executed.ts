@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { CommandResult, type ICommandResult } from '@cratis/arc/commands';
-import { a_command_form_context } from './a_command_form_context';
+import { a_command_form_context } from './a_command_form_context.js';
 
 /**
  * An execution the spec decides the outcome of. Without one, the window in which the form is

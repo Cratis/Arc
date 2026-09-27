@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { given } from '../../given';
-import { a_role_gate, forbiddenText } from './given/a_role_gate';
+import { given } from '../../given.js';
+import { a_role_gate, forbiddenText } from './given/a_role_gate.js';
 
 /**
  * Roles arriving from JSON configuration is the ordinary case, and JSON has a null. The gate has to

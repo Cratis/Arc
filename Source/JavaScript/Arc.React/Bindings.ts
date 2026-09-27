@@ -5,7 +5,7 @@ import { container } from 'tsyringe';
 import { Constructor } from '@cratis/fundamentals';
 import { IQueryProvider, QueryProvider, QueryTransportMethod } from '@cratis/arc/queries';
 import { Globals, GetHttpHeaders, EventSourceFactory, ObservableQueryTransferMode } from '@cratis/arc';
-import { WellKnownBindings } from './WellKnownBindings';
+import { WellKnownBindings } from './WellKnownBindings.js';
 
 export class Bindings {
     static initialize(microservice: string, apiBasePath?: string, origin?: string, httpHeadersCallback?: GetHttpHeaders, queryTransportMethod?: QueryTransportMethod, queryConnectionCount?: number, queryDirectMode?: boolean, observableQueryTransferMode?: ObservableQueryTransferMode, eventSourceFactory?: EventSourceFactory): void {

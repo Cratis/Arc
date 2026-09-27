@@ -3,14 +3,14 @@
 
 import React from 'react';
 import { renderHook } from '@testing-library/react';
-import { useObservableQuery } from '../useObservableQuery';
+import { useObservableQuery } from '../useObservableQuery.js';
 import {
     FakeObservableQueryWithOptionalArguments,
     FakeObservableQueryWithOptionalArgumentsArguments
-} from './FakeObservableQueryWithOptionalArguments';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+} from './FakeObservableQueryWithOptionalArguments.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryInstanceCache } from '@cratis/arc/queries';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 type Props = { args?: FakeObservableQueryWithOptionalArgumentsArguments };
 

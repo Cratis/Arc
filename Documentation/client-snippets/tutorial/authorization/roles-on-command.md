@@ -1,6 +1,11 @@
 ```csharp
+public enum LibraryRole
+{
+    Librarian
+}
+
 [Command]
-[Roles("Librarian")]
+[Roles(nameof(LibraryRole.Librarian))]
 public record RegisterAuthor(AuthorId Id, AuthorName Name)
 {
     public Task Handle(IMongoCollection<Author> authors) =>

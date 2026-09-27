@@ -10,12 +10,12 @@ import {
 import type { ObservableQuerySubscription } from '@cratis/arc/queries';
 import type { Constructor } from '@cratis/fundamentals';
 import { useState, useEffect, useContext, useId } from 'react';
-import type { SetSorting } from './SetSorting';
-import type { SetPage } from './SetPage';
-import type { SetPageSize } from './SetPageSize';
-import { ArcContext } from '../ArcContext';
-import { QueryFailed } from './QueryFailed';
-import { QueryUnauthorized } from './QueryUnauthorized';
+import type { SetSorting } from './SetSorting.js';
+import type { SetPage } from './SetPage.js';
+import type { SetPageSize } from './SetPageSize.js';
+import { ArcContext } from '../ArcContext.js';
+import { QueryFailed } from './QueryFailed.js';
+import { QueryUnauthorized } from './QueryUnauthorized.js';
 
 type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
 

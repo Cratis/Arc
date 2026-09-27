@@ -20,9 +20,9 @@ public class an_enum_schema_and_context : Specification
         _schema = new OpenApiSchema();
     }
 
-    protected void SetupContextForType(Type type)
+    protected void SetupContextForType(Type type, JsonSerializerOptions? options = null)
     {
-        var jsonTypeInfo = JsonTypeInfo.CreateJsonTypeInfo(type, new JsonSerializerOptions());
+        var jsonTypeInfo = JsonTypeInfo.CreateJsonTypeInfo(type, options ?? new JsonSerializerOptions());
         _context = new OpenApiSchemaTransformerContext
         {
             DocumentName = "test",

@@ -1,4 +1,7 @@
-# Command Configuration
+---
+title: Command Configuration
+description: Configure command microservice routing and API base path per command instance or once through the React Arc root.
+---
 
 Command routing and endpoint settings can be configured per command instance, but are usually configured once through the React `<Arc>` root component.
 

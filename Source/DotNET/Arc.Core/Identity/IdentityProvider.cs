@@ -88,6 +88,7 @@ public class IdentityProvider(
             return;
         }
 
+        context.SetNoStoreResponseHeaders();
         context.ContentType = "application/json; charset=utf-8";
         var json = JsonSerializer.Serialize(result, _serializerOptions);
         var base64Json = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));

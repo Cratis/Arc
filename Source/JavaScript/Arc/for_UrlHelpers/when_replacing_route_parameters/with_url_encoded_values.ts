@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { describe, it, beforeEach } from 'vitest';
-import { UrlHelpers } from '../../UrlHelpers';
+import { UrlHelpers } from '../../UrlHelpers.js';
 
 describe('when replacing route parameters with url encoded values', () => {
     let route: string;

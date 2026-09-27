@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryFor } from './IObservableQueryFor';
+import { IObservableQueryFor } from './IObservableQueryFor.js';
 
 /**
  * Defines a change-stream-capable observable query. Any {@link IObservableQueryFor} returning

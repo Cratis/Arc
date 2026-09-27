@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { SinonStub } from 'sinon';
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
-import { FakeCommand } from './FakeCommand';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
+import { FakeCommand } from './FakeCommand.js';
 
 describe('when executing with three commands were two having changes', async () => {
     const scope = new CommandScopeImplementation(() => {});

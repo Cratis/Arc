@@ -1,4 +1,7 @@
-# Query Configuration
+---
+title: Query Configuration
+description: Configure query microservice routing, API base path, observable transport, cache retention, and HTTP method, with or without React.
+---
 
 Queries can be configured for service routing and endpoint behavior in both React and non-React environments.
 

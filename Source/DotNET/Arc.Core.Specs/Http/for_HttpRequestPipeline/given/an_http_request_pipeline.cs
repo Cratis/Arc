@@ -14,12 +14,17 @@ public class an_http_request_pipeline : Specification
 
     void Establish()
     {
-        _port = Random.Shared.Next(50000, 60000);
-
         _logger = Substitute.For<ILogger<HttpRequestPipeline>>();
+    }
 
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
+    protected void StartListener()
+    {
+        (_listener, _port) = HttpListenerPorts.StartOnFreePort(port =>
+        {
+            var listener = new HttpListener();
+            listener.Prefixes.Add($"http://localhost:{port}/");
+            return listener;
+        });
     }
 
     void Destroy()

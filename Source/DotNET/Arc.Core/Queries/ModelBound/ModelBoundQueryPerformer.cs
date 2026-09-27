@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
@@ -14,8 +15,8 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// </summary>
 public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorizationQueryTarget
 {
-    readonly IEnumerable<ParameterInfo> _dependencies;
-    readonly IEnumerable<ParameterInfo> _queryParameters;
+    readonly ImmutableArray<ParameterInfo> _parameters;
+    readonly ImmutableHashSet<int> _dependencyPositions;
     readonly IAuthorizationEvaluator? _authorizationEvaluator;
     readonly Func<QueryContext, bool>? _authorizeFromScope;
 
@@ -91,10 +92,26 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
             CustomRoute = pathProperty?.GetValue(pathAttribute) as string;
         }
 
-        _dependencies = performMethod.GetParameters().Where(p => IsDependency(serviceProviderIsService, p));
-        _queryParameters = performMethod.GetParameters().Where(p => !IsDependency(serviceProviderIsService, p));
-        Dependencies = _dependencies.Select(p => p.ParameterType);
-        Parameters = new(_queryParameters.Select(p => new QueryParameter(p.Name ?? string.Empty, p.ParameterType, !IsNullableOrOptional(p))));
+        _parameters = performMethod.GetParameters().ToImmutableArray();
+        var dependencyPositions = ImmutableHashSet.CreateBuilder<int>();
+        var dependencyTypes = ImmutableArray.CreateBuilder<Type>();
+        var queryParameters = ImmutableArray.CreateBuilder<QueryParameter>();
+        foreach (var parameter in _parameters)
+        {
+            if (IsDependency(serviceProviderIsService, parameter))
+            {
+                dependencyPositions.Add(parameter.Position);
+                dependencyTypes.Add(parameter.ParameterType);
+            }
+            else
+            {
+                queryParameters.Add(new QueryParameter(parameter.Name ?? string.Empty, parameter.ParameterType, !IsNullableOrOptional(parameter)));
+            }
+        }
+
+        _dependencyPositions = dependencyPositions.ToImmutable();
+        Dependencies = dependencyTypes.ToImmutable();
+        Parameters = new(queryParameters.ToImmutable());
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
         SupportsPaging = ComputeSupportsPaging(performMethod);
         AuthorizationMethod = performMethod;
@@ -144,10 +161,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     /// <inheritdoc/>
     public async ValueTask<object?> Perform(QueryContext context)
     {
-        var parameters = AuthorizationMethod.GetParameters();
         var dependencies = context.Dependencies?.ToArray() ?? [];
         var queryStringParameters = context.Arguments ?? QueryArguments.Empty;
-        var args = GetMethodArguments(parameters, dependencies, queryStringParameters);
+        var args = GetMethodArguments(dependencies, queryStringParameters);
 
         try
         {
@@ -175,7 +191,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         return null;
     }
 
-    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryStringParameters)
+    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryStringParameters, FullyQualifiedQueryName queryName)
     {
         var matchingQueryParam = queryStringParameters.FirstOrDefault(kvp =>
             string.Equals(kvp.Key, parameter.Name, StringComparison.OrdinalIgnoreCase));
@@ -192,7 +208,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
             return parameter.HasDefaultValue ? parameter.DefaultValue : null;
         }
 
-        return matchingQueryParam.Value.ConvertTo(parameter.ParameterType);
+        return matchingQueryParam.Value.ConvertQueryArgument(parameter.ParameterType, parameter.Name ?? "unknown", queryName);
     }
 
     static bool CanRepresentEmptyString(Type type) =>
@@ -221,13 +237,20 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     /// its element type is neither a primitive, a concept, nor an enum, so it still defers to the container exactly
     /// as before.
     /// </para>
+    /// <para>
+    /// A concept (<c>ConceptAs&lt;T&gt;</c>) is excluded for the same reason as an enum: it is a concrete reference
+    /// type, so self-binding registers it and <c>IsService</c> answers true. It was then resolved from the container
+    /// instead of bound from the request, and failed trying to construct it from its primitive value. A concept is
+    /// always a caller-supplied argument, as it already is inside a collection and in the generated proxy. A nullable
+    /// concept (<c>T?</c>) shares the same runtime type, so it is covered too.
+    /// </para>
     /// </remarks>
     static bool IsDependency(IServiceProviderIsService serviceProviderIsService, ParameterInfo parameter) =>
         !IsNeverADependency(parameter.ParameterType) &&
         serviceProviderIsService.IsService(parameter.ParameterType);
 
     static bool IsNeverADependency(Type type) =>
-        type.IsValueType || type.IsEnumerableOfQueryArgumentElement(out _);
+        type.IsValueType || type.IsConcept() || type.IsEnumerableOfQueryArgumentElement(out _) || type.IsNestedQueryArgumentCollection();
 
     static bool IsNullableOrOptional(ParameterInfo parameter)
     {
@@ -268,29 +291,29 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
-    object?[] GetMethodArguments(ParameterInfo[] parameters, object[] dependencies, QueryArguments queryStringParameters)
+    object?[] GetMethodArguments(object[] dependencies, QueryArguments queryStringParameters)
     {
         var dependencyIndex = 0;
-        var args = new object?[parameters.Length];
-        for (var i = 0; i < parameters.Length; i++)
+        var args = new object?[_parameters.Length];
+        for (var i = 0; i < _parameters.Length; i++)
         {
-            var parameter = parameters[i];
+            var parameter = _parameters[i];
 
-            if (_dependencies.Contains(parameter))
+            if (_dependencyPositions.Contains(parameter.Position))
             {
                 args[i] = ResolveDependency(dependencies, ref dependencyIndex);
             }
             else
             {
-                args[i] = ResolveQueryArgument(parameter, queryStringParameters);
+                args[i] = ResolveQueryArgument(parameter, queryStringParameters, FullyQualifiedName);
             }
         }
 
-        ValidateArguments(parameters, args);
+        ValidateArguments(_parameters, args);
         return args;
     }
 
-    void ValidateArguments(ParameterInfo[] parameters, object?[] args)
+    void ValidateArguments(ImmutableArray<ParameterInfo> parameters, object?[] args)
     {
         for (var i = 0; i < parameters.Length; i++)
         {

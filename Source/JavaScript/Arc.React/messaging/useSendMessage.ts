@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useMemo } from 'react';
-import { useMessenger } from './useMessenger';
+import { useMessenger } from './useMessenger.js';
 
 /**
  * Returns a stable function for publishing messages to the nearest {@link MessengerScope}

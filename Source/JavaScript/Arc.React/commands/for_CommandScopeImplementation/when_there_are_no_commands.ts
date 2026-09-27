@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { CommandScopeImplementation } from '../CommandScopeImplementation';
+import { CommandScopeImplementation } from '../CommandScopeImplementation.js';
 
 describe('when there are no commands', () => {
     const scope = new CommandScopeImplementation(() => {});

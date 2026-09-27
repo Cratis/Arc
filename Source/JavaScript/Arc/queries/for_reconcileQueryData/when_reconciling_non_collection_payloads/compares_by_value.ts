@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { reconcileQueryData } from '../../reconcileQueryData';
+import { reconcileQueryData } from '../../reconcileQueryData.js';
 
 describe('when reconciling a single object that did not change', () => {
     const previous = { id: 'a', name: 'First' };

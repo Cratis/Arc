@@ -1,4 +1,7 @@
-# Command Contracts
+---
+title: Command Contracts
+description: Reference for the ICommand contract in @cratis/arc that generated command proxies implement.
+---
 
 Core command support in `@cratis/arc` is built around typed command classes generated from backend command definitions.
 

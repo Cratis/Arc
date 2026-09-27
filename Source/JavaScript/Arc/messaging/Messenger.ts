@@ -3,8 +3,8 @@
 
 import { Constructor } from '@cratis/fundamentals';
 import { filter, Subject, Subscription } from 'rxjs';
-import { IMessenger } from './IMessenger';
-import { Message } from './Message';
+import { IMessenger } from './IMessenger.js';
+import { Message } from './Message.js';
 
 /**
  * Represents an implementation of {@link IMessenger}.

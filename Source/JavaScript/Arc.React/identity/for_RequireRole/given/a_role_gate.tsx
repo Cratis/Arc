@@ -4,11 +4,11 @@
 import React from 'react';
 import { act, render, RenderResult, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { IdentityProvider } from '../../IdentityProvider';
-import { IIdentityContext } from '../../IIdentityContext';
-import { RequireRole, RequireRoleProps, IdentityPredicate } from '../../RequireRole';
-import { useIdentity } from '../../useIdentity';
-import { ArcContext } from '../../../ArcContext';
+import { IdentityProvider } from '../../IdentityProvider.js';
+import { IIdentityContext } from '../../IIdentityContext.js';
+import { RequireRole, RequireRoleProps, IdentityPredicate } from '../../RequireRole.js';
+import { useIdentity } from '../../useIdentity.js';
+import { ArcContext } from '../../../ArcContext.js';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 

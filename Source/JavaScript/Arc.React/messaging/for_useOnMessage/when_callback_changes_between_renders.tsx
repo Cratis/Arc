@@ -4,8 +4,8 @@
 import React, { useState } from 'react';
 import { act, render } from '@testing-library/react';
 import { IMessenger, Messenger } from '@cratis/arc/messaging';
-import { ArcConfiguration, ArcContext } from '../../ArcContext';
-import { useOnMessage } from '../useOnMessage';
+import { ArcConfiguration, ArcContext } from '../../ArcContext.js';
+import { useOnMessage } from '../useOnMessage.js';
 
 class MessageToSend {
     constructor(readonly content: string) {

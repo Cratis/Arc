@@ -9,7 +9,7 @@ public class and_aggregate_root_does_not_have_any_handle_methods_but_has_events 
 {
     void Establish()
     {
-        _eventSequence.GetTailSequenceNumber(_eventSourceId).Returns((EventSequenceNumber)42L);
+        _eventSequence.GetTailSequenceNumber(_eventSourceId, _aggregateRootContext.EventSourceType, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId).Returns((EventSequenceNumber)42L);
     }
 
     async Task Because() => await _mutator.Rehydrate();

@@ -3,8 +3,8 @@
 
 import { inject } from 'tsyringe';
 import { Constructor } from '@cratis/fundamentals';
-import { WellKnownBindings } from './WellKnownBindings';
-import { isUserDefinedClass } from './isUserDefinedClass';
+import { WellKnownBindings } from './WellKnownBindings.js';
+import { isUserDefinedClass } from './isUserDefinedClass.js';
 
 /**
  * Metadata key used to store the props type on a view model constructor.

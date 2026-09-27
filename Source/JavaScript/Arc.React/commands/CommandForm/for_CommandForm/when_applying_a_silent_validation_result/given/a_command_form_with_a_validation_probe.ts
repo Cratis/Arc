@@ -7,8 +7,8 @@ import { Command, CommandResult, type ICommandResult } from '@cratis/arc/command
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { ValidationResult } from '@cratis/arc/validation';
 import { ValidationResultSeverity } from '@cratis/arc/validation';
-import { CommandForm, useCommandFormContext } from '../../../CommandForm';
-import { a_command_form_context } from '../../given/a_command_form_context';
+import { CommandForm, useCommandFormContext } from '../../../CommandForm.js';
+import { a_command_form_context } from '../../given/a_command_form_context.js';
 
 /** A verdict a validation run can come back with, distinguishable from every other one. */
 export const REJECTION = 'Name is already taken';

@@ -1,16 +1,16 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Globals } from '../Globals';
-import { joinPaths } from '../joinPaths';
-import { UrlHelpers } from '../UrlHelpers';
-import { IObservableQueryConnection } from './IObservableQueryConnection';
-import { ObservableQueryConnection } from './ObservableQueryConnection';
-import { QueryTransportMethod } from './QueryTransportMethod';
-import { ServerSentEventQueryConnection, SSE_HUB_ROUTE } from './ServerSentEventQueryConnection';
-import { ServerSentEventHubConnection } from './ServerSentEventHubConnection';
-import { WebSocketHubConnection } from './WebSocketHubConnection';
-import { MultiplexedObservableQueryConnection, WS_HUB_ROUTE, getOrCreateMultiplexer } from './ObservableQueryMultiplexer';
+import { Globals } from '../Globals.js';
+import { joinPaths } from '../joinPaths.js';
+import { UrlHelpers } from '../UrlHelpers.js';
+import { IObservableQueryConnection } from './IObservableQueryConnection.js';
+import { ObservableQueryConnection } from './ObservableQueryConnection.js';
+import { QueryTransportMethod } from './QueryTransportMethod.js';
+import { ServerSentEventQueryConnection, SSE_HUB_ROUTE } from './ServerSentEventQueryConnection.js';
+import { ServerSentEventHubConnection } from './ServerSentEventHubConnection.js';
+import { WebSocketHubConnection } from './WebSocketHubConnection.js';
+import { MultiplexedObservableQueryConnection, WS_HUB_ROUTE, getOrCreateMultiplexer } from './ObservableQueryMultiplexer.js';
 
 /**
  * The SSE subscribe POST endpoint route.

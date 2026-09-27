@@ -5,6 +5,7 @@ using System.Diagnostics.Metrics;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
+using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Conversion;
@@ -83,11 +84,19 @@ public static class HostBuilderExtensions
         TypeConverters.Register();
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
+        services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<IOperationContextAccessor, OperationContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, IntrospectionOptionsValidator>());
 
         services.AddSingleton<CurrentPrincipalAccessor>();
         services.AddSingleton<ICurrentPrincipalAccessor>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
         services.AddSingleton<ICurrentPrincipalOverride>(sp => sp.GetRequiredService<CurrentPrincipalAccessor>());
+        services.AddSingleton<TenantIdAccessor>();
+        services.TryAddSingleton<ITenantIdAccessor>(sp => sp.GetRequiredService<TenantIdAccessor>());
+        services.TryAddSingleton<ITenantScope>(sp => sp.GetRequiredService<ITenantIdAccessor>() is TenantIdAccessor accessor && accessor.GetType() == typeof(TenantIdAccessor)
+            ? accessor
+            : throw new ExplicitTenantScopeRequiresArcAccessor());
         services.AddSingleton<ArcAuthorizationPolicyRuntime>();
         services.AddSingleton<IAuthorizationPolicyRuntime>(sp => sp.GetRequiredService<ArcAuthorizationPolicyRuntime>());
         services.AddTransient<AuthorizationDeclarations>();

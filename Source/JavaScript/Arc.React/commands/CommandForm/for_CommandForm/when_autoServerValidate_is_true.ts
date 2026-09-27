@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import { CommandForm } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
+import { CommandForm } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 import { vi } from 'vitest';
 
 // Track validation calls globally for testing

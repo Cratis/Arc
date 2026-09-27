@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_command } from './given/a_command';
-import { given } from '../../given';
-import { Globals } from '../../Globals';
-import { SomeCommand } from './SomeCommand';
+import { a_command } from './given/a_command.js';
+import { given } from '../../given.js';
+import { Globals } from '../../Globals.js';
+import { SomeCommand } from './SomeCommand.js';
 
 describe('when constructing command with globals api base path', given(a_command, () => {
     let originalApiBasePath: string | undefined;

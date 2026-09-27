@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_with_validator } from '../given/a_query_with_validator';
-import { given } from '../../../given';
-import { QueryResult } from '../../QueryResult';
+import { a_query_with_validator } from '../given/a_query_with_validator.js';
+import { given } from '../../../given.js';
+import { QueryResult } from '../../QueryResult.js';
 
 describe("when performing with client validation failure and custom message", given(a_query_with_validator, context => {
     let result: QueryResult<object>;

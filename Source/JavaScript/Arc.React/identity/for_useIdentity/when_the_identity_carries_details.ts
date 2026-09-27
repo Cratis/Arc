@@ -3,7 +3,7 @@
 
 import React from 'react';
 import sinon from 'sinon';
-import { useIdentity } from '../useIdentity';
+import { useIdentity } from '../useIdentity.js';
 
 interface UserDetails {
     login: string;

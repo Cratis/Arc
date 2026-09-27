@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidationResultReason } from './ValidationResultReason';
-import { ValidationResultSeverity } from './ValidationResultSeverity';
+import { ValidationResultReason } from './ValidationResultReason.js';
+import { ValidationResultSeverity } from './ValidationResultSeverity.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

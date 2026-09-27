@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { WebSocketMessage, WebSocketMessageType } from '../WebSocketMessage';
+import { WebSocketMessage, WebSocketMessageType } from '../WebSocketMessage.js';
 
 describe('when creating a ping message', () => {
     let timestamp: number;

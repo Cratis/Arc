@@ -8,7 +8,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Bind a scalar argument
 
-Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope, converts each value to a string, and uses the same scalar conversion path.
+Arc's model-bound HTTP readers are not ASP.NET MVC model binding. GET reads named values from the **query string**, not route values. QUERY reads an arguments envelope. Scalar values use the scalar conversion path; JSON arrays keep their element boundaries and Arc converts each element separately.
 
 This alternative read-model declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and the configured Arc MongoDB provider. The query searches by an exact account name and a minimum balance:
 
@@ -41,9 +41,9 @@ Arc converts the incoming name to `AccountName`; the predicate uses that domain 
 
 ## Supported input shapes
 
-The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose.
+The built-in conversion path handles scalar values such as strings, numbers, booleans, GUIDs, enums, dates, and supported `ConceptAs<T>` wrappers. A custom `TypeConverter` can extend conversion; test it through each transport you expose. If a supplied scalar or concept value cannot be converted to the declared parameter type, GET and QUERY reject it with HTTP 400 and a validation error naming the argument and its type; the query does not run. This also applies to nullable and defaulted parameters when a value is supplied: invalid input does not fall back to null or the default.
 
-It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys likewise are not a promise of collection binding. Unsupported conversion can yield a missing/null/default value or a conversion error, rather than a useful DTO.
+It does **not** provide general nested-JSON DTO binding or array/list deserialization. A JSON object in `arguments` does not make an arbitrary `SearchCriteria` parameter bindable. Repeated GET keys bind only to [collections of those scalar types](#collection-arguments), not to collections of objects. Unsupported DTO shapes cannot be constructed by these readers; use a supported scalar or collection argument instead.
 
 These limitations concern the supplied HTTP readers. Already-typed arguments passed directly to `IQueryPipeline`, custom readers/converters, and [MVC DTO binding](../controller-based/query-arguments.md) are different paths. FluentValidation's ability to traverse an object does not prove HTTP can construct that object.
 
@@ -77,11 +77,11 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Everything else, including a plain class or an interface like `IMongoCollection<T>` or `ILogger<T>`, is treated as an injected dependency. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
+Arc classifies a method parameter as a caller-supplied query argument — rather than a value resolved from the dependency injection container — when it is a primitive, a concept, an enum (plain or nullable), or a collection of primitives, concepts, or enums. Anything else is injected when the container can supply it, as with `IMongoCollection<T>` or `ILogger<T>`. A type the container does not know, such as an unregistered plain class, is not injected: Arc treats it as a query argument, which the HTTP readers cannot construct. This is why `AccountStatus`/`AccountStatus?` above are read from the query string while `IMongoCollection<DebitAccount>` is resolved from the container in the same method signature.
 
 ### Collection Arguments
 
-A collection parameter — `IEnumerable<T>`, an array, or `List<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. Everything else about it works the same as a single value; the caller just sends the argument name repeated once per value (`?ids=1&ids=2&ids=3`), and Arc binds it back into the collection type your method declares.
+A collection parameter — `IEnumerable<T>`, an array, `List<T>`, or `HashSet<T>` — is classified the same way as a scalar one: it is a caller-supplied argument whenever its element type is a primitive, a concept, or an enum. This includes nullable elements and scalar types such as `DateOnly`, `TimeOnly`, and `Uri`. For GET, send the argument name repeated once per value (`?ids=1&ids=2&ids=3`); for QUERY, send a JSON array under `arguments` in the request body. Arc binds either form into the collection type your method declares. GET collapses repeated values into a comma-delimited string and splits on every comma, so any element whose text contains a comma (including a `Uri`) cannot round-trip; use QUERY for those values. Collections of `JsonObject` or `JsonArray` elements require QUERY; GET rejects them with HTTP 400. Invalid collection elements and null in non-nullable element types are rejected with HTTP 400 and the same named, malformed-request validation error as invalid scalars. Nested CLR collections such as `int[][]` are not supported; `JsonArray` elements in QUERY are supported.
 
 ```csharp
 [ReadModel]
@@ -117,7 +117,7 @@ public record DebitAccount(AccountId Id, AccountName Name, CustomerId Owner, dec
 }
 ```
 
-> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>` makes no difference. Everything else — a plain class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container instead.
+> **The classification rule, stated once:** a parameter is caller-supplied when it is a primitive, a concept, an enum, **or a collection of those** — plain, nullable, or wrapped in `IEnumerable<T>`/an array/`List<T>`/`HashSet<T>` makes no difference. Everything else — a class, an interface, or a collection of any other element type such as `IEnumerable<IMongoCollection<T>>` — is resolved from the dependency injection container when it is registered there; an unregistered type falls back to being a query argument.
 
 ## Missing, empty, and optional values
 
@@ -132,9 +132,10 @@ The GET reader removes these names from ordinary arguments, case-insensitively:
 | Keys                                              | Purpose                          |
 | ------------------------------------------------- | -------------------------------- |
 | `page`, `pageSize`                                | Arc paging context               |
-| `sortby`, `sortDirection`                         | Arc sorting context              |
+| `sortBy`, `sortDirection`                         | Arc sorting context              |
 | `waitForFirstResult`, `waitForFirstResultTimeout` | Observable HTTP snapshot control |
 
+GET also reads the reserved keys case-insensitively (`sortby`, `SORTBY`, `PAGE`, and `PAGESIZE` are equivalent spellings).
 Do not declare method parameters named `page` or `pageSize` expecting GET to populate them. Use [automatic paging](paging.md), or distinct business argument names if you implement a separate result cap. QUERY places paging/sorting in separate envelope properties; hub subscriptions also have dedicated paging/sorting fields. Keep the distinction explicit across transports.
 
 ## URL binding

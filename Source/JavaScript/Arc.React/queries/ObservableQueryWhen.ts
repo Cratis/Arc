@@ -3,11 +3,11 @@
 
 import { IObservableQueryFor, QueryResultWithState, Sorting, Paging } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
-import { SetSorting } from './SetSorting';
-import { SetPage } from './SetPage';
-import { SetPageSize } from './SetPageSize';
-import { useObservableQuery, useObservableQueryWithPaging } from './useObservableQuery';
-import { useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging } from './useSuspenseObservableQuery';
+import { SetSorting } from './SetSorting.js';
+import { SetPage } from './SetPage.js';
+import { SetPageSize } from './SetPageSize.js';
+import { useObservableQuery, useObservableQueryWithPaging } from './useObservableQuery.js';
+import { useSuspenseObservableQuery, useSuspenseObservableQueryWithPaging } from './useSuspenseObservableQuery.js';
 
 /**
  * Represents a conditional observable query binding that conditionally subscribes based on a boolean condition.

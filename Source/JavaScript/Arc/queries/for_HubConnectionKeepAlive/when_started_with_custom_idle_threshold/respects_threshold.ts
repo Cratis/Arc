@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { HubConnectionKeepAlive } from '../../HubConnectionKeepAlive';
+import { HubConnectionKeepAlive } from '../../HubConnectionKeepAlive.js';
 
 describe('when started with a custom idle threshold larger than the check interval', () => {
     let clock: sinon.SinonFakeTimers;

@@ -1,4 +1,7 @@
-# Observable Query Diagnostics
+---
+title: Observable Query Diagnostics
+description: Inspect the observable-query cache and transport from React with getSnapshot() and snapshots$, and correlate it with backend query health.
+---
 
 Observable query diagnostics give you a live view into the query subsystem from React. They are useful when you need to build developer tools, inspect cache behavior, or show the current transport state in an internal dashboard.
 
@@ -85,13 +88,15 @@ A typical investigation flow:
 
 1. Pull `snapshot.cache.entries` from the frontend diagnostics.
 2. Find the entry whose `queryName` matches the query you are investigating.
-3. Check whether `subscribed` is `true` (the frontend has established a server subscription) and whether `hasResult` is `true` (at least one data frame has arrived).
+3. Check whether `subscribed` is `true` (the frontend started a subscription and owns its teardown; this is local state, not a server acknowledgement) and whether `hasResult` is `true` (at least one data frame has arrived).
 4. Open `/.cratis/queries/health` or subscribe to it in a dev tool component, then look for the matching `queryName` in `querySubscriptions`.
 5. Inspect `lastDataServedAt` and `lastPongReceivedAt` to confirm the backend is actively serving data.
 
 If the frontend reports `subscribed: true` but `hasResult: false`, and the backend shows a matching subscriber with a stale `lastDataServedAt`, the problem is a data source that has not emitted since the subscription opened.
 
-If the frontend reports `subscribed: false`, the subscription request never reached the backend — look for a connection problem in the multiplexer or SSE transport.
+If the frontend reports `subscribed: true` and `hasResult: false`, but the backend shows no matching subscriber, the subscription request did not reach or was not accepted by the backend — look for a connection problem in the multiplexer or SSE transport.
+
+If the frontend reports `subscribed: false`, no underlying subscription is currently registered for that entry: it was never started (for example, a disabled `.when()` condition), it was torn down after the last subscriber unmounted, or a connection reset tore it down. Check `subscriberCount` to see whether components still own the entry; a positive count with `subscribed: false` means they are waiting for the subscription to be re-established.
 
 See [Query Health Endpoint](../../../backend/csharp/queries/query-health.md) for the full backend API and response shape.
 

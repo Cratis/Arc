@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { SomeCommand } from '../SomeCommand';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
+import { SomeCommand } from '../SomeCommand.js';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
 
 export class a_command {
     command: SomeCommand;

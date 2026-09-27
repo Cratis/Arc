@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { GetHttpHeaders } from './GetHttpHeaders';
-import { EventSourceFactory } from './EventSourceFactory';
-import { QueryTransportMethod } from './queries/QueryTransportMethod';
-import { QueryHttpMethod } from './queries/QueryHttpMethod';
-import { QueryHttpMethodResolver } from './queries/QueryHttpMethodResolver';
+import { GetHttpHeaders } from './GetHttpHeaders.js';
+import { EventSourceFactory } from './EventSourceFactory.js';
+import { QueryTransportMethod } from './queries/QueryTransportMethod.js';
+import { QueryHttpMethod } from './queries/QueryHttpMethod.js';
+import { QueryHttpMethodResolver } from './queries/QueryHttpMethodResolver.js';
 
 /**
  * Defines the transfer mode used for observable query subscriptions.

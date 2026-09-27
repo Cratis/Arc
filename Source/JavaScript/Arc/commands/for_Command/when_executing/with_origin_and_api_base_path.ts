@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
-import { SomeCommand } from '../SomeCommand';
-import { given } from '../../../given';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
+import { SomeCommand } from '../SomeCommand.js';
+import { given } from '../../../given.js';
 
 describe("when executing with origin and api base path", given(class {
     command: SomeCommand;

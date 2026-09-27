@@ -3,9 +3,9 @@
 
 import { act } from '@testing-library/react';
 import sinon from 'sinon';
-import type { ExceptionDisplayProps } from '../../index';
-import { given } from '../../../../given';
-import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
+import type { ExceptionDisplayProps } from '../../index.js';
+import { given } from '../../../../given.js';
+import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback.js';
 
 describe('when displaying exception feedback with an explicitly empty message', given(a_command_form_with_exception_feedback, context => {
     beforeEach(async () => {

@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryHttpMethod } from './QueryHttpMethod';
+import { QueryHttpMethod } from './QueryHttpMethod.js';
 
 /**
  * The information a {@link QueryHttpMethodResolver} uses to decide the HTTP method for a query.

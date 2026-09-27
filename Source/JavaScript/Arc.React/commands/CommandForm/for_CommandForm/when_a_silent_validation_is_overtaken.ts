@@ -6,9 +6,9 @@ import { render, act } from '@testing-library/react';
 import { Command } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import { vi } from 'vitest';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm, useCommandFormContext } from '../CommandForm.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 /**
  * Silent validation is what decides isValid, and with autoServerValidate every run of it is a round

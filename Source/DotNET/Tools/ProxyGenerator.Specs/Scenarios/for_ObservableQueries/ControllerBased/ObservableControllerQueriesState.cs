@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ControllerBased;
 
@@ -20,7 +21,7 @@ public class ObservableControllerQueriesState
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Controller Item", Value = 42 }
     );
 
-    public Subject<ObservableControllerQueryItem> DelayedSingleItemSubject { get; private set; } = new();
+    public SubscriptionSignalingSubject<ObservableControllerQueryItem> DelayedSingleItemSubject { get; private set; } = new();
 
     public BehaviorSubject<IEnumerable<ObservableControllerQueryItem>> SingleItemCollectionSubject { get; } = new([
         new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Controller Item", Value = 99 }
@@ -45,7 +46,7 @@ public class ObservableControllerQueriesState
             new ObservableControllerQueryItem { Id = new Guid(0x10000000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 77), Name = "Sole Controller Item", Value = 99 }
         ]);
 
-        DelayedSingleItemSubject = new Subject<ObservableControllerQueryItem>();
+        DelayedSingleItemSubject = new SubscriptionSignalingSubject<ObservableControllerQueryItem>();
         oldDelayedSingleItemSubject.OnCompleted();
         CategorySubjects.Clear();
     }

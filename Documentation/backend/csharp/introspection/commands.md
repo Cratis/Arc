@@ -1,4 +1,7 @@
-# Introspection Commands Endpoint
+---
+title: Introspection Commands Endpoint
+description: Reference for GET /.cratis/commands, which returns metadata and payload schemas for discovered command handlers.
+---
 
 The commands introspection endpoint returns metadata for discovered command handlers, not the final runtime route table.
 
@@ -15,13 +18,13 @@ The endpoint returns a JSON array where each item describes one discovered comma
 Each item includes:
 
 - `name`: Command type name.
-- `namespace`: Namespace derived from the handler's location after skipping configured segments.
-- `route`: Convention-derived command route using the configured prefix and skipped namespace segments.
+- `namespace`: Namespace derived from the handler's location after skipping the default namespace segments.
+- `route`: Convention-derived command route using the default prefix and namespace segments (see the note below).
 - `type`: Fully qualified command type name.
 - `documentationSummary`: Summary text from type metadata when available.
 - `payloadSchema`: JSON Schema describing the command payload contract (fields/properties and types).
 
-Introspection does not mirror all final endpoint replacement decisions. Use it to inspect discovered-operation metadata, not as an authoritative inventory of callable URLs.
+Introspection does not mirror all final endpoint replacement decisions. It also derives `namespace` and `route` from the **default** route options, not from `Cratis:Arc:GeneratedApis` (`ArcOptions.GeneratedApis`), which is what the endpoint mapper uses. If you change the route prefix, segments to skip, or name inclusion there, the reported routes can differ from the callable ones. Use it to inspect discovered-operation metadata, not as an authoritative inventory of callable URLs.
 
 ## Typical uses
 

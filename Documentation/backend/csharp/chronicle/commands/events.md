@@ -190,6 +190,27 @@ public record FundsCredited(decimal Amount);
 
 Arc enumerates and enrolls these wrappers in order, but that is not a guarantee of cross-source batch order. Chronicle's ordinary unit-of-work staging groups events by source: `A1, B1, A2` can commit as `A1, A2, B1`. Use [`EventsWithConcurrencyScopes`](#events-with-exact-concurrency-scopes) when global batch order matters. The events still commit through one atomic append when the command succeeds. A constraint violation, concurrency conflict, or append error rejects the whole batch and becomes an ordinary failed `CommandResult`; no event from the returned batch lands.
 
+A wrapper can also carry when the fact happened and how to tag it. Set `Occurred` to record a historical occurrence time, for example when importing or backfilling, and `Tags` to add tags to that one event. Chronicle merges them with any static `[Tag]` on the event type:
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
+
+[Command]
+public record ImportCredit(EventSourceId AccountId, decimal Amount, DateTimeOffset CreditedAt)
+{
+    public EventForEventSourceId Handle() =>
+        new(AccountId, new FundsCredited(Amount))
+        {
+            Occurred = CreditedAt,
+            Tags = ["imported"]
+        };
+}
+```
+
+Arc keeps both for a single wrapper, a collection, a mixed collection, and `EventsWithConcurrencyScopes`, whether the command appends immediately or through its transaction. Leave `Occurred` unset to use the append time. The wrapper's other metadata properties (`EventStreamType`, `EventStreamId`, `EventSourceType`, and `Subject`) are not used: those come from the command context, as described in [event stream metadata](#event-stream-metadata).
+
 You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
 
 ```csharp

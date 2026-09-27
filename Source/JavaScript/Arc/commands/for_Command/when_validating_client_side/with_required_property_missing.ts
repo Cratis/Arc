@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { given } from '../../../given';
-import { CommandResult } from '../../CommandResult';
-import { a_command } from '../given/a_command';
+import { given } from '../../../given.js';
+import { CommandResult } from '../../CommandResult.js';
+import { a_command } from '../given/a_command.js';
 
 describe("when validating client side with required property missing", given(class extends a_command {
     constructor() {

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Concepts;
+using Cratis.Json;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 
@@ -16,7 +17,8 @@ public class ConceptSchemaTransformer : IOpenApiSchemaTransformer
     public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context, CancellationToken cancellationToken)
     {
         var type = context.JsonTypeInfo.Type;
-        if (!type.IsConcept())
+        if (!type.IsConcept() || context.JsonTypeInfo.Options.GetConverter(type).GetType() !=
+            new ConceptAsJsonConverterFactory().CreateConverter(type, context.JsonTypeInfo.Options).GetType())
         {
             return Task.CompletedTask;
         }

@@ -127,7 +127,7 @@ Use a named exception for the failed operation rather than a generic exception:
 public class SearchIndexingFailed() : Exception("Search indexing command failed.");
 ```
 
-Here throwing deliberately tells the reactor to fail; logging and returning normally would acknowledge the event despite the failed command. [ARCCHR0006](../code-analysis/index.md#arcchr0006-manual-reactor-commands-and-replay) warns when a manual execution handler omits `[OnceOnly]`.
+Here throwing deliberately tells the reactor to fail; logging and returning normally would acknowledge the event despite the failed command. [ARCCHR0006](../code-analysis/ARCCHR0006.md) warns when a manual execution handler omits `[OnceOnly]`.
 
 An asynchronous handler can perform manual work and then return supported side effects. Prefer one clear composition style, but mixing them is not a runtime prohibition. Chronicle also supports directly returned **events**; see [React to an event](../react-to-an-event.md).
 

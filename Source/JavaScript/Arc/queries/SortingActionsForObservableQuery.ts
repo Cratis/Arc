@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryFor } from './IObservableQueryFor';
-import { SortDirection } from './SortDirection';
-import { Sorting } from './Sorting';
+import { IObservableQueryFor } from './IObservableQueryFor.js';
+import { SortDirection } from './SortDirection.js';
+import { Sorting } from './Sorting.js';
 
 /**
  * Represents sorting for an observable query.

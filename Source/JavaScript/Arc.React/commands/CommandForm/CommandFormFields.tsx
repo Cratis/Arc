@@ -1,18 +1,20 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { useCommandFormContext, type FieldValidationInfo } from './CommandFormContext';
-import { useCommandFormFieldRegistration } from './CommandFormFieldRegistrationContext';
+import { useCommandFormContext, type FieldValidationInfo } from './CommandFormContext.js';
+import { useCommandFormFieldRegistration } from './CommandFormFieldRegistrationContext.js';
 import React from 'react';
-import type { CommandFormFieldProps } from './CommandFormField';
+import type { CommandFormFieldProps } from './CommandFormField.js';
 import type { ICommandResult } from '@cratis/arc/commands';
-import { memberMatchesField } from './memberMatchesField';
-import { isCommandFormColumn } from './commandFormMarkers';
-import { renderCommandFormDescendants } from './renderCommandFormDescendants';
-import { runCommandValidation } from './runCommandValidation';
-import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime';
-import { CommandFormFieldBinding } from './commandFormFieldBindingContext';
-import { CommandFormNativeResultContext } from './CommandFormNativeResultContext';
+import { ValidationResultSeverity } from '@cratis/arc/validation';
+import { blocksCommandValidation } from './blocksCommandValidation.js';
+import { memberMatchesField } from './memberMatchesField.js';
+import { isCommandFormColumn, type CommandFormMarked } from './commandFormMarkers.js';
+import { renderCommandFormDescendants } from './renderCommandFormDescendants.js';
+import { runCommandValidation } from './runCommandValidation.js';
+import { shouldEmitCommandFormDevelopmentWarnings } from './commandFormRuntime.js';
+import { CommandFormFieldBinding } from './commandFormFieldBindingContext.js';
+import { CommandFormNativeResultContext } from './CommandFormNativeResultContext.js';
 
 export interface ColumnInfo {
     fields: React.ReactElement<CommandFormFieldProps>[];
@@ -38,7 +40,12 @@ const CommandFormFieldWrapper = ({
     const context = useCommandFormContext<unknown>();
     const nativeResultContext = React.useContext(CommandFormNativeResultContext);
     const nativeCommandResult = nativeResultContext ? nativeResultContext.result : context.commandResult;
+    const policy = (context.commandInstance as { blockOnValidationSeverity?: ValidationResultSeverity } | undefined)?.blockOnValidationSeverity;
     const fieldProps = field.props as CommandFormFieldProps;
+    const generatedId = React.useId();
+    const fieldId = fieldProps.id ?? generatedId;
+    const groupRole = (field.type as CommandFormMarked).commandFormFieldGroupRole;
+    const titleId = `${fieldId}-title`;
     const propertyAccessor = fieldProps.value;
 
     // An explicit fieldName wins; a dynamic accessor such as `instance => instance[name]` cannot be
@@ -97,6 +104,7 @@ const CommandFormFieldWrapper = ({
         field as React.ReactElement,
         {
             ...fieldProps,
+            id: fieldId,
             currentValue,
             propertyDescriptor,
             fieldName: propertyName,
@@ -134,7 +142,7 @@ const CommandFormFieldWrapper = ({
                                 )
                                 .map((vr) => vr.message) || [];
                         const validationInfo: FieldValidationInfo = {
-                            isValid: prevErrors.length === 0,
+                            isValid: !context.commandResult?.validationResults?.some(vr => memberMatchesField(vr.members, propertyName) && blocksCommandValidation(vr, policy)),
                             errors: prevErrors,
                         };
                         context.onFieldChange(
@@ -196,7 +204,7 @@ const CommandFormFieldWrapper = ({
                             context.setCommandResult({
                                 ...validationResult,
                                 validationResults: mergedValidationResults,
-                                isValid: mergedValidationResults.length === 0,
+                                isValid: validationResult.isValid && !mergedValidationResults.some(vr => blocksCommandValidation(vr, policy)),
                             });
                         }
                     }
@@ -245,7 +253,7 @@ const CommandFormFieldWrapper = ({
                                 context.setCommandResult({
                                     ...validationResult,
                                     validationResults: mergedValidationResults,
-                                    isValid: mergedValidationResults.length === 0,
+                                    isValid: validationResult.isValid && !mergedValidationResults.some(vr => blocksCommandValidation(vr, policy)),
                                 });
                             }
                         }
@@ -263,7 +271,7 @@ const CommandFormFieldWrapper = ({
                                 )
                                 .map((vr) => vr.message) || [];
                         const validationInfo: FieldValidationInfo = {
-                            isValid: fieldErrors.length === 0,
+                            isValid: !validationResult.validationResults?.some(vr => memberMatchesField(vr.members, propertyName) && blocksCommandValidation(vr, policy)),
                             errors: fieldErrors,
                         };
                         context.onFieldChange(
@@ -389,20 +397,25 @@ const CommandFormFieldWrapper = ({
         }
     }
 
-    const fieldContent = (
+    const titleStyle: React.CSSProperties = {
+        display: 'block',
+        marginBottom: '0.5rem',
+        fontWeight: 500,
+        color: 'var(--color-text)',
+    };
+    const title = context.showTitles && fieldProps.title && (groupRole ? (
+        <span id={titleId} style={titleStyle}>{fieldProps.title}</span>
+    ) : (
+        <label htmlFor={fieldId} style={titleStyle}>{fieldProps.title}</label>
+    ));
+    const fieldContent = groupRole && title ? (
+        <div role={groupRole} aria-labelledby={titleId}>
+            {title}
+            {decoratedField}
+        </div>
+    ) : (
         <>
-            {context.showTitles && fieldProps.title && (
-                <label
-                    style={{
-                        display: 'block',
-                        marginBottom: '0.5rem',
-                        fontWeight: 500,
-                        color: 'var(--color-text)',
-                    }}
-                >
-                    {fieldProps.title}
-                </label>
-            )}
+            {title}
             {decoratedField}
         </>
     );

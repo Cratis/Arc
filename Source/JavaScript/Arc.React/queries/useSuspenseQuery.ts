@@ -4,14 +4,14 @@
 import { IQueryFor, QueryResultWithState, Paging, Sorting } from '@cratis/arc/queries';
 import { Constructor } from '@cratis/fundamentals';
 import { useContext, useEffect, useReducer, useState } from 'react';
-import { SetSorting } from './SetSorting';
-import { SetPage } from './SetPage';
-import { SetPageSize } from './SetPageSize';
-import { ArcContext } from '../ArcContext';
-import { useCommandScope } from '../commands/useCommandScope';
-import { PerformQuery } from './useQuery';
-import { QueryFailed } from './QueryFailed';
-import { QueryUnauthorized } from './QueryUnauthorized';
+import { SetSorting } from './SetSorting.js';
+import { SetPage } from './SetPage.js';
+import { SetPageSize } from './SetPageSize.js';
+import { ArcContext } from '../ArcContext.js';
+import { useCommandScope } from '../commands/useCommandScope.js';
+import { PerformQuery } from './useQuery.js';
+import { QueryFailed } from './QueryFailed.js';
+import { QueryUnauthorized } from './QueryUnauthorized.js';
 
 type SuspenseStatus = 'pending' | 'fulfilled' | 'rejected';
 

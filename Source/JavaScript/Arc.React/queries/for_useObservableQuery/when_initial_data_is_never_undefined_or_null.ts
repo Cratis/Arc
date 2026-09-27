@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render } from '@testing-library/react';
-import { useObservableQuery } from '../useObservableQuery';
-import { FakeObservableQuery } from './FakeObservableQuery';
-import { FakeSingleObservableQuery } from './FakeSingleObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useObservableQuery } from '../useObservableQuery.js';
+import { FakeObservableQuery } from './FakeObservableQuery.js';
+import { FakeSingleObservableQuery } from './FakeSingleObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 describe('when initial data is never undefined or null', () => {
     let capturedResult: QueryResultWithState<unknown> | undefined = undefined;

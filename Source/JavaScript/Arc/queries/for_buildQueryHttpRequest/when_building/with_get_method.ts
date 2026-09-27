@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { buildQueryHttpRequest } from '../../QueryHttpRequest';
-import { QueryHttpMethod } from '../../QueryHttpMethod';
-import { Paging } from '../../Paging';
-import { Sorting } from '../../Sorting';
+import { buildQueryHttpRequest } from '../../QueryHttpRequest.js';
+import { QueryHttpMethod } from '../../QueryHttpMethod.js';
+import { Paging } from '../../Paging.js';
+import { Sorting } from '../../Sorting.js';
 
 describe('when building with get method', () => {
     let result: { url: URL; init: RequestInit };

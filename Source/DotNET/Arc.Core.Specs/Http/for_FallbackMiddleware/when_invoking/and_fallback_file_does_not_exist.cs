@@ -18,7 +18,7 @@ public class and_fallback_file_does_not_exist : given.a_fallback_middleware
 
         _middleware.ConfigureFallback("nonexistent.html", _testDirectory);
 
-        _listener.Start();
+        StartListener();
         _client = new HttpClient();
     }
 

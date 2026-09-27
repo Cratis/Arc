@@ -1,4 +1,7 @@
-# Invariant Culture
+---
+title: Invariant Culture
+description: Make an ASP.NET Core Arc host use invariant culture with UseInvariantCulture() so parsing and formatting do not depend on machine settings.
+---
 
 Arc provides a `.UseInvariantCulture()` extension method that configures your application to use invariant culture throughout, ensuring consistent and predictable behavior regardless of the host machine's regional settings.
 

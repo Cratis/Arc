@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using Cratis.Arc.ProxyGenerator.Scenarios.Infrastructure;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries.ModelBound;
@@ -21,7 +22,7 @@ public class ObservableReadModel
     static BehaviorSubject<ObservableReadModel> _singleItemSubject = new(
         new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 }
     );
-    static Subject<ObservableReadModel> _delayedSingleItemSubject = new();
+    static SubscriptionSignalingSubject<ObservableReadModel> _delayedSingleItemSubject = new();
 
     static readonly List<IDisposable> _subscriptions = [];
 
@@ -89,6 +90,12 @@ public class ObservableReadModel
     public static ISubject<ObservableReadModel> ObserveDelayedSingle() => _delayedSingleItemSubject;
 
     /// <summary>
+    /// Gets the signal that the delayed single item has a subscriber.
+    /// </summary>
+    /// <returns>A task completed once the subscriber is registered.</returns>
+    public static Task WaitForDelayedSingleSubscription() => _delayedSingleItemSubject.Subscribed;
+
+    /// <summary>
     /// Updates all items - for testing data changes.
     /// </summary>
     /// <param name="items">The new items.</param>
@@ -133,7 +140,7 @@ public class ObservableReadModel
 
         _singleItemSubject = new BehaviorSubject<ObservableReadModel>(
             new ObservableReadModel { Id = new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 66), Name = "Single Observable Item", Value = 42 });
-        _delayedSingleItemSubject = new Subject<ObservableReadModel>();
+        _delayedSingleItemSubject = new SubscriptionSignalingSubject<ObservableReadModel>();
 
         // Complete old subjects to disconnect all subscribers (including old WebSocket connections)
         oldAllItems.OnCompleted();

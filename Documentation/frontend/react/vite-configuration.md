@@ -1,4 +1,7 @@
-# Vite Configuration
+---
+title: Vite Configuration
+description: Configure the Vite dev-server proxy so Arc's WebSocket observable-query hub and other endpoints reach a backend on another port.
+---
 
 When you use Vite's built-in dev server to proxy API requests to a backend running on a different port, WebSocket connections require explicit opt-in.
 

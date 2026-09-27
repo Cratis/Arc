@@ -1,4 +1,7 @@
-# Tsyringe
+---
+title: Tsyringe
+description: Enable the TypeScript decorator metadata that Tsyringe needs for Arc MVVM, including the Vite metadata plugin.
+---
 
 Cratis Arc relies on [Microsoft Tsyringe](https://github.com/microsoft/tsyringe) a lightweight IoC container
 for TypeScript.
@@ -39,13 +42,13 @@ necessary metadata. Cratis Arc offers a vite plugin for emitting the necessary m
 
 Add a dev package reference to `@cratis/arc.vite`. Then in your `vite.config` you can add it to plugins:
 
-```js
+```typescript title="vite.config.ts"
 import { defineConfig } from 'vite';
 import { EmitMetadataPlugin } from '@cratis/arc.vite';
 
 export default defineConfig({
     plugins: [
-        EmitMetadataPlugin() as any
+        EmitMetadataPlugin()
     ]
 });
 ```

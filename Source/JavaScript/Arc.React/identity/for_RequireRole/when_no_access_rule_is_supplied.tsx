@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { given } from '../../given';
-import { a_role_gate, forbiddenText } from './given/a_role_gate';
+import { given } from '../../given.js';
+import { a_role_gate, forbiddenText } from './given/a_role_gate.js';
 
 /**
  * The type system rejects this configuration, but `undefined` defeats it - a renamed feature-flag key

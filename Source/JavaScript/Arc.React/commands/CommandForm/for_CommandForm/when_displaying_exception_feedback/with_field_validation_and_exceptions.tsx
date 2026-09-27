@@ -4,10 +4,10 @@
 import { act } from '@testing-library/react';
 import { ValidationResult, ValidationResultSeverity } from '@cratis/arc/validation';
 import sinon from 'sinon';
-import { InputTextField, type ErrorDisplayProps } from '../../index';
-import type { TestCommand } from '../TestCommand';
-import { given } from '../../../../given';
-import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback';
+import { InputTextField, type ErrorDisplayProps } from '../../index.js';
+import type { TestCommand } from '../TestCommand.js';
+import { given } from '../../../../given.js';
+import { a_command_form_with_exception_feedback } from '../given/a_command_form_with_exception_feedback.js';
 
 describe('when displaying exception feedback with field validation and exceptions', given(a_command_form_with_exception_feedback, context => {
     let fieldDisplay: sinon.SinonSpy;

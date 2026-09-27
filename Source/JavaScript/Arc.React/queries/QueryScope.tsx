@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { QueryScopeImplementation } from './QueryScopeImplementation';
-import { IQueryScope } from './IQueryScope';
-import { useQueryScope } from './useQueryScope';
+import { QueryScopeImplementation } from './QueryScopeImplementation.js';
+import { IQueryScope } from './IQueryScope.js';
+import { useQueryScope } from './useQueryScope.js';
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 const defaultQueryScopeContext: IQueryScope = new class extends IQueryScope {

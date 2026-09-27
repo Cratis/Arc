@@ -1,4 +1,7 @@
-# Emit Interfaces
+---
+title: Emit Interfaces
+description: Generate TypeScript interfaces instead of decorated classes for proxy types, and the runtime behavior you give up.
+---
 
 By default the generator emits each type as a **class** carrying `@field` decorators:
 

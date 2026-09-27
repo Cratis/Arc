@@ -8,5 +8,9 @@ public class Product
     public string ProductId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 
-    public static Product GetById(string id) => new() { ProductId = id };
+    public static Product GetById(string id)
+    {
+        static Product Create(string value) => new() { ProductId = value };
+        return Create(id);
+    }
 }

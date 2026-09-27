@@ -1,14 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Paging } from './Paging';
-import { Sorting } from './Sorting';
-import { SortDirection } from './SortDirection';
-import { QueryHttpMethod } from './QueryHttpMethod';
-import { joinPaths } from '../joinPaths';
-import { UrlHelpers } from '../UrlHelpers';
-import { Globals } from '../Globals';
-import { isAbortError } from './isAbortError';
+import { Paging } from './Paging.js';
+import { Sorting } from './Sorting.js';
+import { SortDirection } from './SortDirection.js';
+import { QueryHttpMethod } from './QueryHttpMethod.js';
+import { joinPaths } from '../joinPaths.js';
+import { UrlHelpers } from '../UrlHelpers.js';
+import { Globals } from '../Globals.js';
+import { isAbortError } from './isAbortError.js';
 
 /**
  * Options for building an HTTP request for a query.

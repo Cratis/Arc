@@ -1,4 +1,7 @@
-# Backend
+---
+title: Backend
+description: How you express commands and queries as plain records in C# and let Arc handle endpoints, validation, authorization, and proxies.
+---
 
 The backend is where you express *what your application does* — the commands that change state and the
 queries that read it. Arc's job is to make that expression the only thing you write: you define a

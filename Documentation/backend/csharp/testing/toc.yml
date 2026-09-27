@@ -12,5 +12,7 @@
   href: event-sourced-commands.md
 - name: Command Scenarios
   href: command-scenario.md
+- name: Query Scenarios
+  href: query-scenario.md
 - name: Chronicle
   href: chronicle.md

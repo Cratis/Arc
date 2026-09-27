@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResultWithState } from '../../QueryResultWithState';
+import { QueryResultWithState } from '../../QueryResultWithState.js';
 
 describe('when creating initial with undefined default value', () => {
     const result = QueryResultWithState.initial<string[]>(undefined as unknown as string[]);

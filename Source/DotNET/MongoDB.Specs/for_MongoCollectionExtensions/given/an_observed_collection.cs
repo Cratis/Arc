@@ -18,6 +18,8 @@ public class an_observed_collection : Specification
     protected List<ObservedDocument> _documents;
     protected TaskCompletionSource _initialQueryGate;
     protected CancellationTokenSource _changeStreamLifetime;
+    protected QueryContext _queryContext;
+    protected FindOptions<ObservedDocument, ObservedDocument> _primaryFindOptions;
 
     Channel<ChangeStreamDocument<ObservedDocument>> _changes;
 
@@ -29,7 +31,8 @@ public class an_observed_collection : Specification
         _changes = Channel.CreateUnbounded<ChangeStreamDocument<ObservedDocument>>();
 
         var queryContextManager = Substitute.For<IQueryContextManager>();
-        queryContextManager.Current.Returns(new QueryContext("ObservedDocuments", CorrelationId.New(), Paging.NotPaged, Sorting.None));
+        _queryContext = new QueryContext("ObservedDocuments", CorrelationId.New(), Paging.NotPaged, Sorting.None);
+        queryContextManager.Current.Returns(_ => _queryContext);
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -63,8 +66,9 @@ public class an_observed_collection : Specification
                 Arg.Any<FilterDefinition<ObservedDocument>>(),
                 Arg.Any<FindOptions<ObservedDocument, ObservedDocument>>(),
                 Arg.Any<CancellationToken>())
-            .Returns(async _ =>
+            .Returns(async call =>
             {
+                _primaryFindOptions = call.Arg<FindOptions<ObservedDocument, ObservedDocument>>();
                 await _initialQueryGate.Task;
                 return CreateCursor(_documents);
             });
@@ -219,7 +223,7 @@ public class an_observed_collection : Specification
         return cursor;
     }
 
-    static IAsyncCursor<T> CreateCursor<T>(IEnumerable<T> documents)
+    protected static IAsyncCursor<T> CreateCursor<T>(IEnumerable<T> documents)
     {
         var list = documents.ToList();
         var cursor = Substitute.For<IAsyncCursor<T>>();

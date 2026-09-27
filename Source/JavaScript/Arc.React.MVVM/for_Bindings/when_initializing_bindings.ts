@@ -3,7 +3,7 @@
 
 import { container } from 'tsyringe';
 import { Constructor } from '@cratis/fundamentals';
-import { Bindings } from '../Bindings';
+import { Bindings } from '../Bindings.js';
 import { IMessenger, Messenger } from '@cratis/arc/messaging';
 
 describe('when initializing bindings', () => {

@@ -36,7 +36,7 @@ A `LibraryIdentity.Role` property is display/domain data; it does not add `Claim
 
 ## What can they do — authorize commands and queries
 
-Gate *what they can do* with attributes on the command or query. This standalone MongoDB excerpt uses the [tutorial's domain types and provider setup](/arc/backend/csharp/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports:
+Gate *what they can do* with attributes on the command or query. This standalone MongoDB excerpt uses the [tutorial's domain types and provider setup](/arc/backend/csharp/getting-started/your-first-command/) plus `Cratis.Arc.Authorization` imports. `LibraryRole` is an application enum that names roles for `nameof`, which Arc's [ARC0011](/arc/backend/csharp/code-analysis/#arc0011-role-names) analyzer prefers over string literals:
 
 <ArcBackendTabs snippet="understanding-identity-and-access/authorization" />
 

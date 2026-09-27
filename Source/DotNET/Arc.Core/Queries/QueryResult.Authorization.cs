@@ -41,5 +41,7 @@ public partial class QueryResult
     /// Gets a fresh identity-bound query scope transferred to the transport until response or subscription completion.
     /// </summary>
     [JsonIgnore]
+
+    // Cratis.Arc.Testing accesses this through InternalsVisibleTo and releases the scope after snapshot materialization.
     internal IServiceScope? OwnedScope { get; set; }
 }

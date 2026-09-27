@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { renderHook } from '@testing-library/react';
-import { ObservableQueryWhen } from '../ObservableQueryWhen';
-import { FakeObservableQuery } from '../for_useObservableQuery/FakeObservableQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { ObservableQueryWhen } from '../ObservableQueryWhen.js';
+import { FakeObservableQuery } from '../for_useObservableQuery/FakeObservableQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

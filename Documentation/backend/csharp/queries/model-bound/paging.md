@@ -29,7 +29,7 @@ public record DebitAccount(AccountId Id, AccountName Name, decimal Balance)
 
 ```http
 GET /api/accounts?page=0&pageSize=25
-GET /api/accounts?page=1&pageSize=10&sortby=name&sortDirection=asc
+GET /api/accounts?page=1&pageSize=10&sortBy=name&sortDirection=asc
 ```
 
 The first request uses the method's stable ID ordering. A client-requested sort replaces that primary ordering; design a stable ordering for production paging, especially when a sort field has duplicates.
@@ -42,9 +42,10 @@ The built-in `QueryableQueryRenderer` counts the filtered query, applies request
 | --------------- | -------------------------------------------------------------- |
 | `page`          | Zero-based index; defaults to zero when `pageSize` is supplied |
 | `pageSize`      | Enables GET paging when parsed as an integer                   |
-| `sortby`        | Read-model field to sort by                                    |
-| `sortDirection` | `asc` or `desc`; provide it with `sortby`                      |
+| `sortBy`        | Read-model field to sort by                                    |
+| `sortDirection` | `asc` or `desc`; provide it with `sortBy`                      |
 
+GET matches these four reserved keys case-insensitively, including `sortby` and `SORTBY`.
 Use valid nonnegative page indices and positive, bounded sizes. With no paging request, Arc returns the full matching result. Paging alone is not a server-enforced result cap.
 
 These are context keys, **not method parameters** in model-bound GET. Do not declare `int page` or `int pageSize` and expect normal binding. See [reserved keys](query-arguments.md#reserved-keys).

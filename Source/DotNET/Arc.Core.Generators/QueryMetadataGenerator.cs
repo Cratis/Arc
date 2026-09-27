@@ -56,7 +56,8 @@ public class QueryMetadataGenerator : IIncrementalGenerator
                 m.MethodKind == MethodKind.Ordinary &&
                 m.IsStatic &&
                 m.TypeParameters.Length == 0 &&
-                IsSupportedQueryMethodAccessibility(m) &&
+                m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+                !m.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute") &&
                 IsValidQueryMethod(m, typeSymbol))
             .Select(m => m.Name)
             .ToList();
@@ -74,9 +75,6 @@ public class QueryMetadataGenerator : IIncrementalGenerator
     static bool HasReadModelAttribute(INamedTypeSymbol typeSymbol) =>
         typeSymbol.GetAttributes().Any(a =>
             string.Equals(a.AttributeClass?.ToDisplayString(), ReadModelAttributeFullName, StringComparison.Ordinal));
-
-    static bool IsSupportedQueryMethodAccessibility(IMethodSymbol method) =>
-        method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal;
 
     static bool IsValidQueryMethod(IMethodSymbol method, INamedTypeSymbol readModelType)
     {

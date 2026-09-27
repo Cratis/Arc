@@ -1,4 +1,7 @@
-# Validation
+---
+title: Validation
+description: Overview of Arc's TypeScript validation primitives and generated rules that run before command and query requests.
+---
 
 Core validation in Arc provides shared TypeScript/JavaScript primitives and generated rules that run before command and query requests.
 

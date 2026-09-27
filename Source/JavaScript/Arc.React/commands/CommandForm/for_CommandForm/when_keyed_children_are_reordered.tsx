@@ -3,11 +3,11 @@
 
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react';
-import { CommandForm } from '../CommandForm';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { CommandForm } from '../CommandForm.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 interface StatefulFieldProps extends WrappedFieldProps<string | number> {
     testId: string;

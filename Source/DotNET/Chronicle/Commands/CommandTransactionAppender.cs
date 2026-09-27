@@ -51,14 +51,33 @@ internal static class CommandTransactionAppender
     /// <param name="event">The event and target event source returned by the command.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the event metadata.</param>
     /// <returns>A new event value carrying the command metadata.</returns>
+    /// <remarks>
+    /// The wrapper's own <see cref="EventForEventSourceId.Occurred"/> and <see cref="EventForEventSourceId.Tags"/> are
+    /// kept: they are values the command supplied for this particular event, and dropping them would silently record
+    /// the append time and no tags instead.
+    /// </remarks>
     internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext) =>
         new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
         {
             EventStreamType = commandContext.GetEventStreamType() ?? EventStreamType.All,
             EventStreamId = commandContext.GetEventStreamId() ?? EventStreamId.Default,
             EventSourceType = commandContext.GetEventSourceType() ?? EventSourceType.Default,
-            Subject = commandContext.GetSubject()
+            Subject = commandContext.GetSubject(),
+            Occurred = @event.Occurred,
+            Tags = @event.Tags
         };
+
+    /// <summary>
+    /// Gets the tags the command supplied on an event wrapper, or null when it supplied none.
+    /// </summary>
+    /// <param name="event">The event and target event source returned by the command.</param>
+    /// <returns>The supplied tags, or null when the wrapper carries none.</returns>
+    /// <remarks>
+    /// A wrapper's tags default to an empty collection. Chronicle treats empty and null alike, so an untagged
+    /// wrapper appends exactly as it did before wrapper tags were forwarded.
+    /// </remarks>
+    internal static IEnumerable<string>? SuppliedTags(this EventForEventSourceId @event) =>
+        @event.Tags is { } tags && tags.Any() ? tags : null;
 
     /// <summary>
     /// Tries to enroll the event in the command's transaction, using the same metadata the immediate append would
@@ -69,8 +88,17 @@ internal static class CommandTransactionAppender
     /// <param name="event">The event to enroll.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the event metadata.</param>
     /// <param name="concurrencyScope">The optional <see cref="ConcurrencyScope"/> for the append.</param>
+    /// <param name="tags">Optional tags the command supplied for this event.</param>
+    /// <param name="occurred">Optional occurrence time the command supplied for this event.</param>
     /// <returns>True when the event was enrolled in the command's transaction; false when no transaction is active.</returns>
-    internal static bool TryEnrollForCommand(this IEventLog eventLog, EventSourceId eventSourceId, object @event, CommandContext commandContext, ConcurrencyScope? concurrencyScope)
+    internal static bool TryEnrollForCommand(
+        this IEventLog eventLog,
+        EventSourceId eventSourceId,
+        object @event,
+        CommandContext commandContext,
+        ConcurrencyScope? concurrencyScope,
+        IEnumerable<string>? tags = default,
+        DateTimeOffset? occurred = default)
     {
         if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
@@ -86,7 +114,9 @@ internal static class CommandTransactionAppender
             commandContext.GetEventStreamId(),
             commandContext.GetEventSourceType(),
             concurrencyScope,
-            subject: commandContext.GetSubject());
+            tags,
+            occurred,
+            commandContext.GetSubject());
 
         return true;
     }

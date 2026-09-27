@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { Bindings } from '../Bindings';
+import { Bindings } from '../Bindings.js';
 import { Globals } from "@cratis/arc";
-import { bindings_context } from "./given/bindings_context";
-import { given } from '../given';
+import { bindings_context } from "./given/bindings_context.js";
+import { given } from '../given.js';
 
 describe('when initializing bindings', given(bindings_context, () => {
     let originalMicroservice: string;

@@ -10,6 +10,7 @@ using Cratis.Arc.EntityFrameworkCore.Observe;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -32,15 +33,42 @@ public static class DbSetObserveExtensions
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
+        where TEntity : class => dbSet.Observe(filter, false, configure);
+
+    /// <summary>Observe matching entities without applying the client query context when requested.</summary>
+    /// <param name="dbSet">The DbSet to observe.</param>
+    /// <param name="filter">Optional filter expression.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
+    /// <returns>The observable entities.</returns>
+    public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
+        this DbSet<TEntity> dbSet,
+        Expression<Func<TEntity, bool>>? filter,
+        bool ignoreQueryContext,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
         return dbSet.ObserveCore(
             filter,
             configure,
+            ignoreQueryContext,
             entities => new BehaviorSubject<IEnumerable<TEntity>>(entities),
             (entities, observable) => observable.OnNext([.. entities]));
     }
+
+    /// <summary>Observe all entities with the query-context option before the optional configuration.</summary>
+    /// <param name="dbSet">The DbSet to observe.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
+    /// <returns>The observable entities.</returns>
+    public static ISubject<IEnumerable<TEntity>> Observe<TEntity>(
+        this DbSet<TEntity> dbSet,
+        bool ignoreQueryContext,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
+        where TEntity : class => dbSet.Observe(null, ignoreQueryContext, configure);
 
     /// <summary>
     /// Create an observable query that will observe the DbSet for changes matching the filter criteria.
@@ -58,11 +86,37 @@ public static class DbSetObserveExtensions
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>>? filter = null,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
+        where TEntity : class => dbSet.ObserveSingle(filter, false, configure);
+
+    /// <summary>Observe one matching entity without applying the client query context when requested.</summary>
+    /// <param name="dbSet">The DbSet to observe.</param>
+    /// <param name="filter">Optional filter expression.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
+    /// <returns>The observable entity.</returns>
+    public static ISubject<TEntity> ObserveSingle<TEntity>(
+        this DbSet<TEntity> dbSet,
+        Expression<Func<TEntity, bool>>? filter,
+        bool ignoreQueryContext,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         filter ??= _ => true;
-        return dbSet.ObserveSingleCore(filter, configure);
+        return dbSet.ObserveSingleCore(filter, configure, ignoreQueryContext);
     }
+
+    /// <summary>Observe one entity with the query-context option before the optional configuration.</summary>
+    /// <param name="dbSet">The DbSet to observe.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
+    /// <returns>The observable entity.</returns>
+    public static ISubject<TEntity> ObserveSingle<TEntity>(
+        this DbSet<TEntity> dbSet,
+        bool ignoreQueryContext,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
+        where TEntity : class => dbSet.ObserveSingle(null, ignoreQueryContext, configure);
 
     /// <summary>
     /// Create an observable query that will observe a single entity based on Id in the DbSet for changes.
@@ -81,18 +135,32 @@ public static class DbSetObserveExtensions
         this DbSet<TEntity> dbSet,
         TId id,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
+        where TEntity : class => dbSet.ObserveById(id, false, configure);
+
+    /// <summary>Observe an entity by Id without applying the client query context when requested.</summary>
+    /// <param name="dbSet">The DbSet to observe.</param>
+    /// <param name="id">The identifier of the entity to observe.</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
+    /// <typeparam name="TId">Type of id - key.</typeparam>
+    /// <returns>The observable entity.</returns>
+    /// <exception cref="InvalidOperationException">The exception that is thrown when the entity type does not have an Id property.</exception>
+    public static ISubject<TEntity> ObserveById<TEntity, TId>(
+        this DbSet<TEntity> dbSet,
+        TId id,
+        bool ignoreQueryContext,
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure = null)
         where TEntity : class
     {
         var parameter = Expression.Parameter(typeof(TEntity), "e");
-        var idProperty = typeof(TEntity).GetProperty("Id", BindingFlags.Instance | BindingFlags.Public)
-            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
-
-        var property = Expression.Property(parameter, idProperty);
+        var idProperty = GetClrIdProperty(dbSet.EntityType) ?? GetIdProperty(dbSet);
+        var property = Expression.Call(typeof(EF), nameof(EF.Property), [idProperty.ClrType], parameter, Expression.Constant(idProperty.Name));
         var constant = Expression.Constant(id, typeof(TId));
         var equals = Expression.Equal(property, constant);
         var lambda = Expression.Lambda<Func<TEntity, bool>>(equals, parameter);
 
-        return dbSet.ObserveSingleCore(lambda, configure);
+        return dbSet.ObserveSingleCore(lambda, configure, ignoreQueryContext);
     }
 
     /// <summary>
@@ -101,6 +169,7 @@ public static class DbSetObserveExtensions
     /// <param name="dbSet"><see cref="DbSet{TEntity}"/> to extend.</param>
     /// <param name="filter">The filter identifying the observed entity.</param>
     /// <param name="configure">Optional function to configure the query (e.g., adding includes).</param>
+    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
     /// <typeparam name="TEntity">Type of entity in the DbSet.</typeparam>
     /// <returns>An <see cref="ISubject{T}"/> with a single instance of the type.</returns>
     /// <remarks>
@@ -114,12 +183,14 @@ public static class DbSetObserveExtensions
     static ISubject<TEntity> ObserveSingleCore<TEntity>(
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>> filter,
-        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure)
+        Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
+        bool ignoreQueryContext)
         where TEntity : class
     {
         return dbSet.ObserveCore<TEntity, TEntity>(
             filter,
             configure,
+            ignoreQueryContext,
             entities => new BehaviorSubject<TEntity>(entities.FirstOrDefault()!),
             (entities, observable) => observable.OnNext(entities.FirstOrDefault()!));
     }
@@ -128,6 +199,7 @@ public static class DbSetObserveExtensions
         this DbSet<TEntity> dbSet,
         Expression<Func<TEntity, bool>> filter,
         Func<DbSet<TEntity>, IQueryable<TEntity>>? configure,
+        bool ignoreQueryContext,
         Func<IEnumerable<TEntity>, ISubject<TResult>> createSubject,
         Action<IEnumerable<TEntity>, ISubject<TResult>> onNext)
         where TEntity : class
@@ -139,9 +211,10 @@ public static class DbSetObserveExtensions
         var queryContextManager = Internals.ServiceProvider.GetRequiredService<IQueryContextManager>();
         var serviceScopeFactory = Internals.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
         var queryContext = queryContextManager.Current;
+        var observationContext = ignoreQueryContext ? queryContext with { Paging = Paging.NotPaged, Sorting = Sorting.None } : queryContext;
 
         var idProperty = GetIdProperty(dbSet);
-        var entities = new QueryContextAwareSet<TEntity>(queryContext, idProperty);
+        var entities = new QueryContextAwareSet<TEntity>(observationContext, idProperty);
 
         // Get table name and schema for database notifications
         var entityType = dbSet.EntityType;
@@ -171,10 +244,13 @@ public static class DbSetObserveExtensions
         using (var scope = serviceScopeFactory.CreateScope())
         {
             var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-            var freshDbSet = freshDbContext.Set<TEntity>();
+            var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
             var initialBaseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-            queryContext.TotalItems = initialBaseQuery.Count();
-            var query = BuildQuery(initialBaseQuery, queryContext);
+            if (!ignoreQueryContext)
+            {
+                queryContext.TotalItems = initialBaseQuery.Count();
+            }
+            var query = BuildQuery(initialBaseQuery, observationContext, entityType);
             initialEntities = query.ToList();
         }
 
@@ -218,12 +294,15 @@ public static class DbSetObserveExtensions
                 // Create a new scope to get a fresh DbContext
                 using var scope = serviceScopeFactory.CreateScope();
                 var freshDbContext = (DbContext)scope.ServiceProvider.GetRequiredService(dbContextType);
-                var freshDbSet = freshDbContext.Set<TEntity>();
+                var freshDbSet = entityType.HasSharedClrType ? freshDbContext.Set<TEntity>(entityType.Name) : freshDbContext.Set<TEntity>();
 
                 // Build the query using the fresh DbSet
                 var baseQuery = ApplyConfigure(freshDbSet, configure).Where(filter);
-                queryContext.TotalItems = baseQuery.Count();
-                var newQuery = BuildQuery(baseQuery, queryContext);
+                if (!ignoreQueryContext)
+                {
+                    queryContext.TotalItems = baseQuery.Count();
+                }
+                var newQuery = BuildQuery(baseQuery, observationContext, entityType);
                 var newEntities = newQuery.ToList();
                 entities.ReinitializeWithEntities(newEntities);
                 onNext(entities, subject);
@@ -336,31 +415,35 @@ public static class DbSetObserveExtensions
         }
     }
 
-    static PropertyInfo GetIdProperty<TEntity>(DbSet<TEntity> dbSet)
+    static IProperty GetIdProperty<TEntity>(DbSet<TEntity> dbSet)
         where TEntity : class
     {
-        // Try to get the key from EF Core metadata first
         var entityType = dbSet.EntityType;
         var primaryKey = entityType.FindPrimaryKey();
-        if (primaryKey?.Properties.Count == 1)
+        var keyProperty = primaryKey?.Properties.Count == 1 ? primaryKey.Properties[0] : null;
+        var idProperty = keyProperty?.IsShadowProperty() == false
+            ? keyProperty
+            : GetClrIdProperty(entityType) ?? keyProperty
+                ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
+
+        if (idProperty.IsShadowProperty())
         {
-            var keyProperty = primaryKey.Properties[0];
-            var clrProperty = typeof(TEntity).GetProperty(keyProperty.Name, BindingFlags.Instance | BindingFlags.Public);
-            if (clrProperty is not null)
-            {
-                return clrProperty;
-            }
+            throw new InvalidOperationException($"Entity type {entityType.Name} has a shadow-property key '{idProperty.Name}' that cannot be observed");
         }
 
-        // Fall back to convention-based Id property
-        return typeof(TEntity).GetProperty("Id", BindingFlags.Instance | BindingFlags.Public)
-            ?? throw new InvalidOperationException($"Entity type {typeof(TEntity).Name} does not have an Id property");
+        return idProperty;
     }
 
-    static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
+    static IProperty? GetClrIdProperty(IEntityType entityType)
+    {
+        var property = entityType.FindProperty("Id");
+        return property?.PropertyInfo?.GetMethod?.IsPublic == true ? property : null;
+    }
+
+    static IQueryable<TEntity> BuildQuery<TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
         where TEntity : class
     {
-        query = AddSorting(query, queryContext);
+        query = AddSorting(query, queryContext, entityType);
         query = AddPaging(query, queryContext);
         return query;
     }
@@ -378,16 +461,20 @@ public static class DbSetObserveExtensions
         return query;
     }
 
-    static IQueryable<TEntity> AddSorting<TEntity>(IQueryable<TEntity> query, QueryContext queryContext)
+    static IQueryable<TEntity> AddSorting<TEntity>(IQueryable<TEntity> query, QueryContext queryContext, IEntityType entityType)
         where TEntity : class
     {
         if (queryContext.Sorting != Sorting.None)
         {
-            var property = typeof(TEntity).GetProperty(queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
-            if (property is not null)
+            var fieldName = queryContext.Sorting.Field.Value.ToPascalCase();
+            var property = typeof(TEntity).GetProperty(fieldName, BindingFlags.Instance | BindingFlags.Public);
+            var indexerProperty = property is null ? entityType.FindProperty(fieldName) : null;
+            if (property is not null || indexerProperty?.IsIndexerProperty() == true)
             {
                 var parameter = Expression.Parameter(typeof(TEntity), "x");
-                var propertyAccess = Expression.Property(parameter, property);
+                var propertyAccess = property is not null
+                    ? (Expression)Expression.Property(parameter, property)
+                    : Expression.Call(typeof(EF), nameof(EF.Property), [indexerProperty!.ClrType], parameter, Expression.Constant(indexerProperty.Name));
                 var lambda = Expression.Lambda(propertyAccess, parameter);
 
                 var methodName = queryContext.Sorting.Direction == SortDirection.Ascending
@@ -397,7 +484,7 @@ public static class DbSetObserveExtensions
                 var orderByMethod = typeof(Queryable)
                     .GetMethods()
                     .First(m => m.Name == methodName && m.GetParameters().Length == 2)
-                    .MakeGenericMethod(typeof(TEntity), property.PropertyType);
+                    .MakeGenericMethod(typeof(TEntity), propertyAccess.Type);
 
                 query = (IQueryable<TEntity>)orderByMethod.Invoke(null, [query, lambda])!;
             }

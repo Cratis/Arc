@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { injectable } from 'tsyringe';
-import { queryParams, queryParamsTypeKey } from '../../queryParams';
+import { queryParams, queryParamsTypeKey } from '../../queryParams.js';
 
 class QueryParamsType {
     filter: string = '';

@@ -1,4 +1,7 @@
-# Commands
+---
+title: Commands
+description: Overview of Arc's low-level TypeScript command primitives in @cratis/arc and where each capability is documented.
+---
 
 Core commands in Arc are the low-level TypeScript/JavaScript primitives used to execute state-changing operations.
 

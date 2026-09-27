@@ -23,18 +23,21 @@ public class when_performing_controller_observable_query_via_http_and_waiting_fo
             new Dictionary<string, object>
             {
                 [ObservableQueryHttp.WaitForFirstResultQueryStringKey] = true,
-                [ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey] = 1
+                [ObservableQueryHttp.WaitForFirstResultTimeoutQueryStringKey] = 30
             });
 
-        await Task.Delay(100);
-
-        var state = Host.Services.GetRequiredService<ObservableControllerQueriesState>();
-        state.DelayedSingleItemSubject.OnNext(new ObservableControllerQueryItem
+        // If the server answers without subscribing, skip publishing and surface its response instead of a timeout.
+        var subject = Host.Services.GetRequiredService<ObservableControllerQueriesState>().DelayedSingleItemSubject;
+        var first = await Task.WhenAny(subject.Subscribed, performTask).WaitAsync(TimeSpan.FromSeconds(30));
+        if (first == subject.Subscribed)
         {
-            Id = Guid.NewGuid(),
-            Name = "Delayed Controller Item",
-            Value = 321
-        });
+            subject.OnNext(new ObservableControllerQueryItem
+            {
+                Id = Guid.NewGuid(),
+                Name = "Delayed Controller Item",
+                Value = 321
+            });
+        }
 
         _executionResult = await performTask;
     }

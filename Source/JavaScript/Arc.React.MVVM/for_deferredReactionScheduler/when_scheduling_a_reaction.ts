@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { deferredReactionScheduler } from '../deferredReactionScheduler';
+import { deferredReactionScheduler } from '../deferredReactionScheduler.js';
 
 describe('when scheduling a reaction', () => {
     let ranBeforeMicrotask: boolean;

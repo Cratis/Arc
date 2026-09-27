@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { ValidationResult } from '../validation/ValidationResult';
-import { IQueryResult } from './IQueryResult';
-import { PagingInfo } from './PagingInfo';
-import { ChangeSet } from './ChangeSet';
+import { ValidationResult } from '../validation/ValidationResult.js';
+import { IQueryResult } from './IQueryResult.js';
+import { PagingInfo } from './PagingInfo.js';
+import { ChangeSet } from './ChangeSet.js';
 
 /**
  * Represents a specialized {@link QueryResult<TDataType>} that holds state for its execution

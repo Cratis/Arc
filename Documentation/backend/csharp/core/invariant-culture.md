@@ -1,4 +1,7 @@
-# Invariant Culture
+---
+title: Invariant Culture
+description: Make an Arc.Core host use invariant culture with UseInvariantCulture() so parsing and formatting do not depend on machine settings.
+---
 
 Arc.Core provides a `.UseInvariantCulture()` extension method on `IHostBuilder` that configures the application to use invariant culture throughout, ensuring consistent and predictable behavior regardless of the host machine's regional settings.
 

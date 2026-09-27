@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { an_observable_query_for } from '../given/an_observable_query_for';
-import { given } from '../../../given';
+import { an_observable_query_for } from '../given/an_observable_query_for.js';
+import { given } from '../../../given.js';
 import * as sinon from 'sinon';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
-import { QueryResult } from '../../QueryResult';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
+import { QueryResult } from '../../QueryResult.js';
 
 describe('with partial parameter descriptor values', given(an_observable_query_for, context => {
     let result: QueryResult<string>;

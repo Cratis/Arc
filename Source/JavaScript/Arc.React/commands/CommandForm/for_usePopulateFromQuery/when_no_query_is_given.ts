@@ -5,8 +5,8 @@ import React from 'react';
 import { renderHook } from '@testing-library/react';
 import sinon from 'sinon';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
-import { usePopulateFromQuery } from '../usePopulateFromQuery';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
+import { usePopulateFromQuery } from '../usePopulateFromQuery.js';
 
 describe('when no query is given', () => {
     let fetchStub: sinon.SinonStub;

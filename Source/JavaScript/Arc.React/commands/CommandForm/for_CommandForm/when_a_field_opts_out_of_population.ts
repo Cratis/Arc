@@ -5,12 +5,12 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { CommandForm, useCommandInstance } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
-import { TestCommand } from './TestCommand';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
-import { FakePopulateQuery } from '../for_usePopulateFromQuery/FakePopulateQuery';
+import { CommandForm, useCommandInstance } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
+import { TestCommand } from './TestCommand.js';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
+import { FakePopulateQuery } from '../for_usePopulateFromQuery/FakePopulateQuery.js';
 
 const SimpleTextField = asCommandFormField<{ value: string; onChange: (value: unknown) => void; onBlur?: () => void; invalid: boolean; required: boolean; errors: string[] }>(
     (props) => React.createElement('input', { type: 'text', value: props.value, onChange: props.onChange, 'data-testid': 'field' }),

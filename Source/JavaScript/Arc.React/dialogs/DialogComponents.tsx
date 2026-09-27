@@ -2,13 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { DialogResult } from './DialogResult';
-import { ShowDialog } from './ShowDialog';
-import { useDialog } from './useDialog';
-import { ConfirmationDialogRequest } from './ConfirmationDialogRequest';
-import { BusyIndicatorDialogRequest } from './BusyIndicatorDialogRequest';
-import { DialogButtons } from './DialogButtons';
-import { CloseDialog } from './CloseDialog';
+import { DialogResult } from './DialogResult.js';
+import { ShowDialog } from './ShowDialog.js';
+import { useDialog } from './useDialog.js';
+import { ConfirmationDialogRequest } from './ConfirmationDialogRequest.js';
+import { BusyIndicatorDialogRequest } from './BusyIndicatorDialogRequest.js';
+import { DialogButtons } from './DialogButtons.js';
+import { CloseDialog } from './CloseDialog.js';
 
 /**
  * Defines the interface representing the context of dialog components.

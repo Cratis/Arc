@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useContext } from 'react';
-import { CloseDialog } from './CloseDialog';
+import { CloseDialog } from './CloseDialog.js';
 
 /**
  * Represents the content of the dialog context, including the request and a function to close the dialog.

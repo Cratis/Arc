@@ -15,6 +15,8 @@ public class with_authenticated_result : given.an_authenticated_user
 
     async Task Because() => await _handler.SetCookieForHttpResponse(_identityProviderResult);
 
+    [Fact] void should_set_no_store_cache_control() => _httpRequestContext.Received(1).SetResponseHeader("Cache-Control", "no-store, private");
+    [Fact] void should_vary_on_cookie() => _httpRequestContext.Received(1).SetResponseHeader("Vary", "Cookie");
     [Fact] void should_set_content_type() => _httpRequestContext.ContentType.ShouldEqual("application/json; charset=utf-8");
     [Fact] void should_append_cookie() => _httpRequestContext.Received(1).AppendCookie(
         IdentityProvider.IdentityCookieName,

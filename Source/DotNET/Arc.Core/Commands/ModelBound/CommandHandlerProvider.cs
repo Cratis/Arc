@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Cratis.Types;
 
 namespace Cratis.Arc.Commands.ModelBound;
@@ -12,6 +13,8 @@ namespace Cratis.Arc.Commands.ModelBound;
 /// </summary>
 public class CommandHandlerProvider : ICommandHandlerProvider
 {
+    static readonly ConditionalWeakTable<ITypes, CommandDiscovery> _commandsByUniverse = new();
+
     readonly Dictionary<Type, MethodInfo> _commandTypes;
     readonly Dictionary<Type, ICommandHandler> _handlers;
 
@@ -21,7 +24,7 @@ public class CommandHandlerProvider : ICommandHandlerProvider
     /// <param name="types">The types available in the application.</param>
     public CommandHandlerProvider(ITypes types)
     {
-        _commandTypes = types.All.Where(t => t.IsCommand()).ToDictionary(t => t, t => t.GetHandleMethod());
+        _commandTypes = _commandsByUniverse.GetValue(types, _ => new CommandDiscovery()).GetCommands(types);
         _handlers = _commandTypes.ToDictionary(kv => kv.Key, kv => (ICommandHandler)new ModelBoundCommandHandler(kv.Key, kv.Value));
     }
 
@@ -40,5 +43,29 @@ public class CommandHandlerProvider : ICommandHandlerProvider
 
         handler = _handlers[commandType];
         return true;
+    }
+
+    sealed class CommandDiscovery
+    {
+        readonly object _gate = new();
+        Type[] _types = [];
+        Dictionary<Type, MethodInfo> _commands = [];
+        bool _initialized;
+
+        public Dictionary<Type, MethodInfo> GetCommands(ITypes universe)
+        {
+            var types = universe.All.ToArray();
+            lock (_gate)
+            {
+                if (!_initialized || !types.SequenceEqual(_types))
+                {
+                    _commands = types.Where(t => t.IsCommand()).ToDictionary(t => t, t => t.GetHandleMethod());
+                    _types = types;
+                    _initialized = true;
+                }
+
+                return _commands;
+            }
+        }
     }
 }

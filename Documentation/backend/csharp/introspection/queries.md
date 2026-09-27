@@ -1,4 +1,7 @@
-# Introspection Queries Endpoint
+---
+title: Introspection Queries Endpoint
+description: Reference for GET /.cratis/queries, which returns metadata and argument schemas for discovered query performers.
+---
 
 The queries introspection endpoint returns metadata for discovered query performers, not the final runtime route table.
 
@@ -15,8 +18,8 @@ The endpoint returns a JSON array where each item describes one discovered query
 Each item includes:
 
 - `name`: Query name.
-- `namespace`: Namespace derived from the performer's location after skipping configured segments.
-- `route`: Convention-derived query route using the configured prefix and skipped namespace segments.
+- `namespace`: Namespace derived from the performer's location after skipping the default namespace segments.
+- `route`: Convention-derived query route using the default prefix and namespace segments. Configured `Cratis:Arc:GeneratedApis` route options are not applied here, so the reported route can differ from the callable one when you change them.
 - `fullyQualifiedName`: The performer's fully qualified query name.
 - `type`: Fully qualified query type name.
 - `documentationSummary`: Summary text from type metadata when available.

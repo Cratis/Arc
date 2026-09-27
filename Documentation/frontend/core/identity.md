@@ -1,4 +1,7 @@
-# Identity
+---
+title: Identity
+description: How the frontend reads identity from the .cratis-identity cookie, falls back to /.cratis/me, and exposes it through the core identity API.
+---
 
 The frontend identity is based on information it gets from a cookie called `.cratis-identity`. The purpose of this is to be able to
 provide identity information to the client at the first render. This allows for a better developer and user experience, as there is no need

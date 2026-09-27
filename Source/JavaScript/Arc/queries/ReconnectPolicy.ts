@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IReconnectPolicy, ReconnectCallback } from './IReconnectPolicy';
+import { IReconnectPolicy, ReconnectCallback } from './IReconnectPolicy.js';
 
 /**
  * Default exponential back-off reconnect policy shared by all observable query connections.

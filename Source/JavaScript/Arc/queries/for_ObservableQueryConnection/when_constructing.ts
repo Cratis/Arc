@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { an_observable_query_connection } from './given/an_observable_query_connection';
-import { given } from '../../given';
+import { an_observable_query_connection } from './given/an_observable_query_connection.js';
+import { given } from '../../given.js';
 
 describe('when constructing', given(an_observable_query_connection, context => {
     it('should have zero last ping latency', () => {

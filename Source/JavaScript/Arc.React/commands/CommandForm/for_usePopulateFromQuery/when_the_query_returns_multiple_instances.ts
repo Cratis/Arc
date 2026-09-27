@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { renderHook } from '@testing-library/react';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
-import { usePopulateFromQuery } from '../usePopulateFromQuery';
-import { FakeEnumerablePopulateQuery, FakePopulateQueryResult } from './FakePopulateQuery';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
+import { usePopulateFromQuery } from '../usePopulateFromQuery.js';
+import { FakeEnumerablePopulateQuery, FakePopulateQueryResult } from './FakePopulateQuery.js';
 
 describe('when the query returns multiple instances', () => {
     const config: ArcConfiguration = {

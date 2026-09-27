@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { given } from '../../../given';
-import { Globals } from '../../../Globals';
-import { a_command } from '../given/a_command';
+import { given } from '../../../given.js';
+import { Globals } from '../../../Globals.js';
+import { a_command } from '../given/a_command.js';
 
 describe("when executing with microservice header", given(class extends a_command {
     originalMicroserviceHeader: string;

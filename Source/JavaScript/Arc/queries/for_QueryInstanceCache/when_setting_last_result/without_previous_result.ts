@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryInstanceCache } from '../../QueryInstanceCache';
-import { QueryResultWithState } from '../../QueryResultWithState';
+import { QueryInstanceCache } from '../../QueryInstanceCache.js';
+import { QueryResultWithState } from '../../QueryResultWithState.js';
 
 describe('when setting the last result without a previous result', () => {
     let cache: QueryInstanceCache;

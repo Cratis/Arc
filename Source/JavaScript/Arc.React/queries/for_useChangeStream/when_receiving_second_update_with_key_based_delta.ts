@@ -3,9 +3,9 @@
 
 import React from 'react';
 import { render, act, waitFor } from '@testing-library/react';
-import { useChangeStream } from '../useChangeStream';
-import { FakeChangeStreamQueryBase, FakeItem } from './FakeChangeStreamQuery';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
+import { useChangeStream } from '../useChangeStream.js';
+import { FakeChangeStreamQueryBase, FakeItem } from './FakeChangeStreamQuery.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { ChangeSet, QueryResult } from '@cratis/arc/queries';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

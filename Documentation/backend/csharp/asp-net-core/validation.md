@@ -1,4 +1,7 @@
-# Validation
+---
+title: Validation
+description: Validate input in ASP.NET Core with Arc's command, query, and concept validators, discovery, and concept-aware rules.
+---
 
 The concept of validation is to make sure all your inputs are in a valid form before hitting your logic.
 Validation is different from business rules in the sense that it is focused on user input and sanitizing the values
@@ -40,9 +43,10 @@ type called `BaseValidator`. This base type provides methods for defining valida
 primitives and will unwrap the inner `Value` property automatically, providing you a clean way of validating the
 concepts inner primitive type without considering the `Value` property.
 
-However, if you're hooking up validators for the actual concept, you need to use the method `RuleForConcept()`
-to work directly with the concept. The `IRuleBuilderInitial` type returned would then be for the actual concept and
-not its primitive type its encapsulating.
+`RuleFor(c => c.Name)` on a concept property returns an `IConceptRuleBuilder<T, TValue>` whose rules run against the
+unwrapped primitive. To state a rule about the concept itself, put it in a `ConceptValidator<TConcept>`: it runs
+wherever that concept appears. When one command must not apply that cross-cutting concept rule, call
+`IgnoreConceptRules()` directly after `RuleFor(...)`, for example `RuleFor(c => c.Name).IgnoreConceptRules().NotEmpty()`.
 
 ### Discoverable validators
 

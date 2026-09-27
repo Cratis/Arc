@@ -3,9 +3,9 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { ICommand, CommandResult, CommandResults } from '@cratis/arc/commands';
-import { CommandScopeImplementation } from './CommandScopeImplementation';
-import { ICommandScope } from './ICommandScope';
-import { useCommandScope } from './useCommandScope';
+import { CommandScopeImplementation } from './CommandScopeImplementation.js';
+import { ICommandScope } from './ICommandScope.js';
+import { useCommandScope } from './useCommandScope.js';
 
 /* eslint-disable @typescript-eslint/no-empty-function */
 const defaultCommandScopeContext: ICommandScope = new class extends ICommandScope {

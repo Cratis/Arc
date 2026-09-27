@@ -1,4 +1,7 @@
-# Imperative Usage
+---
+title: Imperative Usage
+description: Create and execute command proxies directly, outside React hooks, for service layers and other non-component code.
+---
 
 While the [React Hook Usage](./react-usage.md) is the recommended approach for React components, there are scenarios where you need more direct control or are working outside of React's component lifecycle. This guide covers imperative command usage.
 

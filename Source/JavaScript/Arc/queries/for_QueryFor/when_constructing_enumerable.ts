@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from './given/a_query_for';
-import { given } from '../../given';
-import { Sorting } from '../Sorting';
-import { Paging } from '../Paging';
+import { a_query_for } from './given/a_query_for.js';
+import { given } from '../../given.js';
+import { Sorting } from '../Sorting.js';
+import { Paging } from '../Paging.js';
 
 describe('when constructing enumerable', given(a_query_for, context => {
     it('should set sorting to none', () => context.enumerableQuery.sorting.should.equal(Sorting.none));

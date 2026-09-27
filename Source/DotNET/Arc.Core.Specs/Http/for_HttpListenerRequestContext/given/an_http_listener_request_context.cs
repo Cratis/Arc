@@ -16,10 +16,12 @@ public class an_http_listener_request_context : Specification
 
     void Establish()
     {
-        _port = Random.Shared.Next(50000, 60000);
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
-        _listener.Start();
+        (_listener, _port) = HttpListenerPorts.StartOnFreePort(port =>
+        {
+            var listener = new HttpListener();
+            listener.Prefixes.Add($"http://localhost:{port}/");
+            return listener;
+        });
 
         _serviceProvider = NSubstitute.Substitute.For<IServiceProvider>();
 

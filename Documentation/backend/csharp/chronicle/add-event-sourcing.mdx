@@ -10,6 +10,8 @@ You have a complete, typed, live full-stack app from the Arc tutorial — and so
 
 You can preserve your query signatures, generated proxies, and React screens. That requires preserving the read model's storage contract as well as changing the write side.
 
+This outline follows the tutorial's **MongoDB branch**, where Chronicle's projection can materialize the read model into the collection the unchanged query already observes. On the EF Core branch, `AllAuthors` reads `LibraryDbContext`; keeping that query unchanged would need Chronicle to materialize the read model into the same relational table, and this page does not cover that path. Decide where the projected read model is stored before you promise the query stays as it is.
+
 ## Before changing the slice
 
 This is a migration outline, not a runnable host checkpoint. First:

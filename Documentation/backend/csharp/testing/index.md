@@ -6,7 +6,7 @@ description: Test standalone Arc commands through the real pipeline, with option
 
 A useful spec answers a precise question: is the decision right, did Arc enforce the rule, or did the real system persist and serve the intended result? Cratis lets you test each of those without forcing every case through the widest—and slowest—boundary.
 
-A command's `Handle()` is an ordinary C# method. Call it directly for a deterministic decision; use `CommandScenario<TCommand>` when the framework's composition is part of what you need to prove. Add hosted or provider-backed tests for boundaries neither can cover.
+A command's `Handle()` is an ordinary C# method. Call it directly for a deterministic decision; use `CommandScenario<TCommand>` when the framework's composition is part of what you need to prove. Use [query scenarios](./query-scenario.md) for static read-model snapshot queries that need Arc's binding, filters, or authorization. Add hosted or provider-backed tests for boundaries neither can cover.
 
 ## Choose the boundary that can catch the bug
 
@@ -15,6 +15,7 @@ A command's `Handle()` is an ordinary C# method. Call it directly for a determin
 | A deterministic calculation or decision                                    | Direct `Handle()` spec with explicit input/state                 | Arc validation, authorization, `Provide()`, or persistence        |
 | Calls to an application service                                            | Direct unit spec with substituted collaborators                  | The real service, database, or production registration            |
 | Validation, authorization, `Provide()`, dependencies, or command responses | `CommandScenario<TCommand>`                                      | HTTP routing/authentication middleware or external infrastructure |
+| Model-bound query binding, validation, or authorization                   | `QueryScenario<TReadModel>`                                      | HTTP routing, scheme authentication, or streaming subscriptions   |
 | Returned operations execute and compensate in the correct order           | `CommandScenario<TCommand>` with controlled provider dependencies | Production provider idempotency, terminal cancellation, or crash recovery |
 | Returned events use the intended source and append contract                | `CommandScenario<TCommand>` with the Chronicle testing extension | Completion of the application's entire observer/reactor flow      |
 | Projection/reducer state from history                                      | Chronicle read-model scenario                                    | Production sink configuration and transport                       |
@@ -33,7 +34,7 @@ For pipeline specs, start with `Cratis.Arc.Testing`. It has no Chronicle depende
 | Package                        | Purpose                                                                            |
 | ------------------------------ | ---------------------------------------------------------------------------------- |
 | `Cratis.Specifications.XUnit`  | BDD-style `Specification` base class and assertions on top of xUnit                |
-| `Cratis.Arc.Testing`           | `CommandScenario<TCommand>` and `CommandResult` assertions, without event sourcing |
+| `Cratis.Arc.Testing`           | Command and query scenarios without event sourcing                                |
 | `Cratis.Arc.Chronicle.Testing` | Optional in-process Chronicle extension for event-sourced commands                 |
 | `Cratis.Testing`               | Optional convenience meta-package for projects using both Arc and Chronicle        |
 

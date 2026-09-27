@@ -44,7 +44,7 @@ public class when_a_plain_stream_emits_inside_another_selected_request
         {
             arc.Current = foreignRequest;
             using (principals.UseAuthorizationPrincipal(producer, provider))
-            using (tenants.UseAuthorizedTenant(new TenantId("tenant-C")))
+            using (tenants.Begin("tenant-C"))
             {
                 using (ObservableEmissionIdentity.Begin(subscriberRequest, provider, subscriber, new TenantId("tenant-A"), captured, arc))
                 {

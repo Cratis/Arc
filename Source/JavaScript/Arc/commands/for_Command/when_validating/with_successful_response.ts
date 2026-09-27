@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_command } from '../given/a_command';
-import { given } from '../../../given';
-import { CommandResult } from '../../CommandResult';
+import { a_command } from '../given/a_command.js';
+import { given } from '../../../given.js';
+import { CommandResult } from '../../CommandResult.js';
 
 describe("when validating with successful response", given(a_command, context => {
     let result: CommandResult<object>;

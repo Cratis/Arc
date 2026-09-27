@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from '../given/a_query_for';
-import { given } from '../../../given';
+import { a_query_for } from '../given/a_query_for.js';
+import { given } from '../../../given.js';
 
 import * as sinon from 'sinon';
-import { createFetchHelper } from '../../../helpers/fetchHelper';
+import { createFetchHelper } from '../../../helpers/fetchHelper.js';
 
 describe('with an aborted request', given(a_query_for, context => {
     let rejection: unknown;

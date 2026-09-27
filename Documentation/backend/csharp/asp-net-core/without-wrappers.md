@@ -31,7 +31,7 @@ Opting out of response wrapping does not disable Arc's model-state validation ch
 
 ## Proxy generator
 
-The proxy generator excludes commands/queries marked `[AspNetResult]`; no corresponding Arc TypeScript proxy is generated. Supply a client appropriate to your unwrapped contract instead.
+The proxy generator skips a controller action that carries `[AspNetResult]` itself; no Arc TypeScript proxy is generated for it. It checks the action only, not the controller: with `[AspNetResult]` on the controller class, its `[HttpGet]` and `[HttpPost]` actions still get proxies that expect Arc's envelope and cannot read the native response. Put the attribute on each action when no proxy should exist, and supply a client appropriate to your unwrapped contract instead.
 
 ## See also
 

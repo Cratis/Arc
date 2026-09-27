@@ -4,11 +4,11 @@
 import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { useQuery } from '../useQuery';
+import { useQuery } from '../useQuery.js';
 import { QueryFor, QueryInstanceCache } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

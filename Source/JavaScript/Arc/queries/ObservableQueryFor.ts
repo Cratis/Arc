@@ -1,26 +1,26 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import type { IObservableQueryFor, OnNextResult } from './IObservableQueryFor';
-import { ObservableQuerySubscription } from './ObservableQuerySubscription';
-import { ValidateRequestArguments } from './ValidateRequestArguments';
-import type { QueryValidator } from './QueryValidator';
-import type { IObservableQueryConnection } from './IObservableQueryConnection';
-import { NullObservableQueryConnection } from './NullObservableQueryConnection';
-import { createObservableQueryConnection } from './ObservableQueryConnectionFactory';
+import type { IObservableQueryFor, OnNextResult } from './IObservableQueryFor.js';
+import { ObservableQuerySubscription } from './ObservableQuerySubscription.js';
+import { ValidateRequestArguments } from './ValidateRequestArguments.js';
+import type { QueryValidator } from './QueryValidator.js';
+import type { IObservableQueryConnection } from './IObservableQueryConnection.js';
+import { NullObservableQueryConnection } from './NullObservableQueryConnection.js';
+import { createObservableQueryConnection } from './ObservableQueryConnectionFactory.js';
 import type { Constructor } from '@cratis/fundamentals';
-import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel';
-import { QueryResult } from './QueryResult';
-import { Sorting } from './Sorting';
-import { Paging } from './Paging';
-import { SortDirection } from './SortDirection';
-import { Globals } from '../Globals';
-import { UrlHelpers } from '../UrlHelpers';
-import type { GetHttpHeaders } from '../GetHttpHeaders';
-import type { ParameterDescriptor } from '../reflection/ParameterDescriptor';
-import { ParametersHelper } from '../reflection/ParametersHelper';
-import type { QueryHttpMethod } from './QueryHttpMethod';
-import { executeQueryHttpRequest } from './QueryHttpRequest';
+import { deserializeQueryModel, deserializeQueryModels } from './deserializeQueryModel.js';
+import { QueryResult } from './QueryResult.js';
+import { Sorting } from './Sorting.js';
+import { Paging } from './Paging.js';
+import { SortDirection } from './SortDirection.js';
+import { Globals } from '../Globals.js';
+import { UrlHelpers } from '../UrlHelpers.js';
+import type { GetHttpHeaders } from '../GetHttpHeaders.js';
+import type { ParameterDescriptor } from '../reflection/ParameterDescriptor.js';
+import { ParametersHelper } from '../reflection/ParametersHelper.js';
+import type { QueryHttpMethod } from './QueryHttpMethod.js';
+import { executeQueryHttpRequest } from './QueryHttpRequest.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

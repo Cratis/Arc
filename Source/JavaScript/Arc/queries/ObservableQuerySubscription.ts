@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryConnection } from './IObservableQueryConnection';
+import { IObservableQueryConnection } from './IObservableQueryConnection.js';
 
 /**
  * Represents a subscription for an observable query.

@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, act } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../../CommandForm';
-import { useIsCommandExecuting } from '../../CommandFormContext';
+import { CommandForm, useCommandFormContext } from '../../CommandForm.js';
+import { useIsCommandExecuting } from '../../CommandFormContext.js';
 import { Command } from '@cratis/arc/commands';
-import { TestCommand } from '../TestCommand';
-import { a_command_form_being_executed } from '../given/a_command_form_being_executed';
-import { given } from '../../../../given';
+import { TestCommand } from '../TestCommand.js';
+import { a_command_form_being_executed } from '../given/a_command_form_being_executed.js';
+import { given } from '../../../../given.js';
 
 // The count is given back in a finally, not a catch: a form that is left permanently executing after a
 // network failure is unusable, and swallowing the rejection to achieve that would hide the failure from

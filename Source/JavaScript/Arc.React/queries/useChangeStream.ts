@@ -5,7 +5,7 @@ import { IChangeStreamFor, ChangeSet, Sorting, Paging, QueryResultWithState } fr
 import { Globals, ObservableQueryTransferMode } from '@cratis/arc';
 import { Constructor } from '@cratis/fundamentals';
 import { useState, useEffect, useRef } from 'react';
-import { useObservableQuery, useObservableQueryWithPaging } from './useObservableQuery';
+import { useObservableQuery, useObservableQueryWithPaging } from './useObservableQuery.js';
 
 /**
  * Computes the delta between two snapshots of a collection.

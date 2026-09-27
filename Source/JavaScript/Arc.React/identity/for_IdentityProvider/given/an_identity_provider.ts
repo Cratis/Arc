@@ -4,10 +4,10 @@
 import React from 'react';
 import { act, render, RenderResult, waitFor } from '@testing-library/react';
 import sinon from 'sinon';
-import { IdentityProvider } from '../../IdentityProvider';
-import { useIdentity } from '../../useIdentity';
-import { IIdentityContext } from '../../IIdentityContext';
-import { ArcContext } from '../../../ArcContext';
+import { IdentityProvider } from '../../IdentityProvider.js';
+import { useIdentity } from '../../useIdentity.js';
+import { IIdentityContext } from '../../IIdentityContext.js';
+import { ArcContext } from '../../../ArcContext.js';
 import { IdentityProvider as RootIdentityProvider } from '@cratis/arc/identity';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 import { Constructor } from '@cratis/fundamentals';
@@ -58,6 +58,17 @@ export class an_identity_provider {
      */
     failEveryFetch() {
         this.fetchStub.rejects(new Error('Failed to fetch'));
+    }
+
+    /**
+     * Answers the next fetch as an ended session: a clean HTTP failure, not a network error - the way
+     * AuthProxy answers a caller whose session expired.
+     */
+    answerNextFetchAsUnauthorized() {
+        this.fetchStub.resolves({
+            ok: false,
+            status: 401
+        } as Response);
     }
 
     /**

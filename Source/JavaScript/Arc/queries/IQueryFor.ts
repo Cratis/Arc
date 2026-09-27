@@ -1,9 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResult } from './QueryResult';
-import { IQuery } from './IQuery';
-import { IHaveParameters } from '../reflection/IHaveParameters';
+import { QueryResult } from './QueryResult.js';
+import { IQuery } from './IQuery.js';
+import { IHaveParameters } from '../reflection/IHaveParameters.js';
 
 /**
  * Defines the base of a query.

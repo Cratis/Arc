@@ -4,10 +4,10 @@
 import React from 'react';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryInstanceCache, QueryResultWithState } from '@cratis/arc/queries';
-import { useQuery } from '../../useQuery';
-import { FakeNullishRejectingQuery } from '../FakeNullishRejectingQuery';
-import { ArcContext, ArcConfiguration } from '../../../ArcContext';
-import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext';
+import { useQuery } from '../../useQuery.js';
+import { FakeNullishRejectingQuery } from '../FakeNullishRejectingQuery.js';
+import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext.js';
 
 describe('and the rejection has no message', () => {
     let queryResult: QueryResultWithState<unknown>;

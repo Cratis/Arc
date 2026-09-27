@@ -3,7 +3,7 @@
 
 import { Constructor } from '@cratis/fundamentals';
 import { CloseDialog, DialogResponse } from '@cratis/arc.react/dialogs';
-import { DialogRegistration, DialogRequest } from './DialogRegistration';
+import { DialogRegistration, DialogRequest } from './DialogRegistration.js';
 
 /**
  * Defines a system that can handle dialog requests and responses.

@@ -18,8 +18,6 @@ public class a_well_known_routes_middleware : Specification
 
     void Establish()
     {
-        _port = Random.Shared.Next(50000, 60000);
-
         var services = new ServiceCollection();
         services.AddSingleton<IHttpRequestContextAccessor, HttpRequestContextAccessor>();
         services.AddSingleton<IAuthentication, NoAuthentication>();
@@ -28,9 +26,16 @@ public class a_well_known_routes_middleware : Specification
 
         _logger = Substitute.For<ILogger<WellKnownRoutesMiddleware>>();
         _middleware = new WellKnownRoutesMiddleware(_serviceProvider, _logger);
+    }
 
-        _listener = new HttpListener();
-        _listener.Prefixes.Add($"http://localhost:{_port}/");
+    protected void StartListener()
+    {
+        (_listener, _port) = HttpListenerPorts.StartOnFreePort(port =>
+        {
+            var listener = new HttpListener();
+            listener.Prefixes.Add($"http://localhost:{port}/");
+            return listener;
+        });
     }
 
     void Destroy()

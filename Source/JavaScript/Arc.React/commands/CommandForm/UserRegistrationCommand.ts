@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Command, CommandValidator } from '@cratis/arc/commands';
-import { useCommand, SetCommandValues, ClearCommandValues } from '../';
+import { useCommand, SetCommandValues, ClearCommandValues } from '..//index.js';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 import '@cratis/arc/validation';
 

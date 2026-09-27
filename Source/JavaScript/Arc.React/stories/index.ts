@@ -9,4 +9,4 @@ export {
     StoryBadge,
     type StoryContainerProps,
     type BadgeVariant 
-} from './StoryContainer';
+} from './StoryContainer.js';

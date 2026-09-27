@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { SomeCommand } from './SomeCommand';
+import { SomeCommand } from './SomeCommand.js';
 
 describe('when property changes and initial value is undefined', () => {
     const command = new SomeCommand();

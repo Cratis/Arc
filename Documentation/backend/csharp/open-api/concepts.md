@@ -1,4 +1,7 @@
-# Concepts
+---
+title: Concepts
+description: How the OpenAPI concept transformer describes ConceptAs<T> types as their underlying JSON primitives.
+---
 
 Arc uses [concept types](/fundamentals/csharp/concepts/) as strongly-typed wrappers around primitives such as `Guid`, `string`, or `int`. Without special handling, the generated API schema would expose these as complex objects with a single `Value` property—which is rarely what API consumers expect.
 

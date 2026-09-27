@@ -1,4 +1,7 @@
-# Conditional Queries
+---
+title: Conditional Queries
+description: Delay a query until its arguments exist with the generated when() method, for one-shot and observable queries.
+---
 
 Sometimes a component receives a query argument through a prop or local state that may not be available yet — for example, an entity ID that starts as `undefined` until the user makes a selection. Issuing the query before the value is available leads to an invalid request. At the same time, React's rules of hooks prohibit calling hooks inside `if` statements, so you cannot simply wrap `use()` in a conditional.
 

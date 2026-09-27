@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { SomeCommand } from './SomeCommand';
+import { SomeCommand } from './SomeCommand.js';
 
 describe('when property changes and there is a callback', () => {
     const command = new SomeCommand();

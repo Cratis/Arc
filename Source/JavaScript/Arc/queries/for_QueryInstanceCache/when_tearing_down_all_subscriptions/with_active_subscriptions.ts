@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryInstanceCache } from '../../QueryInstanceCache';
+import { QueryInstanceCache } from '../../QueryInstanceCache.js';
 
 describe('when tearing down all subscriptions with active subscriptions', () => {
     let cache: QueryInstanceCache;

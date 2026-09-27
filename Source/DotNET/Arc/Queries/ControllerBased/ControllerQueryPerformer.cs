@@ -6,6 +6,7 @@ using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ModelBound;
+using Cratis.Concepts;
 using Cratis.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
@@ -164,6 +165,15 @@ public class ControllerQueryPerformer(
             return false;
         }
 
+        // Concepts and collections of query arguments are caller-supplied, even when the container reports
+        // them as services (IEnumerable<T> is always resolvable by the default container).
+        if (parameter.ParameterType.IsConcept() ||
+            parameter.ParameterType.IsEnumerableOfQueryArgumentElement(out _) ||
+            parameter.ParameterType.IsNestedQueryArgumentCollection())
+        {
+            return false;
+        }
+
         return serviceProviderIsService.IsService(parameter.ParameterType);
     }
 
@@ -229,7 +239,8 @@ public class ControllerQueryPerformer(
                 continue;
             }
 
-            args[index] = ResolveQueryArgument(parameter, queryArguments);
+            args[index] = ResolveQueryArgument(parameter, queryArguments, FullyQualifiedName);
+
             if (args[index] is null && !IsNullableOrOptional(parameter))
             {
                 throw new MissingArgumentForQuery(parameter.Name ?? "unknown", parameter.ParameterType, FullyQualifiedName);
@@ -254,7 +265,7 @@ public class ControllerQueryPerformer(
         return serviceProvider.GetRequiredService(parameter.ParameterType);
     }
 
-    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryArguments)
+    static object? ResolveQueryArgument(ParameterInfo parameter, QueryArguments queryArguments, FullyQualifiedQueryName queryName)
     {
         var parameterWasProvided = queryArguments.TryGetValue(parameter.Name ?? string.Empty, out var value);
         if (!parameterWasProvided)
@@ -268,7 +279,7 @@ public class ControllerQueryPerformer(
             return parameter.HasDefaultValue ? parameter.DefaultValue : null;
         }
 
-        return value?.ConvertTo(parameter.ParameterType);
+        return value.ConvertQueryArgument(parameter.ParameterType, parameter.Name ?? "unknown", queryName);
     }
 
     static bool CanRepresentEmptyString(Type type) => type == typeof(string);
@@ -284,6 +295,12 @@ public class ControllerQueryPerformer(
         if (type.IsValueType)
         {
             return Nullable.GetUnderlyingType(type) is not null;
+        }
+
+        if (type.IsConcept())
+        {
+            var nullabilityInfo = new NullabilityInfoContext().Create(parameter);
+            return nullabilityInfo.WriteState is NullabilityState.Nullable;
         }
 
         return true;

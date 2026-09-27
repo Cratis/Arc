@@ -2,14 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Constructor } from '@cratis/fundamentals';
-import { IIdentityProvider } from './IIdentityProvider';
-import { IIdentity } from './IIdentity';
-import { IdentityProviderResult } from './IdentityProviderResult';
-import { deserializeIdentityDetails } from './deserializeIdentityDetails';
-import { GetHttpHeaders } from '../GetHttpHeaders';
-import { Globals } from '../Globals';
-import { UrlHelpers } from '../UrlHelpers';
-import { joinPaths } from '../joinPaths';
+import { IIdentityProvider } from './IIdentityProvider.js';
+import { IIdentity } from './IIdentity.js';
+import { IdentityProviderResult } from './IdentityProviderResult.js';
+import { deserializeIdentityDetails } from './deserializeIdentityDetails.js';
+import { GetHttpHeaders } from '../GetHttpHeaders.js';
+import { Globals } from '../Globals.js';
+import { UrlHelpers } from '../UrlHelpers.js';
+import { joinPaths } from '../joinPaths.js';
 
 /**
  * Represents an implementation of {@link IIdentityProvider}.

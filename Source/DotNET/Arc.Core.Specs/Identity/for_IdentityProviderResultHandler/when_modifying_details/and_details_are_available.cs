@@ -27,6 +27,9 @@ public class and_details_are_available : given.an_identity_provider_result_handl
 
     async Task Because() => await _handler.ModifyDetails<TestDetails>(details => _modifiedDetails);
 
+    [Fact] void should_set_no_store_cache_control() => _httpRequestContext.Received(1).SetResponseHeader("Cache-Control", "no-store, private");
+    [Fact] void should_vary_on_cookie() => _httpRequestContext.Received(1).SetResponseHeader("Vary", "Cookie");
+
     [Fact] void should_call_write_with_modified_details() =>
         _httpRequestContext.Received(1).Write(Arg.Is<string>(json => json.Contains("Marketing") && json.Contains("Manager")));
 

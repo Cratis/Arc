@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Guid } from '@cratis/fundamentals';
-import { ICommandResult } from './ICommandResult';
-import { ValidationResult } from '../validation/ValidationResult';
+import { ICommandResult } from './ICommandResult.js';
+import { ValidationResult } from '../validation/ValidationResult.js';
 import { Constructor, JsonSerializer } from '@cratis/fundamentals';
 
 /**

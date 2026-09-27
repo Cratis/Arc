@@ -4,11 +4,11 @@
 import type React from 'react';
 import { fireEvent, render } from '@testing-library/react';
 import sinon from 'sinon';
-import { ArcContext, type ArcConfiguration } from '../../../ArcContext';
-import { CommandForm } from '../CommandForm';
-import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField';
-import { setCommandFormDevelopmentWarningsForTesting } from '../commandFormRuntime';
-import { TestCommand } from '../for_CommandForm/TestCommand';
+import { ArcContext, type ArcConfiguration } from '../../../ArcContext.js';
+import { CommandForm } from '../CommandForm.js';
+import { asCommandFormField, type WrappedFieldProps } from '../asCommandFormField.js';
+import { setCommandFormDevelopmentWarningsForTesting } from '../commandFormRuntime.js';
+import { TestCommand } from '../for_CommandForm/TestCommand.js';
 
 interface InvalidInputProps extends WrappedFieldProps<string> {
     testId: string;

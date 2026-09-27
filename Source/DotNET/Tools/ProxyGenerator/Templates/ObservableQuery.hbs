@@ -60,7 +60,7 @@ class {{Name}}SortByWithoutQuery {
 {{/if}}
 export interface {{Name}}Parameters {
     {{#Parameters}}
-    
+
     {{#if Documentation}}
     /**
      * {{{Documentation}}}
@@ -214,7 +214,7 @@ export class {{Name}} extends ObservableQueryFor<{{{Model}}}> {
     static when(condition: boolean): ObservableQueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters> {
         return new ObservableQueryWhen<{{Name}}, {{{Model}}}, {{Name}}Parameters>({{Name}}, condition);
     }
-{{/if}}    
+{{/if}}
 {{else}}
 {{#if IsEnumerable}}
     static use(sorting?: Sorting): [QueryResultWithState<{{{Model}}}[]>, SetSorting] {

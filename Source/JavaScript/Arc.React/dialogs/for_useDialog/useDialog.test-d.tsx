@@ -3,8 +3,8 @@
 
 import { expectTypeOf } from 'vitest';
 import type { ReactElement } from 'react';
-import { useDialog } from '../useDialog';
-import type { DialogResponse } from '../DialogResponse';
+import { useDialog } from '../useDialog.js';
+import type { DialogResponse } from '../DialogResponse.js';
 
 // A dialog that expects an input type. It reads `closeDialog` from `useDialogContext`,
 // so its declared props are exactly the input — no `closeDialog` prop, no cast.

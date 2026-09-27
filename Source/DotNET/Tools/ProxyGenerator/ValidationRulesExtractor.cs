@@ -11,11 +11,6 @@ namespace Cratis.Arc.ProxyGenerator;
 /// </summary>
 public static class ValidationRulesExtractor
 {
-    const string FluentValidationAbstractValidatorType = "FluentValidation.AbstractValidator`1";
-    const string FluentValidationBaseValidatorType = "Cratis.Arc.Validation.BaseValidator`1";
-    const string DiscoverableValidatorType = "Cratis.Arc.Validation.DiscoverableValidator`1";
-    const string CommandValidatorType = "Cratis.Arc.Commands.CommandValidator`1";
-    const string QueryValidatorType = "Cratis.Arc.Queries.QueryValidator`1";
     const string NotNullValidatorType = "FluentValidation.Validators.INotNullValidator";
     const string NotEmptyValidatorType = "FluentValidation.Validators.INotEmptyValidator";
     const string EmailValidatorType = "FluentValidation.Validators.IEmailValidator";
@@ -30,7 +25,7 @@ public static class ValidationRulesExtractor
     /// <summary>
     /// Extract validation rules for a specific type using FluentValidation validators.
     /// </summary>
-    /// <param name="assembly">Assembly to search for validators in.</param>
+    /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract validation rules for.</param>
     /// <returns>Collection of property validation descriptors.</returns>
     public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type)
@@ -57,7 +52,7 @@ public static class ValidationRulesExtractor
     /// Extract the validation rules that <c>ConceptValidator&lt;T&gt;</c> validators contribute to a type's
     /// concept-typed properties, attributed to the property carrying the concept.
     /// </summary>
-    /// <param name="assembly">Assembly to search for validators in.</param>
+    /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type whose properties to inspect.</param>
     /// <returns>Collection of property validation descriptors.</returns>
     /// <remarks>
@@ -84,7 +79,7 @@ public static class ValidationRulesExtractor
     /// <summary>
     /// Extract the rules a concept's validator declares, flattened and detached from the concept's own member name.
     /// </summary>
-    /// <param name="assembly">Assembly to search for validators in.</param>
+    /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract rules for; anything that is not a concept yields nothing.</param>
     /// <returns>Collection of validation rule descriptors.</returns>
     /// <remarks>
@@ -195,7 +190,7 @@ public static class ValidationRulesExtractor
 
         foreach (var rule in rules)
         {
-            var key = $"{rule.RuleName}({string.Join(',', rule.Arguments.Select(_ => _?.ToString() ?? string.Empty))}):{rule.ErrorMessage}";
+            var key = $"{rule.RuleName}({string.Join(',', rule.Arguments.Select(_ => _?.ToString() ?? string.Empty))}):{rule.ErrorMessage}:{rule.Severity}";
             if (seen.Add(key))
             {
                 distinct.Add(rule);
@@ -377,7 +372,7 @@ public static class ValidationRulesExtractor
 
     static List<PropertyValidationDescriptor> ExtractFluentValidationRules(Assembly assembly, Type type)
     {
-        var validatorType = FindValidatorForType(assembly, type);
+        var validatorType = ValidatorTypes.Find(assembly, type);
         if (validatorType == null)
         {
             return [];
@@ -499,45 +494,6 @@ public static class ValidationRulesExtractor
         }
     }
 
-    static Type? FindValidatorForType(Assembly assembly, Type type)
-    {
-        return assembly.GetTypes()
-            .FirstOrDefault(t =>
-            {
-                if (t.IsAbstract || t.IsInterface)
-                {
-                    return false;
-                }
-
-                // Check if it's a BaseValidator<T>, DiscoverableValidator<T>, CommandValidator<T>, QueryValidator<T>, or AbstractValidator<T>
-                var baseType = t.BaseType;
-                while (baseType != null)
-                {
-                    if (baseType.IsGenericType)
-                    {
-                        var genericTypeDef = baseType.GetGenericTypeDefinition();
-                        var fullName = genericTypeDef.FullName;
-
-                        if (fullName == FluentValidationAbstractValidatorType ||
-                            fullName == FluentValidationBaseValidatorType ||
-                            fullName == DiscoverableValidatorType ||
-                            fullName == CommandValidatorType ||
-                            fullName == QueryValidatorType)
-                        {
-                            var genericArgs = baseType.GetGenericArguments();
-                            if (genericArgs.Length == 1 && genericArgs[0] == type)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                    baseType = baseType.BaseType;
-                }
-
-                return false;
-            });
-    }
-
     static List<ValidationRuleDescriptor> ExtractRulesFromPropertyRule(object rule)
     {
         // rule is a tuple (IPropertyValidator Validator, IRuleComponent Options)
@@ -559,7 +515,7 @@ public static class ValidationRulesExtractor
         }
 
         var ruleDescriptor = ExtractRuleFromValidator(validator, options);
-        return ruleDescriptor != null ? [ruleDescriptor] : [];
+        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(options) }] : [];
     }
 
     static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)
@@ -618,6 +574,46 @@ public static class ValidationRulesExtractor
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Reads only FluentValidation's constant severity provider, without invoking request-dependent delegates.
+    /// </summary>
+    /// <param name="component">The FluentValidation rule component.</param>
+    /// <returns>The Arc severity, or null if it cannot be determined statically.</returns>
+    static int? GetSeverity(object component)
+    {
+        var property = component.GetType().GetProperty("SeverityProvider", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+        if (property is null)
+        {
+            return null;
+        }
+
+        var provider = property.GetValue(component);
+        if (provider is null)
+        {
+            return 3; // FluentValidation defaults to Error.
+        }
+
+        if (provider is not Delegate severityProvider ||
+            severityProvider.Method.DeclaringType?.DeclaringType?.FullName != "FluentValidation.DefaultValidatorOptions")
+        {
+            return null;
+        }
+
+        var fields = severityProvider.Target?.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (fields is not { Length: 1 } || fields[0].Name != "severity" || fields[0].FieldType.FullName != "FluentValidation.Severity")
+        {
+            return null;
+        }
+
+        return fields[0].GetValue(severityProvider.Target)?.ToString() switch
+        {
+            "Info" => 1,
+            "Warning" => 2,
+            "Error" => 3,
+            _ => null
+        };
     }
 
     static string? GetCustomErrorMessage(object component)

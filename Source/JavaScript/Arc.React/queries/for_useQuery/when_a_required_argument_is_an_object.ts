@@ -7,10 +7,10 @@ import sinon from 'sinon';
 import { Guid } from '@cratis/fundamentals';
 import { QueryInstanceCache } from '@cratis/arc/queries';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
-import { useQuery } from '../useQuery';
-import { FakeQueryWithObjectArgument, FakeQueryWithObjectArgumentArguments } from './FakeQueryWithObjectArgument';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext';
+import { useQuery } from '../useQuery.js';
+import { FakeQueryWithObjectArgument, FakeQueryWithObjectArgumentArguments } from './FakeQueryWithObjectArgument.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
+import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
 /**
  * A required parameter whose runtime type is an object - a `Guid`, a `DateOnly`, any generated

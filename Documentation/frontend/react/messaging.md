@@ -1,4 +1,7 @@
-# Messaging
+---
+title: Messaging
+description: Get the nearest messenger with useMessenger() and publish or subscribe to typed messages between React components.
+---
 
 `<Arc />` sets up a root messenger that is available through React context.
 

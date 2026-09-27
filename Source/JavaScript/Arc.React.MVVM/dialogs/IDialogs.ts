@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { DialogResponse, DialogResult } from '@cratis/arc.react/dialogs';
-import { DialogButtons } from '@cratis/arc.react/dialogs/DialogButtons';
-import { BusyIndicator } from './BusyIndicator';
+import { DialogButtons } from '@cratis/arc.react/dialogs';
+import { BusyIndicator } from './BusyIndicator.js';
 
 /**
  * Defines a service for working with dialogs from a view model.

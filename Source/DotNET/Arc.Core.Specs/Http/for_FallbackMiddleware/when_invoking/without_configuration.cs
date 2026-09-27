@@ -13,7 +13,7 @@ public class without_configuration : given.a_fallback_middleware
     void Establish()
     {
         // No configuration
-        _listener.Start();
+        StartListener();
         _client = new HttpClient();
     }
 

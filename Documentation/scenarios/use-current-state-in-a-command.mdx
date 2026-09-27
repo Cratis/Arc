@@ -9,7 +9,7 @@ Arc can resolve a read model once in the command scope and share that instance b
 
 ## Declare the key and provider
 
-Standalone Arc resolves keys from `[Key]` or `ICanProvideKeyForCommand.GetKey()` in C#, and from `@CommandKey` or `CommandKeyProvider.commandKey()` on the JVM. Neither backend guesses from a property named `Id` or from an arbitrary Guid concept, and both allow at most one declared key. A composite application key can be composed by the provider interface, but the selected provider must still support the resulting stored key.
+Standalone Arc resolves keys from `[Key]` or `ICanProvideKeyForCommand.GetKey()` in C#, and from `@CommandKey` or `CommandKeyProvider.commandKey()` on the JVM. Neither backend guesses from a property named `Id` or from an arbitrary Guid concept. Declare at most one key: C# uses the first `[Key]` property it finds rather than rejecting a second. A composite application key can be composed by the provider interface, but the selected provider must still support the resulting stored key.
 
 ```mermaid
 flowchart TB

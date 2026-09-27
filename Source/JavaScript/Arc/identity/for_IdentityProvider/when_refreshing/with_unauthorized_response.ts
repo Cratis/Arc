@@ -1,10 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IdentityProvider } from '../../IdentityProvider';
-import { IIdentity } from '../../IIdentity';
-import { an_identity_provider } from '../given/an_identity_provider';
-import { given } from '../../../given';
+import { IdentityProvider } from '../../IdentityProvider.js';
+import { IIdentity } from '../../IIdentity.js';
+import { an_identity_provider } from '../given/an_identity_provider.js';
+import { given } from '../../../given.js';
 
 describe('when refreshing with unauthorized response', given(an_identity_provider, context => {
     let result: IIdentity;

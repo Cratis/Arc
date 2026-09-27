@@ -5,6 +5,7 @@ using System.Collections;
 using System.Reflection;
 using Cratis.Arc.Queries;
 using Cratis.Strings;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace Cratis.Arc.EntityFrameworkCore.Observe;
 
@@ -27,22 +28,10 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
     /// Initializes a new instance of the <see cref="QueryContextAwareSet{TEntity}"/> class.
     /// </summary>
     /// <param name="queryContext">The query context.</param>
-    /// <param name="idProperty">The id property.</param>
-    public QueryContextAwareSet(QueryContext queryContext, PropertyInfo idProperty)
+    /// <param name="idProperty">The EF Core identity property.</param>
+    public QueryContextAwareSet(QueryContext queryContext, IProperty idProperty)
+        : this(queryContext, idProperty.ClrType, GetIdGetter(idProperty))
     {
-        _idEqualityComparer = (typeof(EqualityComparer<>)
-                .MakeGenericType(idProperty.PropertyType)
-                .GetProperty(nameof(EqualityComparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
-                .GetValue(null)
-            as IEqualityComparer)!;
-        ArgumentNullException.ThrowIfNull(_idEqualityComparer);
-        _getId = entity =>
-        {
-            var id = idProperty.GetValue(entity);
-            ArgumentNullException.ThrowIfNull(id);
-            return id;
-        };
-        Initialize(queryContext);
     }
 
     /// <summary>
@@ -50,8 +39,31 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
     /// </summary>
     /// <param name="queryContext">The query context.</param>
     /// <remarks>Primarily used for testing.</remarks>
-    public QueryContextAwareSet(QueryContext queryContext) : this(queryContext, typeof(TEntity).GetProperty("Id", BindingFlags.Instance | BindingFlags.Public)!)
+    public QueryContextAwareSet(QueryContext queryContext)
+        : this(queryContext, typeof(TEntity).GetProperty("Id", BindingFlags.Instance | BindingFlags.Public)!)
     {
+    }
+
+    QueryContextAwareSet(QueryContext queryContext, PropertyInfo idProperty)
+        : this(queryContext, idProperty.PropertyType, entity => idProperty.GetValue(entity))
+    {
+    }
+
+    QueryContextAwareSet(QueryContext queryContext, Type idType, Func<TEntity, object?> getId)
+    {
+        _idEqualityComparer = (typeof(EqualityComparer<>)
+                .MakeGenericType(idType)
+                .GetProperty(nameof(EqualityComparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
+                .GetValue(null)
+            as IEqualityComparer)!;
+        ArgumentNullException.ThrowIfNull(_idEqualityComparer);
+        _getId = entity =>
+        {
+            var id = getId(entity);
+            ArgumentNullException.ThrowIfNull(id);
+            return id;
+        };
+        Initialize(queryContext);
     }
 
     /// <summary>
@@ -122,6 +134,12 @@ internal sealed class QueryContextAwareSet<TEntity> : IEnumerable<TEntity>
 
     /// <inheritdoc/>
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    static Func<TEntity, object?> GetIdGetter(IProperty idProperty)
+    {
+        var getter = idProperty.GetGetter();
+        return entity => getter.GetClrValue(entity);
+    }
 
     void Initialize(QueryContext newQueryContext)
     {

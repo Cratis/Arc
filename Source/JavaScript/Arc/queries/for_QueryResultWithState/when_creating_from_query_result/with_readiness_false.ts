@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { QueryResult } from '../../QueryResult';
-import { QueryResultWithState } from '../../QueryResultWithState';
+import { QueryResult } from '../../QueryResult.js';
+import { QueryResultWithState } from '../../QueryResultWithState.js';
 
 describe('when creating from query result with readiness false', () => {
     const queryResult = new QueryResult(

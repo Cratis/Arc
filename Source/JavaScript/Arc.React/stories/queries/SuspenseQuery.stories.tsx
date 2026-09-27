@@ -6,9 +6,9 @@ import React, { useState } from 'react';
 import { Meta } from '@storybook/react';
 import { QueryFor, QueryResult } from '@cratis/arc/queries';
 import { ParameterDescriptor } from '@cratis/arc/reflection';
-import { useSuspenseQuery, clearSuspenseQueryCache, QueryFailed, QueryErrorBoundary, QueryBoundary, QueryErrorInfo } from '../../queries';
-import { ArcContext, ArcConfiguration } from '../../ArcContext';
-import { StoryContainer, StorySection, StoryBadge } from '../StoryContainer';
+import { useSuspenseQuery, clearSuspenseQueryCache, QueryFailed, QueryErrorBoundary, QueryBoundary, QueryErrorInfo } from '../../queries/index.js';
+import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
+import { StoryContainer, StorySection, StoryBadge } from '../StoryContainer.js';
 
 // ---------------------------------------------------------------------------
 // Data model

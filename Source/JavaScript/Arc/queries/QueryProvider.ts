@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { Constructor } from '@cratis/fundamentals';
-import { IQueryProvider } from './IQueryProvider';
-import { IQuery } from './IQuery';
-import { GetHttpHeaders } from '../GetHttpHeaders';
+import { IQueryProvider } from './IQueryProvider.js';
+import { IQuery } from './IQuery.js';
+import { GetHttpHeaders } from '../GetHttpHeaders.js';
 
 /**
  * Represents an implementation of {@link IQueryProvider}

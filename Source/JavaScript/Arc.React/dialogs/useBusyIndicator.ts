@@ -2,9 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import { useContext } from 'react';
-import { DialogComponentsContext, IDialogComponents } from './DialogComponents';
-import { DialogResult } from './DialogResult';
-import { BusyIndicatorDialogRequest } from './BusyIndicatorDialogRequest';
+import { DialogComponentsContext, IDialogComponents } from './DialogComponents.js';
+import { DialogResult } from './DialogResult.js';
+import { BusyIndicatorDialogRequest } from './BusyIndicatorDialogRequest.js';
 
 /**
  * Represents the signature for showing a confirmation dialog.

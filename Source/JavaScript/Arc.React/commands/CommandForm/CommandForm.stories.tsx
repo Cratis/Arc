@@ -3,9 +3,9 @@
 
 import React, { useState } from 'react';
 import { Meta, StoryObj } from '@storybook/react';
-import { CommandForm, useCommandFormContext } from './CommandForm';
-import type { FieldContainerProps } from './CommandFormContext';
-import { UserRegistrationCommand } from './UserRegistrationCommand';
+import { CommandForm, useCommandFormContext } from './CommandForm.js';
+import type { FieldContainerProps } from './CommandFormContext.js';
+import { UserRegistrationCommand } from './UserRegistrationCommand.js';
 import { 
     InputTextField, 
     NumberField, 
@@ -15,12 +15,12 @@ import {
     RadioGroupField,
     RangeField,
     SelectField 
-} from './fields';
+} from './fields/index.js';
 import { Command, CommandValidator, CommandResult } from '@cratis/arc/commands';
 import { ValidationResultReason } from '@cratis/arc/validation';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { StoryContainer, StoryBadge } from '../../stories';
-import type { FieldDecoratorProps, ErrorDisplayProps, TooltipWrapperProps } from './CommandFormContext';
+import { StoryContainer, StoryBadge } from '../../stories/index.js';
+import type { FieldDecoratorProps, ErrorDisplayProps, TooltipWrapperProps } from './CommandFormContext.js';
 import '@cratis/arc/validation';
 
 const meta: Meta<typeof CommandForm> = {

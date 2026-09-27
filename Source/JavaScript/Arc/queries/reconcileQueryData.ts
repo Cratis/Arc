@@ -1,7 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { deepEqual } from '../deepEqual';
+import { deepEqual } from '../deepEqual.js';
 
 /**
  * Resolves the conventional identity of an item so it can be matched against its previous version.

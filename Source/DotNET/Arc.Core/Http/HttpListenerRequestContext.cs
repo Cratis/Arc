@@ -20,7 +20,7 @@ namespace Cratis.Arc.Http;
 /// </remarks>
 /// <param name="context">The <see cref="HttpListenerContext"/>.</param>
 /// <param name="serviceProvider">The <see cref="IServiceProvider"/>.</param>
-public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext
+public class HttpListenerRequestContext(HttpListenerContext context, IServiceProvider serviceProvider) : IHttpRequestContext, ICanReadResponseHeaders
 {
     readonly Dictionary<object, object?> _items = [];
     JsonSerializerOptions? _jsonOptions;
@@ -101,6 +101,9 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     {
         context.Response.Headers[name] = value;
     }
+
+    /// <inheritdoc/>
+    public string? GetResponseHeader(string name) => context.Response.Headers[name];
 
     /// <inheritdoc/>
     public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)

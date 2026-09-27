@@ -1,11 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { a_query_for } from './given/a_query_for';
-import { given } from '../../given';
-import { Sorting } from '../Sorting';
-import { Paging } from '../Paging';
-import { Globals } from '../../Globals';
+import { a_query_for } from './given/a_query_for.js';
+import { given } from '../../given.js';
+import { Sorting } from '../Sorting.js';
+import { Paging } from '../Paging.js';
+import { Globals } from '../../Globals.js';
 
 describe('when constructing', given(a_query_for, context => {
     let originalMicroservice: string | undefined;

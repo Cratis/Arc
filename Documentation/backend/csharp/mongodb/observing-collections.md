@@ -24,7 +24,7 @@ var featured = collection.ObserveSingle(author => author.IsFeatured);
 var byId = collection.ObserveById<Author, Guid>(authorId);
 ```
 
-The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. Single observation emits only when an entity exists: it does not emit null when no document matches.
+The examples assume your `Author` has a Guid `Id` and the named properties. Collection overloads return `ISubject<IEnumerable<Author>>`; single-document overloads return `ISubject<Author>`. When no document matches, single observation emits `null` and stays open; see [when there is no matching document](#when-the-observed-document-is-gone) below.
 
 The watch starts when `Observe()` is called, not when the first subscriber arrives. The collection result replays its latest emission to late subscribers. It does not emit a placeholder empty collection before the initial database query finishes.
 
@@ -41,6 +41,19 @@ var active = collection.Observe(author => author.IsActive, options);
 ```
 
 This overload does not expose `Sort` or `Limit` properties through `FindOptions`. Arc takes paging and sorting from the current query context. Use the [query paging contract](../queries/model-bound/paging.md) when exposing a paged Arc query; arbitrary controller parameters do not populate that context automatically.
+
+### Compose a primary observation with auxiliary sources
+
+When a query combines observations from several collections, client paging and sorting belong to the primary source. Existing composed queries must opt in on each auxiliary observation to get this behavior; otherwise those observations still use the client query context. Pass `ignoreQueryContext: true` to an auxiliary observation to read **all** documents matching its filter without client paging or sorting. This also prevents that source from writing the query's `TotalItems`, both at startup and on changes:
+
+```csharp
+var primary = authors.Observe();
+var auxiliary = categories.Observe(ignoreQueryContext: true);
+var featured = categories.ObserveSingle(category => category.IsFeatured, ignoreQueryContext: true);
+var selected = categories.ObserveById(categoryId, ignoreQueryContext: true);
+```
+
+This fragment assumes injected collections named `authors` and `categories`, a category with `IsFeatured`, and a matching `categoryId`. The option is available for expression and MongoDB filter overloads of `Observe` and `ObserveSingle`, as well as `ObserveById`. The primary observation keeps its usual paging, sorting, and `TotalItems` behavior; **you** decide which source is primary. `TotalItems` describes the primary collection's filtered count, not the size of an arbitrary result you derive by combining sources. If your composed result has different pagination semantics, compute its count explicitly rather than treating a collection's count as the composed count.
 
 ## Lifetime and scope
 

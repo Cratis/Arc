@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { IObservableQueryHubConnection } from '../../IObservableQueryHubConnection';
-import { getOrCreateMultiplexer, ObservableQueryMultiplexer, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer';
+import { IObservableQueryHubConnection } from '../../IObservableQueryHubConnection.js';
+import { getOrCreateMultiplexer, ObservableQueryMultiplexer, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer.js';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

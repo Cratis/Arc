@@ -38,6 +38,7 @@ public class a_handler : Specification
     protected static IHttpRequestContext ContextForPrincipal(string? identityProvider, params (string Type, string Value)[] claims)
     {
         var context = Substitute.For<IHttpRequestContext>();
+        context.Items.Returns(new Dictionary<object, object?>());
         context.Headers.Returns(new Dictionary<string, string>
         {
             [MicrosoftIdentityPlatformHeaders.IdentityIdHeader] = IdentityIdFromHeader,

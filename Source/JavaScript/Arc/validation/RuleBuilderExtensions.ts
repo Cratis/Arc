@@ -1,14 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-import { RuleBuilder } from './RuleBuilder';
-import { NotEmptyRule, NotNullRule } from './rules/NotEmptyRule';
-import { MinLengthRule, MaxLengthRule, LengthRule } from './rules/LengthRules';
-import { EmailRule } from './rules/EmailRule';
-import { PhoneRule } from './rules/PhoneRule';
-import { UrlRule } from './rules/UrlRule';
-import { RegexRule } from './rules/RegexRule';
-import { GreaterThanRule, GreaterThanOrEqualRule, LessThanRule, LessThanOrEqualRule } from './rules/ComparisonRules';
+import { RuleBuilder } from './RuleBuilder.js';
+import { NotEmptyRule, NotNullRule } from './rules/NotEmptyRule.js';
+import { MinLengthRule, MaxLengthRule, LengthRule } from './rules/LengthRules.js';
+import { EmailRule } from './rules/EmailRule.js';
+import { PhoneRule } from './rules/PhoneRule.js';
+import { UrlRule } from './rules/UrlRule.js';
+import { RegexRule } from './rules/RegexRule.js';
+import { GreaterThanRule, GreaterThanOrEqualRule, LessThanRule, LessThanOrEqualRule } from './rules/ComparisonRules.js';
 
 /**
  * Extension methods for {@link RuleBuilder} to add validation rules in a fluent manner.
@@ -185,7 +185,7 @@ RuleBuilder.prototype.notNull = notNull;
 (RuleBuilder.prototype as unknown as { lessThanOrEqual: typeof lessThanOrEqual }).lessThanOrEqual = lessThanOrEqual;
 
 // Extend the RuleBuilder interface to include these methods
-declare module './RuleBuilder' {
+declare module './RuleBuilder.js' {
     interface RuleBuilder<T, TProperty> {
         notEmpty(): RuleBuilder<T, TProperty>;
         notNull(): RuleBuilder<T, TProperty>;

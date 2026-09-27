@@ -2,10 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import sinon from 'sinon';
-import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection';
-import { given } from '../../../given';
-import { HubMessageType } from '../../WebSocketHubConnection';
-import { QueryResult } from '../../QueryResult';
+import { a_server_sent_event_hub_connection } from '../given/a_server_sent_event_hub_connection.js';
+import { given } from '../../../given.js';
+import { HubMessageType } from '../../WebSocketHubConnection.js';
+import { QueryResult } from '../../QueryResult.js';
 
 describe(
     'when receiving unauthorized for a subscribed query',

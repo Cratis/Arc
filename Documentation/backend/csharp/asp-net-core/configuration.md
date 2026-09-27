@@ -1,4 +1,7 @@
-# Configuration
+---
+title: Configuration
+description: Configure Arc in an ASP.NET Core host through appsettings.json or code, including route generation and JSON settings.
+---
 
 Cratis Arc can be configured both through `appsettings.json` and programmatically to customize its behavior. The main configuration is handled through the `ArcOptions` class.
 
@@ -163,6 +166,23 @@ app.UseCratisArc();
 app.Run();
 ```
 
+## Hosting under a path prefix
+
+For an app reached at `/workbench`, configure ASP.NET Core's `UsePathBase` **before** `UseRouting` and `UseCratisArc`. It removes the prefix from the request path before endpoint matching; leave Arc's generated API route prefix (normally `/api`) unchanged.
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.AddCratisArc();
+
+var app = builder.Build();
+app.UsePathBase("/workbench");
+app.UseRouting();
+app.UseCratisArc();
+app.Run();
+```
+
+Set `<Arc apiBasePath="/workbench">` in the frontend and set the application router's `basename` to `/workbench` separately. Neither setting changes the server's routes; see [React provider configuration](../../../frontend/react/arc.md#hosting-under-a-path-prefix). If a reverse proxy already removes the prefix, the server sees unprefixed paths, so configure the frontend and ingress accordingly.
+
 ## Environment-Specific Configuration
 
 You can use different configurations for different environments using the standard ASP.NET Core configuration pattern:
@@ -278,7 +298,7 @@ For example, with the configuration above:
 
 ## JSON Serialization
 
-Arc-generated endpoints use `ArcOptions.JsonSerializerOptions`. Arc's MVC post-configuration copies only the property naming policy and appends Arc converters; it does not copy the entire options object. Settings such as `DefaultIgnoreCondition`, `NumberHandling`, and other MVC serializer options require separate MVC configuration if controller output must match. Manual serialization must explicitly use the Arc options; unrelated minimal API endpoints use their ASP.NET serializer configuration.
+Arc-generated endpoints use `ArcOptions.JsonSerializerOptions`. Arc's MVC post-configuration copies only the property naming policy and appends Arc converters; it does not copy the entire options object. Settings such as `DefaultIgnoreCondition`, `NumberHandling`, and other MVC serializer options require separate MVC configuration if controller output must match. Plain ASP.NET minimal API endpoints receive only Arc's concept converters by default (single concepts, concept collections and dictionaries keyed by concepts). Concepts in request and response bodies use their underlying primitive JSON values; other types retain ASP.NET's JSON defaults. Manual serialization must explicitly use the Arc options.
 
 ### Default Configuration
 
@@ -330,7 +350,7 @@ builder.AddCratisArc(options =>
 });
 ```
 
-For controllers, configure null omission, number handling, and other non-copied settings separately through MVC's `AddJsonOptions`. Arc's post-configuration still sets the naming policy, removes the first `JsonStringEnumConverter` if present, and appends Arc converters. `ConfigureHttpJsonOptions` configures ASP.NET minimal API serialization; it does **not** replace Arc's serializer for generated endpoints. Converter order matters: the first matching converter wins, so appending a converter may not override an existing Arc converter. Test the actual request/response contract; see [OpenAPI enum limitations](../open-api/enums.md).
+For controllers, configure null omission, number handling, and other non-copied settings separately through MVC's `AddJsonOptions`. Arc's post-configuration still sets the naming policy, removes the first `JsonStringEnumConverter` if present, and appends Arc converters. `ConfigureHttpJsonOptions` configures ASP.NET minimal API serialization; it does **not** replace Arc's serializer for generated endpoints. For minimal APIs, ASP.NET Core's camel-case naming remains unchanged, including when you explicitly choose `JsonNamingPolicy.CamelCase`. Configure `ConfigureHttpJsonOptions` to choose another naming policy, opt out of primitive concept serialization by registering an application converter for that concept type (for example, a `JsonConverter<AccountId>` that writes and reads `{ "value": "..." }`), or set null omission, number handling, and other serializer settings. Application converters keep their order and take precedence over Arc's appended concept converters. Converter order matters: the first matching converter wins. Enum, date/time, URI, type, geospatial and derived-type converters are **not** added to plain minimal APIs; configure those explicitly if needed. Test the actual request/response contract; see [OpenAPI enum schemas](../open-api/enums.md).
 
 ## Best Practices
 

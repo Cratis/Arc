@@ -3,12 +3,12 @@
 
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react';
-import { CommandForm, useCommandFormContext } from '../CommandForm';
-import { asCommandFormField } from '../asCommandFormField';
+import { CommandForm, useCommandFormContext } from '../CommandForm.js';
+import { asCommandFormField } from '../asCommandFormField.js';
 import { Command, CommandValidator } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
-import { a_command_form_context } from './given/a_command_form_context';
-import { given } from '../../../given';
+import { a_command_form_context } from './given/a_command_form_context.js';
+import { given } from '../../../given.js';
 
 // Command where ALL fields are required (isOptional = false) and no initial values are provided.
 // The class defaults leave all fields as undefined, which triggers the silent init validation to

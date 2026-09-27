@@ -1,4 +1,7 @@
-# Story Components
+---
+title: Story Components
+description: Why and how to use Arc.React Story Components for consistent Storybook stories, and how to load their stylesheet.
+---
 
 ## Overview
 
@@ -24,7 +27,7 @@ Pre-built components with standardized spacing, sizing, and layout patterns ensu
 
 ### Automatic Theme Adaptation
 
-Story components use CSS variables that follow the current Storybook theme. Switching between dark and light mode updates those variables.
+Story components read their colors from CSS variables with a dark and a light palette. Your Storybook selects the palette by setting `data-theme` on the page; the stylesheet does not follow Storybook's theme or background by itself. See [theme support](theme-support.md#switching-themes) for wiring the backgrounds toolbar to it.
 
 ### Reusable Patterns
 
