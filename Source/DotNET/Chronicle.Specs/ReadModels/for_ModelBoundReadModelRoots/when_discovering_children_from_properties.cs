@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections.ModelBound;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ModelBoundReadModelRoots;
@@ -31,5 +32,6 @@ public class when_discovering_children_from_properties : Specification
     record ArrayChild(string Name);
     record ListChild(string Name);
     record EnumerableChild(string Name);
+    [EventType("Arc.Chronicle.Specs.ChildrenFromProperties.ChildAdded")]
     record ChildAdded(Guid Id);
 }

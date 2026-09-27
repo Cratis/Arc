@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections.ModelBound;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ModelBoundReadModelRoots;
@@ -35,5 +36,6 @@ public class when_constructor_parameters_shadow_properties : Specification
     record PropertyOnlyChild(string Name);
     record ParameterChild(string Name);
     record PropertyDetails(string Name);
-    record ChildAdded(Guid Id);
+    [EventType("Arc.Chronicle.Specs.ShadowedProperties.ChildAdded")]
+    record ChildAdded(Guid Id, IEnumerable<ParameterChild> Selected, PropertyDetails Details);
 }

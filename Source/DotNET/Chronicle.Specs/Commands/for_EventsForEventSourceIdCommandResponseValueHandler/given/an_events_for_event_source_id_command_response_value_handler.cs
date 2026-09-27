@@ -47,7 +47,10 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
 
     public class TestCommand;
 
+    [EventType("Arc.Chronicle.Specs.EventsForEventSourceIdHandler.TestEvent")]
     public record TestEvent(string Name);
+
+    [EventType("Arc.Chronicle.Specs.EventsForEventSourceIdHandler.AnotherTestEvent")]
     public record AnotherTestEvent(int Value);
     public record UnknownEvent(string Data);
 }
