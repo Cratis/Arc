@@ -6,6 +6,7 @@ using System.Security.Claims;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Authorization;
 
@@ -96,11 +97,14 @@ public class AuthorizationEvaluation(
         };
         var declaration = prepared.Declaration;
         var resolution = prepared.Resolution;
-        if (!AuthorizationEvaluator.SameDeclaration(
-            declaration,
-            currentDeclaration,
-            prepared.EvaluatesAnonymous,
-            resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true }))
+        if (!AuthorizationEvaluator.SameDeclaration(declaration, currentDeclaration))
+        {
+            throw new InvalidAuthorizationConfiguration("Authorization requirements changed during execution.");
+        }
+
+        // A guest plan must still opt in at execution time; do not reuse an earlier opt-in after a policy registration changes.
+        if (prepared.EvaluatesAnonymous &&
+            (await runtime.Resolve(currentDeclaration.Requirements, services, cancellationToken)) is not IAnonymousPolicyResolution { EvaluatesAnonymous: true })
         {
             throw new InvalidAuthorizationConfiguration("Authorization requirements changed during execution.");
         }
@@ -141,9 +145,10 @@ public class AuthorizationEvaluation(
                     services,
                     cancellationToken);
             }
-            catch (Exception) when (prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true && !cancellationToken.IsCancellationRequested)
+            catch (Exception exception) when (prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true && !cancellationToken.IsCancellationRequested)
             {
                 // A guest policy failure is a denial, never an error result that still reports IsAuthorized = true.
+                services.GetService<ILogger<AuthorizationEvaluation>>()?.GuestPolicyFailed(target.Name, exception);
                 return false;
             }
 

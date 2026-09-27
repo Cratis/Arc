@@ -100,13 +100,10 @@ public class AuthorizationEvaluator(
     /// </summary>
     /// <param name="checkedDeclaration">The already evaluated requirements.</param>
     /// <param name="current">The requirements being checked now.</param>
-    /// <param name="checkedEvaluatesAnonymous">The checked plan's guest evaluation decision.</param>
-    /// <param name="currentEvaluatesAnonymous">The current plan's guest evaluation decision.</param>
     /// <returns>Whether they describe the same effective authorization.</returns>
-    internal static bool SameDeclaration(AuthorizationDeclaration checkedDeclaration, AuthorizationDeclaration current, bool checkedEvaluatesAnonymous = false, bool currentEvaluatesAnonymous = false)
+    internal static bool SameDeclaration(AuthorizationDeclaration checkedDeclaration, AuthorizationDeclaration current)
     {
-        if (checkedEvaluatesAnonymous != currentEvaluatesAnonymous ||
-            checkedDeclaration.AllowsAnonymous != current.AllowsAnonymous ||
+        if (checkedDeclaration.AllowsAnonymous != current.AllowsAnonymous ||
             checkedDeclaration.IsExplicit != current.IsExplicit ||
             checkedDeclaration.Requirements.Count != current.Requirements.Count)
         {
@@ -139,7 +136,7 @@ public class AuthorizationEvaluator(
         if (declaration.RequiresAsynchronousEvaluation && principal is not null &&
             _alreadyEvaluated.Value is { } checkedEvaluation &&
             checkedEvaluation.Target.Equals(target) && AuthorizationPrincipalIdentity.Same(checkedEvaluation.Principal, principal) &&
-            SameDeclaration(checkedEvaluation.Declaration, declaration, checkedEvaluation.EvaluatesAnonymous, checkedEvaluation.EvaluatesAnonymous))
+            SameDeclaration(checkedEvaluation.Declaration, declaration))
         {
             return CheckRoles(declaration, principal, checkedEvaluation.EvaluatesAnonymous);
         }
