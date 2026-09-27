@@ -47,6 +47,10 @@ This contract applies to the policy-support release and subsequent extensions. P
 - **Done when:** native and ASP.NET Core policies, explicit and policy-contributed schemes, custom legacy evaluators, and real streaming subscriptions enforce the same selected identity at their respective pipeline boundaries; invalid configuration prevents listener startup; cancellation never allows deferred work to execute.
 - **Verify by:** affected Core, ASP.NET Core, and analyzer specifications in Debug and Release; real-host command, query, SSE, and WebSocket policy scenarios; regressions for custom-constructor denials, nested principal overrides, concurrent scoped policies, noncooperative cancellation, and startup ordering. Existing both-attribute-family contradiction specifications remain green. Required CI must pass before release.
 
+## Clarification (2026-09-27, issue #2761)
+
+Named Arc policies remain authenticated-only by default. The additive `AddArcAuthorizationPolicy<T>(name, evaluatesAnonymous: true)` registration permits evaluation for an empty unauthenticated principal only when **every** effective requirement is an opted-in, policy-only requirement. Bare authorization, roles, schemes, ASP.NET Core-registered policies, and any non-opted-in fallback requirement keep authentication mandatory. `[AllowAnonymous]` at an HTTP boundary does not bypass Arc's policy checks. This opt-in preserves both attribute families on the ASP.NET Core host and does not change the synchronous evaluator contract.
+
 ## Consequences
 
 Applications using formerly ignored policy or scheme settings now receive the restrictions they declared, or fail startup with an actionable configuration error. Core policy implementations resolve per executing scope. Scheme-restricted direct calls require a live ASP.NET Core HTTP context. Callers that need policy evaluation use the asynchronous pipeline instead of synchronous evaluator calls. Library APIs stay compatible where possible, without preserving the unsafe behavior of silently ignoring requirements.

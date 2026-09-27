@@ -54,10 +54,15 @@ public class AuthorizationEvaluator(
     /// </summary>
     /// <param name="declaration">The effective declaration.</param>
     /// <param name="principal">The selected principal.</param>
+    /// <param name="evaluatesAnonymous">Whether every resolved requirement opts in to guest evaluation.</param>
     /// <returns>True when all authentication and role requirements are met.</returns>
-    internal static bool CheckRoles(AuthorizationDeclaration declaration, ClaimsPrincipal? principal) =>
+    internal static bool CheckRoles(AuthorizationDeclaration declaration, ClaimsPrincipal? principal, bool evaluatesAnonymous = false) =>
         declaration.Requirements.Count == 0 ||
-        (principal?.Identity?.IsAuthenticated == true &&
+        (principal is not null &&
+         (principal.Identity?.IsAuthenticated == true ||
+          (evaluatesAnonymous && declaration.Requirements.All(requirement =>
+              !string.IsNullOrWhiteSpace(requirement.Policy) &&
+              requirement.AnyOfRoles.Count == 0 && requirement.AuthenticationSchemes.Count == 0))) &&
          declaration.Requirements.All(requirement => requirement.AnyOfRoles.Count == 0 || requirement.AnyOfRoles.Any(principal.IsInRole)));
 
     /// <summary>
@@ -66,11 +71,12 @@ public class AuthorizationEvaluator(
     /// <param name="target">The evaluated command type or query method.</param>
     /// <param name="principal">The selected principal.</param>
     /// <param name="declaration">The exact effective requirements already checked.</param>
+    /// <param name="evaluatesAnonymous">Whether every resolved requirement opts in to guest evaluation.</param>
     /// <returns>A scope removing the permission immediately after the legacy verdict.</returns>
-    internal static IDisposable AlreadyEvaluated(MemberInfo target, ClaimsPrincipal principal, AuthorizationDeclaration declaration)
+    internal static IDisposable AlreadyEvaluated(MemberInfo target, ClaimsPrincipal principal, AuthorizationDeclaration declaration, bool evaluatesAnonymous = false)
     {
         var previous = _alreadyEvaluated.Value;
-        _alreadyEvaluated.Value = new AuthorizedEvaluation(target, AuthorizationPrincipalIdentity.Capture(principal), declaration);
+        _alreadyEvaluated.Value = new AuthorizedEvaluation(target, AuthorizationPrincipalIdentity.Capture(principal), declaration, evaluatesAnonymous);
         return new EvaluationScope(previous);
     }
 
@@ -79,10 +85,13 @@ public class AuthorizationEvaluator(
     /// </summary>
     /// <param name="checkedDeclaration">The already evaluated requirements.</param>
     /// <param name="current">The requirements being checked now.</param>
+    /// <param name="checkedEvaluatesAnonymous">The checked plan's guest evaluation decision.</param>
+    /// <param name="currentEvaluatesAnonymous">The current plan's guest evaluation decision.</param>
     /// <returns>Whether they describe the same effective authorization.</returns>
-    internal static bool SameDeclaration(AuthorizationDeclaration checkedDeclaration, AuthorizationDeclaration current)
+    internal static bool SameDeclaration(AuthorizationDeclaration checkedDeclaration, AuthorizationDeclaration current, bool checkedEvaluatesAnonymous = false, bool currentEvaluatesAnonymous = false)
     {
-        if (checkedDeclaration.AllowsAnonymous != current.AllowsAnonymous ||
+        if (checkedEvaluatesAnonymous != currentEvaluatesAnonymous ||
+            checkedDeclaration.AllowsAnonymous != current.AllowsAnonymous ||
             checkedDeclaration.IsExplicit != current.IsExplicit ||
             checkedDeclaration.Requirements.Count != current.Requirements.Count)
         {
@@ -115,15 +124,15 @@ public class AuthorizationEvaluator(
         if (declaration.RequiresAsynchronousEvaluation && principal is not null &&
             _alreadyEvaluated.Value is { } checkedEvaluation &&
             checkedEvaluation.Target.Equals(target) && AuthorizationPrincipalIdentity.Same(checkedEvaluation.Principal, principal) &&
-            SameDeclaration(checkedEvaluation.Declaration, declaration))
+            SameDeclaration(checkedEvaluation.Declaration, declaration, checkedEvaluation.EvaluatesAnonymous, checkedEvaluation.EvaluatesAnonymous))
         {
-            return CheckRoles(declaration, principal);
+            return CheckRoles(declaration, principal, checkedEvaluation.EvaluatesAnonymous);
         }
 
         return Check(declaration, principal);
     }
 
-    sealed record AuthorizedEvaluation(MemberInfo Target, PrincipalSnapshot Principal, AuthorizationDeclaration Declaration);
+    sealed record AuthorizedEvaluation(MemberInfo Target, PrincipalSnapshot Principal, AuthorizationDeclaration Declaration, bool EvaluatesAnonymous);
 
     sealed class EvaluationScope(AuthorizedEvaluation? previous) : IDisposable
     {

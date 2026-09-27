@@ -14,7 +14,7 @@ Use attributes from `Cratis.Arc.Authorization`:
 | `[Authorize]` | Requires an authenticated principal. |
 | `[Authorize(Roles = "Admin,Manager")]` | Requires authentication and at least one listed role. |
 | `[Roles("Admin", "Manager")]` | The same OR-role check; derives from Arc's `AuthorizeAttribute`. |
-| `[Authorize(Policy = "ActiveSubscription")]` | Requires authentication and the named policy to succeed asynchronously. |
+| `[Authorize(Policy = "ActiveSubscription")]` | Requires authentication and the named policy to succeed asynchronously, unless that Arc policy explicitly opts in to guest evaluation. |
 | `[AllowAnonymous]` | Explicitly allows anonymous access. |
 | No authorization attribute | No authentication or role requirement from the Arc evaluator. |
 
@@ -65,7 +65,36 @@ using Cratis.Arc.Authorization;
 builder.Services.AddArcAuthorizationPolicy<ActiveSubscription>("ActiveSubscription");
 ```
 
-Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. An authenticated principal is required even when a policy itself permits anonymous callers. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
+Apply `[Authorize(Policy = "ActiveSubscription")]` to a model-bound command or read model. `AuthorizationPolicyContext.Target` names its type or query method; `Resource` is the executing `CommandContext` or `QueryContext`. The registration without `evaluatesAnonymous` is authenticated-only, even if its policy would return `true` for an unauthenticated caller. Policy checks are awaited before `Provide()`, `Handle()`, or a query method runs. Command context-value providers and execution-scope `Begin` run before the policy verdict so filters retain their established ordering; they may run for a caller ultimately denied by the policy. A named scheme, when supported by the ASP.NET Core host, is authenticated and selected before those hooks, but the hooks must not treat selection as authorization or perform irreversible business effects. The old synchronous `IAuthorizationEvaluator.IsAuthorized` entry points reject policy-bearing declarations; use the command/query pipelines instead.
+
+### Evaluate a policy for guests
+
+Only opt in when the policy intentionally protects a resource available to unauthenticated callers. For example, this **type fragment** permits an explicitly public catalog; it does not grant access to private data:
+
+```csharp
+using System.Threading;
+using System.Threading.Tasks;
+using Cratis.Arc.Authorization;
+
+public class PublicCatalogAccess : IAuthorizationPolicy
+{
+    public ValueTask<bool> IsAuthorized(AuthorizationPolicyContext context, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(true);
+    }
+}
+```
+
+Register it before building either Arc host, then put `[Authorize(Policy = "PublicCatalog")]` on the command or query method you intend to expose:
+
+```csharp
+builder.Services.AddArcAuthorizationPolicy<PublicCatalogAccess>("PublicCatalog", evaluatesAnonymous: true);
+```
+
+:::caution[Guest evaluation changes who can run your code]
+An opted-in policy receives a **non-null, empty, unauthenticated** `ClaimsPrincipal` for guests, even if the incoming unauthenticated principal had claims. Do not trust identity, roles, or tenant membership from a guest or return `true` for private resources. The policy must make its own access decision; returning `false` still denies the guest. Every effective requirement must be an opted-in policy-only requirement: a bare `[Authorize]`, a role, a named scheme, or an ASP.NET Core-registered policy still requires authentication. `[AllowAnonymous]` on an outer endpoint does not skip Arc's policy. The same-level combination of `[AllowAnonymous]` and `[Authorize]` remains ambiguous and is rejected.
+:::
 
 ## Protect a query
 

@@ -35,7 +35,12 @@ public class ArcAuthorizationPolicyRuntime(IEnumerable<AuthorizationPolicyRegist
             }
         }
 
-        IAuthorizationPolicyResolution resolution = new NativeResolution(this, [.. requirements]);
+        var evaluatesAnonymous = requirements.Count > 0 && requirements.All(requirement =>
+            !string.IsNullOrWhiteSpace(requirement.Policy) &&
+            requirement.AnyOfRoles.Count == 0 &&
+            requirement.AuthenticationSchemes.Count == 0 &&
+            PolicyFor(requirement.Policy).EvaluatesAnonymous);
+        IAuthorizationPolicyResolution resolution = new NativeResolution(this, [.. requirements], evaluatesAnonymous);
         return Task.FromResult(resolution);
     }
 
@@ -59,8 +64,10 @@ public class ArcAuthorizationPolicyRuntime(IEnumerable<AuthorizationPolicyRegist
     AuthorizationPolicyRegistration PolicyFor(string name) =>
         _registrations.Single(registration => registration.Name == name);
 
-    sealed class NativeResolution(ArcAuthorizationPolicyRuntime runtime, AuthorizationRequirement[] requirements) : IAuthorizationPolicyResolution
+    sealed class NativeResolution(ArcAuthorizationPolicyRuntime runtime, AuthorizationRequirement[] requirements, bool evaluatesAnonymous) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution
     {
+        public bool EvaluatesAnonymous => evaluatesAnonymous;
+
         public Task<ClaimsPrincipal?> SelectPrincipal(ClaimsPrincipal? principal, IServiceProvider services, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

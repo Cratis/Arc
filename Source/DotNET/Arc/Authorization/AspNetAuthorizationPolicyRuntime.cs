@@ -82,7 +82,9 @@ public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime nati
 
         cancellationToken.ThrowIfCancellationRequested();
         var nativeResolution = await native.Resolve(nativeRequirements, services, cancellationToken);
-        return new AspNetResolution(nativeResolution, aspPolicies.ToArray(), selectedSchemes);
+        var evaluatesAnonymous = nativeRequirements.Count == requirements.Count && selectedSchemes.Length == 0 &&
+            nativeResolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true };
+        return new AspNetResolution(nativeResolution, aspPolicies.ToArray(), selectedSchemes, evaluatesAnonymous);
     }
 
     /// <inheritdoc/>
@@ -123,8 +125,11 @@ public class AspNetAuthorizationPolicyRuntime(ArcAuthorizationPolicyRuntime nati
     sealed class AspNetResolution(
         IAuthorizationPolicyResolution nativeResolution,
         AuthorizationPolicy[] aspPolicies,
-        string[] selectedSchemes) : IAuthorizationPolicyResolution
+        string[] selectedSchemes,
+        bool evaluatesAnonymous) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution
     {
+        public bool EvaluatesAnonymous => evaluatesAnonymous;
+
         public async Task<ClaimsPrincipal?> SelectPrincipal(ClaimsPrincipal? principal, IServiceProvider services, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

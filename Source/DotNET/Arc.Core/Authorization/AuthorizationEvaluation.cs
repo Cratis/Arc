@@ -55,8 +55,13 @@ public class AuthorizationEvaluation(
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
+        var evaluatesAnonymous = resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true };
+        if (evaluatesAnonymous && selectedPrincipal?.Identities.Any(identity => identity.IsAuthenticated) != true)
+        {
+            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        }
         cancellationToken.ThrowIfCancellationRequested();
-        return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution);
+        return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution, evaluatesAnonymous);
     }
 
     /// <summary>
@@ -90,15 +95,19 @@ public class AuthorizationEvaluation(
             _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
         };
         var declaration = prepared.Declaration;
-        if (!AuthorizationEvaluator.SameDeclaration(declaration, currentDeclaration))
+        var resolution = prepared.Resolution;
+        if (!AuthorizationEvaluator.SameDeclaration(
+            declaration,
+            currentDeclaration,
+            prepared.EvaluatesAnonymous,
+            resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true }))
         {
             throw new InvalidAuthorizationConfiguration("Authorization requirements changed during execution.");
         }
 
         var selectedPrincipal = prepared.SelectedPrincipal;
-        var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
-        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal))
+        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal, prepared.EvaluatesAnonymous))
         {
             return false;
         }
@@ -111,10 +120,26 @@ public class AuthorizationEvaluation(
 
         if (declaration.RequiresAsynchronousEvaluation)
         {
-            if (selectedPrincipal is null || !await resolution.IsAuthorized(
-                new AuthorizationPolicyContext(selectedPrincipal, target, resource),
-                services,
-                cancellationToken))
+            if (selectedPrincipal is null)
+            {
+                return false;
+            }
+
+            bool policyAllowed;
+            try
+            {
+                policyAllowed = await resolution.IsAuthorized(
+                    new AuthorizationPolicyContext(selectedPrincipal, target, resource),
+                    services,
+                    cancellationToken);
+            }
+            catch (Exception) when (prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true && !cancellationToken.IsCancellationRequested)
+            {
+                // A guest policy failure is a denial, never an error result that still reports IsAuthorized = true.
+                return false;
+            }
+
+            if (!policyAllowed)
             {
                 return false;
             }
@@ -124,7 +149,7 @@ public class AuthorizationEvaluation(
 
         // Only the same target and selected principal may be checked synchronously after its asynchronous requirements.
         using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, selectedPrincipal, declaration)
+            ? AuthorizationEvaluator.AlreadyEvaluated(target, selectedPrincipal, declaration, prepared.EvaluatesAnonymous)
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.

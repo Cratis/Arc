@@ -14,12 +14,14 @@ namespace Cratis.Arc.Authorization;
 /// <param name="OriginalPrincipal">The caller before scheme authentication.</param>
 /// <param name="SelectedPrincipal">The authenticated scheme principal.</param>
 /// <param name="Resolution">The resolved policies used for the later verdict.</param>
+/// <param name="EvaluatesAnonymous">Whether all resolved requirements opted in to guest evaluation.</param>
 internal sealed record PreparedAuthorization(
     MemberInfo Target,
     AuthorizationDeclaration Declaration,
     ClaimsPrincipal? OriginalPrincipal,
     ClaimsPrincipal? SelectedPrincipal,
-    IAuthorizationPolicyResolution Resolution)
+    IAuthorizationPolicyResolution Resolution,
+    bool EvaluatesAnonymous)
 {
     /// <summary>
     /// Gets whether explicit scheme authentication selected a different principal.

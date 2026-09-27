@@ -18,10 +18,21 @@ public static class AuthorizationPolicyServiceCollectionExtensions
     /// <param name="name">The name used by an Authorize attribute.</param>
     /// <returns>The service collection.</returns>
     public static IServiceCollection AddArcAuthorizationPolicy<TPolicy>(this IServiceCollection services, string name)
+        where TPolicy : class, IAuthorizationPolicy => services.AddArcAuthorizationPolicy<TPolicy>(name, false);
+
+    /// <summary>
+    /// Registers a named, scoped policy and explicitly opts it in to guest evaluation.
+    /// </summary>
+    /// <typeparam name="TPolicy">The policy implementation.</typeparam>
+    /// <param name="services">The application's services.</param>
+    /// <param name="name">The name used by an Authorize attribute.</param>
+    /// <param name="evaluatesAnonymous">Whether the policy may receive an empty unauthenticated principal.</param>
+    /// <returns>The service collection.</returns>
+    public static IServiceCollection AddArcAuthorizationPolicy<TPolicy>(this IServiceCollection services, string name, bool evaluatesAnonymous)
         where TPolicy : class, IAuthorizationPolicy
     {
         services.AddScoped<TPolicy>();
-        services.AddSingleton(new AuthorizationPolicyRegistration(name, typeof(TPolicy)));
+        services.AddSingleton(new AuthorizationPolicyRegistration(name, typeof(TPolicy)) { EvaluatesAnonymous = evaluatesAnonymous });
         return services;
     }
 }
