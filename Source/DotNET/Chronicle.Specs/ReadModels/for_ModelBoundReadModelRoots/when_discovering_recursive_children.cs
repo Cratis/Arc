@@ -18,5 +18,5 @@ public class when_discovering_recursive_children : Specification
 
     record Node(Details Details, [ChildrenFrom<NodeAdded>(key: nameof(NodeAdded.Id))] IEnumerable<Node> Children);
     record Details(string Name);
-    record NodeAdded(Guid Id);
+    record NodeAdded(Guid Id, Details Details);
 }

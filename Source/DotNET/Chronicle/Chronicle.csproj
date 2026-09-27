@@ -15,6 +15,7 @@
     <ItemGroup>
         <PackageReference Include="System.Collections.Immutable" />
         <PackageReference Include="Cratis.Chronicle" />
+        <PackageReference Include="Microsoft.Orleans.Reminders" />
     </ItemGroup>
 
     <ItemGroup>

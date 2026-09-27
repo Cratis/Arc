@@ -18,7 +18,7 @@ public static class AggregateRootCommitResultExtensions
     /// validation results into the returned <see cref="Arc.Commands.CommandResult"/>.
     /// </summary>
     /// <param name="result">The <see cref="AggregateRootCommitResult"/> to convert.</param>
-    /// <param name="correlationId">The <see cref="CorrelationId"/> to assign to the result.</param>
+    /// <param name="correlationId">The <see cref="Cratis.Execution.CorrelationId"/> to assign to the result.</param>
     /// <returns>A <see cref="Arc.Commands.CommandResult"/> representing the outcome.</returns>
     public static Arc.Commands.CommandResult ToCommandResult(this AggregateRootCommitResult result, CorrelationId correlationId)
     {
