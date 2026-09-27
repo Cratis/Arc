@@ -347,8 +347,9 @@ public class CommandPipeline(
             commandContext = commandContext with { Dependencies = resolution.Arguments };
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true &&
-                commandContext.AuthorizedExecution?.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>()) != true)
+            if ((preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && commandContext.AuthorizedExecution is null) ||
+                (commandContext.AuthorizedExecution is { } verdict &&
+                 !verdict.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>())))
             {
                 return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
             }
