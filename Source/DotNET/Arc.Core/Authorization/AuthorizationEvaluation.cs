@@ -128,12 +128,15 @@ public class AuthorizationEvaluation(
             var executionPrincipal = needsSelectedScope ? selectedPrincipal : principalAccessor.Current;
 
             // A verdict certifies exactly the policy-input and execution identities captured immediately before
-            // evaluation (after pre-verdict hooks). Both must remain unchanged; a guest verdict never certifies
-            // an authenticated execution identity, even when authentication appears before the policy runs.
+            // evaluation (after pre-verdict hooks). Without a selected scope, authenticated policy input must
+            // match the execution identity by content at that instant. Both must remain unchanged afterward.
+            // A synthetic guest is deliberately distinct from the ambient unauthenticated caller, but its verdict
+            // never certifies an authenticated execution identity.
             var policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
             executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
-            if (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
-                          AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal)))
+            if ((!needsSelectedScope && !guest && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal)) ||
+                (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
+                           AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal))))
             {
                 return false;
             }

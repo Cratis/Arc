@@ -63,6 +63,11 @@ public class AspNetAuthorizationPolicyRuntime(
             {
                 throw new InvalidAuthorizationConfiguration($"Anonymous ASP.NET Core authorization policy '{name}' is unknown or requires authentication.");
             }
+
+            if (policy.AuthenticationSchemes.Count > 0)
+            {
+                throw new InvalidAuthorizationConfiguration($"Anonymous ASP.NET Core authorization policy '{name}' selects authentication schemes.");
+            }
         }
     }
 

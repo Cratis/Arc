@@ -15,6 +15,7 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
     Exception? _unknown;
     Exception? _native;
     Exception? _requiresAuthentication;
+    Exception? _withAuthenticationSchemes;
     Exception? _duplicate;
     Exception? _caseInsensitive;
     Exception? _wrongCaseWithCaseSensitiveProvider;
@@ -32,6 +33,11 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
         {
             services.AddAuthorizationBuilder().AddPolicy("Private", policy => policy.RequireAuthenticatedUser().RequireAssertion(_ => true));
             services.AddArcAnonymousAspNetAuthorizationPolicy("Private");
+        });
+        _withAuthenticationSchemes = await Start(services =>
+        {
+            services.AddAuthorizationBuilder().AddPolicy("SchemeGuest", policy => policy.AddAuthenticationSchemes("Cookies").RequireAssertion(_ => true));
+            services.AddArcAnonymousAspNetAuthorizationPolicy("SchemeGuest");
         });
         _duplicate = await Start(services =>
         {
@@ -60,6 +66,7 @@ public class when_an_anonymous_aspnet_opt_in_is_invalid : Specification
     [Fact] void should_reject_an_unknown_opt_in_at_startup() => _unknown.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
     [Fact] void should_reject_a_native_opt_in_even_when_casing_differs() => _native.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
     [Fact] void should_reject_deny_anonymous_even_when_other_requirements_allow_it() => _requiresAuthentication.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
+    [Fact] void should_reject_an_opt_in_with_authentication_schemes() => _withAuthenticationSchemes.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
     [Fact] void should_reject_ambiguous_opt_ins() => _duplicate.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
     [Fact] void should_accept_a_name_resolved_by_the_default_provider() => _caseInsensitive.ShouldBeNull();
     [Fact] void should_reject_a_name_the_case_sensitive_provider_does_not_resolve() => _wrongCaseWithCaseSensitiveProvider.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
