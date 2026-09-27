@@ -9,7 +9,7 @@ namespace Cratis.Arc.Chronicle.Aggregates.for_AggregateRootMutation.when_committ
 public class with_two_uncommitted_events : given.an_aggregate_mutation
 {
     [EventType]
-    class SimpleEvent;
+    record SimpleEvent(int Number);
 
     IEnumerable<SimpleEvent> _events;
     SimpleEvent _firstEvent;
@@ -21,8 +21,8 @@ public class with_two_uncommitted_events : given.an_aggregate_mutation
     {
         _events =
         [
-            _firstEvent = new SimpleEvent(),
-            _secondEvent = new SimpleEvent()
+            _firstEvent = new SimpleEvent(1),
+            _secondEvent = new SimpleEvent(2)
         ];
         await _mutation.Apply(_firstEvent);
         await _mutation.Apply(_secondEvent);
@@ -46,7 +46,8 @@ public class with_two_uncommitted_events : given.an_aggregate_mutation
     [Fact] void should_return_a_successful_commit_result() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_return_the_correct_events_in_the_commit_result() => _result.Events.ShouldContainOnly(_events);
     [Fact] void should_return_the_correct_sequence_numbers_in_the_commit_result() => _result.SequenceNumbers.ShouldContainOnly([(EventSequenceNumber)9UL, (EventSequenceNumber)10UL]);
-    [Fact] void should_have_events_in_unit_of_work_in_correct_order()
+    [Fact]
+    void should_have_events_in_unit_of_work_in_correct_order()
     {
         var events = _unitOfWork.GetEvents().ToArray();
         events[0].ShouldEqual(_firstEvent);

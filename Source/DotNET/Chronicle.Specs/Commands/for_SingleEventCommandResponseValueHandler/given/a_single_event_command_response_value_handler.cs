@@ -55,7 +55,10 @@ public class a_single_event_command_response_value_handler : Specification
         public EventSourceId EventSourceId { get; set; } = EventSourceId.Unspecified;
     }
 
+    [EventType("Arc.Chronicle.Specs.SingleEventHandler.TestEvent")]
     public record TestEvent(string Name);
+
+    [EventType("Arc.Chronicle.Specs.SingleEventHandler.AnotherTestEvent")]
     public record AnotherTestEvent(int Value);
     public record UnknownEvent(string Data);
 }
