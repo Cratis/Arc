@@ -48,18 +48,11 @@ The read model is just the book document — it carries the `AuthorId` it belong
 
 The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, while the JVM passes Spring Data `Criteria` naming the stored field. Both return a stream — `ISubject<…>` or a `Flow<List<…>>` — which is what makes the query live.
 
-**On the relational branch**, the C# query reads through the context instead:
+**On the relational branch**, read from the configured relational store instead:
 
-```csharp
-[ReadModel]
-public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
-{
-    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, LibraryDbContext db) =>
-        db.Books.Observe(b => b.AuthorId == authorId);
-}
-```
+<ArcBackendTabs snippet="tutorial/books-and-relationships/relational-books-for-author" />
 
-For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/csharp/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write. On the JVM, a relational branch injects [`JpaObservableQuery`](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) in place of `MongoObservableQuery` and lets your schema tooling create the table; remember that JPA observation is in-process only.
+For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/csharp/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write. On the JVM, the snapshot query projects mapped JPA rows into the `Book` read model; configure the repository to persist those rows and publish changes for `Book` after commit. JPA observation is in-process only. TypeScript's Drizzle observation also requires explicit table registration and change announcements after writes. The tab shows the SQLite/`sql.js` adapter; [observe SQL tables](/arc/backend/typescript/sql/observing-tables/) shows the `withDrizzle` registration, schema setup, and scoped repository pattern. SQL writes must be committed before `notifyChanged` when a transaction is owned outside Arc.
 
 Before adding React, regenerate the proxies — `dotnet build -c Debug`, or `./gradlew generateArcProxies` on the JVM. Verify `src/Books/AddBook.ts` and `src/Books/Book.ts` exist; the latter includes `BooksForAuthor` in source-file output mode.
 

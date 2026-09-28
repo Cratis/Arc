@@ -498,6 +498,15 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         usings=("using Microsoft.EntityFrameworkCore;",),
         prelude="public class LibraryDbContext : DbContext { public DbSet<Book> Books => Set<Book>(); }",
     ),
+    "tutorial/books-and-relationships/relational-books-for-author": SnippetContext(
+        kind="declaration", fixtures=("library",),
+        usings=(USING_REACTIVE, "using Microsoft.EntityFrameworkCore;"),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Book> Books => Set<Book>(); }",
+    ),
+    "tutorial/validation/relational-unique-name": SnippetContext(
+        kind="declaration", fixtures=("library",),
+        usings=("using Microsoft.EntityFrameworkCore;",),
+    ),
     "tutorial/first-slice/relational-author-slice": SnippetContext(
         fixtures=("library",),
         usings=(USING_REACTIVE, "using Microsoft.EntityFrameworkCore;"),

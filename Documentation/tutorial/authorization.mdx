@@ -43,11 +43,11 @@ Arc checks `ClaimsPrincipal.IsInRole("Librarian")`. Configure your authenticatio
 
 The JVM asks the same question of an `ArcPrincipal`: a caller holds `Librarian` when one of its roles is that name, which is what a Spring Security `ROLE_Librarian` authority becomes once Arc drops the prefix. An `IdentityDetailsProvider` plays the same enriching, non-granting role there as `IProvideIdentityDetails` does here.
 
-The rest of this section is the .NET host's development fixture and has **no JVM or TypeScript equivalent to copy**. For this **loopback-only development checkpoint**, configure the trusted-header authentication adapter before `builder.Build()`:
+For this **loopback-only development checkpoint**, select the trusted-header adapter for your backend before building the host. The TypeScript builder registers its header handler directly; the JVM bridge needs an explicitly verified trusted ingress, not just a property toggle:
 
 <ArcBackendTabs snippet="tutorial/authorization/development-header-adapter" />
 
-Before `app.UseCratisArc()`, add:
+On .NET, before `app.UseCratisArc()`, add the authentication middleware. The TypeScript builder's `authentication` option already covers this step:
 
 <ArcBackendTabs snippet="tutorial/authorization/development-authentication-middleware" />
 
@@ -56,7 +56,7 @@ Keep the host bound to `http://localhost:5000` as in setup. Follow [Generate a l
 This adapter **does not validate bearer-token signatures, issuer, or audience**. It trusts the headers. Production must instead use a properly configured authentication scheme or an authenticated trusted ingress that replaces spoofable headers and prevents direct backend access. Never expose this local header-spoofing fixture publicly.
 
 <Aside type="caution" title="Signing in on the JVM">
-Do not translate the two snippets above. A Spring Boot host authenticates through its own ordered `AuthenticationHandler` beans (or `AsyncAuthenticationHandler` from Java), each returning anonymous, failed, or an `ArcPrincipal` carrying the caller's roles — a handful of lines is enough to sign in a development user with `"Librarian"` in its role set. The JVM does ship a platform-identity bridge that reads the same `x-ms-client-principal` headers, but it is **off by default**, requires `cratis.arc.platform-identity.enabled=true`, and refuses every submission until you supply an `ArcPlatformIdentityTrust` bean that verifies your ingress strips caller-supplied headers. Start with [Authenticate and authorize Arc endpoints](/arc/backend/kotlin/guides/security/) and register a handler of your own.
+Do not copy the .NET middleware into Spring Boot. A JVM host authenticates through Arc.Kotlin's ordered `io.cratis.arc.authentication.AuthenticationHandler` beans (or `AsyncAuthenticationHandler` from Java), each returning anonymous, failed, or an `ArcPrincipal` carrying the caller's roles. The JVM does ship a platform-identity bridge that reads the same `x-ms-client-principal` headers, but it is **off by default**, requires `cratis.arc.platform-identity.enabled=true`, and refuses every submission until you supply an `ArcPlatformIdentityTrust` bean that verifies your ingress strips caller-supplied headers. Start with [Authenticate and authorize Arc endpoints](/arc/backend/kotlin/guides/security/) and register a handler of your own.
 </Aside>
 
 ## Verify permissions, not just UI visibility

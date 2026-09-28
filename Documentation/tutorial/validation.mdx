@@ -57,15 +57,9 @@ In the .NET host, add the following block to `Program.cs` after `app.UseCratisAr
 Restart the host and require index creation to succeed. Existing duplicate names must be resolved first; do not ignore an index-creation failure. This uses the configured collection and concept serializer rather than guessing stored field names.
 </TabItem>
 <TabItem label="EF Core" icon="seti:db">
-Add this override to `LibraryDbContext`:
+Install a unique constraint on the stored author name. On .NET merge the override into your existing `LibraryDbContext` (do not declare it twice); on the JVM replace the `AuthorRow` mapping from the relational slice with the constrained version. TypeScript's Drizzle schema also needs a unique constraint; the EF Core override does not configure it.
 
-```csharp
-protected override void OnModelCreating(ModelBuilder modelBuilder)
-{
-    base.OnModelCreating(modelBuilder);
-    modelBuilder.Entity<Author>().HasIndex(author => author.Name).IsUnique();
-}
-```
+<ArcBackendTabs snippet="tutorial/validation/relational-unique-name" />
 
 For the **disposable SQLite tutorial database**, stop the host, remove only `Library/library.db`, and restart so `EnsureCreatedAsync` creates the new schema. This loses tutorial data; re-register the authors afterward. For retained data, create/apply a migration instead. `EnsureCreatedAsync` never upgrades an existing database.
 </TabItem>
