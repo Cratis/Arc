@@ -76,14 +76,14 @@ If you already have a Vite app, retain its entry/configuration and adapt only th
 ```bash
 npm init -y
 npm pkg set type=module
-npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.19.6 @cratis/arc@22.19.1 @cratis/arc.react@22.19.1 \
+npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.19.6 @cratis/arc @cratis/arc.react \
   @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
 npm install --save-dev vite @types/react @types/react-dom
 ```
 
 For a .NET or JVM-only project without TypeScript installed yet, also run `npm install --save-dev typescript`. If you followed the TypeScript backend setup, **keep its existing TypeScript 6 compiler alias** (`tsc6`); installing plain `typescript` here would replace it.
 
-`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Install `@cratis/arc` and `@cratis/arc.react` at the **same exact version** (22.19.1 here, matching the TypeScript backend sample). `@cratis/arc.react` depends on a specific `@cratis/arc` version; mixing versions installs a second copy and generated proxies fail the frontend type-check because the runtime classes have private members. Keep both within Components' peer range (`>=20.3.1 <23`). The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
+`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). For the TypeScript backend sample, pin both to **22.19.1**: `npm install @cratis/arc@22.19.1 @cratis/arc.react@22.19.1`. `@cratis/arc.react` depends on that exact Arc version; mixing versions installs a second copy, and generated proxies fail the frontend type-check because the runtime classes have private members. The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
 
 If you followed the TypeScript backend setup, **keep its `tsconfig.json`**: the generator's `--project` points to it, and its `main.ts` and `Features/**/*.ts` entries emit the backend's `dist/main.js`. Add a separate `tsconfig.web.json` for Vite instead. The .NET and JVM projects can also use this separate frontend config:
 
@@ -121,7 +121,7 @@ Create `index.html` at the project root:
 
 Create `vite.config.ts`:
 
-```javascript
+```typescript
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -241,7 +241,7 @@ createRoot(document.getElementById('root')!).render(<App />);
 
 Those three subpaths are stylesheets, so they ship no type declarations. Current TypeScript releases check side-effect imports and report `TS2882: Cannot find module or type declarations for side-effect import` for each one. Declare them once in `src/cratis-components-styles.d.ts`:
 
-```tsx
+```typescript
 declare module '@cratis/components/tokens';
 declare module '@cratis/components/styles';
 declare module '@cratis/components/theme';
