@@ -7,9 +7,9 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 
 /// <summary>
 /// Opts a command into protected decision reads. The command pipeline fixes this profile before filters,
-/// validators, or handler dependencies can run. Registered validator instances and factories are ignored: validators
-/// are freshly constructed per invocation with only direct DecisionRead&lt;T&gt; or IDecisionReads dependencies.
-/// Opaque or missing decision dependencies are refused.
+/// validators, or handler dependencies can run. All discoverable validators are refused for protected commands
+/// before construction, including parameterless, factory-provided, registered, and unregistered validators.
+/// Opaque or missing protected decision dependencies are refused.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
 public sealed class ProtectedDecisionAttribute : Attribute, IProtectedDecisionCommand;
