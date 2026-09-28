@@ -34,13 +34,15 @@ These are **excerpts from the backend checkpoint**, not additional files. Each t
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
 
-The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, and through `@FromServices` on `handle` and the companion-object query function on the JVM. Returning `Task` or `Unit` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and neither backend needs a controller or a duplicated transport model.
+The JVM's `@AllowAnonymous` on these tutorial artifacts allows the unauthenticated first round trip; chapter 5 replaces it with role-based access. The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, and through `@FromServices` on `handle` and the companion-object query function on the JVM. Returning `Task` or `Unit` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and neither backend needs a controller or a duplicated transport model.
 
 **If you chose the relational branch**, .NET injects `LibraryDbContext` instead of the collection. The JVM and TypeScript backend snippets use repositories, whose implementations supply the relational storage:
 
 <ArcBackendTabs snippet="tutorial/first-slice/relational-author-slice" />
 
 On the JVM, keep `Author` as the Arc read-model DTO and map `AuthorRow` as a JPA entity. Implement `AuthorRepository` using `JpaRepository<AuthorRow, UUID>` (or the Java equivalent), converting the concept id and name to stored scalars on writes and lookups. The custom [`JpaObservableQuery` snapshot](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) projects rows back into `Author`; after each committed write, publish `Author::class.java` (Java: `Author.class`) through `DatabaseChangePublisher` so subscribers receive a fresh snapshot. Saving a row alone does not publish an Arc read-model change. JPA observation is in-process only.
+
+On TypeScript, implement `AuthorRepository` over Drizzle, register the `authors` table in `withDrizzle({ readModels: [{ type: Author, table: authors }], observation: DrizzleObservation.InProcess, ... })`, and call `notifyChanged(authors)` after committed writes so [in-process table observation](/arc/backend/typescript/sql/observing-tables/) updates subscribers. Drizzle observation does not see writes from other processes.
 
 <Aside type="tip" title="Separate decisions as behavior grows">
 This tutorial uses supported direct database writes to make the first round trip visible. On the C# backend, for immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/csharp/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write. Command operations are a C#-only surface; on the JVM keep the direct repository write shown here, and test the decision through [in-process command scenarios](/arc/backend/kotlin/guides/testing/).
@@ -129,7 +131,7 @@ export default defineConfig({
 
 The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
 
-Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default, so point both proxy targets at `http://localhost:8080` — or set `server.port=5000` — and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on both backends.
+Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default; the TypeScript standalone host shown in the backend tab uses **3000**. Point both proxy targets at that backend's loopback port (or set `server.port=5000` for Spring Boot), and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on all three backends.
 
 ## Read and write from React
 

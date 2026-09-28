@@ -50,14 +50,14 @@ A check-then-write has a race: two registrations can both pass validation. The v
 
 <Tabs syncKey="db">
 <TabItem label="MongoDB" icon="seti:db">
-In the .NET host, add the following block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`. Other hosts must install their own database constraint before accepting writes; the Arc validators do not create it. The other tabs mark this .NET driver-specific step as unavailable, **not** unique indexes in those databases:
+In the .NET host, add the following block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`. On the JVM, add the Spring `AuthorIndexes` component after declaring `Author`, with `MongoTemplate` on the classpath; its constructor installs the unique index at startup. On TypeScript, call `ensureAuthorNameIndex` with the tenant's `MongoCollection<Author>` from the configured MongoDB host before accepting writes. The Arc validators do not create indexes:
 
 <ArcBackendTabs snippet="tutorial/validation/mongodb-unique-index" />
 
-Restart the host and require index creation to succeed. Existing duplicate names must be resolved first; do not ignore an index-creation failure. This uses the configured collection and concept serializer rather than guessing stored field names.
+Restart the host and require index creation to succeed. Existing duplicate names must be resolved first; do not ignore an index-creation failure. The C# and TypeScript examples resolve stored field names through their serializers rather than guessing them; the Spring Data example uses its mapped `name` property.
 </TabItem>
 <TabItem label="EF Core" icon="seti:db">
-Install a unique constraint on the stored author name. On .NET merge the override into your existing `LibraryDbContext` (do not declare it twice); on the JVM replace the `AuthorRow` mapping from the relational slice with the constrained version. TypeScript's Drizzle schema also needs a unique constraint; the EF Core override does not configure it.
+Install a unique constraint on the stored author name. On .NET merge the override into your existing `LibraryDbContext` (do not declare it twice); on the JVM replace the `AuthorRow` mapping from the relational slice with the constrained version. On TypeScript, replace your Drizzle `authors` table definition with the constrained version shown here and apply the updated SQL schema before accepting writes; the EF Core override does not configure it.
 
 <ArcBackendTabs snippet="tutorial/validation/relational-unique-name" />
 
@@ -65,7 +65,7 @@ For the **disposable SQLite tutorial database**, stop the host, remove only `Lib
 </TabItem>
 </Tabs>
 
-The JVM has no Arc-specific step here either, because the constraint belongs to the store rather than to Arc: create the unique index through your Spring Data MongoDB mapping or index operations, or through a JPA unique constraint applied by your schema tooling. The reasoning above is unchanged — the validator gives the friendly message, and the index is what actually holds under a race.
+These constraints belong to each store, not to Arc. On the JVM, Spring Data MongoDB index operations or a JPA unique constraint applied by your schema tooling provide the hard guarantee; on TypeScript, create the MongoDB index at startup or apply the Drizzle schema change through a migration. The validator gives the friendly message, and the database constraint holds under a race.
 
 <Aside type="caution" title="A race is not automatically a validation result">
 The unique index prevents the second write, but this lesson does not translate a provider duplicate-key exception into a field validation message. A racing loser can receive an exception result. Production code should catch only the specific duplicate-constraint violation and translate it to a typed validation failure; unrelated storage failures must remain errors. Moving the same pre-check into `Handle()` would not make it atomic.
