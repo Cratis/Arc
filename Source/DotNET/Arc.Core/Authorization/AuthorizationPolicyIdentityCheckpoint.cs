@@ -25,14 +25,32 @@ internal sealed class AuthorizationPolicyIdentityCheckpoint
         _context = context;
         _policyIdentity = AuthorizationPrincipalIdentity.Capture(context.Principal);
         _principalAccessor = context.PrincipalAccessor ?? services.GetService<ICurrentPrincipalAccessor>();
-        _executionIdentity = _principalAccessor is null ? null : AuthorizationPrincipalIdentity.Capture(_principalAccessor.Current);
+        if (_principalAccessor is not null)
+        {
+            // Usually the policy input is the ambient principal itself; one snapshot then describes both.
+            var ambient = _principalAccessor.Current;
+            _executionIdentity = ReferenceEquals(ambient, context.Principal)
+                ? _policyIdentity
+                : AuthorizationPrincipalIdentity.Capture(ambient);
+        }
     }
 
     /// <summary>
     /// Checks that neither captured identity has changed.
     /// </summary>
     /// <returns>Whether policy input and ambient execution identity still match their snapshots.</returns>
-    internal bool IsUnchanged() =>
-        AuthorizationPrincipalIdentity.Same(_policyIdentity, _context.Principal) &&
-        (_principalAccessor is null || AuthorizationPrincipalIdentity.Same(_executionIdentity!, _principalAccessor.Current));
+    internal bool IsUnchanged()
+    {
+        var policyUnchanged = AuthorizationPrincipalIdentity.Same(_policyIdentity, _context.Principal);
+        if (!policyUnchanged || _principalAccessor is null)
+        {
+            return policyUnchanged;
+        }
+
+        var ambient = _principalAccessor.Current;
+
+        // Comparing the same snapshot with the same principal again cannot give a different answer.
+        return (ReferenceEquals(_executionIdentity, _policyIdentity) && ReferenceEquals(ambient, _context.Principal)) ||
+               AuthorizationPrincipalIdentity.Same(_executionIdentity!, ambient);
+    }
 }

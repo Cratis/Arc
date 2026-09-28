@@ -207,6 +207,7 @@ public class AspNetAuthorizationPolicyRuntime(
 
         public async Task<bool> IsAuthorized(AuthorizationPolicyContext context, IServiceProvider services, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var nativeCheckpoint = new AuthorizationPolicyIdentityCheckpoint(context, services);
             var nativeAllowed = await nativeResolution.IsAuthorized(context, services, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
