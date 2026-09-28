@@ -1,6 +1,6 @@
 ---
 title: CQRS without event sourcing
-description: Arc's CQRS model can run over MongoDB or EF Core without Chronicle. This page shows the boundary between CQRS and event sourcing, not an argument against event sourcing.
+description: Arc's CQRS model can run over current-state storage without Chronicle. This page shows the boundary between CQRS and event sourcing, not an argument against event sourcing.
 ---
 
 It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. We think event sourcing is the default architecture for information systems, and Chronicle is the Cratis event-sourcing platform. But Arc itself is CQRS: **commands, queries, and generated TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is a separate decision.
@@ -9,7 +9,7 @@ This page shows Arc on its own — the same typed full-stack experience, backed 
 
 ## The line between Arc and Chronicle
 
-Arc is a layer that can sit *on top of* Chronicle; Chronicle never depends on Arc. That direction is the whole point — it's why a bounded current-state slice can keep everything Arc gives you without storing events. In the backend docs, Chronicle, [MongoDB](./backend/csharp/mongodb/index.md), and [Entity Framework](./backend/csharp/entity-framework/index.md) are integrations: each gives commands and queries somewhere to read and write, while Chronicle adds the event-sourced backbone.
+Arc is a layer that can sit *on top of* Chronicle; Chronicle never depends on Arc. That direction is the whole point — it's why a bounded current-state slice can keep everything Arc gives you without storing events. Each backend has its own current-state integrations: [MongoDB](./backend/csharp/mongodb/index.md) and [Entity Framework](./backend/csharp/entity-framework/index.md) on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on JVM, and [MongoDB or Drizzle](/arc/backend/typescript/reference/capabilities/) in the TypeScript preview. Chronicle adds the optional event-sourced path.
 
 ```mermaid
 flowchart TB
@@ -19,7 +19,7 @@ flowchart TB
     Core --> Chr[("Chronicle — event sourcing")]
 ```
 
-Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an event log. Pick Chronicle and the same Arc boundary records facts, builds projections, and keeps history.
+Pick a supported current-state store for your backend and you can build a typed CQRS app without an event log. Pick Chronicle and the same Arc boundary records facts, builds projections, and keeps history.
 
 ## A standalone slice, end to end
 
@@ -41,7 +41,7 @@ These **illustrative excerpts** show registering an author and listing authors l
 
 <ArcBackendTabs snippet="arc-without-event-sourcing/rename-author" />
 
-On .NET this works both for a MongoDB read model and for one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/csharp/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/csharp/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
+On .NET this works both for a MongoDB read model and for one carried by an Entity Framework `ReadOnlyDbContext`. On TypeScript, configure a `ReadModelForCommandResolver` for the keyed model (the MongoDB integration registers one for configured `readModels`). [Read models in commands](./backend/csharp/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/csharp/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
 
 :::tip[Separate the decision from the write]
 These direct collection calls remain supported. On C# and TypeScript, for immediate inline work that a model-bound command can describe before execution, prefer returned command operations ([C#](./backend/csharp/commands/operations/index.md), [TypeScript](/arc/backend/typescript/commands/operations/)). The JVM backend has no operation mechanism; there, perform the work in `handle` through an injected service. With operations, the handler declares the write and Arc performs it afterward, without requiring Chronicle. Optional compensation is best-effort and in-process, not atomic database rollback or durable recovery. The [migration recipe](./backend/csharp/commands/operations/migrating.md) shows how to preserve an existing response contract.
@@ -51,7 +51,7 @@ That's the backend behavior. Start the host with the database configured as in t
 
 <ArcBackendTabs snippet="arc-without-event-sourcing/standalone-host" />
 
-On .NET, install `Cratis.Arc.ProxyGenerator.Build`, configure `CratisProxiesOutputPath`, and build in Debug as shown in setup to generate `RegisterAuthor` and `AllAuthors`. Building with Arc alone does not generate them. This React **fragment** assumes the [frontend setup](/arc/frontend/react/getting-started/) imports/providers and the [per-operation `id` state](/arc/tutorial/first-slice/) (`Guid.create()` from `@cratis/fundamentals`), with a fresh dialog instance for each registration:
+On .NET, install `Cratis.Arc.ProxyGenerator.Build`, configure `CratisProxiesOutputPath`, and build in Debug as shown in setup to generate `RegisterAuthor` and `AllAuthors`. Building with Arc alone does not generate them. On the JVM, run `generateArcProxies`; on TypeScript, run your application's source-based generator script and regenerate metadata after changing artifacts. This React **fragment** assumes the [frontend setup](/arc/frontend/react/getting-started/) imports/providers and the [per-operation `id` state](/arc/tutorial/first-slice/) (`Guid.create()` from `@cratis/fundamentals`), with a fresh dialog instance for each registration:
 
 ```tsx
 const [authors] = AllAuthors.use();   // live — re-renders when the collection changes
@@ -62,11 +62,11 @@ const [authors] = AllAuthors.use();   // live — re-renders when the collection
 ```
 
 > [!NOTE]
-> `AllAuthors` is live with no event sourcing involved. `IMongoCollection<T>.Observe()` watches MongoDB's change stream, so the moment the command inserts a document, every subscribed browser re-renders. [Observed DbSets](./backend/csharp/entity-framework/observing.md) receive same-host `SaveChanges` notifications through Arc's configured interceptor. SQLite does not detect arbitrary external-process writes; other EF providers need their database notification setup for that.
+> `AllAuthors` is live with no event sourcing involved. On C#, `IMongoCollection<T>.Observe()` watches MongoDB's change stream; the JVM and TypeScript tabs use their own observable sources. Subscribed browsers update when the configured source emits. [Observed DbSets](./backend/csharp/entity-framework/observing.md) receive same-host `SaveChanges` notifications through Arc's configured interceptor. SQLite does not detect arbitrary external-process writes; other EF providers need their database notification setup for that.
 
-## Test the slice the same way
+## Test the slice without Chronicle
 
-Arc's command testing does not depend on Chronicle either. Start with `Cratis.Arc.Testing`, drive the
+On C#, Arc's command testing does not depend on Chronicle either. Start with `Cratis.Arc.Testing`, drive the
 command through a `CommandScenario<TCommand>`, and assert the `CommandResult` exactly as you would in an
 event-sourced slice. The only difference is what you assert after the command runs: a current-state slice
 checks the database or application service it wrote to, while a Chronicle-backed slice can also assert
@@ -79,11 +79,11 @@ command appends events.
 
 ## What actually changes when you add Chronicle
 
-Set this slice next to the same slice with [Chronicle added later](/arc/backend/csharp/chronicle/add-event-sourcing/). You can preserve the query and frontend **contracts**, while replacing direct writes with events and configuring a projection. The provider lookup/observation implementation may need to change; adding a package does not migrate existing data automatically:
+For C#, set this slice next to the same slice with [Chronicle added later](/arc/backend/csharp/chronicle/add-event-sourcing/). The TypeScript Chronicle integration is experimental; do not assume the same migration procedure applies. You can preserve the query and frontend **contracts**, while replacing direct writes with events and configuring a projection. The provider lookup/observation implementation may need to change; adding a package does not migrate existing data automatically:
 
 | | Standalone (this page) | With Chronicle |
 | --- | --- | --- |
-| What `Handle()` does | inserts a document | appends an event |
+| What the handler does | inserts a document | appends an event |
 | What fills the read model | the command, directly | a projection over the event |
 | What you can read | current state | current state **and full history** |
 

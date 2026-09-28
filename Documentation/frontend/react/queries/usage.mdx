@@ -77,11 +77,11 @@ An observable query HTTP request can return `202 Accepted` with `isReady: false`
 
 ## Query Parameters
 
-Queries can expose parameters on the backend — in C# through attributes such as `[FromQuery]` and route parameters, on the JVM through ordinary query-method parameters. These become typed arguments on generated proxies.
+Queries can expose parameters on the backend — in C# through attributes such as `[FromQuery]` and route parameters, on the JVM through ordinary query-method parameters, and in TypeScript through `@query(argument(...))` on a static read-model method. These become typed arguments on generated proxies.
 
 <ArcBackendTabs snippet="frontend/react/queries/usage/parameterized-query" />
 
-The C# tab shows a controller action, because that is the style this attribute-driven parameter binding belongs to. The JVM has no controller-based discovery, so its parameters are simply the query method's own, declared on the `@ReadModel`'s companion object. Both produce the same parameterized proxy.
+The C# tab shows a controller action, because that is the style this attribute-driven parameter binding belongs to. The JVM has no controller-based discovery, so its parameters are simply the query method's own, declared on the `@ReadModel`'s companion object. The TypeScript tab declares its argument explicitly with `argument('filter', String, { optional: true })`. All tabs use the shared frontend query runtime; their generated imports and paths depend on each backend's configuration.
 
 Use the parameterized proxy from React:
 

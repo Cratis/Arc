@@ -7,6 +7,9 @@ description: Return ordinary response data or a typed validation failure from a 
 
 ## Choose a standalone result
 
+The return shapes in this table are **C# signatures**. The JVM and TypeScript
+fragments below show their corresponding handler contracts.
+
 | You want to…                           | Return                                                        |
 | -------------------------------------- | ------------------------------------------------------------- |
 | Complete without response data         | `void`, `Task`, or `ValueTask`                                |
@@ -19,11 +22,13 @@ The following **handler replacement** uses the [MongoDB tutorial's setup and dom
 
 <ArcBackendTabs snippet="scenarios/return-a-result-or-error/handle-result" />
 
-The two backends reject differently, and it is worth being explicit about it. C# declares the alternative in the signature with `Result<TResponse, ValidationResult>`. Arc.Kotlin has no `Result<,>` type and no handler return shape that carries both a client response type and a rejection, because the generated proxy and OpenAPI metadata need exactly one client response leaf. The JVM way is to throw an application exception implementing `io.cratis.arc.validation.ValidationFailure`: the command pipeline converts it into the same validation feedback a validator would produce, without leaking the exception message or stack trace. An ordinary exception still becomes an exception result.
+The backends reject differently, and it is worth being explicit about it. C# declares the alternative in the signature with `Result<TResponse, ValidationResult>`. Arc.Kotlin has no `Result<,>` type and no handler return shape that carries both a client response type and a rejection, because the generated proxy and OpenAPI metadata need exactly one client response leaf. The JVM way is to throw an application exception implementing `io.cratis.arc.validation.ValidationFailure`: the command pipeline converts it into the same validation feedback a validator would produce, without leaking the exception message or stack trace. An ordinary exception still becomes an exception result. TypeScript's `handle()`
+returns `rejected(validation(message, members))` for a typed failure, or the
+response value on success; it does not use C#'s `Result<,>` signature.
 
 The insert is the persistent effect; the `AuthorId` is response data. The pre-check gives a friendly failure but is **not atomic**. Keep the database unique index from [validation](/arc/tutorial/validation/) and explicitly translate its duplicate-write failure if you need friendly errors under races. Other storage exceptions remain exception results; do not disguise them as ordinary validation.
 
-For rules that can reject before work begins, prefer a `CommandValidator<T>`; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.mdx).
+For rules that can reject before work begins, prefer a backend command validator; use a typed handler failure when the write/decision itself discovers the failure. `Provide()` can also [short-circuit with typed validation](./provide-data-to-a-command.mdx).
 
 :::note[Separate an already-decided write from its response]
 When the work and caller response are already decided, the C# backend can return a [command operation](../backend/csharp/commands/operations/index.md) alongside the ordinary response. Direct service calls remain supported when their result is needed to choose the response or typed rejection. Operation `Execute()` methods cannot return receipts or validation alternatives; moving a write into an operation does not automatically preserve write-dependent error handling.
@@ -35,7 +40,7 @@ After regenerating the proxy, `execute()` returns a `CommandResult` (a response-
 
 ## Optional: event results with Chronicle
 
-Only after configuring [Arc + Chronicle](/arc/backend/csharp/chronicle/) do registered-event response handlers append events. These are **integration signatures**, not replacements for a standalone write:
+On C#, only after configuring [Arc + Chronicle](/arc/backend/csharp/chronicle/) do registered-event response handlers append events. These are **integration signatures**, not replacements for a standalone write:
 
 | Integrated intention                  | Return shape and prerequisite                                                                                   |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
