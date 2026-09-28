@@ -29,7 +29,7 @@ Because the IO lives in `Provide`, testing the decision needs no mocking — con
 
 ## Return more than one value
 
-On C#, return a tuple; on Kotlin, return a `Pair` to feed several typed handler parameters. On TypeScript, `provide()` returns one value, so package several fields into one object for `handle()` to destructure:
+On C#, return a tuple; on Kotlin, return a `Pair` to feed several typed handler parameters. On TypeScript, return `tuple(a, b)` from `provide()` and mark each `handle()` parameter with `@inject(provided(TypeA), provided(TypeB))`; Arc matches the values by runtime type. Returning a single object for `handle()` to destructure also works:
 
 <ArcBackendTabs snippet="scenarios/provide-data-to-a-command/several-values" />
 
@@ -41,8 +41,9 @@ In C#, `Provide` may be synchronous or `async` (`Task<T>` / `ValueTask<T>`). On 
 
 Cancellation differs by backend. In C#, `Provide` and `Handle` can each take a `CancellationToken` and Arc supplies the current command execution token — the request-aborted token for HTTP endpoints, or the token you pass to `ICommandPipeline`. You do not register `CancellationToken` in the service container; Arc treats it as part of the command execution context.
 
-On TypeScript there is no token parameter either: read `currentContext()?.signal`
-for the request's `AbortSignal` and pass it to cancellable work. On the JVM there is **no token parameter at all**: a `suspend` `provide` or `handle` already runs inside Arc's command coroutine, so cancelling the request cancels everything it awaits. Check `ensureActive()` when a long computation has no suspension point of its own.
+TypeScript has no `CancellationToken`; inject the request's `AbortSignal` with
+`@inject(abortSignal())` on `provide()` or `handle()`, or read `currentContext()?.signal`,
+and pass it to cancellable work. See [model-bound commands](/arc/backend/typescript/commands/model-bound/). On the JVM there is **no token parameter at all**: a `suspend` `provide` or `handle` already runs inside Arc's command coroutine, so cancelling the request cancels everything it awaits. Check `ensureActive()` when a long computation has no suspension point of its own.
 
 ## Short-circuit before `Handle` runs
 
@@ -64,7 +65,7 @@ Use `Result<,>` to reject or proceed when the data acquisition itself determines
 C# states the alternative in the return type with `Result<,>`. Arc.Kotlin recognizes the control value at runtime instead: a `provide` declared to return `Any` may hand back either the value the handler consumes or a `ValidationResult`, `AuthorizationResult`, or `CommandResult`, and Arc short-circuits on the control value. TypeScript uses an `Outcome` such as
 `rejected(validation(...))` instead of the C# `Result<,>` shape.
 
-On C#, a `Provide` value that no handler parameter consumes is almost always a mistake, so the ARC0005 analyzer flags it.
+A provided value that no handler parameter consumes is almost always a mistake. C#'s ARC0005 analyzer flags it; TypeScript's [`arc-core/arc0005`](/arc/backend/typescript/code-analysis/arc0005/) ESLint rule flags a direct `provide()` return when `handle()` takes no parameters.
 
 For ordinary command validation, including read-model existence checks, prefer a `CommandValidator<>`. Use `Provide()` when `Handle()` needs acquired data as an input to the decision.
 

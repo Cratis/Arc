@@ -15,7 +15,7 @@ Current generated command and query modules import both `@cratis/arc` and `@crat
 npm install @cratis/fundamentals @cratis/arc @cratis/arc.react react react-dom
 ```
 
-Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the canonical [backend proxy-generation reference](../../backend/csharp/proxy-generation/index.md) on the JVM the [TypeScript proxies guide](/arc/backend/kotlin/guides/typescript-proxies/), or for the TypeScript source preview its [generator setup](/arc/backend/typescript/proxy-generation/getting-started/).
+Mount [Arc](./arc.md) above hook consumers. For build configuration, namespace mapping, source-file grouping, and output ownership, use the C# [backend proxy-generation reference](../../backend/csharp/proxy-generation/index.md), the JVM [TypeScript proxies guide](/arc/backend/kotlin/guides/typescript-proxies/), or the TypeScript source preview's [generator setup](/arc/backend/typescript/proxy-generation/getting-started/).
 
 ## Commands use your application services
 
@@ -55,7 +55,7 @@ The command hook returns `[command, setValues, clearValues]`. Set required conte
 
 ## Queries follow the backend result shape
 
-Both [controller-based](../../backend/csharp/queries/controller-based/index.md) and [model-bound](../../backend/csharp/queries/model-bound/index.md) C# endpoints generate proxies; the JVM generates from model-bound `@ReadModel` query methods only — it has no controller-based discovery. TypeScript's source generator reads `@readModel()` classes with static `@query()` methods; consult its [query generation reference](/arc/backend/typescript/proxy-generation/index/) for supported output. Parameterized queries emit a `NameParameters` interface. Query hooks return tuples, not model objects; read the first tuple element's `.data`.
+Both [controller-based](../../backend/csharp/queries/controller-based/index.md) and [model-bound](../../backend/csharp/queries/model-bound/index.md) C# endpoints generate proxies; the JVM generates from model-bound `@ReadModel` query methods only — it has no controller-based discovery. TypeScript's source generator reads `@readModel()` classes with static `@query()` methods; see its [proxy generation overview](/arc/backend/typescript/proxy-generation/) for supported output. Parameterized queries emit a `NameParameters` interface. Query hooks return tuples, not model objects; read the first tuple element's `.data`.
 
 - Ordinary `.use()` returns `[result, perform, setSorting]`.
 - Observable enumerable `.use()` returns `[result, setSorting]`.
