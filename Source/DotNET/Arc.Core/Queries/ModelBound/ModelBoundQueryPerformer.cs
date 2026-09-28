@@ -169,7 +169,8 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
              !verdict.IsCurrent(
                  AuthorizationMethod,
                  context.ServiceProvider!.GetRequiredService<ICurrentPrincipalAccessor>(),
-                 context.ServiceProvider.GetRequiredService<AuthorizationDeclarations>().For(AuthorizationMethod))))
+                 (context.ServiceProvider.GetService<AuthorizationDeclarations>() ??
+                     throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(AuthorizationMethod))))
         {
             throw new AuthorizationIdentityChanged();
         }

@@ -112,7 +112,8 @@ public class ControllerQueryPerformer(
                  !verdict.IsCurrent(
                      AuthorizationMethod,
                      serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
-                     serviceProvider.GetRequiredService<AuthorizationDeclarations>().For(AuthorizationMethod))))
+                     (serviceProvider.GetService<AuthorizationDeclarations>() ??
+                         throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(AuthorizationMethod))))
             {
                 throw new AuthorizationIdentityChanged();
             }
