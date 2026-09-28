@@ -21,7 +21,7 @@ Commands provide a structured way to:
 
 <ArcBackendTabs snippet="frontend/react/commands/index/command-payload" />
 
-The two backends reach the same generated command from different starting points. The C# record is a **payload DTO**: it requires an already-defined controller endpoint accepting it, because a record alone is not enough for proxy discovery. The JVM has no controller-based discovery, so the model-bound `@Command` *is* the endpoint. For a complete model-bound C# example, follow [getting started](/arc/frontend/react/getting-started/).
+The backend tabs reach the shared generated-command runtime from different starting points. The C# record is a **payload DTO**: it requires an already-defined controller endpoint accepting it, because a record alone is not enough for proxy discovery. The JVM has no controller-based discovery, so the model-bound `@Command` *is* the endpoint. TypeScript's source preview generates from decorated `@command()` classes with a `handle()` method; see its [generator setup](/arc/backend/typescript/proxy-generation/getting-started/). For a complete model-bound C# example, follow [getting started](/arc/frontend/react/getting-started/).
 
 **Consumer fragment:** call this hook inside a component, and execute from its event handler. This example assumes string-backed `AccountId` and `CustomerId`; use Fundamentals `Guid` values instead if the generated model maps Guid-backed concepts.
 
