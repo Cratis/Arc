@@ -1,10 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.DependencyInjection;
 using Cratis.Traces;
 using Cratis.Types;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Commands;
 
@@ -39,6 +42,11 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
                 {
                     result.MergeWith(filterResult);
                 }
+            }
+            catch (InvalidAuthorizationConfiguration ex)
+            {
+                context.ServiceProvider?.GetService<ILogger<CommandFilters>>()?.AuthorizationConfigurationFailed(ex);
+                result.MergeWith(CommandResult.Unauthorized(context.CorrelationId));
             }
             catch (Exception ex)
             {
