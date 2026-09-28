@@ -5,11 +5,11 @@ description: Resolve a read model by an explicit command key through MongoDB, an
 
 **Goal:** decide against existing state without repeating the same lookup in a validator, `Provide()`, and `Handle()`.
 
-Arc can resolve a read model once in the command scope and share that instance between the positions the backend supports. This needs **both a usable command key and a provider that owns key-based resolution**. Marking the type `[ReadModel]` (C#) or `@ReadModel` (JVM) is not by itself a storage configuration.
+Arc can resolve a read model once in the command scope and share that instance between the positions the backend supports. This needs **both a usable command key and a provider that owns key-based resolution**. Marking the type `[ReadModel]` (C#), `@ReadModel` (JVM), or `@readModel()` (TypeScript) is not by itself a storage configuration.
 
 ## Declare the key and provider
 
-Standalone Arc resolves keys from `[Key]` or `ICanProvideKeyForCommand.GetKey()` in C#, and from `@CommandKey` or `CommandKeyProvider.commandKey()` on the JVM. Neither backend guesses from a property named `Id` or from an arbitrary Guid concept. Declare at most one key: C# uses the first `[Key]` property it finds rather than rejecting a second. A composite application key can be composed by the provider interface, but the selected provider must still support the resulting stored key.
+Standalone Arc resolves keys from `[Key]` or `ICanProvideKeyForCommand.GetKey()` in C#, from `@CommandKey` or `CommandKeyProvider.commandKey()` on the JVM, and from a registered `CommandKeyResolver`, `getKey()`, or `@key()` field in TypeScript. No backend infers a key merely from a property named `Id`. Declare at most one key: C# uses the first `[Key]` property it finds rather than rejecting a second. A composite application key can be composed by the provider interface, but the selected provider must still support the resulting stored key.
 
 ```mermaid
 flowchart TB
@@ -24,10 +24,11 @@ flowchart TB
 
 | Provider                         | What enables resolution                                                                                                                      |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| MongoDB                          | Configured Arc MongoDB integration discovers read-model candidates as fallback ownership and loads by mapped document id                     |
+| MongoDB (C#)                     | Configured Arc MongoDB integration discovers read-model candidates as fallback ownership and loads by mapped document id                     |
+| MongoDB (TypeScript)             | `withMongoDB` registers a resolver for models listed in `readModels` and loads by their declared document key; applications can register their own resolver |
 | EF Core (C#)                     | A registered `ReadOnlyDbContext` owns a `[ReadModel]` entity through `DbSet<T>`; resolution currently requires a single-property primary key |
 | Spring Data JPA / MongoDB (JVM)  | The integrations contribute storage-neutral `CanResolveReadModelForCommand` providers for exact mapped `@ReadModel` types; JPA claims `DECLARED` ownership, MongoDB `FALLBACK` |
-| Chronicle (optional)             | A projection or reducer supplies declared ownership and integration-specific event-source key resolution                                     |
+| Chronicle (optional)             | A projection or reducer supplies integration-specific ownership and event-source key resolution; TypeScript's integration is experimental                                     |
 
 A normal writable `BaseDbContext` like the tutorial's `LibraryDbContext` is **not enough to establish EF command-read-model ownership**. Keep method-injecting that context for explicit lookups/writes, or configure a [read-only context](/arc/backend/csharp/entity-framework/read-only/) intentionally. Configured auto-discovery is supported; do not duplicate it with mandatory manual registration.
 
@@ -49,7 +50,7 @@ Arc loads the author for the command key, then injects it alongside the collecti
 | Acquire data using current state           | `Provide()` / `provide`                        |
 | Compute and perform the write or response  | `Handle()` / `handle`                          |
 
-All three positions receive the provider-owned instance in C#. On the JVM the registry resolves it for `provide` and `handle`; a validator that needs current state injects its own repository, as the fragments below show. In TypeScript, a validator does not take a read model as a constructor parameter either; the TypeScript fragments inject an application-owned repository, and a validator can instead read one inside an async rule with `readModelForValidation`.
+All three positions receive the provider-owned instance in C#. On the JVM the registry resolves it for `provide` and `handle`; a validator that needs current state injects its own repository, as the fragments below show. TypeScript binds `commandReadModel(Type)` to a `provide()` or `handle()` parameter. Its validator does not take a read model as a constructor parameter either; the TypeScript fragments inject an application-owned repository, and a validator can instead read one inside an async rule with `readModelForValidation`.
 
 :::tip[Use current state to decide the write]
 Keep state acquisition in the provider or `Provide()`. On the C# backend, for immediate inline writes, prefer returning a [command operation](../backend/csharp/commands/operations/index.md) from `Handle()` describing the chosen replacement; Arc executes it afterward. The direct replacement above remains supported. Moving execution does not make the acquired state fresh or remove the need for database constraints and atomic conditional writes.
@@ -63,8 +64,8 @@ In C# the nullable validator parameter turns absence into a business rejection b
 
 ## Say what absence means
 
-- **Nullable:** a valid key with no record supplies `null`; write the business rule around that possibility. On the JVM a Kotlin `T?` parameter observes `null` and an ordinary Java `Optional<T>` observes `Optional.empty()`.
-- **Non-nullable:** the instance is required. Missing state produces `ReadModelDoesNotExistForCommand` as a validation failure (HTTP 400) in C#, and one `dependencyUnavailable` validation result and HTTP 400 on the JVM — rather than invoking your code with a fabricated model.
+- **Nullable:** a valid key with no record supplies `null`; write the business rule around that possibility. TypeScript declares this with `commandReadModel(Type, { optional: true })`. On the JVM a Kotlin `T?` parameter observes `null` and an ordinary Java `Optional<T>` observes `Optional.empty()`.
+- **Non-nullable:** the instance is required. Missing state produces `ReadModelDoesNotExistForCommand` as a validation failure (HTTP 400) in C#, one `dependencyUnavailable` validation result and HTTP 400 on the JVM, and a validation failure in TypeScript — rather than invoking your code with a fabricated model.
 - **No usable key:** even a nullable parameter cannot mean “not found” when Arc cannot identify what to fetch. Key-resolution failure is separate from absence.
 
 For registration, absence can be the **desired** state. This alternative domain fragment assumes a keyed `RegisterCustomer` and a provider-owned `Customer`:
@@ -89,7 +90,7 @@ These are **integrated domain fragments**, assuming an event-source `LedgerId` /
 
 <ArcBackendTabs snippet="scenarios/use-current-state-in-a-command/chronicle-commands" />
 
-The event-source identity is stated differently. C# also accepts an `EventSourceId<T>`-derived property as the identity candidate, so `SettleLedger` needs no attribute; Arc.Kotlin reads `CommandContext.commandKey`, so the identifying property carries `@CommandKey` and a command returning events without a resolvable key is rejected rather than appended to the wrong stream.
+The event-source identity is stated differently. TypeScript's experimental Chronicle integration uses the resolved command key as its default event-source ID; declare `@key()` or supply a resolver rather than relying on a property name. C# also accepts an `EventSourceId<T>`-derived property as the identity candidate, so `SettleLedger` needs no attribute; Arc.Kotlin reads `CommandContext.commandKey`, so the identifying property carries `@CommandKey` and a command returning events without a resolvable key is rejected rather than appended to the wrong stream.
 
 A `SettleLedgerValidator` can reject a nonpositive balance; an order validator can similarly gate on `ReadyForSubmission`. Those are state checks, not concurrency guarantees.
 

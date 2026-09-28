@@ -60,7 +60,7 @@ public class when_a_policy_mutates_an_equivalent_scheme_principal : Specificatio
 
     [Fact] void should_select_a_distinct_but_equivalent_principal() => _selectedWasDistinct.ShouldBeTrue();
     [Fact] void should_not_create_a_selected_scope() => _principalChanged.ShouldBeFalse();
-    [Fact] void should_run_the_later_policy_against_the_mutated_selection() => _laterPolicyPassed.ShouldBeTrue();
+    [Fact] void should_not_run_the_later_policy_against_the_mutated_selection() => _laterPolicyPassed.ShouldBeFalse();
     [Fact] void should_not_mutate_the_ambient_caller() => _ambientUnchanged.ShouldBeTrue();
     [Fact] void should_deny_the_command_verdict() => _commandAllowed.ShouldBeFalse();
     [Fact] void should_deny_the_query_verdict() => _queryAllowed.ShouldBeFalse();

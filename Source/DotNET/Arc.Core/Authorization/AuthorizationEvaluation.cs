@@ -135,6 +135,7 @@ public class AuthorizationEvaluation(
             if (!await resolution.IsAuthorized(
                 new AuthorizationPolicyContext(selectedPrincipal, target, resource)
                 {
+                    PrincipalAccessor = principalAccessor,
                     ReceivedAt = resource switch
                     {
                         CommandContext commandContext when commandContext.ReceivedAt != default => commandContext.ReceivedAt,

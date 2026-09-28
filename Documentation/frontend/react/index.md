@@ -30,7 +30,7 @@ those two with validation, scopes, and identity.
 | [Configure Arc](./arc.md) | Point the React app at your backend and set transport, headers, and identity. |
 | [Identity](./identity.md) | Who the user is, and what they're allowed to see and do. |
 | [Dialogs](./dialogs.md) | Consistent dialog handling for command and data-entry flows. |
-| [Proxy Generation](../../backend/csharp/proxy-generation/index.md) | How the typed proxies you import here are generated from C#. |
+| [Proxy generation (C#)](../../backend/csharp/proxy-generation/index.md) | Generate the typed clients used in these C# examples. For other backends, see [JVM proxies](/arc/backend/kotlin/guides/typescript-proxies/) or the [TypeScript source preview's generator](/arc/backend/typescript/proxy-generation/). |
 | [Storybook](/arc/frontend/react/storybook/) | The Storybook for the components Arc exposes. |
 | [Story Components](./stories) | Building good-looking, consistent stories. |
 

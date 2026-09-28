@@ -317,6 +317,23 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             [EventType] public record AuthorRegistered(string Name);
         """,
     ),
+    "scenarios/vertical-slices/state-view/author-list": SnippetContext(
+        fixtures=("library",),
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="""
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            public record AuthorRegistered(AuthorName FirstName, AuthorName LastName);
+        """,
+    ),
+    "scenarios/vertical-slices/state-view/fluent-projection": SnippetContext(
+        fixtures=("library",),
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="""
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            public record AuthorRegistered(AuthorName FirstName, AuthorName LastName);
+            public record Author(AuthorId Id, AuthorName FirstName, AuthorName LastName);
+        """,
+    ),
     "guides/chronicle/event-from-command": SnippetContext(
         kind="declaration",
         fixtures=("library",),

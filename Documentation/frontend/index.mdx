@@ -10,12 +10,14 @@ Building a React frontend against a backend usually means writing the same plumb
 pile of state to track whether the request is in flight, succeeded, or failed. Every time the backend
 changes, you go hunting for the frontend code that drifted out of sync.
 
-Arc removes that whole layer. When you build a command or query on the backend — in C# or on the
-JVM — Arc **generates a typed TypeScript proxy** for it. On the frontend you import that proxy and
-call its `.use()` hook — the request shape, the response shape, and the validation rules all come
-along, type-checked end to end. Change the backend and the generated proxy changes with it, so the
-compiler catches the drift instead of your users. Everything on this page and under it is the same
-whichever backend generated the client.
+Arc removes that whole layer. C#, JVM, and the [TypeScript source preview](/arc/backend/typescript/)
+can generate typed TypeScript proxies from backend commands and queries. On the
+frontend you import a proxy and call its `.use()` hook — request and response
+types and supported client-safe validation rules come along. Regenerate after a
+backend change and type-check the frontend to catch structural drift. The
+frontend uses the same `@cratis/arc` runtime, but backend capabilities and
+generator coverage differ. Check the [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/)
+before applying a C# or JVM example to the preview.
 
 ## How the pieces fit
 
@@ -27,7 +29,8 @@ flowchart LR
     API --> CS
 ```
 
-You write the backend once. The proxy generator runs on build and emits a typed client. Your React
+You write the backend once. Configure and run that backend's proxy generator to emit a typed client;
+TypeScript generation is an explicit source-based step, not implicit in every backend build. Your React
 code consumes it through each proxy's static `.use()` hook — and because the types flow across the
 boundary, there is no DTO to keep in sync and no untyped JSON to second-guess.
 
@@ -39,7 +42,7 @@ and execution. The following backend fragment assumes the application's `Account
 
 <ArcBackendTabs snippet="frontend/index/open-account" />
 
-Both backends generate the same client, so the React side below is written once:
+The generated clients use the same frontend runtime, so the React side below is written once:
 
 ```tsx
 // Frontend — the generated proxy, driven by its static .use() hook
@@ -109,7 +112,7 @@ export const AccountsList = () => {
 ```
 
 The result is a `QueryResultWithState` — `accounts.data` holds the rows, with `isPerforming`, `hasData`,
-and validation state alongside. The backend must supply an emitting observable source, such as MongoDB `Observe()` or an optional Chronicle integration. When that source emits changed data, subscribed consumers receive the new list without polling. A command write alone does not establish this live connection; see [backend observable queries](/arc/backend/csharp/queries/model-bound/observable-queries/).
+and validation state alongside. The backend must supply an emitting observable source, such as MongoDB `Observe()` on C# or an `ObservableSource` on TypeScript. When that source emits changed data, subscribed consumers receive the new list without polling. A command write alone does not establish this live connection; see [backend observable queries](/arc/backend/csharp/queries/model-bound/observable-queries/).
 
 ## Two ways to build: hooks or MVVM
 

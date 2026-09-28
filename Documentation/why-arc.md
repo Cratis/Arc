@@ -11,21 +11,21 @@ For Cratis, event sourcing is usually the default persistence architecture for i
 
 ## What Arc gives you
 
-- **Commands and queries as the unit of work.** A command is a record with a `Handle()` method — no separate handler class, no controller boilerplate. A query is a method on a read model. Arc maps them to HTTP automatically.
-- **Generated TypeScript proxies.** Every command and query becomes a typed client your React code calls. Change a command's shape in C# and the frontend types change with it — the compiler catches the mismatch, not your users.
-- **Pluggable persistence.** Commands and queries read and write wherever you point them — [Chronicle](/arc/backend/csharp/chronicle/) for event-sourced information systems, or [MongoDB](/arc/backend/csharp/mongodb/) and [EF Core / SQL](/arc/backend/csharp/entity-framework/) for current-state slices. Chronicle adds its [command transaction semantics](/arc/backend/csharp/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
-- **The cross-cutting integration points.** Arc supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Configure trusted authentication, membership checks, storage isolation, and business constraints for your application.
+- **Commands and queries as the unit of work.** On C#, a command is a record with a `Handle()` method; on the JVM and TypeScript it has a `handle()` method. A query can be a method on a read model. Arc maps them to HTTP automatically.
+- **Generated TypeScript proxies.** Every command and query becomes a typed client your React code calls. Change a command's shape on the backend and regenerate the client; the frontend types change with it — the compiler catches the mismatch, not your users.
+- **Pluggable persistence.** Commands and queries use the storage you configure — for example, [Chronicle](/arc/backend/csharp/chronicle/) for event sourcing, [MongoDB](/arc/backend/csharp/mongodb/) or [EF Core / SQL](/arc/backend/csharp/entity-framework/) for current state on C#, [Spring Data](/arc/backend/kotlin/guides/spring-data/) on the JVM, or [MongoDB and Drizzle](/arc/backend/typescript/reference/capabilities/) in the TypeScript source preview. Chronicle adds its [command transaction semantics](/arc/backend/csharp/chronicle/commands/); those guarantees do not cover arbitrary external-service or database writes.
+- **The cross-cutting integration points.** On C#, Arc supplies validation, authorization, identity, tenant resolution, OpenAPI, and MongoDB/EF Core hooks. Check each other backend's capability reference for its integration surface. Configure trusted authentication, membership checks, storage isolation, and business constraints for your application.
 
 ## Why CQRS and proxy generation
 
-The two ideas reinforce each other. CQRS separates the thing you *do* (a command) from the thing you *see* (a query/read model), which keeps each side simple and independently optimizable. Proxy generation then makes that separation safe across the network: because the client is generated from the same C# types, there is no second source of truth to drift.
+The two ideas reinforce each other. CQRS separates the thing you *do* (a command) from the thing you *see* (a query/read model), which keeps each side simple and independently optimizable. Proxy generation then makes that separation safe across the network: because the client is generated from the backend's own declarations, there is no second source of truth to drift.
 
-CQRS is often associated with event sourcing because events are a natural write-side model and projections are a natural read-side model. But CQRS is not event sourcing. Arc can put that boundary over Chronicle, MongoDB, or EF Core; Chronicle can store and process events without Arc.
+CQRS is often associated with event sourcing because events are a natural write-side model and projections are a natural read-side model. But CQRS is not event sourcing. Arc can put that boundary over current-state storage or optional Chronicle; Chronicle can store and process events without Arc. Integrations differ by backend.
 
 ```mermaid
 flowchart LR
-    React["React (Components)"] -->|generated proxy| Cmd["Command.Handle()"]
-    Cmd -->|writes| Store[("MongoDB / EF Core")]
+    React["React (Components)"] -->|generated proxy| Cmd["Command handler"]
+    Cmd -->|writes| Store[("Current-state store")]
     Store --> ReadModel["Read model"]
     ReadModel -->|query proxy| React
 ```
@@ -38,6 +38,6 @@ Arc doesn't impose a folder structure, but it's built to make one shine: organiz
 
 ## Where to start
 
-- Build your first feature in the [getting started](/arc/backend/csharp/getting-started/) guide.
+- Build your first feature with [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript source preview](/arc/backend/typescript/getting-started/).
 - Walk the full database-backed path in the [Arc tutorial](/arc/tutorial/).
 - Need the wider stack? [Why developers choose Cratis](/why-cratis/) shows how Arc, Chronicle, Components, and the tools fit together.

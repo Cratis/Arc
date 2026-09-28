@@ -207,19 +207,31 @@ public class AspNetAuthorizationPolicyRuntime(
 
         public async Task<bool> IsAuthorized(AuthorizationPolicyContext context, IServiceProvider services, CancellationToken cancellationToken)
         {
-            if (!await nativeResolution.IsAuthorized(context, services, cancellationToken))
+            cancellationToken.ThrowIfCancellationRequested();
+            var nativeCheckpoint = new AuthorizationPolicyIdentityCheckpoint(context, services);
+            var nativeAllowed = await nativeResolution.IsAuthorized(context, services, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!nativeCheckpoint.IsUnchanged() || !nativeAllowed)
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 return false;
             }
 
-            var service = aspPolicies.Length > 0 ? services.GetRequiredService<IAuthorizationService>() : null;
+            IAuthorizationService? service = null;
             foreach (var policy in aspPolicies)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!(await service!.AuthorizeAsync(context.Principal, context.Resource, policy)).Succeeded)
+                var checkpoint = new AuthorizationPolicyIdentityCheckpoint(context, services);
+                service ??= services.GetRequiredService<IAuthorizationService>();
+                if (!checkpoint.IsUnchanged())
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    return false;
+                }
+
+                var allowed = (await service.AuthorizeAsync(context.Principal, context.Resource, policy)).Succeeded;
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!checkpoint.IsUnchanged() || !allowed)
+                {
                     return false;
                 }
             }

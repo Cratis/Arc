@@ -48,6 +48,8 @@ This amends the authentication-required-for-policies consequence of decision 000
 
 Policy owners may safely express public-or-member permissions without `[AllowAnonymous]` bypassing checks. Opting in does not grant access by itself: every policy still decides the verdict. Existing policy registrations and authentication requirements retain their previous behavior.
 
+> **2026-09-28 — clarification.** The trust model below describes continuity of captured standard identity content (claims, authentication type, name and role claim types, and the captured actor chain), not arbitrary mutable behavior in custom principal or identity subclasses or opaque bootstrap objects. Arc now checks that content between individual policies, including after policy construction; it cannot detect a mutation restored within a single trusted callback. This adds context without changing the anonymous-policy opt-in decision.
+
 ## Trust model and limits (2026-09-26 clarification)
 
 Application code in the pipeline — filters, validators, hooks, policies, interceptors, and emission callbacks — is trusted. Arc revalidates the verdict against the execution identity after policy and legacy evaluator callbacks, and at the last check before invoking a command handler or query performer. This does not sandbox application code that mutates principals, split ASP.NET/Arc identity channels, tenant or service bindings established before the verdict, deferred query enumeration, or observable emissions. A complete certificate and lease model for those cases is tracked separately.

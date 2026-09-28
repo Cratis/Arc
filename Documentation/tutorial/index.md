@@ -5,9 +5,9 @@ description: Build a small but real library app with Arc — typed commands and 
 
 Let's build something real together: the back office for a small library. Librarians register authors, catalog the books each author wrote, and watch the catalog fill in live as they work. It's a modest app — but by the time it's done you'll have used every part of Arc that a real full-stack feature needs, and you'll understand *why* each part is shaped the way it is.
 
-This isn't a tour of one slice in isolation. We'll build several features that lean on each other, the way a real app does — and at each step we'll stop, look at what just happened, and only then move on. The thing Arc is really selling is that the whole loop — a C# command, the read model it updates, the query that serves it, and the React screen that calls both — stays **type-safe end to end**, with no hand-written API client in the middle. You'll feel that pay off repeatedly.
+This isn't a tour of one slice in isolation. We'll build several features that lean on each other, the way a real app does — and at each step we'll stop, look at what just happened, and only then move on. The thing Arc is really selling is that the whole loop — a backend command, the read model it updates, the query that serves it, and the React screen that calls both — stays **type-safe end to end**, with no hand-written API client in the middle. You'll feel that pay off repeatedly.
 
-Arc doesn't care where your data lives. We'll store it straight in a database — **MongoDB or EF Core**, your choice — so this tutorial can focus on CQRS and the generated proxy boundary. That is a teaching and adoption choice, not a claim that event sourcing is secondary: for information systems, we usually recommend Chronicle as the event-sourced backbone. The point is that CQRS can run with or without it.
+Arc doesn't care where your data lives. We'll store it straight in a database — MongoDB or EF Core on C#, Spring Data on the JVM, or MongoDB in the TypeScript source preview — so this tutorial can focus on CQRS and the generated proxy boundary. That is a teaching and adoption choice, not a claim that event sourcing is secondary: for information systems, we usually recommend Chronicle as the event-sourced backbone. The point is that CQRS can run with or without it.
 
 Here's the shape of what we're heading toward, as an **[event model](/event-modeling/)** — the way you'd whiteboard a feature *before* deciding how to store it. Read it left to right: the librarian adds an author on a screen, the `RegisterAuthor` command records the business fact that an author was registered, the `Author` read model is updated, and the next screen lists it. Don't worry if the pieces aren't familiar yet — we'll meet each one in turn.
 
@@ -23,7 +23,7 @@ tf 05 ui  Authors.Authors ->> 04
 
 `AuthorRegistered` is the business **fact** in the model; it is not a storage decision. Over a plain database your command writes the `Author` read model directly. Each later feature (add books, list them) is another column of the same shape.
 
-That's *what* you'll build. Here's *how* Arc runs it — and the part that earns its place: you write the command and the query once in C#, and the build **generates the typed proxies** your React calls, so the frontend can't drift from the backend. Over a database the path is direct:
+That's *what* you'll build. Here's *how* Arc runs it — and the part that earns its place: you declare the command and query on your backend, then **generate typed proxies** your React calls, so a frontend type-check can catch structural drift. Over a database the path is direct:
 
 ```mermaid
 flowchart LR
@@ -43,7 +43,7 @@ flowchart LR
     Q -->|generated query proxy, live| UI
 ```
 
-The two diagrams are two views of the same feature: the event model is the **domain flow** you design, and the flowchart is the **typed boundary** the build wires up for you — generated C# → TypeScript proxies, no hand-written API client. That boundary is the heart of Arc; [Understanding the proxy boundary](/arc/understanding-the-proxy-boundary/) goes deeper on it.
+The two diagrams are two views of the same feature: the event model is the **domain flow** you design, and the C# flowchart is one example of the **typed boundary** — generated backend → TypeScript proxies, no hand-written API client. That boundary is the heart of Arc; [Understanding the proxy boundary](/arc/understanding-the-proxy-boundary/) goes deeper on it.
 
 ## What you'll build
 
@@ -56,25 +56,26 @@ By the last chapter you'll have a working library back office where a librarian 
 
 ## What you'll learn
 
-- The full Arc loop — **command → read model → query → React** — and how a build (`dotnet build`, or `./gradlew generateArcProxies`) keeps the two languages in sync.
+- The full Arc loop — **command → read model → query → React** — and how generation (`dotnet build -c Debug`, `./gradlew generateArcProxies`, or the TypeScript application's `npm run generate`) followed by a frontend type-check catches drift.
 - How to put **validation and business rules** on a command and have the failure surface in the UI through the generated proxy.
 - How to model a **second feature that reads the first**, and read related data back.
 - How **observable queries** keep a screen live with no polling.
 - How to **authorize** commands and queries at the boundary.
 
-## One tutorial, either backend
+## One tutorial, three backend paths
 
-There is **one tutorial**, and it is written for both backends. Every backend
-code example has a tab for C# and a tab for Kotlin, and the React code is
-identical for both because they generate the same TypeScript packages. The ideas
-are the same either way — a slice from command to read model to query to screen,
+There is **one tutorial** with C#, JVM, and TypeScript backend examples. The
+TypeScript backend is a [source preview](/arc/backend/typescript/) without a
+published npm package or full parity. Use its own setup and
+[capability reference](/arc/backend/typescript/reference/capabilities/) before
+following a chapter's tab. The React examples consume the shared frontend
+runtime rather than three different browser libraries. The ideas
+are the same across these paths — a slice from command to read model to query to screen,
 validation, relating slices, live queries, authorization.
 
-What is **not** the same is the scaffolding around that code: the SDK, the build
-command that regenerates proxies, the database integration, and the way a
-development user signs in. Each chapter names the JVM equivalent where it
-matters, in a note rather than a tab, so neither reader is handed a false
-equivalence.
+What is **not** the same is the scaffolding around that code: the SDK, the
+generation command, the database integration, and the way a development user
+signs in. Each chapter names setup and behavior differences where they matter.
 
 :::note[Building on Kotlin or Java?]
 Set up first with [Get started with Kotlin](/arc/backend/kotlin/get-started/) or
@@ -89,13 +90,13 @@ languages side by side too.
 
 ## What you'll need
 
-Start with [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/), then complete its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. On the JVM, [Get started with Kotlin](/arc/backend/kotlin/get-started/) or [Get started with Java](/arc/backend/kotlin/get-started/java/) plays that part: JDK 17, Gradle, the `io.cratis.arc` plugin, `arc-spring-boot-starter`, and a Spring Data integration. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/react/getting-started/); do not recreate them.
+For C#, start with [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/), then complete its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). It specifies the SDK, packages, imports, MongoDB replica-set settings or EF Core/SQLite schema bootstrap, and Debug proxy generation. On the JVM, [Get started with Kotlin](/arc/backend/kotlin/get-started/) or [Get started with Java](/arc/backend/kotlin/get-started/java/) plays that part: JDK 17, Gradle, the `io.cratis.arc` plugin, `arc-spring-boot-starter`, and a Spring Data integration. On TypeScript, follow [create an application](/arc/backend/typescript/getting-started/create-an-application/) and use the [standalone MongoDB host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) as the chapter-1 prerequisite. Choose one database branch and keep it throughout the tutorial. Chapter 1 connects those existing types to the [standalone React setup](/arc/frontend/react/getting-started/); do not recreate them.
 
 No Chronicle package, event store, or `dotnet new cratis` scaffold is required. That template is an **Arc + Chronicle** alternative, not this tutorial's starting point. Backend excerpts assume the setup's imports and namespaces; UI fragments are labeled where they require the surrounding composition.
 
 ## The tour
 
-1. **[Your first full-stack slice](/arc/tutorial/first-slice/)** — register an author from C# all the way to a live React screen, fully typed.
+1. **[Your first full-stack slice](/arc/tutorial/first-slice/)** — register an author from the backend all the way to a live React screen, fully typed.
 2. **[Make it trustworthy](/arc/tutorial/validation/)** — reject bad input with a validator and a uniqueness rule, and show the reason in the form.
 3. **[Relate your slices](/arc/tutorial/books-and-relationships/)** — add books that belong to an author, and read them back.
 4. **[Make it live](/arc/tutorial/real-time/)** — observable queries that update the screen the moment the data changes.

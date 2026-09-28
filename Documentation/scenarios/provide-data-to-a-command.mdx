@@ -7,7 +7,7 @@ description: Fetch the data a command's decision needs in a Provide method so Ha
 
 ## Lift the IO out of `Handle`
 
-Add a `Provide()` method next to `Handle()` on the command. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` can then be a pure function of its arguments. To separate the write side as well on the C# backend, return a [command operation](../backend/csharp/commands/operations/index.md) describing the required service work, or return events with the optional Chronicle integration. `Provide` does not make persistence automatic.
+Add `Provide()` next to `Handle()` on C#, or `provide()` next to `handle()` on JVM and TypeScript. `Provide` fetches or computes the data the decision needs, and its return value is passed into `Handle()` as an argument. `Handle` can then be a pure function of its arguments. To separate the write side as well on the C# backend, return a [command operation](../backend/csharp/commands/operations/index.md) describing the required service work, or return events with the optional Chronicle integration. `Provide` does not make persistence automatic.
 
 :::tip[Acquire, decide, then perform]
 Use `Provide()` to acquire decision inputs, `Handle()` to decide, and — on the C# backend — returned command operations to perform inline side effects. Do not move writes into `Provide()` merely to make `Handle()` look pure: such direct writes are outside operation compensation. [Operation testing](../backend/csharp/testing/command-operations.md) covers the decision and real execution separately.
@@ -29,7 +29,7 @@ Because the IO lives in `Provide`, testing the decision needs no mocking — con
 
 ## Return more than one value
 
-Return a tuple (C#) or a `Pair` (Kotlin) to feed several handler parameters; each value is matched to a parameter by type:
+On C#, return a tuple; on Kotlin, return a `Pair` to feed several typed handler parameters. On TypeScript, return `tuple(a, b)` from `provide()` and mark each `handle()` parameter with `@inject(provided(TypeA), provided(TypeB))`; Arc matches the values by runtime type. Returning a single object for `handle()` to destructure also works:
 
 <ArcBackendTabs snippet="scenarios/provide-data-to-a-command/several-values" />
 
@@ -39,13 +39,17 @@ In C#, `Provide` may be synchronous or `async` (`Task<T>` / `ValueTask<T>`). On 
 
 <ArcBackendTabs snippet="scenarios/provide-data-to-a-command/cancellation" />
 
-This is one place the two backends express the same thing differently. In C#, `Provide` and `Handle` can each take a `CancellationToken` and Arc supplies the current command execution token — the request-aborted token for HTTP endpoints, or the token you pass to `ICommandPipeline`. You do not register `CancellationToken` in the service container; Arc treats it as part of the command execution context.
+Cancellation differs by backend. In C#, `Provide` and `Handle` can each take a `CancellationToken` and Arc supplies the current command execution token — the request-aborted token for HTTP endpoints, or the token you pass to `ICommandPipeline`. You do not register `CancellationToken` in the service container; Arc treats it as part of the command execution context.
 
-On the JVM there is **no token parameter at all**: a `suspend` `provide` or `handle` already runs inside Arc's command coroutine, so cancelling the request cancels everything it awaits. Check `ensureActive()` when a long computation has no suspension point of its own.
+TypeScript has no `CancellationToken`; inject the request's `AbortSignal` with
+`@inject(abortSignal())` on `provide()` or `handle()`, or read `currentContext()?.signal`,
+and pass it to cancellable work. See [model-bound commands](/arc/backend/typescript/commands/model-bound/). On the JVM there is **no token parameter at all**: a `suspend` `provide` or `handle` already runs inside Arc's command coroutine, so cancelling the request cancels everything it awaits. Check `ensureActive()` when a long computation has no suspension point of its own.
 
 ## Short-circuit before `Handle` runs
 
-`Provide` can stop the command before `Handle` is ever called:
+`Provide` can stop the command before `Handle` is ever called. The table below
+shows C# return shapes; TypeScript returns `rejected(validation(...))` from
+`provide()` for a typed failure, as its tab demonstrates.
 
 | Return / do                                     | Result                                      |
 | ----------------------------------------------- | ------------------------------------------- |
@@ -58,9 +62,10 @@ Use `Result<,>` to reject or proceed when the data acquisition itself determines
 
 <ArcBackendTabs snippet="scenarios/provide-data-to-a-command/short-circuit" />
 
-C# states the alternative in the return type with `Result<,>`. Arc.Kotlin recognizes the control value at runtime instead: a `provide` declared to return `Any` may hand back either the value the handler consumes or a `ValidationResult`, `AuthorizationResult`, or `CommandResult`, and Arc short-circuits on the control value.
+C# states the alternative in the return type with `Result<,>`. Arc.Kotlin recognizes the control value at runtime instead: a `provide` declared to return `Any` may hand back either the value the handler consumes or a `ValidationResult`, `AuthorizationResult`, or `CommandResult`, and Arc short-circuits on the control value. TypeScript uses an `Outcome` such as
+`rejected(validation(...))` instead of the C# `Result<,>` shape.
 
-A `Provide` value that no handler parameter consumes is almost always a mistake, so the analyzer flags it (ARC0005).
+A provided value that no handler parameter consumes is almost always a mistake. C#'s ARC0005 analyzer flags it; TypeScript's [`arc-core/arc0005`](/arc/backend/typescript/code-analysis/arc0005/) ESLint rule flags a direct `provide()` return when `handle()` takes no parameters.
 
 For ordinary command validation, including read-model existence checks, prefer a `CommandValidator<>`. Use `Provide()` when `Handle()` needs acquired data as an input to the decision.
 
@@ -74,7 +79,7 @@ See [Use current state in a command](./use-current-state-in-a-command.mdx) for h
 
 ## Cross-cutting values
 
-`Provide` is per-command. For a value that many handlers need — the current tenant's settings, say — register it as a scoped service and take it as a `Handle` parameter. Arc resolves any `Handle` or `Provide` parameter it can't otherwise supply from the container.
+`Provide` is per-command. For a value that many handlers need — the current tenant's settings, say — register it as a scoped service and take it as a `Handle` parameter. Each backend resolves declared handler or provider dependencies from its service container; on TypeScript, use `@inject(...)` or generated metadata for erased parameter bindings.
 
 ## When not to use it
 
