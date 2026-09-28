@@ -40,6 +40,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SNIPPET_ROOT = REPO_ROOT / "Documentation" / "client-snippets"
 GENERATED_DIR = REPO_ROOT / "Documentation" / ".client-snippet-validation"
 GENERATED_PROJECT = GENERATED_DIR / "ClientSnippetValidation.csproj"
+# The type --self-test references in one snippet of each project. A project's build must fail
+# naming it: any other failure would not prove that project compiles the planted snippet.
+PLANTED_SYMBOL = "ThisTypeDoesNotExistAnywhereInArc"
 
 FENCE_RE = re.compile(r"```([^\s`]+)[^\n]*\n(.*?)\n```", re.DOTALL)
 USING_DIRECTIVE_RE = re.compile(
@@ -948,7 +951,7 @@ def write_generated(snippets: list[Snippet], corrupt: set[str] | None = None) ->
                 source += (
                     "\n// --self-test planted defect\n"
                     "internal sealed class PlantedSelfTestDefect : "
-                    "ThisTypeDoesNotExistAnywhereInArc;\n")
+                    f"{PLANTED_SYMBOL};\n")
             path = directory / f"Snippet_{sanitized(snippet.identifier)}.cs"
             path.write_text(source, encoding="utf-8")
             group_sources.append(path)
@@ -960,11 +963,12 @@ def write_generated(snippets: list[Snippet], corrupt: set[str] | None = None) ->
     return snippet_sources, projects
 
 
-def build(project: Path) -> int:
+def build(project: Path, capture: bool = False) -> tuple[int, str]:
+    """Build a generated project; with `capture`, also return its output (still echoed)."""
     # -p:CratisProxiesOutputPath= clears the property the proxy generator target is
     # conditioned on, so validating the docs never re-runs proxy generation over the
     # repository's real generated TypeScript.
-    return subprocess.run(
+    completed = subprocess.run(
         [
             "dotnet",
             "build",
@@ -975,7 +979,13 @@ def build(project: Path) -> int:
         ],
         cwd=REPO_ROOT,
         check=False,
-    ).returncode
+        capture_output=capture,
+        text=capture,
+    )
+    output = (completed.stdout or "") + (completed.stderr or "") if capture else ""
+    if capture:
+        print(output, end="")
+    return completed.returncode, output
 
 
 def collect() -> tuple[list[Snippet], list[Snippet]]:
@@ -1034,18 +1044,23 @@ def run(self_test: bool) -> int:
 
         # Build every project even after a failure, so one run reports every broken
         # snippet; the first nonzero exit code is the verdict.
-        exit_codes = [build(project) for project in projects]
+        results = [build(project, capture=self_test) for project in projects]
+        exit_codes = [code for code, _ in results]
         exit_code = next((code for code in exit_codes if code != 0), 0)
     finally:
         for directory in generated_directories():
             shutil.rmtree(directory, ignore_errors=True)
 
     if self_test:
-        undetected = [project.parent.name for project, code in zip(projects, exit_codes) if code == 0]
+        # A failure for another reason (a broken fixture, a restore error) would not prove the
+        # planted snippet was compiled, so each project must fail naming the planted type.
+        undetected = [project.parent.name for project, (code, output) in zip(projects, results)
+                      if code == 0 or PLANTED_SYMBOL not in output]
         if undetected:
             print(
-                "Self-test FAILED: the build succeeded with a planted reference to a non-existent "
-                f"type in {', '.join(undetected)}, so this validator is not detecting anything there.",
+                "Self-test FAILED: the build did not fail on the planted reference to "
+                f"{PLANTED_SYMBOL} in {', '.join(undetected)}, so this validator is not proven to "
+                "detect a broken snippet there.",
                 file=sys.stderr)
             return 1
         print(f"Self-test passed: the planted defect failed all {len(projects)} project build(s).")
