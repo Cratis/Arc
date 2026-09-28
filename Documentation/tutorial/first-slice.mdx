@@ -29,6 +29,10 @@ flowchart LR
     Q -->|generated proxy| UI[React list]
 ```
 
+On TypeScript, create `Features/Authors/AuthorId.ts` and `AuthorName.ts` as separate files first. Put `RegisterAuthor` in `Features/Authors/RegisterAuthor.ts` and `Author` in `Features/Authors/Author.ts`. Import `AuthorId`, `AuthorName`, and the runtime `AuthorRepository` from their feature files (with `.js` suffixes). The concepts match the `NoteId` and `NoteText` pattern in [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/):
+
+<ArcBackendTabs snippet="tutorial/first-slice/author-concepts" variants="typescript" />
+
 These are **excerpts from the backend checkpoint**, not additional files. Each tab shows the same slice over that backend's document store — MongoDB on C#, Spring Data MongoDB on the JVM:
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
@@ -63,7 +67,7 @@ With `Cratis.Arc.ProxyGenerator.Build` installed and `CratisProxiesOutputPath` s
 Run `./gradlew generateArcProxies` (the task is also attached to `build`). KSP writes the Arc artifact manifest at compile time and the `io.cratis.arc` plugin's generator turns it into the same TypeScript. Point `cratisArc.proxies.outputDirectory` at your frontend source folder — an unset output directory skips generation, exactly as an unset `CratisProxiesOutputPath` does. Route settings exist on both the build side (`cratisArc.endpoints.*`) and the runtime side (`cratis.arc.endpoints.*`) and must agree; the starter fails startup when they do not. See [Generate TypeScript proxies](/arc/backend/kotlin/guides/typescript-proxies/).
 </Aside>
 
-On TypeScript, run `npm run generate` from the application built in [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/); its `arc-proxygenerator` script writes generated metadata and co-located `*.proxy.ts` files. Import those proxies from their generated locations in the React files below rather than using the .NET/JVM `src/Authors/` paths. Regenerate after changing a backend artifact. If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/csharp/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
+On TypeScript, run `npm run generate` from the application built in [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/); its `arc-proxygenerator` script writes generated metadata and co-located `*.proxy.ts` files. From `src/Authors.tsx` import `AllAuthors` from `../Features/Authors/AllAuthors.proxy`; from `src/AddAuthor.tsx` import `RegisterAuthor` from `../Features/Authors/RegisterAuthor.proxy`. The .NET/JVM `src/Authors/Author` and `src/Authors/RegisterAuthor` paths in the examples below do not exist on this backend. Regenerate after changing a backend artifact. If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/csharp/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
 
 ## Set up the browser project
 
@@ -72,14 +76,14 @@ If you already have a Vite app, retain its entry/configuration and adapt only th
 ```bash
 npm init -y
 npm pkg set type=module
-npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.10.3 @cratis/arc @cratis/arc.react \
+npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.19.6 @cratis/arc @cratis/arc.react \
   @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
 npm install --save-dev vite @types/react @types/react-dom
 ```
 
 For a .NET or JVM-only project without TypeScript installed yet, also run `npm install --save-dev typescript`. If you followed the TypeScript backend setup, **keep its existing TypeScript 6 compiler alias** (`tsc6`); installing plain `typescript` here would replace it.
 
-`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
+`type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). For the TypeScript backend sample, pin both to **22.19.1**: `npm install @cratis/arc@22.19.1 @cratis/arc.react@22.19.1`. `@cratis/arc.react` depends on that exact Arc version; mixing versions installs a second copy, and generated proxies fail the frontend type-check because the runtime classes have private members. The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
 
 If you followed the TypeScript backend setup, **keep its `tsconfig.json`**: the generator's `--project` points to it, and its `main.ts` and `Features/**/*.ts` entries emit the backend's `dist/main.js`. Add a separate `tsconfig.web.json` for Vite instead. The .NET and JVM projects can also use this separate frontend config:
 
