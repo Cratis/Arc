@@ -295,6 +295,9 @@ USING_ARC_TESTING = "using Cratis.Arc.Testing.Commands;"
 USING_ARC_CHRONICLE_TESTING = "using Cratis.Arc.Chronicle.Testing.Commands;"
 
 
+LIBRARY_APPLICATION = "library-application"
+
+
 # Per-snippet preludes. A snippet id is its path under client-snippets without the
 # extension. Unlisted snippets compile as declarations with DEFAULT_USINGS only;
 # add an entry here when a snippet needs more context than that.
@@ -316,6 +319,22 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             public record Author(AuthorId Id, AuthorName FirstName, AuthorName LastName);
         """,
     ),
+    # The State Change, Automation and Translation pages show whole files of one Library
+    # application, each in its own namespace. Compiled as "file" snippets in a project of
+    # their own they form that application together: the spec runs against the very command
+    # the page shows, and the reservation events use the member identity from the Translation
+    # page. The separate project keeps their `Library.Authors` apart from the one the
+    # test-a-command snippets declare.
+    "scenarios/vertical-slices/state-change/concepts": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/state-change/registration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/state-change/unique-author-name": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/state-change/register-author-spec": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/automation/reservation-domain": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/automation/expiry-management": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/member-concepts": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/member-registration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/unique-member-name": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/hr-integration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
     "guides/chronicle/event-from-command": SnippetContext(
         kind="declaration",
         fixtures=("library",),
