@@ -69,7 +69,7 @@ public class QueryPipeline(
         {
             throw;
         }
-        catch (InvalidAuthorizationConfiguration exception)
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
             requestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return QueryResult.Unauthorized(GetCorrelationId());
