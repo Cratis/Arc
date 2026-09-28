@@ -4,13 +4,12 @@ description: Connect the standalone author command and observable query to React
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
-import FullStackTabs from '@components/FullStackTabs.astro';
 
 Every app starts with one feature. Ours is **registering an author** — the first thing a librarian does before cataloging a book. You have a command that writes and a query that reads; now let's connect them to a screen without a hand-written API client.
 
 ## Prerequisites
 
-Complete [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/) and [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle.
+Complete [standalone ASP.NET Core setup](/arc/backend/csharp/getting-started/) and [Your first command and query](/arc/backend/csharp/getting-started/your-first-command/) first. Those pages supply the packages, global imports, `Library.Authors` namespace, database configuration/schema, and Debug proxy output. Choose **MongoDB or EF Core** consistently; neither requires Chronicle. For the TypeScript backend, start with [the standalone MongoDB host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) and [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/) instead; it runs on port 3000 and requires generated artifact metadata.
 
 <Aside type="note" title="Building on Kotlin or Java?">
 Start from [Get started with Kotlin](/arc/backend/kotlin/get-started/) or [Get started with Java](/arc/backend/kotlin/get-started/java/) instead: JDK 17, Gradle, the `io.cratis.arc` plugin, and `arc-spring-boot-starter` take the place of the .NET SDK and the `Cratis.Arc.*` packages. Where this tutorial says MongoDB or EF Core, read [Spring Data MongoDB or Spring Data JPA](/arc/backend/kotlin/guides/spring-data/). Every backend excerpt below has a tab for your language; the setup commands and the React half are covered per backend in a note.
@@ -34,7 +33,7 @@ These are **excerpts from the backend checkpoint**, not additional files. Each t
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
 
-The JVM's `@AllowAnonymous` on these tutorial artifacts allows the unauthenticated first round trip; chapter 5 replaces it with role-based access. The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, and through `@FromServices` on `handle` and the companion-object query function on the JVM. Returning `Task` or `Unit` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and neither backend needs a controller or a duplicated transport model.
+The JVM's `@AllowAnonymous` on these tutorial artifacts allows the unauthenticated first round trip; chapter 5 replaces it with role-based access. The dependencies are **method-injected**: straight into `Handle()` and the static query method on C#, through `@FromServices` on `handle` and the companion-object query function on the JVM, and through `@inject` or `service(...)` on TypeScript. Returning `Task`, `Unit`, or `Promise<void>` adds no payload: the explicit database write is the outcome. The query is the static method — `@JvmStatic` on the read model's companion object in Kotlin — and none of the three backends needs a controller or a duplicated transport model.
 
 **If you chose the relational branch**, .NET injects `LibraryDbContext` instead of the collection. The JVM and TypeScript backend snippets use repositories, whose implementations supply the relational storage:
 
@@ -42,10 +41,10 @@ The JVM's `@AllowAnonymous` on these tutorial artifacts allows the unauthenticat
 
 On the JVM, keep `Author` as the Arc read-model DTO and map `AuthorRow` as a JPA entity. Implement `AuthorRepository` using `JpaRepository<AuthorRow, UUID>` (or the Java equivalent), converting the concept id and name to stored scalars on writes and lookups. The custom [`JpaObservableQuery` snapshot](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) projects rows back into `Author`; after each committed write, publish `Author::class.java` (Java: `Author.class`) through `DatabaseChangePublisher` so subscribers receive a fresh snapshot. Saving a row alone does not publish an Arc read-model change. JPA observation is in-process only.
 
-On TypeScript, implement `AuthorRepository` over Drizzle, register the `authors` table in `withDrizzle({ readModels: [{ type: Author, table: authors }], observation: DrizzleObservation.InProcess, ... })`, and call `notifyChanged(authors)` after committed writes so [in-process table observation](/arc/backend/typescript/sql/observing-tables/) updates subscribers. Drizzle observation does not see writes from other processes.
+On TypeScript, define your Drizzle `authors` table with `id` and `name` columns (the [unique-name definition in chapter 2](/arc/tutorial/validation/#install-the-database-constraint) adds the constraint), implement `AuthorRepository` over it, register the table in `withDrizzle({ readModels: [{ type: Author, table: authors }], observation: DrizzleObservation.InProcess, ... })`, and call `notifyChanged(authors)` after committed writes so [in-process table observation](/arc/backend/typescript/sql/observing-tables/) updates subscribers. Drizzle observation does not see writes from other processes.
 
 <Aside type="tip" title="Separate decisions as behavior grows">
-This tutorial uses supported direct database writes to make the first round trip visible. On the C# backend, for immediate writes that new model-bound behavior can describe from its inputs, prefer [command operations](../backend/csharp/commands/operations/index.md): `Handle()` returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write. Command operations are a C#-only surface; on the JVM keep the direct repository write shown here, and test the decision through [in-process command scenarios](/arc/backend/kotlin/guides/testing/).
+This tutorial uses supported direct database writes to make the first round trip visible. On C# and TypeScript, for immediate writes that new model-bound behavior can describe from its inputs, prefer command operations ([C#](/arc/backend/csharp/commands/operations/), [TypeScript](/arc/backend/typescript/commands/operations/)): the handler returns the intended work and Arc performs it afterward. This separates decision tests from provider interaction without requiring Chronicle or changing the query into a write. Command operations are not available on the JVM; keep the direct repository write shown here, and test the decision through [in-process command scenarios](/arc/backend/kotlin/guides/testing/).
 </Aside>
 
 <Aside type="note" title="Live means a configured observation source">
@@ -64,7 +63,7 @@ With `Cratis.Arc.ProxyGenerator.Build` installed and `CratisProxiesOutputPath` s
 Run `./gradlew generateArcProxies` (the task is also attached to `build`). KSP writes the Arc artifact manifest at compile time and the `io.cratis.arc` plugin's generator turns it into the same TypeScript. Point `cratisArc.proxies.outputDirectory` at your frontend source folder — an unset output directory skips generation, exactly as an unset `CratisProxiesOutputPath` does. Route settings exist on both the build side (`cratisArc.endpoints.*`) and the runtime side (`cratis.arc.endpoints.*`) and must agree; the starter fails startup when they do not. See [Generate TypeScript proxies](/arc/backend/kotlin/guides/typescript-proxies/).
 </Aside>
 
-If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/csharp/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
+On TypeScript, run `npm run generate` from the application built in [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/); its `arc-proxygenerator` script writes generated metadata and frontend proxies. Regenerate after changing a backend artifact. If you customize backend routes, mirror them in the [build-time proxy configuration](/arc/backend/csharp/proxy-generation/configuration/). Generated clients do not discover runtime route changes.
 
 ## Set up the browser project
 
@@ -131,7 +130,7 @@ export default defineConfig({
 
 The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
 
-Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default; the TypeScript standalone host shown in the backend tab uses **3000**. Point both proxy targets at that backend's loopback port (or set `server.port=5000` for Spring Boot), and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on all three backends.
+Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default; the [TypeScript standalone host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) uses **3000**. Point both proxy targets at that backend's loopback port (or set `server.port=5000` for Spring Boot), and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on all three backends.
 
 ## Read and write from React
 
@@ -239,7 +238,7 @@ declare module '@cratis/components/theme';
 
 This keeps side-effect checking on for every other import, so a mistyped package name still fails the type-check.
 
-Keep the backend running on the port your Vite proxy targets — 5000 for the ASP.NET Core host, 8080 for a default Spring Boot one. From another terminal in `Library/`, run:
+Keep the backend running on the port your Vite proxy targets — 5000 for ASP.NET Core, 8080 for default Spring Boot, or 3000 for the TypeScript standalone host. From another terminal in `Library/`, run:
 
 ```bash
 npx tsc --noEmit
@@ -258,30 +257,19 @@ These checks prove a command/query/persistence round trip. A successful build al
 
 ## Where type safety lives
 
-The accessor `i => i.name` is a property on the generated command, not a string. This illustrative pair shows the contract:
+The accessor `i => i.name` is a property on the generated command, not a string. This backend excerpt supplies that contract in each language:
 
-<FullStackTabs>
-  <Fragment slot="csharp">
-  ```csharp
-  [Command]
-  public record RegisterAuthor(AuthorId Id, AuthorName Name)
-  {
-      public Task Handle(IMongoCollection<Author> authors) =>
-          authors.InsertOneAsync(new Author(Id, Name));
-  }
-  ```
-  </Fragment>
-  <Fragment slot="typescript">
-  ```tsx
-  // Inside AddAuthor; id is the per-operation state declared above.
-  <CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" initialValues={{ id }}>
-      <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
-  </CommandDialog>
-  ```
-  </Fragment>
-</FullStackTabs>
+<ArcBackendTabs snippet="tutorial/first-slice/typed-command" />
 
-Rename `Name` in C#, regenerate, then run the frontend type-check. The old accessor fails compilation. Never repair this by editing generated code. The Kotlin and Java backends prove the same thing with the same TypeScript: rename `name` on the Kotlin command, run `./gradlew generateArcProxies`, and the accessor above stops compiling.
+The React fragment uses the generated proxy (the `id` state is initialized in `AddAuthor` above):
+
+```tsx
+<CommandDialog<RegisterAuthor> command={RegisterAuthor} title="Add author" initialValues={{ id }}>
+    <InputTextField<RegisterAuthor> value={i => i.name} title="Name" />
+</CommandDialog>
+```
+
+Rename `Name` in C# (or `name` on Kotlin, Java, or TypeScript), regenerate the proxies with `dotnet build -c Debug`, `./gradlew generateArcProxies`, or `npm run generate` respectively, then run the frontend type-check. The old accessor fails compilation. Never repair this by editing generated code.
 
 ## What you built
 

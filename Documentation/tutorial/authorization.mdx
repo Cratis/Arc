@@ -9,7 +9,7 @@ Our back office works, but it's wide open: anyone who can reach it can register 
 
 ## Prerequisites
 
-Continue with the standalone host from [chapter 1](/arc/tutorial/first-slice/). Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs` on C#; on the JVM, import `io.cratis.arc.authorization.Roles` in the files that use it. The TypeScript snippets import `roles` from `@cratis/arc.core`. This chapter uses the role name `Librarian`; it must match an authorization role on the authenticated principal. No identity-details provider is required.
+Continue with the standalone host from [chapter 1](/arc/tutorial/first-slice/); for TypeScript use the [standalone MongoDB host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end), retaining its tenant resolver when adding the development header handler. Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs` on C#; on the JVM, import `io.cratis.arc.authorization.Roles` in the files that use it. The TypeScript snippets import `roles` from `@cratis/arc.core`. This chapter uses the role name `Librarian`; it must match an authorization role on the authenticated principal. No identity-details provider is required.
 
 On C#, the first excerpt below also declares a one-member `LibraryRole` enum; put it in its own file, `src/LibraryRole.cs`, under `namespace Library;` so every feature folder can use it. The C# excerpts pass `nameof(LibraryRole.Librarian)`, which is still the string `"Librarian"`. Arc's [ARC0011 analyzer](/arc/backend/csharp/code-analysis/#arc0011-role-names) warns about string literals in `[Roles]`; with `nameof`, a mistyped role name is a compile error instead of a silent denial. The JVM and TypeScript snippets pass the same name as a string.
 
@@ -43,7 +43,7 @@ Arc checks `ClaimsPrincipal.IsInRole("Librarian")`. Configure your authenticatio
 
 The JVM asks the same question of an `ArcPrincipal`: a caller holds `Librarian` when one of its roles is that name, which is what a Spring Security `ROLE_Librarian` authority becomes once Arc drops the prefix. On TypeScript, the `microsoftIdentityPlatform()` development handler reads `Librarian` from the header principal's `userRoles`. An `IdentityDetailsProvider` plays the same enriching, non-granting role there as `IProvideIdentityDetails` does here.
 
-For this **loopback-only development checkpoint**, select the trusted-header adapter for your backend before building the host. The TypeScript builder registers its header handler directly; the JVM bridge needs an explicitly verified trusted ingress, not just a property toggle:
+For this **loopback-only development checkpoint**, select the trusted-header adapter for your backend before building the host. The TypeScript builder registers its header handler directly alongside the MongoDB host's tenant resolver; the JVM bridge needs an explicitly verified trusted ingress, not just a property toggle:
 
 <ArcBackendTabs snippet="tutorial/authorization/development-header-adapter" />
 

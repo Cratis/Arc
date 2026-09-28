@@ -512,6 +512,9 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         usings=(USING_REACTIVE, "using Microsoft.EntityFrameworkCore;"),
         prelude="public class LibraryDbContext : DbContext { public DbSet<Author> Authors => Set<Author>(); }",
     ),
+    "tutorial/first-slice/typed-command": SnippetContext(
+        kind="declaration", fixtures=("library",), usings=(USING_MONGO,),
+    ),
     "tutorial/first-slice/author-slice": SnippetContext(
         # The chapter's own RegisterAuthor and Author shadow the fixture's, which is the
         # point of the page - the reader is looking at the files they wrote.

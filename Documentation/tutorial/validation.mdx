@@ -50,14 +50,14 @@ A check-then-write has a race: two registrations can both pass validation. The v
 
 <Tabs syncKey="db">
 <TabItem label="MongoDB" icon="seti:db">
-In the .NET host, add the following block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`. On the JVM, add the Spring `AuthorIndexes` component after declaring `Author`, with `MongoTemplate` on the classpath; its constructor installs the unique index at startup. On TypeScript, call `ensureAuthorNameIndex` with the tenant's `MongoCollection<Author>` from the configured MongoDB host before accepting writes. The Arc validators do not create indexes:
+In the .NET host, add the following block to `Program.cs` after `app.UseCratisArc()` and before `RunAsync()`. On the JVM, add the Spring `AuthorIndexes` component after declaring `Author`, with `MongoTemplate` on the classpath; its constructor installs the unique index at startup. On TypeScript, after registering the artifacts, repository, and MongoDB in the [standalone host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end), replace that host's `builder.build()` / `app.run()` lines with `await startWithAuthorIndex(builder)`. The helper creates a scope for tenant `default`, resolves its `MongoCollection<Author>`, installs the index, disposes the scope, then runs the host. The Arc validators do not create indexes:
 
 <ArcBackendTabs snippet="tutorial/validation/mongodb-unique-index" />
 
 Restart the host and require index creation to succeed. Existing duplicate names must be resolved first; do not ignore an index-creation failure. The C# and TypeScript examples resolve stored field names through their serializers rather than guessing them; the Spring Data example uses its mapped `name` property.
 </TabItem>
 <TabItem label="EF Core" icon="seti:db">
-Install a unique constraint on the stored author name. On .NET merge the override into your existing `LibraryDbContext` (do not declare it twice); on the JVM replace the `AuthorRow` mapping from the relational slice with the constrained version. On TypeScript, replace your Drizzle `authors` table definition with the constrained version shown here and apply the updated SQL schema before accepting writes; the EF Core override does not configure it.
+Install a unique constraint on the stored author name. On .NET merge the override into your existing `LibraryDbContext` (do not declare it twice); on the JVM replace the `AuthorRow` mapping from the relational slice with the constrained version. On TypeScript, define your Drizzle `authors` table with the constrained version shown here (or add `.unique()` to your chapter-1 table) and apply the updated SQL schema before accepting writes; the EF Core override does not configure it.
 
 <ArcBackendTabs snippet="tutorial/validation/relational-unique-name" />
 
@@ -93,7 +93,7 @@ One rule on the value type, one rule on the command, and both ends of the app ho
 
 ## Verify the rejection paths
 
-Rebuild the backend to regenerate validation metadata — `dotnet build -c Debug`, or `./gradlew generateArcProxies` on the JVM — then run the frontend type-check/build. Open a new dialog: blank Name must keep confirmation disabled. Submit a new name successfully; open another dialog and submit that exact name again. Expect a server validation message and no additional row. Confirm the unique index/schema step succeeded separately — a friendly duplicate rejection alone does not prove concurrency protection.
+Rebuild the backend to regenerate validation metadata — `dotnet build -c Debug` on C#, `./gradlew generateArcProxies` on the JVM, or `npm run generate` on TypeScript — then run the frontend type-check/build. Open a new dialog: blank Name must keep confirmation disabled. Submit a new name successfully; open another dialog and submit that exact name again. Expect a server validation message and no additional row. Confirm the unique index/schema step succeeded separately — a friendly duplicate rejection alone does not prove concurrency protection.
 
 ## What you built
 
