@@ -114,9 +114,9 @@ public class AuthorizationEvaluator(
     /// Compares effective requirements by content so another declaration cannot reuse an authorization verdict.
     /// </summary>
     /// <remarks>
-    /// Requirements are combined with AND and each role list is any-of, so neither their order nor repeated roles change the verdict.
-    /// Repeated requirements must still match one for one. Scheme order is significant: it decides which authenticated identity
-    /// becomes the primary identity, including across requirements.
+    /// Roles-only requirements can be reordered and repeated roles do not change their verdict; repeated requirements
+    /// must still match one for one. The ordered policy and explicit scheme sequence across requirements is significant:
+    /// policy-resolved schemes can determine which authenticated identity becomes primary.
     /// </remarks>
     /// <param name="checkedDeclaration">The already evaluated requirements.</param>
     /// <param name="current">The requirements being checked now.</param>
@@ -130,8 +130,7 @@ public class AuthorizationEvaluator(
             return false;
         }
 
-        if (!checkedDeclaration.Requirements.SelectMany(requirement => requirement.AuthenticationSchemes)
-                .SequenceEqual(current.Requirements.SelectMany(requirement => requirement.AuthenticationSchemes), StringComparer.Ordinal))
+        if (!OrderedSchemesAndPolicies(checkedDeclaration).SequenceEqual(OrderedSchemesAndPolicies(current)))
         {
             return false;
         }
@@ -149,6 +148,22 @@ public class AuthorizationEvaluator(
         }
 
         return true;
+    }
+
+    static IEnumerable<(bool IsPolicy, string Name)> OrderedSchemesAndPolicies(AuthorizationDeclaration declaration)
+    {
+        foreach (var requirement in declaration.Requirements)
+        {
+            foreach (var scheme in requirement.AuthenticationSchemes)
+            {
+                yield return (false, scheme);
+            }
+
+            if (requirement.Policy is { } policy)
+            {
+                yield return (true, policy);
+            }
+        }
     }
 
     static bool SameRequirement(AuthorizationRequirement checkedRequirement, AuthorizationRequirement current) =>
