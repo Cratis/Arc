@@ -160,15 +160,13 @@ public class CommandPipeline(
     internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        var declarations = requestServices.GetService<AuthorizationDeclarations>();
-        if (declarations is null)
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
+        if (declaration is null)
         {
-            requestServices.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(
-                new InvalidAuthorizationConfiguration("Authorization declarations are unavailable."));
             return CommandResult.Unauthorized(GetCorrelationId());
         }
 
-        if (!declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+        if (!declaration.RequiresAsynchronousEvaluation)
         {
             return await ExecuteCore(command, requestServices, allowedSeverity, null, cancellationToken);
         }
@@ -200,15 +198,13 @@ public class CommandPipeline(
     internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        var declarations = requestServices.GetService<AuthorizationDeclarations>();
-        if (declarations is null)
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
+        if (declaration is null)
         {
-            requestServices.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(
-                new InvalidAuthorizationConfiguration("Authorization declarations are unavailable."));
             return CommandResult.Unauthorized(GetCorrelationId());
         }
 
-        if (!declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
+        if (!declaration.RequiresAsynchronousEvaluation)
         {
             return await ValidateCore(command, requestServices, allowedSeverity, null, cancellationToken);
         }
@@ -227,6 +223,21 @@ public class CommandPipeline(
         using var scope = scopeFactory.CreateScope();
         using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
         return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, cancellationToken);
+    }
+
+    static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services)
+    {
+        try
+        {
+            var declarations = services.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            return declarations.For(commandType);
+        }
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
+        {
+            services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
+            return null;
+        }
     }
 
     async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)

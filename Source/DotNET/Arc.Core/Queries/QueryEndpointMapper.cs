@@ -145,32 +145,14 @@ public static class QueryEndpointMapper
         {
             queryResult = await builtInPipeline.PerformHosted(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
         }
+        else if (!CanPerformWithCustomPipeline(context, performer, logger))
+        {
+            queryResult = QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
+        }
         else
         {
-            try
-            {
-                var declarations = context.RequestServices.GetService<AuthorizationDeclarations>() ??
-                    throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-                var target = QueryAuthorizationTarget.For(performer, declarations);
-                var declaration = target is System.Reflection.MethodInfo method ? declarations.For(method) : declarations.For((Type)target);
-                if (declaration.RequiresAsynchronousEvaluation)
-                {
-                    throw new InvalidAuthorizationConfiguration($"Query '{performer.FullyQualifiedName}' requires an Arc pipeline that prepares authorization before execution.");
-                }
-
-                using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
-                queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
-            }
-            catch (InvalidAuthorizationConfiguration exception)
-            {
-                context.RequestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
-                queryResult = QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
-            }
-            catch (AmbiguousAuthorizationLevel exception)
-            {
-                context.RequestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
-                queryResult = QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
-            }
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
+            queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
         }
 
         using var ownedScope = queryResult.OwnedScope;
@@ -220,6 +202,28 @@ public static class QueryEndpointMapper
         var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady);
         context.SetStatusCode(statusCode);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
+    }
+
+    static bool CanPerformWithCustomPipeline(IHttpRequestContext context, IQueryPerformer performer, ILogger logger)
+    {
+        try
+        {
+            var declarations = context.RequestServices.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            var target = QueryAuthorizationTarget.For(performer, declarations);
+            var declaration = target is System.Reflection.MethodInfo method ? declarations.For(method) : declarations.For((Type)target);
+            if (declaration.RequiresAsynchronousEvaluation)
+            {
+                throw new InvalidAuthorizationConfiguration($"Query '{performer.FullyQualifiedName}' requires an Arc pipeline that prepares authorization before execution.");
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
+        {
+            logger.AuthorizationConfigurationFailed(exception);
+            return false;
+        }
     }
 
     static bool IsGet(IQueryRequestReader reader) => reader.HttpMethod.Equals("GET", StringComparison.OrdinalIgnoreCase);
