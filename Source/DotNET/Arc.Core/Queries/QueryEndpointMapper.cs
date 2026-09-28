@@ -147,18 +147,30 @@ public static class QueryEndpointMapper
         }
         else
         {
-            if (context.RequestServices.GetService<AuthorizationDeclarations>() is { } declarations)
+            try
             {
+                var declarations = context.RequestServices.GetService<AuthorizationDeclarations>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
                 var target = QueryAuthorizationTarget.For(performer, declarations);
                 var declaration = target is System.Reflection.MethodInfo method ? declarations.For(method) : declarations.For((Type)target);
                 if (declaration.RequiresAsynchronousEvaluation)
                 {
                     throw new InvalidAuthorizationConfiguration($"Query '{performer.FullyQualifiedName}' requires an Arc pipeline that prepares authorization before execution.");
                 }
-            }
 
-            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
-            queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
+                using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
+                queryResult = await queryPipeline.Perform(performer.FullyQualifiedName, request.Arguments, request.Paging, request.Sorting, context.RequestServices, context.RequestAborted);
+            }
+            catch (InvalidAuthorizationConfiguration exception)
+            {
+                context.RequestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
+                queryResult = QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
+            }
+            catch (AmbiguousAuthorizationLevel exception)
+            {
+                context.RequestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
+                queryResult = QueryResult.Unauthorized(context.RequestServices.GetRequiredService<ICorrelationIdAccessor>().Current);
+            }
         }
 
         using var ownedScope = queryResult.OwnedScope;
