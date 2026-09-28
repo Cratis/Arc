@@ -20,7 +20,11 @@ public class when_authorization_evaluation_is_unavailable : Specification
             _legacyInvoked = true;
             return true;
         });
-        await using var services = new ServiceCollection().BuildServiceProvider();
+        await using var services = new ServiceCollection()
+            .AddSingleton(new AuthorizationDeclarations(
+                new KnownInstancesOf<IAnonymousEvaluator>([]),
+                new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])))
+            .BuildServiceProvider();
         var context = new CommandContext(CorrelationId.New(), typeof(ProtectedCommand), new ProtectedCommand(), [], new CommandContextValues(), null, null, services);
         _error = await Catch.Exception(() => new AuthorizationFilter(allow).OnExecution(context));
     }

@@ -37,7 +37,7 @@ public class AuthorizationFilter(IAuthorizationEvaluator authorizationHelper) : 
                 allowed = authorizationHelper.IsAuthorized(context.Type);
             }
         }
-        catch (AsynchronousAuthorizationRequired) when (context.ServiceProvider is null)
+        catch (AsynchronousAuthorizationRequired)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             return CommandResult.Unauthorized(context.CorrelationId);

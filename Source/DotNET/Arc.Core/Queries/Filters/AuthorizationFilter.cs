@@ -35,34 +35,34 @@ public class AuthorizationFilter(IQueryPerformerProviders queryPerformerProvider
         }
 
         bool allowed;
-        if (context.ServiceProvider is { } services)
+        try
         {
-            var declarations = services.GetService<AuthorizationDeclarations>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
-            var evaluation = services.GetService<AuthorizationEvaluation>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
-            var target = QueryAuthorizationTarget.For(performer, declarations);
-            Func<bool>? legacyVerdict = performer is IFrameworkAuthorizationQueryTarget { HasIndependentLegacyVerdict: false }
-                ? null
-                : () => performer.IsAuthorized(context);
-            allowed = await evaluation.IsAuthorized(
-                target,
-                context,
-                services,
-                context.CancellationToken,
-                legacyVerdict);
-        }
-        else
-        {
-            try
+            if (context.ServiceProvider is { } services)
+            {
+                var declarations = services.GetService<AuthorizationDeclarations>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+                var evaluation = services.GetService<AuthorizationEvaluation>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
+                var target = QueryAuthorizationTarget.For(performer, declarations);
+                Func<bool>? legacyVerdict = performer is IFrameworkAuthorizationQueryTarget { HasIndependentLegacyVerdict: false }
+                    ? null
+                    : () => performer.IsAuthorized(context);
+                allowed = await evaluation.IsAuthorized(
+                    target,
+                    context,
+                    services,
+                    context.CancellationToken,
+                    legacyVerdict);
+            }
+            else
             {
                 allowed = performer.IsAuthorized(context);
             }
-            catch (AsynchronousAuthorizationRequired)
-            {
-                context.CancellationToken.ThrowIfCancellationRequested();
-                return QueryResult.Unauthorized(context.CorrelationId);
-            }
+        }
+        catch (AsynchronousAuthorizationRequired)
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            return QueryResult.Unauthorized(context.CorrelationId);
         }
 
         context.CancellationToken.ThrowIfCancellationRequested();
