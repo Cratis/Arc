@@ -46,7 +46,7 @@ The read model is just the book document — it carries the `AuthorId` it belong
 
 <ArcBackendTabs snippet="tutorial/books-and-relationships/books-for-author" />
 
-The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, while the JVM passes Spring Data `Criteria` naming the stored field. Both return a stream — `ISubject<…>` or a `Flow<List<…>>` — which is what makes the query live.
+The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, the JVM passes Spring Data `Criteria` naming the stored field, and TypeScript's MongoDB repository observes a filter on the collection's mapped `authorId` field. Each returns a stream — `ISubject<…>`, `Flow<List<…>>`, or `ObservableSource<Book[]>` — which is what makes the query live. On the TypeScript relational branch, the Drizzle repository uses `eq(books.authorId, authorId.value)` and announces changes after committed writes.
 
 **On the relational branch**, read from the configured relational store instead:
 
@@ -158,7 +158,7 @@ export const App = () => (
 
 ## Check the relationship
 
-Click **Add book** beside one author, add a book, then open the dialog again to add a second book. Verify that their ids differ and only that author's list grows. Another author's list should remain unchanged. Run `npx tsc --noEmit` and `npx vite build` from the frontend project root: `BooksForAuthor.use({ authorId })` requires a parameter object, not a positional id or a string conversion.
+Click **Add book** beside one author, add a book, then open the dialog again to add a second book. Verify that their ids differ and only that author's list grows. Another author's list should remain unchanged. Run `npx tsc -p tsconfig.web.json --noEmit` (or `npx tsc6 -p tsconfig.web.json --noEmit` with the TypeScript backend) and `npx vite build` from the frontend project root: `BooksForAuthor.use({ authorId })` requires a parameter object, not a positional id or a string conversion.
 
 ## What you built
 

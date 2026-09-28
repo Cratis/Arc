@@ -9,7 +9,7 @@ We keep saying the catalog "stays live." This chapter makes that concrete — an
 
 ## Why the screen already moves
 
-Go back to every query we've written: each returns `…Observe(…)`, not a one-shot list. That `ISubject<…>` is a stream. On the C# side, Arc serves it as an observable query; on the React side, the generated `.use()` hook **subscribes** to it. So the data flow isn't "fetch once and render" — it's a standing subscription:
+Go back to every query we've written: each observes storage rather than returning a one-shot list. The C# `ISubject<…>`, JVM `Flow<List<…>>`, and TypeScript `ObservableSource<…>` all expose streams. Arc serves each as an observable query; on the React side, the generated `.use()` hook **subscribes** to it. So the data flow isn't "fetch once and render" — it's a standing subscription:
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
 When a command writes and the configured observation source notifies, the observable query publishes updated data to subscribed React components, which re-render. Open the app in two browser tabs, add a book in one, and watch it appear in the other — you wrote none of that plumbing. It falls out of returning `Observe()` and calling `.use()`.
 
 <Aside type="note" title="Under the hood">
-The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, MongoDB uses [change streams](/arc/backend/csharp/mongodb/observing-collections/) on a replica set or supported sharded deployment. An [observed `DbSet`](/arc/backend/csharp/entity-framework/observing/) receives in-process notifications from the configured `SaveChanges` interceptor. SQLite relies on that path only; SQL Server/PostgreSQL cross-process detection requires their database notification setup. If database notification setup fails, EF observation can fall back to in-process-only behavior; inspect server logs rather than assuming external writes are visible. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/csharp/queries/using-observable-queries-with-curl/).
+The subscription rides Server-Sent Events: the browser holds an open connection and Arc pushes each new value down it. You don't manage the connection, and you don't poll. On the backend, MongoDB uses [change streams](/arc/backend/csharp/mongodb/observing-collections/) on a replica set or supported sharded deployment (including the TypeScript MongoDB adapter). An [observed `DbSet`](/arc/backend/csharp/entity-framework/observing/) receives in-process notifications from the configured `SaveChanges` interceptor. SQLite relies on that path only; SQL Server/PostgreSQL cross-process detection requires their database notification setup. If database notification setup fails, EF observation can fall back to in-process-only behavior; inspect server logs rather than assuming external writes are visible. If you ever want to watch the raw stream, you can — see [observable queries with cURL](/arc/backend/csharp/queries/using-observable-queries-with-curl/).
 </Aside>
 
 ## Verify the scope of observation
@@ -38,7 +38,7 @@ Nothing special — just the return type. A one-shot query returns the data:
 
 <ArcBackendTabs snippet="tutorial/real-time/one-shot-query" />
 
-Make it return a stream instead — an `ISubject<…>` on C#, a `Flow<List<…>>` on the JVM — and the exact same method becomes a live subscription. The proxy and the React `.use()` adapt automatically, and the frontend code is identical for both backends:
+Make it return a stream instead — an `ISubject<…>` on C#, a `Flow<List<…>>` on the JVM, or an `ObservableSource<Author[]>` on TypeScript — and the method becomes a live subscription. The proxy and the React `.use()` adapt automatically, and the frontend code is identical for every backend:
 
 <ArcBackendTabs snippet="tutorial/real-time/observable-query" />
 

@@ -74,12 +74,14 @@ npm init -y
 npm pkg set type=module
 npm install react@^19 react-dom@^19 @cratis/fundamentals@^7.10.3 @cratis/arc @cratis/arc.react \
   @cratis/components@^4 reflect-metadata@0.2.2 tsyringe@4.10.0
-npm install --save-dev vite typescript @types/react @types/react-dom
+npm install --save-dev vite @types/react @types/react-dom
 ```
+
+For a .NET or JVM-only project without TypeScript installed yet, also run `npm install --save-dev typescript`. If you followed the TypeScript backend setup, **keep its existing TypeScript 6 compiler alias** (`tsc6`); installing plain `typescript` here would replace it.
 
 `type=module` lets Vite load `vite.config.ts` as an ES module without a CommonJS warning. Use Node.js supported by your chosen Vite release. Keep `@cratis/arc` and `@cratis/arc.react` on the same version used by your generated proxies, within Components' peer range (`>=20.3.1 <23`). The command installs Components and its required peers; this dialog needs neither a separate UI kit nor the optional `pixi.js` peer used by spatial components. Components is required for this chapter's `CommandDialog`, not for Arc itself. See [Components setup](/components/getting-started/) for other installation options.
 
-Create `tsconfig.json`:
+If you followed the TypeScript backend setup, **keep its `tsconfig.json`**: the generator's `--project` points to it, and its `main.ts` and `Features/**/*.ts` entries emit the backend's `dist/main.js`. Add a separate `tsconfig.web.json` for Vite instead. The .NET and JVM projects can also use this separate frontend config:
 
 ```json
 {
@@ -94,11 +96,14 @@ Create `tsconfig.json`:
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "Features/**/*.proxy.ts", "Features/**/*.tsx"]
 }
 ```
+
+The `Features` entries type-check the TypeScript backend's co-located browser proxies without adding them to its server build. Keep `generate.mjs` on `--project ./tsconfig.json`, **not** `tsconfig.web.json`; the latter has no backend artifacts.
 
 Create `index.html` at the project root:
 
@@ -241,12 +246,12 @@ This keeps side-effect checking on for every other import, so a mistyped package
 Keep the backend running on the port your Vite proxy targets — 5000 for ASP.NET Core, 8080 for default Spring Boot, or 3000 for the TypeScript standalone host. From another terminal in `Library/`, run:
 
 ```bash
-npx tsc --noEmit
+npx tsc -p tsconfig.web.json --noEmit
 npx vite build
 npx vite
 ```
 
-Open `http://localhost:5173`. The first two commands check TypeScript and the production bundle; only the following browser checks prove the round trip:
+For the TypeScript backend setup, use `npx tsc6 -p tsconfig.web.json --noEmit` in place of `npx tsc`, keeping `npm run generate` on the original backend `tsconfig.json` before building the browser project. Open `http://localhost:5173`. The first two commands check TypeScript and the production bundle; only the following browser checks prove the round trip:
 
 1. Open the author list and add an author with a nonblank name.
 2. Confirm that the list displays the saved name without refresh.

@@ -12,18 +12,18 @@ There are two different kinds of "no" here, and Arc handles them in two differen
 - **"That input is malformed."** A blank name is wrong on its face — you don't need to look at anything else to know it. That's a *validation* rule, and it belongs on the value.
 - **"That input collides with what already exists."** A duplicate name is only wrong relative to the rest of the system. That's a *business rule*, and it needs to consult state.
 
-Let's add both. This chapter extends the files and imports from [chapter 1](/arc/tutorial/first-slice/). Put each validator in its own file under `src/Authors/` with `namespace Library.Authors;`; choose the same database branch. On the JVM, put each validator in its own file in the same package as the command and mark it `@Component` so Spring registers it. Name comparison is exact in this lesson, not case-folded or normalized.
+Let's add both. This chapter extends the files and imports from [chapter 1](/arc/tutorial/first-slice/). On C#, put each validator in its own file under `src/Authors/` with `namespace Library.Authors;`; choose the same database branch. On the JVM, put each validator in its own file in the same package as the command and mark it `@Component` so Spring registers it. On TypeScript, put the validators under the `Features/` root used by both `discover()` and the generator; regenerate the metadata so the host discovers them. Name comparison is exact in this lesson, not case-folded or normalized.
 
 ## Validate the value, once
 
 Your first instinct might be to validate `Name` inside a `RegisterAuthor` validator. But think about it: *every* command that takes an `AuthorName` wants the same guarantee — never blank. Arc lets you state that rule **on the value type itself**, so it's enforced everywhere an `AuthorName` is used, and you never write it twice.
 
 
-1. **Write a `ConceptValidator` for the value type.** On C# it reaches into the concept's underlying `Value` and applies ordinary [FluentValidation](https://docs.fluentvalidation.net/) rules; on the JVM it implements Arc's `ConceptValidator` interface and reads the same underlying value through `value()`:
+1. **Write a `ConceptValidator` for the value type.** On C# it reaches into the concept's underlying `Value` and applies ordinary [FluentValidation](https://docs.fluentvalidation.net/) rules; on the JVM it implements Arc's `ConceptValidator` interface and reads the same underlying value through `value()`; on TypeScript the rule targets `name.value` with `notEmpty()`:
 
    <ArcBackendTabs snippet="tutorial/validation/author-name-rule" />
 
-   That's the whole change. C# discovers the validator by convention, with no registration at all; the JVM one is an ordinary Spring bean, so `@Component` is all the wiring it needs. From then on, any command carrying an `AuthorName` rejects a blank one before the handler ever runs.
+   That's the whole change. C# discovers the validator by convention, with no registration at all; the JVM one is an ordinary Spring bean, so `@Component` is all the wiring it needs. TypeScript discovers the decorated validator under `Features/` when you regenerate metadata and restart the host. From then on, any command carrying an `AuthorName` rejects a blank one before the handler ever runs.
 
 
 ## Reject the duplicate against existing state
@@ -31,13 +31,13 @@ Your first instinct might be to validate `Name` inside a `RegisterAuthor` valida
 Uniqueness is the harder kind of "no", because it depends on what's already there. Input validation can't answer it — you have to look in the database. That's a job for a **`CommandValidator`**, which validates a whole command and, because Arc constructs it from the container, can take the dependencies it needs to check state.
 
 
-1. **Write a `CommandValidator` that asks the database.** Both backends take the dependency they need and look for an author already carrying this name; if one exists, the command is rejected:
+1. **Write a `CommandValidator` that asks the database.** Every backend takes the dependency it needs and looks for an author already carrying this name; if one exists, the command is rejected:
 
    <ArcBackendTabs snippet="tutorial/validation/duplicate-name-rule" />
 
-   The two shapes genuinely differ, and it is worth seeing why. C# expresses the lookup as FluentValidation's `MustAsync` predicate. Arc.Kotlin has no async predicate rule to reach for — its shared fluent surface is deliberately limited to literal rules — so the JVM sibling is the plain imperative `CommandValidator` bean, whose `validate` is already a suspending function and can simply await the repository. Both return the same rejection to the same caller.
+   The two shapes genuinely differ, and it is worth seeing why. C# expresses the lookup as FluentValidation's `MustAsync` predicate. Arc.Kotlin has no async predicate rule to reach for — its shared fluent surface is deliberately limited to literal rules — so the JVM sibling is the plain imperative `CommandValidator` bean, whose `validate` is already a suspending function and can simply await the repository. TypeScript uses `mustAsync(async (_name, command, signal) => !await authors.existsByName(command.name, signal))` on the command's name; its `@injectable(AuthorRepository)` supplies the application-owned repository token. Every backend returns the same rejection to the caller.
 
-   The handler doesn't change — `Handle()` on C#, `handle` on the JVM, both still the clean write from chapter 1. The validator runs first; if it fails, the handler never executes.
+   The handler doesn't change — `Handle()` on C# and `handle` on the JVM and TypeScript still perform the chapter-1 write. The validator runs first; if it fails, the handler never executes.
 
    **On the relational branch**, the .NET validator injects the context instead of the collection. The JVM and TypeScript validators still ask their repository; its persistence implementation supplies the relational lookup:
 
@@ -75,10 +75,10 @@ The unique index prevents the second write, but this lesson does not translate a
 
 Here's the part that feels like a gift. You didn't touch the React code from chapter 1 — but the form now validates.
 
-When you wrote the `ConceptValidator`, the C# proxy generator extracted that rule into the generated TypeScript too, so the `CommandDialog` runs it **on the client** and disables the confirm button on a blank name — no round trip. The uniqueness rule can't run on the client (it has to look in the database), so it runs on the server; when it rejects, the message comes back through the same proxy and `CommandDialog` renders it against the form — *"An author with that name is already registered."* — because the dialog wires command results to fields for you.
+When you wrote the `ConceptValidator`, the C# and TypeScript proxy generators extracted its portable `notEmpty` rule into the generated TypeScript too, so the `CommandDialog` runs it **on the client** and disables the confirm button on a blank name — no round trip. The uniqueness rule can't run on the client (it has to look in the database), so it runs on the server; when it rejects, the message comes back through the same proxy and `CommandDialog` renders it against the form — *"An author with that name is already registered."* — because the dialog wires command results to fields for you.
 
 :::caution[Client-side rules are declared differently on the JVM]
-The server half of this is identical on both backends, and so is the form: a rejected command comes back through the same generated proxy and lands on the same field. The **client** half is not. An imperative Kotlin `ConceptValidator` or `CommandValidator` is server-only; registering the bean does not invent a TypeScript rule. To have the blank-name rule run in the browser too, declare it as a literal rule in a [`FluentModelValidator`](/arc/backend/kotlin/guides/validation/), which KSP does extract into the generated validator. That surface is bounded on purpose — literal string, collection, and numeric rules, no predicates and nothing asynchronous — so a rule like uniqueness stays server-side on both backends anyway.
+The server half of this works the same across backends, and so does the form: a rejected command comes back through the same generated proxy and lands on the same field. The **client** half is not. An imperative Kotlin `ConceptValidator` or `CommandValidator` is server-only; registering the bean does not invent a TypeScript rule. To have the blank-name rule run in the browser too, declare it as a literal rule in a [`FluentModelValidator`](/arc/backend/kotlin/guides/validation/), which KSP does extract into the generated validator. That surface is bounded on purpose — literal string, collection, and numeric rules, no predicates and nothing asynchronous — so a rule like uniqueness stays server-side on every backend anyway.
 :::
 
 This is a fragment of `AddAuthor` from chapter 1; retain its imports and per-operation `const [id] = useState(() => Guid.create())` initialization. Mount a new dialog instance for each registration.
@@ -97,7 +97,7 @@ Rebuild the backend to regenerate validation metadata — `dotnet build -c Debug
 
 ## What you built
 
-- An `AuthorNameValidator` that guards the **value type**, enforced everywhere an `AuthorName` is used — and, on C#, also run client-side through the generated proxy.
+- An `AuthorNameValidator` that guards the **value type**, enforced everywhere an `AuthorName` is used — and, on C# and TypeScript, also run client-side through the generated proxy.
 - A `RegisterAuthorValidator` **business rule** that checks existing state in the database, with a unique index behind it for the hard guarantee.
 - A React form that surfaces every server rejection with no extra frontend code, plus the client-side rules the backend chose to share.
 
