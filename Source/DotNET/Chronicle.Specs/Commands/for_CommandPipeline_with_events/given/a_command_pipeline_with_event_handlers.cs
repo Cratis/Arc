@@ -176,6 +176,9 @@ public class a_command_pipeline_with_event_handlers : Specification
         return activitySource;
     }
 
+    [EventType("Arc.Chronicle.Specs.CommandPipeline.TestEvent")]
     public record TestEvent(string Name);
+
+    [EventType("Arc.Chronicle.Specs.CommandPipeline.AnotherTestEvent")]
     public record AnotherTestEvent(int Value);
 }

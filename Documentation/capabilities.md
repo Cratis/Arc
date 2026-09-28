@@ -6,9 +6,17 @@ description: Which Arc capabilities exist in each backend implementation - C#, K
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-Arc has two backend implementations: [C# on ASP.NET Core](/arc/backend/csharp/), and
+This matrix covers two backend implementations: [C# on ASP.NET Core](/arc/backend/csharp/), and
 [Kotlin and Java on Spring Boot](/arc/backend/kotlin/). Use this page to check whether a
 capability exists in the language you work in before you design around it.
+
+:::note[Arc for TypeScript]
+[Arc for TypeScript](/arc/backend/typescript/), a third implementation for Node.js, is in
+source preview and is not in this matrix: a column here needs evidence behind every cell.
+Its [capability reference](/arc/backend/typescript/reference/capabilities/) gives the status
+of each capability, the spec or check that proves it, and where it deliberately differs from
+Arc on .NET. It makes no full-parity claim.
+:::
 
 Each cell was checked against that implementation's source, public API, and tests, not
 against its documentation. A cell says a capability exists. It does not say the two
@@ -184,4 +192,5 @@ Admission control and request limits are compared in
 
 - [HTTP contract](http-contract.md) - the wire protocol both implementations speak
 - [JVM parity reference](/arc/backend/kotlin/reference/parity/) - the evidence behind the Kotlin and Java columns
+- [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/) - status and evidence for Arc for TypeScript
 - [C# backend](/arc/backend/csharp/) and [Kotlin and Java backend](/arc/backend/kotlin/)

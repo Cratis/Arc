@@ -294,6 +294,10 @@ USING_ARC_CHRONICLE_TESTING = "using Cratis.Arc.Chronicle.Testing.Commands;"
 # extension. Unlisted snippets compile as declarations with DEFAULT_USINGS only;
 # add an entry here when a snippet needs more context than that.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "guides/chronicle/event-from-command": SnippetContext(
+        kind="declaration",
+        fixtures=("library",),
+    ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
         fixtures=("loan",),
@@ -394,18 +398,9 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="declaration",
         fixtures=("ledger",),
     ),
-    "scenarios/use-current-state-in-a-command/seed-events": SnippetContext(
+    "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
         # The Chronicle testing surface lives in Cratis.Arc.Chronicle.Testing; the generated
         # enclosing record stands in for the spec class the fragment is a member of.
-        kind="member",
-        fixtures=("ledger",),
-        usings=(USING_ARC_CHRONICLE_TESTING, USING_ARC_TESTING),
-        prelude="""
-            readonly CommandScenario<Withdraw> _scenario = new();
-            readonly AccountId _accountId = new(Guid.NewGuid());
-        """,
-    ),
-    "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
         kind="member",
         fixtures=("ledger",),
         usings=(USING_ARC_CHRONICLE_TESTING, USING_ARC_TESTING),
