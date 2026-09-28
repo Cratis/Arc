@@ -19,4 +19,9 @@ public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo T
     /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
+    /// Gets the ambient principal accessor for per-policy identity checks when evaluating a pipeline verdict.
+    /// </summary>
+    internal ICurrentPrincipalAccessor? PrincipalAccessor { get; init; }
 }

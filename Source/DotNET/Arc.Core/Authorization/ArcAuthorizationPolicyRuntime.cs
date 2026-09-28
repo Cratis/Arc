@@ -82,10 +82,18 @@ public class ArcAuthorizationPolicyRuntime(IEnumerable<AuthorizationPolicyRegist
             foreach (var requirement in requirements.Where(requirement => !string.IsNullOrWhiteSpace(requirement.Policy)))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                var checkpoint = new AuthorizationPolicyIdentityCheckpoint(context, services);
                 var policy = (IAuthorizationPolicy)services.GetRequiredService(runtime.PolicyFor(requirement.Policy!).PolicyType);
-                if (!await policy.IsAuthorized(context, cancellationToken))
+                if (!checkpoint.IsUnchanged())
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    return false;
+                }
+
+                var allowed = await policy.IsAuthorized(context, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!checkpoint.IsUnchanged() || !allowed)
+                {
                     return false;
                 }
             }
