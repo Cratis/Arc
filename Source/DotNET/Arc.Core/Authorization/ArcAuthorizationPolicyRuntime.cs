@@ -56,11 +56,21 @@ public class ArcAuthorizationPolicyRuntime(IEnumerable<AuthorizationPolicyRegist
         return matches.Length == 1;
     }
 
+    /// <summary>Detects a native name that would conflict with an ASP.NET Core anonymous opt-in.</summary>
+    /// <param name="name">The ASP.NET Core policy name.</param>
+    /// <returns>Whether a native policy has this name, ignoring case.</returns>
+    internal bool HasPolicyIgnoringCase(string name) =>
+        _registrations.Any(registration => string.Equals(registration.Name, name, StringComparison.OrdinalIgnoreCase));
+
     AuthorizationPolicyRegistration PolicyFor(string name) =>
         _registrations.Single(registration => registration.Name == name);
 
-    sealed class NativeResolution(ArcAuthorizationPolicyRuntime runtime, AuthorizationRequirement[] requirements) : IAuthorizationPolicyResolution
+    sealed class NativeResolution(ArcAuthorizationPolicyRuntime runtime, AuthorizationRequirement[] requirements) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution
     {
+        public bool EvaluatesAnonymous => requirements.Length > 0 && requirements.All(requirement =>
+            requirement.AnyOfRoles.Count == 0 && requirement.AuthenticationSchemes.Count == 0 &&
+            !string.IsNullOrWhiteSpace(requirement.Policy) && runtime.PolicyFor(requirement.Policy).EvaluatesAnonymous);
+
         public Task<ClaimsPrincipal?> SelectPrincipal(ClaimsPrincipal? principal, IServiceProvider services, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

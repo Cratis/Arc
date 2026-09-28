@@ -161,9 +161,9 @@ public static class CommandEndpointMapper
                             ? await builtInPipeline.ValidateHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted)
                             : await builtInPipeline.ExecuteHosted(command!, context.RequestServices, allowedSeverity, context.RequestAborted);
                     }
-                    else if (context.RequestServices.GetRequiredService<AuthorizationDeclarations>().For(commandType).RequiresAsynchronousEvaluation)
+                    else if (!CanExecuteWithCustomPipeline(context.RequestServices, commandType, logger))
                     {
-                        throw new InvalidAuthorizationConfiguration($"Command '{commandType}' requires an Arc pipeline that can prepare authorization before execution.");
+                        commandResult = CommandResult.Unauthorized(correlationIdAccessor.Current);
                     }
                     else
                     {
@@ -185,5 +185,25 @@ public static class CommandEndpointMapper
                 await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
             metadata);
+    }
+
+    static bool CanExecuteWithCustomPipeline(IServiceProvider services, Type commandType, ILogger logger)
+    {
+        try
+        {
+            var declarations = services.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            if (declarations.For(commandType).RequiresAsynchronousEvaluation)
+            {
+                throw new InvalidAuthorizationConfiguration($"Command '{commandType}' requires an Arc pipeline that can prepare authorization before execution.");
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
+        {
+            logger.AuthorizationConfigurationFailed(exception);
+            return false;
+        }
     }
 }

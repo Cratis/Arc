@@ -20,6 +20,9 @@ public class with_a_concept_argument_the_container_can_resolve : given.a_query_p
         // as a service even though it cannot construct one from a bare decimal.
         _services = new ServiceCollection()
             .AddTransient<Rate>()
+            .AddSingleton(new AuthorizationDeclarations(
+                new KnownInstancesOf<IAnonymousEvaluator>([]),
+                new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])))
             .BuildServiceProvider();
         _serviceProvider = _services;
 

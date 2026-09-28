@@ -160,7 +160,13 @@ public class CommandPipeline(
     internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        if (!requestServices.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
+        if (declaration is null)
+        {
+            return CommandResult.Unauthorized(GetCorrelationId());
+        }
+
+        if (!declaration.RequiresAsynchronousEvaluation)
         {
             return await ExecuteCore(command, requestServices, allowedSeverity, null, cancellationToken);
         }
@@ -192,7 +198,13 @@ public class CommandPipeline(
     internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        if (!requestServices.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
+        if (declaration is null)
+        {
+            return CommandResult.Unauthorized(GetCorrelationId());
+        }
+
+        if (!declaration.RequiresAsynchronousEvaluation)
         {
             return await ValidateCore(command, requestServices, allowedSeverity, null, cancellationToken);
         }
@@ -213,11 +225,27 @@ public class CommandPipeline(
         return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, cancellationToken);
     }
 
+    static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services)
+    {
+        try
+        {
+            var declarations = services.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            return declarations.For(commandType);
+        }
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
+        {
+            services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
+            return null;
+        }
+    }
+
     async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)
     {
         try
         {
-            var authorization = await services.GetRequiredService<AuthorizationEvaluation>().Prepare(command.GetType(), services, token);
+            var authorization = await (services.GetService<AuthorizationEvaluation>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.")).Prepare(command.GetType(), services, token);
             return (authorization, null);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -268,16 +296,19 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
+            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
             var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && serviceProvider.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
+            if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
             {
-                preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
+                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
                     .Prepare(command.GetType(), serviceProvider, cancellationToken);
             }
 
             if (preparedAuthorization is not null)
             {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
                 {
                     return CommandResult.Unauthorized(correlationId);
                 }
@@ -290,7 +321,7 @@ public class CommandPipeline(
             }
 
             identityLease.Attach(AuthorizationCommandIdentity.Enter(
-                preparedAuthorization?.SelectedPrincipal ?? serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
+                preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
                 scopeFactory));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
 
@@ -356,6 +387,24 @@ public class CommandPipeline(
             commandContext = commandContext with { Dependencies = resolution.Arguments };
 
             cancellationToken.ThrowIfCancellationRequested();
+
+            // A custom attribute evaluator can declare a policy without a recognized Authorize attribute, so
+            // preparation may not have run. An omitted or replaced authorization filter must not turn that into
+            // permission to invoke the handler. Re-resolve even after a successful no-policy filter: a custom
+            // evaluator can change requirements on the same target between the filter and invocation. A cached
+            // no-policy marker would hide that change. This repeats declaration lookup, not policy evaluation.
+            var currentDeclaration = (serviceProvider.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(command.GetType());
+            var missingVerdict = commandContext.AuthorizedExecution is null &&
+                (preparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true ||
+                 currentDeclaration.RequiresAsynchronousEvaluation);
+            if (missingVerdict ||
+                (commandContext.AuthorizedExecution is { } verdict &&
+                 !verdict.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(), currentDeclaration)))
+            {
+                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+            }
+
             var response = await commandHandler.Handle(commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
@@ -371,13 +420,13 @@ public class CommandPipeline(
                 }
 
                 frame.Validate(scopes);
-                var declarations = values.SelectMany<object, ICommandOperation>(value => value switch
+                var operationDeclarations = values.SelectMany<object, ICommandOperation>(value => value switch
                 {
                     ICommandOperation operation => [operation],
                     CommandOperations batch => batch,
                     _ => []
                 });
-                operations = new CommandOperationExecution(declarations, serviceProvider, frame);
+                operations = new CommandOperationExecution(operationDeclarations, serviceProvider, frame);
                 failureSource = CommandOperationFailureSource.ResponseHandling;
                 var processed = await ProcessOperationResponse(values, commandContext, correlationId, result);
                 commandContext = processed.CommandContext;
@@ -488,16 +537,19 @@ public class CommandPipeline(
                 return CommandResult.MissingHandler(correlationId, command.GetType());
             }
 
+            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
             var preparedAuthorization = suppliedAuthorization;
-            if (preparedAuthorization is null && serviceProvider.GetRequiredService<AuthorizationDeclarations>().For(command.GetType()).RequiresAsynchronousEvaluation)
+            if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
             {
-                preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
+                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
                     .Prepare(command.GetType(), serviceProvider, cancellationToken);
             }
 
             if (preparedAuthorization is not null)
             {
-                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal))
+                if (!AuthorizationEvaluator.CheckRoles(preparedAuthorization.Declaration, preparedAuthorization.SelectedPrincipal, preparedAuthorization.EvaluatesAnonymous))
                 {
                     return CommandResult.Unauthorized(correlationId);
                 }

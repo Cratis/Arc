@@ -107,6 +107,17 @@ public class ControllerQueryPerformer(
         try
         {
             var args = GetMethodArguments(AuthorizationMethod.GetParameters(), context.Arguments ?? QueryArguments.Empty, serviceProvider);
+            if ((context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
+                (context.AuthorizedExecution is { } verdict &&
+                 !verdict.IsCurrent(
+                     AuthorizationMethod,
+                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
+                     (serviceProvider.GetService<AuthorizationDeclarations>() ??
+                         throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.")).For(AuthorizationMethod))))
+            {
+                throw new AuthorizationIdentityChanged();
+            }
+
             var invocationResult = AuthorizationMethod.Invoke(controller, args);
             var (_, result) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
             return UnwrapMvcResult(result);

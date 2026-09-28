@@ -73,6 +73,11 @@ public record CommandContext(
     internal PreparedAuthorization? PreparedAuthorization { get; set; }
 
     /// <summary>
+    /// Gets the successful asynchronous authorization verdict for the final pre-invocation identity check.
+    /// </summary>
+    internal AuthorizedExecution? AuthorizedExecution { get; set; }
+
+    /// <summary>
     /// Gets whether an Unknown-severity validation failure blocks this command.
     /// </summary>
     internal bool BlockUnknownValidationSeverity { get; init; }

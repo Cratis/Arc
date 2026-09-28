@@ -24,11 +24,20 @@ public class AuthorizationFilter(IAuthorizationEvaluator authorizationHelper) : 
         bool allowed;
         try
         {
-            allowed = context.ServiceProvider is { } services
-                ? await services.GetRequiredService<AuthorizationEvaluation>().IsAuthorized(context.Type, context, services, null, authorizationHelper, context.CancellationToken)
-                : authorizationHelper.IsAuthorized(context.Type);
+            if (context.ServiceProvider is { } services)
+            {
+                _ = services.GetService<AuthorizationDeclarations>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+                var evaluation = services.GetService<AuthorizationEvaluation>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
+                allowed = await evaluation.IsAuthorized(context.Type, context, services, null, authorizationHelper, context.CancellationToken);
+            }
+            else
+            {
+                allowed = authorizationHelper.IsAuthorized(context.Type);
+            }
         }
-        catch (AsynchronousAuthorizationRequired) when (context.ServiceProvider is null)
+        catch (AsynchronousAuthorizationRequired)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
             return CommandResult.Unauthorized(context.CorrelationId);

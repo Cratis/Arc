@@ -45,6 +45,33 @@ public class when_reusing_an_authorization_marker : Specification
         }
     }
 
+    [Fact]
+    void should_not_reuse_a_guest_marker_for_an_authenticated_secondary_identity()
+    {
+        var (evaluator, accessor, _, _) = Create();
+        var principal = new ClaimsPrincipal(new ClaimsIdentity());
+        principal.AddIdentity(new ClaimsIdentity([new Claim(ClaimTypes.Name, "authenticated")], "test"));
+        accessor.Current.Returns(principal);
+        var declaration = new AuthorizationDeclaration(false, true, [AuthorizationRequirement.FromAttribute(null, "Allowed", null)]);
+        using (AuthorizationEvaluator.AlreadyEvaluated(typeof(GuestCommand), principal, declaration, evaluatesAnonymous: true))
+        {
+            Catch.Exception(() => evaluator.IsAuthorized(typeof(GuestCommand))).ShouldBeOfExactType<AsynchronousAuthorizationRequired>();
+        }
+    }
+
+    [Fact]
+    void should_reuse_a_guest_marker_for_an_unauthenticated_principal()
+    {
+        var (evaluator, accessor, _, _) = Create();
+        var principal = new ClaimsPrincipal(new ClaimsIdentity());
+        accessor.Current.Returns(principal);
+        var declaration = new AuthorizationDeclaration(false, true, [AuthorizationRequirement.FromAttribute(null, "Allowed", null)]);
+        using (AuthorizationEvaluator.AlreadyEvaluated(typeof(GuestCommand), principal, declaration, evaluatesAnonymous: true))
+        {
+            evaluator.IsAuthorized(typeof(GuestCommand)).ShouldBeTrue();
+        }
+    }
+
     static (AuthorizationEvaluator Evaluator, ICurrentPrincipalAccessor Accessor, AuthorizationDeclaration Declaration, ClaimsPrincipal Principal) Create()
     {
         var anonymous = Substitute.For<IInstancesOf<IAnonymousEvaluator>>();
@@ -61,4 +88,7 @@ public class when_reusing_an_authorization_marker : Specification
 
     [Authorize(Policy = "Allowed", Roles = "Admin")]
     public record ProtectedCommand;
+
+    [Authorize(Policy = "Allowed")]
+    public record GuestCommand;
 }

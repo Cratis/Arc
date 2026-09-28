@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Validation;
 using Cratis.Execution;
 using Cratis.Traces;
@@ -37,7 +38,12 @@ public class a_query_pipeline : Specification
         _readModelInterceptors.Intercept(Arg.Any<Type>(), Arg.Any<IEnumerable<object>>(), Arg.Any<IServiceProvider>())
             .Returns(callInfo => Task.FromResult(callInfo.ArgAt<IEnumerable<object>>(1)));
         _serviceProvider = Substitute.For<IServiceProvider>();
+        _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
         _queryPerformer = Substitute.For<IQueryPerformer>();
+        _queryPerformer.Type.Returns(typeof(object));
+        _queryPerformer.Name.Returns((QueryName)"NoMethod");
         _discoverableValidators = Substitute.For<IDiscoverableValidators>();
 
         _pipeline = new QueryPipeline(
