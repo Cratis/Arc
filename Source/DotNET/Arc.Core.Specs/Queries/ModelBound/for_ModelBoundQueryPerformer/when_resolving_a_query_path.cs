@@ -12,8 +12,10 @@ public class when_resolving_a_query_path : given.a_model_bound_query_performer
 
     [Unrelated.Path("/wrong-type")]
     [Path("/queries")]
-    public static class Queries
+    public class Queries
     {
+        public int InstanceMethod() => 1;
+
         [Unrelated.Path("/wrong-method")]
         [Path("/queries/get")]
         public static int Get() => 1;

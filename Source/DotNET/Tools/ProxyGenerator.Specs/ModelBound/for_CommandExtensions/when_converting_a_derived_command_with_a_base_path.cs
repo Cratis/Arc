@@ -3,6 +3,7 @@
 
 using System.Reflection;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.ProxyGenerator.Templates;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound.for_CommandExtensions;

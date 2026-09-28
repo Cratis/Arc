@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
-using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
 using Microsoft.Extensions.Options;
