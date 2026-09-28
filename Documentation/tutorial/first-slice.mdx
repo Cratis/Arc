@@ -29,11 +29,11 @@ flowchart LR
     Q -->|generated proxy| UI[React list]
 ```
 
-On the TypeScript backend, create `Features/Authors/AuthorId.ts` and `AuthorName.ts` as separate files first. The concepts match the `NoteId` and `NoteText` pattern in [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/):
+On TypeScript, create `Features/Authors/AuthorId.ts` and `AuthorName.ts` as separate files first. Put `RegisterAuthor` in `Features/Authors/RegisterAuthor.ts` and `Author` in `Features/Authors/Author.ts`. Import `AuthorId`, `AuthorName`, and the runtime `AuthorRepository` from their feature files (with `.js` suffixes). The concepts match the `NoteId` and `NoteText` pattern in [TypeScript setup](/arc/backend/typescript/getting-started/create-an-application/):
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-concepts" variants="typescript" />
 
-Put `RegisterAuthor` in `Features/Authors/RegisterAuthor.ts` and `Author` in `Features/Authors/Author.ts`. Import `AuthorId`, `AuthorName`, and the runtime `AuthorRepository` from their feature files (with `.js` suffixes). These are **excerpts from the backend checkpoint**, not additional files. Each tab shows the same slice over that backend's document store — MongoDB on C#, Spring Data MongoDB on the JVM:
+These are **excerpts from the backend checkpoint**, not additional files. Each tab shows the same slice over that backend's document store — MongoDB on C#, Spring Data MongoDB on the JVM:
 
 <ArcBackendTabs snippet="tutorial/first-slice/author-slice" />
 
