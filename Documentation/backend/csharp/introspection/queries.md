@@ -19,7 +19,7 @@ Each item includes:
 
 - `name`: Query name.
 - `namespace`: Namespace derived from the performer's location after skipping the default namespace segments.
-- `route`: Explicit `[Path]` if present; otherwise the convention-derived query route using the configured prefix and namespace segments.
+- `route`: Explicit `[Path]` if present; otherwise the convention-derived query route using the **default** route options, not `Cratis:Arc:GeneratedApis` (`ArcOptions.GeneratedApis`).
 - `fullyQualifiedName`: The performer's fully qualified query name.
 - `type`: Fully qualified query type name.
 - `documentationSummary`: Summary text from type metadata when available.

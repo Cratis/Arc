@@ -19,7 +19,7 @@ Each item includes:
 
 - `name`: Command type name.
 - `namespace`: Namespace derived from the handler's location after skipping the default namespace segments.
-- `route`: Convention-derived command route using the default prefix and namespace segments (see the note below).
+- `route`: Explicit `[Path]` if the command declares one; otherwise the convention-derived command route using the default prefix and namespace segments (see the note below).
 - `type`: Fully qualified command type name.
 - `documentationSummary`: Summary text from type metadata when available.
 - `payloadSchema`: JSON Schema describing the command payload contract (fields/properties and types).

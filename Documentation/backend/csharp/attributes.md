@@ -43,13 +43,18 @@ namespace; its generated TypeScript proxy calls that same path. Import
 `Cratis.Arc.Queries.ModelBound` for both commands and queries. A command's path must
 be declared on that command type, not inherited from a base type. Avoid reusing
 an explicit path for another command or for a conventional command route; route
-collisions can make endpoints ambiguous.
+collisions can make endpoints ambiguous. A command path is a literal route: route
+templates such as `{id}` are not supported for commands, and it should not end with `/`
+(the validation endpoint appends `/validate`).
 
 ## Discovery and API descriptions
 
 | Attribute | Valid on | Effect |
 |---|---|---|
 | `[ExcludeFromDiscovery]` (`Cratis.Arc`) | command type, read model type, query method, controller or controller action | Omits the marked operation from `/.cratis/commands` or `/.cratis/queries` and generated OpenAPI descriptions (including command validation endpoints). |
+
+The marker is inherited: marking a base command type or read model also hides every type
+that derives from it. This differs from a command's `[Path]`, which is not inherited.
 
 This marker **does not unmap the HTTP endpoint or authorize it**. Protect it with
 `[Authorize]`, a trusted ingress, or both; do not rely on hiding metadata as a
