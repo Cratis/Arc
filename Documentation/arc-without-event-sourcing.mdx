@@ -3,7 +3,7 @@ title: CQRS without event sourcing
 description: Arc's CQRS model can run over MongoDB or EF Core without Chronicle. This page shows the boundary between CQRS and event sourcing, not an argument against event sourcing.
 ---
 
-It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. We think event sourcing is the default architecture for information systems, and Chronicle is the Cratis event-sourcing platform. But Arc itself is CQRS: **commands, queries, and the generated C# → TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is a separate decision.
+It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. We think event sourcing is the default architecture for information systems, and Chronicle is the Cratis event-sourcing platform. But Arc itself is CQRS: **commands, queries, and generated TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is a separate decision.
 
 This page shows Arc on its own — the same typed full-stack experience, backed by a plain database instead of an event log — so the line between CQRS and event sourcing is explicit. CQRS and event sourcing fit naturally together, but neither depends on the other.
 
@@ -23,71 +23,35 @@ Pick MongoDB or EF Core and you have a complete, fully-typed CQRS app without an
 
 ## A standalone slice, end to end
 
-:::note[Shown in C#]
-The walkthrough below and the testing section after it are written against the
-C# backend, because they lean on that stack's MongoDB integration and test
-library. The point they make — that a slice needs no event log — holds on the
-JVM too; see [Spring Data read models](/arc/backend/kotlin/guides/spring-data/)
-and [testing](/arc/backend/kotlin/guides/testing/) for the equivalents.
+:::note[Choose your backend]
+The document-store examples and host excerpts below have tabs for each backend. The proxy-generation and testing guidance that follows is .NET-specific. For JVM setup and testing see [Spring Data read models](/arc/backend/kotlin/guides/spring-data/) and [testing](/arc/backend/kotlin/guides/testing/); for TypeScript see [getting started](/arc/backend/typescript/getting-started/) and [testing](/arc/backend/typescript/testing/).
 :::
 
-These **illustrative excerpts** show registering an author and listing authors live in MongoDB. For the runnable project, domain declarations/imports, ASP.NET host, MongoDB settings and replica-set bootstrap, start with [standalone setup](./backend/csharp/getting-started/index.md) and its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/). The explanation here does not replace those prerequisites.
+These **illustrative excerpts** show registering an author and listing authors live in MongoDB. For a runnable project, use [standalone .NET setup](./backend/csharp/getting-started/index.md) and its [backend checkpoint](/arc/backend/csharp/getting-started/your-first-command/), [Kotlin setup](/arc/backend/kotlin/get-started/), [Java setup](/arc/backend/kotlin/get-started/java/), or [TypeScript setup](/arc/backend/typescript/getting-started/) for domain declarations, host, database configuration, and replica-set bootstrap. The explanation here does not replace those prerequisites.
 
-**The read model is just a document.** Mark it `[ReadModel]` and Arc exposes its query methods. A static method *is* the query, and returning an `ISubject<>` makes it live:
+**The read model is just a document.** Declare a read model and Arc exposes its query methods. The model-bound query returns a live stream:
 
-```csharp
-[ReadModel]
-public record Author(AuthorId Id, AuthorName Name)
-{
-    // This static method is the query — served over HTTP, and live.
-    public static ISubject<IEnumerable<Author>> AllAuthors(IMongoCollection<Author> authors) =>
-        authors.Observe();
-}
-```
+<ArcBackendTabs snippet="arc-without-event-sourcing/author-read-model" />
 
-**The command writes the document directly.** Inject the collection and insert. This example chooses no response payload; no event is involved:
+**The command writes the document directly.** Inject the database dependency and save. This example chooses no response payload; no event is involved:
 
-```csharp
-[Command]
-public record RegisterAuthor(AuthorId Id, AuthorName Name)
-{
-    public Task Handle(IMongoCollection<Author> authors) =>
-        authors.InsertOneAsync(new Author(Id, Name));
-}
-```
+<ArcBackendTabs snippet="arc-without-event-sourcing/register-author" />
 
-**A command can take the read model it acts on.** Mark the property holding the key and Arc loads the document, so the command decides against current state instead of fetching it first:
+**A command can take the read model it acts on.** Mark the key on the command and configure the read model's database lookup, so the command decides against current state instead of fetching it first. On the JVM MongoDB branch, `Author` must be a Spring Data-mapped `@Document` as well as an Arc `@ReadModel`; otherwise the MongoDB resolver cannot claim it from the mapping context at startup:
 
-```csharp
-using System.ComponentModel.DataAnnotations;
+<ArcBackendTabs snippet="arc-without-event-sourcing/rename-author" />
 
-[Command]
-public record RenameAuthor([property: Key] AuthorId Id, AuthorName NewName)
-{
-    public Task Handle(Author author, IMongoCollection<Author> authors) =>
-        authors.ReplaceOneAsync(_ => _.Id == author.Id, author with { Name = NewName });
-}
-```
-
-This works the same for a read model held in MongoDB and one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/csharp/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/csharp/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
+On .NET this works both for a MongoDB read model and for one carried by an Entity Framework `ReadOnlyDbContext`. [Read models in commands](./backend/csharp/chronicle/read-models/injecting-into-commands.md) covers what a nullable parameter means, and [Read models from other providers](./backend/csharp/chronicle/read-models/other-providers.md#declaring-the-key-without-chronicle) how to declare the key when it is not a single property.
 
 :::tip[Separate the decision from the write]
-These direct collection calls remain supported. On the C# backend, for immediate inline work that a model-bound command can describe before execution, prefer returned [command operations](./backend/csharp/commands/operations/index.md). The JVM backend has no operation mechanism; there, perform the work in `handle` through an injected service. `Handle()` declares the write and Arc performs it afterward, without requiring Chronicle. Optional compensation is best-effort and in-process, not atomic database rollback or durable recovery. The [migration recipe](./backend/csharp/commands/operations/migrating.md) shows how to preserve an existing response contract.
+These direct collection calls remain supported. On C# and TypeScript, for immediate inline work that a model-bound command can describe before execution, prefer returned command operations ([C#](./backend/csharp/commands/operations/index.md), [TypeScript](/arc/backend/typescript/commands/operations/)). The JVM backend has no operation mechanism; there, perform the work in `handle` through an injected service. With operations, the handler declares the write and Arc performs it afterward, without requiring Chronicle. Optional compensation is best-effort and in-process, not atomic database rollback or durable recovery. The [migration recipe](./backend/csharp/commands/operations/migrating.md) shows how to preserve an existing response contract.
 :::
 
-That's the backend behavior. This host excerpt assumes the setup's `Cratis:MongoDB` configuration; Arc auto-discovers collections and serializers rather than requiring per-model registrations:
+That's the backend behavior. Start the host with the database configured as in the backend-specific setup guides. The .NET excerpt assumes `Cratis:MongoDB`; Arc auto-discovers collections and serializers rather than requiring per-model registrations. For the TypeScript excerpt, place the `AuthorRepository` abstract class shown below in `Features/Authors/AuthorRepository.ts` and import it into the command, query, validators, and host; it is the runtime token used by `@inject` and `service`, not a type-only interface. Import your `Author`, `AuthorId`, `AuthorName`, `RegisterAuthor`, and `RenameAuthor` declarations from their feature files. Keep the TypeScript [setup guide's `generate.mjs`](/arc/backend/typescript/getting-started/create-an-application/#generate-the-metadata) on `--project ./tsconfig.json` and `--artifacts ./Features`; import its generated metadata and discover the same `Features/` root in the host. Regenerate after chapter 2 adds validators, or the host will not register them. Install `@cratis/arc.mongodb`, set `MONGODB_URI` (or use the loopback default), and use a replica set for live MongoDB change streams. The scoped `MongoAuthorRepository` supplies the persistence methods used in the preceding excerpts:
 
-```csharp
-var builder = WebApplication.CreateBuilder(args);
-builder.AddCratisArc();
-builder.UseCratisMongoDB();
+<ArcBackendTabs snippet="arc-without-event-sourcing/standalone-host" />
 
-var app = builder.Build();
-app.UseCratisArc();
-app.Run();
-```
-
-Install `Cratis.Arc.ProxyGenerator.Build`, configure `CratisProxiesOutputPath`, and build in Debug as shown in setup to generate `RegisterAuthor` and `AllAuthors`. Building with Arc alone does not generate them. This React **fragment** assumes the [frontend setup](/arc/frontend/react/getting-started/) imports/providers and the [per-operation `id` state](/arc/tutorial/first-slice/) (`Guid.create()` from `@cratis/fundamentals`), with a fresh dialog instance for each registration:
+On .NET, install `Cratis.Arc.ProxyGenerator.Build`, configure `CratisProxiesOutputPath`, and build in Debug as shown in setup to generate `RegisterAuthor` and `AllAuthors`. Building with Arc alone does not generate them. This React **fragment** assumes the [frontend setup](/arc/frontend/react/getting-started/) imports/providers and the [per-operation `id` state](/arc/tutorial/first-slice/) (`Guid.create()` from `@cratis/fundamentals`), with a fresh dialog instance for each registration:
 
 ```tsx
 const [authors] = AllAuthors.use();   // live — re-renders when the collection changes

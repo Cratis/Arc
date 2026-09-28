@@ -48,7 +48,7 @@ Arc documentation is organized around the job you need to complete:
 - [Build the frontend](https://github.com/Cratis/Arc/blob/main/Documentation/frontend/index.mdx) — TypeScript runtimes, React hooks and forms, dialogs, identity, messaging, and optional MVVM packages.
 - [Configure identity and access](https://github.com/Cratis/Arc/blob/main/Documentation/understanding-identity-and-access.mdx) — authentication, identity details, authorization, roles, and frontend visibility boundaries.
 - [Resolve tenants](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/tenancy/index.md) — request resolvers, scoped tenant context, and provider-specific database or namespace mapping.
-- [Use current-state persistence](https://github.com/Cratis/Arc/blob/main/Documentation/arc-without-event-sourcing.md) — application services, MongoDB, or Entity Framework Core without requiring an event log.
+- [Use current-state persistence](https://github.com/Cratis/Arc/blob/main/Documentation/arc-without-event-sourcing.mdx) — application services, MongoDB, or Entity Framework Core without requiring an event log.
 - [Add Chronicle event sourcing](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/chronicle/index.md) — events, projections, reducers, aggregates, reactors, concurrency, and Chronicle-specific testing.
 - [Inspect and verify the application boundary](https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/introspection/index.md) — introspection, OpenAPI, analyzers, generated metadata, and command scenarios.
 
