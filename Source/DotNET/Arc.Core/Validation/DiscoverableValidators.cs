@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.DependencyInjection;
-using Cratis.Reflection;
 using Cratis.Types;
 using FluentValidation;
 
@@ -34,31 +33,16 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         _serviceProviderAccessor = serviceProviderAccessor;
         var candidates = types.FindMultiple(typeof(IDiscoverableValidator<>));
-        var invalidValidators = candidates.Where(_ =>
-        {
-            var interfaces = _.GetInterfaces();
-            var validatorType = interfaces.Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>));
-            var modelType = validatorType.GetGenericArguments()[0];
-            return !DerivesFromAbstractValidatorOf(_, modelType);
-        }).ToArray();
+        var invalidValidators = candidates.Where(_ => !DerivesFromAbstractValidatorOf(_, DiscoverableModelTypeOf(_))).ToArray();
 
         if (invalidValidators.Length > 0)
         {
             throw new DiscoverableValidatorMustImplementAbstractValidator(invalidValidators[0]);
         }
 
-        _validatorTypesByModelType = candidates
-            .ToDictionary(
-                _ =>
-                {
-                    var current = _.BaseType!;
-                    while (!current.IsDerivedFromOpenGeneric(typeof(AbstractValidator<>)))
-                    {
-                        current = current.BaseType!;
-                    }
-                    return current.GetGenericArguments()[0];
-                },
-                _ => _);
+        // Key by the model the validator declares through IDiscoverableValidator<T>; the check above has
+        // already proven it derives from AbstractValidator<T> for that same model, whatever its intermediate bases.
+        _validatorTypesByModelType = candidates.ToDictionary(DiscoverableModelTypeOf, _ => _);
     }
 
     /// <inheritdoc/>
@@ -77,6 +61,16 @@ public class DiscoverableValidators : IDiscoverableValidators
         validator = null;
         return false;
     }
+
+    /// <summary>
+    /// Gets the model type a validator declares through <see cref="IDiscoverableValidator{T}"/>.
+    /// </summary>
+    /// <param name="type">The candidate validator type.</param>
+    /// <returns>The model type.</returns>
+    static Type DiscoverableModelTypeOf(Type type) =>
+        type.GetInterfaces()
+            .Single(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>))
+            .GetGenericArguments()[0];
 
     /// <summary>
     /// Determines whether a type derives from <see cref="AbstractValidator{T}"/> closed over the given model type.
