@@ -462,13 +462,13 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     ),
     "tutorial/authorization/development-header-adapter": SnippetContext(
         kind="body",
-        usings=("using Microsoft.AspNetCore.Builder;", "using Microsoft.Extensions.DependencyInjection;"),
+        usings=("using Microsoft.AspNetCore.Builder;", "using Microsoft.Extensions.DependencyInjection;", "using Microsoft.Extensions.Hosting;"),
         prelude="var builder = WebApplication.CreateBuilder();",
     ),
     "tutorial/authorization/development-authentication-middleware": SnippetContext(
         kind="body",
-        usings=("using Microsoft.AspNetCore.Builder;", "using Microsoft.AspNetCore.Authentication;"),
-        prelude="var app = WebApplication.CreateBuilder().Build();",
+        usings=("using Microsoft.AspNetCore.Builder;", "using Microsoft.AspNetCore.Authentication;", "using Microsoft.Extensions.Hosting;"),
+        prelude="var app = WebApplication.CreateBuilder().Build();"
     ),
     "tutorial/validation/relational-duplicate-name-rule": SnippetContext(
         fixtures=("library",),
