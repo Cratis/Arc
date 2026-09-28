@@ -294,6 +294,29 @@ USING_ARC_CHRONICLE_TESTING = "using Cratis.Arc.Chronicle.Testing.Commands;"
 # extension. Unlisted snippets compile as declarations with DEFAULT_USINGS only;
 # add an entry here when a snippet needs more context than that.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
+    "capstone/host": SnippetContext(
+        kind="body",
+        usings=(
+            "using Microsoft.AspNetCore.Builder;",
+            "using Microsoft.Extensions.DependencyInjection;",
+            "using Cratis.Arc.MongoDB;",
+            "using Cratis.Arc.Swagger;",
+            "using Cratis.Chronicle;",
+        ),
+        prelude="string[] args = [];"
+    ),
+    "capstone/author-id": SnippetContext(usings=("using Cratis.Chronicle.Events;",)),
+    "capstone/register-author": SnippetContext(
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);",
+    ),
+    "capstone/author-read-model": SnippetContext(
+        usings=("using Cratis.Chronicle.Events;", "using Cratis.Chronicle.Projections.ModelBound;", USING_REACTIVE, USING_MONGO, "using Cratis.Arc.MongoDB;"),
+        prelude="""
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            [EventType] public record AuthorRegistered(string Name);
+        """,
+    ),
     "guides/chronicle/event-from-command": SnippetContext(
         kind="declaration",
         fixtures=("library",),
@@ -818,6 +841,8 @@ def generate_project(sources: list[Path]) -> str:
 
     <ItemGroup>
         <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
+        <!-- The complete host snippet uses AddCratis and Swagger from Arc's composition project. -->
+        <ProjectReference Include="../../Source/DotNET/Cratis/Cratis.csproj" />
         <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../../Source/DotNET/MongoDB/MongoDB.csproj" />
         <ProjectReference Include="../../Source/DotNET/EntityFrameworkCore/EntityFrameworkCore.csproj" />
