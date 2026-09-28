@@ -7,7 +7,7 @@ description: Exercise the standalone Arc pipeline in process, register its colla
 
 ## Use the standalone harness
 
-On the JVM the equivalent harness is `io.cratis:arc-testing`, added as a `testImplementation` dependency and driven from an ordinary JUnit 5 test. It runs the same real command pipeline in process, so everything this page says about registering collaborators and asserting effects applies to both backends; only the assertion vocabulary differs.
+On the JVM the equivalent harness is `io.cratis:arc-testing`, added as a `testImplementation` dependency and driven from an ordinary JUnit 5 test. TypeScript's source preview uses `@cratis/arc.testing` with `CommandScenario.for(...)` and an in-process command pipeline. Each backend registers collaborators and asserts actual effects; setup and assertion names differ.
 
 Reference `Cratis.Arc.Testing` in an xUnit spec project, together with `Cratis.Specifications.XUnit`, `NSubstitute`, and the usual xUnit runner/test SDK. `Cratis.Testing` is the wider integration meta-package; it is not required here. A dedicated spec project can run in Debug and Release; use `#if DEBUG` only when intentionally embedding specs in an application assembly that excludes them from Release.
 
@@ -35,7 +35,7 @@ Create the spec in the test project:
 
 The first assertion checks the pipeline result; the second proves the handler called its collaborator with the intended values. Neither proves a production database mapping or index — test those at their integration boundary.
 
-The two harnesses differ in how the scenario is constructed and how it is torn down. C#'s `CommandScenario<TCommand>` discovers the command from its type argument, exposes an `IServiceCollection`, and is disposable. Arc.Kotlin's `CommandScenario` takes the KSP-generated `ArcArtifactModule` plus the command class — so the generated wiring itself is under test — registers collaborators one at a time with `addService(type, instance)`, and needs no disposal; `execute` is a suspending function, and the result carries `shouldSucceed`, `shouldBeInvalid`, `shouldBeUnauthorized`, and `shouldHaveResponse`. There is no NSubstitute on the JVM side, so a hand-written object expression stands in for the collaborator.
+The three harnesses differ in how the scenario is constructed and how it is torn down. C#'s `CommandScenario<TCommand>` discovers the command from its type argument, exposes an `IServiceCollection`, and is disposable. Arc.Kotlin's `CommandScenario` takes the KSP-generated `ArcArtifactModule` plus the command class — so the generated wiring itself is under test — registers collaborators one at a time with `addService(type, instance)`, and needs no disposal; `execute` is a suspending function, and the result carries `shouldSucceed`, `shouldBeInvalid`, `shouldBeUnauthorized`, and `shouldHaveResponse`. There is no NSubstitute on the JVM side, so a hand-written object expression stands in for the collaborator. TypeScript's scenario registers the collaborator in `scenario.services`, executes with `await scenario.execute(...)`, and disposes with `await scenario.dispose()`; the fragment uses a recording fake.
 
 ## Check rejection independently
 

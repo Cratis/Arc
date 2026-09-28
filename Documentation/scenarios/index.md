@@ -3,7 +3,7 @@ title: Scenarios
 description: Short, task-oriented recipes for the things you'll actually do with Arc — each assumes you know the basics and gets straight to the goal.
 ---
 
-These are recipes: "I need to do X — how?" Each one is short and assumes you've built a slice or two (the [tutorial](/arc/tutorial/) is the long way round). For the _why_ and the full set of options, follow the links into the reference. The default recipes use standalone Arc over configured providers or application services. Start with [standalone setup](/arc/backend/csharp/getting-started/); each recipe labels additional prerequisites and illustrative fragments. Chronicle-only behavior is explicitly separated.
+These are recipes: "I need to do X — how?" Each one is short and assumes you've built a slice or two (the [tutorial](/arc/tutorial/) is the long way round). For the _why_ and the full set of options, follow the links into the reference. The default recipes use standalone Arc over configured providers or application services. Start with standalone setup for [C#](/arc/backend/csharp/getting-started/), [Kotlin or Java](/arc/backend/kotlin/get-started/), or the [TypeScript source preview](/arc/backend/typescript/getting-started/); each recipe labels additional prerequisites and illustrative fragments. Check the preview's [capability reference](/arc/backend/typescript/reference/capabilities/) before relying on a shared example. Chronicle-only behavior is explicitly separated.
 
 | Recipe | When you reach for it |
 | --- | --- |
@@ -18,4 +18,4 @@ These are recipes: "I need to do X — how?" Each one is short and assumes you'v
 
 Event-sourced Arc slices have their own Chronicle-specific recipes, starting with [React to an event](/arc/backend/csharp/chronicle/react-to-an-event/) and [Add event sourcing to an Arc slice](/arc/backend/csharp/chronicle/add-event-sourcing/).
 
-Missing a recipe you expected? The [Backend](/arc/backend/csharp/) and [Frontend](/arc/frontend/) guides cover the long tail, and [Troubleshooting](/arc/troubleshooting/) catches the common snags.
+Missing a recipe you expected? The [backend options](/arc/backend/) and [Frontend](/arc/frontend/) guides cover the long tail, and [Troubleshooting](/arc/troubleshooting/) catches the common snags.
