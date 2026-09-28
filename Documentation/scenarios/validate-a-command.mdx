@@ -37,7 +37,7 @@ The validator fragments below assume the [standalone tutorial's domain types and
 
    <ArcBackendTabs snippet="scenarios/validate-a-command/state-rule" />
 
-   The two backends differ in *where* the current state comes from. C# resolves a provider-owned read model straight into the validator's constructor, and the nullable parameter is how you say a missing record is a business condition rather than a fault — [Use current state in a command](./use-current-state-in-a-command.mdx) covers that choice and all three positions in full. On the JVM the owned read model is resolved for the **handler** (`fun handle(order: OrderView?)`), so a validator loads it through its own injected repository.
+   The backends differ in *where* the current state comes from. C# resolves a provider-owned read model straight into the validator's constructor, and the nullable parameter is how you say a missing record is a business condition rather than a fault — [Use current state in a command](./use-current-state-in-a-command.mdx) covers that choice and all three positions in full. On the JVM the owned read model is resolved for the **handler** (`fun handle(order: OrderView?)`), so a validator loads it through its own injected repository. TypeScript can inject an application repository into a validator; an async rule can also use `readModelForValidation` for a command-keyed model.
 
    A validator can also reach *outside* the command's own state. It's resolved through dependency injection, so it can take a collaborator and consult it.
 

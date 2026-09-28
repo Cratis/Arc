@@ -62,7 +62,7 @@ The delay is **not a global request limiter**. With `autoServerValidate` enabled
 
 First define an actual endpoint, such as `UpdateProfile` in [Backend validation](./validation.mdx#backend-validation). A standalone DTO and validator alone are not this model-bound endpoint.
 
-The following **application integration fragment** adds the directory rule beside that example's command; the generated client and the form behaviour below are the same on either backend. It compiles alongside `UpdateProfile`; to run it, supply and register your application's profile-directory implementation. The allowed-email check must apply your own profile/tenant policy, including allowing an unchanged email for an existing profile.
+The following **application integration fragment** adds the directory rule beside that example's command; the frontend form behavior below uses the shared client runtime. On the TypeScript backend, verify the projected rules against its [generator validation reference](/arc/backend/typescript/proxy-generation/validation/) rather than assuming the backend rule is emitted. It compiles alongside `UpdateProfile`; to run it, supply and register your application's profile-directory implementation. The allowed-email check must apply your own profile/tenant policy, including allowing an unchanged email for an existing profile.
 
 <ArcBackendTabs snippet="frontend/react/command-form/auto-server-validation/server-only-rule" />
 

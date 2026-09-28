@@ -393,7 +393,10 @@ not redacted the way exception detail is. Keep secrets out of every field.
 
 Everything above is common. The following is not, and each entry matters to someone
 writing a client or reasoning about security. Each one names what the C# implementation
-does and what the JVM implementation does.
+does and what the JVM implementation does. These comparisons do not claim TypeScript
+parity: for the source preview's verified behavior and deliberate differences, use its
+[HTTP contract reference](/arc/backend/typescript/reference/http-contract/) and
+[capability reference](/arc/backend/typescript/reference/capabilities/).
 
 ### SSE connection ownership is compared on a different set of values
 
