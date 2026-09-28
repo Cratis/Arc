@@ -121,6 +121,8 @@ Create `vite.config.ts`:
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+    oxc: { decorator: { legacy: true } },
+    build: { outDir: 'dist-web' },
     server: {
         host: 'localhost',
         port: 5173,
@@ -133,7 +135,7 @@ export default defineConfig({
 });
 ```
 
-The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
+Vite needs `oxc.decorator.legacy` for generated proxies' `@field` decorators because it reads decorator settings from `tsconfig.json`, not `tsconfig.web.json`. The separate `dist-web` output also keeps Vite from emptying the TypeScript backend's `dist/main.js`. The proxy sends same-origin command/query and identity/stream requests to the backend. `ws: true` also permits the optional WebSocket transport. Keep both prefixes, even when using the default SSE transport.
 
 Port 5000 is this tutorial's ASP.NET Core host. A Spring Boot host listens on **8080** by default; the [TypeScript standalone host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end) uses **3000**. Point both proxy targets at that backend's loopback port (or set `server.port=5000` for Spring Boot), and keep the rest of the file as it is. Everything from here to the end of the chapter is generated-proxy and React code, identical on all three backends.
 

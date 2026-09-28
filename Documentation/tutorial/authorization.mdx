@@ -18,11 +18,11 @@ On C#, the first excerpt below also declares a one-member `LibraryRole` enum; pu
 Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one declaration at the edge. Put `[Roles(...)]` — `@Roles(...)` on the JVM — on the command (`@roles(...)` on TypeScript), and Arc checks the caller's roles before the command runs. The excerpts below show the document-store branch; on the relational branch retain your existing handlers and queries while replacing the JVM's `@AllowAnonymous` on the command with `@Roles("Librarian")`. Do not keep both on the same declaration:
 
 
-1. **Require a role to change the catalog.** Only a librarian may register authors or add books:
+1. **Require a role to change the catalog.** Only a librarian may register authors or add books. The TypeScript prerequisite host also exposes `RenameAuthor`, so its tab protects that command too:
 
    <ArcBackendTabs snippet="tutorial/authorization/roles-on-command" />
 
-   The same declaration goes on `AddBook`; on the JVM, replace its `@AllowAnonymous` annotation rather than stacking the two. Everything inside the handler stays exactly as it was — the gate is applied around it.
+   The same declaration goes on `AddBook`; on the JVM, replace its `@AllowAnonymous` annotation rather than stacking the two. The .NET and JVM chapter-1 projects do not include `RenameAuthor`; if you added it from the standalone-slice example, apply the same role to it (replacing `@AllowAnonymous` on the JVM). Everything inside the handler stays exactly as it was — the gate is applied around it.
 
 
 ## Gate the queries

@@ -39,6 +39,8 @@ On the JVM, the same four declarations go in a `books` package beside the `autho
 
    On the JVM, the command still uses `BookRepository`: its document-store implementation can use `MongoRepository<Book, …>`, while its relational implementation delegates to `JpaRepository<BookRow, UUID>` and converts between `Book` and the mapped row.
 
+The TypeScript tab shows the command and query shape, not a complete repository: define an application-owned abstract `BookRepository` and MongoDB implementation, include `Book` in `withMongoDB({ readModels: [Author, Book], ... })`, and register the repository as scoped. See [MongoDB setup](/arc/backend/typescript/mongodb/getting-started/) for read-model registration and collection injection.
+
 
 ## Read a catalog back, filtered
 
@@ -158,7 +160,7 @@ export const App = () => (
 
 ## Check the relationship
 
-Click **Add book** beside one author, add a book, then open the dialog again to add a second book. Verify that their ids differ and only that author's list grows. Another author's list should remain unchanged. Run `npx tsc -p tsconfig.web.json --noEmit` (or `npx tsc6 -p tsconfig.web.json --noEmit` with the TypeScript backend) and `npx vite build` from the frontend project root: `BooksForAuthor.use({ authorId })` requires a parameter object, not a positional id or a string conversion.
+Click **Add book** beside one author, add a book, then open the dialog again to add a second book. Verify that their ids differ and only that author's list grows. Another author's list should remain unchanged. Run `npx tsc -p tsconfig.web.json --noEmit` (or `npx tsc6 -p tsconfig.web.json --noEmit` with the TypeScript backend) and `npx vite build` from the frontend project root: `BooksForAuthor.use({ authorId })` requires a parameter object, not a positional id or a string conversion; use the `dist-web` output from chapter 1 so the TypeScript backend's `dist/main.js` survives the Vite build.
 
 ## What you built
 
