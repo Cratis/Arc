@@ -1,5 +1,5 @@
 {
-  "SourceRevision": "7c0222b9efddf5b928f69f7f0f43414f65c97dbc",
+  "SourceRevision": "2d9a5c5136e1d997335e6db602fdb6a2ad8dabd0",
   "Files": [
     {
       "Source": "agents/backend-developer.md",
@@ -129,7 +129,12 @@
     {
       "Source": "harnesses/pi/extensions/cratis-hooks/index.ts",
       "Destination": "harnesses/pi/extensions/cratis-hooks/index.ts",
-      "Hash": "8253E3565B7B06114CA56B204C027902FAA8B976F9360ADF50455FF2F80BB42E"
+      "Hash": "43DB6E75745A226A044066DAD424F32232B141618C69AC1317E3468A6C6ACF67"
+    },
+    {
+      "Source": "harnesses/pi/extensions/cratis-hooks/quality-gate.ts",
+      "Destination": "harnesses/pi/extensions/cratis-hooks/quality-gate.ts",
+      "Hash": "79C4B784C56D07E56B577B549603D4F2681262A9A1F8EC8BBCA69D37E32AB76F"
     },
     {
       "Source": "harnesses/pi/extensions/cratis-mcp/ConnectionFailure.ts",
@@ -199,7 +204,7 @@
     {
       "Source": "hooks/README.md",
       "Destination": "hooks/README.md",
-      "Hash": "6D23161AF26716A51CBA0F56449BE94E418C2FF806CB5BD4D1BCA06B68094DEB"
+      "Hash": "7E6D15FCB27210070424FF0C3C29D8EC86810CC7A3E6A26695D9F4C9BAF43069"
     },
     {
       "Source": "hooks/agent-stop.md",
@@ -289,7 +294,7 @@
     {
       "Source": "profile-catalog.json",
       "Destination": "profile-catalog.json",
-      "Hash": "FDDE9B57C02E3684F844B2E6E17D5FF3FDC2826548584CBBBE277E153E378AB5"
+      "Hash": "465E60D02E0546129C07960C771A7FADB3CD68810A9587BB87773B463B9B7DA6"
     },
     {
       "Source": "prompts/add-business-rule.prompt.md",
@@ -439,7 +444,7 @@
     {
       "Source": "rules/general.md",
       "Destination": "rules/general.md",
-      "Hash": "6E5C68C85E0B91013281B09D2A2AF013175E308DD2B6C781271AFD265F0BC5FB"
+      "Hash": "512D12885A721CE373F220193E25C78BF54A2FB29A6CEF2B49CAAEE237A07E50"
     },
     {
       "Source": "rules/git-commits.md",
@@ -489,7 +494,7 @@
     {
       "Source": "rules/profiles.md",
       "Destination": "rules/profiles.md",
-      "Hash": "4DBEE9C03E3A731CADD05DF71A70562EF58755BC4ABF908DBD8C1268A48504B9"
+      "Hash": "0147BEB4788AF092DE1FC53EABD0F0C22730BD4ECD6E04CF5EA6069382396569"
     },
     {
       "Source": "rules/pull-requests.md",
@@ -509,7 +514,7 @@
     {
       "Source": "rules/verification-discipline.md",
       "Destination": "rules/verification-discipline.md",
-      "Hash": "03163409D8E6B68B60430C661E9C201B3E65365EDE4877086FDA45BEB67B0197"
+      "Hash": "939773707425FCE7E584C54DAF9ED9671439A609D4927838642F3DAE21165961"
     },
     {
       "Source": "rules/web-fetching.md",
@@ -649,7 +654,12 @@
     {
       "Source": "skills/cratis-writing-voice-and-cadence/SKILL.md",
       "Destination": "skills/cratis-writing-voice-and-cadence/SKILL.md",
-      "Hash": "3D63F68E9E81C01975F7BFDFB231A27A69B483EB0839651805AAE70D197743B7"
+      "Hash": "C95D5B48CC8895FC70EFAE01C11878A099B3C6BAC2B0C5D524E748EB3EBEDB07"
+    },
+    {
+      "Source": "skills/cratis-writing-voice-and-cadence/references/ai-tells.md",
+      "Destination": "skills/cratis-writing-voice-and-cadence/references/ai-tells.md",
+      "Hash": "E5D1B2B3E22DB764B9F77706234F54F179C8DAE7BCE6EB8F4F6D0A19E0A6E290"
     }
   ],
   "Integrations": [
