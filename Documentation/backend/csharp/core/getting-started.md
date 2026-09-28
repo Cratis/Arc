@@ -72,7 +72,7 @@ curl 'http://localhost:5000/greeting?name=World'
 
 The command result's `response` is `"Hello, World!"`; the query result's `data` contains `{"text":"Hello, World!"}`. Both use Arc result wrappers. Neither operation persists anything. Stop the service with Ctrl+C.
 
-Arc builds lowercase, kebab-cased URLs from the configured route prefix, namespace segments, and command/query name. A query's or command's `[Path]` overrides that convention (import the attribute from the corresponding `Queries.ModelBound` or `Commands.ModelBound` namespace). Use [route configuration](../asp-net-core/configuration.md#route-generation-examples) rather than guessing a URL from the project name.
+Arc builds lowercase, kebab-cased URLs from the configured route prefix, namespace segments, and command/query name. A query's or command's `[Path]` overrides that convention (import the shared attribute from `Cratis.Arc.Queries.ModelBound` for both). Use [route configuration](../asp-net-core/configuration.md#route-generation-examples) rather than guessing a URL from the project name.
 
 ## Configuration
 

@@ -80,17 +80,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         FullyQualifiedName = $"{readModelTypeName}.{performMethod.Name}";
         Location = readModelType.Namespace?.Split('.') ?? [];
 
-        // Check for Path attribute on method or type
-        var pathAttribute = performMethod.GetCustomAttributes(true)
-            .FirstOrDefault(a => a.GetType().Name == "PathAttribute") ??
-            readModelType.GetCustomAttributes(true)
-            .FirstOrDefault(a => a.GetType().Name == "PathAttribute");
-
-        if (pathAttribute != null)
-        {
-            var pathProperty = pathAttribute.GetType().GetProperty("Path");
-            CustomRoute = pathProperty?.GetValue(pathAttribute) as string;
-        }
+        // A query method's path takes precedence over the read model's path.
+        CustomRoute = performMethod.GetCustomAttribute<PathAttribute>(true)?.Path ??
+            readModelType.GetCustomAttribute<PathAttribute>(true)?.Path;
 
         _parameters = performMethod.GetParameters().ToImmutableArray();
         var dependencyPositions = ImmutableHashSet.CreateBuilder<int>();

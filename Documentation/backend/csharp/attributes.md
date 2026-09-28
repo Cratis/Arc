@@ -32,14 +32,18 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 
 | Attribute | Valid on | Effect |
 |---|---|---|
-| `[Path]` | command (`Cratis.Arc.Commands.ModelBound`), read model or query method (`Cratis.Arc.Queries.ModelBound`) | Overrides the conventional HTTP route. A command's `/validate` endpoint uses the same path plus `/validate`. The explicit path is not prefixed or lowercased. |
+| `[Path]` (`Cratis.Arc.Queries.ModelBound`) | model-bound command, read model or query method | Overrides the conventional HTTP route. A command's `/validate` endpoint uses the same path plus `/validate`. The explicit path is not prefixed or lowercased. |
 | `[QueryHttpMethod]` | read model, query method | Sets the HTTP method the **generated proxy** uses by default (GET, QUERY, or Auto). The server accepts GET and, unless `GeneratedApis.EnableQueryHttpMethod` is `false`, QUERY regardless of this attribute. |
 | `[FromRequest]` | parameter, property | Binds a value from several request sources rather than the default one. |
 
 A route you do not override is derived, so `[Path]` is for the cases where the
 derived route is wrong for you — not something to apply everywhere. A command's explicit
 `[Path("/api/orders/create")]` stays stable even if another command is added to its
-namespace; its generated TypeScript proxy calls that same path.
+namespace; its generated TypeScript proxy calls that same path. Import
+`Cratis.Arc.Queries.ModelBound` for both commands and queries. A command's path must
+be declared on that command type, not inherited from a base type. Avoid reusing
+an explicit path for another command or for a conventional command route; route
+collisions can make endpoints ambiguous.
 
 ## Discovery and API descriptions
 

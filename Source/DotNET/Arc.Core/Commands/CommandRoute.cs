@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.Commands;
 
@@ -17,5 +17,5 @@ internal static class CommandRoute
     /// <param name="handler">The command handler.</param>
     /// <returns>The custom path, or null for conventional routing.</returns>
     internal static string? CustomRoute(ICommandHandler handler) =>
-        handler.CommandType.GetCustomAttribute<PathAttribute>(true)?.Path is string { Length: > 0 } route ? route : null;
+        handler.CommandType.GetCustomAttribute<PathAttribute>(inherit: false)?.Path is string { Length: > 0 } route ? route : null;
 }

@@ -41,7 +41,7 @@ public static class CommandExtensions
         var route = includeCommandName ? $"{baseUrl}/{commandType.Name.ToKebabCase()}" : baseUrl;
         route = route.ToLowerInvariant();
         var customRoute = commandType.GetCustomAttributesData().FirstOrDefault(attribute =>
-            attribute.AttributeType.FullName == "Cratis.Arc.Commands.ModelBound.PathAttribute");
+            attribute.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
         if (customRoute is { ConstructorArguments.Count: > 0 } &&
             customRoute.ConstructorArguments[0].Value is string { Length: > 0 } path)
         {

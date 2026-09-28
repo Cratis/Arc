@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Queries.ModelBound;
 
 /// <summary>
-/// Attribute to specify a custom path for a read model or query method.
+/// Specifies a custom HTTP path for a model-bound command, read model, or query method.
 /// </summary>
 /// <param name="path">The custom path.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
