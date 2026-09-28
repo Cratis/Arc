@@ -63,7 +63,7 @@ For metadata with `AllowAnonymous = false`, it emits a Bearer/JWT security requi
 - No request-body or response-body schemas are generated. Do not use this document alone to generate a complete typed client.
 - The document endpoint is explicitly anonymous. Restrict it at trusted ingress if route metadata should not be public.
 - Documentation does not enforce permissions; see [authentication](authentication.md) and [manual endpoint boundaries](endpoint-mapping.md).
-- The generator emits every registered HTTP method as a lowercase path-item member. With generated queries and the default `GeneratedApis.EnableQueryHttpMethod = true`, that includes `query`. OpenAPI 3.0 cannot represent this operation: strict tools may reject the document or ignore that member. The lightweight generator currently ignores `ExcludeFromApiDescription` metadata, including the QUERY reader's exclusion; the ASP.NET mapper handles that exclusion separately.
+- The generator emits eligible registered HTTP methods as lowercase path-item members. OpenAPI 3.0 cannot represent a `query` operation: strict tools may reject the document or ignore that member if you manually expose it. The generated QUERY reader is excluded, as are commands or queries marked `[ExcludeFromDiscovery]`; the ASP.NET mapper also excludes these from its API descriptions.
 - If you choose to disable the QUERY transport, set `options.GeneratedApis.EnableQueryHttpMethod = false` in the `AddCratisArc` callback. Generated queries then accept GET only. This is an application transport choice, not a fix to the generator or a requirement to run Arc; verify clients do not depend on QUERY.
 - The public lightweight mapping helpers currently expose GET and POST, not ASP.NET's full routing API.
 

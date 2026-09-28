@@ -5,7 +5,7 @@ description: Align conventional model-bound proxy routes with Arc runtime endpoi
 
 ## Which routes these settings affect
 
-The settings below control **conventional model-bound** routes. Controller-based proxies derive routes from ASP.NET controller/action attributes. An explicit `[Path]` on a model-bound query method or read-model type is used as the route instead; the method's attribute wins. The generator does not prepend the configured API prefix to that explicit path.
+The settings below control **conventional model-bound** routes. Controller-based proxies derive routes from ASP.NET controller/action attributes. An explicit `[Path]` on a model-bound command, query method or read-model type is used as the route instead; the query method's attribute wins over the read-model type's attribute. The generator does not prepend the configured API prefix to that explicit path.
 
 [Namespace roots](namespace-roots.md) control output folders, not route construction.
 

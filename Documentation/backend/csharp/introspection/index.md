@@ -44,6 +44,11 @@ Configure `Cratis:Arc:Introspection` to change that boundary:
 
 Startup validation rejects `Roles` or `TrustForwardedIdentityHeaders` combinations that do not meet these requirements. Arc.Core responds with 401 for anonymous requests and 403 for authenticated callers without a required role. On ASP.NET Core, the response depends on the configured authentication scheme's challenge and forbid behavior: cookie authentication can redirect instead of returning 401 or 403 unless configured otherwise.
 
+To omit an individual .NET command or query from the catalogs and generated OpenAPI,
+apply `[ExcludeFromDiscovery]` to the command, read model, query method, or controller
+action. This leaves invocation unchanged and is **not** an authorization mechanism.
+The catalog options and their defaults are unchanged.
+
 The JVM backend has no equivalent options: its catalog endpoints are always anonymous. See [the HTTP contract](/arc/http-contract/#authentication-and-introspection).
 
 ### Forwarded identity headers
@@ -84,7 +89,7 @@ These options do **not** change `/.cratis/identity-details/schema`, command/quer
 Introspection returns metadata, not business data. It helps you:
 
 - Discover command handlers and query performers.
-- Inspect convention-derived routes and operation names.
+- Inspect explicit `[Path]` routes or convention-derived routes and operation names.
 - Read operation summaries populated from type metadata.
 - Build tooling, diagnostics, and client-side discovery workflows.
 

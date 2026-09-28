@@ -72,7 +72,7 @@ curl 'http://localhost:5000/greeting?name=World'
 
 The command result's `response` is `"Hello, World!"`; the query result's `data` contains `{"text":"Hello, World!"}`. Both use Arc result wrappers. Neither operation persists anything. Stop the service with Ctrl+C.
 
-Arc builds lowercase, kebab-cased URLs from the configured route prefix, namespace segments, and command/query name. A query's `[Path]` overrides that convention; it is not a command routing attribute. Use [route configuration](../asp-net-core/configuration.md#route-generation-examples) rather than guessing a URL from the project name.
+Arc builds lowercase, kebab-cased URLs from the configured route prefix, namespace segments, and command/query name. A query's or command's `[Path]` overrides that convention (import the attribute from the corresponding `Queries.ModelBound` or `Commands.ModelBound` namespace). Use [route configuration](../asp-net-core/configuration.md#route-generation-examples) rather than guessing a URL from the project name.
 
 ## Configuration
 
@@ -106,7 +106,7 @@ Choose integrations only when you need them:
 
 If no endpoints respond, verify `AddCratisArc()`, `UseCratisArc()`, and `RunAsync()` are all present. For listener failures, check the port, OS URL-binding permissions, and `Hosting.ApplicationUrl`. For deployed configuration files, ensure they are copied to the output directory.
 
-Normal activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. Review their anonymous Production defaults before publishing the service. `GET /.cratis/queries` describes discovered performers, not the final route table: this example's `Get` entry reports the convention-derived `route` `/api/get`, even though `[Path("/greeting")]` makes `/greeting` the callable URL. Introspection does not apply custom paths or all final mapping/deduplication decisions.
+Normal activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. Review their anonymous Production defaults before publishing the service. `GET /.cratis/queries` describes discovered performers, not the final route table: this example's `Get` entry reports `/greeting`, matching its `[Path]`. Introspection does not apply all final mapping/deduplication decisions.
 
 ## Next steps
 
