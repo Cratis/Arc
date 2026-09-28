@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ public class a_query_request : a_query_endpoint_mapper
         _performer.Name.Returns(new QueryName("AllOrders"));
         _performer.FullyQualifiedName.Returns(new FullyQualifiedQueryName("Features.Orders.AllOrders"));
         _performer.ReadModelType.Returns(typeof(TestReadModel));
+        _performer.Type.Returns(typeof(TestReadModel));
         _performer.Location.Returns(["Features", "Orders"]);
         _performer.AllowsAnonymousAccess.Returns(false);
         _performer.Parameters.Returns(new QueryParameters([]));
@@ -44,6 +46,9 @@ public class a_query_request : a_query_endpoint_mapper
             .AddSingleton(_observableQueryHandler)
             .AddSingleton(correlationIdAccessor)
             .AddSingleton(Options.Create(_arcOptions))
+            .AddSingleton(new AuthorizationDeclarations(
+                new KnownInstancesOf<IAnonymousEvaluator>([]),
+                new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])))
             .BuildServiceProvider();
 
         _context = Substitute.For<IHttpRequestContext>();

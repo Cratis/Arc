@@ -19,6 +19,8 @@ applies-to:
 <!-- Copyright (c) Cratis. All rights reserved. -->
 <!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
+> **Amended 2026-09-26 by [0006](0006-opt-in-anonymous-authorization-policy-evaluation.md):** An explicitly opted-in policy-only declaration can evaluate unauthenticated callers. The decision text below records the original authentication-required default.
+
 ## Context
 
 Arc accepts policy and authentication-scheme settings on authorization attributes, but previously enforced only authentication and roles. ARC0021 made the missing behavior visible without enforcing it (#2736). Decision 0001 restored ASP.NET Core attribute support and explicitly reserved policy support for this follow-up. Completing it must not bypass custom authorization evaluators or execute work under a different principal from the one that was authorized.

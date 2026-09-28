@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reactive.Subjects;
+using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries.ModelBound;
@@ -68,7 +69,7 @@ public class QueryPipeline(
         {
             throw;
         }
-        catch (InvalidAuthorizationConfiguration exception)
+        catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
             requestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return QueryResult.Unauthorized(GetCorrelationId());
@@ -87,7 +88,8 @@ public class QueryPipeline(
             return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
         }
 
-        var declarations = requestServices.GetRequiredService<AuthorizationDeclarations>();
+        var declarations = requestServices.GetService<AuthorizationDeclarations>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
         var target = QueryAuthorizationTarget.For(performer, declarations);
         var declaration = target switch
         {
@@ -100,7 +102,9 @@ public class QueryPipeline(
             return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
         }
 
-        var prepared = await requestServices.GetRequiredService<AuthorizationEvaluation>().Prepare(target, requestServices, cancellationToken);
+        var evaluation = requestServices.GetService<AuthorizationEvaluation>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
+        var prepared = await evaluation.Prepare(target, requestServices, cancellationToken);
         if (!prepared.PrincipalChanged)
         {
             return await PerformCore(queryName, arguments, paging, sorting, requestServices, prepared, cancellationToken);
@@ -278,6 +282,31 @@ public class QueryPipeline(
                 result.AuthorizedTenant = serviceProvider.GetRequiredService<TenantIdAccessor>().Current;
             }
             cancellationToken.ThrowIfCancellationRequested();
+
+            // Direct Perform calls do not prepare custom evaluator declarations without recognized attribute metadata.
+            // Re-resolve even after a successful no-policy filter: a custom evaluator can change requirements on the
+            // same target before invocation. Caching that absence could bypass a newly required policy. This costs
+            // another declaration lookup on the no-policy path, but does not run a policy a second time.
+            var declarations = serviceProvider.GetService<AuthorizationDeclarations>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization declarations are unavailable.");
+            var target = QueryAuthorizationTarget.For(queryPerformer, declarations);
+            var declaration = target switch
+            {
+                MethodInfo method => declarations.For(method),
+                Type type => declarations.For(type),
+                _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+            };
+
+            if ((declaration.RequiresAsynchronousEvaluation && context.AuthorizedExecution is null) ||
+                (context.AuthorizedExecution is { } verdict &&
+                 !verdict.IsCurrent(
+                     target,
+                     serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
+                     declaration)))
+            {
+                return QueryResult.Unauthorized(correlationId);
+            }
+
             var data = await queryPerformer.Perform(context);
             if (data is null)
             {
@@ -303,6 +332,10 @@ public class QueryPipeline(
         catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
         {
             result.MergeWith(QueryResult.FromException(correlationId, ex));
+        }
+        catch (AuthorizationIdentityChanged)
+        {
+            return QueryResult.Unauthorized(correlationId);
         }
         catch (InvalidAuthorizationConfiguration ex)
         {

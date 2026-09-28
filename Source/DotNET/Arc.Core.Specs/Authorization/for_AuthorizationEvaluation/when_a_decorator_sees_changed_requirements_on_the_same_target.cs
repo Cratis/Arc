@@ -45,7 +45,8 @@ public class when_a_decorator_sees_changed_requirements_on_the_same_target : Spe
 
         public IEnumerable<AuthorizationRequirement> GetAuthorizationRequirements(Type type)
         {
-            var policy = Interlocked.Increment(ref _reads) <= 2 ? "Allowed" : "Changed";
+            // Preparation, the pre-policy check and the post-policy recheck see the evaluated requirements; the legacy evaluator does not.
+            var policy = Interlocked.Increment(ref _reads) <= 3 ? "Allowed" : "Changed";
             return [AuthorizationRequirement.FromAttribute("Admin", policy, null)];
         }
     }

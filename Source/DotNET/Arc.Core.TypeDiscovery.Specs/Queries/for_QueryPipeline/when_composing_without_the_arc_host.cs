@@ -28,6 +28,8 @@ public class when_composing_without_the_arc_host : Specification
         correlationIds.Current.Returns(correlationId);
 
         _performer = Substitute.For<IQueryPerformer>();
+        _performer.Type.Returns(typeof(object));
+        _performer.Name.Returns((QueryName)"NoMethod");
         _performer.Dependencies.Returns([]);
         _performer.Parameters.Returns(QueryParameters.Empty);
         _performer.Perform(Arg.Any<QueryContext>()).Returns(ValueTask.FromResult<object?>(null));
@@ -46,6 +48,9 @@ public class when_composing_without_the_arc_host : Specification
         activitySource.ActualSource.Returns(_activitySource);
 
         var services = new ServiceCollection();
+        services.AddSingleton(new AuthorizationDeclarations(
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
         services.AddSingleton(correlationIds);
         services.AddSingleton<IQueryContextManager, QueryContextManager>();
         services.AddSingleton(filters);

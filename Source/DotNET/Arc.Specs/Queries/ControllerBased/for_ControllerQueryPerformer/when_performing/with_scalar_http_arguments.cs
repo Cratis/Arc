@@ -90,6 +90,9 @@ public class with_scalar_http_arguments : Specification
         providers.Performers.Returns([performer]);
         builder.Services.AddSingleton(providers);
         builder.Services.AddSingleton(pipeline);
+        builder.Services.AddSingleton(new AuthorizationDeclarations(
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
         builder.Services.AddSingleton(Substitute.For<IObservableQueryHandler>());
 
         await using var app = builder.Build();

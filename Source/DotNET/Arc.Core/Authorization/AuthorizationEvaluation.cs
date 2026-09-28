@@ -46,15 +46,16 @@ public class AuthorizationEvaluation(
     internal async Task<PreparedAuthorization> Prepare(MemberInfo target, IServiceProvider services, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var declaration = target switch
-        {
-            Type type => declarations.For(type),
-            MethodInfo method => declarations.For(method),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
+        var declaration = DeclarationFor(target);
         var resolution = await runtime.Resolve(declaration.Requirements, services, cancellationToken);
         var originalPrincipal = principalAccessor.Current;
         var selectedPrincipal = await resolution.SelectPrincipal(originalPrincipal, services, cancellationToken);
+        if (resolution is IAnonymousPolicyResolution { EvaluatesAnonymous: true } &&
+            selectedPrincipal?.Identity?.IsAuthenticated != true)
+        {
+            selectedPrincipal = new ClaimsPrincipal(new ClaimsIdentity());
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
         return new PreparedAuthorization(target, declaration, originalPrincipal, selectedPrincipal, resolution);
     }
@@ -83,12 +84,7 @@ public class AuthorizationEvaluation(
             throw new InvalidAuthorizationConfiguration("The prepared authorization target does not match the executing command.");
         }
 
-        var currentDeclaration = target switch
-        {
-            Type type => declarations.For(type),
-            MethodInfo method => declarations.For(method),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
+        var currentDeclaration = DeclarationFor(target);
         var declaration = prepared.Declaration;
         if (!AuthorizationEvaluator.SameDeclaration(declaration, currentDeclaration))
         {
@@ -98,7 +94,7 @@ public class AuthorizationEvaluation(
         var selectedPrincipal = prepared.SelectedPrincipal;
         var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
-        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal))
+        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal, prepared.EvaluatesAnonymous))
         {
             return false;
         }
@@ -109,9 +105,34 @@ public class AuthorizationEvaluation(
             ? services.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal!, services)
             : null;
 
+        PrincipalSnapshot? policyIdentity = null;
+        PrincipalSnapshot? executionIdentity = null;
+        var guest = false;
         if (declaration.RequiresAsynchronousEvaluation)
         {
-            if (selectedPrincipal is null || !await resolution.IsAuthorized(
+            if (selectedPrincipal is null)
+            {
+                return false;
+            }
+
+            guest = prepared.EvaluatesAnonymous && selectedPrincipal.Identity?.IsAuthenticated != true;
+            var executionPrincipal = needsSelectedScope ? selectedPrincipal : principalAccessor.Current;
+
+            // A verdict certifies exactly the policy-input and execution identities captured immediately before
+            // evaluation (after pre-verdict hooks). Without a selected scope, authenticated policy input must
+            // match the execution identity by content at that instant. Both are revalidated after every callback
+            // that runs application code and before the verdict is published. A synthetic guest is distinct from
+            // the ambient unauthenticated caller, but cannot certify an authenticated execution identity.
+            policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
+            executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
+            if ((!needsSelectedScope && !guest && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal)) ||
+                (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
+                           AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal))))
+            {
+                return false;
+            }
+
+            if (!await resolution.IsAuthorized(
                 new AuthorizationPolicyContext(selectedPrincipal, target, resource)
                 {
                     ReceivedAt = resource switch
@@ -126,13 +147,19 @@ public class AuthorizationEvaluation(
             {
                 return false;
             }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IdentityUnchanged(policyIdentity, executionIdentity, selectedPrincipal, guest) || !DeclarationUnchanged(target, declaration))
+            {
+                return false;
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // Only the same target and selected principal may be checked synchronously after its asynchronous requirements.
+        // The legacy marker carries only the certified execution snapshot and guest flag; CheckMember rechecks both.
         using var alreadyEvaluated = declaration.RequiresAsynchronousEvaluation && selectedPrincipal is not null
-            ? AuthorizationEvaluator.AlreadyEvaluated(target, selectedPrincipal, declaration)
+            ? AuthorizationEvaluator.AlreadyEvaluated(target, executionIdentity!, declaration, guest)
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
@@ -148,18 +175,50 @@ public class AuthorizationEvaluation(
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+        if (declaration.RequiresAsynchronousEvaluation &&
+            (!IdentityUnchanged(policyIdentity!, executionIdentity!, selectedPrincipal!, guest) || !DeclarationUnchanged(target, declaration)))
+        {
+            return false;
+        }
+
         var identity = principalChanged
             ? new ClaimsPrincipal(selectedPrincipal!.Identities.Select(claimsIdentity => claimsIdentity.Clone()))
+            : null;
+        var authorizedExecution = declaration.RequiresAsynchronousEvaluation
+            ? new AuthorizedExecution(target, executionIdentity!, declaration, guest)
             : null;
         if (resource is QueryContext queryContext)
         {
             queryContext.AuthorizedPrincipal = identity;
+            queryContext.AuthorizedExecution = authorizedExecution;
         }
         else if (resource is CommandContext commandContext)
         {
             commandContext.AuthorizedPrincipal = identity;
+            commandContext.AuthorizedExecution = authorizedExecution;
         }
 
         return true;
     }
+
+    AuthorizationDeclaration DeclarationFor(MemberInfo target) => target switch
+    {
+        Type type => declarations.For(type),
+        MethodInfo method => declarations.For(method),
+        _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+    };
+
+    /// <summary>
+    /// Checks that policy and legacy callbacks, which run application code, left the evaluated requirements in effect.
+    /// </summary>
+    /// <param name="target">The protected member.</param>
+    /// <param name="declaration">The requirements the verdict evaluated.</param>
+    /// <returns>Whether the verdict still certifies the current requirements.</returns>
+    bool DeclarationUnchanged(MemberInfo target, AuthorizationDeclaration declaration) =>
+        AuthorizationEvaluator.SameDeclaration(declaration, DeclarationFor(target));
+
+    bool IdentityUnchanged(PrincipalSnapshot policyIdentity, PrincipalSnapshot executionIdentity, ClaimsPrincipal selectedPrincipal, bool guest) =>
+        AuthorizationPrincipalIdentity.Same(policyIdentity, selectedPrincipal) &&
+        AuthorizationPrincipalIdentity.Same(executionIdentity, principalAccessor.Current) &&
+        (!guest || !AuthorizationEvaluator.HasAuthenticatedIdentity(principalAccessor.Current));
 }

@@ -8,7 +8,7 @@ namespace Cratis.Arc.Queries;
 internal static partial class QueryPipelineLogging
 {
     [LoggerMessage(Level = LogLevel.Error, Message = "Query authorization configuration failed")]
-    internal static partial void AuthorizationConfigurationFailed(this ILogger<QueryPipeline> logger, Exception exception);
+    internal static partial void AuthorizationConfigurationFailed(this ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Query authorization preparation failed")]
     internal static partial void AuthorizationPreparationFailed(this ILogger<QueryPipeline> logger, Exception exception);
