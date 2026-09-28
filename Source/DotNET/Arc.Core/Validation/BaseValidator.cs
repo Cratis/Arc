@@ -14,12 +14,16 @@ namespace Cratis.Arc.Validation;
 /// Represents a base validator that we use for discovery.
 /// </summary>
 /// <typeparam name="T">Type of object the validator is for.</typeparam>
-public class BaseValidator<T> : AbstractValidator<T>, IHasIgnoredConceptRuleMembers
+public class BaseValidator<T> : AbstractValidator<T>, IHasIgnoredConceptRuleMembers, IObjectValidator
 {
     readonly HashSet<string> _ignoredConceptRuleMembers = [];
 
     /// <inheritdoc/>
     public IReadOnlySet<string> IgnoredConceptRuleMembers => _ignoredConceptRuleMembers;
+
+    /// <inheritdoc/>
+    Task<FluentValidation.Results.ValidationResult> IObjectValidator.ValidateObjectAsync(object instance, CancellationToken cancellationToken) =>
+        ValidateObjectAsync((T)instance, cancellationToken);
 
     /// <summary>
     /// Define a condition for when the context is a command.
@@ -73,6 +77,15 @@ public class BaseValidator<T> : AbstractValidator<T>, IHasIgnoredConceptRuleMemb
     /// </summary>
     /// <param name="propertyName">The camelCased property name, as produced by <see cref="GetPropertyName{TProperty}"/>.</param>
     internal void IgnoreConceptRuleFor(string propertyName) => _ignoredConceptRuleMembers.Add(propertyName);
+
+    /// <summary>
+    /// Validates a model using the statically typed FluentValidation path.
+    /// </summary>
+    /// <param name="instance">The model to validate.</param>
+    /// <param name="cancellationToken">Token for cancelling validation.</param>
+    /// <returns>The FluentValidation result.</returns>
+    protected Task<FluentValidation.Results.ValidationResult> ValidateObjectAsync(T instance, CancellationToken cancellationToken) =>
+        ValidateAsync(instance, cancellationToken);
 
     static Expression<Func<T, TProperty>> CreateValueExpression<TProperty>(Expression<Func<T, ConceptAs<TProperty>>> expression)
         where TProperty : IComparable
