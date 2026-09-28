@@ -102,7 +102,9 @@ public class QueryPipeline(
             return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
         }
 
-        var prepared = await requestServices.GetRequiredService<AuthorizationEvaluation>().Prepare(target, requestServices, cancellationToken);
+        var evaluation = requestServices.GetService<AuthorizationEvaluation>() ??
+            throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
+        var prepared = await evaluation.Prepare(target, requestServices, cancellationToken);
         if (!prepared.PrincipalChanged)
         {
             return await PerformCore(queryName, arguments, paging, sorting, requestServices, prepared, cancellationToken);

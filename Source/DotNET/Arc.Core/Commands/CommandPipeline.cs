@@ -233,7 +233,8 @@ public class CommandPipeline(
     {
         try
         {
-            var authorization = await services.GetRequiredService<AuthorizationEvaluation>().Prepare(command.GetType(), services, token);
+            var authorization = await (services.GetService<AuthorizationEvaluation>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.")).Prepare(command.GetType(), services, token);
             return (authorization, null);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -289,7 +290,8 @@ public class CommandPipeline(
             var preparedAuthorization = suppliedAuthorization;
             if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
             {
-                preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
+                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
                     .Prepare(command.GetType(), serviceProvider, cancellationToken);
             }
 
@@ -529,7 +531,8 @@ public class CommandPipeline(
             var preparedAuthorization = suppliedAuthorization;
             if (preparedAuthorization is null && declarations.For(command.GetType()).RequiresAsynchronousEvaluation)
             {
-                preparedAuthorization = await serviceProvider.GetRequiredService<AuthorizationEvaluation>()
+                preparedAuthorization = await (serviceProvider.GetService<AuthorizationEvaluation>() ??
+                    throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable."))
                     .Prepare(command.GetType(), serviceProvider, cancellationToken);
             }
 
