@@ -25,7 +25,7 @@ Each gap is real in the code, but every one of them needs trusted application co
 
 ## Decision
 
-Arc certifies authorization at pipeline boundaries: when policies are evaluated, between policies, after application callbacks that run during evaluation, and immediately before the handler or performer is invoked. Arc does not police identity changes that trusted application code makes outside those boundaries, and it does not adopt the certificate and execution-lease model. Changes that keep behavior identical for existing applications and add no per-item cost on hot paths — such as keeping a detached copy of a standard principal for an observable subscription — remain welcome.
+Arc certifies authorization at pipeline boundaries: when policies are evaluated, between policies, after application callbacks that run during evaluation, and immediately before the handler or performer is invoked. Arc does not police identity changes that trusted application code makes outside those boundaries, and it does not adopt the certificate and execution-lease model. Changes that keep behavior identical for existing applications and add no per-item cost on hot paths remain welcome. Observable subscriptions already hold a copy of the caller taken at admission rather than the request's live principal.
 
 ## Options considered
 
@@ -43,7 +43,7 @@ Holds until Arc hosts code it does not trust inside the pipeline — for example
 
 ## Verification
 
-- **Done when:** decision 0006 points to this record instead of a separately tracked model; the authorization documentation lists the residual limits; and issues #2860, #2861, #2862, #2863, #2864 and #2865 are closed with a reference to this record.
+- **Done when:** decision 0006 points to this record instead of a separately tracked model; the authorization documentation lists the residual limits; and issues #2860, #2861, #2862, #2863, #2864, #2865 and #2866 are closed with a reference to this record.
 - **Verify by:** reading `decisions/0006-opt-in-anonymous-authorization-policy-evaluation.md` and `Documentation/backend/csharp/core/authorization.md`, and checking the state of those issues on GitHub.
 
 ## Consequences
