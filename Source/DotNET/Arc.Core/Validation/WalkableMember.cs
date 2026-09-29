@@ -29,6 +29,14 @@ internal sealed record WalkableMember(string Name, Func<object, object?> Read)
     public static WalkableMember For(PropertyInfo property) =>
         new(property.Name.ToCamelCase(), CompileReader(property));
 
+    /// <summary>
+    /// Creates a <see cref="WalkableMember"/> for a member the Arc source generator registered.
+    /// </summary>
+    /// <param name="member">The <see cref="ModelGraphMember"/> to describe.</param>
+    /// <returns>The <see cref="WalkableMember"/>.</returns>
+    public static WalkableMember For(ModelGraphMember member) =>
+        new(member.Name.ToCamelCase(), member.Read);
+
     static Func<object, object?> CompileReader(PropertyInfo property)
     {
         try

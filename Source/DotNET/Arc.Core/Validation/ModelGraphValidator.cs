@@ -41,6 +41,40 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     }
 
     /// <summary>
+    /// Gets the members of a type that are worth walking, along with how to read each one.
+    /// </summary>
+    /// <param name="type">The <see cref="Type"/> to get members for.</param>
+    /// <returns>The members to descend into.</returns>
+    /// <remarks>
+    /// Members the Arc source generator registered for the exact type in <see cref="ModelGraphWalkers"/> are read
+    /// through its statically typed getters; they are the same members, in the same order, as the reflection walk
+    /// finds. Any other type is walked through reflection.
+    /// </remarks>
+    internal static WalkableMember[] GetWalkableProperties(Type type) =>
+        _walkableProperties.GetOrAdd(type, static _ => ModelGraphWalkers.TryGet(_, out var members)
+            ? [.. members.Select(WalkableMember.For)]
+            : GetWalkablePropertiesThroughReflection(_));
+
+    /// <summary>
+    /// Gets the members of a type that are worth walking through reflection, along with how to read each one.
+    /// </summary>
+    /// <param name="type">The <see cref="Type"/> to get members for.</param>
+    /// <returns>The members to descend into.</returns>
+    /// <remarks>
+    /// Indexer properties are excluded: they require index arguments, so reading one without any would throw
+    /// "Parameter count mismatch". They show up on types such as <c>JsonElement</c> (<c>this[int]</c>) that can
+    /// appear in an object-typed property graph. Write-only properties are excluded because there is nothing to read.
+    /// <para>
+    /// Trimming can remove the properties of a type only known at runtime, which the trim analyzer reports here. The
+    /// method is not annotated with RequiresUnreferencedCode, since that would only move the warning to the traversal.
+    /// </para>
+    /// </remarks>
+    internal static WalkableMember[] GetWalkablePropertiesThroughReflection(Type type) =>
+        [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.GetIndexParameters().Length == 0 && property.CanRead)
+            .Select(WalkableMember.For)];
+
+    /// <summary>
     /// Extends a member path with a property, in the casing the client uses.
     /// </summary>
     /// <param name="path">The path so far, or empty at the root.</param>
@@ -63,22 +97,6 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// </remarks>
     static bool IsLeaf(Type type) =>
         _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
-
-    /// <summary>
-    /// Gets the members of a type that are worth walking, along with how to read each one.
-    /// </summary>
-    /// <param name="type">The <see cref="Type"/> to get members for.</param>
-    /// <returns>The members to descend into.</returns>
-    /// <remarks>
-    /// Indexer properties are excluded: they require index arguments, so reading one without any would throw
-    /// "Parameter count mismatch". They show up on types such as <c>JsonElement</c> (<c>this[int]</c>) that can
-    /// appear in an object-typed property graph. Write-only properties are excluded because there is nothing to read.
-    /// </remarks>
-    static WalkableMember[] GetWalkableProperties(Type type) =>
-        _walkableProperties.GetOrAdd(type, static _ =>
-            [.. _.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                 .Where(property => property.GetIndexParameters().Length == 0 && property.CanRead)
-                 .Select(WalkableMember.For)]);
 
     async Task Validate(
         ModelGraphValidationRequest request,
