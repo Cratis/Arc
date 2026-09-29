@@ -13,6 +13,7 @@ public class project_libraries : Specification
     protected ProjectLibrary _choosingLibrary;
     protected ProjectLibrary _compileOnlyLibrary;
     protected ProjectLibrary _derivedLibrary;
+    protected ProjectLibrary _executableLibrary;
 
     void Establish()
     {
@@ -27,6 +28,15 @@ public class project_libraries : Specification
             "DerivedLibrary",
             "namespace DerivedLibrary { public class Derived : CompileOnlyLibrary.Base; }",
             _compileOnlyLibrary);
+
+        // A referenced executable that lets the executable under compilation see its internals, as a web application
+        // does for its test project. What it declares is what Arc generates into every executable.
+        const string ExecutableSource = """
+            [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("App")]
+            namespace Cratis.Arc.Generated { internal static class __CratisArcProjectReferenceModules { } }
+            namespace Cratis.Arc.Commands.Generated { internal static class OperationRegistration { } }
+            """;
+        _executableLibrary = ProjectLibrary.Compile("ExecutableLibrary", ExecutableSource);
     }
 
     protected static ProjectLibrary CompileWithModuleInitializer(string name, string types, string moduleInitializerRanKey, params ProjectLibrary[] references)
@@ -44,5 +54,22 @@ public class project_libraries : Specification
             }
             """;
         return ProjectLibrary.Compile(name, source, references);
+    }
+
+    protected static ProjectLibrary CompileWithThrowingModuleInitializer(string name, string types)
+    {
+        var source = $$"""
+            namespace {{name}}
+            {
+                {{types}}
+
+                static class Registration
+                {
+                    [System.Runtime.CompilerServices.ModuleInitializer]
+                    internal static void Register() => throw new System.InvalidOperationException("The module initializer failed");
+                }
+            }
+            """;
+        return ProjectLibrary.Compile(name, source);
     }
 }

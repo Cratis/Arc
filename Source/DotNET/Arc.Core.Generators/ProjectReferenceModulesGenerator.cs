@@ -23,7 +23,8 @@ namespace Cratis.Arc.Generators;
 /// <para>
 /// Each type is named in its own lambda, so the runtime resolves each separately and one that cannot be loaded does
 /// not stop the others. Types with no interfaces and a base type from the core library are preferred, as they load
-/// with the fewest other assemblies.
+/// with the fewest other assemblies. Types in Arc's own generated namespaces are never chosen: the same generated
+/// class exists in every executable, so naming one would reach the wrong module.
 /// </para>
 /// <para>
 /// Project references are those the <c>Cratis.Arc.Core</c> build targets report through the
@@ -212,33 +213,38 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
 
     static INamedTypeSymbol? FindReachableType(Compilation compilation, INamespaceSymbol globalNamespace)
     {
-        INamedTypeSymbol? first = null;
-        foreach (var type in GetReachableTypes(compilation, globalNamespace))
+        // The cheap syntactic check runs before the symbol lookups of IsReachable, and the search stops at the first
+        // type passing both. Types that fail the cheap check are only worth a lookup while there is no fallback yet:
+        // the first reachable one is kept, and every later one is skipped without being looked at.
+        INamedTypeSymbol? fallback = null;
+        foreach (var type in GetOrderedTypes(globalNamespace))
         {
             if (LoadsWithoutOtherAssemblies(type))
             {
-                return type;
+                if (IsReachable(compilation, type))
+                {
+                    return type;
+                }
             }
-
-            first ??= type;
+            else if (fallback is null && IsReachable(compilation, type))
+            {
+                fallback = type;
+            }
         }
 
-        return first;
+        return fallback;
     }
 
-    static IEnumerable<INamedTypeSymbol> GetReachableTypes(Compilation compilation, INamespaceSymbol @namespace)
+    static IEnumerable<INamedTypeSymbol> GetOrderedTypes(INamespaceSymbol @namespace)
     {
         foreach (var type in @namespace.GetTypeMembers().OrderBy(_ => _.MetadataName, StringComparer.Ordinal))
         {
-            if (IsReachable(compilation, type))
-            {
-                yield return type;
-            }
+            yield return type;
         }
 
         foreach (var child in @namespace.GetNamespaceMembers().OrderBy(_ => _.Name, StringComparer.Ordinal))
         {
-            foreach (var type in GetReachableTypes(compilation, child))
+            foreach (var type in GetOrderedTypes(child))
             {
                 yield return type;
             }
@@ -259,9 +265,29 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
     static bool IsReachable(Compilation compilation, INamedTypeSymbol type) =>
         !type.IsGenericType &&
         type.CanBeReferencedByName &&
+        !IsGeneratedByArc(type) &&
         compilation.IsSymbolAccessibleWithin(type, compilation.Assembly) &&
         !type.GetAttributes().Any(_ => _excludedAttributes.Contains(_.AttributeClass?.ToDisplayString() ?? string.Empty)) &&
         SymbolEqualityComparer.Default.Equals(compilation.GetTypeByMetadataName(GetMetadataName(type)), type);
+
+    /// <summary>
+    /// Whether the type is one Arc's own generators emit. The registration class this generator emits for an executable
+    /// can be visible in a referenced executable through <c>InternalsVisibleTo</c>, and naming it would bind to the
+    /// executable's own copy rather than the reference's, so no reference's module is reached through it.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>True when Arc generates it.</returns>
+    static bool IsGeneratedByArc(INamedTypeSymbol type)
+    {
+        if (type.Name == GeneratedClassName)
+        {
+            return true;
+        }
+
+        var @namespace = type.ContainingNamespace.ToDisplayString();
+        return @namespace.StartsWith("Cratis.Arc.", StringComparison.Ordinal) &&
+            (@namespace.EndsWith(".Generated", StringComparison.Ordinal) || @namespace.IndexOf(".Generated.", StringComparison.Ordinal) >= 0);
+    }
 
     static string GetMetadataName(INamedTypeSymbol type)
     {
