@@ -1,0 +1,24 @@
+<Project>
+    <!-- Reports the project references of the compilation to the ProjectReferenceModulesGenerator in
+         Cratis.Arc.Core, which emits code into an executable that runs the module initializers of each of them. Those
+         register the metadata generated for them, and without this the runtime can only find them through the
+         dependency context, which single-file and trimmed applications do not have.
+
+         The value is the number of project references followed by their file names, separated by '|': the analyzer
+         config file the property travels through treats ';' and '#' as comments, and the count lets the generator
+         tell a complete list from a truncated one. -->
+    <ItemGroup>
+        <CompilerVisibleProperty Include="CratisArcProjectReferences" />
+    </ItemGroup>
+
+    <Target Name="_CratisArcCollectProjectReferences"
+            BeforeTargets="GenerateMSBuildEditorConfigFileCore"
+            DependsOnTargets="ResolveReferences">
+        <ItemGroup>
+            <_CratisArcProjectReference Include="@(ReferencePath->WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
+        </ItemGroup>
+        <PropertyGroup>
+            <CratisArcProjectReferences>@(_CratisArcProjectReference->Count())|@(_CratisArcProjectReference->'%(Filename)', '|')</CratisArcProjectReferences>
+        </PropertyGroup>
+    </Target>
+</Project>
