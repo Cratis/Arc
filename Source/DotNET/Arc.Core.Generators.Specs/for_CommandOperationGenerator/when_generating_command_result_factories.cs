@@ -124,7 +124,7 @@ public class when_generating_command_result_factories : Specification
     [Fact] void should_register_system_tuple_elements() => _source.ShouldContain("typeof(global::Results.Alpha)");
     [Fact] void should_not_register_system_tuples_themselves() => _source.ShouldNotContain("System.Tuple<");
     [Fact] void should_register_nested_tuple_elements() => _source.ShouldContain("typeof(global::Results.Epsilon)");
-    [Fact] void should_register_nested_tuples_which_can_be_the_response() => _source.ShouldContain("typeof(global::System.ValueTuple<global::Results.Delta, global::Results.Epsilon>)");
+    [Fact] void should_register_nested_tuples_which_can_be_the_response() => _source.ShouldContain("typeof((global::Results.Delta, global::Results.Epsilon))");
     [Fact] void should_not_register_types_of_non_commands() => _source.ShouldNotContain("DateTimeOffset");
     [Fact] void should_wrap_a_reference_type_in_its_exact_result_type() => Wrap("Results.Receipt", "1").GetType().ShouldEqual(typeof(CommandResult<>).MakeGenericType(_assembly.GetType("Results.Receipt")!));
     [Fact] void should_wrap_a_value_type_in_its_exact_result_type() => Wrap(42).ShouldBeOfExactType<CommandResult<int>>();
