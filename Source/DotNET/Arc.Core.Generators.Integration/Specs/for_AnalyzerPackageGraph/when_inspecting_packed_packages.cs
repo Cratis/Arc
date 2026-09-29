@@ -82,6 +82,19 @@ public class when_inspecting_packed_packages(PackageGraphFixture fixture) : Spec
     }
 
     /// <summary>
+    /// Verifies that Arc packs the build targets turning the controllers MSBuild property into its feature switch, for
+    /// direct and transitive consumers.
+    /// </summary>
+    [Fact]
+    public void should_pack_the_arc_build_targets_for_direct_and_transitive_consumers()
+    {
+        var entries = _fixture.Packages["Cratis.Arc"].Entries;
+
+        entries.ShouldContain("build/Cratis.Arc.targets");
+        entries.ShouldContain("buildTransitive/Cratis.Arc.targets");
+    }
+
+    /// <summary>
     /// Verifies that aggregate packages do not physically forward analyzer assemblies.
     /// </summary>
     [Fact]
