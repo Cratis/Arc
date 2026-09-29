@@ -14,8 +14,8 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <remarks>
 /// Not intended to be called directly. A response whose runtime type has no generated factory, such as a subtype of the
-/// declared response type or a command without generated code, is wrapped through reflection unless the code is
-/// ahead-of-time compiled. This registry does not imply that the rest of Arc supports NativeAOT.
+/// declared response type or a command without generated code, is wrapped through reflection, which fails only in
+/// ahead-of-time compiled code. This registry does not imply that the rest of Arc supports NativeAOT.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class CommandResultFactories
@@ -51,13 +51,29 @@ public static class CommandResultFactories
         _factories.TryGetValue(responseType, out var factory) ? factory : null;
 
     /// <summary>
-    /// Gets whether a response without a generated factory can be wrapped through reflection.
+    /// Wraps a response that has no generated factory.
     /// </summary>
-    /// <param name="isDynamicCodeSupported">Whether the runtime supports dynamic code, which is false for apps built with PublishAot even when they run under the JIT.</param>
-    /// <param name="isDynamicCodeCompiled">Whether dynamic code is compiled at runtime, which is false only when the code is ahead-of-time compiled.</param>
-    /// <returns>True unless the code cannot generate types at runtime.</returns>
-    internal static bool CanCreateThroughReflection(bool isDynamicCodeSupported, bool isDynamicCodeCompiled) =>
-        isDynamicCodeSupported || isDynamicCodeCompiled;
+    /// <param name="correlationId">The <see cref="CorrelationId"/> of the command.</param>
+    /// <param name="response">The response to wrap.</param>
+    /// <param name="createThroughReflection">Creates the result through reflection.</param>
+    /// <returns>The <see cref="CommandResult{TResponse}"/> holding the response.</returns>
+    /// <exception cref="MissingCommandResultFactory">The result type cannot be created, as in ahead-of-time compiled code.</exception>
+    internal static CommandResult CreateWithoutFactory(
+        CorrelationId correlationId,
+        object response,
+        Func<CorrelationId, object, CommandResult> createThroughReflection)
+    {
+        try
+        {
+            return createThroughReflection(correlationId, response);
+        }
+        catch (NotSupportedException error)
+        {
+            // Ahead-of-time compiled code cannot create a generic instantiation it did not compile; that surfaces as
+            // NotSupportedException (PlatformNotSupportedException derives from it).
+            throw new MissingCommandResultFactory(response.GetType(), error);
+        }
+    }
 
     /// <summary>
     /// Wraps a response in a <see cref="CommandResult{TResponse}"/> of its runtime type through reflection.

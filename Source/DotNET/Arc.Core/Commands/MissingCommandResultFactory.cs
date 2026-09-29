@@ -8,13 +8,13 @@ namespace Cratis.Arc.Commands;
 /// because no factory was generated for its runtime type and the code is ahead-of-time compiled, as under NativeAOT.
 /// </summary>
 /// <remarks>
-/// Thrown only when no factory is registered for the runtime type of the response and both
-/// <see cref="System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeSupported"/> and
-/// <see cref="System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled"/> are false. Apps published with
-/// PublishAot but running under the JIT, for instance from dotnet run, still wrap such responses through reflection.
+/// Thrown only when no factory is registered for the runtime type of the response and creating the result through
+/// reflection is not supported, which happens in ahead-of-time compiled code such as NativeAOT. Under the JIT, including
+/// apps built with PublishAot that run from dotnet run or a test host, such responses are wrapped through reflection.
 /// The Arc source generator emits factories for the concrete response types a command's Handle method declares.
 /// Declare the concrete response type rather than a base type, interface or object.
 /// </remarks>
 /// <param name="responseType">The runtime type of the response.</param>
-public class MissingCommandResultFactory(Type responseType)
-    : Exception($"No generated command result factory exists for response type '{responseType}', and the code is ahead-of-time compiled. Declare the concrete response type as the return type of the command's Handle method.");
+/// <param name="innerException">The failure from creating the result through reflection.</param>
+public class MissingCommandResultFactory(Type responseType, Exception innerException)
+    : Exception($"No generated command result factory exists for response type '{responseType}', and the result type cannot be created at runtime. Declare the concrete response type as the return type of the command's Handle method.", innerException);
