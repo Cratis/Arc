@@ -36,16 +36,4 @@ public class MongoDBOptions
     /// When not set, the value from the connection string is preserved.
     /// </remarks>
     public bool? DirectConnection { get; set; }
-
-    /// <summary>
-    /// Gets or sets whether clients are wrapped in the Arc resilience layer. Defaults to <see langword="true"/>.
-    /// </summary>
-    /// <remarks>
-    /// The resilience layer wraps the client, databases and collections in runtime-generated proxies that throttle
-    /// concurrent collection operations and treat the Azure Cosmos DB "Collection not found" error as an empty result.
-    /// Set this to <see langword="false"/> to get a plain <c>MongoClient</c> that relies only on the MongoDB driver's
-    /// own retryable reads and writes. Runtime proxy generation needs dynamic code, so turning the layer off is
-    /// required for trimmed or native AOT applications.
-    /// </remarks>
-    public bool EnableResilience { get; set; } = true;
 }
