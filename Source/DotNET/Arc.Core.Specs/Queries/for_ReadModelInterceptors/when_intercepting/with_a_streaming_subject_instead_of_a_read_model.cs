@@ -8,10 +8,10 @@ namespace Cratis.Arc.Queries.for_ReadModelInterceptors.when_intercepting;
 /// <summary>
 /// Reproduces the production failure that motivated skipping streaming results in the query pipeline. When an
 /// observable query result — an <see cref="ISubject{T}"/> wrapper such as Arc's MongoDB LifetimeAwareSubject — is
-/// handed to the per-item interceptor as if it were a read model, the reflective
-/// <c>IInterceptReadModel&lt;TReadModel&gt;.Intercept(TReadModel)</c> call cannot bind the wrapper to the read
-/// model type and throws "...cannot be converted to type...". The pipeline must therefore never pass a streaming
-/// result to the interceptors.
+/// handed to the per-item interceptor as if it were a read model, the typed invoker
+/// (<c>ReadModelInterceptorInvokerFor&lt;TReadModel&gt;</c>) cannot bind the wrapper to the read model type and
+/// throws <c>ReadModelIsNotOfExpectedType</c> (an <see cref="ArgumentException"/>) with "...cannot be converted to
+/// type...". The pipeline must therefore never pass a streaming result to the interceptors.
 /// </summary>
 public class with_a_streaming_subject_instead_of_a_read_model : given.a_read_model_interceptors
 {
@@ -36,6 +36,7 @@ public class with_a_streaming_subject_instead_of_a_read_model : given.a_read_mod
         () => _interceptors.Intercept(typeof(TestReadModel), [_subject], _serviceProvider));
 
     [Fact] void should_throw() => _exception.ShouldNotBeNull();
+    [Fact] void should_throw_an_argument_exception() => (_exception is ArgumentException).ShouldBeTrue();
     [Fact] void should_fail_to_convert_the_subject_to_the_read_model_type() =>
         _exception.Message.ShouldContain("cannot be converted to type");
     [Fact] void should_not_intercept_the_subject() => _interceptorInstance.InterceptedItems.ShouldBeEmpty();
