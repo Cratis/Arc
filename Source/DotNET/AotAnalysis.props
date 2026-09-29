@@ -1,0 +1,15 @@
+<Project>
+    <!-- Trim and NativeAOT analysis for the analyzer ratchet (scripts/aot-ratchet.py, #2859). Imported by the
+         projects the ratchet holds (Arc.Core and Arc) and inert in every normal build: only the ratchet passes
+         CratisAotAnalysis=true. It is limited to target frameworks that support the analyzers - the netstandard
+         analyzer and generator projects fail with NETSDK1210 - and reports the analyzer diagnostics as warnings
+         so the whole project is analyzed rather than failing at the first one. -->
+    <PropertyGroup Condition="'$(CratisAotAnalysis)' == 'true' AND '$(TargetFramework)' != '' AND $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net8.0'))">
+        <IsAotCompatible>true</IsAotCompatible>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <MSBuildTreatWarningsAsErrors>false</MSBuildTreatWarningsAsErrors>
+        <!-- The console output does not name the target framework a diagnostic came from, so every compilation
+             writes a SARIF log of its own for the ratchet to read. -->
+        <ErrorLog Condition="'$(CratisAotAnalysisOutput)' != ''">$(CratisAotAnalysisOutput)/$(MSBuildProjectName).$(TargetFramework).sarif,version=2.1</ErrorLog>
+    </PropertyGroup>
+</Project>

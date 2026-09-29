@@ -5,6 +5,9 @@
         <Description>Core command and query pipelines, validation, identity, and tenancy for Cratis Arc — the CQRS application framework for ASP.NET Core — hostable from workers, consoles, and custom services.</Description>
     </PropertyGroup>
 
+    <!-- Held to the trim/AOT analyzer ratchet (#2859); inert unless scripts/aot-ratchet.py switches it on. -->
+    <Import Project="../AotAnalysis.props" />
+
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Specs" />
