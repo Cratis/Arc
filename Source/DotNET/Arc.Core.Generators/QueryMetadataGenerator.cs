@@ -37,46 +37,13 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             GenerateSource(spc, readModels));
     }
 
-    static ReadModelInfo? GetReadModelInfo(GeneratorSyntaxContext context)
-    {
-        var typeDecl = (TypeDeclarationSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol typeSymbol)
-        {
-            return null;
-        }
-
-        if (!HasReadModelAttribute(typeSymbol))
-        {
-            return null;
-        }
-
-        var queryMethods = typeSymbol.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(m =>
-                m.MethodKind == MethodKind.Ordinary &&
-                m.IsStatic &&
-                m.TypeParameters.Length == 0 &&
-                m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
-                !m.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute") &&
-                IsValidQueryMethod(m, typeSymbol))
-            .Select(m => m.Name)
-            .ToList();
-
-        if (queryMethods.Count == 0)
-        {
-            return null;
-        }
-
-        return new ReadModelInfo(
-            typeSymbol.ToDisplayString(),
-            queryMethods);
-    }
-
-    static bool HasReadModelAttribute(INamedTypeSymbol typeSymbol) =>
-        typeSymbol.GetAttributes().Any(a =>
-            string.Equals(a.AttributeClass?.ToDisplayString(), ReadModelAttributeFullName, StringComparison.Ordinal));
-
-    static bool IsValidQueryMethod(IMethodSymbol method, INamedTypeSymbol readModelType)
+    /// <summary>
+    /// Determines whether a method returns what a query of a read model returns.
+    /// </summary>
+    /// <param name="method">The method to check.</param>
+    /// <param name="readModelType">The read model type.</param>
+    /// <returns>Whether the method can be a query of the read model.</returns>
+    internal static bool IsValidQueryMethod(IMethodSymbol method, INamedTypeSymbol readModelType)
     {
         var returnType = method.ReturnType;
 
@@ -146,6 +113,45 @@ public class QueryMetadataGenerator : IIncrementalGenerator
 
         return false;
     }
+
+    static ReadModelInfo? GetReadModelInfo(GeneratorSyntaxContext context)
+    {
+        var typeDecl = (TypeDeclarationSyntax)context.Node;
+        if (context.SemanticModel.GetDeclaredSymbol(typeDecl) is not INamedTypeSymbol typeSymbol)
+        {
+            return null;
+        }
+
+        if (!HasReadModelAttribute(typeSymbol))
+        {
+            return null;
+        }
+
+        var queryMethods = typeSymbol.GetMembers()
+            .OfType<IMethodSymbol>()
+            .Where(m =>
+                m.MethodKind == MethodKind.Ordinary &&
+                m.IsStatic &&
+                m.TypeParameters.Length == 0 &&
+                m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+                !m.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute") &&
+                IsValidQueryMethod(m, typeSymbol))
+            .Select(m => m.Name)
+            .ToList();
+
+        if (queryMethods.Count == 0)
+        {
+            return null;
+        }
+
+        return new ReadModelInfo(
+            typeSymbol.ToDisplayString(),
+            queryMethods);
+    }
+
+    static bool HasReadModelAttribute(INamedTypeSymbol typeSymbol) =>
+        typeSymbol.GetAttributes().Any(a =>
+            string.Equals(a.AttributeClass?.ToDisplayString(), ReadModelAttributeFullName, StringComparison.Ordinal));
 
     static void GenerateSource(SourceProductionContext context, ImmutableArray<ReadModelInfo> readModels)
     {

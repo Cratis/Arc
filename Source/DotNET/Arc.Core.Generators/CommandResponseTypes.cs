@@ -32,7 +32,7 @@ internal static class CommandResponseTypes
         }
 
         return types
-            .Where(type => IsConcrete(type) && CanBeNamed(type, compilation))
+            .Where(type => IsConcrete(type) && TypeNaming.CanBeNamed(type, compilation))
             .Select(type => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
     }
 
@@ -149,28 +149,4 @@ internal static class CommandResponseTypes
             named.SpecialType is not (SpecialType.System_Object or SpecialType.System_Void),
         _ => false
     };
-
-    static bool CanBeNamed(ITypeSymbol type, Compilation compilation) => type switch
-    {
-        IArrayTypeSymbol array => CanBeNamed(array.ElementType, compilation),
-        INamedTypeSymbol named => !IsFileLocalOrFlagged(named) && compilation.IsSymbolAccessibleWithin(named, compilation.Assembly) &&
-            named.TypeArguments.All(argument => CanBeNamed(argument, compilation)) &&
-            (named.ContainingType is null || CanBeNamed(named.ContainingType, compilation)),
-        _ => false
-    };
-
-    /// <summary>
-    /// Naming a file-local type from generated code fails, and naming an obsolete or experimental type reports a
-    /// warning or error in the consumer's build.
-    /// </summary>
-    /// <param name="type">The type to check, with its containing types.</param>
-    /// <returns>Whether generated code must not name the type.</returns>
-    static bool IsFileLocalOrFlagged(INamedTypeSymbol type) =>
-        type.IsFileLocal ||
-        type.GetAttributes().Any(attribute => IsFlag(attribute.AttributeClass?.ToDisplayString())) ||
-        (type.ContainingType is not null && IsFileLocalOrFlagged(type.ContainingType));
-
-    static bool IsFlag(string? attribute) =>
-        string.Equals(attribute, "System.ObsoleteAttribute", StringComparison.Ordinal) ||
-        string.Equals(attribute, "System.Diagnostics.CodeAnalysis.ExperimentalAttribute", StringComparison.Ordinal);
 }
