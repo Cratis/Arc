@@ -80,6 +80,7 @@ public static class HostBuilderExtensions
     public static IServiceCollection AddCratisArcCore(this IServiceCollection services)
     {
         GeneratedMetadataRegistration.EnsureGeneratedMetadataRegistered();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, SkippedProjectAssembliesReporter>());
 
         TypeConverters.Register();
 
