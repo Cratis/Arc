@@ -62,7 +62,7 @@ public static class ConverterExtensions
 
         if (value is null)
         {
-            return targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            return DefaultValueFor(targetType);
         }
 
         if (targetType.IsEnumerableOfQueryArgumentElement(out var elementType))
@@ -340,7 +340,7 @@ public static class ConverterExtensions
                 return false;
             }
         }
-        else if (!CanConvertCollectionElement(text, scalarType))
+        else if (!TryParseScalar(text, scalarType, out var parsed) || parsed is null)
         {
             return false;
         }
@@ -349,37 +349,11 @@ public static class ConverterExtensions
         return converted is not null;
     }
 
-    static bool CanConvertCollectionElement(string value, Type type)
-    {
-        try
-        {
-            if (type == typeof(int)) return int.TryParse(value, out _);
-            if (type == typeof(long)) return long.TryParse(value, out _);
-            if (type == typeof(short)) return short.TryParse(value, out _);
-            if (type == typeof(byte)) return byte.TryParse(value, out _);
-            if (type == typeof(bool)) return bool.TryParse(value, out _);
-            if (type == typeof(float)) return float.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out _);
-            if (type == typeof(double)) return double.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out _);
-            if (type == typeof(decimal)) return decimal.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, out _);
-            if (type == typeof(DateTime)) return DateTime.TryParse(value, out _);
-            if (type == typeof(DateTimeOffset)) return DateTimeOffset.TryParse(value, out _);
-            if (type == typeof(Guid)) return Guid.TryParse(value, out _);
-            if (type.IsEnum) return Enum.TryParse(type, value, true, out _);
-
-            var converter = TypeDescriptor.GetConverter(type);
-            return converter.CanConvertFrom(typeof(string)) && converter.ConvertFromString(value) is not null;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
     static object? ConvertToUnderlyingType(object value, Type targetType, bool returnNullOnFailure = false)
     {
         if (value is null)
         {
-            return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            return ConversionFailure(targetType, returnNullOnFailure);
         }
 
         // If the value is already the target type, return it directly
@@ -391,7 +365,7 @@ public static class ConverterExtensions
         var stringValue = value.ToString();
         if (string.IsNullOrEmpty(stringValue))
         {
-            return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            return ConversionFailure(targetType, returnNullOnFailure);
         }
 
         var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
@@ -400,44 +374,84 @@ public static class ConverterExtensions
             return stringValue;
         }
 
+        return TryParseScalar(stringValue, underlyingType, out var result)
+            ? result
+            : ConversionFailure(targetType, returnNullOnFailure);
+    }
+
+    /// <summary>
+    /// Parses a string into a scalar of the given type - the single place both scalar and collection element
+    /// conversion parse text.
+    /// </summary>
+    /// <param name="value">The text to parse.</param>
+    /// <param name="type">The non-nullable scalar type to parse into.</param>
+    /// <param name="result">The parsed value, which a <see cref="TypeConverter"/> may leave null.</param>
+    /// <returns>True if the text could be parsed; false if it is invalid or the type cannot be parsed from a string.</returns>
+    static bool TryParseScalar(string value, Type type, out object? result)
+    {
+        result = null;
         try
         {
-            if (underlyingType == typeof(int))
-                return int.Parse(stringValue);
-            if (underlyingType == typeof(long))
-                return long.Parse(stringValue);
-            if (underlyingType == typeof(short))
-                return short.Parse(stringValue);
-            if (underlyingType == typeof(byte))
-                return byte.Parse(stringValue);
-            if (underlyingType == typeof(bool))
-                return bool.Parse(stringValue);
-            if (underlyingType == typeof(float))
-                return float.Parse(stringValue, System.Globalization.CultureInfo.InvariantCulture);
-            if (underlyingType == typeof(double))
-                return double.Parse(stringValue, System.Globalization.CultureInfo.InvariantCulture);
-            if (underlyingType == typeof(decimal))
-                return decimal.Parse(stringValue, System.Globalization.CultureInfo.InvariantCulture);
-            if (underlyingType == typeof(DateTime))
-                return DateTime.Parse(stringValue);
-            if (underlyingType == typeof(DateTimeOffset))
-                return DateTimeOffset.Parse(stringValue);
-            if (underlyingType == typeof(Guid))
-                return Guid.Parse(stringValue);
-            if (underlyingType.IsEnum)
-                return Enum.Parse(underlyingType, stringValue, true);
-
-            var converter = TypeDescriptor.GetConverter(underlyingType);
-            if (converter.CanConvertFrom(typeof(string)))
+            result = ParseKnownScalar(value, type);
+            if (result is not null)
             {
-                return converter.ConvertFromString(stringValue);
+                return true;
             }
+
+            var converter = TypeDescriptor.GetConverter(type);
+            if (!converter.CanConvertFrom(typeof(string)))
+            {
+                return false;
+            }
+
+            result = converter.ConvertFromString(value);
+            return true;
         }
         catch (Exception)
         {
-            return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
+            result = null;
+            return false;
         }
-
-        return returnNullOnFailure ? null : targetType.IsValueType ? Activator.CreateInstance(targetType) : null;
     }
+
+    static object? ParseKnownScalar(string value, Type type)
+    {
+        if (type == typeof(int))
+            return int.Parse(value);
+        if (type == typeof(long))
+            return long.Parse(value);
+        if (type == typeof(short))
+            return short.Parse(value);
+        if (type == typeof(byte))
+            return byte.Parse(value);
+        if (type == typeof(bool))
+            return bool.Parse(value);
+        if (type == typeof(float))
+            return float.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        if (type == typeof(double))
+            return double.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        if (type == typeof(decimal))
+            return decimal.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        if (type == typeof(DateTime))
+            return DateTime.Parse(value);
+        if (type == typeof(DateTimeOffset))
+            return DateTimeOffset.Parse(value);
+        if (type == typeof(Guid))
+            return Guid.Parse(value);
+        if (type.IsEnum)
+            return Enum.Parse(type, value, true);
+
+        return null;
+    }
+
+    static object? ConversionFailure(Type targetType, bool returnNullOnFailure) =>
+        returnNullOnFailure ? null : DefaultValueFor(targetType);
+
+    /// <summary>
+    /// Gets the value an unconvertible input falls back to - the default of a value type, null otherwise.
+    /// </summary>
+    /// <param name="type">The type to get the default value for.</param>
+    /// <returns>The boxed default of a value type; null for a reference type or <see cref="Nullable{T}"/>.</returns>
+    static object? DefaultValueFor(Type type) =>
+        type.IsValueType ? Activator.CreateInstance(type) : null;
 }
