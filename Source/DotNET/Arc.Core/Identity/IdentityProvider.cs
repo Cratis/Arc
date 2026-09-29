@@ -2,8 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Security.Claims;
-using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Cratis.Traces;
@@ -29,10 +29,7 @@ public class IdentityProvider(
     /// </summary>
     public const string IdentityCookieName = ".cratis-identity";
 
-    readonly JsonSerializerOptions _serializerOptions = new(options.Value.JsonSerializerOptions)
-    {
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-    };
+    readonly JsonSerializerOptions _serializerOptions = IdentityJsonSerializerOptions.CreateFrom(options.Value.JsonSerializerOptions);
 
     /// <inheritdoc/>
     public async Task<IdentityProviderResult> Get()
@@ -90,7 +87,7 @@ public class IdentityProvider(
 
         context.SetNoStoreResponseHeaders();
         context.ContentType = "application/json; charset=utf-8";
-        var json = JsonSerializer.Serialize(result, _serializerOptions);
+        var json = JsonSerializer.Serialize(result, TypeInfoFor<IdentityProviderResult>());
         var base64Json = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
 
         context.AppendCookie(IdentityCookieName, base64Json, new CookieOptions
@@ -141,7 +138,7 @@ public class IdentityProvider(
         try
         {
             var decodedJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedCookie));
-            result = JsonSerializer.Deserialize<IdentityProviderResult>(decodedJson, _serializerOptions) ?? IdentityProviderResult.Anonymous;
+            result = JsonSerializer.Deserialize(decodedJson, TypeInfoFor<IdentityProviderResult>()) ?? IdentityProviderResult.Anonymous;
         }
         catch
         {
@@ -163,7 +160,7 @@ public class IdentityProvider(
         try
         {
             var decodedJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedCookie));
-            result = JsonSerializer.Deserialize<IdentityProviderResult<TDetails>>(decodedJson, _serializerOptions)
+            result = JsonSerializer.Deserialize(decodedJson, TypeInfoFor<IdentityProviderResult<TDetails>>())
                 ?? new IdentityProviderResult<TDetails>(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
         }
         catch
@@ -213,10 +210,18 @@ public class IdentityProvider(
 
         if (details is JsonElement jsonElement)
         {
-            return jsonElement.Deserialize<TDetails>(_serializerOptions)!;
+            return jsonElement.Deserialize(TypeInfoFor<TDetails>())!;
         }
 
-        var serializedDetails = JsonSerializer.Serialize(details, _serializerOptions);
-        return JsonSerializer.Deserialize<TDetails>(serializedDetails, _serializerOptions)!;
+        var serializedDetails = JsonSerializer.Serialize(details, TypeInfoFor<object>());
+        return JsonSerializer.Deserialize(serializedDetails, TypeInfoFor<TDetails>())!;
     }
+
+    /// <summary>
+    /// Gets the contract for a type from the identity serializer options: Arc's own identity types come from
+    /// <see cref="IdentityJsonSerializerContext"/>, the application's identity details from its own resolver chain.
+    /// </summary>
+    /// <typeparam name="T">The type to get the contract for.</typeparam>
+    /// <returns>The <see cref="JsonTypeInfo{T}"/>.</returns>
+    JsonTypeInfo<T> TypeInfoFor<T>() => (JsonTypeInfo<T>)_serializerOptions.GetTypeInfo(typeof(T));
 }

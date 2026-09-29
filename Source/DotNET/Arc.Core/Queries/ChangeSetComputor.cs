@@ -27,20 +27,23 @@ namespace Cratis.Arc.Queries;
 public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
 {
     static readonly ConcurrentDictionary<Type, bool> _overridesEquality = new();
+    static readonly ConcurrentDictionary<Type, PropertyInfo?> _identityProperties = new();
 
     /// <summary>
     /// Discovers the property that represents the identity of an item.
     /// </summary>
     /// <remarks>
     /// Looks for a property conventionally named <c>Id</c> (case-insensitive), including inherited interface properties.
+    /// The result is cached per type, so the reflection runs once per item type rather than on every emission. The cache
+    /// is cleared when Hot Reload updates types, so an identity property added while the application runs is found.
     /// </remarks>
     /// <param name="type">The item type to inspect.</param>
     /// <returns>The identity <see cref="PropertyInfo"/>, or <see langword="null"/> if not found.</returns>
     public static PropertyInfo? FindIdentityProperty(Type type) =>
-        type.GetProperties().FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase)) ??
-        type.GetInterfaces()
-            .SelectMany(_ => _.GetProperties())
-            .FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase));
+        _identityProperties.GetOrAdd(type, static candidate =>
+            SelfAndInterfaces(candidate)
+                .SelectMany(_ => _.GetProperties())
+                .FirstOrDefault(p => string.Equals(p.Name, "Id", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>
     /// Builds the delta an emission already stated, rather than rediscovering it by comparison.
@@ -202,22 +205,31 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     public ChangeSet ComputeByJson(object[] previousItems, object[] currentItems)
     {
         var previousHashes = previousItems
-            .Select(item => JsonSerializer.Serialize(item, serializerOptions))
+            .Select(Serialize)
             .ToHashSet();
 
         var currentHashes = currentItems
-            .Select(item => JsonSerializer.Serialize(item, serializerOptions))
+            .Select(Serialize)
             .ToHashSet();
 
         var added = currentItems
-            .Where(item => !previousHashes.Contains(JsonSerializer.Serialize(item, serializerOptions)))
+            .Where(item => !previousHashes.Contains(Serialize(item)))
             .ToArray();
 
         var removed = previousItems
-            .Where(item => !currentHashes.Contains(JsonSerializer.Serialize(item, serializerOptions)))
+            .Where(item => !currentHashes.Contains(Serialize(item)))
             .ToArray();
 
         return new ChangeSet { Added = added, Removed = removed };
+    }
+
+    /// <summary>
+    /// Clears the per-type caches after a Hot Reload metadata update.
+    /// </summary>
+    internal static void ClearCaches()
+    {
+        _identityProperties.Clear();
+        _overridesEquality.Clear();
     }
 
     /// <summary>
@@ -239,6 +251,20 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
         }
 
         return byId;
+    }
+
+    /// <summary>
+    /// Yields a type followed by the interfaces it implements, the order the identity property is searched in.
+    /// </summary>
+    /// <param name="type">The type to start from.</param>
+    /// <returns>The type and its interfaces.</returns>
+    static IEnumerable<Type> SelfAndInterfaces(Type type)
+    {
+        yield return type;
+        foreach (var @interface in type.GetInterfaces())
+        {
+            yield return @interface;
+        }
     }
 
     static bool OverridesEquality(Type type) =>
@@ -270,6 +296,19 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
             return previous.Equals(current);
         }
 
-        return JsonSerializer.Serialize(previous, serializerOptions) == JsonSerializer.Serialize(current, serializerOptions);
+        return Serialize(previous) == Serialize(current);
     }
+
+    /// <summary>
+    /// Serializes an item by its runtime type, which is what both the JSON-hash fallback and the last-resort
+    /// equivalence check compare.
+    /// </summary>
+    /// <param name="item">The item to serialize.</param>
+    /// <returns>The JSON representation of the item.</returns>
+    /// <remarks>
+    /// This is the single place the computor serializes through the runtime type. It goes through the metadata for
+    /// <see cref="object"/>, which writes the item by its runtime type, resolved through the options' resolver chain - the
+    /// application's source-generated metadata, Arc's, and reflection only when it is enabled.
+    /// </remarks>
+    string Serialize(object item) => JsonSerializer.Serialize(item, serializerOptions.ResolveTypeInfo<object>());
 }

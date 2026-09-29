@@ -136,6 +136,17 @@ Before submitting documentation-only work, verify its links, anchors, and exampl
 - [Node 23+](https://nodejs.org/en)
 - [Yarn](https://yarnpkg.com)
 
+### Trim and NativeAOT diagnostics
+
+Arc is not trim or NativeAOT compatible yet ([#2204](https://github.com/Cratis/Arc/issues/2204)). Pull requests that change `Source/DotNET` run a ratchet that builds `Cratis.Arc.Core`, `Cratis.Arc`, `Cratis.Arc.MongoDB`, `Cratis.Arc.EntityFrameworkCore` and `Cratis.Arc.Chronicle` in one build with the trim and AOT analyzers on and compares the diagnostics per code, file and target framework with [`Source/DotNET/aot-baseline.json`](https://github.com/Cratis/Arc/blob/main/Source/DotNET/aot-baseline.json). It fails when a diagnostic or a trim/AOT suppression is added, and also when one is removed without shrinking the baseline. Run it locally with Python 3 and the .NET SDKs:
+
+```shell
+python3 scripts/aot-ratchet.py           # compare with the baseline
+python3 scripts/aot-ratchet.py --update  # rewrite the baseline after fixing diagnostics, then commit it
+```
+
+Fix a new diagnostic by replacing the unsafe path rather than suppressing it. The analyzer ships with the .NET SDK, so run `--update` with the SDK `global.json` selects, as CI does; the baseline records the SDK version it was made with. When a new SDK changes what the analyzer reports, regenerate the baseline with `--update` in its own pull request. The normal build is unaffected; the analyzers only run when the script passes `CratisAotAnalysis=true`. A project is covered by importing `Source/DotNET/AotAnalysis.props`, which the script discovers, and the run fails unless every covered project reported for each of its target frameworks. The MongoDB, EF Core and Chronicle integrations are held at their current counts until they are annotated with `[RequiresUnreferencedCode]` and `[RequiresDynamicCode]`.
+
 ## Community and repository
 
 | Path | Destination |

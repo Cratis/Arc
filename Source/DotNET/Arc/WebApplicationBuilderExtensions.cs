@@ -59,6 +59,10 @@ public static class WebApplicationBuilderExtensions
     /// app.UseCratisChronicle();
     /// app.Run();
     /// </code>
+    /// Arc without MVC controllers, for an application that only uses model-bound commands and queries:
+    /// <code>
+    /// builder.AddCratisArc(configureBuilder: arc => arc.WithoutControllers());
+    /// </code>
     /// </example>
     public static WebApplicationBuilder AddCratisArc(
         this WebApplicationBuilder builder,
@@ -82,7 +86,7 @@ public static class WebApplicationBuilderExtensions
         builder.Services.AddHostedService<AuthorizationStartupValidation>();
         builder.Services.AddIdentityProvider();
         OperationHttpContextAccessorRegistration.Add(builder.Services);
-        builder.Services.AddControllersFromProjectReferencedAssembles(Internals.Types);
+        var discoverableValidators = builder.Services.AddArcAspNetCore(Internals.Types);
         builder.Services.AddScopedControllerQueryAuthorization();
 
         builder.Host.SkipEagerServiceProviderValidation();
@@ -92,6 +96,11 @@ public static class WebApplicationBuilderExtensions
         {
             var arcBuilder = new ArcBuilder(builder, Internals.Types);
             configureBuilder.Invoke(arcBuilder);
+        }
+
+        if (ArcFeatureSwitches.ControllersAreSupported && builder.ControllersAreOn())
+        {
+            builder.Services.AddArcControllers(discoverableValidators);
         }
 
         return builder;

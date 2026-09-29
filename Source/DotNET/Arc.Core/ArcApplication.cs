@@ -36,6 +36,7 @@ public class ArcApplication : IHost, IAsyncDisposable
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
         Internals.ServiceProvider = host.Services;
+        GeneratedMetadataRegistration.LogSkippedProjectAssemblies(host.Services);
     }
 
     /// <inheritdoc/>

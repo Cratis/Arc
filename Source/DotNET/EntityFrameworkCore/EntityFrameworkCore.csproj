@@ -6,6 +6,10 @@
         <RootNamespace>Cratis.Arc.EntityFrameworkCore</RootNamespace>
         <NoWarn>$(NoWarn);NU5104</NoWarn>
     </PropertyGroup>
+
+    <!-- Held to the trim/AOT analyzer ratchet (#2859); inert unless scripts/aot-ratchet.py switches it on. -->
+    <Import Project="../AotAnalysis.props" />
+
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.EntityFrameworkCore.Specs" />
     </ItemGroup>

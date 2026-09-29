@@ -48,7 +48,7 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
             if (!string.IsNullOrEmpty(tokenAsString))
             {
                 var token = Convert.FromBase64String(tokenAsString);
-                clientPrincipal = JsonSerializer.Deserialize<ClientPrincipal>(token, options.Value.JsonSerializerOptions);
+                clientPrincipal = JsonSerializer.Deserialize(token, options.Value.JsonSerializerOptions.ResolveTypeInfo<ClientPrincipal>());
             }
         }
         catch (Exception ex)

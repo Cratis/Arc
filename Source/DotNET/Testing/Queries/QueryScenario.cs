@@ -235,6 +235,9 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
 
         _serviceProvider = Services.BuildServiceProvider();
         serviceProvider = _serviceProvider;
+
+        // No host is started here, so the reporter AddCratisArcCore registers never runs; report skips directly.
+        GeneratedMetadataRegistration.LogSkippedProjectAssemblies(_serviceProvider);
         _pipeline = _serviceProvider.GetRequiredService<IQueryPipeline>() as QueryPipeline
             ?? throw new QueryScenarioRequiresArcQueryPipeline();
     }

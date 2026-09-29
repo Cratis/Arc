@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc;
 using Cratis.Arc.AspNetCore.Http;
 using Cratis.Arc.Commands;
@@ -23,19 +24,77 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
+#if NET9_0_OR_GREATER
+    const string MvcIsNotTrimCompatible = "MVC controllers are not supported with trimming or NativeAOT. Use model-bound commands and queries, and turn controllers off with the CratisArcControllersSupport MSBuild property.";
+#endif
+    const string StandaloneMvcIsNotTrimCompatible = "MVC controllers are not supported with trimming or NativeAOT, and this method always registers them. Use model-bound commands and queries with AddCratisArc and the CratisArcControllersSupport MSBuild property instead.";
+
     /// <summary>
     /// Add all controllers from all project referenced assemblies.
     /// </summary>
+    /// <remarks>
+    /// This is the standalone registration for hosts that do not use <c>AddCratisArc</c>: it registers the Arc
+    /// services for ASP.NET Core together with MVC and controller discovery. Do not combine it with
+    /// <c>AddCratisArc</c>, which registers the same services itself, and do not use it to turn controllers back on
+    /// after <c>WithoutControllers</c>; that would register the Arc middlewares and JSON configuration a second time.
+    /// </remarks>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="types"><see cref="ITypes"/> for discovery.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
+    [RequiresUnreferencedCode(StandaloneMvcIsNotTrimCompatible)]
+    [RequiresDynamicCode(StandaloneMvcIsNotTrimCompatible)]
     public static IServiceCollection AddControllersFromProjectReferencedAssembles(this IServiceCollection services, ITypes types)
+    {
+        var discoverableValidators = services.AddArcAspNetCore(types);
+        services.AddArcControllers(discoverableValidators);
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the Arc services for ASP.NET Core that do not depend on MVC: the request context and correlation id
+    /// middlewares, validator discovery, the JSON options for minimal APIs and the ASP.NET Core authentication and
+    /// authorization services.
+    /// </summary>
+    /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
+    /// <param name="types"><see cref="ITypes"/> for discovery.</param>
+    /// <returns>The <see cref="IDiscoverableValidators"/> registered, for MVC to validate with the same instance.</returns>
+    internal static IDiscoverableValidators AddArcAspNetCore(this IServiceCollection services, ITypes types)
     {
         var discoverableValidators = new DiscoverableValidators(types);
         services.AddSingleton<IDiscoverableValidators>(discoverableValidators);
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
         services.AddTransient<HttpRequestContextMiddleware>();
         services.AddCorrelationId();
+
+        // Arc's authorization policy runtime and introspection guard depend on IAuthorizationPolicyProvider and
+        // IAuthorizationService, and UseAuthentication on IAuthenticationService, which AddControllers used to
+        // register. Both use TryAdd, so they are no-ops alongside MVC or the application's own registrations.
+        services.AddAuthorization();
+        services.AddAuthenticationCore();
+
+        services.AddSingleton<IPostConfigureOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>, ConfigureHttpJsonOptionsFromArcOptions>();
+        services.AddSingleton(sp => sp.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
+
+        return discoverableValidators;
+    }
+
+    /// <summary>
+    /// Adds MVC with Arc's filters, model binding and validation, and discovers the controllers in the project
+    /// referenced assemblies.
+    /// </summary>
+    /// <remarks>
+    /// Callers guard the call with <c>ArcFeatureSwitches.ControllersAreSupported</c>, so the trimmer can remove it.
+    /// The annotations are for .NET 9 and later only: the .NET 8 analyzers do not recognize that guard and would move
+    /// the diagnostics to the guarded callers instead of dropping them.
+    /// </remarks>
+    /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
+    /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> MVC validates with.</param>
+#if NET9_0_OR_GREATER
+    [RequiresUnreferencedCode(MvcIsNotTrimCompatible)]
+    [RequiresDynamicCode(MvcIsNotTrimCompatible)]
+#endif
+    internal static void AddArcControllers(this IServiceCollection services, IDiscoverableValidators discoverableValidators)
+    {
         services
             .AddActivitySource<CommandActionFilter>(Internals.ActivitySourceName)
             .AddActivitySource<QueryActionFilter>(Internals.ActivitySourceName);
@@ -55,14 +114,10 @@ public static class ServiceCollectionExtensions
             });
 
         services.AddSingleton<IPostConfigureOptions<JsonOptions>, ConfigureJsonOptionsFromArcOptions>();
-        services.AddSingleton<IPostConfigureOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>, ConfigureHttpJsonOptionsFromArcOptions>();
-        services.AddSingleton(sp => sp.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
 
         foreach (var controllerAssembly in ProjectReferencedAssemblies.Instance.Assemblies.Where(_ => _.DefinedTypes.Any(type => type.Implements(typeof(ControllerBase)))))
         {
             controllerBuilder.PartManager.ApplicationParts.Add(new AssemblyPart(controllerAssembly));
         }
-
-        return services;
     }
 }

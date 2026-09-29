@@ -83,7 +83,12 @@ public static class HostBuilderExtensions
                 OperationHttpContextAccessorRegistration.Add(services);
                 services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyRuntime, AspNetAuthorizationPolicyRuntime>());
                 services.AddHostedService<AuthorizationStartupValidation>();
-                services.AddControllersFromProjectReferencedAssembles(Internals.Types);
+                var discoverableValidators = services.AddArcAspNetCore(Internals.Types);
+                if (ArcFeatureSwitches.ControllersAreSupported && ArcFeatureSwitches.ControllersSupportIsOn)
+                {
+                    services.AddArcControllers(discoverableValidators);
+                }
+
                 services.AddScopedControllerQueryAuthorization();
             });
 
