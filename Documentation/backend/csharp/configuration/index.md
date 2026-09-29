@@ -69,7 +69,7 @@ builder.AddCratisArc(options =>
 | `Query.KeepAliveInterval` | `TimeSpan` | `00:00:30` | Idle keep-alive cadence for observable query hub connections; zero or negative disables keep-alive. |
 | `IdentityDetailsProvider` | `Type?` | `null` (auto-discovered) | The identity details provider type. |
 | `Hosting.ApplicationUrl` | `string` | `http://+:5001/` | The listen URL — **Arc.Core only** (ignored under ASP.NET Core). |
-| `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | Generated Arc endpoints use these options; manual serialization must opt in. MVC receives only the naming policy and converters, not null/number handling or other settings. Configure in code only; see the [MVC serialization boundary](../asp-net-core/configuration.md#json-serialization). |
+| `JsonSerializerOptions` | `JsonSerializerOptions` | Arc defaults | Generated Arc endpoints use these options; manual serialization must opt in. MVC receives only the naming policy and converters, not null/number handling or other settings. Configure in code only; see the [MVC serialization boundary](../asp-net-core/configuration.md#json-serialization). Add source-generated metadata with `AddJsonTypeInfoResolver`; see [Adding Source-Generated Metadata](../asp-net-core/configuration.md#adding-source-generated-metadata). |
 
 For example, the equivalent `appsettings.json` keys are:
 
