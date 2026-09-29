@@ -303,6 +303,9 @@ LIBRARY_APPLICATION = "library-application"
 # per page keeps the in-memory and the RabbitMQ `ChatRoom` apart.
 CHAT_IN_MEMORY = "chat-in-memory"
 CHAT_RABBITMQ = "chat-rabbitmq"
+# The Testing with Cratis page shows one Library slice and its spec as whole files; the spec
+# runs against the very command the page shows beside it.
+TESTING_WITH_CRATIS = "testing-with-cratis"
 
 
 # Per-snippet preludes. A snippet id is its path under client-snippets without the
@@ -365,6 +368,8 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "scenarios/vertical-slices/translator/member-registration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
     "scenarios/vertical-slices/translator/unique-member-name": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
     "scenarios/vertical-slices/translator/hr-integration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "testing-with-cratis/register-author": SnippetContext(kind="file", project=TESTING_WITH_CRATIS),
+    "testing-with-cratis/register-author-spec": SnippetContext(kind="file", project=TESTING_WITH_CRATIS),
     "scenarios/chat/in-memory/backend": SnippetContext(kind="file", project=CHAT_IN_MEMORY),
     "scenarios/chat/rabbitmq/backend": SnippetContext(kind="file", project=CHAT_RABBITMQ),
     # The Camel Casing page's host, the same shape as the capstone host.
@@ -376,10 +381,6 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
             "using Cratis.Chronicle;",
         ),
         prelude="string[] args = [];"
-    ),
-    "guides/chronicle/event-from-command": SnippetContext(
-        kind="declaration",
-        fixtures=("library",),
     ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
