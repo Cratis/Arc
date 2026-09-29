@@ -465,7 +465,7 @@ public class ObservableQueryDemultiplexer(
     /// <param name="token">The <see cref="CancellationToken"/> ending the subscription.</param>
     /// <returns>The subscription.</returns>
     /// <remarks>Called by <see cref="ObservableQueryElementOperationsFor{TElement}"/> once the element type is known.</remarks>
-    internal IDisposable SubscribeToSubject<T>(
+    internal IDisposable SubscribeToTypedSubject<T>(
         IHttpRequestContext context,
         ISubject<T> subject,
         Type? enumerableItemType,
@@ -499,7 +499,7 @@ public class ObservableQueryDemultiplexer(
     /// <param name="token">The <see cref="CancellationToken"/> ending the stream.</param>
     /// <returns>Awaitable task.</returns>
     /// <remarks>Called by <see cref="ObservableQueryElementOperationsFor{TElement}"/> once the element type is known.</remarks>
-    internal Task StreamAsyncEnumerable<T>(
+    internal Task StreamTypedAsyncEnumerable<T>(
         IHttpRequestContext context,
         IAsyncEnumerable<T> enumerable,
         string queryId,

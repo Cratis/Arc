@@ -60,7 +60,7 @@ internal sealed class ObservableQueryElementOperationsFor<TElement> : Observable
         Action onCompleted,
         QueryContext? authorizedQueryContext,
         CancellationToken token) =>
-        demultiplexer.SubscribeToSubject(
+        demultiplexer.SubscribeToTypedSubject(
             context,
             (ISubject<TElement>)subject,
             _enumerableItemType,
@@ -90,7 +90,7 @@ internal sealed class ObservableQueryElementOperationsFor<TElement> : Observable
         Func<string, string, CancellationToken, Task> onError,
         Func<string, CancellationToken, Task> onUnauthorized,
         CancellationToken token) =>
-        demultiplexer.StreamAsyncEnumerable(
+        demultiplexer.StreamTypedAsyncEnumerable(
             context,
             (IAsyncEnumerable<TElement>)enumerable,
             queryId,
