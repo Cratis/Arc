@@ -1,6 +1,7 @@
 name: Trim/AOT Ratchet
 
-# Arc.Core and Arc are not trim or NativeAOT compatible yet (#2204). Until they are, this holds the analyzer
+# Arc.Core, Arc, MongoDB, EntityFrameworkCore and Chronicle (the projects importing Source/DotNET/AotAnalysis.props)
+# are not trim or NativeAOT compatible yet (#2204). Until they are, this holds the analyzer
 # diagnostics they report to Source/DotNET/aot-baseline.json so the count can only go down: a pull request that
 # adds a diagnostic or a trim/AOT suppression fails, and one that removes diagnostics has to shrink the baseline
 # with it. See scripts/aot-ratchet.py and #2859.
