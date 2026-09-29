@@ -39,7 +39,7 @@ import tempfile
 from collections import Counter
 from urllib.parse import unquote, urlparse
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BASELINE = os.path.join(ROOT, 'Source', 'DotNET', 'aot-baseline.json')
 SOURCE = os.path.join(ROOT, 'Source', 'DotNET')
 
@@ -49,11 +49,16 @@ EXPECTED_LOGS = 6  # Arc.Core and Arc, each for net8.0, net9.0 and net10.0.
 
 SUPPRESSION_IN_CODE = re.compile(
     r'UnconditionalSuppressMessage'
-    r'|(?<!Unconditional)SuppressMessage\s*\(\s*"(?:Trimming|AOT|SingleFile)"'
-    r'|#\s*pragma\s+warning\s+disable\b[^\n]*\bIL\d{4}')
+    r'|(?<!Unconditional)SuppressMessage(?:Attribute)?\s*\(\s*(?:category\s*:\s*)?"(?:Trimming|AOT|SingleFile)"'
+    r'|#\s*pragma\s+warning\s+disable\b[^\n]*\bIL\d{4}'
+    # A bare `#pragma warning disable` turns off every warning, trim and AOT ones included.
+    r'|#\s*pragma\s+warning\s+disable[ \t]*(?://[^\n]*)?$', re.MULTILINE)
 SUPPRESSION_IN_CONFIGURATION = re.compile(
     r'<NoWarn>[^<]*\bIL\d{4}|dotnet_diagnostic\.IL\d{4}\.severity')
 CONFIGURATION_FILES = ('.csproj', '.props', '.targets', '.editorconfig', '.globalconfig')
+# Repository-root files that also configure Arc.Core and Arc, scanned without descending into the tree.
+ROOT_CONFIGURATION = ('.editorconfig', '.globalconfig', 'Directory.Build.props', 'Directory.Build.targets',
+                      'Directory.Packages.props')
 SKIPPED_DIRECTORIES = {'bin', 'obj', 'node_modules', '.git'}
 SARIF_NAME = re.compile(r'^(?P<project>.+)\.(?P<tfm>net[^.]*(?:\.\d+)?)\.sarif$')
 
@@ -62,7 +67,7 @@ def relative(path):
     """Repository-relative path with forward slashes; the path as reported when it is outside the repository."""
     normalized = os.path.normpath(path.strip())
     if os.path.isabs(normalized):
-        inside = os.path.relpath(normalized, ROOT)
+        inside = os.path.relpath(os.path.realpath(normalized), ROOT)
         if not inside.startswith('..'):
             normalized = inside
     return normalized.replace(os.sep, '/')
@@ -73,7 +78,11 @@ def file_of(result, fallback):
         uri = location.get('physicalLocation', {}).get('artifactLocation', {}).get('uri')
         if uri:
             parsed = urlparse(uri)
-            return relative(unquote(parsed.path) if parsed.scheme == 'file' else unquote(uri))
+            path = unquote(parsed.path) if parsed.scheme == 'file' else unquote(uri)
+            # file:///C:/x parses to /C:/x on Windows.
+            if re.match(r'^/[A-Za-z]:[/\\]', path):
+                path = path[1:]
+            return relative(path)
     return fallback
 
 
@@ -103,14 +112,27 @@ def collect(logs):
     return dict(counts), examples
 
 
+def load_json(path):
+    """Read a JSON file; exit 2 (could not run) rather than 1 (differs) when it is unreadable."""
+    try:
+        with open(path, encoding='utf-8-sig') as handle:
+            return json.load(handle)
+    except (OSError, ValueError) as error:
+        print(f'Could not read {relative(path)}: {error}', file=sys.stderr)
+        sys.exit(2)
+
+
 def read_logs(directory):
     logs = []
     for path in sorted(glob.glob(os.path.join(directory, '*.sarif'))):
         match = SARIF_NAME.match(os.path.basename(path))
         if not match:
             continue
-        with open(path, encoding='utf-8-sig') as handle:
-            logs.append((match['project'], match['tfm'], json.load(handle)))
+        sarif = load_json(path)
+        if not sarif.get('runs'):
+            print(f'{relative(path)} holds no analysis run; the compiler did not report.', file=sys.stderr)
+            sys.exit(2)
+        logs.append((match['project'], match['tfm'], sarif))
     if len(logs) != EXPECTED_LOGS:
         names = ', '.join(f'{project}.{tfm}' for project, tfm, _ in logs) or 'none'
         print(f'Expected {EXPECTED_LOGS} SARIF logs in {directory} but found {len(logs)} ({names}); the analysis '
@@ -120,8 +142,15 @@ def read_logs(directory):
 
 
 def suppressions():
-    """Trim/AOT suppressions under Source/DotNET, counted per repository-relative file."""
+    """Trim/AOT suppressions under Source/DotNET and in root configuration, counted per repository-relative file."""
     found = Counter()
+    for name in ROOT_CONFIGURATION:
+        path = os.path.join(ROOT, name)
+        if os.path.isfile(path):
+            with open(path, encoding='utf-8', errors='replace') as handle:
+                count = len(SUPPRESSION_IN_CONFIGURATION.findall(handle.read()))
+            if count:
+                found[relative(path)] = count
     for directory, directories, files in os.walk(SOURCE):
         directories[:] = sorted(d for d in directories if d not in SKIPPED_DIRECTORIES)
         for name in sorted(files):
@@ -153,6 +182,14 @@ def compare(kind, baseline, actual):
     return problems
 
 
+def sdk_version():
+    try:
+        return subprocess.run(['dotnet', '--version'], cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return 'unknown'
+
+
 def document(diagnostics, suppressed):
     by_code = Counter()
     by_tfm = Counter()
@@ -162,6 +199,7 @@ def document(diagnostics, suppressed):
         by_tfm[tfm] += count
     return {
         '_comment': 'Generated by `python3 scripts/aot-ratchet.py --update`; do not edit by hand. See #2859.',
+        'sdk': sdk_version(),
         'totals': {
             'diagnostics': sum(diagnostics.values()),
             'keys': len(diagnostics),
@@ -222,6 +260,12 @@ def check(diagnostics, examples, suppressed, baseline):
         for _, _, text in removed:
             print(text)
         print()
+    current = sdk_version()
+    if baseline.get('sdk') and baseline['sdk'] != current:
+        print(f'Note: the baseline was made with SDK {baseline["sdk"]} and this run used {current}. The trim analyzer '
+              'ships with the SDK, so a difference nobody caused may come from the SDK version.\n')
+    print('A diagnostic that disappears because a member gained [RequiresUnreferencedCode] or [RequiresDynamicCode] '
+          'moves the warning to its callers; check that is intended before shrinking the baseline.')
     print('When the difference is intended, run `python3 scripts/aot-ratchet.py --update` and commit '
           f'{relative(BASELINE)}. A baseline that grows needs a reviewer to accept why.')
     return 1
@@ -256,13 +300,18 @@ def self_test():
 
     for code in ('[UnconditionalSuppressMessage("x", "y")]', '[SuppressMessage("Trimming", "IL2026")]',
                  '[SuppressMessage( "AOT", "IL3050")]', '#pragma warning disable CA1000, IL2075',
-                 '[UnconditionalSuppressMessage("Trimming", "IL2026")]'):
+                 '[UnconditionalSuppressMessage("Trimming", "IL2026")]',
+                 '[SuppressMessageAttribute("Trimming", "IL2026")]', '[SuppressMessage(category: "AOT", "IL3050")]',
+                 '#pragma warning disable', '#pragma warning disable // everything'):
         assert len(SUPPRESSION_IN_CODE.findall(code)) == 1, code
-    for code in ('[SuppressMessage("Design", "CA1000")]', '#pragma warning disable CA1000'):
+    for code in ('[SuppressMessage("Design", "CA1000")]', '#pragma warning disable CA1000',
+                 '#pragma warning restore'):
         assert not SUPPRESSION_IN_CODE.findall(code), code
     assert SUPPRESSION_IN_CONFIGURATION.findall('<NoWarn>$(NoWarn);IL2026</NoWarn>')
     assert SUPPRESSION_IN_CONFIGURATION.findall('dotnet_diagnostic.IL3050.severity = none')
     assert not SUPPRESSION_IN_CONFIGURATION.findall('<NoWarn>CA1000</NoWarn>')
+    windows = {'locations': [{'physicalLocation': {'artifactLocation': {'uri': 'file:///C:/repo/A.cs'}}}]}
+    assert file_of(windows, '') in ('C:/repo/A.cs', 'C:\\repo\\A.cs'), file_of(windows, '')
     print('Self-test passed.')
     return 0
 
@@ -282,6 +331,9 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix='aot-ratchet-') as temporary:
         directory = os.path.abspath(arguments.sarif) if arguments.sarif else temporary
+        if re.search(r'[\s,;]', directory):
+            # MSBuild's ErrorLog value is `path,version=2.1`; a space, comma or semicolon breaks it.
+            parser.error(f'--sarif DIR must not contain spaces, commas or semicolons: {directory}')
         os.makedirs(directory, exist_ok=True)
         if not arguments.no_build:
             build(directory)
@@ -299,8 +351,7 @@ def main():
     if not os.path.exists(BASELINE):
         print(f'No baseline at {relative(BASELINE)}; run with --update to create it.', file=sys.stderr)
         return 2
-    with open(BASELINE, encoding='utf-8') as handle:
-        baseline = json.load(handle)
+    baseline = load_json(BASELINE)
     return check(diagnostics, examples, suppressed, baseline)
 
 

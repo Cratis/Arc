@@ -145,7 +145,7 @@ python3 scripts/aot-ratchet.py           # compare with the baseline
 python3 scripts/aot-ratchet.py --update  # rewrite the baseline after fixing diagnostics, then commit it
 ```
 
-Fix a new diagnostic by replacing the unsafe path rather than suppressing it. The normal build is unaffected; the analyzers only run when the script passes `CratisAotAnalysis=true`.
+Fix a new diagnostic by replacing the unsafe path rather than suppressing it. The analyzer ships with the .NET SDK, so run `--update` with the SDK `global.json` selects, as CI does; the baseline records the SDK version it was made with. The normal build is unaffected; the analyzers only run when the script passes `CratisAotAnalysis=true`.
 
 ## Community and repository
 

@@ -6,12 +6,29 @@ name: Trim/AOT Ratchet
 # with it. See scripts/aot-ratchet.py and #2859.
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "Source/DotNET/**"
+      - "Directory.Build.props"
+      - "Directory.Build.targets"
+      - "Directory.Packages*.props"
+      - ".editorconfig"
+      - "**/.editorconfig"
+      - ".globalconfig"
+      - "global.json"
+      - "scripts/aot-ratchet.py"
+      - ".github/workflows/aot-ratchet.yml"
   pull_request:
     branches: [main]
     paths:
       - "Source/DotNET/**"
       - "Directory.Build.props"
+      - "Directory.Build.targets"
       - "Directory.Packages*.props"
+      - ".editorconfig"
+      - "**/.editorconfig"
+      - ".globalconfig"
       - "global.json"
       - "scripts/aot-ratchet.py"
       - ".github/workflows/aot-ratchet.yml"
@@ -37,16 +54,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          # The default pull_request ref is the merge result, which is what the exact-match baseline must hold for.
           persist-credentials: false
 
+      # The trim analyzer ships with the SDK, so what it reports can change between SDK releases. Use the SDK
+      # global.json names (10.0 builds every target framework); the baseline records the version it was made with.
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            8.0.407
-            9.0.x
-            10.0.x
+          global-json-file: global.json
+
+      - name: Show SDK
+        run: dotnet --version
 
       # Read an existing dependency cache without allowing pull-request code to
       # save or replace a shared cache entry.
