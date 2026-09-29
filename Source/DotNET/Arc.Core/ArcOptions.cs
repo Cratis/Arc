@@ -85,10 +85,13 @@ public class ArcOptions
     /// <remarks>
     /// <para>
     /// Resolvers added here are consulted first, in the order they were added, so the application's contracts - including
-    /// any it customizes for Arc's own types - win. Arc's source-generated metadata for its own wire types answers for what
-    /// they do not know, and the reflection-based resolver comes last, only when reflection-based serialization is enabled.
-    /// That lets an application that is trimmed or compiled with NativeAOT, where reflection is disabled, serialize its
-    /// read models, command responses and query arguments through generated metadata.
+    /// any it customizes for Arc's own types - win. Resolvers appended to <see cref="JsonSerializerOptions"/>'s
+    /// <see cref="System.Text.Json.JsonSerializerOptions.TypeInfoResolverChain"/> come next, then Arc's source-generated
+    /// metadata for its own wire types, and the reflection-based resolver comes last, only when reflection-based
+    /// serialization is enabled. That lets an application that is trimmed or compiled with NativeAOT, where reflection is
+    /// disabled, serialize its read models, query arguments and command responses through generated metadata. A command
+    /// response is written as <c>CommandResult&lt;TResponse&gt;</c>, which Arc's metadata cannot cover, so the
+    /// application's context has to include <c>CommandResult&lt;TResponse&gt;</c> for each response type.
     /// </para>
     /// <para>
     /// Add resolvers while configuring Arc, before the first serialization: <see cref="JsonSerializerOptions"/> become
