@@ -154,9 +154,16 @@ def analyzed_frameworks(target_frameworks):
 def project_frameworks(project):
     """The analyzed target frameworks of a project as MSBuild evaluates them for the Release build; exit 2 on failure."""
     command = ['dotnet', 'msbuild', os.path.join(ROOT, project), '-getProperty:TargetFrameworks',
-               '-p:Configuration=Release', '-nologo']
+               '-getProperty:TargetFramework', '-p:Configuration=Release', '-nologo']
     result = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    frameworks = analyzed_frameworks(result.stdout.strip()) if result.returncode == 0 else []
+    frameworks = []
+    if result.returncode == 0:
+        # Asking for two properties returns JSON; a project may set either the plural or the singular form.
+        try:
+            properties = json.loads(result.stdout).get('Properties', {})
+        except ValueError:
+            properties = {}
+        frameworks = analyzed_frameworks(properties.get('TargetFrameworks') or properties.get('TargetFramework') or '')
     if not frameworks:
         print(result.stdout + result.stderr)
         print(f'Could not determine the target frameworks of {project}.', file=sys.stderr)
@@ -266,7 +273,11 @@ def document(diagnostics, suppressed):
 def solution_filter(projects, directory):
     """A solution filter, written to directory, of the covered projects: one build covers all of them and what they
     reference. Its solution path is relative to the filter, as the format requires."""
-    solution = os.path.join(ROOT, next(name for name in sorted(os.listdir(ROOT)) if name.endswith('.slnx')))
+    solutions = [name for name in sorted(os.listdir(ROOT)) if name.endswith('.slnx')]
+    if not solutions:
+        print(f'No .slnx solution found in {ROOT}.', file=sys.stderr)
+        sys.exit(2)
+    solution = os.path.join(ROOT, solutions[0])
     path = os.path.join(directory, 'aot-ratchet.slnf')
     document = {'solution': {'path': os.path.relpath(solution, directory).replace(os.sep, '\\'),
                              'projects': [project.replace('/', '\\') for project in projects]}}
@@ -279,7 +290,9 @@ def build(directory, projects):
     """Run one analysis build of all covered projects, writing its SARIF logs to directory; exit 2 when it fails."""
     for stale in glob.glob(os.path.join(directory, '*.sarif')):
         os.remove(stale)
-    with tempfile.TemporaryDirectory(prefix='aot-ratchet-filter-') as temporary:
+    # Beside the solution, so the filter's relative solution path exists on every platform (a temporary directory on
+    # another Windows drive has no relative path to the repository).
+    with tempfile.TemporaryDirectory(prefix='.aot-ratchet-filter-', dir=ROOT) as temporary:
         run_build(solution_filter(projects, temporary), directory)
 
 
