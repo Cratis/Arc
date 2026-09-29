@@ -169,11 +169,22 @@ public class MongoCollectionInterceptorForReturnValues(
 
     async Task<bool> TryAcquireSemaphore(object taskCompletionSource, CancellationToken cancellationToken)
     {
-        if (!await openConnectionSemaphore.WaitAsync(1000, cancellationToken))
+        try
         {
-            SetException(taskCompletionSource, new TimeoutException("Failed to acquire semaphore."));
+            if (!await openConnectionSemaphore.WaitAsync(1000, cancellationToken))
+            {
+                SetException(taskCompletionSource, new TimeoutException("Failed to acquire semaphore."));
+                return false;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled while waiting for a slot. The pipeline's result is not awaited, so the caller's task has to
+            // be completed here or it would never finish.
+            SetCanceled(taskCompletionSource);
             return false;
         }
+
         return true;
     }
 }
