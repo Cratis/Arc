@@ -34,7 +34,8 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     /// </summary>
     /// <remarks>
     /// Looks for a property conventionally named <c>Id</c> (case-insensitive), including inherited interface properties.
-    /// The result is cached per type, so the reflection runs once per item type rather than on every emission.
+    /// The result is cached per type, so the reflection runs once per item type rather than on every emission. The cache
+    /// is cleared when Hot Reload updates types, so an identity property added while the application runs is found.
     /// </remarks>
     /// <param name="type">The item type to inspect.</param>
     /// <returns>The identity <see cref="PropertyInfo"/>, or <see langword="null"/> if not found.</returns>
@@ -220,6 +221,15 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
             .ToArray();
 
         return new ChangeSet { Added = added, Removed = removed };
+    }
+
+    /// <summary>
+    /// Clears the per-type caches after a Hot Reload metadata update.
+    /// </summary>
+    internal static void ClearCaches()
+    {
+        _identityProperties.Clear();
+        _overridesEquality.Clear();
     }
 
     /// <summary>

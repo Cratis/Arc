@@ -28,7 +28,7 @@ internal sealed class ObservableQuerySubscriptionScopeSnapshot
         {
             _serializedValue = Serialize(scope);
             var restored = Deserialize();
-            if (restored is null || restored.GetType() != _runtimeType || !SerializeEquivalently(scope, restored))
+            if (restored is null || restored.GetType() != _runtimeType || !SerializesEquivalently(restored))
             {
                 throw new InvalidSubscriptionScope(_runtimeType);
             }
@@ -57,19 +57,19 @@ internal sealed class ObservableQuerySubscriptionScopeSnapshot
     }
 
     /// <summary>
-    /// Gets whether the original scope and its restored copy serialize to the same JSON.
+    /// Gets whether the restored copy serializes to the same JSON as the captured snapshot.
     /// </summary>
-    /// <param name="scope">The scope the filter supplied.</param>
     /// <param name="restored">The scope as restored from the snapshot.</param>
-    /// <returns>True when both serialize to equivalent JSON.</returns>
+    /// <returns>True when both are equivalent JSON.</returns>
     /// <remarks>
-    /// Parses what <see cref="Serialize"/> produced with the document options the serializer itself would parse with,
-    /// so the comparison is the same as comparing the elements the serializer builds.
+    /// Compares against the captured bytes, which are what <see cref="CreateScope"/> restores from, and parses with the
+    /// document options the serializer itself would parse with, so the comparison is the same as comparing the
+    /// elements the serializer builds.
     /// </remarks>
-    bool SerializeEquivalently(object scope, object restored)
+    bool SerializesEquivalently(object restored)
     {
         var documentOptions = new JsonDocumentOptions { MaxDepth = _serializerOptions.MaxDepth };
-        using var original = JsonDocument.Parse(Serialize(scope), documentOptions);
+        using var original = JsonDocument.Parse(_serializedValue, documentOptions);
         using var roundTripped = JsonDocument.Parse(Serialize(restored), documentOptions);
         return JsonElement.DeepEquals(original.RootElement, roundTripped.RootElement);
     }
