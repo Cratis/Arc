@@ -571,7 +571,7 @@ public class ObservableQueryDemultiplexer(
             try
             {
                 var json = System.Text.Encoding.UTF8.GetString(buffer, 0, received.Count);
-                var message = JsonSerializer.Deserialize<ObservableQueryHubMessage>(json, arcOptions.Value.JsonSerializerOptions);
+                var message = JsonSerializer.Deserialize(json, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<ObservableQueryHubMessage>());
 
                 if (message is null)
                 {
@@ -1423,7 +1423,7 @@ public class ObservableQueryDemultiplexer(
             }
 #pragma warning restore CA1508 // Avoid dead conditional code
 
-            var json = JsonSerializer.SerializeToUtf8Bytes(message, arcOptions.Value.JsonSerializerOptions);
+            var json = JsonSerializer.SerializeToUtf8Bytes(message, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<ObservableQueryHubMessage>());
             await webSocket.Send(new ArraySegment<byte>(json), System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             token.ThrowIfCancellationRequested();
             keepAliveTracker.RecordMessageSent();
@@ -1476,7 +1476,7 @@ public class ObservableQueryDemultiplexer(
             await writeLock.WaitAsync(operationToken);
             writeLockHeld = true;
 
-            var json = JsonSerializer.Serialize(message, arcOptions.Value.JsonSerializerOptions);
+            var json = JsonSerializer.Serialize(message, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<ObservableQueryHubMessage>());
             await context.Write($"data: {json}\n\n", operationToken);
             operationToken.ThrowIfCancellationRequested();
             keepAliveTracker.RecordMessageSent();
@@ -1685,13 +1685,13 @@ public class ObservableQueryDemultiplexer(
         // When deserialized from JSON, the payload will be a JsonElement
         if (payload is JsonElement element)
         {
-            return element.Deserialize<ObservableQuerySubscriptionRequest>(arcOptions.Value.JsonSerializerOptions);
+            return element.Deserialize(arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<ObservableQuerySubscriptionRequest>());
         }
 
         try
         {
-            var json = JsonSerializer.Serialize(payload, arcOptions.Value.JsonSerializerOptions);
-            return JsonSerializer.Deserialize<ObservableQuerySubscriptionRequest>(json, arcOptions.Value.JsonSerializerOptions);
+            var json = JsonSerializer.Serialize(payload, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<object>());
+            return JsonSerializer.Deserialize(json, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<ObservableQuerySubscriptionRequest>());
         }
         catch
         {

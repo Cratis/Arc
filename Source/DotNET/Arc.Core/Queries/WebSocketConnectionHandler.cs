@@ -107,7 +107,7 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
 #pragma warning restore CA1508 // Avoid dead conditional code
 
             var envelope = WebSocketMessage.CreateData(queryResult);
-            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions);
+            var message = JsonSerializer.SerializeToUtf8Bytes(envelope, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<WebSocketMessage>());
             await webSocket.Send(message, System.Net.WebSockets.WebSocketMessageType.Text, true, token);
             message = null;
             return null;
@@ -135,13 +135,13 @@ public class WebSocketConnectionHandler(IOptions<ArcOptions> arcOptions, ILogger
         try
         {
             var messageText = System.Text.Encoding.UTF8.GetString(buffer, 0, count);
-            var message = JsonSerializer.Deserialize<WebSocketMessage>(messageText, arcOptions.Value.JsonSerializerOptions);
+            var message = JsonSerializer.Deserialize(messageText, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<WebSocketMessage>());
 
             if (message is not null && message.Type == WebSocketMessageType.Ping)
             {
                 handlerLogger.ReceivedPingMessage();
                 var pongMessage = WebSocketMessage.Pong(message.Timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage, arcOptions.Value.JsonSerializerOptions);
+                var pongBytes = JsonSerializer.SerializeToUtf8Bytes(pongMessage, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<WebSocketMessage>());
                 var lockHeld = false;
                 try
                 {
