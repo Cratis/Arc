@@ -14,7 +14,7 @@ public class with_generated_registrations_from_another_executable : given.a_gene
         _getDependencyContextProjectNames().Returns(["Test.Only.Project"]);
         _registration.Register(
             _otherExecutable,
-            Modules(("Web.Project", GetModule)),
+            Modules((_initializedAssemblyName, GetModule)),
             []);
     }
 

@@ -34,8 +34,14 @@ namespace Cratis.Arc;
 /// applications and cannot be trimmed safely; running a module initializer twice is a no-op.
 /// </para>
 /// <para>
-/// A registration that fails is not counted as done: the failure is kept and thrown again by every later call, so
-/// no caller proceeds with only part of the generated metadata registered.
+/// Registration runs under an execution lock that is held for the whole of <see cref="EnsureRegistered"/>: a caller
+/// arriving while another is registering waits for it, and then observes its failure if it failed. A registration
+/// that fails is not counted as done: the failure is kept and thrown again by every later call, so no caller
+/// returns before the registrations pending when it called have run, or proceeds after one has failed. The lock is
+/// re-entrant, so a module initializer that reaches <see cref="EnsureRegistered"/> or registers again on the same
+/// thread does not deadlock; it does not extend to a module initializer that waits on another thread which is
+/// itself waiting in <see cref="EnsureRegistered"/>. A registration made while another thread is registering is
+/// run by the next call, not by the one already running.
 /// </para>
 /// </remarks>
 internal sealed class GeneratedMetadataRegistration(
@@ -44,9 +50,11 @@ internal sealed class GeneratedMetadataRegistration(
     Func<Assembly?> getEntryAssembly)
 {
     readonly object _lock = new();
+    readonly object _runLock = new();
     readonly Queue<GeneratedProjectReferenceModules> _pending = [];
     readonly HashSet<Assembly> _registeringAssemblies = [];
     readonly List<SkippedProjectAssembly> _skipped = [];
+    readonly HashSet<string> _skippedNames = new(StringComparer.OrdinalIgnoreCase);
     bool _hasRunDependencyContextFallback;
     ExceptionDispatchInfo? _failure;
 
@@ -57,6 +65,7 @@ internal sealed class GeneratedMetadataRegistration(
 
     /// <summary>
     /// Gets the project assemblies that could not be loaded, and so registered nothing, that have not been logged yet.
+    /// Each assembly is reported once per registration, however many times and by whichever path it failed to load.
     /// </summary>
     internal IEnumerable<SkippedProjectAssembly> Skipped
     {
@@ -74,7 +83,8 @@ internal sealed class GeneratedMetadataRegistration(
     /// available.
     /// </summary>
     /// <remarks>
-    /// Runs each generated registration once; subsequent calls only run registrations that arrived since.
+    /// Runs each generated registration once; subsequent calls only run registrations that arrived since. Callers
+    /// are serialized: one that arrives while another is registering waits, and then observes its failure.
     /// </remarks>
     public static void EnsureGeneratedMetadataRegistered() => Default.EnsureRegistered();
 
@@ -115,46 +125,51 @@ internal sealed class GeneratedMetadataRegistration(
     /// <exception cref="TypeInitializationException">A module initializer threw, now or on an earlier call.</exception>
     internal void EnsureRegistered()
     {
-        lock (_lock)
-        {
-            _failure?.Throw();
-        }
-
-        try
-        {
-            // Module initializers run outside the lock: running one can reach an executable whose own generated
-            // module initializer registers here, and holding the lock across arbitrary module code invites deadlocks.
-            while (TryTakePending(out var registration))
-            {
-                foreach (var (assemblyName, getModule) in registration.Modules)
-                {
-                    RunModuleInitializer(assemblyName, getModule);
-                }
-
-                foreach (var assemblyName in registration.AssembliesWithoutReachableTypes)
-                {
-                    LoadAndRunModuleInitializer(assemblyName);
-                }
-            }
-
-            if (!TryTakeDependencyContextFallback())
-            {
-                return;
-            }
-
-            foreach (var projectName in getDependencyContextProjectNames())
-            {
-                LoadAndRunModuleInitializer(projectName);
-            }
-        }
-        catch (Exception ex)
+        // The execution lock spans the drain, the fallback and the failure capture, so no caller returns while
+        // another is still registering, and a failure is visible to whoever was waiting. It is a Monitor, re-entrant
+        // on the thread that holds it, because running a module initializer can reach an executable whose own
+        // generated module initializer registers here. The short state lock is never held across module code.
+        lock (_runLock)
         {
             lock (_lock)
             {
-                _failure ??= ExceptionDispatchInfo.Capture(ex);
+                _failure?.Throw();
             }
 
-            throw;
+            try
+            {
+                while (TryTakePending(out var registration))
+                {
+                    foreach (var (assemblyName, getModule) in registration.Modules)
+                    {
+                        RunModuleInitializer(assemblyName, getModule);
+                    }
+
+                    foreach (var assemblyName in registration.AssembliesWithoutReachableTypes)
+                    {
+                        LoadAndRunModuleInitializer(assemblyName);
+                    }
+                }
+
+                if (!TryTakeDependencyContextFallback())
+                {
+                    return;
+                }
+
+                foreach (var projectName in getDependencyContextProjectNames())
+                {
+                    LoadAndRunModuleInitializer(projectName);
+                }
+            }
+            catch (Exception ex)
+            {
+                lock (_lock)
+                {
+                    _failure ??= ExceptionDispatchInfo.Capture(ex);
+                }
+
+                throw;
+            }
         }
     }
 
@@ -239,6 +254,15 @@ internal sealed class GeneratedMetadataRegistration(
             return;
         }
 
+        // Generated code binds a type name in the executable's compilation after source generators have run, so a
+        // same-named type there wins over the one chosen in the project reference and yields the wrong module.
+        // Running the wrong module would register nothing for this assembly without any sign of it.
+        if (!string.Equals(module.Assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase))
+        {
+            LoadAndRunModuleInitializer(assemblyName);
+            return;
+        }
+
         RuntimeHelpers.RunModuleConstructor(module.ModuleHandle);
     }
 
@@ -255,7 +279,10 @@ internal sealed class GeneratedMetadataRegistration(
             // have removed one nothing references. Either way it registers nothing; that is reported, not fatal.
             lock (_lock)
             {
-                _skipped.Add(new(assemblyName, ex));
+                if (_skippedNames.Add(assemblyName))
+                {
+                    _skipped.Add(new(assemblyName, ex));
+                }
             }
 
             return;

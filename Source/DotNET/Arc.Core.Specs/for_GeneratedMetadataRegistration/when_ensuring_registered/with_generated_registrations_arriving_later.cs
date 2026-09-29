@@ -12,9 +12,9 @@ public class with_generated_registrations_arriving_later : given.a_generated_met
 
     void Establish()
     {
-        _registration.Register(_entryAssembly, Modules(("First.Project", GetFirstModule)), []);
+        _registration.Register(_entryAssembly, Modules((_initializedAssemblyName, GetFirstModule)), []);
         _registration.EnsureRegistered();
-        _registration.Register(_entryAssembly, Modules(("Second.Project", GetSecondModule)), []);
+        _registration.Register(_entryAssembly, Modules((_initializedAssemblyName, GetSecondModule)), []);
     }
 
     void Because() => _registration.EnsureRegistered();

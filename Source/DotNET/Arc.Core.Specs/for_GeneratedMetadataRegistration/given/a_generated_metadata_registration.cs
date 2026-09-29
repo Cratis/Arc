@@ -12,6 +12,7 @@ public class a_generated_metadata_registration : Specification
     protected Assembly _entryAssembly;
     protected Assembly _otherExecutable;
     protected Module _initializedModule;
+    protected string _initializedAssemblyName;
     internal GeneratedMetadataRegistration _registration;
 
     void Establish()
@@ -19,8 +20,10 @@ public class a_generated_metadata_registration : Specification
         _loadAssembly = Substitute.For<Func<AssemblyName, Assembly>>();
 
         // A module whose initializers have long since run, so running them again is the no-op the runtime guarantees
-        // and the specification observes only which assemblies were asked for.
+        // and the specification observes only which assemblies were asked for. A project reference is reported under
+        // the name of its assembly, so the specifications report this module under the name of the assembly it is in.
         _initializedModule = typeof(a_generated_metadata_registration).Module;
+        _initializedAssemblyName = _initializedModule.Assembly.GetName().Name!;
         _loadAssembly(Arg.Any<AssemblyName>()).Returns(typeof(a_generated_metadata_registration).Assembly);
         _getDependencyContextProjectNames = Substitute.For<Func<IEnumerable<string>>>();
         _getDependencyContextProjectNames().Returns([]);

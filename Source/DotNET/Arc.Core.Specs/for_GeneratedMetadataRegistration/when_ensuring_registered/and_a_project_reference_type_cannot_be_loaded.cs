@@ -14,7 +14,7 @@ public class and_a_project_reference_type_cannot_be_loaded : given.a_generated_m
         _entryAssembly,
         Modules(
             ("Broken.Project", () => throw new TypeLoadException("Base type lives in a compile-time only assembly")),
-            ("Working.Project", GetWorkingModule)),
+            (_initializedAssemblyName, GetWorkingModule)),
         []);
 
     void Because() => _error = Catch.Exception(_registration.EnsureRegistered);
