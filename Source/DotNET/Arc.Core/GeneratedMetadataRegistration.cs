@@ -140,8 +140,14 @@ internal sealed class GeneratedMetadataRegistration(
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Loading by name is reached only for project references generated code could not name, and for applications built without the Arc generators. A failed load is reported, not swallowed.")]
-    [UnconditionalSuppressMessage("SingleFile", "IL3002", Justification = "The dependency context is consulted only for applications built without the Arc generators, where it is the only record of the project references.")]
+    /// <summary>
+    /// Creates the registration with the runtime fallback for applications built without the Arc generators.
+    /// </summary>
+    /// <returns>The <see cref="GeneratedMetadataRegistration"/>.</returns>
+    /// <remarks>
+    /// The fallback is not trim or single-file safe. Its warnings are left visible, and held by the trim/AOT ratchet
+    /// baseline, rather than suppressed: applications built with the Arc generators never reach it.
+    /// </remarks>
     static GeneratedMetadataRegistration CreateDefault() => new(LoadAssemblyByName, GetDependencyContextProjectNames);
 
     [RequiresUnreferencedCode("Loads a project assembly by name, which trimming cannot see.")]
