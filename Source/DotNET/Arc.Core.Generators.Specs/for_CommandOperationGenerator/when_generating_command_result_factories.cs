@@ -26,10 +26,12 @@ public class when_generating_command_result_factories : Specification
             [CSharpSyntaxTree.ParseText("""
                 using System;
                 using System.Collections.Generic;
+                using System.Diagnostics.CodeAnalysis;
                 using System.Threading.Tasks;
                 using Cratis.Arc.Commands.ModelBound;
                 using Cratis.Monads;
                 using OneOf;
+                #pragma warning disable CRATIS001
                 namespace Results;
                 public record Receipt(string Number);
                 public record Created(string Name);
@@ -54,6 +56,22 @@ public class when_generating_command_result_factories : Specification
                 [Command] public record ReturnsPrivate { Hidden Handle() => new(); private record Hidden; }
                 [Command] public record ReturnsObsolete { public Legacy Handle() => new(); }
                 [Obsolete] public record Legacy;
+                [Obsolete] public record Retired;
+                [Experimental("CRATIS001")] public record Preview;
+                public class Holder<T> { public record Inner; }
+                [Command] public record ReturnsObsoleteArgument { public List<Retired> Handle() => []; }
+                [Command] public record ReturnsExperimental { public Preview Handle() => new(); }
+                [Command] public record ReturnsNestedInObsoleteArgument { public Holder<Retired>.Inner Handle() => new(); }
+                [Command] public record ReturnsNestedInOpenGeneric<T> { public Reply Handle() => new(); public record Reply; }
+                public class Outer<T> { [Command] public record CommandInOpenGeneric { public Answered Handle() => new(); public record Answered; } }
+                [Command] public record ReturnsValueCompletion { public ValueTask Handle() => ValueTask.CompletedTask; }
+                public record Alpha;
+                public record Beta;
+                public record Gamma;
+                public record Delta;
+                public record Epsilon;
+                [Command] public record ReturnsSystemTuple { public Tuple<Alpha, Beta> Handle() => new(new(), new()); }
+                [Command] public record ReturnsNestedTuple { public (Gamma, (Delta, Epsilon)) Handle() => (new(), (new(), new())); }
                 public record NotACommand { public DateTimeOffset Handle() => default; }
                 """)],
             ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
@@ -69,7 +87,12 @@ public class when_generating_command_result_factories : Specification
         var commands = compilation.SyntaxTrees.Single();
         _diagnostics = [.. generatorDiagnostics, .. output.GetDiagnostics().Where(diagnostic => diagnostic.Severity >= DiagnosticSeverity.Warning && diagnostic.Location.SourceTree != commands)];
         using var binary = new MemoryStream();
-        output.Emit(binary).Success.ShouldBeTrue();
+        var emitted = output.Emit(binary);
+        if (!emitted.Success)
+        {
+            throw new InvalidOperationException(string.Join(Environment.NewLine, emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)));
+        }
+
         _assembly = Assembly.Load(binary.ToArray());
         RuntimeHelpers.RunModuleConstructor(_assembly.ManifestModule.ModuleHandle);
         _correlationId = CorrelationId.New();
@@ -92,6 +115,16 @@ public class when_generating_command_result_factories : Specification
     [Fact] void should_not_register_wrappers() => _source.ShouldNotContain("OneOf<");
     [Fact] void should_not_register_inaccessible_types() => _source.ShouldNotContain("Hidden");
     [Fact] void should_not_register_obsolete_types() => _source.ShouldNotContain("Legacy");
+    [Fact] void should_not_register_obsolete_type_arguments() => _source.ShouldNotContain("Retired");
+    [Fact] void should_not_register_experimental_types() => _source.ShouldNotContain("Preview");
+    [Fact] void should_not_register_types_nested_in_open_generic_types() => _source.ShouldNotContain("Reply");
+    [Fact] void should_not_register_types_nested_in_open_generic_command_owners() => _source.ShouldNotContain("Answered");
+    [Fact] void should_not_register_completion_tasks() => _source.ShouldNotContain("typeof(global::System.Threading.Tasks.Task)");
+    [Fact] void should_not_register_completion_value_tasks() => _source.ShouldNotContain("typeof(global::System.Threading.Tasks.ValueTask)");
+    [Fact] void should_register_system_tuple_elements() => _source.ShouldContain("typeof(global::Results.Alpha)");
+    [Fact] void should_not_register_system_tuples_themselves() => _source.ShouldNotContain("System.Tuple<");
+    [Fact] void should_register_nested_tuple_elements() => _source.ShouldContain("typeof(global::Results.Epsilon)");
+    [Fact] void should_register_nested_tuples_which_can_be_the_response() => _source.ShouldContain("typeof(global::System.ValueTuple<global::Results.Delta, global::Results.Epsilon>)");
     [Fact] void should_not_register_types_of_non_commands() => _source.ShouldNotContain("DateTimeOffset");
     [Fact] void should_wrap_a_reference_type_in_its_exact_result_type() => Wrap("Results.Receipt", "1").GetType().ShouldEqual(typeof(CommandResult<>).MakeGenericType(_assembly.GetType("Results.Receipt")!));
     [Fact] void should_wrap_a_value_type_in_its_exact_result_type() => Wrap(42).ShouldBeOfExactType<CommandResult<int>>();

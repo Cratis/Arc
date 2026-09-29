@@ -901,8 +901,9 @@ public class CommandPipeline(
         }
 
         // Responses without a generated factory, such as a subtype of the declared response type, keep the reflection
-        // path wherever dynamic code is supported.
-        if (RuntimeFeature.IsDynamicCodeSupported)
+        // path unless the code is truly ahead-of-time compiled. An app published with PublishAot sets
+        // IsDynamicCodeSupported to false even when it runs under the JIT, for instance from dotnet run or a test host.
+        if (CommandResultFactories.CanCreateThroughReflection(RuntimeFeature.IsDynamicCodeSupported, RuntimeFeature.IsDynamicCodeCompiled))
         {
             return CommandResultFactories.CreateThroughReflection(correlationId, response);
         }

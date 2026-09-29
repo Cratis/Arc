@@ -36,7 +36,7 @@ internal static class CommandResponseTypes
             .Select(type => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
     }
 
-    static void Collect(ITypeSymbol type, List<ITypeSymbol> types, int depth)
+    static void Collect(ITypeSymbol type, List<ITypeSymbol> types, int depth, bool insideTuple = false)
     {
         if (depth > 8)
         {
@@ -46,18 +46,33 @@ internal static class CommandResponseTypes
         if (type is INamedTypeSymbol named)
         {
             var definition = named.OriginalDefinition.ToDisplayString();
-            if (named.IsGenericType && (definition == "System.Threading.Tasks.Task<TResult>" || definition == "System.Threading.Tasks.ValueTask<TResult>" ||
-                named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
+
+            // A non-generic Task or ValueTask is awaited and never becomes a response.
+            if (string.Equals(definition, "System.Threading.Tasks.Task", StringComparison.Ordinal) || string.Equals(definition, "System.Threading.Tasks.ValueTask", StringComparison.Ordinal))
             {
-                Collect(named.TypeArguments[0], types, depth + 1);
                 return;
             }
 
-            if (named.IsTupleType)
+            if (named.IsGenericType && (definition == "System.Threading.Tasks.Task<TResult>" || definition == "System.Threading.Tasks.ValueTask<TResult>" ||
+                named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T))
             {
-                foreach (var element in named.TupleElements)
+                Collect(named.TypeArguments[0], types, depth + 1, insideTuple);
+                return;
+            }
+
+            if (TupleElements(named) is { IsDefault: false } elements)
+            {
+                // The pipeline takes the elements of a returned tuple as the response candidates. A tuple that is itself
+                // an element is the response when not every value in it is handled by a value handler, and its own
+                // elements are the candidates when the response is flattened for operations, so both can be the response.
+                if (insideTuple)
                 {
-                    Collect(element.Type, types, depth + 1);
+                    types.Add(named.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
+                }
+
+                foreach (var element in elements)
+                {
+                    Collect(element, types, depth + 1, true);
                 }
 
                 return;
@@ -67,7 +82,7 @@ internal static class CommandResponseTypes
             {
                 foreach (var arm in arms)
                 {
-                    Collect(arm, types, depth + 1);
+                    Collect(arm, types, depth + 1, insideTuple);
                 }
 
                 return;
@@ -75,6 +90,40 @@ internal static class CommandResponseTypes
         }
 
         types.Add(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
+    }
+
+    /// <summary>
+    /// Gets the element types of a value tuple or System.Tuple, which the pipeline both treats as ITuple.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <returns>The element types, or default when the type is not a tuple.</returns>
+    static ImmutableArray<ITypeSymbol> TupleElements(INamedTypeSymbol type)
+    {
+        if (type.IsTupleType)
+        {
+            return [.. type.TupleElements.Select(element => element.Type)];
+        }
+
+        var definition = type.OriginalDefinition;
+        if (!string.Equals(definition.ContainingNamespace?.ToDisplayString(), "System", StringComparison.Ordinal) ||
+            !(string.Equals(definition.Name, "Tuple", StringComparison.Ordinal) || string.Equals(definition.Name, "ValueTuple", StringComparison.Ordinal)))
+        {
+            return default;
+        }
+
+        if (type.Arity == 0)
+        {
+            return [];
+        }
+
+        // A tuple of eight or more elements carries the remaining elements as a tuple in its last type argument,
+        // which ITuple exposes as if they were elements of the same tuple.
+        if (type.Arity == 8 && type.TypeArguments[7] is INamedTypeSymbol rest && TupleElements(rest) is { IsDefault: false } remaining)
+        {
+            return [.. type.TypeArguments.Take(7), .. remaining];
+        }
+
+        return type.TypeArguments;
     }
 
     static ImmutableArray<ITypeSymbol> OneOfArguments(INamedTypeSymbol type)
@@ -105,7 +154,8 @@ internal static class CommandResponseTypes
     {
         IArrayTypeSymbol array => CanBeNamed(array.ElementType, compilation),
         INamedTypeSymbol named => !IsFileLocalOrFlagged(named) && compilation.IsSymbolAccessibleWithin(named, compilation.Assembly) &&
-            named.TypeArguments.All(argument => CanBeNamed(argument, compilation)),
+            named.TypeArguments.All(argument => CanBeNamed(argument, compilation)) &&
+            (named.ContainingType is null || CanBeNamed(named.ContainingType, compilation)),
         _ => false
     };
 

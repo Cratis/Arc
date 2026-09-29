@@ -14,8 +14,8 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <remarks>
 /// Not intended to be called directly. A response whose runtime type has no generated factory, such as a subtype of the
-/// declared response type or a command without generated code, is wrapped through reflection where dynamic code is
-/// supported. This registry does not imply that the rest of Arc supports NativeAOT.
+/// declared response type or a command without generated code, is wrapped through reflection unless the code is
+/// ahead-of-time compiled. This registry does not imply that the rest of Arc supports NativeAOT.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class CommandResultFactories
@@ -49,6 +49,15 @@ public static class CommandResultFactories
     /// <returns>The registered factory, or null when the type has none.</returns>
     internal static Func<CorrelationId, object, CommandResult>? For(Type responseType) =>
         _factories.TryGetValue(responseType, out var factory) ? factory : null;
+
+    /// <summary>
+    /// Gets whether a response without a generated factory can be wrapped through reflection.
+    /// </summary>
+    /// <param name="isDynamicCodeSupported">Whether the runtime supports dynamic code, which is false for apps built with PublishAot even when they run under the JIT.</param>
+    /// <param name="isDynamicCodeCompiled">Whether dynamic code is compiled at runtime, which is false only when the code is ahead-of-time compiled.</param>
+    /// <returns>True unless the code cannot generate types at runtime.</returns>
+    internal static bool CanCreateThroughReflection(bool isDynamicCodeSupported, bool isDynamicCodeCompiled) =>
+        isDynamicCodeSupported || isDynamicCodeCompiled;
 
     /// <summary>
     /// Wraps a response in a <see cref="CommandResult{TResponse}"/> of its runtime type through reflection.
