@@ -33,11 +33,15 @@ public static class JsonSerializerOptionsConfiguration
     /// <returns>The configured <see cref="JsonSerializerOptions"/> for continuation.</returns>
     /// <remarks>
     /// <para>
-    /// Besides naming, number handling and converters, this composes the <see cref="JsonSerializerOptions.TypeInfoResolverChain"/>
-    /// the options resolve type metadata through, in this order:
+    /// Besides naming, number handling and converters, this sets up how the options resolve type metadata. Arc adds a single
+    /// resolver to the end of <see cref="JsonSerializerOptions.TypeInfoResolverChain"/>, after any resolver the options were
+    /// already configured with, so the application's own contracts win. That resolver consults, in order:
     /// </para>
     /// <list type="number">
-    /// <item><description>Any resolver the options were already configured with, so the application's own contracts win.</description></item>
+    /// <item><description>
+    /// Any resolver appended to the chain after this call, as <c>TypeInfoResolverChain.Add(...)</c> made it the only resolver
+    /// before Arc shipped source-generated metadata.
+    /// </description></item>
     /// <item><description>Arc's source-generated metadata for its own wire types, such as the command and query results.</description></item>
     /// <item><description>
     /// The reflection-based resolver, only when reflection-based serialization is enabled
@@ -47,7 +51,8 @@ public static class JsonSerializerOptionsConfiguration
     /// </list>
     /// <para>
     /// Add an application's source-generated <see cref="JsonSerializerContext"/> through
-    /// <see cref="ArcOptions.AddJsonTypeInfoResolver"/>, which places it ahead of Arc's own metadata.
+    /// <see cref="ArcOptions.AddJsonTypeInfoResolver"/>, which places it ahead of Arc's resolver. Assigning
+    /// <see cref="JsonSerializerOptions.TypeInfoResolver"/> replaces the whole chain, Arc's resolver included.
     /// </para>
     /// </remarks>
     public static JsonSerializerOptions ConfigureArcDefaults(this JsonSerializerOptions options, IDerivedTypes? derivedTypes = null)
@@ -80,14 +85,14 @@ public static class JsonSerializerOptionsConfiguration
     }
 
     /// <summary>
-    /// Add a type info resolver ahead of Arc's own metadata and the reflection-based fallback.
+    /// Add a type info resolver ahead of Arc's resolver, and with it Arc's own metadata and the reflection-based fallback.
     /// </summary>
     /// <param name="options">The <see cref="JsonSerializerOptions"/> configured with <see cref="ConfigureArcDefaults"/>.</param>
     /// <param name="resolver">The <see cref="IJsonTypeInfoResolver"/> to add.</param>
     /// <remarks>
     /// Resolvers added this way are consulted in the order they were added. A resolver already in the chain is not added
-    /// again. When the options no longer hold Arc's metadata or the reflection-based fallback - because the application
-    /// replaced <see cref="JsonSerializerOptions.TypeInfoResolver"/> - the resolver goes last.
+    /// again. When the options no longer hold Arc's resolver - because the application replaced
+    /// <see cref="JsonSerializerOptions.TypeInfoResolver"/> - the resolver goes last.
     /// </remarks>
     internal static void AddTypeInfoResolverBeforeArcDefaults(this JsonSerializerOptions options, IJsonTypeInfoResolver resolver)
     {
@@ -97,12 +102,7 @@ public static class JsonSerializerOptionsConfiguration
             return;
         }
 
-        var index = chain.IndexOf(ArcJsonSerializerContext.Default);
-        if (ReflectionResolver is { } reflectionResolver && chain.IndexOf(reflectionResolver) is var reflectionIndex and >= 0 && (index < 0 || reflectionIndex < index))
-        {
-            index = reflectionIndex;
-        }
-
+        var index = IndexOfArcResolver(chain);
         if (index < 0)
         {
             chain.Add(resolver);
@@ -122,15 +122,17 @@ public static class JsonSerializerOptionsConfiguration
     /// <remarks>
     /// Serializing through the returned <see cref="JsonTypeInfo"/> gives the same JSON as passing the options and the
     /// type to <see cref="JsonSerializer"/>. Options configured with <see cref="ConfigureArcDefaults"/> always carry a
-    /// resolver; for options that carry none, the reflection-based resolver the serializer itself falls back to is filled
-    /// in first, as the serializer does, when reflection-based serialization is enabled.
+    /// resolver; for options that carry none, the options are made read-only with the reflection-based resolver the
+    /// serializer itself falls back to filled in, exactly as the serializer does on first use.
     /// </remarks>
     /// <exception cref="NotSupportedException">No resolver in the chain knows the type.</exception>
     internal static JsonTypeInfo ResolveTypeInfo(this JsonSerializerOptions options, Type type)
     {
-        if (options.TypeInfoResolver is null && !options.IsReadOnly && ReflectionResolver is { } reflectionResolver)
+        if (options.TypeInfoResolver is null && JsonSerializer.IsReflectionEnabledByDefault)
         {
-            options.TypeInfoResolver = reflectionResolver;
+            // The serializer's own path: idempotent and safe when another thread makes the options read-only first,
+            // unlike checking IsReadOnly and assigning TypeInfoResolver.
+            options.MakeReadOnly(populateMissingResolver: true);
         }
 
         return options.GetTypeInfo(type);
@@ -150,14 +152,22 @@ public static class JsonSerializerOptionsConfiguration
     static void ComposeTypeInfoResolvers(JsonSerializerOptions options)
     {
         var chain = options.TypeInfoResolverChain;
-        if (!chain.Contains(ArcJsonSerializerContext.Default))
+        if (IndexOfArcResolver(chain) < 0)
         {
-            chain.Add(ArcJsonSerializerContext.Default);
+            chain.Add(new ArcDefaultsJsonTypeInfoResolver(options, ReflectionResolver));
+        }
+    }
+
+    static int IndexOfArcResolver(IList<IJsonTypeInfoResolver> chain)
+    {
+        for (var i = 0; i < chain.Count; i++)
+        {
+            if (chain[i] is ArcDefaultsJsonTypeInfoResolver)
+            {
+                return i;
+            }
         }
 
-        if (ReflectionResolver is { } reflectionResolver && !chain.Contains(reflectionResolver))
-        {
-            chain.Add(reflectionResolver);
-        }
+        return -1;
     }
 }

@@ -34,8 +34,6 @@ public class with_arc_defaults : Specification
         _optionsAsBefore = representative_wire_values.OptionsAsBefore();
     }
 
-    [Fact] void should_resolve_through_arc_metadata_first() => _options.TypeInfoResolverChain[0].ShouldEqual(ArcJsonSerializerContext.Default);
-
     [Fact] void should_serialize_a_query_result_the_same() => ShouldSerializeTheSame(representative_wire_values.QueryResult, typeof(QueryResult));
     [Fact] void should_serialize_a_query_result_by_its_runtime_type_the_same() => ShouldSerializeTheSame(representative_wire_values.QueryResult, typeof(object));
     [Fact] void should_serialize_an_unauthorized_query_result_the_same() => ShouldSerializeTheSame(QueryResult.Unauthorized(representative_wire_values.CorrelationId), typeof(QueryResult));

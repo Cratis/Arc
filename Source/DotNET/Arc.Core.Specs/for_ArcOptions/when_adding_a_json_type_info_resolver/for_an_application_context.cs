@@ -37,7 +37,7 @@ public class for_an_application_context : Specification
 
         // What a trimmed or NativeAOT application is left with: reflection-based serialization is disabled.
         _withoutReflection = new JsonSerializerOptions(_arcOptions.JsonSerializerOptions);
-        _withoutReflection.TypeInfoResolverChain.Remove(JsonSerializerOptions.Default.TypeInfoResolver!);
+        _withoutReflection.TypeInfoResolverChain[^1] = new ArcDefaultsJsonTypeInfoResolver(_withoutReflection, reflectionResolver: null);
         _optionsAsBefore = representative_wire_values.OptionsAsBefore();
         _jsonWithoutReflection = JsonSerializer.Serialize(representative_wire_values.QueryResult, _withoutReflection);
         _jsonAsBefore = JsonSerializer.Serialize(representative_wire_values.QueryResult, _optionsAsBefore);
@@ -46,8 +46,7 @@ public class for_an_application_context : Specification
     [Fact] void should_return_the_options_for_continuation() => _returned.ShouldEqual(_arcOptions);
     [Fact] void should_put_the_application_context_first() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain[0].ShouldEqual(an_application_json_serializer_context.Default);
     [Fact] void should_keep_the_order_resolvers_were_added_in() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain[1].ShouldEqual(_otherResolver);
-    [Fact] void should_follow_with_arc_metadata() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain[2].ShouldEqual(ArcJsonSerializerContext.Default);
-    [Fact] void should_end_with_the_reflection_based_resolver() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain[3].ShouldEqual(JsonSerializerOptions.Default.TypeInfoResolver);
-    [Fact] void should_not_add_a_resolver_twice() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain.Count.ShouldEqual(4);
+    [Fact] void should_end_with_arc_resolver() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain[2].ShouldBeOfExactType<ArcDefaultsJsonTypeInfoResolver>();
+    [Fact] void should_not_add_a_resolver_twice() => _arcOptions.JsonSerializerOptions.TypeInfoResolverChain.Count.ShouldEqual(3);
     [Fact] void should_serialize_the_application_types_without_reflection_as_before() => _jsonWithoutReflection.ShouldEqual(_jsonAsBefore);
 }

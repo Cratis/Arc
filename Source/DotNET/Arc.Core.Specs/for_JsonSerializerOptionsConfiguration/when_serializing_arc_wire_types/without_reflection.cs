@@ -10,7 +10,7 @@ namespace Cratis.Arc.for_JsonSerializerOptionsConfiguration.when_serializing_arc
 
 /// <summary>
 /// With reflection-based serialization disabled, as in a trimmed or NativeAOT application, Arc's own metadata is all
-/// that is left in the chain; it has to cover Arc's wire types on its own and write them as reflection did.
+/// its resolver has left; it has to cover Arc's wire types on its own and write them as reflection did.
 /// </summary>
 public class without_reflection : Specification
 {
@@ -22,8 +22,7 @@ public class without_reflection : Specification
     void Establish()
     {
         _options = new JsonSerializerOptions().ConfigureArcDefaults();
-        _options.TypeInfoResolverChain.Clear();
-        _options.TypeInfoResolverChain.Add(ArcJsonSerializerContext.Default);
+        _options.TypeInfoResolverChain[0] = new ArcDefaultsJsonTypeInfoResolver(_options, reflectionResolver: null);
         _optionsAsBefore = representative_wire_values.OptionsAsBefore();
 
         _queryResult = representative_wire_values.QueryResult;
