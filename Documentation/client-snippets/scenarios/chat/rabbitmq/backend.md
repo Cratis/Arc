@@ -1,5 +1,6 @@
 ```csharp
 using System.Collections.Concurrent;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Queries.ModelBound;
@@ -39,9 +40,21 @@ public class ChatService(IChatPersistence persistence)
     readonly ConcurrentDictionary<string, Lazy<ChatRoom>> _rooms = new();
 
     // Loads the history once, the first time a room is asked for.
-    public ChatRoom GetChatRoom(string name) =>
-        _rooms.GetOrAdd(name, roomName => new Lazy<ChatRoom>(() =>
-            new ChatRoom(persistence.GetHistoryAsync(roomName).GetAwaiter().GetResult()))).Value;
+    public ChatRoom GetChatRoom(string name)
+    {
+        var room = _rooms.GetOrAdd(name, roomName => new Lazy<ChatRoom>(() =>
+            new ChatRoom(persistence.GetHistoryAsync(roomName).GetAwaiter().GetResult())));
+        try
+        {
+            return room.Value;
+        }
+        catch
+        {
+            // A Lazy keeps a failed load's exception, so forget it and let the next subscriber try again.
+            _rooms.TryRemove(new KeyValuePair<string, Lazy<ChatRoom>>(name, room));
+            throw;
+        }
+    }
 }
 
 // Chat/IChatPublisher.cs
@@ -65,9 +78,10 @@ public record ChatMessage(ChatMessageId Id, string User, DateTimeOffset SentAt, 
     public static ISubject<IEnumerable<ChatMessage>> ForRoom(string roomName, ChatService chatService)
     {
         var room = chatService.GetChatRoom(roomName);
+        // A relay per subscriber, seeded with the room's current history. It follows the room only
+        // while Arc is subscribed: Observable.Using ends the room subscription when the client leaves.
         var relay = new BehaviorSubject<IEnumerable<ChatMessage>>(room.Messages.Value);
-        room.Messages.Subscribe(relay);
-        return relay;
+        return Subject.Create<IEnumerable<ChatMessage>>(relay, Observable.Using(() => room.Messages.Subscribe(relay), _ => relay));
     }
 }
 

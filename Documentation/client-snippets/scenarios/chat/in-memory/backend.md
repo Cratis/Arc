@@ -1,5 +1,6 @@
 ```csharp
 using System.Collections.Concurrent;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Queries.ModelBound;
@@ -47,10 +48,10 @@ public record ChatMessage(ChatMessageId Id, string User, DateTimeOffset SentAt, 
     {
         var room = chatService.GetChatRoom(roomName);
 
-        // A relay per subscriber, seeded with the room's current history.
+        // A relay per subscriber, seeded with the room's current history. It follows the room only
+        // while Arc is subscribed: Observable.Using ends the room subscription when the client leaves.
         var relay = new BehaviorSubject<IEnumerable<ChatMessage>>(room.Messages.Value);
-        room.Messages.Subscribe(relay);
-        return relay;
+        return Subject.Create<IEnumerable<ChatMessage>>(relay, Observable.Using(() => room.Messages.Subscribe(relay), _ => relay));
     }
 }
 
