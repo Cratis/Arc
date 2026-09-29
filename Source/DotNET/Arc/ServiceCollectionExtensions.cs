@@ -49,8 +49,8 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Adds the Arc services for ASP.NET Core that do not depend on MVC: the request context and correlation id
-    /// middlewares, validator discovery, the JSON options for minimal APIs and the ASP.NET Core authorization
-    /// services.
+    /// middlewares, validator discovery, the JSON options for minimal APIs and the ASP.NET Core authentication and
+    /// authorization services.
     /// </summary>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="types"><see cref="ITypes"/> for discovery.</param>
@@ -64,9 +64,10 @@ public static class ServiceCollectionExtensions
         services.AddCorrelationId();
 
         // Arc's authorization policy runtime and introspection guard depend on IAuthorizationPolicyProvider and
-        // IAuthorizationService, which AddControllers used to register. AddAuthorization uses TryAdd, so it is a
-        // no-op alongside MVC.
+        // IAuthorizationService, and UseAuthentication on IAuthenticationService, which AddControllers used to
+        // register. Both use TryAdd, so they are no-ops alongside MVC or the application's own registrations.
         services.AddAuthorization();
+        services.AddAuthenticationCore();
 
         services.AddSingleton<IPostConfigureOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>, ConfigureHttpJsonOptionsFromArcOptions>();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);

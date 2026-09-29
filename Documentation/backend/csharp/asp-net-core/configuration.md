@@ -186,7 +186,7 @@ Controllers are on unless you call `WithoutControllers`. With controllers off:
 - Controller-based commands and queries aren't available, because no controllers are discovered.
 - MVC-only features are unavailable. Calling `MapControllers` fails, because MVC isn't registered, and `[FromRequest]` model binding, `[AspNetResult]` and MVC model validation are unavailable. Arc still validates model-bound commands and queries.
 - OpenAPI documents describe the model-bound endpoints only.
-- The application registers the ASP.NET Core services it used to get from MVC. Add `builder.Services.AddCors()` before `UseCors`, and `builder.Services.AddEndpointsApiExplorer()` when you use Swashbuckle. Arc registers authorization itself, so `UseAuthorization`, policies and protected introspection work without an extra call.
+- The application registers the ASP.NET Core services it used to get from MVC. Add `builder.Services.AddCors()` before `UseCors`, and `builder.Services.AddEndpointsApiExplorer()` when you use Swashbuckle. Arc registers the ASP.NET Core authentication and authorization services, so `UseAuthentication`, `UseAuthorization` and policies work without calling `AddAuthorization`. Authentication schemes still come from your own `AddAuthentication(...)`, and protected introspection needs a default scheme, as it does with controllers on.
 
 `WithoutControllers` keeps MVC out of the application at runtime. It doesn't yet let the trimmer remove MVC from a trimmed or NativeAOT publish, because `AddCratisArc` still references MVC statically; this is tracked separately.
 
