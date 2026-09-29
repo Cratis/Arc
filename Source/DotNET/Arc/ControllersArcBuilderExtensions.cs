@@ -22,8 +22,14 @@ public static class ControllersArcBuilderExtensions
     /// needs MVC, such as <c>MapControllers</c>.
     /// </para>
     /// <para>
-    /// MVC is not supported with trimming or NativeAOT, so an application that is published trimmed or as NativeAOT
-    /// turns controllers off. By default controllers are on.
+    /// MVC is not supported with trimming or NativeAOT. This keeps MVC out of the application at runtime, but it is a
+    /// runtime choice: it does not yet let the trimmer remove MVC from a trimmed or NativeAOT publish, which is
+    /// tracked separately. By default controllers are on.
+    /// </para>
+    /// <para>
+    /// Without MVC the application registers the ASP.NET Core services it used to get from MVC itself, such as
+    /// <c>AddCors</c> for <c>UseCors</c> and <c>AddEndpointsApiExplorer</c> for Swashbuckle. Arc registers
+    /// authorization.
     /// </para>
     /// </remarks>
     /// <param name="builder"><see cref="IArcBuilder"/> to configure.</param>

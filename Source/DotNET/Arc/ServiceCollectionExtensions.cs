@@ -30,9 +30,10 @@ public static class ServiceCollectionExtensions
     /// Add all controllers from all project referenced assemblies.
     /// </summary>
     /// <remarks>
-    /// This registers the Arc services for ASP.NET Core together with MVC and controller discovery. <c>AddCratisArc</c>
-    /// calls it for you; an application that only uses model-bound commands and queries can leave MVC out with
-    /// <c>WithoutControllers</c> on the <see cref="IArcBuilder"/>.
+    /// This is the standalone registration for hosts that do not use <c>AddCratisArc</c>: it registers the Arc
+    /// services for ASP.NET Core together with MVC and controller discovery. Do not combine it with
+    /// <c>AddCratisArc</c>, which registers the same services itself, and do not use it to turn controllers back on
+    /// after <c>WithoutControllers</c>; that would register the Arc middlewares and JSON configuration a second time.
     /// </remarks>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="types"><see cref="ITypes"/> for discovery.</param>
@@ -48,7 +49,8 @@ public static class ServiceCollectionExtensions
 
     /// <summary>
     /// Adds the Arc services for ASP.NET Core that do not depend on MVC: the request context and correlation id
-    /// middlewares, validator discovery and the JSON options for minimal APIs.
+    /// middlewares, validator discovery, the JSON options for minimal APIs and the ASP.NET Core authorization
+    /// services.
     /// </summary>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="types"><see cref="ITypes"/> for discovery.</param>
@@ -60,6 +62,11 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IStartupFilter, ArcStartupFilter>();
         services.AddTransient<HttpRequestContextMiddleware>();
         services.AddCorrelationId();
+
+        // Arc's authorization policy runtime and introspection guard depend on IAuthorizationPolicyProvider and
+        // IAuthorizationService, which AddControllers used to register. AddAuthorization uses TryAdd, so it is a
+        // no-op alongside MVC.
+        services.AddAuthorization();
 
         services.AddSingleton<IPostConfigureOptions<Microsoft.AspNetCore.Http.Json.JsonOptions>, ConfigureHttpJsonOptionsFromArcOptions>();
         services.AddSingleton(sp => sp.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);

@@ -59,8 +59,7 @@ public static class WebApplicationBuilderExtensions
     /// app.UseCratisChronicle();
     /// app.Run();
     /// </code>
-    /// Arc without MVC controllers, for an application that only uses model-bound commands and queries, for
-    /// instance one published as NativeAOT:
+    /// Arc without MVC controllers, for an application that only uses model-bound commands and queries:
     /// <code>
     /// builder.AddCratisArc(configureBuilder: arc => arc.WithoutControllers());
     /// </code>

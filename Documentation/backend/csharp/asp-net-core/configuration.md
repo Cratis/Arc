@@ -168,7 +168,7 @@ app.Run();
 
 ## Turning controllers off
 
-`AddCratisArc` registers ASP.NET Core MVC and discovers the controllers in your project assemblies. An application that only uses model-bound commands and queries doesn't need MVC, and MVC isn't supported when you publish trimmed or as NativeAOT. Turn it off with `WithoutControllers` on the Arc builder:
+`AddCratisArc` registers ASP.NET Core MVC and discovers the controllers in your project assemblies. An application that only uses model-bound commands and queries doesn't need MVC. Turn it off with `WithoutControllers` on the Arc builder:
 
 ```csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -184,10 +184,25 @@ Controllers are on unless you call `WithoutControllers`. With controllers off:
 
 - Model-bound commands and queries, observable queries included, work as before. `UseCratisArc` maps their endpoints without MVC.
 - Controller-based commands and queries aren't available, because no controllers are discovered.
-- MVC-only features aren't registered: `MapControllers`, `[FromRequest]` model binding, `[AspNetResult]`, and MVC model validation. Arc still validates model-bound commands and queries.
+- MVC-only features are unavailable. Calling `MapControllers` fails, because MVC isn't registered, and `[FromRequest]` model binding, `[AspNetResult]` and MVC model validation are unavailable. Arc still validates model-bound commands and queries.
 - OpenAPI documents describe the model-bound endpoints only.
+- The application registers the ASP.NET Core services it used to get from MVC. Add `builder.Services.AddCors()` before `UseCors`, and `builder.Services.AddEndpointsApiExplorer()` when you use Swashbuckle. Arc registers authorization itself, so `UseAuthorization`, policies and protected introspection work without an extra call.
 
-`WithoutControllers` works with `AddCratis` too, through `configureArcBuilder`. The `IHostBuilder` overload of `AddCratisArc` has no Arc builder, so it always registers controllers.
+`WithoutControllers` keeps MVC out of the application at runtime. It doesn't yet let the trimmer remove MVC from a trimmed or NativeAOT publish, because `AddCratisArc` still references MVC statically; this is tracked separately.
+
+`WithoutControllers` works with `AddCratis` too, through `configureArcBuilder`. The `IHostBuilder` overload of `AddCratisArc` doesn't support `configureBuilder` (passing one throws), so it always registers controllers.
+
+### Configuring MVC when controllers are on
+
+With controllers on, `AddCratisArc` registers MVC after the `configureBuilder` callback returns. Configure MVC after `AddCratisArc` returns, not inside `configureBuilder`:
+
+```csharp
+builder.AddCratisArc();
+builder.Services.Configure<MvcOptions>(options => { /* ... */ });
+builder.Services.PostConfigure<Microsoft.AspNetCore.Mvc.JsonOptions>(options => { /* ... */ });
+```
+
+MVC settings made inside the callback run before Arc's own setup and before MVC's defaults exist. Arc's JSON configuration then overrides yours, Arc's model binder goes ahead of one you insert, and removing a default formatter finds nothing to remove.
 
 ## Hosting under a path prefix
 
