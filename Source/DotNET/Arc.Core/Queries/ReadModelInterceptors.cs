@@ -20,7 +20,7 @@ namespace Cratis.Arc.Queries;
 [Singleton]
 public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
 {
-    readonly Type[] _discoveredInterceptorTypes = [.. types.FindMultiple(typeof(IInterceptReadModel<>))];
+    readonly Type[] _discoveredInterceptorTypes = ValidateDiscoveredInterceptorTypes([.. types.FindMultiple(typeof(IInterceptReadModel<>))]);
     readonly ConcurrentDictionary<Type, Interception> _interceptionsByReadModelType = new();
 
     /// <inheritdoc/>
@@ -36,14 +36,30 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         return await Task.WhenAll(items.Select(item => InterceptItem(item, interception, serviceInterceptors, serviceProvider)));
     }
 
-    static bool TryCloseOpenGenericInterceptor(Type openGenericInterceptorType, Type readModelType, Type interceptorInterface, out Type interceptorType)
+    static Type[] ValidateDiscoveredInterceptorTypes(Type[] interceptorTypes)
+    {
+        foreach (var interceptorType in interceptorTypes.Where(_ => _.IsGenericTypeDefinition))
+        {
+            if (interceptorType.GetGenericArguments().Length != 1)
+            {
+                throw new OpenGenericReadModelInterceptorMustInterceptItsTypeParameter(interceptorType);
+            }
+
+            // Probe the shape with a stand-in read model. Interceptors whose generic constraints the probe does not
+            // satisfy are validated once they are closed for a real read model.
+            if (TryCloseOpenGenericInterceptor(interceptorType, typeof(ShapeProbe), out var probedType) &&
+                !typeof(IInterceptReadModel<ShapeProbe>).IsAssignableFrom(probedType))
+            {
+                throw new OpenGenericReadModelInterceptorMustInterceptItsTypeParameter(interceptorType);
+            }
+        }
+
+        return interceptorTypes;
+    }
+
+    static bool TryCloseOpenGenericInterceptor(Type openGenericInterceptorType, Type readModelType, out Type interceptorType)
     {
         interceptorType = openGenericInterceptorType;
-
-        if (openGenericInterceptorType.GetGenericArguments().Length != 1)
-        {
-            return false;
-        }
 
         try
         {
@@ -51,10 +67,11 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
         }
         catch (ArgumentException)
         {
+            // The read model does not satisfy the generic constraints of the interceptor, so it does not apply to it.
             return false;
         }
 
-        return interceptorInterface.IsAssignableFrom(interceptorType);
+        return true;
     }
 
     static async Task<object> InterceptItem(
@@ -95,14 +112,23 @@ public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
 
         foreach (var openGenericInterceptorType in _discoveredInterceptorTypes.Where(_ => _.IsGenericTypeDefinition))
         {
-            if (TryCloseOpenGenericInterceptor(openGenericInterceptorType, readModelType, invoker.InterceptorInterface, out var interceptorType))
+            if (!TryCloseOpenGenericInterceptor(openGenericInterceptorType, readModelType, out var interceptorType))
             {
-                interceptorTypes.Add(interceptorType);
+                continue;
             }
+
+            if (!invoker.InterceptorInterface.IsAssignableFrom(interceptorType))
+            {
+                throw new OpenGenericReadModelInterceptorMustInterceptItsTypeParameter(openGenericInterceptorType);
+            }
+
+            interceptorTypes.Add(interceptorType);
         }
 
         return new(invoker, interceptorTypes);
     }
 
     readonly record struct Interception(ReadModelInterceptorInvoker Invoker, IReadOnlyList<Type> InterceptorTypes);
+
+    sealed record ShapeProbe;
 }

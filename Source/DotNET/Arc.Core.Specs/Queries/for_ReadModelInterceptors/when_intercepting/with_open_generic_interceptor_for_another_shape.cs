@@ -10,24 +10,20 @@ public class with_open_generic_interceptor_for_another_shape : given.a_read_mode
         public Task<List<TReadModel>> Intercept(List<TReadModel> readModel) => Task.FromResult(readModel);
     }
 
-    TestReadModel _item;
-    IEnumerable<object> _items;
-    IEnumerable<object> _result;
+    Exception _exception;
 
     void Establish()
     {
-        _item = new TestReadModel("hello");
-        _items = [_item];
-
         var types = Substitute.For<ITypes>();
         types.FindMultiple(typeof(IInterceptReadModel<>)).Returns([typeof(ListInterceptor<>)]);
         _serviceProvider = Substitute.For<IServiceProvider>();
 
-        _interceptors = new ReadModelInterceptors(types);
+        _types = types;
     }
 
-    async Task Because() => _result = await _interceptors.Intercept(typeof(TestReadModel), _items, _serviceProvider);
+    void Because() => _exception = Catch.Exception(() => _interceptors = new ReadModelInterceptors(_types));
 
-    [Fact] void should_return_the_items_untouched() => _result.ShouldBeSame(_items);
-    [Fact] void should_not_create_the_interceptor() => _serviceProvider.DidNotReceive().GetService(typeof(ListInterceptor<TestReadModel>));
+    [Fact] void should_throw_unsupported_shape_exception() => _exception.ShouldBeOfExactType<OpenGenericReadModelInterceptorMustInterceptItsTypeParameter>();
+    [Fact] void should_name_the_interceptor_type() => _exception.Message.ShouldContain(nameof(ListInterceptor<>));
+    [Fact] void should_state_what_is_supported() => _exception.Message.ShouldContain("IInterceptReadModel<T>");
 }
