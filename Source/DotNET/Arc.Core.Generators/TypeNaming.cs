@@ -19,7 +19,7 @@ internal static class TypeNaming
     public static bool CanBeNamed(ITypeSymbol type, Compilation compilation) => type switch
     {
         IArrayTypeSymbol array => CanBeNamed(array.ElementType, compilation),
-        INamedTypeSymbol named => !IsFileLocalOrFlagged(named) && compilation.IsSymbolAccessibleWithin(named, compilation.Assembly) &&
+        INamedTypeSymbol named => !IsFileLocalOrFlagged(named) && !IsFromExperimentalAssembly(named, compilation) && compilation.IsSymbolAccessibleWithin(named, compilation.Assembly) &&
             named.TypeArguments.All(argument => CanBeNamed(argument, compilation)) &&
             (named.ContainingType is null || CanBeNamed(named.ContainingType, compilation)),
         _ => false
@@ -33,6 +33,21 @@ internal static class TypeNaming
     public static bool IsFlag(string? attribute) =>
         string.Equals(attribute, "System.ObsoleteAttribute", StringComparison.Ordinal) ||
         string.Equals(attribute, "System.Diagnostics.CodeAnalysis.ExperimentalAttribute", StringComparison.Ordinal);
+
+    /// <summary>
+    /// An experimental assembly or module makes every type in it experimental, which reports an error where generated
+    /// code names one. The compilation's own assembly is not reported.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <param name="compilation">The compilation the generated code is emitted into.</param>
+    /// <returns>Whether the type is declared in an experimental assembly other than the compilation's.</returns>
+    static bool IsFromExperimentalAssembly(INamedTypeSymbol type, Compilation compilation) =>
+        !SymbolEqualityComparer.Default.Equals(type.ContainingAssembly, compilation.Assembly) &&
+        (HasFlag(type.ContainingAssembly) || HasFlag(type.ContainingModule));
+
+    static bool HasFlag(ISymbol symbol) =>
+        symbol.GetAttributes().Any(attribute =>
+            string.Equals(attribute.AttributeClass?.ToDisplayString(), "System.Diagnostics.CodeAnalysis.ExperimentalAttribute", StringComparison.Ordinal));
 
     /// <summary>
     /// Naming a file-local type from generated code fails, and naming an obsolete or experimental type reports a

@@ -75,11 +75,12 @@ public class when_generating_model_graph_walkers : Specification
         public class Node { public List<Node> Children { get; } = new(); public Node? Next { get; set; } }
         public record Recursive<T>(Recursive<List<T>>? Deeper, T Value);
         public record Tupled((Item Left, Kind Right) Pair);
+        public unsafe class Unsafe { public int*[] Pointers { get; set; } = []; public delegate*<void>[] Functions { get; set; } = []; public int** Pointer { get; set; } public int*[][] Jagged { get; set; } = []; }
         public class ByRef { int _value; public ref int Value => ref _value; }
         public class Outer { private record Secret(string Value); [Command] private record Hush(Secret Secret) { public void Handle() { } } }
         [Command] public record DoIt(Derived Derived, PrivatelyRead PrivatelyRead, Parent Parent, Shape Shape, IThing? Thing, object Payload, Legacy Legacy,
             UsesRetired UsesRetired, Preview Preview, FromReference FromReference, FromLibrary FromLibrary, Keyed Keyed, Node Node, Wrapper<Item> Wrapper,
-            Identifier Id, Recursive<int>? Recursive, Tupled Tupled, ByRef ByRef, dynamic Dynamic, Overriding Overriding, HidingWithOtherType HidingWithOtherType,
+            Identifier Id, Recursive<int>? Recursive, Tupled Tupled, ByRef ByRef, Unsafe Unsafe, dynamic Dynamic, Overriding Overriding, HidingWithOtherType HidingWithOtherType,
             HidingWithSameType HidingWithSameType, HidingGenerically HidingGenerically, HidingTuple HidingTuple, HidingNonPublicly HidingNonPublicly,
             OverridingObsolete OverridingObsolete, Tagged Tagged, PartialModel PartialModel, FromPartial FromPartial, SinglyDeclaredPartial SinglyDeclaredPartial) { public void Handle() { } }
         [ReadModel] public record Order(string Id)
@@ -100,7 +101,7 @@ public class when_generating_model_graph_walkers : Specification
     {
         var referenceLibrary = ModelGraphWalkerCompilation.Library("ReferenceLibrary", "namespace Shared; public class ReferenceBase { public string Inherited { get; set; } = string.Empty; }", true);
         var implementationLibrary = ModelGraphWalkerCompilation.Library("ImplementationLibrary", "namespace Library; public class LibraryBase { public string Inherited { get; set; } = string.Empty; }", false);
-        (_source, _diagnostics, _) = ModelGraphWalkerCompilation.Compile(
+        (_source, _diagnostics, _) = ModelGraphWalkerCompilation.CompileAllowingUnsafe(
             "ModelGraphWalkerGeneratorSpec",
             Models,
             true,
@@ -127,10 +128,10 @@ public class when_generating_model_graph_walkers : Specification
     [Fact] void should_register_self_referencing_types() => Registers("global::Models.Node").ShouldBeTrue();
     [Fact] void should_bound_self_expanding_generic_types() => Registers("global::Models.Recursive<int>").ShouldBeTrue();
     [Fact] void should_register_tuple_elements_through_their_type_arguments() => Registers("global::Models.Tupled").ShouldBeTrue();
-    [Fact] void should_walk_inherited_members_after_own_members() => _source.IndexOf("((global::Models.Derived)instance).@Own", StringComparison.Ordinal).ShouldBeLessThan(_source.IndexOf("((global::Models.Base)instance).@First", StringComparison.Ordinal));
+    [Fact] void should_walk_inherited_members_after_own_members() => _source.IndexOf("((global::Models.Derived)instance).@Own", StringComparison.Ordinal).ShouldBeLessThan(_source.IndexOf("((global::Models.Base)(global::Models.Derived)instance).@First", StringComparison.Ordinal));
     [Fact] void should_register_types_whose_non_public_members_share_a_name() => Registers("global::Models.Derived").ShouldBeTrue();
     [Fact] void should_register_derived_records() => _source.ShouldContain("((global::Models.Tagged)instance).@Tag");
-    [Fact] void should_read_members_of_derived_records_through_the_declaring_record() => _source.ShouldContain("((global::Models.Labelled)instance).@Label");
+    [Fact] void should_read_members_of_derived_records_through_the_declaring_record_cast_from_the_registered_type() => _source.ShouldContain("((global::Models.Labelled)(global::Models.Tagged)instance).@Label");
     [Fact] void should_not_register_types_overriding_members() => Registers("global::Models.Overriding").ShouldBeFalse();
     [Fact] void should_not_register_types_hiding_members_with_another_type() => Registers("global::Models.HidingWithOtherType").ShouldBeFalse();
     [Fact] void should_not_register_types_hiding_members_with_the_same_type() => Registers("global::Models.HidingWithSameType").ShouldBeFalse();
@@ -150,6 +151,7 @@ public class when_generating_model_graph_walkers : Specification
     [Fact] void should_not_register_types_with_a_member_it_cannot_read() => Registers("global::Models.PrivatelyRead").ShouldBeFalse();
     [Fact] void should_still_follow_types_without_a_walker() => Registers("global::Models.Reached").ShouldBeTrue();
     [Fact] void should_not_register_types_with_members_returned_by_reference() => Registers("global::Models.ByRef").ShouldBeFalse();
+    [Fact] void should_not_register_types_with_pointer_members_at_any_array_depth() => Registers("global::Models.Unsafe").ShouldBeFalse();
     [Fact] void should_not_register_abstract_types() => Registers("global::Models.Shape").ShouldBeFalse();
     [Fact] void should_not_register_subtypes_only_known_at_runtime() => Registers("global::Models.Circle").ShouldBeFalse();
     [Fact] void should_not_register_interfaces() => Registers("global::Models.IThing").ShouldBeFalse();

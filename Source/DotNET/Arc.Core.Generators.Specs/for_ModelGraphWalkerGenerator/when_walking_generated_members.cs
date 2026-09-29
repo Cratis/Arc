@@ -98,8 +98,12 @@ public class when_walking_generated_members : Specification
     [Fact] void should_fall_back_to_reflection_for_types_overriding_or_hiding_members() => ModelGraphWalkers.TryGet(_generated.GetType("Walked.Derived")!, out _).ShouldBeFalse();
     [Fact] void should_fall_back_to_reflection_for_types_inheriting_from_other_assemblies() => ModelGraphWalkers.TryGet(_generated.GetType("Walked.Identifier")!, out _).ShouldBeFalse();
     [Fact] void should_generate_the_members_reflection_finds_for_every_registered_type() =>
-        ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkableProperties)
-            .ShouldEqual(ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkablePropertiesThroughReflection));
+        ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkableProperties, ConstructedWrapper())
+            .ShouldEqual(ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkablePropertiesThroughReflection, ConstructedWrapper()));
+    [Fact] void should_describe_registered_constructed_generic_types() =>
+        ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkableProperties, ConstructedWrapper()).ShouldContain("Walked.Wrapper`1[Walked.Item]: value, count");
+
+    Type ConstructedWrapper() => _generated.GetType("Walked.Wrapper`1")!.MakeGenericType(_generated.GetType("Walked.Item")!);
 
     ModelGraphMember[] GeneratedMembersOf(string type)
     {

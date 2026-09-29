@@ -238,12 +238,28 @@ internal static class ModelGraphWalkerTypes
     /// <returns>Whether generated code can read the property.</returns>
     static bool CanRead(IPropertySymbol property, Compilation compilation) =>
         !property.IsOverride && !property.ReturnsByRef && !property.ReturnsByRefReadonly &&
-        property.Type is not (IPointerTypeSymbol or IFunctionPointerTypeSymbol) && !property.Type.IsRefLikeType &&
+        !IsUnsafe(property.Type) && !property.Type.IsRefLikeType &&
         SyntaxFacts.IsValidIdentifier(property.Name) &&
         compilation.IsSymbolAccessibleWithin(property, compilation.Assembly) &&
         compilation.IsSymbolAccessibleWithin(property.GetMethod!, compilation.Assembly) &&
         !IsFlagged(property) && !IsFlagged(property.GetMethod!) &&
         TypeNaming.CanBeNamed(property.ContainingType, compilation);
+
+    /// <summary>
+    /// Whether a type is a pointer or function pointer, or an array of them at any depth, which generated code can only
+    /// name in an unsafe context.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>Whether the type is unsafe.</returns>
+    static bool IsUnsafe(ITypeSymbol type)
+    {
+        while (type is IArrayTypeSymbol array)
+        {
+            type = array.ElementType;
+        }
+
+        return type is IPointerTypeSymbol or IFunctionPointerTypeSymbol;
+    }
 
     /// <summary>
     /// Reading an obsolete, experimental or trim/AOT annotated member reports a diagnostic in the consumer's build that
@@ -287,9 +303,14 @@ internal static class ModelGraphWalkerTypes
         source.AppendLine("[]").AppendLine("        {");
         foreach (var property in properties)
         {
+            // Another generator's output can make a base type name bind to a different type here than in the final
+            // compilation. Casting through the registered type turns that into a compile error instead of an
+            // InvalidCastException while validating.
+            var declaring = property.ContainingType.ToDisplayString(_format);
+            var cast = string.Equals(declaring, name, StringComparison.Ordinal) ? $"({name})instance" : $"({declaring})({name})instance";
             source.Append("            new ").Append(Member).Append('(')
                 .Append(SymbolDisplay.FormatLiteral(property.Name, true))
-                .Append(", static instance => ((").Append(property.ContainingType.ToDisplayString(_format)).Append(")instance).@").Append(property.Name)
+                .Append(", static instance => (").Append(cast).Append(").@").Append(property.Name)
                 .AppendLine("),");
         }
 

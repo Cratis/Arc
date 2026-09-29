@@ -29,6 +29,18 @@ public static class ModelGraphWalkerCompilation
         Compile(name, source, generate, [], references);
 
     /// <summary>
+    /// Compiles source in a project that allows unsafe code, optionally runs the generator over it, and checks the
+    /// result builds.
+    /// </summary>
+    /// <param name="name">The assembly name.</param>
+    /// <param name="source">The model source.</param>
+    /// <param name="generate">Whether to run the generator.</param>
+    /// <param name="references">Additional references.</param>
+    /// <returns>The generated walker source, if any, the warnings and errors outside the model source, and the compilation.</returns>
+    public static (string Source, Diagnostic[] Diagnostics, Compilation Output) CompileAllowingUnsafe(string name, string source, bool generate, params MetadataReference[] references) =>
+        Compile(name, source, generate, [], true, references);
+
+    /// <summary>
     /// Compiles source, runs other generators and optionally the generator over it, and checks the result builds.
     /// </summary>
     /// <param name="name">The assembly name.</param>
@@ -37,13 +49,16 @@ public static class ModelGraphWalkerCompilation
     /// <param name="others">Other generators to run alongside it, as a consuming project can.</param>
     /// <param name="references">Additional references.</param>
     /// <returns>The generated walker source, if any, the warnings and errors outside the model source, and the compilation.</returns>
-    public static (string Source, Diagnostic[] Diagnostics, Compilation Output) Compile(string name, string source, bool generate, IIncrementalGenerator[] others, params MetadataReference[] references)
+    public static (string Source, Diagnostic[] Diagnostics, Compilation Output) Compile(string name, string source, bool generate, IIncrementalGenerator[] others, params MetadataReference[] references) =>
+        Compile(name, source, generate, others, false, references);
+
+    static (string Source, Diagnostic[] Diagnostics, Compilation Output) Compile(string name, string source, bool generate, IIncrementalGenerator[] others, bool allowUnsafe, MetadataReference[] references)
     {
         var compilation = CSharpCompilation.Create(
             name,
             [CSharpSyntaxTree.ParseText(source)],
             References().Concat(references),
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: allowUnsafe, nullableContextOptions: NullableContextOptions.Enable));
         var generators = generate ? others.Prepend(new ModelGraphWalkerGenerator()).ToArray() : others;
         if (generators.Length == 0)
         {
@@ -135,10 +150,11 @@ public static class ModelGraphWalkerCompilation
     /// </summary>
     /// <param name="assembly">The loaded assembly.</param>
     /// <param name="members">Gets the members walked for a type.</param>
+    /// <param name="constructed">The constructed generic types to describe as well, as the assembly's types only hold generic definitions.</param>
     /// <returns>One line per registered type with the names of its walked members.</returns>
-    internal static string Describe(Assembly assembly, Func<Type, WalkableMember[]> members) => string.Join(
+    internal static string Describe(Assembly assembly, Func<Type, WalkableMember[]> members, params Type[] constructed) => string.Join(
         Environment.NewLine,
-        assembly.GetTypes()
+        assembly.GetTypes().Concat(constructed)
             .Where(type => ModelGraphWalkers.TryGet(type, out _))
             .OrderBy(type => type.FullName, StringComparer.Ordinal)
             .Select(type => $"{type}: {string.Join(", ", members(type).Select(member => member.Name))}"));
