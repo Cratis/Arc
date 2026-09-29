@@ -473,14 +473,14 @@ healthy backends. Treat 202 as "subscribe, or retry with `waitForFirstResult=tru
   `OffsetDateTime`, `ZonedDateTime`, `OffsetTime`, `Duration`, and `Period` - appear as
   scalar `string` schemas, including as collection elements, rather than object schemas.
 
-The reported `route` is also not uniformly callable. C# query introspection builds the
-conventional route and does not apply an explicit `[Path]`, so a query with a custom path
-is introspected under a route that is not the one it answers on.
+The reported `route` is not necessarily callable. C# query introspection applies an
+explicit `[Path]` if present, but it does not reflect all final route deduplication
+or replacement decisions.
 
 **Why it matters**: tooling built against the JVM's richer metadata degrades rather than
 fails on a C# host, but tooling that *requires* `hasDefault` or authorization metadata
 will find it absent, and tooling that treats an introspected `route` as a callable URL
-will miss C# queries with custom paths. Neither implementation exposes a default
+may miss routes replaced during mapping. Neither implementation exposes a default
 expression or an invented default value.
 
 ### Unknown fields in the QUERY envelope and in query arguments

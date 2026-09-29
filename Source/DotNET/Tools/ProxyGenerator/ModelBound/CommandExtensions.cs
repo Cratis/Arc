@@ -40,6 +40,14 @@ public static class CommandExtensions
         var includeCommandName = !skipCommandNameInRoute || hasConflict;
         var route = includeCommandName ? $"{baseUrl}/{commandType.Name.ToKebabCase()}" : baseUrl;
         route = route.ToLowerInvariant();
+        var customRoute = commandType.GetCustomAttributesData().FirstOrDefault(attribute =>
+            attribute.AttributeType.FullName == "Cratis.Arc.Queries.ModelBound.PathAttribute");
+        if (customRoute is { ConstructorArguments.Count: > 0 } &&
+            customRoute.ConstructorArguments[0].Value is string { Length: > 0 } path)
+        {
+            route = path;
+        }
+
         var handleMethod = commandType.GetHandleMethod();
 
         // For model-bound commands, we want the documentation from the command type, not the Handle method
