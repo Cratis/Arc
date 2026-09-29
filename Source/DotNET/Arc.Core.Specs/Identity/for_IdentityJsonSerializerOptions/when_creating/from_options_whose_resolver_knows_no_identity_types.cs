@@ -17,7 +17,6 @@ public class from_options_whose_resolver_knows_no_identity_types : Specification
     string _json;
     IdentityProviderResult? _roundTripped;
     Exception? _unknownDetailsError;
-    bool _reflectionResolverCreated;
 
     void Establish()
     {
@@ -27,7 +26,7 @@ public class from_options_whose_resolver_knows_no_identity_types : Specification
 
     void Because()
     {
-        _options = IdentityJsonSerializerOptions.CreateFrom(_arcOptions.JsonSerializerOptions, CreateReflectionResolver);
+        _options = IdentityJsonSerializerOptions.CreateFrom(_arcOptions.JsonSerializerOptions);
         var result = new IdentityProviderResult("user-1", "User", true, true, ["Admin"], default!);
         _json = JsonSerializer.Serialize(result, (JsonTypeInfo<IdentityProviderResult>)_options.GetTypeInfo(typeof(IdentityProviderResult)));
         _roundTripped = JsonSerializer.Deserialize(_json, (JsonTypeInfo<IdentityProviderResult>)_options.GetTypeInfo(typeof(IdentityProviderResult)));
@@ -38,13 +37,7 @@ public class from_options_whose_resolver_knows_no_identity_types : Specification
     [Fact] void should_deserialize_the_identity_result() => _roundTripped!.Id.ShouldEqual(new IdentityId("user-1"));
     [Fact] void should_leave_details_to_the_application_resolver() => _unknownDetailsError.ShouldBeOfExactType<NotSupportedException>();
     [Fact] void should_be_read_only() => _options.IsReadOnly.ShouldBeTrue();
-    [Fact] void should_not_fall_back_to_reflection() => _reflectionResolverCreated.ShouldBeFalse();
-
-    DefaultJsonTypeInfoResolver CreateReflectionResolver()
-    {
-        _reflectionResolverCreated = true;
-        return new();
-    }
+    [Fact] void should_not_fall_back_to_reflection() => _options.TypeInfoResolverChain.ShouldNotContain(JsonSerializerOptions.Default.TypeInfoResolver);
 
     public record UnknownDetails(string Value);
 }

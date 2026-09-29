@@ -27,7 +27,7 @@ public class from_options_whose_resolver_customizes_the_identity_result : Specif
 
     void Because()
     {
-        _options = IdentityJsonSerializerOptions.CreateFrom(_arcOptions.JsonSerializerOptions, () => new DefaultJsonTypeInfoResolver());
+        _options = IdentityJsonSerializerOptions.CreateFrom(_arcOptions.JsonSerializerOptions);
         var result = new IdentityProviderResult("user-1", "User", true, true, ["Admin"], default!);
         _json = JsonSerializer.Serialize(result, (JsonTypeInfo<IdentityProviderResult>)_options.GetTypeInfo(typeof(IdentityProviderResult)));
     }

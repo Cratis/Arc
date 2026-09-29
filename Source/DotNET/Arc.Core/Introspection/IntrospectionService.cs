@@ -4,7 +4,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
-using System.Text.Json.Serialization.Metadata;
 using System.Xml.Linq;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
@@ -109,7 +108,7 @@ public class IntrospectionService : IIntrospectionService
     static JsonSerializerOptions CreateSchemaGenerationOptions(JsonSerializerOptions baseOptions)
     {
         var schemaGenerationOptions = new JsonSerializerOptions(baseOptions);
-        schemaGenerationOptions.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+        schemaGenerationOptions.TypeInfoResolver ??= JsonSerializerOptionsConfiguration.ReflectionResolver;
         return schemaGenerationOptions;
     }
 
