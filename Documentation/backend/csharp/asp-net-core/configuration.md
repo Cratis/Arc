@@ -180,7 +180,7 @@ app.UseCratisArc();
 app.Run();
 ```
 
-Controllers are on unless you call `WithoutControllers`. With controllers off:
+Controllers are on unless you call `WithoutControllers` or turn them off with the `CratisArcControllersSupport` property (see below). With controllers off:
 
 - Model-bound commands and queries, observable queries included, work as before. `UseCratisArc` maps their endpoints without MVC.
 - Controller-based commands and queries aren't available, because no controllers are discovered.
@@ -205,6 +205,8 @@ The `Cratis.Arc` package turns the property into the `Cratis.Arc.Controllers.IsS
 - Every `AddCratisArc` overload, the `IHostBuilder` one included, registers no MVC and discovers no controllers, exactly as `WithoutControllers` does, and everything listed above applies. You don't need to call `WithoutControllers` as well.
 - A trimmed or NativeAOT publish removes the code that registers MVC, so MVC's trim warnings and most MVC assemblies drop out of the output. Arc still references a few MVC types elsewhere, so `Microsoft.AspNetCore.Mvc.Core` and `Microsoft.AspNetCore.Mvc.Abstractions` stay. This works for `net8.0`, `net9.0` and `net10.0`.
 - The rest of Arc isn't trim or NativeAOT compatible yet, so a trimmed publish still reports trim warnings from Arc itself.
+
+The switch is written into the `runtimeconfig.json` of the project that sets the property, so it applies to whichever process runs. A test project that hosts the application, for example through `WebApplicationFactory<Program>`, runs with its own `runtimeconfig.json` and keeps MVC unless it sets the property too. Set the property in a `Directory.Build.props` shared by the application and its tests, so tests run the way the published application does.
 
 Leave the property unset, or set it to `true`, to keep controllers on. The property only has an effect through the `Cratis.Arc` package; a project that references Arc's source through a `ProjectReference` has to import `build/Cratis.Arc.targets` itself.
 
