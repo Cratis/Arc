@@ -14,12 +14,16 @@ public static class QueryPerformerProviderRegistration
     /// <summary>
     /// Replaces the convention registration of controller performers with a scope-aware factory.
     /// </summary>
+    /// <remarks>
+    /// When MVC is not registered, for instance because controllers are turned off, there are no controller actions
+    /// and the provider has no performers.
+    /// </remarks>
     /// <param name="services">The application's services.</param>
     /// <returns>The service collection.</returns>
     public static IServiceCollection AddScopedControllerQueryAuthorization(this IServiceCollection services)
     {
         services.AddSingleton<QueryPerformerProvider>(sp => new QueryPerformerProvider(
-            sp.GetRequiredService<IActionDescriptorCollectionProvider>(),
+            sp.GetService<IActionDescriptorCollectionProvider>() ?? NoControllerActions.Instance,
             sp.GetRequiredService<IServiceProviderIsService>(),
             sp.GetRequiredService<IServiceScopeFactory>(),
             sp.GetRequiredService<Func<IServiceProvider, IAuthorizationEvaluator>>()));
