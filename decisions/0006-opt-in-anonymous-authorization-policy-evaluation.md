@@ -50,7 +50,7 @@ Policy owners may safely express public-or-member permissions without `[AllowAno
 
 > **2026-09-28 — clarification.** The trust model below describes continuity of captured standard identity content (claims, authentication type, name and role claim types, and the captured actor chain), not arbitrary mutable behavior in custom principal or identity subclasses or opaque bootstrap objects. Arc now checks that content between individual policies, including after policy construction; it cannot detect a mutation restored within a single trusted callback. This adds context without changing the anonymous-policy opt-in decision.
 >
-> **2026-09-28 — pointer.** The "separately tracked" certificate and lease model mentioned below is addressed by [decision 0008](0008-certify-authorization-at-pipeline-boundaries.md), which proposes not to adopt it.
+> **2026-09-28 — pointer.** The "separately tracked" certificate and lease model mentioned below is addressed by [decision 0008](0008-certify-authorization-at-pipeline-boundaries.md), which declines to adopt it.
 
 ## Trust model and limits (2026-09-26 clarification)
 

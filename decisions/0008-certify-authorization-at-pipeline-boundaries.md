@@ -1,10 +1,12 @@
 ---
 id: 0008-certify-authorization-at-pipeline-boundaries
 title: Certify authorization at pipeline boundaries instead of policing identity changes made by trusted code
-status: proposed
-stage: none
+status: accepted
+stage: implemented
 class: contract
 reversibility: costly
+decided: 2026-09-29
+decider: Sindre Alstad Wilting (delegated to the maintainer's AI orchestrator session)
 applies-to:
   - Source/DotNET/Arc.Core/Authorization/**
   - Source/DotNET/Arc.Core/Commands/**
