@@ -25,6 +25,12 @@ internal static class IdentityJsonSerializerOptions
     /// context covers just its own identity details. When the options carry none, Arc's context comes first and
     /// everything it does not know - the application's identity details, a type known only at runtime - resolves
     /// through the reflection-based resolver <see cref="JsonSerializer"/> falls back to, when reflection is enabled.
+    /// <para>
+    /// When the resolver the Arc options carry holds Arc's own resolver, which consults the reflection-based resolver itself,
+    /// that one is replaced by an Arc resolver for these options whose last resort is Arc's context behind the
+    /// reflection-based resolver. Appending Arc's context to the chain instead would put it among the resolvers Arc's
+    /// resolver consults first, ahead of reflection.
+    /// </para>
     /// </remarks>
     public static JsonSerializerOptions CreateFrom(JsonSerializerOptions arcOptions)
     {
@@ -33,7 +39,17 @@ internal static class IdentityJsonSerializerOptions
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
 
-        if (options.TypeInfoResolver is { } appResolver)
+        var resolvers = options.TypeInfoResolverChain.ToArray();
+        var arcIndex = Array.FindIndex(resolvers, _ => _ is ArcDefaultsJsonTypeInfoResolver);
+        if (arcIndex >= 0)
+        {
+            var fallback = ((ArcDefaultsJsonTypeInfoResolver)resolvers[arcIndex]).Fallback;
+            resolvers[arcIndex] = new ArcDefaultsJsonTypeInfoResolver(
+                options,
+                fallback is null ? IdentityJsonSerializerContext.Default : JsonTypeInfoResolver.Combine(fallback, IdentityJsonSerializerContext.Default));
+            options.TypeInfoResolver = JsonTypeInfoResolver.Combine(resolvers);
+        }
+        else if (options.TypeInfoResolver is { } appResolver)
         {
             options.TypeInfoResolver = JsonTypeInfoResolver.Combine(appResolver, IdentityJsonSerializerContext.Default);
         }

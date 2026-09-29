@@ -96,21 +96,15 @@ public static class JsonSerializerOptionsConfiguration
     /// </remarks>
     internal static void AddTypeInfoResolverBeforeArcDefaults(this JsonSerializerOptions options, IJsonTypeInfoResolver resolver)
     {
-        var chain = options.TypeInfoResolverChain;
-        if (chain.Contains(resolver))
+        var resolvers = options.TypeInfoResolverChain.ToList();
+        if (resolvers.Contains(resolver))
         {
             return;
         }
 
-        var index = IndexOfArcResolver(chain);
-        if (index < 0)
-        {
-            chain.Add(resolver);
-        }
-        else
-        {
-            chain.Insert(index, resolver);
-        }
+        var index = IndexOfArcResolver(resolvers);
+        resolvers.Insert(index < 0 ? resolvers.Count : index, resolver);
+        AssignResolvers(options, resolvers);
     }
 
     /// <summary>
@@ -151,14 +145,30 @@ public static class JsonSerializerOptionsConfiguration
 
     static void ComposeTypeInfoResolvers(JsonSerializerOptions options)
     {
-        var chain = options.TypeInfoResolverChain;
-        if (IndexOfArcResolver(chain) < 0)
+        var resolvers = options.TypeInfoResolverChain.ToList();
+        if (IndexOfArcResolver(resolvers) < 0)
         {
-            chain.Add(new ArcDefaultsJsonTypeInfoResolver(options, ReflectionResolver));
+            resolvers.Add(new ArcDefaultsJsonTypeInfoResolver(options, ReflectionResolver));
+            AssignResolvers(options, resolvers);
         }
     }
 
-    static int IndexOfArcResolver(IList<IJsonTypeInfoResolver> chain)
+    /// <summary>
+    /// Assign the resolvers as a standalone chain, leaving the chain bound to the options untouched.
+    /// </summary>
+    /// <param name="options">The <see cref="JsonSerializerOptions"/> to assign to.</param>
+    /// <param name="resolvers">The resolvers, in the order they are consulted.</param>
+    /// <remarks>
+    /// On .NET 8 and .NET 9, modifying <see cref="JsonSerializerOptions.TypeInfoResolverChain"/> makes that chain object
+    /// the options' <see cref="JsonSerializerOptions.TypeInfoResolver"/>, and assigning the property clears and refills the
+    /// same object. The common <c>options.TypeInfoResolver = options.TypeInfoResolver.WithAddedModifier(...)</c> would then
+    /// leave a chain holding a wrapper around itself, recursing until the process dies on first use. Assigning a chain of
+    /// its own keeps the wrapped resolver apart from the chain the property refills.
+    /// </remarks>
+    static void AssignResolvers(JsonSerializerOptions options, List<IJsonTypeInfoResolver> resolvers) =>
+        options.TypeInfoResolver = JsonTypeInfoResolver.Combine([.. resolvers]);
+
+    static int IndexOfArcResolver(List<IJsonTypeInfoResolver> chain)
     {
         for (var i = 0; i < chain.Count; i++)
         {

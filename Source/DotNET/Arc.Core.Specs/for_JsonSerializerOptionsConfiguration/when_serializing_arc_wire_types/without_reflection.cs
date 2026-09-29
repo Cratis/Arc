@@ -22,7 +22,7 @@ public class without_reflection : Specification
     void Establish()
     {
         _options = new JsonSerializerOptions().ConfigureArcDefaults();
-        _options.TypeInfoResolverChain[0] = new ArcDefaultsJsonTypeInfoResolver(_options, reflectionResolver: null);
+        _options.TypeInfoResolverChain[0] = new ArcDefaultsJsonTypeInfoResolver(_options, fallback: null);
         _optionsAsBefore = representative_wire_values.OptionsAsBefore();
 
         _queryResult = representative_wire_values.QueryResult;

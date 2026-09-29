@@ -18,20 +18,24 @@ public static class renaming_resolvers
     /// <returns>The <see cref="IJsonTypeInfoResolver"/>.</returns>
     public static DefaultJsonTypeInfoResolver RenamingQueryResultData(string name) => new()
     {
-        Modifiers =
-        {
-            typeInfo =>
-            {
-                if (typeInfo.Type != typeof(QueryResult))
-                {
-                    return;
-                }
+        Modifiers = { RenameQueryResultData(name) }
+    };
 
-                foreach (var property in typeInfo.Properties.Where(_ => _.Name == "data"))
-                {
-                    property.Name = name;
-                }
-            }
+    /// <summary>
+    /// Create a modifier that writes <see cref="QueryResult.Data"/> under another name.
+    /// </summary>
+    /// <param name="name">The name to write the data under.</param>
+    /// <returns>The modifier.</returns>
+    public static Action<JsonTypeInfo> RenameQueryResultData(string name) => typeInfo =>
+    {
+        if (typeInfo.Type != typeof(QueryResult))
+        {
+            return;
+        }
+
+        foreach (var property in typeInfo.Properties.Where(_ => _.Name == "data"))
+        {
+            property.Name = name;
         }
     };
 }

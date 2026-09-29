@@ -37,7 +37,7 @@ public class for_an_application_context : Specification
 
         // What a trimmed or NativeAOT application is left with: reflection-based serialization is disabled.
         _withoutReflection = new JsonSerializerOptions(_arcOptions.JsonSerializerOptions);
-        _withoutReflection.TypeInfoResolverChain[^1] = new ArcDefaultsJsonTypeInfoResolver(_withoutReflection, reflectionResolver: null);
+        _withoutReflection.TypeInfoResolverChain[^1] = new ArcDefaultsJsonTypeInfoResolver(_withoutReflection, fallback: null);
         _optionsAsBefore = representative_wire_values.OptionsAsBefore();
         _jsonWithoutReflection = JsonSerializer.Serialize(representative_wire_values.QueryResult, _withoutReflection);
         _jsonAsBefore = JsonSerializer.Serialize(representative_wire_values.QueryResult, _optionsAsBefore);
