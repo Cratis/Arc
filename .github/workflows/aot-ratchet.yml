@@ -1,0 +1,65 @@
+name: Trim/AOT Ratchet
+
+# Arc.Core and Arc are not trim or NativeAOT compatible yet (#2204). Until they are, this holds the analyzer
+# diagnostics they report to Source/DotNET/aot-baseline.json so the count can only go down: a pull request that
+# adds a diagnostic or a trim/AOT suppression fails, and one that removes diagnostics has to shrink the baseline
+# with it. See scripts/aot-ratchet.py and #2859.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Source/DotNET/**"
+      - "Directory.Build.props"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - "scripts/aot-ratchet.py"
+      - ".github/workflows/aot-ratchet.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aot-ratchet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER: "1"
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      MSBUILDDISABLENODEREUSE: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.407
+            9.0.x
+            10.0.x
+
+      # Read an existing dependency cache without allowing pull-request code to
+      # save or replace a shared cache entry.
+      - name: Restore NuGet packages
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Self-test the ratchet
+        run: python3 scripts/aot-ratchet.py --self-test
+
+      - name: Hold trim/AOT diagnostics to the baseline
+        run: python3 scripts/aot-ratchet.py
