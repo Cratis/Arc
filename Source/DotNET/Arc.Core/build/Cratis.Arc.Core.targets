@@ -6,14 +6,19 @@
 
          The value is the number of project references followed by their file names, separated by '|': the analyzer
          config file the property travels through treats ';' and '#' as comments, and the count lets the generator
-         tell a complete list from a truncated one. -->
+         tell a complete list from a truncated one.
+
+         With DisableTransitiveProjectReferences, projects referenced only transitively are still deployed but are not
+         compile-time references, so the list would be incomplete. Nothing is reported then, and Arc keeps discovering
+         project assemblies through the runtime dependency context. -->
     <ItemGroup>
         <CompilerVisibleProperty Include="CratisArcProjectReferences" />
     </ItemGroup>
 
     <Target Name="_CratisArcCollectProjectReferences"
             BeforeTargets="GenerateMSBuildEditorConfigFileCore"
-            DependsOnTargets="ResolveReferences">
+            DependsOnTargets="ResolveReferences"
+            Condition="'$(DisableTransitiveProjectReferences)' != 'true'">
         <ItemGroup>
             <_CratisArcProjectReference Include="@(ReferencePath->WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
         </ItemGroup>
