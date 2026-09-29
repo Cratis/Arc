@@ -98,6 +98,7 @@ The `configureBuilder` callback exposes `IArcBuilder`, which is where Arc's plug
 - [Arc–Chronicle registration](../chronicle/cratis-package.md) — optional event sourcing; choose the documented host-specific overload and packages.
 - `arc.WithMongoDB()` — MongoDB read models. See [MongoDB](../mongodb/index.md).
 - `arc.WithEntityFrameworkCore()` — relational read models. See [Entity Framework](../entity-framework/index.md).
+- `arc.WithoutControllers()` — leave MVC out. See [ASP.NET Core configuration](../asp-net-core/configuration.md#turning-controllers-off).
 
 ## Identity and authentication
 
