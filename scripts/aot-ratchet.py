@@ -129,7 +129,7 @@ def read_logs(directory):
         if not match:
             continue
         sarif = load_json(path)
-        if not sarif.get('runs'):
+        if not isinstance(sarif, dict) or not sarif.get('runs'):
             print(f'{relative(path)} holds no analysis run; the compiler did not report.', file=sys.stderr)
             sys.exit(2)
         logs.append((match['project'], match['tfm'], sarif))
@@ -352,6 +352,9 @@ def main():
         print(f'No baseline at {relative(BASELINE)}; run with --update to create it.', file=sys.stderr)
         return 2
     baseline = load_json(BASELINE)
+    if not isinstance(baseline, dict):
+        print(f'{relative(BASELINE)} is not a JSON object; regenerate it with --update.', file=sys.stderr)
+        return 2
     return check(diagnostics, examples, suppressed, baseline)
 
 
