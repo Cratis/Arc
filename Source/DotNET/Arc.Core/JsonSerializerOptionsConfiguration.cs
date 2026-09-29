@@ -90,9 +90,25 @@ public static class JsonSerializerOptionsConfiguration
     /// <param name="options">The <see cref="JsonSerializerOptions"/> configured with <see cref="ConfigureArcDefaults"/>.</param>
     /// <param name="resolver">The <see cref="IJsonTypeInfoResolver"/> to add.</param>
     /// <remarks>
-    /// Resolvers added this way are consulted in the order they were added. A resolver already in the chain is not added
-    /// again. When the options no longer hold Arc's resolver - because the application replaced
-    /// <see cref="JsonSerializerOptions.TypeInfoResolver"/> - the resolver goes last.
+    /// Resolvers added this way are consulted before everything the options carried, whether or not the application has
+    /// since changed <see cref="JsonSerializerOptions.TypeInfoResolver"/>. A resolver already in the chain is not added
+    /// again. Where the resolver goes depends on what the options hold:
+    /// <list type="bullet">
+    /// <item><description>
+    /// Arc's resolver is a top-level entry of the chain: the resolver goes right before it, after the ones added earlier.
+    /// </description></item>
+    /// <item><description>
+    /// Arc's resolver is not a top-level entry because the application wrapped or replaced the resolver, for instance with
+    /// <c>WithAddedModifier</c>: the resolver goes first, ahead of the wrapper. Resolvers added later still go ahead of
+    /// earlier ones in this case.
+    /// </description></item>
+    /// <item><description>
+    /// The options carry no resolver because the application cleared it: Arc's resolver is composed first, as
+    /// <see cref="ConfigureArcDefaults"/> does, and the resolver goes ahead of it, so Arc's metadata and the
+    /// reflection-based fallback are not lost.
+    /// </description></item>
+    /// </list>
+    /// The chain is always assigned as a standalone resolver; the chain bound to the options is never modified.
     /// </remarks>
     internal static void AddTypeInfoResolverBeforeArcDefaults(this JsonSerializerOptions options, IJsonTypeInfoResolver resolver)
     {
@@ -103,7 +119,17 @@ public static class JsonSerializerOptionsConfiguration
         }
 
         var index = IndexOfArcResolver(resolvers);
-        resolvers.Insert(index < 0 ? resolvers.Count : index, resolver);
+        if (index < 0)
+        {
+            if (options.TypeInfoResolver is null)
+            {
+                resolvers.Add(CreateArcResolver(options));
+            }
+
+            index = 0;
+        }
+
+        resolvers.Insert(index, resolver);
         AssignResolvers(options, resolvers);
     }
 
@@ -143,12 +169,14 @@ public static class JsonSerializerOptionsConfiguration
     internal static JsonTypeInfo<T> ResolveTypeInfo<T>(this JsonSerializerOptions options) =>
         (JsonTypeInfo<T>)options.ResolveTypeInfo(typeof(T));
 
+    static ArcDefaultsJsonTypeInfoResolver CreateArcResolver(JsonSerializerOptions options) => new(options, ReflectionResolver);
+
     static void ComposeTypeInfoResolvers(JsonSerializerOptions options)
     {
         var resolvers = options.TypeInfoResolverChain.ToList();
         if (IndexOfArcResolver(resolvers) < 0)
         {
-            resolvers.Add(new ArcDefaultsJsonTypeInfoResolver(options, ReflectionResolver));
+            resolvers.Add(CreateArcResolver(options));
             AssignResolvers(options, resolvers);
         }
     }

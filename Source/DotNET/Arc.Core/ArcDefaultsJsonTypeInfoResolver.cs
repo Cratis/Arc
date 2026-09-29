@@ -33,7 +33,9 @@ namespace Cratis.Arc;
 /// </list>
 /// <para>
 /// Resolvers ahead of it in the chain, such as those added through <see cref="ArcOptions.AddJsonTypeInfoResolver"/>, are
-/// consulted by the chain before it. The resolvers that follow it are read from the chain of the options passed in when
+/// consulted by the chain before it. When the application wraps the options' resolver, this resolver is no longer a
+/// top-level entry of the chain, and resolvers added through <see cref="ArcOptions.AddJsonTypeInfoResolver"/> after that
+/// are put ahead of the wrapper, so they are still consulted first. The resolvers that follow it are read from the chain of the options passed in when
 /// that chain holds this resolver, so a resolver appended to a copy of the options is consulted for the copy. When it does
 /// not - because the application wrapped the resolver, for instance with <c>WithAddedModifier</c> - they are read from the
 /// chain of the options it was created for. The chain is read when a type is resolved, which happens at the latest on
