@@ -23,9 +23,12 @@ internal static class IdentityJsonSerializerOptions
     /// </param>
     /// <returns>Read-only <see cref="JsonSerializerOptions"/> for identity serialization.</returns>
     /// <remarks>
-    /// Arc's own identity types resolve through <see cref="IdentityJsonSerializerContext"/>. Everything else - the
-    /// application's identity details, a type known only at runtime - resolves through the resolver the application
-    /// configured, or through reflection as before when it configured none.
+    /// When the application configured a resolver it comes first in the chain, so its contracts - including any it
+    /// customizes for Arc's identity types - win as before, and <see cref="IdentityJsonSerializerContext"/> only
+    /// answers for the identity types that resolver does not know, such as in a NativeAOT application whose
+    /// source-generated context covers just its own identity details. When the application configured none, Arc's
+    /// context comes first and everything it does not know - the application's identity details, a type known only at
+    /// runtime - resolves through reflection as before.
     /// </remarks>
     public static JsonSerializerOptions CreateFrom(JsonSerializerOptions arcOptions, Func<IJsonTypeInfoResolver> createReflectionResolverForDetails)
     {
@@ -34,11 +37,19 @@ internal static class IdentityJsonSerializerOptions
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
 
-        var detailsResolver = options.TypeInfoResolver
-            ?? (JsonSerializer.IsReflectionEnabledByDefault ? createReflectionResolverForDetails() : null);
-        options.TypeInfoResolver = detailsResolver is null
-            ? IdentityJsonSerializerContext.Default
-            : JsonTypeInfoResolver.Combine(IdentityJsonSerializerContext.Default, detailsResolver);
+        if (options.TypeInfoResolver is { } appResolver)
+        {
+            options.TypeInfoResolver = JsonTypeInfoResolver.Combine(appResolver, IdentityJsonSerializerContext.Default);
+        }
+        else if (JsonSerializer.IsReflectionEnabledByDefault)
+        {
+            options.TypeInfoResolver = JsonTypeInfoResolver.Combine(IdentityJsonSerializerContext.Default, createReflectionResolverForDetails());
+        }
+        else
+        {
+            options.TypeInfoResolver = IdentityJsonSerializerContext.Default;
+        }
+
         options.MakeReadOnly();
         return options;
     }
