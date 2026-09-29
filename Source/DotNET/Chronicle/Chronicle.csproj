@@ -6,6 +6,10 @@
         <Description>Optional Cratis Chronicle event-sourcing integration for Cratis Arc: event-sourced commands, projections, reducers, aggregates, reactors, and tenant namespaces for CQRS applications on ASP.NET Core.</Description>
         <PackageTags>cratis;arc;chronicle;event-sourcing;event-store;cqrs;commands;queries;aspnetcore</PackageTags>
     </PropertyGroup>
+
+    <!-- Held to the trim/AOT analyzer ratchet (#2859); inert unless scripts/aot-ratchet.py switches it on. -->
+    <Import Project="../AotAnalysis.props" />
+
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
     </ItemGroup>

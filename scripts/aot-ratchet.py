@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # Copyright (c) Cratis. All rights reserved.
 # Licensed under the MIT license. See LICENSE file in the project root for full license information.
-"""Ratchet for the trim and NativeAOT analyzer diagnostics of Arc.Core and Arc (#2859, part of #2204).
+"""Ratchet for the trim and NativeAOT analyzer diagnostics of the shipped Arc libraries (#2859, part of #2204).
 
 Arc is not trim or AOT compatible yet, so failing on every diagnostic would block every pull request. Instead
-this builds the two projects with the analyzers switched on (CratisAotAnalysis=true, honored only by the
-projects importing Source/DotNET/AotAnalysis.props) and holds what they report to the checked-in baseline in
-Source/DotNET/aot-baseline.json:
+this builds the projects with the analyzers switched on (CratisAotAnalysis=true, honored only by the projects
+importing Source/DotNET/AotAnalysis.props - Arc.Core, Arc, MongoDB, EntityFrameworkCore and Chronicle) and holds
+what they report to the checked-in baseline in Source/DotNET/aot-baseline.json. The covered projects are the ones
+that import the props: importing it is what puts a project under the ratchet, and the script finds them itself.
 
 - a diagnostic is keyed by code, repository-relative file and target framework - not by line or message, so
   edits that only move code do not churn the baseline - and counted per key;
@@ -29,7 +30,9 @@ Exit codes: 0 matches the baseline, 1 differs from it, 2 the build or the script
 """
 
 import argparse
+import contextlib
 import glob
+import io
 import json
 import os
 import re
@@ -43,9 +46,10 @@ ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 BASELINE = os.path.join(ROOT, 'Source', 'DotNET', 'aot-baseline.json')
 SOURCE = os.path.join(ROOT, 'Source', 'DotNET')
 
-# Arc.csproj references Arc.Core, so building it builds and analyzes both.
-PROJECT = os.path.join('Source', 'DotNET', 'Arc', 'Arc.csproj')
-EXPECTED_LOGS = 6  # Arc.Core and Arc, each for net8.0, net9.0 and net10.0.
+# A project is held to the ratchet by importing this file; it is what switches the analyzers on.
+PROPS_IMPORT = 'AotAnalysis.props'
+# The analyzers need a target framework compatible with net8.0; the props file leaves the others unanalyzed.
+MINIMUM_MAJOR_VERSION = 8
 
 SUPPRESSION_IN_CODE = re.compile(
     r'UnconditionalSuppressMessage'
@@ -122,7 +126,51 @@ def load_json(path):
         sys.exit(2)
 
 
-def read_logs(directory):
+def covered_projects():
+    """Sorted repository-relative paths of the projects under Source/DotNET that import AotAnalysis.props."""
+    found = []
+    for directory, directories, files in os.walk(SOURCE):
+        directories[:] = sorted(d for d in directories if d not in SKIPPED_DIRECTORIES)
+        for name in sorted(files):
+            if not name.endswith('.csproj'):
+                continue
+            path = os.path.join(directory, name)
+            with open(path, encoding='utf-8', errors='replace') as handle:
+                if PROPS_IMPORT in handle.read():
+                    found.append(relative(path))
+    return sorted(found)
+
+
+def analyzed_frameworks(target_frameworks):
+    """The target frameworks of a semicolon separated list that the analyzers run for (net8.0 or newer)."""
+    frameworks = []
+    for framework in target_frameworks.split(';'):
+        match = re.match(r'^net(\d+)\.\d+', framework.strip())
+        if match and int(match[1]) >= MINIMUM_MAJOR_VERSION:
+            frameworks.append(framework.strip())
+    return frameworks
+
+
+def project_frameworks(project):
+    """The analyzed target frameworks of a project as MSBuild evaluates them for the Release build; exit 2 on failure."""
+    command = ['dotnet', 'msbuild', os.path.join(ROOT, project), '-getProperty:TargetFrameworks',
+               '-p:Configuration=Release', '-nologo']
+    result = subprocess.run(command, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    frameworks = analyzed_frameworks(result.stdout.strip()) if result.returncode == 0 else []
+    if not frameworks:
+        print(result.stdout + result.stderr)
+        print(f'Could not determine the target frameworks of {project}.', file=sys.stderr)
+        sys.exit(2)
+    return frameworks
+
+
+def expected_logs(frameworks_by_project):
+    """The (project name, target framework) pairs that must each have written a SARIF log."""
+    return {(os.path.splitext(os.path.basename(project))[0], framework)
+            for project, frameworks in frameworks_by_project.items() for framework in frameworks}
+
+
+def read_logs(directory, expected):
     logs = []
     for path in sorted(glob.glob(os.path.join(directory, '*.sarif'))):
         match = SARIF_NAME.match(os.path.basename(path))
@@ -133,10 +181,13 @@ def read_logs(directory):
             print(f'{relative(path)} holds no analysis run; the compiler did not report.', file=sys.stderr)
             sys.exit(2)
         logs.append((match['project'], match['tfm'], sarif))
-    if len(logs) != EXPECTED_LOGS:
-        names = ', '.join(f'{project}.{tfm}' for project, tfm, _ in logs) or 'none'
-        print(f'Expected {EXPECTED_LOGS} SARIF logs in {directory} but found {len(logs)} ({names}); the analysis '
-              'did not run for every project and target framework.', file=sys.stderr)
+    found = {(project, tfm) for project, tfm, _ in logs}
+    if found != expected or len(logs) != len(expected):
+        missing = ', '.join(f'{project}.{tfm}' for project, tfm in sorted(expected - found)) or 'none'
+        unexpected = ', '.join(f'{project}.{tfm}' for project, tfm in sorted(found - expected)) or 'none'
+        print(f'Expected {len(expected)} SARIF logs in {directory} but found {len(logs)}; missing: {missing}; '
+              f'unexpected: {unexpected}. The analysis did not run for every project and target framework.',
+              file=sys.stderr)
         sys.exit(2)
     return logs
 
@@ -212,12 +263,29 @@ def document(diagnostics, suppressed):
     }
 
 
-def build(directory):
-    """Run the analysis build, writing its SARIF logs to directory; exit 2 when it fails."""
+def solution_filter(projects, directory):
+    """A solution filter, written to directory, of the covered projects: one build covers all of them and what they
+    reference. Its solution path is relative to the filter, as the format requires."""
+    solution = os.path.join(ROOT, next(name for name in sorted(os.listdir(ROOT)) if name.endswith('.slnx')))
+    path = os.path.join(directory, 'aot-ratchet.slnf')
+    document = {'solution': {'path': os.path.relpath(solution, directory).replace(os.sep, '\\'),
+                             'projects': [project.replace('/', '\\') for project in projects]}}
+    with open(path, 'w', encoding='utf-8') as handle:
+        json.dump(document, handle, indent=2)
+    return path
+
+
+def build(directory, projects):
+    """Run one analysis build of all covered projects, writing its SARIF logs to directory; exit 2 when it fails."""
     for stale in glob.glob(os.path.join(directory, '*.sarif')):
         os.remove(stale)
+    with tempfile.TemporaryDirectory(prefix='aot-ratchet-filter-') as temporary:
+        run_build(solution_filter(projects, temporary), directory)
+
+
+def run_build(target, directory):
     command = [
-        'dotnet', 'build', PROJECT,
+        'dotnet', 'build', target,
         '--configuration', 'Release',
         # Analyzers only report when the compiler runs, so an up-to-date project would report nothing.
         '--no-incremental',
@@ -310,6 +378,38 @@ def self_test():
     assert SUPPRESSION_IN_CONFIGURATION.findall('<NoWarn>$(NoWarn);IL2026</NoWarn>')
     assert SUPPRESSION_IN_CONFIGURATION.findall('dotnet_diagnostic.IL3050.severity = none')
     assert not SUPPRESSION_IN_CONFIGURATION.findall('<NoWarn>CA1000</NoWarn>')
+    assert analyzed_frameworks('net8.0;net9.0;net10.0') == ['net8.0', 'net9.0', 'net10.0']
+    assert analyzed_frameworks('netstandard2.0;net7.0; net10.0 ;net9.0-windows') == ['net10.0', 'net9.0-windows']
+    assert analyzed_frameworks('netstandard2.0') == []
+    expected = expected_logs({'Source/DotNET/Arc.Core/Arc.Core.csproj': ['net8.0', 'net10.0'],
+                              'Source/DotNET/MongoDB/MongoDB.csproj': ['net8.0', 'net10.0']})
+    assert expected == {('Arc.Core', 'net8.0'), ('Arc.Core', 'net10.0'),
+                        ('MongoDB', 'net8.0'), ('MongoDB', 'net10.0')}, expected
+    with tempfile.TemporaryDirectory() as directory:
+        def log(name):
+            with open(os.path.join(directory, name), 'w', encoding='utf-8') as handle:
+                json.dump({'runs': [{'results': []}]}, handle)
+        for name in ('Arc.Core.net8.0.sarif', 'Arc.Core.net10.0.sarif', 'MongoDB.net8.0.sarif',
+                     'MongoDB.net10.0.sarif'):
+            log(name)
+        assert len(read_logs(directory, expected)) == 4
+        # A missing log, an unexpected extra one and a log of the wrong project must each fail the run.
+        for wrong in (expected | {('Chronicle', 'net8.0')}, expected - {('MongoDB', 'net10.0')},
+                      (expected - {('MongoDB', 'net10.0')}) | {('Chronicle', 'net10.0')}):
+            try:
+                with contextlib.redirect_stderr(io.StringIO()):
+                    read_logs(directory, wrong)
+            except SystemExit as failure:
+                assert failure.code == 2, failure.code
+            else:
+                raise AssertionError(f'read_logs accepted {sorted(wrong)}')
+        filter_path = solution_filter(['Source/DotNET/Arc/Arc.csproj'], directory)
+        with open(filter_path, encoding='utf-8') as handle:
+            filtered = json.load(handle)['solution']
+        assert filtered['projects'] == ['Source\\DotNET\\Arc\\Arc.csproj'], filtered
+        assert os.path.isfile(os.path.normpath(os.path.join(directory, filtered['path'].replace('\\', os.sep))))
+    projects = covered_projects()
+    assert 'Source/DotNET/Arc.Core/Arc.Core.csproj' in projects and 'Source/DotNET/Arc/Arc.csproj' in projects, projects
     windows = {'locations': [{'physicalLocation': {'artifactLocation': {'uri': 'file:///C:/repo/A.cs'}}}]}
     assert file_of(windows, '') in ('C:/repo/A.cs', 'C:\\repo\\A.cs'), file_of(windows, '')
     print('Self-test passed.')
@@ -335,9 +435,14 @@ def main():
             # MSBuild's ErrorLog value is `path,version=2.1`; a space, comma or semicolon breaks it.
             parser.error(f'--sarif DIR must not contain spaces, commas or semicolons: {directory}')
         os.makedirs(directory, exist_ok=True)
+        projects = covered_projects()
+        if not projects:
+            print(f'No project under {relative(SOURCE)} imports {PROPS_IMPORT}; nothing to analyze.', file=sys.stderr)
+            return 2
+        frameworks = {project: project_frameworks(project) for project in projects}
         if not arguments.no_build:
-            build(directory)
-        diagnostics, examples = collect(read_logs(directory))
+            build(directory, projects)
+        diagnostics, examples = collect(read_logs(directory, expected_logs(frameworks)))
     suppressed = suppressions()
 
     if arguments.update:

@@ -8,6 +8,10 @@
              into Cratis.Arc.Core (via Cratis.Fundamentals). Suppress the false-positive type conflict. -->
         <NoWarn>$(NoWarn);CS0436</NoWarn>
     </PropertyGroup>
+
+    <!-- Held to the trim/AOT analyzer ratchet (#2859); inert unless scripts/aot-ratchet.py switches it on. -->
+    <Import Project="../AotAnalysis.props" />
+
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB.Specs" />
