@@ -23,8 +23,9 @@ public static class ControllersArcBuilderExtensions
     /// </para>
     /// <para>
     /// MVC is not supported with trimming or NativeAOT. This keeps MVC out of the application at runtime, but it is a
-    /// runtime choice: it does not yet let the trimmer remove MVC from a trimmed or NativeAOT publish, which is
-    /// tracked separately. By default controllers are on.
+    /// runtime choice: the trimmer cannot remove MVC from a trimmed or NativeAOT publish because of it. To have MVC
+    /// removed, set the <c>CratisArcControllersSupport</c> MSBuild property to <see langword="false"/> in the application's
+    /// project file, which turns controllers off without calling this. By default controllers are on.
     /// </para>
     /// <para>
     /// Without MVC the application registers the ASP.NET Core services it used to get from MVC itself, such as
@@ -49,7 +50,10 @@ public static class ControllersArcBuilderExtensions
     /// Gets whether controllers are turned on for the application being built.
     /// </summary>
     /// <param name="builder">The <see cref="IHostApplicationBuilder"/> for the application.</param>
-    /// <returns>True if controllers are on, false if <see cref="WithoutControllers"/> turned them off.</returns>
+    /// <returns>
+    /// True if controllers are on, false if <see cref="WithoutControllers"/> or the controllers feature switch turned
+    /// them off.
+    /// </returns>
     internal static bool ControllersAreOn(this IHostApplicationBuilder builder) =>
-        !builder.Properties.ContainsKey(_controllersOffKey);
+        ArcFeatureSwitches.ControllersSupportIsOn && !builder.Properties.ContainsKey(_controllersOffKey);
 }
