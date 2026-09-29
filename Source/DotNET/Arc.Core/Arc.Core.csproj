@@ -11,6 +11,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Core.Generators.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.ProxyGenerator.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.TypeDiscovery.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.MongoDB" />
@@ -55,6 +56,11 @@
               Pack="true"
               PackagePath="analyzers/dotnet/cs"
               Visible="false" />
+        <!-- Reports the project references to ProjectReferenceModulesGenerator, so an executable can reach their
+             generated metadata without the runtime dependency context. -->
+        <None Include="build/Cratis.Arc.Core.targets"
+              Pack="true"
+              PackagePath="build;buildTransitive" />
     </ItemGroup>
 
     <ItemGroup>
