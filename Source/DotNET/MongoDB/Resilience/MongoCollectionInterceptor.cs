@@ -27,40 +27,7 @@ public class MongoCollectionInterceptor(
 
         var cancellationToken = ExtractCancellationToken(invocation);
 
-#pragma warning disable CA2012 // Use ValueTasks correctly
-        resiliencePipeline.ExecuteAsync(
-            async _ =>
-            {
-                if (!await TryAcquireSemaphore(tcs, cancellationToken))
-                {
-                    return ValueTask.CompletedTask;
-                }
-
-                try
-                {
-                    await ExecuteMongoOperation(invocation, tcs);
-                }
-                catch (OperationCanceledException)
-                {
-                    tcs.SetCanceled();
-                }
-                catch (MongoCommandException ex) when (ex.Message.Contains(WellKnownErrorMessages.CollectionNotFound, StringComparison.OrdinalIgnoreCase))
-                {
-                    tcs.SetResult();
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-                finally
-                {
-                    openConnectionSemaphore.Release();
-                }
-
-                return ValueTask.CompletedTask;
-            },
-            cancellationToken);
-#pragma warning restore CA2012 // Use ValueTasks correctly
+        _ = ExecuteThroughPipeline(invocation, tcs, cancellationToken);
     }
 
     static CancellationToken ExtractCancellationToken(IInvocation invocation) =>
@@ -81,13 +48,75 @@ public class MongoCollectionInterceptor(
         }
     }
 
+    async Task ExecuteThroughPipeline(IInvocation invocation, TaskCompletionSource tcs, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await resiliencePipeline.ExecuteAsync(
+                async _ =>
+                {
+                    if (!await TryAcquireSemaphore(tcs, cancellationToken))
+                    {
+                        return ValueTask.CompletedTask;
+                    }
+
+                    try
+                    {
+                        await ExecuteMongoOperation(invocation, tcs);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        tcs.SetCanceled();
+                    }
+                    catch (MongoCommandException ex) when (ex.Message.Contains(WellKnownErrorMessages.CollectionNotFound, StringComparison.OrdinalIgnoreCase))
+                    {
+                        tcs.SetResult();
+                    }
+                    catch (Exception ex)
+                    {
+                        tcs.SetException(ex);
+                    }
+                    finally
+                    {
+                        openConnectionSemaphore.Release();
+                    }
+
+                    return ValueTask.CompletedTask;
+                },
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The pipeline does not invoke the callback for a token that is already cancelled, so nothing else would
+            // complete the caller's task.
+            tcs.TrySetCanceled(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // The callback completes the caller's task for every failure it handles. Anything that still escapes,
+            // after the pipeline's retries, would otherwise leave the caller waiting forever.
+            tcs.TrySetException(ex);
+        }
+    }
+
     async Task<bool> TryAcquireSemaphore(TaskCompletionSource tcs, CancellationToken cancellationToken)
     {
-        if (!await openConnectionSemaphore.WaitAsync(1000, cancellationToken))
+        try
         {
-            tcs.SetException(new TimeoutException("Failed to acquire semaphore."));
+            if (!await openConnectionSemaphore.WaitAsync(1000, cancellationToken))
+            {
+                tcs.SetException(new TimeoutException("Failed to acquire semaphore."));
+                return false;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled while waiting for a slot. Nothing was acquired, so complete the caller's task here without
+            // releasing a slot.
+            tcs.SetCanceled(cancellationToken);
             return false;
         }
+
         return true;
     }
 }
