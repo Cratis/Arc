@@ -79,6 +79,13 @@ public class MongoCollectionInterceptorForReturnValues(
         setExceptionMethod.Invoke(taskCompletionSource, [exception]);
     }
 
+    static void TrySetException(object taskCompletionSource, Exception exception)
+    {
+        var tcsType = taskCompletionSource.GetType();
+        var trySetExceptionMethod = tcsType.GetMethod(nameof(TaskCompletionSource<object>.TrySetException), [typeof(Exception)])!;
+        trySetExceptionMethod.Invoke(taskCompletionSource, [exception]);
+    }
+
     static void TrySetCanceled(object taskCompletionSource)
     {
         var tcsType = taskCompletionSource.GetType();
@@ -184,6 +191,12 @@ public class MongoCollectionInterceptorForReturnValues(
             // complete the caller's task.
             TrySetCanceled(taskCompletionSource);
         }
+        catch (Exception ex)
+        {
+            // The callback completes the caller's task for every failure it handles. Anything that still escapes,
+            // after the pipeline's retries, would otherwise leave the caller waiting forever.
+            TrySetException(taskCompletionSource, ex);
+        }
     }
 
     async Task<bool> TryAcquireSemaphore(object taskCompletionSource, CancellationToken cancellationToken)
@@ -198,8 +211,8 @@ public class MongoCollectionInterceptorForReturnValues(
         }
         catch (OperationCanceledException)
         {
-            // Cancelled while waiting for a slot. The pipeline's result is not awaited, so the caller's task has to
-            // be completed here or it would never finish.
+            // Cancelled while waiting for a slot. Nothing was acquired, so complete the caller's task here without
+            // releasing a slot.
             SetCanceled(taskCompletionSource);
             return false;
         }

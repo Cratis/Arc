@@ -91,6 +91,12 @@ public class MongoCollectionInterceptor(
             // complete the caller's task.
             tcs.TrySetCanceled(cancellationToken);
         }
+        catch (Exception ex)
+        {
+            // The callback completes the caller's task for every failure it handles. Anything that still escapes,
+            // after the pipeline's retries, would otherwise leave the caller waiting forever.
+            tcs.TrySetException(ex);
+        }
     }
 
     async Task<bool> TryAcquireSemaphore(TaskCompletionSource tcs, CancellationToken cancellationToken)
@@ -105,8 +111,8 @@ public class MongoCollectionInterceptor(
         }
         catch (OperationCanceledException)
         {
-            // Cancelled while waiting for a slot. The pipeline's result is not awaited, so the caller's task has to
-            // be completed here or it would never finish.
+            // Cancelled while waiting for a slot. Nothing was acquired, so complete the caller's task here without
+            // releasing a slot.
             tcs.SetCanceled(cancellationToken);
             return false;
         }
