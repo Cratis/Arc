@@ -42,12 +42,12 @@ internal sealed class ObservableQueryArgumentsSnapshot(
             }
 
             var runtimeType = value.GetType();
-            return new Entry(key, runtimeType, JsonSerializer.SerializeToUtf8Bytes(value, runtimeType, serializerOptions));
+            return new Entry(key, runtimeType, JsonSerializer.SerializeToUtf8Bytes(value, serializerOptions.ResolveTypeInfo(runtimeType)));
         }
 
         public object? CreateValue(JsonSerializerOptions serializerOptions) =>
             RuntimeType is null
                 ? null
-                : JsonSerializer.Deserialize(SerializedValue, RuntimeType, serializerOptions);
+                : JsonSerializer.Deserialize(SerializedValue, serializerOptions.ResolveTypeInfo(RuntimeType));
     }
 }

@@ -3,6 +3,7 @@
 
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Cratis.Concepts;
 
 namespace Cratis.Arc.Identity.for_IdentityProvider.given;
@@ -41,6 +42,7 @@ public static class representative_identity
         new(arcOptions.JsonSerializerOptions)
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
         };
 }
 

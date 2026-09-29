@@ -8,7 +8,7 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Represents the type of WebSocket message.
 /// </summary>
-[JsonConverter(typeof(JsonStringEnumConverter))]
+[JsonConverter(typeof(JsonStringEnumConverter<WebSocketMessageType>))]
 public enum WebSocketMessageType
 {
     /// <summary>

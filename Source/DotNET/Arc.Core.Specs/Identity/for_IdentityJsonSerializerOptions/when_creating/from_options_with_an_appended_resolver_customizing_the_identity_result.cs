@@ -7,10 +7,10 @@ using System.Text.Json.Serialization.Metadata;
 namespace Cratis.Arc.Identity.for_IdentityJsonSerializerOptions.when_creating;
 
 /// <summary>
-/// An application resolver that customizes the identity result contract keeps winning over Arc's own context, as it
-/// did before Arc's identity types were source generated.
+/// A resolver an application appends to Arc's resolver chain to customize the identity result contract keeps winning
+/// for the identity options, which put Arc's identity context behind Arc's resolver.
 /// </summary>
-public class from_options_whose_resolver_customizes_the_identity_result : Specification
+public class from_options_with_an_appended_resolver_customizing_the_identity_result : Specification
 {
     ArcOptions _arcOptions;
     JsonSerializerOptions _options;
@@ -19,10 +19,10 @@ public class from_options_whose_resolver_customizes_the_identity_result : Specif
     void Establish()
     {
         _arcOptions = new();
-        _arcOptions.JsonSerializerOptions.TypeInfoResolver = new DefaultJsonTypeInfoResolver
+        _arcOptions.JsonSerializerOptions.TypeInfoResolverChain.Add(new DefaultJsonTypeInfoResolver
         {
             Modifiers = { RenameId }
-        };
+        });
     }
 
     void Because()

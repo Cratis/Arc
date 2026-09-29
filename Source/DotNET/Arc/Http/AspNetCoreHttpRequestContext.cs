@@ -99,7 +99,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     /// <inheritdoc/>
     public async Task<object?> ReadBodyAsJson(Type type, CancellationToken cancellationToken = default)
     {
-        return await httpContext.Request.ReadFromJsonAsync(type, JsonSerializerOptions, cancellationToken);
+        return await httpContext.Request.ReadFromJsonAsync(JsonSerializerOptions.ResolveTypeInfo(type), cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>
@@ -121,7 +121,7 @@ public class AspNetCoreHttpRequestContext(HttpContext httpContext) : IHttpReques
     /// <inheritdoc/>
     public async Task WriteResponseAsJson(object? value, Type type, CancellationToken cancellationToken = default)
     {
-        await httpContext.Response.WriteAsJsonAsync(value, type, JsonSerializerOptions, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(value, JsonSerializerOptions.ResolveTypeInfo(type), cancellationToken: cancellationToken);
     }
 
     /// <inheritdoc/>

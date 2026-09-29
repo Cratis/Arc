@@ -408,6 +408,52 @@ builder.AddCratisArc(options =>
 
 For controllers, configure null omission, number handling, and other non-copied settings separately through MVC's `AddJsonOptions`. Arc's post-configuration still sets the naming policy, removes the first `JsonStringEnumConverter` if present, and appends Arc converters. `ConfigureHttpJsonOptions` configures ASP.NET minimal API serialization; it does **not** replace Arc's serializer for generated endpoints. For minimal APIs, ASP.NET Core's camel-case naming remains unchanged, including when you explicitly choose `JsonNamingPolicy.CamelCase`. Configure `ConfigureHttpJsonOptions` to choose another naming policy, opt out of primitive concept serialization by registering an application converter for that concept type (for example, a `JsonConverter<AccountId>` that writes and reads `{ "value": "..." }`), or set null omission, number handling, and other serializer settings. Application converters keep their order and take precedence over Arc's appended concept converters. Converter order matters: the first matching converter wins. Enum, date/time, URI, type, geospatial and derived-type converters are **not** added to plain minimal APIs; configure those explicitly if needed. Test the actual request/response contract; see [OpenAPI enum schemas](../open-api/enums.md).
 
+### Adding Source-Generated Metadata
+
+Arc resolves the metadata for its own wire types - `CommandResult`, `QueryResult`, change sets, observable query messages and the identity responses - from a source-generated `JsonSerializerContext` it ships. Everything else, such as your read models, command responses and query arguments, resolves through reflection. In a trimmed or NativeAOT application reflection-based serialization is disabled, so Arc needs metadata for those types from you.
+
+Declare a `JsonSerializerContext` for your types and add it with `AddJsonTypeInfoResolver`:
+
+```csharp
+using System.Text.Json.Serialization;
+using Cratis.Arc.Commands;
+
+[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSerializable(typeof(Order))]
+[JsonSerializable(typeof(IEnumerable<Order>))]
+[JsonSerializable(typeof(PlaceOrder))]
+[JsonSerializable(typeof(CommandResult<OrderId>))]
+public partial class AppJsonSerializerContext : JsonSerializerContext;
+```
+
+```csharp
+builder.AddCratisArc(options => options.AddJsonTypeInfoResolver(AppJsonSerializerContext.Default));
+```
+
+`Order` and `PlaceOrder` stand in for your own read model and command, and `OrderId` for the response `PlaceOrder` returns. Arc's `JsonSerializerOptions` look up a type's metadata in this order:
+
+1. The resolvers you add with `AddJsonTypeInfoResolver`. Your contracts win, including any you customize for Arc's own types. They are consulted first whether you add them before or after you wrap, replace or clear `TypeInfoResolver`; added while Arc's resolver is still in the chain, they are consulted in the order you add them.
+2. Resolvers you append to `JsonSerializerOptions.TypeInfoResolverChain` with `Add`, in the order you append them.
+3. Arc's source-generated metadata for its own wire types.
+4. The reflection-based resolver, only when reflection-based serialization is enabled (`JsonSerializer.IsReflectionEnabledByDefault`). This is the resolver `System.Text.Json` falls back to for options without one, so an application that adds nothing serializes exactly as before.
+
+The serializer options still decide naming, null handling, number handling and converters, so the JSON is the same whichever resolver supplies the metadata. Use `JsonSourceGenerationMode.Metadata`, as Arc does. Arc's options carry custom converters, so `System.Text.Json` cannot use a generated serialization fast path with them; generating one only adds code.
+
+Keep these in mind:
+
+- Register `CommandResult<TResponse>` for every response type your commands return, such as `CommandResult<OrderId>` above. Arc writes a command's response wrapped in `CommandResult<TResponse>`, where `TResponse` is the response's runtime type - a generic type its own metadata cannot cover, so registering `TResponse` alone is not enough. Without it, a command that returns a response fails with a `NotSupportedException` when reflection is disabled.
+- Register the runtime types of query data, not only the declared ones. `QueryResult.Data` and change-set items are written by their runtime type, so if a query returns a `List<Order>`, register `List<Order>`.
+- Add resolvers while configuring Arc. `JsonSerializerOptions` become read-only once they have been used.
+- Arc keeps a single resolver of its own in `TypeInfoResolverChain`, after the resolvers added with `AddJsonTypeInfoResolver` and before anything you append. That resolver consults the resolvers appended after it first, so a resolver you append - for instance a `DefaultJsonTypeInfoResolver` with `Modifiers` that rename or ignore members - still decides the contract of every type it knows, Arc's own included, as it did when it was the only resolver in the chain. Types it does not know fall through to Arc's metadata and, when enabled, reflection. The same holds for a copy of Arc's options, `new JsonSerializerOptions(options)`: a resolver appended to the copy wins for the copy and leaves Arc's options alone.
+- Assigning `JsonSerializerOptions.TypeInfoResolver` replaces the whole chain, Arc's resolver included. The resolver you assign then serializes every type on its own, so with reflection disabled it has to cover Arc's wire types too. Prefer `AddJsonTypeInfoResolver`.
+- To add modifiers to every contract, wrap the resolver the options carry: `options.TypeInfoResolver = options.TypeInfoResolver!.WithAddedModifier(...)`. Arc's resolver stays inside the wrapper, so the modifiers apply to what it resolves too. On .NET 8 and .NET 9, wrap `TypeInfoResolver` before appending anything to `TypeInfoResolverChain`, or build the combination explicitly with `JsonTypeInfoResolver.Combine(...)`: wrapping after appending crashes with a stack overflow on those versions. That is `System.Text.Json` behavior, not Arc's.
+- Arc's options always carry a resolver. `TypeInfoResolver ??= x`, or `if (TypeInfoResolver is null) { ... }`, therefore no longer assigns anything - use `AddJsonTypeInfoResolver`, `TypeInfoResolverChain.Add` or an explicit assignment instead. And `TypeInfoResolver?.WithAddedModifier(...)` now takes effect.
+- Assigning `options.TypeInfoResolver = JsonTypeInfoResolver.Combine(options.TypeInfoResolver, other)` flattens into Arc's resolver followed by `other`, so `other` wins for the types it knows, like any appended resolver. Only appending a combination that contains Arc's resolver, `options.TypeInfoResolverChain.Add(JsonTypeInfoResolver.Combine(options.TypeInfoResolver, other))`, resolves in the order you compose it: Arc's resolver, and with it Arc's metadata and reflection, before `other`.
+- `AddJsonTypeInfoResolver` resolvers are consulted first in all these cases: after you wrap `TypeInfoResolver` they go ahead of the wrapper, and after you set it to `null` Arc's resolver is composed anew behind them, so Arc's metadata and the reflection fallback are kept. Once you have wrapped the resolver, a resolver you add later is consulted before the ones you added earlier.
+- The resolvers apply to Arc's own endpoints and serialization. MVC controllers and plain minimal APIs keep their own serializer options.
+
+When you create options with `ConfigureArcDefaults()` outside `ArcOptions`, a resolver the options already carry stays first, followed by Arc's resolver: `new JsonSerializerOptions { TypeInfoResolver = AppJsonSerializerContext.Default }.ConfigureArcDefaults()`.
+
 ## Best Practices
 
 1. **Use Configuration Files**: For most scenarios, use `appsettings.json` configuration as it allows easy environment-specific overrides without code changes.

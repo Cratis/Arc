@@ -43,7 +43,7 @@ public class JsonLinesStreamingFormatter : TextOutputFormatter
         response.ContentType = "application/jsonl";
         await foreach (var item in asyncEnumerable.WithCancellation(context.HttpContext.RequestAborted))
         {
-            var json = JsonSerializer.Serialize(item, jsonSerializerOptions);
+            var json = JsonSerializer.Serialize(item, jsonSerializerOptions.ResolveTypeInfo<object>());
             var bytes = Encoding.UTF8.GetBytes(json);
             await response.Body.WriteAsync(bytes);
             await response.Body.WriteAsync("\n"u8.ToArray());

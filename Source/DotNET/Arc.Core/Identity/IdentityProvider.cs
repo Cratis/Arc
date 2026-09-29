@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Diagnostics.CodeAnalysis;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
@@ -30,9 +29,7 @@ public class IdentityProvider(
     /// </summary>
     public const string IdentityCookieName = ".cratis-identity";
 
-    readonly JsonSerializerOptions _serializerOptions = IdentityJsonSerializerOptions.CreateFrom(
-        options.Value.JsonSerializerOptions,
-        CreateReflectionResolverForIdentityDetails);
+    readonly JsonSerializerOptions _serializerOptions = IdentityJsonSerializerOptions.CreateFrom(options.Value.JsonSerializerOptions);
 
     /// <inheritdoc/>
     public async Task<IdentityProviderResult> Get()
@@ -128,10 +125,6 @@ public class IdentityProvider(
             await SetCookieForHttpResponse(modifiedResult);
         }
     }
-
-    [RequiresUnreferencedCode("Identity details are the application's own type, known only at runtime. Configure a TypeInfoResolver for them on ArcOptions.JsonSerializerOptions to serialize them without reflection.")]
-    [RequiresDynamicCode("Identity details are the application's own type, known only at runtime. Configure a TypeInfoResolver for them on ArcOptions.JsonSerializerOptions to serialize them without reflection.")]
-    static DefaultJsonTypeInfoResolver CreateReflectionResolverForIdentityDetails() => new();
 
     bool TryGetFromCookie(IHttpRequestContext context, out IdentityProviderResult result)
     {

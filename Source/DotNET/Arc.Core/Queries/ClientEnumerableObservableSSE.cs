@@ -81,7 +81,7 @@ public class ClientEnumerableObservableSSE<T>(
 
                         // Send the terminal unauthorized result before the stream goes away — a client that only sees
                         // the stream end reads it as a transport hiccup and reconnects into the same denial.
-                        var unauthorizedJson = JsonSerializer.Serialize(QueryResult.Unauthorized(queryContext.CorrelationId), arcOptions.Value.JsonSerializerOptions);
+                        var unauthorizedJson = JsonSerializer.Serialize(QueryResult.Unauthorized(queryContext.CorrelationId), arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
                         await context.Write($"data: {unauthorizedJson}\n\n", linkedCts.Token);
                         break;
                     }
@@ -93,7 +93,7 @@ public class ClientEnumerableObservableSSE<T>(
                     }
                 }
 
-                var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions);
+                var json = JsonSerializer.Serialize(queryResult, arcOptions.Value.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
                 var sseMessage = $"data: {json}\n\n";
 
                 try

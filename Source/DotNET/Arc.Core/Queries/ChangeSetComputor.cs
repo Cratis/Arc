@@ -306,9 +306,9 @@ public class ChangeSetComputor(JsonSerializerOptions serializerOptions)
     /// <param name="item">The item to serialize.</param>
     /// <returns>The JSON representation of the item.</returns>
     /// <remarks>
-    /// This is the single place the computor serializes through the runtime type. The Arc serializer options carry no
-    /// <see cref="System.Text.Json.Serialization.Metadata.IJsonTypeInfoResolver"/>, so the item type can only be resolved
-    /// by reflection here until those options are backed by generated metadata.
+    /// This is the single place the computor serializes through the runtime type. It goes through the metadata for
+    /// <see cref="object"/>, which writes the item by its runtime type, resolved through the options' resolver chain - the
+    /// application's source-generated metadata, Arc's, and reflection only when it is enabled.
     /// </remarks>
-    string Serialize(object item) => JsonSerializer.Serialize(item, serializerOptions);
+    string Serialize(object item) => JsonSerializer.Serialize(item, serializerOptions.ResolveTypeInfo<object>());
 }
