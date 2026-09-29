@@ -12,7 +12,6 @@ namespace Cratis.Arc.Validation;
 /// Not intended to be used directly; see <see cref="ModelGraphWalkers"/>.
 /// </remarks>
 /// <param name="Name">The property name, as declared.</param>
-/// <param name="DeclaredType">The declared type of the property.</param>
 /// <param name="Read">Reads the property from an instance of the type the member was registered for.</param>
 [EditorBrowsable(EditorBrowsableState.Never)]
-public sealed record ModelGraphMember(string Name, Type DeclaredType, Func<object, object?> Read);
+public sealed record ModelGraphMember(string Name, Func<object, object?> Read);

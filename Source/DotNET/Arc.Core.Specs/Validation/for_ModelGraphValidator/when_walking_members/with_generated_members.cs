@@ -20,7 +20,7 @@ public class with_generated_members : given.a_recording_model_graph_validator
     {
         _readsBefore = _reads;
         ModelGraphWalkers.Register(typeof(Model), [
-            new ModelGraphMember("Child", typeof(Child), instance =>
+            new ModelGraphMember("Child", instance =>
             {
                 _reads++;
                 return ((Model)instance).Child;

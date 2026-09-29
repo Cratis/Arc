@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -21,30 +22,26 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
     /// <inheritdoc/>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // The attribute steps only find the roots; the model graph is walked once per compilation from all of them,
+        // so model types shared between commands and queries are only visited once.
         var commands = context.SyntaxProvider.ForAttributeWithMetadataName(
             CommandAttribute,
             static (node, _) => node is TypeDeclarationSyntax,
-            static (syntax, _) => syntax.TargetSymbol is INamedTypeSymbol command && syntax.SemanticModel.Compilation.GetTypeByMetadataName(Walkers) is not null
-                ? new EquatableArray<ModelGraphWalker>(ModelGraphWalkerTypes.For([command], syntax.SemanticModel.Compilation))
-                : new EquatableArray<ModelGraphWalker>([]))
+            static (syntax, _) => syntax.TargetSymbol is INamedTypeSymbol command ? MetadataNameOf(command) : string.Empty)
             .Collect();
 
-        var queries = context.SyntaxProvider.ForAttributeWithMetadataName(
+        var readModels = context.SyntaxProvider.ForAttributeWithMetadataName(
             ReadModelAttribute,
             static (node, _) => node is TypeDeclarationSyntax,
-            static (syntax, _) => syntax.TargetSymbol is INamedTypeSymbol readModel && syntax.SemanticModel.Compilation.GetTypeByMetadataName(Walkers) is not null
-                ? new EquatableArray<ModelGraphWalker>(ModelGraphWalkerTypes.For(QueryArgumentTypes(readModel, syntax.SemanticModel.Compilation), syntax.SemanticModel.Compilation))
-                : new EquatableArray<ModelGraphWalker>([]))
+            static (syntax, _) => syntax.TargetSymbol is INamedTypeSymbol readModel ? MetadataNameOf(readModel) : string.Empty)
             .Collect();
 
-        context.RegisterSourceOutput(commands.Combine(queries), static (output, roots) =>
+        var walkers = commands.Combine(readModels).Combine(context.CompilationProvider)
+            .Select(static (input, cancellationToken) => WalkersFor(input.Left.Left, input.Left.Right, input.Right, cancellationToken));
+
+        context.RegisterSourceOutput(walkers, static (output, walkers) =>
         {
-            var walkers = roots.Left.Concat(roots.Right).SelectMany(walker => walker)
-                .GroupBy(walker => walker.Type, StringComparer.Ordinal)
-                .Select(group => group.First())
-                .OrderBy(walker => walker.Type, StringComparer.Ordinal)
-                .ToArray();
-            if (walkers.Length == 0)
+            if (walkers.Count == 0)
             {
                 return;
             }
@@ -60,32 +57,83 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
         });
     }
 
+    static EquatableArray<ModelGraphWalker> WalkersFor(ImmutableArray<string> commands, ImmutableArray<string> readModels, Compilation compilation, CancellationToken cancellationToken)
+    {
+        if ((commands.IsEmpty && readModels.IsEmpty) || compilation.GetTypeByMetadataName(Walkers) is null)
+        {
+            return new([]);
+        }
+
+        var roots = TypesNamed(commands, compilation).Cast<ITypeSymbol>()
+            .Concat(QueryArgumentTypes(TypesNamed(readModels, compilation), compilation));
+        return new(ModelGraphWalkerTypes.For(roots, compilation, cancellationToken).OrderBy(walker => walker.Type, StringComparer.Ordinal));
+    }
+
+    static IEnumerable<INamedTypeSymbol> TypesNamed(ImmutableArray<string> names, Compilation compilation) =>
+        names.Where(name => name.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .Select(compilation.Assembly.GetTypeByMetadataName)
+            .OfType<INamedTypeSymbol>();
+
     /// <summary>
-    /// Gets the types a read model's queries are validated through: the parameters of its query methods, and the
+    /// Gets the name a type is found by in its assembly, so a root can be carried between generator steps as a value.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The metadata name, including namespace and containing types.</returns>
+    static string MetadataNameOf(INamedTypeSymbol type)
+    {
+        if (type.ContainingType is { } containing)
+        {
+            return $"{MetadataNameOf(containing)}+{type.MetadataName}";
+        }
+
+        var name = type.MetadataName;
+        for (var @namespace = type.ContainingNamespace; @namespace is { IsGlobalNamespace: false }; @namespace = @namespace.ContainingNamespace)
+        {
+            name = $"{@namespace.MetadataName}.{name}";
+        }
+
+        return name;
+    }
+
+    /// <summary>
+    /// Gets the types read models' queries are validated through: the parameters of their query methods, and the
     /// types that can model a query's argument set by the convention the query pipeline resolves them with.
     /// </summary>
     /// <remarks>
     /// Which parameters are dependencies rather than arguments is only known from the service registrations at
     /// runtime, so every parameter is a root; a dependency only adds walkers that are never used.
     /// </remarks>
-    /// <param name="readModel">The read model type.</param>
+    /// <param name="readModels">The read model types.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <returns>The types to start from.</returns>
-    static IEnumerable<ITypeSymbol> QueryArgumentTypes(INamedTypeSymbol readModel, Compilation compilation)
+    static List<ITypeSymbol> QueryArgumentTypes(IEnumerable<INamedTypeSymbol> readModels, Compilation compilation)
     {
-        var queries = readModel.GetMembers().OfType<IMethodSymbol>()
-            .Where(method => method.MethodKind == MethodKind.Ordinary && method.IsStatic && method.TypeParameters.Length == 0 &&
-                method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
-                !method.GetAttributes().Any(attribute => string.Equals(attribute.AttributeClass?.ToDisplayString(), "System.Runtime.CompilerServices.CompilerGeneratedAttribute", StringComparison.Ordinal)) &&
-                QueryMetadataGenerator.IsValidQueryMethod(method, readModel))
-            .ToArray();
+        var roots = new List<ITypeSymbol>();
 
         // Mirrors QueryArgumentsModelConvention.CandidateNamesFor, which the generator cannot compile in.
-        var candidates = new HashSet<string>(
-            queries.SelectMany(query => new[] { $"{readModel.Name}{query.Name}Parameters", $"{query.Name}Parameters" }),
-            StringComparer.OrdinalIgnoreCase);
-        var models = compilation.GetSymbolsWithName(candidates.Contains, SymbolFilter.Type).OfType<ITypeSymbol>();
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var readModel in readModels)
+        {
+            var queries = readModel.GetMembers().OfType<IMethodSymbol>()
+                .Where(method => method.MethodKind == MethodKind.Ordinary && method.IsStatic && method.TypeParameters.Length == 0 &&
+                    method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+                    !method.GetAttributes().Any(attribute => string.Equals(attribute.AttributeClass?.ToDisplayString(), "System.Runtime.CompilerServices.CompilerGeneratedAttribute", StringComparison.Ordinal)) &&
+                    QueryMetadataGenerator.IsValidQueryMethod(method, readModel));
+            foreach (var query in queries)
+            {
+                roots.AddRange(query.Parameters.Select(parameter => parameter.Type));
+                candidates.Add($"{readModel.Name}{query.Name}Parameters");
+                candidates.Add($"{query.Name}Parameters");
+            }
+        }
 
-        return queries.SelectMany(query => query.Parameters).Select(parameter => parameter.Type).Concat(models);
+        // One scan of the declarations for all read models.
+        if (candidates.Count > 0)
+        {
+            roots.AddRange(compilation.GetSymbolsWithName(candidates.Contains, SymbolFilter.Type).OfType<ITypeSymbol>());
+        }
+
+        return roots;
     }
 }

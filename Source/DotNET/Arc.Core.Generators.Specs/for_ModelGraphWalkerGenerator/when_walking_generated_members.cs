@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using Cratis.Arc.Validation;
-using FluentValidation;
 
 namespace Cratis.Arc.Generators.Specs.for_ModelGraphWalkerGenerator;
 
@@ -87,8 +86,8 @@ public class when_walking_generated_members : Specification
 
     void Because()
     {
-        _generatedTraversal = Walk(_generated);
-        _reflectedTraversal = Walk(_reflected);
+        _generatedTraversal = ModelGraphWalkerCompilation.Walk(_generated);
+        _reflectedTraversal = ModelGraphWalkerCompilation.Walk(_reflected);
     }
 
     [Fact] void should_walk_the_same_graph_as_reflection() => _generatedTraversal.ShouldEqual(_reflectedTraversal);
@@ -96,40 +95,11 @@ public class when_walking_generated_members : Specification
     [Fact] void should_walk_generated_members_for_registered_types() => GeneratedMembersOf("Walked.Root")[0].Read.Method.DeclaringType!.Assembly.ShouldEqual(_generated);
     [Fact] void should_not_register_types_without_generated_code() => ModelGraphWalkers.TryGet(_reflected.GetType("Walked.Root")!, out _).ShouldBeFalse();
     [Fact] void should_fall_back_to_reflection_for_types_without_a_walker() => ModelGraphWalkers.TryGet(_generated.GetType("Walked.Special")!, out _).ShouldBeFalse();
+    [Fact] void should_fall_back_to_reflection_for_types_overriding_or_hiding_members() => ModelGraphWalkers.TryGet(_generated.GetType("Walked.Derived")!, out _).ShouldBeFalse();
+    [Fact] void should_fall_back_to_reflection_for_types_inheriting_from_other_assemblies() => ModelGraphWalkers.TryGet(_generated.GetType("Walked.Identifier")!, out _).ShouldBeFalse();
     [Fact] void should_generate_the_members_reflection_finds_for_every_registered_type() =>
-        Describe(ModelGraphValidator.GetWalkableProperties).ShouldEqual(Describe(ModelGraphValidator.GetWalkablePropertiesThroughReflection));
-
-    string Describe(Func<Type, WalkableMember[]> members) => string.Join(
-        Environment.NewLine,
-        _generated.GetTypes()
-            .Where(type => ModelGraphWalkers.TryGet(type, out _))
-            .OrderBy(type => type.FullName, StringComparer.Ordinal)
-            .Select(type => $"{type}: {string.Join(", ", members(type).Select(member => member.Name))}"));
-
-    static string Walk(Assembly assembly)
-    {
-        var visits = new List<string>();
-        var discoverableValidators = Substitute.For<IDiscoverableValidators>();
-        var validator = Substitute.For<IValidator>();
-        discoverableValidators.TryGet(Arg.Any<Type>(), out Arg.Any<IValidator>())
-            .Returns(x =>
-            {
-                x[1] = validator;
-                return true;
-            });
-
-        var validatorInvoker = Substitute.For<IValidatorInvoker>();
-        validatorInvoker.Invoke(default!, default!, default!, default)
-            .ReturnsForAnyArgs(x =>
-            {
-                visits.Add($"{x[0].GetType().Name}@{x[2]}");
-                return Task.FromResult<IEnumerable<Validation.ValidationResult>>([]);
-            });
-
-        var root = assembly.GetType("Walked.Samples")!.GetMethod("Create")!.Invoke(null, null)!;
-        new ModelGraphValidator(discoverableValidators, validatorInvoker).Validate(new ModelGraphValidationRequest(root)).GetAwaiter().GetResult();
-        return string.Join(" | ", visits);
-    }
+        ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkableProperties)
+            .ShouldEqual(ModelGraphWalkerCompilation.Describe(_generated, ModelGraphValidator.GetWalkablePropertiesThroughReflection));
 
     ModelGraphMember[] GeneratedMembersOf(string type)
     {

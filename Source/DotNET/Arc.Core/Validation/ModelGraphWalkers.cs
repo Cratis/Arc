@@ -13,8 +13,10 @@ namespace Cratis.Arc.Validation;
 /// </summary>
 /// <remarks>
 /// Not intended to be called directly. The generator registers, per exact runtime type, the same properties in the
-/// same order as the reflection walk finds them, read through statically typed getters. A type without a registration,
-/// such as one the generated code cannot name or a subtype only known at runtime, is walked through reflection. This
+/// same order as the reflection walk finds them, read through statically typed getters. It only registers types where
+/// that is plainly the case - declared in source in one compilation, with no partial declarations and no overridden
+/// or hidden properties. A type without a registration, such as one inheriting from another assembly or a subtype only
+/// known at runtime, is walked through reflection. This
 /// registry does not imply that the rest of Arc supports trimming or NativeAOT.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]

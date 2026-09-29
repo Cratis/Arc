@@ -4,6 +4,7 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Generators;
 
@@ -14,19 +15,26 @@ namespace Cratis.Arc.Generators;
 /// <remarks>
 /// The traversal walks a value by its exact runtime type: a leaf stops it, a collection has its elements walked, and
 /// any other type has its public instance properties that can be read without arguments walked, in the order
-/// reflection returns them - the runtime type's own properties in declaration order, then each base type's, skipping
-/// a base property that an already found property overrides or hides with the same signature. Generated walkers must
-/// reproduce that exactly, so a type only gets one when every step can be decided from source:
+/// reflection returns them. A registered walker replaces that reflection walk for its exact type, so any difference
+/// would silently change what gets validated. Walkers are therefore only generated where they are plainly the same
+/// as the reflection walk, and every other type keeps reflection:
 /// <list type="bullet">
 /// <item>the type is declared in the compilation, concrete, not a collection, and generated code can name it;</item>
-/// <item>every base type declaring properties comes from the compilation or from an assembly that is not a reference
-/// assembly - a reference assembly need not keep the declaration order or the non-public members that hide;</item>
+/// <item>the type and every base type other than <see cref="object"/> and <see cref="ValueType"/> are declared in
+/// source in the compilation, so the properties and their order are all known - a base type from any other assembly
+/// may have members the compiler does not import, and its members can change after this compilation is built;</item>
+/// <item>none of those types has a partial declaration, since another source generator can add properties to it
+/// that this generator does not see;</item>
+/// <item>no two properties across the type and its base types share a name when one of them is public, so no
+/// property overrides or hides another the traversal walks - which property reflection keeps then depends on raw
+/// metadata signatures that symbols do not reproduce exactly;</item>
 /// <item>every walked property can be read by generated code as a plain value, without an obsolete, experimental or
-/// trim/AOT annotated getter, and no property overrides with a covariant type.</item>
+/// trim/AOT annotated property or getter.</item>
 /// </list>
-/// Any other type keeps the reflection walk. Types are followed through property types, collection element types,
-/// nullable values and the type arguments of types declared elsewhere; a member typed as object, an interface or an
-/// abstract type can hold any runtime type, so those are not followed.
+/// Types are followed through property types, collection element types, nullable values and the type arguments of
+/// types declared elsewhere, including through types that get no walker, since the traversal reaches their members by
+/// reflection. A member typed as object, an interface or an abstract type can hold any runtime type, so those are not
+/// followed.
 /// </remarks>
 internal static class ModelGraphWalkerTypes
 {
@@ -34,9 +42,10 @@ internal static class ModelGraphWalkerTypes
     const string Member = "global::Cratis.Arc.Validation.ModelGraphMember";
 
     /// <summary>
-    /// The number of types one root's graph is followed through before stopping, bounding generation for large graphs.
+    /// The number of types followed across all roots of a compilation before stopping, bounding generation for large
+    /// graphs.
     /// </summary>
-    const int MaximumTypes = 1024;
+    const int MaximumTypes = 4096;
 
     /// <summary>
     /// How deeply generic type arguments may nest, bounding generic types that expand themselves on every level.
@@ -50,10 +59,16 @@ internal static class ModelGraphWalkerTypes
     /// </summary>
     /// <param name="roots">The types a traversal starts from, such as a command or a query argument.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
     /// <returns>The walkers to register.</returns>
-    public static IEnumerable<ModelGraphWalker> For(IEnumerable<ITypeSymbol> roots, Compilation compilation)
+    public static IEnumerable<ModelGraphWalker> For(IEnumerable<ITypeSymbol> roots, Compilation compilation, CancellationToken cancellationToken)
     {
         var walkers = new List<ModelGraphWalker>();
+        if (IsExperimental(compilation.Assembly) || IsExperimental(compilation.SourceModule))
+        {
+            return walkers;
+        }
+
         var seen = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
         var pending = new Queue<INamedTypeSymbol>();
         foreach (var root in roots)
@@ -63,19 +78,17 @@ internal static class ModelGraphWalkerTypes
 
         while (pending.Count > 0)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var type = pending.Dequeue();
-            var properties = WalkedProperties(type, compilation);
-            if (properties is null)
+            for (var current = type; current is not null; current = current.BaseType)
             {
-                continue;
+                foreach (var property in current.GetMembers().OfType<IPropertySymbol>().Where(IsWalked))
+                {
+                    Follow(property.Type, compilation, seen, pending);
+                }
             }
 
-            foreach (var property in properties)
-            {
-                Follow(property.Type, compilation, seen, pending);
-            }
-
-            if (IsConcrete(type) && TypeNaming.CanBeNamed(type, compilation) && properties.TrueForAll(property => CanRead(property, compilation)))
+            if (WalkedProperties(type, compilation, cancellationToken) is { } properties)
             {
                 walkers.Add(new(type.ToDisplayString(_format), Render(type, properties)));
             }
@@ -137,7 +150,7 @@ internal static class ModelGraphWalkerTypes
             return;
         }
 
-        if (SymbolEqualityComparer.Default.Equals(named.OriginalDefinition.ContainingAssembly, compilation.Assembly))
+        if (IsFromCompilation(named, compilation))
         {
             if (named.TypeKind is TypeKind.Class or TypeKind.Struct)
             {
@@ -154,88 +167,83 @@ internal static class ModelGraphWalkerTypes
     }
 
     /// <summary>
-    /// Gets the properties the traversal walks on a type, in the order reflection returns them.
+    /// Gets the properties the traversal walks on a type, in the order reflection returns them, when a walker for the
+    /// type is plainly the same as the reflection walk.
     /// </summary>
     /// <param name="type">The type.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
-    /// <returns>The properties, or null when the order or the members cannot be decided from the compilation.</returns>
-    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation)
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
+    /// <returns>The properties, or null when the type keeps the reflection walk.</returns>
+    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
     {
-        // Reflection finds the properties of the type itself, then of each base type, where a private property of a
-        // base type is never seen and a property already found hides one of the same name and signature or overrides
-        // it. Hiding considers every property found so far, whatever its accessibility or whether it is static; only
-        // then is the list narrowed to the readable public instance properties without index parameters.
-        var found = new List<IPropertySymbol>();
-        for (var current = type; current is not null; current = current.BaseType)
+        if (!IsConcrete(type) || !TypeNaming.CanBeNamed(type, compilation))
         {
-            var declared = current.GetMembers().OfType<IPropertySymbol>()
-                .Where(property => SymbolEqualityComparer.Default.Equals(current, type) || property.DeclaredAccessibility != Accessibility.Private)
-                .ToArray();
-            if (declared.Length > 0 && !KeepsDeclarations(current.ContainingAssembly, compilation))
+            return null;
+        }
+
+        // Reflection finds the properties of the type itself, then of each base type, where a property already found
+        // hides or overrides one of the same name and signature. With no public property sharing its name with any
+        // other, nothing the traversal walks is hidden or overridden, and each type's properties follow in
+        // declaration order.
+        var declared = new List<IPropertySymbol>();
+        for (var current = type; current is not null && !IsRootType(current); current = current.BaseType)
+        {
+            if (!IsFromCompilation(current, compilation) || current.OriginalDefinition.DeclaringSyntaxReferences.Length == 0 || IsPartial(current.OriginalDefinition, cancellationToken))
             {
                 return null;
             }
 
-            foreach (var property in declared)
-            {
-                if (property.OverriddenProperty is { } overridden && !SymbolEqualityComparer.Default.Equals(property.Type, overridden.Type))
-                {
-                    return null;
-                }
-
-                if (!found.Exists(existing => Overrides(existing, property) || HasSameSignature(existing, property)))
-                {
-                    found.Add(property);
-                }
-            }
+            declared.AddRange(current.GetMembers().OfType<IPropertySymbol>());
         }
 
-        return [.. found.Where(property => property.DeclaredAccessibility == Accessibility.Public && !property.IsStatic &&
-            property.Parameters.Length == 0 && property.GetMethod is not null)];
-    }
-
-    static bool KeepsDeclarations(IAssemblySymbol assembly, Compilation compilation) =>
-        SymbolEqualityComparer.Default.Equals(assembly, compilation.Assembly) ||
-        !assembly.GetAttributes().Any(attribute => string.Equals(attribute.AttributeClass?.ToDisplayString(), "System.Runtime.CompilerServices.ReferenceAssemblyAttribute", StringComparison.Ordinal));
-
-    static bool Overrides(IPropertySymbol property, IPropertySymbol candidate)
-    {
-        for (var overridden = property.OverriddenProperty; overridden is not null; overridden = overridden.OverriddenProperty)
+        var sharesName = declared
+            .GroupBy(property => property.MetadataName, StringComparer.Ordinal)
+            .Any(group => group.Skip(1).Any() && group.Any(property => property.DeclaredAccessibility == Accessibility.Public));
+        if (sharesName)
         {
-            if (SymbolEqualityComparer.Default.Equals(overridden, candidate))
-            {
-                return true;
-            }
+            return null;
         }
 
-        return false;
+        var walked = declared.Where(IsWalked).ToList();
+        return walked.TrueForAll(property => CanRead(property, compilation)) ? walked : null;
     }
 
-    static bool HasSameSignature(IPropertySymbol property, IPropertySymbol candidate) =>
-        string.Equals(property.MetadataName, candidate.MetadataName, StringComparison.Ordinal) &&
-        property.IsStatic == candidate.IsStatic &&
-        SymbolEqualityComparer.Default.Equals(property.Type, candidate.Type) &&
-        property.Parameters.Length == candidate.Parameters.Length &&
-        property.Parameters.Zip(candidate.Parameters, (left, right) => SymbolEqualityComparer.Default.Equals(left.Type, right.Type)).All(same => same);
+    /// <summary>
+    /// Whether the traversal walks a property: a public instance property without index parameters that has a getter.
+    /// </summary>
+    /// <param name="property">The property.</param>
+    /// <returns>Whether the property is walked.</returns>
+    static bool IsWalked(IPropertySymbol property) =>
+        property.DeclaredAccessibility == Accessibility.Public && !property.IsStatic && property.Parameters.Length == 0 && property.GetMethod is not null;
+
+    static bool IsRootType(INamedTypeSymbol type) =>
+        type.SpecialType is SpecialType.System_Object or SpecialType.System_ValueType;
+
+    static bool IsFromCompilation(INamedTypeSymbol type, Compilation compilation) =>
+        SymbolEqualityComparer.Default.Equals(type.OriginalDefinition.ContainingAssembly, compilation.Assembly);
+
+    static bool IsPartial(INamedTypeSymbol type, CancellationToken cancellationToken) =>
+        type.DeclaringSyntaxReferences.Length > 1 ||
+        type.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax(cancellationToken) is TypeDeclarationSyntax declaration && declaration.Modifiers.Any(SyntaxKind.PartialKeyword));
 
     static bool IsConcrete(INamedTypeSymbol type) =>
         type.TypeKind is TypeKind.Class or TypeKind.Struct && !type.IsAbstract && !type.IsStatic && !type.IsRefLikeType && !type.IsUnboundGenericType;
 
     /// <summary>
-    /// Whether generated code can read a property as a plain value, and name its declaring and declared types.
+    /// Whether generated code can read a property as a plain value through its declaring type.
     /// </summary>
     /// <param name="property">The property.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <returns>Whether generated code can read the property.</returns>
     static bool CanRead(IPropertySymbol property, Compilation compilation) =>
-        !property.ReturnsByRef && !property.ReturnsByRefReadonly &&
+        !property.IsOverride && !property.ReturnsByRef && !property.ReturnsByRefReadonly &&
         property.Type is not (IPointerTypeSymbol or IFunctionPointerTypeSymbol) && !property.Type.IsRefLikeType &&
         SyntaxFacts.IsValidIdentifier(property.Name) &&
         compilation.IsSymbolAccessibleWithin(property, compilation.Assembly) &&
         compilation.IsSymbolAccessibleWithin(property.GetMethod!, compilation.Assembly) &&
         !IsFlagged(property) && !IsFlagged(property.GetMethod!) &&
-        TypeNaming.CanBeNamed(property.ContainingType, compilation) &&
-        (property.Type.TypeKind == TypeKind.Dynamic || TypeNaming.CanBeNamed(property.Type, compilation));
+        TypeNaming.CanBeNamed(property.ContainingType, compilation);
 
     /// <summary>
     /// Reading an obsolete, experimental or trim/AOT annotated member reports a diagnostic in the consumer's build that
@@ -250,6 +258,15 @@ internal static class ModelGraphWalkerTypes
              string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute", StringComparison.Ordinal) ||
              string.Equals(name, "System.Diagnostics.CodeAnalysis.RequiresAssemblyFilesAttribute", StringComparison.Ordinal) ||
              string.Equals(name, "System.Runtime.Versioning.RequiresPreviewFeaturesAttribute", StringComparison.Ordinal)));
+
+    /// <summary>
+    /// An experimental assembly or module makes every type in it experimental, so generated code naming them would
+    /// report a diagnostic.
+    /// </summary>
+    /// <param name="symbol">The assembly or module.</param>
+    /// <returns>Whether it is experimental.</returns>
+    static bool IsExperimental(ISymbol symbol) =>
+        symbol.GetAttributes().Any(attribute => string.Equals(attribute.AttributeClass?.ToDisplayString(), "System.Diagnostics.CodeAnalysis.ExperimentalAttribute", StringComparison.Ordinal));
 
     static int GenericDepth(ITypeSymbol type) => type switch
     {
@@ -270,13 +287,9 @@ internal static class ModelGraphWalkerTypes
         source.AppendLine("[]").AppendLine("        {");
         foreach (var property in properties)
         {
-            // The property is read through its declaring type: a type that hides it with a property of another type,
-            // or with one reflection does not walk, would otherwise be read instead.
-            var declaredType = property.Type.TypeKind == TypeKind.Dynamic ? "object" : property.Type.ToDisplayString(_format);
             source.Append("            new ").Append(Member).Append('(')
                 .Append(SymbolDisplay.FormatLiteral(property.Name, true))
-                .Append(", typeof(").Append(declaredType)
-                .Append("), static instance => ((").Append(property.ContainingType.ToDisplayString(_format)).Append(")instance).@").Append(property.Name)
+                .Append(", static instance => ((").Append(property.ContainingType.ToDisplayString(_format)).Append(")instance).@").Append(property.Name)
                 .AppendLine("),");
         }
 
