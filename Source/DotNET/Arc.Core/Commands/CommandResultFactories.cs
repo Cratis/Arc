@@ -67,10 +67,12 @@ public static class CommandResultFactories
         {
             return createThroughReflection(correlationId, response);
         }
-        catch (NotSupportedException error)
+        catch (Exception error) when (error is NotSupportedException or MissingMethodException)
         {
-            // Ahead-of-time compiled code cannot create a generic instantiation it did not compile; that surfaces as
-            // NotSupportedException (PlatformNotSupportedException derives from it).
+            // Ahead-of-time compiled code cannot create a generic instantiation it did not compile, which surfaces as
+            // NotSupportedException (MissingRuntimeArtifactException and PlatformNotSupportedException derive from it),
+            // or it lacks the constructor metadata for one it shares, which surfaces as MissingMethodException. Under the
+            // JIT, CommandResult<T> always has the constructor, so neither is expected there.
             throw new MissingCommandResultFactory(response.GetType(), error);
         }
     }
