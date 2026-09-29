@@ -80,15 +80,15 @@ internal sealed class ObservableQuerySubscriptionScopeSnapshot
     /// <param name="value">The value to serialize.</param>
     /// <returns>The UTF-8 JSON of the value.</returns>
     /// <remarks>
-    /// This and <see cref="Deserialize"/> are the only places the snapshot goes through the runtime type. The Arc
-    /// serializer options carry no type info resolver, so the type can only be resolved by reflection here until those
-    /// options are backed by generated metadata.
+    /// This and <see cref="Deserialize"/> are the only places the snapshot goes through the runtime type, resolved
+    /// through the options' resolver chain - the application's source-generated metadata, Arc's, and reflection only when
+    /// it is enabled.
     /// </remarks>
-    byte[] Serialize(object value) => JsonSerializer.SerializeToUtf8Bytes(value, _runtimeType, _serializerOptions);
+    byte[] Serialize(object value) => JsonSerializer.SerializeToUtf8Bytes(value, _serializerOptions.ResolveTypeInfo(_runtimeType));
 
     /// <summary>
     /// Restores a scope value from the captured JSON.
     /// </summary>
     /// <returns>The restored value, or <see langword="null"/> when the JSON holds <see langword="null"/>.</returns>
-    object? Deserialize() => JsonSerializer.Deserialize(_serializedValue, _runtimeType, _serializerOptions);
+    object? Deserialize() => JsonSerializer.Deserialize(_serializedValue, _serializerOptions.ResolveTypeInfo(_runtimeType));
 }
