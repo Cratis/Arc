@@ -64,20 +64,25 @@ public static class ObservableQueryHttp
         ObservableQueryHttpOptions options,
         CancellationToken cancellationToken)
     {
-        var observableInterface = GetObservableInterfaceFor(streamingData.GetType());
-        if (observableInterface is null)
+        var elementType = ObservableQueryElementOperations.FindElementType(streamingData.GetType(), typeof(IObservable<>));
+        if (elementType is null)
         {
             return new(CreateSuccessResult(queryContext, streamingData), HttpStatusCode.OK);
         }
 
-        var method = typeof(ObservableQueryHttp).GetMethod(nameof(CreateResponseForObservable), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-        var genericMethod = method.MakeGenericMethod(observableInterface.GetGenericArguments()[0]);
-        var responseTask = (Task<ObservableQueryHttpResponse>)genericMethod.Invoke(null, [queryContext, streamingData, options, cancellationToken])!;
-
-        return await responseTask;
+        return await ObservableQueryElementOperations.For(elementType).CreateHttpResponse(queryContext, streamingData, options, cancellationToken);
     }
 
-    static async Task<ObservableQueryHttpResponse> CreateResponseForObservable<T>(
+    /// <summary>
+    /// Creates the HTTP response for an observable of a known element type.
+    /// </summary>
+    /// <typeparam name="T">The element type of the observable.</typeparam>
+    /// <param name="queryContext">The <see cref="QueryContext"/> for the current request.</param>
+    /// <param name="streamingData">The observable query result.</param>
+    /// <param name="options">The <see cref="ObservableQueryHttpOptions"/>.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> for the request.</param>
+    /// <returns>The <see cref="ObservableQueryHttpResponse"/> to send.</returns>
+    internal static async Task<ObservableQueryHttpResponse> CreateResponseForObservable<T>(
         QueryContext queryContext,
         object streamingData,
         ObservableQueryHttpOptions options,
@@ -158,11 +163,6 @@ public static class ObservableQueryHttp
             ExceptionStackTrace = string.Empty,
             Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems)
         };
-
-    static Type? GetObservableInterfaceFor(Type type) =>
-        type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IObservable<>)
-            ? type
-            : type.GetInterfaces().FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IObservable<>));
 
     static bool TryGetCurrentValue(object streamingData, out object? currentValue)
     {
