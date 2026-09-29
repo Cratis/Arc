@@ -166,6 +166,29 @@ app.UseCratisArc();
 app.Run();
 ```
 
+## Turning controllers off
+
+`AddCratisArc` registers ASP.NET Core MVC and discovers the controllers in your project assemblies. An application that only uses model-bound commands and queries doesn't need MVC, and MVC isn't supported when you publish trimmed or as NativeAOT. Turn it off with `WithoutControllers` on the Arc builder:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.AddCratisArc(configureBuilder: arc => arc.WithoutControllers());
+
+var app = builder.Build();
+app.UseCratisArc();
+app.Run();
+```
+
+Controllers are on unless you call `WithoutControllers`. With controllers off:
+
+- Model-bound commands and queries, observable queries included, work as before. `UseCratisArc` maps their endpoints without MVC.
+- Controller-based commands and queries aren't available, because no controllers are discovered.
+- MVC-only features aren't registered: `MapControllers`, `[FromRequest]` model binding, `[AspNetResult]`, and MVC model validation. Arc still validates model-bound commands and queries.
+- OpenAPI documents describe the model-bound endpoints only.
+
+`WithoutControllers` works with `AddCratis` too, through `configureArcBuilder`. The `IHostBuilder` overload of `AddCratisArc` has no Arc builder, so it always registers controllers.
+
 ## Hosting under a path prefix
 
 For an app reached at `/workbench`, configure ASP.NET Core's `UsePathBase` **before** `UseRouting` and `UseCratisArc`. It removes the prefix from the request path before endpoint matching; leave Arc's generated API route prefix (normally `/api`) unchanged.
