@@ -28,40 +28,7 @@ public class MongoCollectionInterceptorForReturnValues(
         invocation.ReturnValue = GetTaskFromCompletionSource(taskCompletionSource);
         var cancellationToken = ExtractCancellationToken(invocation);
 
-#pragma warning disable CA2012 // Use ValueTasks correctly
-        resiliencePipeline.ExecuteAsync(
-            async (_) =>
-            {
-                if (!await TryAcquireSemaphore(taskCompletionSource, cancellationToken))
-                {
-                    return ValueTask.CompletedTask;
-                }
-
-                try
-                {
-                    await ExecuteMongoOperation(invocation, taskCompletionSource);
-                }
-                catch (OperationCanceledException)
-                {
-                    SetCanceled(taskCompletionSource);
-                }
-                catch (MongoCommandException ex) when (ex.Message.Contains(WellKnownErrorMessages.CollectionNotFound, StringComparison.OrdinalIgnoreCase))
-                {
-                    SetDefaultValueForCollectionNotFound(taskCompletionSource, returnType, invocation);
-                }
-                catch (Exception ex)
-                {
-                    SetException(taskCompletionSource, ex);
-                }
-                finally
-                {
-                    openConnectionSemaphore.Release();
-                }
-
-                return ValueTask.CompletedTask;
-            },
-            cancellationToken);
-#pragma warning restore CA2012 // Use ValueTasks correctly
+        _ = ExecuteThroughPipeline(invocation, taskCompletionSource, returnType, cancellationToken);
     }
 
     static object CreateTaskCompletionSource(Type returnType)
@@ -110,6 +77,13 @@ public class MongoCollectionInterceptorForReturnValues(
         var tcsType = taskCompletionSource.GetType();
         var setExceptionMethod = tcsType.GetMethod(nameof(TaskCompletionSource<object>.SetException), [typeof(Exception)])!;
         setExceptionMethod.Invoke(taskCompletionSource, [exception]);
+    }
+
+    static void TrySetCanceled(object taskCompletionSource)
+    {
+        var tcsType = taskCompletionSource.GetType();
+        var trySetCanceledMethod = tcsType.GetMethod(nameof(TaskCompletionSource<object>.TrySetCanceled), [])!;
+        trySetCanceledMethod.Invoke(taskCompletionSource, []);
     }
 
     static void SetCanceled(object taskCompletionSource)
@@ -165,6 +139,51 @@ public class MongoCollectionInterceptorForReturnValues(
         var elementType = changeStreamCursorType.GetGenericArguments()[0];
         var retryingChangeStreamCursorType = typeof(RetryingChangeStreamCursor<>).MakeGenericType(elementType);
         return Activator.CreateInstance(retryingChangeStreamCursorType, invocation, TimeSpan.FromSeconds(1))!;
+    }
+
+    async Task ExecuteThroughPipeline(IInvocation invocation, object taskCompletionSource, Type returnType, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await resiliencePipeline.ExecuteAsync(
+                async (_) =>
+                {
+                    if (!await TryAcquireSemaphore(taskCompletionSource, cancellationToken))
+                    {
+                        return ValueTask.CompletedTask;
+                    }
+
+                    try
+                    {
+                        await ExecuteMongoOperation(invocation, taskCompletionSource);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        SetCanceled(taskCompletionSource);
+                    }
+                    catch (MongoCommandException ex) when (ex.Message.Contains(WellKnownErrorMessages.CollectionNotFound, StringComparison.OrdinalIgnoreCase))
+                    {
+                        SetDefaultValueForCollectionNotFound(taskCompletionSource, returnType, invocation);
+                    }
+                    catch (Exception ex)
+                    {
+                        SetException(taskCompletionSource, ex);
+                    }
+                    finally
+                    {
+                        openConnectionSemaphore.Release();
+                    }
+
+                    return ValueTask.CompletedTask;
+                },
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // The pipeline does not invoke the callback for a token that is already cancelled, so nothing else would
+            // complete the caller's task.
+            TrySetCanceled(taskCompletionSource);
+        }
     }
 
     async Task<bool> TryAcquireSemaphore(object taskCompletionSource, CancellationToken cancellationToken)
