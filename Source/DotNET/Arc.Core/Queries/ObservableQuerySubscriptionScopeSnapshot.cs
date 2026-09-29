@@ -26,12 +26,9 @@ internal sealed class ObservableQuerySubscriptionScopeSnapshot
         _serializerOptions = serializerOptions;
         try
         {
-            _serializedValue = JsonSerializer.SerializeToUtf8Bytes(scope, _runtimeType, serializerOptions);
-            var restored = JsonSerializer.Deserialize(_serializedValue, _runtimeType, serializerOptions);
-            if (restored is null || restored.GetType() != _runtimeType ||
-                !JsonElement.DeepEquals(
-                    JsonSerializer.SerializeToElement(scope, _runtimeType, serializerOptions),
-                    JsonSerializer.SerializeToElement(restored, _runtimeType, serializerOptions)))
+            _serializedValue = Serialize(scope);
+            var restored = Deserialize();
+            if (restored is null || restored.GetType() != _runtimeType || !SerializeEquivalently(scope, restored))
             {
                 throw new InvalidSubscriptionScope(_runtimeType);
             }
@@ -51,12 +48,47 @@ internal sealed class ObservableQuerySubscriptionScopeSnapshot
     {
         try
         {
-            return JsonSerializer.Deserialize(_serializedValue, _runtimeType, _serializerOptions)
-                ?? throw new InvalidSubscriptionScope(_runtimeType);
+            return Deserialize() ?? throw new InvalidSubscriptionScope(_runtimeType);
         }
         catch (Exception error) when (error is JsonException or NotSupportedException or InvalidOperationException)
         {
             throw new InvalidSubscriptionScope(_runtimeType, error);
         }
     }
+
+    /// <summary>
+    /// Gets whether the original scope and its restored copy serialize to the same JSON.
+    /// </summary>
+    /// <param name="scope">The scope the filter supplied.</param>
+    /// <param name="restored">The scope as restored from the snapshot.</param>
+    /// <returns>True when both serialize to equivalent JSON.</returns>
+    /// <remarks>
+    /// Parses what <see cref="Serialize"/> produced with the document options the serializer itself would parse with,
+    /// so the comparison is the same as comparing the elements the serializer builds.
+    /// </remarks>
+    bool SerializeEquivalently(object scope, object restored)
+    {
+        var documentOptions = new JsonDocumentOptions { MaxDepth = _serializerOptions.MaxDepth };
+        using var original = JsonDocument.Parse(Serialize(scope), documentOptions);
+        using var roundTripped = JsonDocument.Parse(Serialize(restored), documentOptions);
+        return JsonElement.DeepEquals(original.RootElement, roundTripped.RootElement);
+    }
+
+    /// <summary>
+    /// Serializes a scope value by the captured runtime type.
+    /// </summary>
+    /// <param name="value">The value to serialize.</param>
+    /// <returns>The UTF-8 JSON of the value.</returns>
+    /// <remarks>
+    /// This and <see cref="Deserialize"/> are the only places the snapshot goes through the runtime type. The Arc
+    /// serializer options carry no type info resolver, so the type can only be resolved by reflection here until those
+    /// options are backed by generated metadata.
+    /// </remarks>
+    byte[] Serialize(object value) => JsonSerializer.SerializeToUtf8Bytes(value, _runtimeType, _serializerOptions);
+
+    /// <summary>
+    /// Restores a scope value from the captured JSON.
+    /// </summary>
+    /// <returns>The restored value, or <see langword="null"/> when the JSON holds <see langword="null"/>.</returns>
+    object? Deserialize() => JsonSerializer.Deserialize(_serializedValue, _runtimeType, _serializerOptions);
 }
