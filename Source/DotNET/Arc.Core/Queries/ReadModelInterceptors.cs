@@ -20,179 +20,115 @@ namespace Cratis.Arc.Queries;
 [Singleton]
 public class ReadModelInterceptors(ITypes types) : IReadModelInterceptors
 {
-    readonly InterceptorCache _cache = BuildCache(types);
-    readonly ConcurrentDictionary<Type, IReadOnlyList<InterceptorEntry>> _entriesByReadModelType = new();
-    readonly ConcurrentDictionary<Type, ServiceInterceptorEntry> _serviceEntriesByReadModelType = new();
+    readonly Type[] _discoveredInterceptorTypes = ValidateDiscoveredInterceptorTypes([.. types.FindMultiple(typeof(IInterceptReadModel<>))]);
+    readonly ConcurrentDictionary<Type, Interception> _interceptionsByReadModelType = new();
 
     /// <inheritdoc/>
     public async Task<IEnumerable<object>> Intercept(Type readModelType, IEnumerable<object> items, IServiceProvider serviceProvider)
     {
-        var entries = _entriesByReadModelType.GetOrAdd(readModelType, BuildEntriesFor);
-        var serviceEntry = _serviceEntriesByReadModelType.GetOrAdd(readModelType, CreateServiceEntry);
-        var serviceInterceptors = GetServiceInterceptors(serviceEntry, serviceProvider);
-        if (entries.Count == 0 && serviceInterceptors.Count == 0)
+        var interception = _interceptionsByReadModelType.GetOrAdd(readModelType, CreateInterception);
+        var serviceInterceptors = interception.Invoker.GetServiceInterceptors(serviceProvider);
+        if (interception.InterceptorTypes.Count == 0 && serviceInterceptors.Count == 0)
         {
             return items;
         }
 
-        return await Task.WhenAll(items.Select(item => InterceptItem(item, entries, serviceInterceptors, serviceEntry, serviceProvider)));
+        return await Task.WhenAll(items.Select(item => InterceptItem(item, interception, serviceInterceptors, serviceProvider)));
     }
 
-    static InterceptorCache BuildCache(ITypes types)
+    static Type[] ValidateDiscoveredInterceptorTypes(Type[] interceptorTypes)
     {
-        var interceptorTypes = types.FindMultiple(typeof(IInterceptReadModel<>));
-        var map = new Dictionary<Type, (List<Type> Types, MethodInfo? Method, PropertyInfo? ResultProperty)>();
-        var openGenericInterceptorTypes = new List<Type>();
-
-        foreach (var interceptorType in interceptorTypes)
+        foreach (var interceptorType in interceptorTypes.Where(_ => _.IsGenericTypeDefinition))
         {
-            if (interceptorType.IsGenericTypeDefinition)
+            if (interceptorType.GetGenericArguments().Length != 1)
             {
-                openGenericInterceptorTypes.Add(interceptorType);
-                continue;
+                throw new OpenGenericReadModelInterceptorMustInterceptItsTypeParameter(interceptorType);
             }
 
-            var interceptorInterface = interceptorType
-                .GetInterfaces()
-                .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IInterceptReadModel<>));
-
-            if (interceptorInterface is null)
+            // Probe the shape with a stand-in read model. Interceptors whose generic constraints the probe does not
+            // satisfy are validated once they are closed for a real read model.
+            if (TryCloseOpenGenericInterceptor(interceptorType, typeof(ShapeProbe), out var probedType) &&
+                !typeof(IInterceptReadModel<ShapeProbe>).IsAssignableFrom(probedType))
             {
-                continue;
+                throw new OpenGenericReadModelInterceptorMustInterceptItsTypeParameter(interceptorType);
             }
-
-            var readModelType = interceptorInterface.GetGenericArguments()[0];
-            if (!map.TryGetValue(readModelType, out var entry))
-            {
-                var method = interceptorInterface.GetMethod(nameof(IInterceptReadModel<object>.Intercept));
-                var resultProperty = method!.ReturnType.GetProperty("Result");
-                entry = ([], method, resultProperty);
-                map[readModelType] = entry;
-            }
-
-            entry.Types.Add(interceptorType);
         }
 
-        var concreteInterceptors = map.ToDictionary(
-            kvp => kvp.Key,
-            kvp => new InterceptorEntry(kvp.Value.Types, kvp.Value.Method!, kvp.Value.ResultProperty!));
-
-        return new(concreteInterceptors, openGenericInterceptorTypes);
+        return interceptorTypes;
     }
 
-    static bool TryCreateOpenGenericEntry(Type openGenericInterceptorType, Type readModelType, out InterceptorEntry entry)
+    static bool TryCloseOpenGenericInterceptor(Type openGenericInterceptorType, Type readModelType, out Type interceptorType)
     {
-        entry = default;
+        interceptorType = openGenericInterceptorType;
 
-        if (!openGenericInterceptorType.IsGenericTypeDefinition ||
-            openGenericInterceptorType.GetGenericArguments().Length != 1)
-        {
-            return false;
-        }
-
-        Type interceptorType;
         try
         {
             interceptorType = openGenericInterceptorType.MakeGenericType(readModelType);
         }
         catch (ArgumentException)
         {
+            // The read model does not satisfy the generic constraints of the interceptor, so it does not apply to it.
             return false;
         }
 
-        var interceptorInterface = interceptorType
-            .GetInterfaces()
-            .FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IInterceptReadModel<>));
-
-        if (interceptorInterface is null)
-        {
-            return false;
-        }
-
-        var method = interceptorInterface.GetMethod(nameof(IInterceptReadModel<object>.Intercept));
-        var resultProperty = method!.ReturnType.GetProperty("Result");
-
-        entry = new([interceptorType], method, resultProperty!);
         return true;
     }
 
-    static ServiceInterceptorEntry CreateServiceEntry(Type readModelType)
-    {
-        var serviceType = typeof(IInterceptReadModel<>).MakeGenericType(readModelType);
-        var enumerableServiceType = typeof(IEnumerable<>).MakeGenericType(serviceType);
-        var method = serviceType.GetMethod(nameof(IInterceptReadModel<object>.Intercept));
-        var resultProperty = method!.ReturnType.GetProperty("Result");
-
-        return new(enumerableServiceType, method, resultProperty!);
-    }
-
-    static IReadOnlyList<object> GetServiceInterceptors(ServiceInterceptorEntry entry, IServiceProvider serviceProvider)
-    {
-        if (serviceProvider.GetService(entry.EnumerableServiceType) is not System.Collections.IEnumerable interceptors)
-        {
-            return [];
-        }
-
-        return [.. interceptors.Cast<object>()];
-    }
-
-    IReadOnlyList<InterceptorEntry> BuildEntriesFor(Type readModelType)
-    {
-        var entries = new List<InterceptorEntry>();
-
-        if (_cache.ConcreteInterceptors.TryGetValue(readModelType, out var concreteEntry))
-        {
-            entries.Add(concreteEntry);
-        }
-
-        foreach (var openGenericInterceptorType in _cache.OpenGenericInterceptorTypes)
-        {
-            if (TryCreateOpenGenericEntry(openGenericInterceptorType, readModelType, out var entry))
-            {
-                entries.Add(entry);
-            }
-        }
-
-        return entries;
-    }
-
-    async Task<object> InterceptItem(
+    static async Task<object> InterceptItem(
         object item,
-        IEnumerable<InterceptorEntry> entries,
+        Interception interception,
         IReadOnlyList<object> serviceInterceptors,
-        ServiceInterceptorEntry serviceEntry,
         IServiceProvider serviceProvider)
     {
         var current = item;
         var invokedInterceptorTypes = new HashSet<Type>();
 
-        foreach (var entry in entries)
+        foreach (var interceptorType in interception.InterceptorTypes)
         {
-            foreach (var interceptorType in entry.InterceptorTypes)
-            {
-                var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
-                var task = (Task)entry.InterceptMethod.Invoke(interceptor, [current])!;
-                await task;
-                current = entry.TaskResultProperty.GetValue(task)!;
-                invokedInterceptorTypes.Add(interceptorType);
-            }
+            var interceptor = ActivatorUtilities.GetServiceOrCreateInstance(serviceProvider, interceptorType);
+            current = await interception.Invoker.Intercept(interceptor, current);
+            invokedInterceptorTypes.Add(interceptorType);
         }
 
         foreach (var interceptor in serviceInterceptors.Where(_ => !invokedInterceptorTypes.Contains(_.GetType())))
         {
-            var task = (Task)serviceEntry.InterceptMethod.Invoke(interceptor, [current])!;
-            await task;
-            current = serviceEntry.TaskResultProperty.GetValue(task)!;
+            current = await interception.Invoker.Intercept(interceptor, current);
         }
 
         return current;
     }
 
-    readonly record struct InterceptorCache(
-        IReadOnlyDictionary<Type, InterceptorEntry> ConcreteInterceptors,
-        IReadOnlyList<Type> OpenGenericInterceptorTypes);
+    static ReadModelInterceptorInvokerFor<TReadModel> CreateInvoker<TReadModel>() => new();
 
-    readonly record struct InterceptorEntry(IReadOnlyList<Type> InterceptorTypes, MethodInfo InterceptMethod, PropertyInfo TaskResultProperty);
+    Interception CreateInterception(Type readModelType)
+    {
+        var invoker = (ReadModelInterceptorInvoker)typeof(ReadModelInterceptors)
+            .GetMethod(nameof(CreateInvoker), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(readModelType)
+            .Invoke(null, null)!;
 
-    readonly record struct ServiceInterceptorEntry(Type EnumerableServiceType, MethodInfo InterceptMethod, PropertyInfo TaskResultProperty);
+        var interceptorTypes = new List<Type>();
+        interceptorTypes.AddRange(_discoveredInterceptorTypes.Where(_ => !_.IsGenericTypeDefinition && invoker.InterceptorInterface.IsAssignableFrom(_)));
+
+        foreach (var openGenericInterceptorType in _discoveredInterceptorTypes.Where(_ => _.IsGenericTypeDefinition))
+        {
+            if (!TryCloseOpenGenericInterceptor(openGenericInterceptorType, readModelType, out var interceptorType))
+            {
+                continue;
+            }
+
+            if (!invoker.InterceptorInterface.IsAssignableFrom(interceptorType))
+            {
+                throw new OpenGenericReadModelInterceptorMustInterceptItsTypeParameter(openGenericInterceptorType);
+            }
+
+            interceptorTypes.Add(interceptorType);
+        }
+
+        return new(invoker, interceptorTypes);
+    }
+
+    readonly record struct Interception(ReadModelInterceptorInvoker Invoker, IReadOnlyList<Type> InterceptorTypes);
+
+    sealed record ShapeProbe;
 }
