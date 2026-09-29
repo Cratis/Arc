@@ -12,6 +12,6 @@ public class when_every_project_reference_has_an_accessible_type : given.project
 
     void Because() => _result = ProjectReferenceModulesGeneratorRunner.Run(OutputKind.ConsoleApplication, "1|VisibleLibrary", _visibleLibrary);
 
-    [Fact] void should_not_leave_any_assembly_to_load_by_name() => _result.Source!.Contains("Register(RunModuleInitializers, global::System.Array.Empty<string>());", StringComparison.Ordinal).ShouldBeTrue();
+    [Fact] void should_not_leave_any_assembly_to_load_by_name() => _result.Source!.Contains("            global::System.Array.Empty<string>());", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_leave_the_compilation_valid() => _result.Errors.ShouldBeEmpty();
 }

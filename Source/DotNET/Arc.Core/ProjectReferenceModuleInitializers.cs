@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel;
+using System.Reflection;
 
 namespace Cratis.Arc;
 
@@ -18,16 +19,21 @@ public static class ProjectReferenceModuleInitializers
     /// <summary>
     /// Registers the project reference modules of an executable.
     /// </summary>
-    /// <param name="runModuleInitializers">Runs the module initializers of the project references generated code could name a type in.</param>
+    /// <param name="registeringAssembly">The executable the generated code is in.</param>
+    /// <param name="projectReferenceModules">Gets the module of each project reference generated code could name a type in, by assembly name.</param>
     /// <param name="assembliesWithoutReachableTypes">Names of the project references generated code could not name a type in.</param>
     /// <remarks>
     /// Nothing runs here; the module initializers run when Arc is added to the application.
     /// </remarks>
-    public static void Register(Action runModuleInitializers, IEnumerable<string> assembliesWithoutReachableTypes)
+    public static void Register(
+        Assembly registeringAssembly,
+        IReadOnlyDictionary<string, Func<Module>> projectReferenceModules,
+        IEnumerable<string> assembliesWithoutReachableTypes)
     {
-        ArgumentNullException.ThrowIfNull(runModuleInitializers);
+        ArgumentNullException.ThrowIfNull(registeringAssembly);
+        ArgumentNullException.ThrowIfNull(projectReferenceModules);
         ArgumentNullException.ThrowIfNull(assembliesWithoutReachableTypes);
 
-        GeneratedMetadataRegistration.Default.Register(runModuleInitializers, assembliesWithoutReachableTypes);
+        GeneratedMetadataRegistration.Default.Register(registeringAssembly, projectReferenceModules, assembliesWithoutReachableTypes);
     }
 }

@@ -7,14 +7,20 @@ public class and_a_module_initializer_throws : given.a_generated_metadata_regist
 {
     TypeInitializationException _failure;
     Exception _error;
+    Exception _laterError;
 
     void Establish()
     {
-        _failure = new("Project.Module", new InvalidOperationException("Registration failed"));
-        _registration.Register(() => throw _failure, []);
+        _failure = new("<Module>", new InvalidOperationException("Registration failed"));
+        _registration.Register(_entryAssembly, Modules(("Failing.Project", () => throw _failure)), []);
     }
 
-    void Because() => _error = Catch.Exception(_registration.EnsureRegistered);
+    void Because()
+    {
+        _error = Catch.Exception(_registration.EnsureRegistered);
+        _laterError = Catch.Exception(_registration.EnsureRegistered);
+    }
 
     [Fact] void should_propagate_the_failure() => _error.ShouldEqual(_failure);
+    [Fact] void should_propagate_the_failure_again_on_later_calls() => _laterError.ShouldEqual(_failure);
 }

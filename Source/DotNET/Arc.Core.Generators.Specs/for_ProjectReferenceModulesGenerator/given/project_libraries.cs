@@ -7,28 +7,42 @@ namespace Cratis.Arc.Generators.Specs.for_ProjectReferenceModulesGenerator.given
 
 public class project_libraries : Specification
 {
-    protected const string ModuleInitializerRanKey = "Cratis.Arc.Generators.Specs.VisibleLibrary.ModuleInitializerRan";
-
     protected ProjectLibrary _visibleLibrary;
     protected ProjectLibrary _hiddenLibrary;
     protected ProjectLibrary _packageLibrary;
+    protected ProjectLibrary _choosingLibrary;
+    protected ProjectLibrary _compileOnlyLibrary;
+    protected ProjectLibrary _derivedLibrary;
 
     void Establish()
     {
-        const string visibleSource = $$"""
-            namespace VisibleLibrary.Things
+        _visibleLibrary = ProjectLibrary.Compile("VisibleLibrary", "namespace VisibleLibrary.Things { public class Visible; }");
+        _hiddenLibrary = ProjectLibrary.Compile("HiddenLibrary", "namespace HiddenLibrary { internal class Hidden; }");
+        _packageLibrary = ProjectLibrary.Compile("PackageLibrary", "namespace PackageLibrary { public class Packaged; }");
+        _choosingLibrary = ProjectLibrary.Compile(
+            "ChoosingLibrary",
+            "namespace ChoosingLibrary { public class AImplementsAnInterface : System.IDisposable { public void Dispose() { } } public class WithoutDependencies; }");
+        _compileOnlyLibrary = ProjectLibrary.Compile("CompileOnlyLibrary", "namespace CompileOnlyLibrary { public class Base; }");
+        _derivedLibrary = ProjectLibrary.Compile(
+            "DerivedLibrary",
+            "namespace DerivedLibrary { public class Derived : CompileOnlyLibrary.Base; }",
+            _compileOnlyLibrary);
+    }
+
+    protected static ProjectLibrary CompileWithModuleInitializer(string name, string types, string moduleInitializerRanKey, params ProjectLibrary[] references)
+    {
+        var source = $$"""
+            namespace {{name}}
             {
-                public class Visible;
+                {{types}}
 
                 static class Registration
                 {
                     [System.Runtime.CompilerServices.ModuleInitializer]
-                    internal static void Register() => System.AppContext.SetData("{{ModuleInitializerRanKey}}", true);
+                    internal static void Register() => System.AppContext.SetData("{{moduleInitializerRanKey}}", true);
                 }
             }
             """;
-        _visibleLibrary = ProjectLibrary.Compile("VisibleLibrary", visibleSource);
-        _hiddenLibrary = ProjectLibrary.Compile("HiddenLibrary", "namespace HiddenLibrary { internal class Hidden; }");
-        _packageLibrary = ProjectLibrary.Compile("PackageLibrary", "namespace PackageLibrary { public class Packaged; }");
+        return ProjectLibrary.Compile(name, source, references);
     }
 }

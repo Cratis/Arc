@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyModel;
 using Microsoft.Extensions.Logging;
@@ -14,8 +15,9 @@ namespace Cratis.Arc;
 /// Runs the module initializers that register compile-time generated metadata, for every project assembly the
 /// application references.
 /// </summary>
-/// <param name="loadAssembly">Loads a project assembly by name; used only for assemblies generated code cannot name.</param>
+/// <param name="loadAssembly">Loads a project assembly by name; used only for assemblies generated code cannot reach.</param>
 /// <param name="getDependencyContextProjectNames">Gets the names of the project libraries in the dependency context.</param>
+/// <param name="getEntryAssembly">Gets the entry assembly of the process, if any.</param>
 /// <remarks>
 /// <para>
 /// Generators such as <c>QueryMetadataGenerator</c> and the Fundamentals type discovery generator emit a
@@ -25,19 +27,28 @@ namespace Cratis.Arc;
 /// <para>
 /// An executable built with the Arc generators registers its project references through
 /// <see cref="ProjectReferenceModuleInitializers"/>, naming a type in each so its module is reached without loading
-/// anything by name. Only an application built without them falls back to the project libraries of the runtime
-/// dependency context, which is not available in single-file applications and cannot be trimmed safely.
+/// anything by name. When the entry assembly registered that way, its project references are complete and the
+/// runtime dependency context is not consulted. Otherwise - an application built without the Arc generators, or a
+/// registration from an executable that is not the process root, such as a web application hosted by a test - the
+/// project libraries of the dependency context are run as well. That fallback is not available in single-file
+/// applications and cannot be trimmed safely; running a module initializer twice is a no-op.
+/// </para>
+/// <para>
+/// A registration that fails is not counted as done: the failure is kept and thrown again by every later call, so
+/// no caller proceeds with only part of the generated metadata registered.
 /// </para>
 /// </remarks>
 internal sealed class GeneratedMetadataRegistration(
     Func<AssemblyName, Assembly> loadAssembly,
-    Func<IEnumerable<string>> getDependencyContextProjectNames)
+    Func<IEnumerable<string>> getDependencyContextProjectNames,
+    Func<Assembly?> getEntryAssembly)
 {
     readonly object _lock = new();
     readonly Queue<GeneratedProjectReferenceModules> _pending = [];
+    readonly HashSet<Assembly> _registeringAssemblies = [];
     readonly List<SkippedProjectAssembly> _skipped = [];
-    bool _hasGeneratedRegistrations;
     bool _hasRunDependencyContextFallback;
+    ExceptionDispatchInfo? _failure;
 
     /// <summary>
     /// Gets the process-wide instance generated code registers with.
@@ -45,7 +56,7 @@ internal sealed class GeneratedMetadataRegistration(
     internal static GeneratedMetadataRegistration Default { get; } = CreateDefault();
 
     /// <summary>
-    /// Gets the project assemblies that could not be loaded, and so registered nothing.
+    /// Gets the project assemblies that could not be loaded, and so registered nothing, that have not been logged yet.
     /// </summary>
     internal IEnumerable<SkippedProjectAssembly> Skipped
     {
@@ -68,7 +79,8 @@ internal sealed class GeneratedMetadataRegistration(
     public static void EnsureGeneratedMetadataRegistered() => Default.EnsureRegistered();
 
     /// <summary>
-    /// Logs, once, the project assemblies that could not be loaded while registering generated metadata.
+    /// Logs the project assemblies that could not be loaded while registering generated metadata and have not been
+    /// logged yet.
     /// </summary>
     /// <param name="services">The <see cref="IServiceProvider"/> to resolve the <see cref="ILogger{TCategoryName}"/> from.</param>
     public static void LogSkippedProjectAssemblies(IServiceProvider services)
@@ -82,47 +94,72 @@ internal sealed class GeneratedMetadataRegistration(
     /// <summary>
     /// Registers the project reference modules of an executable, as reported by its generated code.
     /// </summary>
-    /// <param name="runModuleInitializers">Runs the module initializers of the project references generated code could name.</param>
+    /// <param name="registeringAssembly">The executable the generated code is in.</param>
+    /// <param name="projectReferenceModules">Gets the module of each project reference generated code could name a type in, by assembly name.</param>
     /// <param name="assembliesWithoutReachableTypes">Names of project references generated code could not name a type in.</param>
-    internal void Register(Action runModuleInitializers, IEnumerable<string> assembliesWithoutReachableTypes)
+    internal void Register(
+        Assembly registeringAssembly,
+        IEnumerable<KeyValuePair<string, Func<Module>>> projectReferenceModules,
+        IEnumerable<string> assembliesWithoutReachableTypes)
     {
         lock (_lock)
         {
-            _hasGeneratedRegistrations = true;
-            _pending.Enqueue(new(runModuleInitializers, [.. assembliesWithoutReachableTypes]));
+            _registeringAssemblies.Add(registeringAssembly);
+            _pending.Enqueue(new([.. projectReferenceModules], [.. assembliesWithoutReachableTypes]));
         }
     }
 
     /// <summary>
     /// Runs the module initializers of every project assembly not already run.
     /// </summary>
-    /// <exception cref="TypeInitializationException">A module initializer threw.</exception>
+    /// <exception cref="TypeInitializationException">A module initializer threw, now or on an earlier call.</exception>
     internal void EnsureRegistered()
     {
-        // Module initializers run outside the lock: running one can reach an executable whose own generated module
-        // initializer registers here, and holding the lock across arbitrary module code invites deadlocks.
-        while (TryTakePending(out var registration))
+        lock (_lock)
         {
-            registration.RunModuleInitializers();
-            foreach (var assemblyName in registration.AssembliesWithoutReachableTypes)
+            _failure?.Throw();
+        }
+
+        try
+        {
+            // Module initializers run outside the lock: running one can reach an executable whose own generated
+            // module initializer registers here, and holding the lock across arbitrary module code invites deadlocks.
+            while (TryTakePending(out var registration))
             {
-                LoadAndRunModuleInitializer(assemblyName);
+                foreach (var (assemblyName, getModule) in registration.Modules)
+                {
+                    RunModuleInitializer(assemblyName, getModule);
+                }
+
+                foreach (var assemblyName in registration.AssembliesWithoutReachableTypes)
+                {
+                    LoadAndRunModuleInitializer(assemblyName);
+                }
+            }
+
+            if (!TryTakeDependencyContextFallback())
+            {
+                return;
+            }
+
+            foreach (var projectName in getDependencyContextProjectNames())
+            {
+                LoadAndRunModuleInitializer(projectName);
             }
         }
-
-        if (!TryTakeDependencyContextFallback())
+        catch (Exception ex)
         {
-            return;
-        }
+            lock (_lock)
+            {
+                _failure ??= ExceptionDispatchInfo.Capture(ex);
+            }
 
-        foreach (var projectName in getDependencyContextProjectNames())
-        {
-            LoadAndRunModuleInitializer(projectName);
+            throw;
         }
     }
 
     /// <summary>
-    /// Logs the project assemblies that could not be loaded, and forgets them so they are logged once.
+    /// Logs the project assemblies that could not be loaded, and forgets them so each is logged once.
     /// </summary>
     /// <param name="logger">The <see cref="ILogger{TCategoryName}"/> to log with.</param>
     internal void LogSkipped(ILogger<GeneratedMetadataRegistration> logger)
@@ -146,9 +183,10 @@ internal sealed class GeneratedMetadataRegistration(
     /// <returns>The <see cref="GeneratedMetadataRegistration"/>.</returns>
     /// <remarks>
     /// The fallback is not trim or single-file safe. Its warnings are left visible, and held by the trim/AOT ratchet
-    /// baseline, rather than suppressed: applications built with the Arc generators never reach it.
+    /// baseline, rather than suppressed: an application whose entry assembly was built with the Arc generators reaches
+    /// it only for a project reference whose type cannot be loaded.
     /// </remarks>
-    static GeneratedMetadataRegistration CreateDefault() => new(LoadAssemblyByName, GetDependencyContextProjectNames);
+    static GeneratedMetadataRegistration CreateDefault() => new(LoadAssemblyByName, GetDependencyContextProjectNames, Assembly.GetEntryAssembly);
 
     [RequiresUnreferencedCode("Loads a project assembly by name, which trimming cannot see.")]
     static Assembly LoadAssemblyByName(AssemblyName name) => Assembly.Load(name);
@@ -170,9 +208,11 @@ internal sealed class GeneratedMetadataRegistration(
 
     bool TryTakeDependencyContextFallback()
     {
+        var entryAssembly = getEntryAssembly();
         lock (_lock)
         {
-            if (_hasGeneratedRegistrations || _hasRunDependencyContextFallback)
+            if (_hasRunDependencyContextFallback ||
+                (entryAssembly is not null && _registeringAssemblies.Contains(entryAssembly)))
             {
                 return false;
             }
@@ -180,6 +220,26 @@ internal sealed class GeneratedMetadataRegistration(
             _hasRunDependencyContextFallback = true;
             return true;
         }
+    }
+
+    void RunModuleInitializer(string assemblyName, Func<Module> getModule)
+    {
+        Module module;
+        try
+        {
+            // Generated code reaches the module through a type in it, each in its own method so one that cannot be
+            // resolved - the assembly is not deployed, or the type's base type or interface lives in an assembly only
+            // needed at compile time - cannot stop the others. A module initializer that throws surfaces as a
+            // TypeInitializationException and is not caught.
+            module = getModule();
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or FileLoadException or BadImageFormatException or TypeLoadException)
+        {
+            LoadAndRunModuleInitializer(assemblyName);
+            return;
+        }
+
+        RuntimeHelpers.RunModuleConstructor(module.ModuleHandle);
     }
 
     void LoadAndRunModuleInitializer(string assemblyName)
@@ -207,5 +267,7 @@ internal sealed class GeneratedMetadataRegistration(
         RuntimeHelpers.RunModuleConstructor(assembly.ManifestModule.ModuleHandle);
     }
 
-    sealed record GeneratedProjectReferenceModules(Action RunModuleInitializers, IEnumerable<string> AssembliesWithoutReachableTypes);
+    sealed record GeneratedProjectReferenceModules(
+        IEnumerable<KeyValuePair<string, Func<Module>>> Modules,
+        IEnumerable<string> AssembliesWithoutReachableTypes);
 }

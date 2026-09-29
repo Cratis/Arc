@@ -9,6 +9,7 @@ public class and_loading_an_assembly_fails_unexpectedly : given.a_generated_meta
 {
     InvalidOperationException _failure;
     Exception _error;
+    Exception _laterError;
 
     void Establish()
     {
@@ -17,8 +18,13 @@ public class and_loading_an_assembly_fails_unexpectedly : given.a_generated_meta
         _loadAssembly(Arg.Any<AssemblyName>()).Returns(_ => throw _failure);
     }
 
-    void Because() => _error = Catch.Exception(_registration.EnsureRegistered);
+    void Because()
+    {
+        _error = Catch.Exception(_registration.EnsureRegistered);
+        _laterError = Catch.Exception(_registration.EnsureRegistered);
+    }
 
     [Fact] void should_propagate_the_failure() => _error.ShouldEqual(_failure);
+    [Fact] void should_propagate_the_failure_again_on_later_calls() => _laterError.ShouldEqual(_failure);
     [Fact] void should_not_report_it_as_skipped() => _registration.Skipped.ShouldBeEmpty();
 }

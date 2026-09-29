@@ -21,6 +21,11 @@ namespace Cratis.Arc.Generators;
 /// trimmed applications.
 /// </para>
 /// <para>
+/// Each type is named in its own lambda, so the runtime resolves each separately and one that cannot be loaded does
+/// not stop the others. Types with no interfaces and a base type from the core library are preferred, as they load
+/// with the fewest other assemblies.
+/// </para>
+/// <para>
 /// Project references are those the <c>Cratis.Arc.Core</c> build targets report through the
 /// <c>CratisArcProjectReferences</c> property. When the property is absent - the targets were not imported - nothing
 /// is emitted and Arc falls back to the runtime dependency context.
@@ -39,6 +44,16 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
     /// </summary>
     public const string HintName = "ProjectReferenceModules.g.cs";
 
+    /// <summary>
+    /// The tracking name of the step producing the model the source is generated from.
+    /// </summary>
+    public const string ModelTrackingName = "ProjectReferenceModules";
+
+    /// <summary>
+    /// The name of the generated class; internal rather than file-local so the code compiles with C# 10.
+    /// </summary>
+    public const string GeneratedClassName = "__CratisArcProjectReferenceModules";
+
     const string RegistrationTypeName = "Cratis.Arc.ProjectReferenceModuleInitializers";
 
     static readonly HashSet<string> _excludedAttributes = new(StringComparer.Ordinal)
@@ -51,99 +66,31 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
     /// <inheritdoc/>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // Gate on the cheap, equatable inputs first, so a library or a project without the build targets never
+        // walks its references.
         var projectReferences = context.AnalyzerConfigOptionsProvider.Select(static (options, _) =>
-            options.GlobalOptions.TryGetValue(ProjectReferencesProperty, out var value) ? value : null);
+            options.GlobalOptions.TryGetValue(ProjectReferencesProperty, out var value) ? ParseProjectReferences(value) : null);
+        var isExecutable = context.CompilationProvider.Select(static (compilation, _) =>
+            compilation.Options.OutputKind is OutputKind.ConsoleApplication or OutputKind.WindowsApplication or OutputKind.WindowsRuntimeApplication);
+        var reportedForExecutable = projectReferences
+            .Combine(isExecutable)
+            .Select(static (input, _) => input.Right ? input.Left : null);
 
-        var source = context.CompilationProvider
-            .Combine(projectReferences)
-            .Select(static (input, _) => GenerateSource(input.Left, input.Right));
+        var model = reportedForExecutable
+            .Combine(context.CompilationProvider)
+            .Select(static (input, _) => input.Left is null ? null : CreateModel(input.Right, input.Left))
+            .WithTrackingName(ModelTrackingName);
 
-        context.RegisterSourceOutput(source, static (output, text) =>
+        context.RegisterSourceOutput(model, static (output, modules) =>
         {
-            if (text is not null)
+            if (modules is not null)
             {
-                output.AddSource(HintName, text);
+                output.AddSource(HintName, GenerateSource(modules));
             }
         });
     }
 
-    static string? GenerateSource(Compilation compilation, string? projectReferences)
-    {
-        if (projectReferences is null ||
-            compilation.Options.OutputKind is not (OutputKind.ConsoleApplication or OutputKind.WindowsApplication or OutputKind.WindowsRuntimeApplication) ||
-            compilation.GetTypeByMetadataName(RegistrationTypeName) is null)
-        {
-            return null;
-        }
-
-        var projectReferenceNames = ParseProjectReferences(projectReferences);
-        if (projectReferenceNames is null)
-        {
-            return null;
-        }
-
-        var reachableTypes = new List<string>();
-        var assembliesWithoutReachableTypes = new List<string>();
-
-        foreach (var reference in compilation.References.OfType<PortableExecutableReference>())
-        {
-            if (reference.FilePath is null ||
-                !projectReferenceNames.Contains(Path.GetFileNameWithoutExtension(reference.FilePath)) ||
-                compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assembly ||
-                SymbolEqualityComparer.Default.Equals(assembly, compilation.Assembly))
-            {
-                continue;
-            }
-
-            var type = IsGloballyVisible(reference) ? FindReachableType(compilation, assembly.GlobalNamespace) : null;
-            if (type is null)
-            {
-                assembliesWithoutReachableTypes.Add(assembly.Identity.Name);
-            }
-            else
-            {
-                reachableTypes.Add(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-            }
-        }
-
-        reachableTypes.Sort(StringComparer.Ordinal);
-        assembliesWithoutReachableTypes.Sort(StringComparer.Ordinal);
-
-        var sb = new StringBuilder()
-            .AppendLine("// <auto-generated/>")
-            .AppendLine("#pragma warning disable")
-            .AppendLine("namespace Cratis.Arc.Generated;")
-            .AppendLine()
-            .AppendLine("/// <summary>")
-            .AppendLine("/// Compile-time generated registration of the project reference modules. Do not modify.")
-            .AppendLine("/// </summary>")
-            .AppendLine("file static class ProjectReferenceModules")
-            .AppendLine("{")
-            .AppendLine("    [global::System.Runtime.CompilerServices.ModuleInitializer]")
-            .AppendLine("    internal static void Register() =>")
-            .Append("        global::Cratis.Arc.ProjectReferenceModuleInitializers.Register(RunModuleInitializers, ")
-            .Append(assembliesWithoutReachableTypes.Count == 0
-                ? "global::System.Array.Empty<string>()"
-                : $"new string[] {{ {string.Join(", ", assembliesWithoutReachableTypes.Select(ToStringLiteral))} }}")
-            .AppendLine(");")
-            .AppendLine()
-            .AppendLine("    static void RunModuleInitializers()")
-            .AppendLine("    {");
-
-        foreach (var type in reachableTypes)
-        {
-            sb.Append("        global::System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(typeof(")
-                .Append(type)
-                .AppendLine(").Module.ModuleHandle);");
-        }
-
-        return sb
-            .AppendLine("    }")
-            .AppendLine("}")
-            .ToString();
-    }
-
-    static HashSet<string>? ParseProjectReferences(string projectReferences)
+    static EquatableArray<string>? ParseProjectReferences(string projectReferences)
     {
         // "<count>|<name>|<name>..." - a list that does not match its count was cut short on the way here, and
         // registering only part of the project references would hide the rest from the runtime fallback.
@@ -154,22 +101,160 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
         }
 
         var names = parts.Skip(1).Select(_ => _.Trim()).Where(_ => _.Length > 0).ToArray();
-        return names.Length == count ? new HashSet<string>(names, StringComparer.OrdinalIgnoreCase) : null;
+        return names.Length == count
+            ? new(names.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(_ => _, StringComparer.Ordinal))
+            : null;
+    }
+
+    static ProjectReferenceModules? CreateModel(Compilation compilation, EquatableArray<string> reportedNames)
+    {
+        if (compilation.GetTypeByMetadataName(RegistrationTypeName) is null)
+        {
+            return null;
+        }
+
+        var reported = new HashSet<string>(reportedNames, StringComparer.OrdinalIgnoreCase);
+        var unmatched = new HashSet<string>(reportedNames, StringComparer.OrdinalIgnoreCase);
+        var handled = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var reachable = new List<ReachableProjectReference>();
+        var byName = new List<string>();
+
+        foreach (var reference in compilation.References)
+        {
+            if (compilation.GetAssemblyOrModuleSymbol(reference) is not IAssemblySymbol assembly ||
+                SymbolEqualityComparer.Default.Equals(assembly, compilation.Assembly))
+            {
+                continue;
+            }
+
+            // A project reference is reported by file name, which normally is its assembly name. The IDE can pass it
+            // as a compilation reference without a file, so match on either.
+            var assemblyName = assembly.Identity.Name;
+            var fileName = reference is PortableExecutableReference { FilePath: { } path } ? Path.GetFileNameWithoutExtension(path) : null;
+            var matchesAssemblyName = reported.Contains(assemblyName);
+            var matchesFileName = fileName is not null && reported.Contains(fileName);
+            if (!matchesAssemblyName && !matchesFileName)
+            {
+                continue;
+            }
+
+            unmatched.Remove(assemblyName);
+            if (fileName is not null)
+            {
+                unmatched.Remove(fileName);
+            }
+
+            if (!handled.Add(assemblyName))
+            {
+                continue;
+            }
+
+            var type = IsGloballyVisible(reference) ? FindReachableType(compilation, assembly.GlobalNamespace) : null;
+            if (type is null)
+            {
+                byName.Add(assemblyName);
+            }
+            else
+            {
+                reachable.Add(new(assemblyName, type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)));
+            }
+        }
+
+        // A reported project reference the compilation does not resolve to an assembly is still loaded by name at
+        // runtime, and reported if it cannot be, rather than silently left out.
+        byName.AddRange(unmatched.Where(_ => !handled.Contains(_)));
+
+        return new(
+            new(reachable.OrderBy(_ => _.AssemblyName, StringComparer.Ordinal)),
+            new(byName.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(_ => _, StringComparer.Ordinal)));
+    }
+
+    static string GenerateSource(ProjectReferenceModules modules)
+    {
+        var sb = new StringBuilder()
+            .AppendLine("// <auto-generated/>")
+            .AppendLine("#pragma warning disable")
+            .AppendLine("namespace Cratis.Arc.Generated;")
+            .AppendLine()
+            .AppendLine("/// <summary>")
+            .AppendLine("/// Compile-time generated registration of the project reference modules. Do not modify.")
+            .AppendLine("/// </summary>")
+            .Append("internal static class ").AppendLine(GeneratedClassName)
+            .AppendLine("{")
+            .AppendLine("    [global::System.Runtime.CompilerServices.ModuleInitializer]")
+            .AppendLine("    internal static void Register() =>")
+            .AppendLine("        global::Cratis.Arc.ProjectReferenceModuleInitializers.Register(")
+            .Append("            typeof(").Append(GeneratedClassName).AppendLine(").Assembly,")
+            .AppendLine("            new global::System.Collections.Generic.Dictionary<string, global::System.Func<global::System.Reflection.Module>>")
+            .AppendLine("            {");
+
+        // One lambda per project reference: each is compiled on its own, so a type that cannot be resolved fails
+        // only its own reference.
+        foreach (var reference in modules.Reachable)
+        {
+            sb.Append("                [").Append(ToStringLiteral(reference.AssemblyName))
+                .Append("] = static () => typeof(").Append(reference.TypeName).AppendLine(").Module,");
+        }
+
+        return sb
+            .AppendLine("            },")
+            .Append("            ")
+            .Append(modules.ByName.Count == 0
+                ? "global::System.Array.Empty<string>()"
+                : $"new string[] {{ {string.Join(", ", modules.ByName.Select(ToStringLiteral))} }}")
+            .AppendLine(");")
+            .AppendLine("}")
+            .ToString();
     }
 
     static bool IsGloballyVisible(MetadataReference reference) =>
         reference.Properties.Aliases.IsDefaultOrEmpty || reference.Properties.Aliases.Contains("global");
 
-    static INamedTypeSymbol? FindReachableType(Compilation compilation, INamespaceSymbol @namespace)
+    static INamedTypeSymbol? FindReachableType(Compilation compilation, INamespaceSymbol globalNamespace)
     {
-        return @namespace.GetTypeMembers()
-                .OrderBy(_ => _.MetadataName, StringComparer.Ordinal)
-                .FirstOrDefault(_ => IsReachable(compilation, _)) ??
-            @namespace.GetNamespaceMembers()
-                .OrderBy(_ => _.Name, StringComparer.Ordinal)
-                .Select(_ => FindReachableType(compilation, _))
-                .FirstOrDefault(_ => _ is not null);
+        INamedTypeSymbol? first = null;
+        foreach (var type in GetReachableTypes(compilation, globalNamespace))
+        {
+            if (LoadsWithoutOtherAssemblies(type))
+            {
+                return type;
+            }
+
+            first ??= type;
+        }
+
+        return first;
     }
+
+    static IEnumerable<INamedTypeSymbol> GetReachableTypes(Compilation compilation, INamespaceSymbol @namespace)
+    {
+        foreach (var type in @namespace.GetTypeMembers().OrderBy(_ => _.MetadataName, StringComparer.Ordinal))
+        {
+            if (IsReachable(compilation, type))
+            {
+                yield return type;
+            }
+        }
+
+        foreach (var child in @namespace.GetNamespaceMembers().OrderBy(_ => _.Name, StringComparer.Ordinal))
+        {
+            foreach (var type in GetReachableTypes(compilation, child))
+            {
+                yield return type;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether loading the type loads no other assembly for its base types or interfaces, which may live in an assembly
+    /// only needed at compile time.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>True when it loads without other assemblies.</returns>
+    static bool LoadsWithoutOtherAssemblies(INamedTypeSymbol type) =>
+        type.AllInterfaces.IsEmpty &&
+        (type.TypeKind == TypeKind.Interface ||
+         type.BaseType?.SpecialType is SpecialType.System_Object or SpecialType.System_ValueType or SpecialType.System_Enum);
 
     static bool IsReachable(Compilation compilation, INamedTypeSymbol type) =>
         !type.IsGenericType &&

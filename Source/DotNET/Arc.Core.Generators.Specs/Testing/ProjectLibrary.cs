@@ -21,18 +21,25 @@ public sealed record ProjectLibrary(string Name, ImmutableArray<byte> Image)
     public MetadataReference Reference => MetadataReference.CreateFromImage(Image, filePath: $"{Name}.dll");
 
     /// <summary>
+    /// Gets a <see cref="MetadataReference"/> to the library without a file path, the way an IDE workspace can pass a
+    /// project reference to the compiler.
+    /// </summary>
+    public MetadataReference ReferenceWithoutFile => MetadataReference.CreateFromImage(Image);
+
+    /// <summary>
     /// Compiles a library from source.
     /// </summary>
     /// <param name="name">The assembly name.</param>
     /// <param name="source">The C# source of the library.</param>
+    /// <param name="references">The libraries it references.</param>
     /// <returns>The compiled <see cref="ProjectLibrary"/>.</returns>
     /// <exception cref="InvalidOperationException">The source does not compile.</exception>
-    public static ProjectLibrary Compile(string name, string source)
+    public static ProjectLibrary Compile(string name, string source, params ProjectLibrary[] references)
     {
         var compilation = CSharpCompilation.Create(
             name,
             [CSharpSyntaxTree.ParseText(source)],
-            ProjectReferenceModulesGeneratorRunner.PlatformReferences,
+            ProjectReferenceModulesGeneratorRunner.PlatformReferences.Concat(references.Select(_ => _.Reference)),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         using var stream = new MemoryStream();
