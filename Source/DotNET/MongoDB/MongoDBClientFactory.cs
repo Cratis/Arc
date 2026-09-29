@@ -55,19 +55,18 @@ public class MongoDBClientFactory(
     /// <inheritdoc/>
     public IMongoClient Create(string connectionString) => Create(MongoClientSettings.FromConnectionString(connectionString));
 
-    IMongoClient CreateImplementation(MongoClientSettings settings)
+    /// <summary>
+    /// Wraps the client in the Castle.DynamicProxy and Polly based resilience layer.
+    /// </summary>
+    /// <param name="client">The <see cref="MongoClient"/> to wrap.</param>
+    /// <returns>A proxied <see cref="IMongoClient"/>.</returns>
+    /// <remarks>
+    /// Proxies are generated at runtime with Castle.DynamicProxy, which requires dynamic code and is not compatible
+    /// with trimming or native AOT. Set <see cref="MongoDBOptions.EnableResilience"/> to <see langword="false"/>
+    /// to bypass this path.
+    /// </remarks>
+    static IMongoClient CreateResilientClient(MongoClient client)
     {
-        if (options.Value.DirectConnection is true)
-        {
-            settings.DirectConnection = true;
-        }
-        settings.ClusterConfigurator = builder => ClusterConfigurator(settings, builder);
-
-        logger.CreateClient(settings.Server.ToString());
-#pragma warning disable CA2000 // Dispose objects before losing scope - we're returning the client
-        var client = new MongoClient(settings);
-#pragma warning restore CA2000 // Dispose objects before losing scope
-
         var resiliencePipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions
             {
@@ -84,6 +83,22 @@ public class MongoDBClientFactory(
         };
 
         return proxyGenerator.CreateInterfaceProxyWithTarget<IMongoClient>(client, proxyGeneratorOptions);
+    }
+
+    IMongoClient CreateImplementation(MongoClientSettings settings)
+    {
+        if (options.Value.DirectConnection is true)
+        {
+            settings.DirectConnection = true;
+        }
+        settings.ClusterConfigurator = builder => ClusterConfigurator(settings, builder);
+
+        logger.CreateClient(settings.Server.ToString());
+#pragma warning disable CA2000 // Dispose objects before losing scope - we're returning the client
+        var client = new MongoClient(settings);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+        return options.Value.EnableResilience ? CreateResilientClient(client) : client;
     }
 
     void ClusterConfigurator(MongoClientSettings settings, ClusterBuilder builder)

@@ -32,6 +32,8 @@ In your host's `appsettings.json`, add:
 
 `Server` and `Database` are required. Keep production credentials in your host's secret configuration, not source control. `DirectConnection` is optional: when unset, the connection string's setting is preserved. Direct connection does not turn a standalone MongoDB server into a replica set.
 
+`EnableResilience` is optional and defaults to `true`. Arc then wraps the client, databases, and collections in runtime-generated proxies that limit concurrent collection operations and treat the Azure Cosmos DB "Collection not found" error as an empty result. Set `"EnableResilience": false` to get a plain `MongoClient` that relies only on the driver's retryable reads and writes. Turn it off for trimmed or native AOT applications, because the proxies require dynamic code.
+
 ## Enable the integration
 
 This is a complete ASP.NET Core `Program.cs` for a project using `Microsoft.NET.Sdk.Web` with `Cratis.Arc` and `Cratis.Arc.MongoDB` installed. Use the settings above and a reachable MongoDB deployment.
