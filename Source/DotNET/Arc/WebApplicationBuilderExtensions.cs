@@ -98,7 +98,7 @@ public static class WebApplicationBuilderExtensions
             configureBuilder.Invoke(arcBuilder);
         }
 
-        if (builder.ControllersAreOn())
+        if (ArcFeatureSwitches.ControllersAreSupported && builder.ControllersAreOn())
         {
             builder.Services.AddArcControllers(discoverableValidators);
         }

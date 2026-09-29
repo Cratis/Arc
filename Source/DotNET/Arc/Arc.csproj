@@ -17,4 +17,17 @@
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+        <!-- Turns the CratisArcControllersSupport MSBuild property into the controllers feature switch. -->
+        <None Include="build/Cratis.Arc.targets"
+              Pack="true"
+              PackagePath="build;buildTransitive" />
+    </ItemGroup>
+
+    <!-- The .NET 8 trimmer does not recognize [FeatureSwitchDefinition], so the net8.0 assembly declares the
+         controllers switch in a substitution file instead. -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
+        <EmbeddedResource Include="ILLink.Substitutions.xml" LogicalName="ILLink.Substitutions.xml" />
+    </ItemGroup>
 </Project>
