@@ -895,7 +895,18 @@ public class CommandPipeline(
 
     CommandResult CreateCommandResultWithResponse(CorrelationId correlationId, object response)
     {
-        var commandResultType = typeof(CommandResult<>).MakeGenericType(response.GetType());
-        return (Activator.CreateInstance(commandResultType, correlationId, response) as CommandResult)!;
+        if (CommandResultFactories.TryCreate(correlationId, response, out var result))
+        {
+            return result;
+        }
+
+        // Responses without a generated factory, such as a subtype of the declared response type, keep the reflection
+        // path wherever dynamic code is supported.
+        if (RuntimeFeature.IsDynamicCodeSupported)
+        {
+            return CommandResultFactories.CreateThroughReflection(correlationId, response);
+        }
+
+        throw new MissingCommandResultFactory(response.GetType());
     }
 }
