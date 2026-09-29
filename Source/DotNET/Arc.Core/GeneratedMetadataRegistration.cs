@@ -40,8 +40,12 @@ namespace Cratis.Arc;
 /// returns before the registrations pending when it called have run, or proceeds after one has failed. The lock is
 /// re-entrant, so a module initializer that reaches <see cref="EnsureRegistered"/> or registers again on the same
 /// thread does not deadlock; it does not extend to a module initializer that waits on another thread which is
-/// itself waiting in <see cref="EnsureRegistered"/>. A registration made while another thread is registering is
-/// run by the next call, not by the one already running.
+/// itself waiting in <see cref="EnsureRegistered"/>. Nor does it extend to the reverse: code running inside a
+/// project's module initializer or a type initializer it depends on, on one thread, that builds an Arc host and so
+/// waits for the lock, while another thread holds the lock and is running that same module initializer. The runtime
+/// does not detect a deadlock between a lock and a class initializer, so both threads wait. Arc's generated module
+/// initializers only register and never build a host; do not build an Arc host from a module or type initializer.
+/// A registration made while another thread is registering is run by the next call, not by the one already running.
 /// </para>
 /// </remarks>
 internal sealed class GeneratedMetadataRegistration(
