@@ -24,7 +24,10 @@ namespace Microsoft.Extensions.DependencyInjection;
 /// </summary>
 public static class ServiceCollectionExtensions
 {
-    const string MvcIsNotTrimCompatible = "MVC controllers are not supported with trimming or NativeAOT. Use model-bound commands and queries, and turn controllers off with WithoutControllers() on the Arc builder.";
+#if NET9_0_OR_GREATER
+    const string MvcIsNotTrimCompatible = "MVC controllers are not supported with trimming or NativeAOT. Use model-bound commands and queries, and turn controllers off with the CratisArcControllersSupport MSBuild property.";
+#endif
+    const string StandaloneMvcIsNotTrimCompatible = "MVC controllers are not supported with trimming or NativeAOT, and this method always registers them. Use model-bound commands and queries with AddCratisArc and the CratisArcControllersSupport MSBuild property instead.";
 
     /// <summary>
     /// Add all controllers from all project referenced assemblies.
@@ -38,8 +41,8 @@ public static class ServiceCollectionExtensions
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="types"><see cref="ITypes"/> for discovery.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
-    [RequiresUnreferencedCode(MvcIsNotTrimCompatible)]
-    [RequiresDynamicCode(MvcIsNotTrimCompatible)]
+    [RequiresUnreferencedCode(StandaloneMvcIsNotTrimCompatible)]
+    [RequiresDynamicCode(StandaloneMvcIsNotTrimCompatible)]
     public static IServiceCollection AddControllersFromProjectReferencedAssembles(this IServiceCollection services, ITypes types)
     {
         var discoverableValidators = services.AddArcAspNetCore(types);
@@ -79,8 +82,17 @@ public static class ServiceCollectionExtensions
     /// Adds MVC with Arc's filters, model binding and validation, and discovers the controllers in the project
     /// referenced assemblies.
     /// </summary>
+    /// <remarks>
+    /// Callers guard the call with <c>ArcFeatureSwitches.ControllersAreSupported</c>, so the trimmer can remove it.
+    /// The annotations are for .NET 9 and later only: the .NET 8 analyzers do not recognize that guard and would move
+    /// the diagnostics to the guarded callers instead of dropping them.
+    /// </remarks>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <param name="discoverableValidators">The <see cref="IDiscoverableValidators"/> MVC validates with.</param>
+#if NET9_0_OR_GREATER
+    [RequiresUnreferencedCode(MvcIsNotTrimCompatible)]
+    [RequiresDynamicCode(MvcIsNotTrimCompatible)]
+#endif
     internal static void AddArcControllers(this IServiceCollection services, IDiscoverableValidators discoverableValidators)
     {
         services

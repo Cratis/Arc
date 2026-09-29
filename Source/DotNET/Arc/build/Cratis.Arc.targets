@@ -1,0 +1,12 @@
+<Project>
+    <!-- Turns the CratisArcControllersSupport property into the Cratis.Arc.Controllers.IsSupported runtime switch.
+         Set it to false in an application that only uses model-bound commands and queries: Arc then registers no
+         MVC and discovers no controllers, and a trimmed or NativeAOT publish removes the code that registers MVC.
+         Left unset, the switch is not written and controllers stay on. -->
+    <ItemGroup>
+        <RuntimeHostConfigurationOption Include="Cratis.Arc.Controllers.IsSupported"
+                                        Condition="'$(CratisArcControllersSupport)' != ''"
+                                        Value="$(CratisArcControllersSupport)"
+                                        Trim="true" />
+    </ItemGroup>
+</Project>
