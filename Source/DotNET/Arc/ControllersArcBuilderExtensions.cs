@@ -1,0 +1,49 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Microsoft.Extensions.Hosting;
+
+namespace Cratis.Arc;
+
+/// <summary>
+/// Provides extension methods on <see cref="IArcBuilder"/> for MVC controllers.
+/// </summary>
+public static class ControllersArcBuilderExtensions
+{
+    static readonly object _controllersOffKey = new();
+
+    /// <summary>
+    /// Leaves MVC out of the application: Arc does not register MVC or discover controllers.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Model-bound commands and queries, including observable queries, keep working, because Arc maps their
+    /// endpoints itself. Controller-based commands and queries are not available, and neither is anything else that
+    /// needs MVC, such as <c>MapControllers</c>.
+    /// </para>
+    /// <para>
+    /// MVC is not supported with trimming or NativeAOT, so an application that is published trimmed or as NativeAOT
+    /// turns controllers off. By default controllers are on.
+    /// </para>
+    /// </remarks>
+    /// <param name="builder"><see cref="IArcBuilder"/> to configure.</param>
+    /// <returns><see cref="IArcBuilder"/> for building continuation.</returns>
+    /// <example>
+    /// <code>
+    /// builder.AddCratisArc(configureBuilder: arc => arc.WithoutControllers());
+    /// </code>
+    /// </example>
+    public static IArcBuilder WithoutControllers(this IArcBuilder builder)
+    {
+        builder.AppBuilder.Properties[_controllersOffKey] = true;
+        return builder;
+    }
+
+    /// <summary>
+    /// Gets whether controllers are turned on for the application being built.
+    /// </summary>
+    /// <param name="builder">The <see cref="IHostApplicationBuilder"/> for the application.</param>
+    /// <returns>True if controllers are on, false if <see cref="WithoutControllers"/> turned them off.</returns>
+    internal static bool ControllersAreOn(this IHostApplicationBuilder builder) =>
+        !builder.Properties.ContainsKey(_controllersOffKey);
+}
