@@ -4,6 +4,9 @@
 namespace Cratis.Arc.Commands;
 
 /// <summary>
-/// Marker for an explicitly protected decision command.
+/// Implemented by an attribute that marks a command as an explicitly protected decision command.
 /// </summary>
-public interface IProtectedDecisionCommand;
+/// <remarks>
+/// Only attributes on the command type are honoured. Implementing this interface on the command type itself has no effect.
+/// </remarks>
+public interface IProtectedDecisionAttribute;

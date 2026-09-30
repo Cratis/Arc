@@ -4,6 +4,9 @@
 namespace Cratis.Arc.Commands;
 
 /// <summary>
-/// Marker for a command explicitly using advisory, unguarded decision reads.
+/// Implemented by an attribute that marks a command as explicitly using advisory, unguarded decision reads.
 /// </summary>
-public interface IUnprotectedDecisionCommand;
+/// <remarks>
+/// Only attributes on the command type are honoured. Implementing this interface on the command type itself has no effect.
+/// </remarks>
+public interface IUnprotectedDecisionAttribute;

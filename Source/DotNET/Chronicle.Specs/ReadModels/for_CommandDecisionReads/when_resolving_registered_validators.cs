@@ -66,13 +66,9 @@ public class when_resolving_registered_validators
     }
 
     [Fact]
-    public void should_refuse_every_validator_dependency_shape_but_keep_command_dependency_guards()
+    public void should_keep_command_dependency_guards()
     {
         var safety = new DecisionDependencySafety();
-        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependencyShape(typeof(IDecisionReads)));
-        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependencyShape(typeof(DecisionRead<TokenModel>)));
-        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependency(typeof(IDecisionReads), null));
-        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependency(typeof(DecisionRead<TokenModel>), null));
         Assert.Throws<ProtectedCommandRequiresCommandAwareReader>(() => safety.ValidateCommandDependency(typeof(IDecisionReads), null));
         Assert.Throws<ProtectedCommandRequiresIssuedDecisionRead>(() => safety.ValidateCommandDependency(typeof(DecisionRead<TokenModel>), null));
     }

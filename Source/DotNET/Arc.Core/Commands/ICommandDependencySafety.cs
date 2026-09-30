@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Commands;
 
 /// <summary>
-/// Optional provider-neutral checks for command-provided values and registered validators.
+/// Optional provider-neutral checks for values returned by a protected or unprotected command's Provide method.
 /// </summary>
 public interface ICommandDependencySafety
 {
@@ -13,10 +13,4 @@ public interface ICommandDependencySafety
     /// </summary>
     /// <param name="value">The provided value.</param>
     void ValidateProvided(object value);
-
-    /// <summary>
-    /// Checks a registered validator before using it in this invocation.
-    /// </summary>
-    /// <param name="validatorType">The registered validator type.</param>
-    void ValidateRegisteredValidator(Type validatorType);
 }

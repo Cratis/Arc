@@ -12,4 +12,4 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// Opaque or missing protected decision dependencies are refused.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
-public sealed class ProtectedDecisionAttribute : Attribute, IProtectedDecisionCommand;
+public sealed class ProtectedDecisionAttribute : Attribute, IProtectedDecisionAttribute;

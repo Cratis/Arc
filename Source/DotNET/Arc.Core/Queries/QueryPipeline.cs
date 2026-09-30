@@ -4,6 +4,7 @@
 using System.Reactive.Subjects;
 using System.Reflection;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Tenancy;
@@ -186,6 +187,8 @@ public class QueryPipeline(
 
     async Task<QueryResult> PerformCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, PreparedAuthorization? prepared, CancellationToken cancellationToken)
     {
+        // A query performed from a protected command is not part of that command's decision; its own validators run.
+        using var decisionQuery = CommandDecisionPolicy.BeginQuery();
         var correlationId = GetCorrelationId();
         var result = QueryResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();

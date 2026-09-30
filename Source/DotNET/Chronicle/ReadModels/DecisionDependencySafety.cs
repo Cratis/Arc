@@ -8,21 +8,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.Chronicle.ReadModels;
 
 /// <summary>
-/// Rejects supplied foreign tokens and validators with unknown registration lifetimes.
+/// Rejects supplied foreign decision tokens and providers without the command-aware reader.
 /// </summary>
 internal sealed class DecisionDependencySafety : ICommandDependencySafety, ICommandProtectedDecisionSupport
 {
     /// <inheritdoc/>
     public void ValidateProvided(object value) => CommandDecisionReads.VerifyProvided(value);
-
-    /// <inheritdoc/>
-    public void ValidateRegisteredValidator(Type validatorType)
-    {
-        if (CommandDecisionPolicy.IsProtected)
-        {
-            throw new RegisteredValidatorRefusedInProtectedDecision(validatorType);
-        }
-    }
 
     /// <inheritdoc/>
     public void EnsureSupported(IServiceProvider services)
@@ -50,13 +41,6 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
             CommandDecisionReads.VerifyProvided(dependency);
         }
     }
-
-    /// <inheritdoc/>
-    public void ValidateValidatorDependencyShape(Type dependencyType) =>
-        throw new ProtectedValidatorDependencyUnsupported(dependencyType);
-
-    /// <inheritdoc/>
-    public void ValidateValidatorDependency(Type dependencyType, object? dependency) => ValidateValidatorDependencyShape(dependencyType);
 
     static bool IsDecisionRead(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>);
 }

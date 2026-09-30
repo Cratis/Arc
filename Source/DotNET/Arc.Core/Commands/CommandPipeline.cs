@@ -260,6 +260,7 @@ public class CommandPipeline(
 
     static void EnsureDecisionSupport(IServiceProvider services)
     {
+        CommandDecisionPolicy.ThrowIfConflicting();
         if (CommandDecisionPolicy.IsProtected)
         {
             var support = services.GetService<ICommandProtectedDecisionSupport>() ??

@@ -6,7 +6,6 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
 using FluentValidation;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -56,7 +55,8 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            if (CommandDecisionPolicy.IsProtected)
+            // Refused before construction, dependency resolution, factories or rules run (protected validators: Arc#2831).
+            if (CommandDecisionPolicy.RefusesDiscoverableValidators)
             {
                 throw new DiscoverableValidatorRefusedInProtectedDecision(value);
             }
@@ -110,37 +110,31 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <summary>
     /// Constructs a validator from the supplied provider.
     /// </summary>
-    /// <remarks>Legacy commands follow command parameter binding semantics.</remarks>
+    /// <remarks>
+    /// This follows command parameter binding semantics: nullable dependencies may resolve to null, while
+    /// non-nullable dependencies that resolve to null fail with <see cref="CannotResolveValidatorDependency"/>.
+    /// </remarks>
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
-        var isService = serviceProvider.GetService(typeof(IServiceProviderIsService)) as IServiceProviderIsService;
-
-        // Legacy commands retain registered validators of every lifetime and their existing construction rules.
-        var safetyChecks = serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [];
-        if (isService?.IsService(validatorType) != false)
-        {
-            foreach (var safety in safetyChecks)
-            {
-                safety.ValidateRegisteredValidator(validatorType);
-            }
-        }
-
+        // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
         var registered = serviceProvider.GetService(validatorType);
         if (registered is not null)
         {
             return registered;
         }
 
-        var legacyConstructor = validatorType.GetConstructors()
+        var constructor = validatorType.GetConstructors()
             .OrderByDescending(_ => _.GetParameters().Length)
             .First();
-        var legacyArguments = ParameterDependencyResolver.Resolve(
+
+        var arguments = ParameterDependencyResolver.Resolve(
             serviceProvider,
-            legacyConstructor.GetParameters(),
+            constructor.GetParameters(),
             parameter => new CannotResolveValidatorDependency(validatorType, parameter));
-        return legacyConstructor.Invoke(legacyArguments);
+
+        return constructor.Invoke(arguments);
     }
 }

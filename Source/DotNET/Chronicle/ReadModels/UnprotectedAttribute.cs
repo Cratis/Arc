@@ -10,4 +10,4 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// acknowledgement for tooling; parameter-level runtime opt-out is not supported.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Parameter | AttributeTargets.Method)]
-public sealed class UnprotectedAttribute : Attribute, IUnprotectedDecisionCommand;
+public sealed class UnprotectedAttribute : Attribute, IUnprotectedDecisionAttribute;
