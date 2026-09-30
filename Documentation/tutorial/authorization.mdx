@@ -9,29 +9,29 @@ Our back office works, but it's wide open: anyone who can reach it can register 
 
 ## Prerequisites
 
-Continue with the standalone ASP.NET Core host from [chapter 1](/arc/tutorial/first-slice/). Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs`; on the JVM, import `io.cratis.arc.authorization.Roles` in the files that use it. This chapter uses the role name `Librarian`; it must match an authorization role on the authenticated principal. No identity-details provider is required.
+Continue with the standalone host from [chapter 1](/arc/tutorial/first-slice/); for TypeScript use the [standalone MongoDB host](/arc/arc-without-event-sourcing/#a-standalone-slice-end-to-end), retaining its tenant resolver when adding the development header handler. Add `global using Cratis.Arc.Authorization;` to `GlobalUsings.cs` on C#; on the JVM, import `io.cratis.arc.authorization.Roles` in the files that use it. The TypeScript snippets import `roles` from `@cratis/arc.core`. This chapter uses the role name `Librarian`; it must match an authorization role on the authenticated principal. No identity-details provider is required.
 
-On C#, the first excerpt below also declares a one-member `LibraryRole` enum; put it in its own file, `src/LibraryRole.cs`, under `namespace Library;` so every feature folder can use it. The C# excerpts pass `nameof(LibraryRole.Librarian)`, which is still the string `"Librarian"`. Arc's [ARC0011 analyzer](/arc/backend/csharp/code-analysis/#arc0011-role-names) warns about string literals in `[Roles]`; with `nameof`, a mistyped role name is a compile error instead of a silent denial. The JVM snippets pass the same name as a string.
+On C#, the first excerpt below also declares a one-member `LibraryRole` enum; put it in its own file, `src/LibraryRole.cs`, under `namespace Library;` so every feature folder can use it. The C# excerpts pass `nameof(LibraryRole.Librarian)`, which is still the string `"Librarian"`. Arc's [ARC0011 analyzer](/arc/backend/csharp/code-analysis/#arc0011-role-names) warns about string literals in `[Roles]`; with `nameof`, a mistyped role name is a compile error instead of a silent denial. The JVM and TypeScript snippets pass the same name as a string.
 
 ## Gate the commands
 
-Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one declaration at the edge. Put `[Roles(...)]` — `@Roles(...)` on the JVM — on the command, and Arc checks the caller's roles before the command runs. The excerpts below show the document-store branch; on the relational branch add only the attribute or annotation and retain your existing handlers and queries:
+Authorization is a cross-cutting concern. You don't want `if (user.IsLibrarian)` checks scattered through your logic — you want one declaration at the edge. Put `[Roles(...)]` — `@Roles(...)` on the JVM — on the command (`@roles(...)` on TypeScript), and Arc checks the caller's roles before the command runs. The excerpts below show the document-store branch; on the relational branch retain your existing handlers and queries while replacing the JVM's `@AllowAnonymous` on the command with `@Roles("Librarian")`. Do not keep both on the same declaration:
 
 
-1. **Require a role to change the catalog.** Only a librarian may register authors or add books:
+1. **Require a role to change the catalog.** Only a librarian may register authors or add books. The TypeScript prerequisite host also exposes `RenameAuthor`, so its tab protects that command too:
 
    <ArcBackendTabs snippet="tutorial/authorization/roles-on-command" />
 
-   The same declaration goes on `AddBook`. Everything inside the handler stays exactly as it was — the gate is applied around it.
+   The same declaration goes on `AddBook`; on the JVM, replace its `@AllowAnonymous` annotation rather than stacking the two. The .NET and JVM chapter-1 projects do not include `RenameAuthor`; if you added it from the standalone-slice example, apply the same role to it (replacing `@AllowAnonymous` on the JVM). Everything inside the handler stays exactly as it was — the gate is applied around it.
 
 
 ## Gate the queries
 
-The read side deserves the same protection — a public catalog might be fine, but an internal audit list is not. Query methods take the same declaration. Apply it to **both `AllAuthors` and `BooksForAuthor`** to keep this tutorial's catalog private:
+The read side deserves the same protection — a public catalog might be fine, but an internal audit list is not. Query methods take the same declaration. Apply it to **both `AllAuthors` and `BooksForAuthor`** to keep this tutorial's catalog private. On the JVM, remove the chapter-1 `@AllowAnonymous` class annotation from `Author` and the chapter-3 one from `Book`, then add `@Roles("Librarian")` to each query operation. Otherwise a query on the same read model without its own role declaration would remain public:
 
 <ArcBackendTabs snippet="tutorial/authorization/roles-on-query" />
 
-On both backends the operation's own declaration wins over the class's. That is what lets a protected read model still expose one open query — on the JVM an operation that declares `@AllowAnonymous`, `@Authorize`, or `@Roles` replaces the class default entirely rather than merging with it, so narrowing is exact. See [authorization on artifacts and operations](/arc/backend/kotlin/guides/security/).
+On all three backends the operation's own declaration wins over the class's. That is what lets a protected read model still expose one open query — on the JVM an operation that declares `@AllowAnonymous`, `@Authorize`, or `@Roles` replaces the class default entirely rather than merging with it, so narrowing is exact. See [authorization on artifacts and operations](/arc/backend/kotlin/guides/security/).
 
 <Aside type="note" title="The frontend respects it too">
 The server enforces these rules for calls from generated proxies and other clients alike; proxies surface the authorization result. So you can drive your UI off identity as well: hide the "Add author" button when the signed-in user isn't a librarian, and the command is *still* protected on the server if someone calls it anyway. See [frontend identity](/arc/frontend/react/identity/) for reading the current user's roles in React.
@@ -41,37 +41,27 @@ The server enforces these rules for calls from generated proxies and other clien
 
 Arc checks `ClaimsPrincipal.IsInRole("Librarian")`. Configure your authentication scheme's role claims accordingly. An application detail such as `LibraryIdentity.Role` does **not** grant that role: `IProvideIdentityDetails` enriches client/domain context, and its rejected result controls `/.cratis/me`, not every operation.
 
-The JVM asks the same question of an `ArcPrincipal`: a caller holds `Librarian` when one of its roles is that name, which is what a Spring Security `ROLE_Librarian` authority becomes once Arc drops the prefix. An `IdentityDetailsProvider` plays the same enriching, non-granting role there as `IProvideIdentityDetails` does here.
+The JVM asks the same question of an `ArcPrincipal`: a caller holds `Librarian` when one of its roles is that name, which is what a Spring Security `ROLE_Librarian` authority becomes once Arc drops the prefix. On TypeScript, the `microsoftIdentityPlatform()` development handler reads `Librarian` from the header principal's `userRoles`. An `IdentityDetailsProvider` plays the same enriching, non-granting role there as `IProvideIdentityDetails` does here.
 
-The rest of this section is the .NET host's development fixture and has **no JVM equivalent to copy**. For this **loopback-only development checkpoint**, configure the trusted-header authentication adapter before `builder.Build()`:
+For this **loopback-only development checkpoint**, select the trusted-header adapter for your backend before building the host. The TypeScript builder registers its header handler directly alongside the MongoDB host's tenant resolver; the JVM bridge needs an explicitly verified trusted ingress, not just a property toggle:
 
-```csharp
-if (builder.Environment.IsDevelopment())
-{
-    builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
-}
-```
+<ArcBackendTabs snippet="tutorial/authorization/development-header-adapter" />
 
-Before `app.UseCratisArc()`, add:
+On .NET, before `app.UseCratisArc()`, add the authentication middleware. The TypeScript builder's `authentication` option already covers this step:
 
-```csharp
-if (app.Environment.IsDevelopment())
-{
-    app.UseAuthentication();
-}
-```
+<ArcBackendTabs snippet="tutorial/authorization/development-authentication-middleware" />
 
-Keep the host bound to `http://localhost:5000` as in setup. Follow [Generate a local principal](/arc/backend/csharp/development/generating-principal/) to send the three `x-ms-client-principal` headers through the local Vite proxy. In that page's JSON, include `"Librarian"` in `userRoles`, then Base64-encode that JSON locally. Restrict the browser header override to your localhost app URLs.
+Keep the host bound to loopback for this development checkpoint: `http://localhost:5000` on C#, or `http://127.0.0.1:3000` on TypeScript. Spring Boot listens on all interfaces by default; JVM readers must set `server.address=127.0.0.1` in local configuration before using `http://127.0.0.1:8080`. A port number alone does not restrict who can reach the server. Follow [Generate a local principal](/arc/backend/csharp/development/generating-principal/) on C# or [Simulate a signed-in user locally](/arc/backend/typescript/identity/local-development/) on TypeScript to send the three `x-ms-client-principal` headers through the local Vite proxy. In the principal JSON, include `"Librarian"` in `userRoles`, then Base64-encode it locally. Restrict the browser header override to your localhost app URLs. On the JVM, use an authenticated `ArcPrincipal` carrying that role through your own handler or verified ingress (see below).
 
 This adapter **does not validate bearer-token signatures, issuer, or audience**. It trusts the headers. Production must instead use a properly configured authentication scheme or an authenticated trusted ingress that replaces spoofable headers and prevents direct backend access. Never expose this local header-spoofing fixture publicly.
 
 <Aside type="caution" title="Signing in on the JVM">
-Do not translate the two snippets above. A Spring Boot host authenticates through its own ordered `AuthenticationHandler` beans (or `AsyncAuthenticationHandler` from Java), each returning anonymous, failed, or an `ArcPrincipal` carrying the caller's roles — a handful of lines is enough to sign in a development user with `"Librarian"` in its role set. The JVM does ship a platform-identity bridge that reads the same `x-ms-client-principal` headers, but it is **off by default**, requires `cratis.arc.platform-identity.enabled=true`, and refuses every submission until you supply an `ArcPlatformIdentityTrust` bean that verifies your ingress strips caller-supplied headers. Start with [Authenticate and authorize Arc endpoints](/arc/backend/kotlin/guides/security/) and register a handler of your own.
+Do not copy the .NET middleware into Spring Boot. A JVM host authenticates through Arc.Kotlin's ordered `io.cratis.arc.authentication.AuthenticationHandler` beans (or `AsyncAuthenticationHandler` from Java), each returning anonymous, failed, or an `ArcPrincipal` carrying the caller's roles. The JVM does ship a platform-identity bridge that reads the same `x-ms-client-principal` headers, but it is **off by default**, requires `cratis.arc.platform-identity.enabled=true`, and refuses every submission until you supply an `ArcPlatformIdentityTrust` bean that verifies your ingress strips caller-supplied headers. Start with [Authenticate and authorize Arc endpoints](/arc/backend/kotlin/guides/security/) and register a handler of your own.
 </Aside>
 
 ## Verify permissions, not just UI visibility
 
-Rebuild and restart with the checkpoint's `-e ASPNETCORE_ENVIRONMENT=Development` command, then test these separately. Both snippets above run only in Development: if the host log says `Hosting environment: Production`, the header adapter is never registered and even the `Librarian` case is rejected. The checks are the same on both backends; only the way you present a principal differs — the headers below for the .NET fixture, whatever your JVM authentication handler accepts otherwise:
+Rebuild and restart the C# checkpoint with `-e ASPNETCORE_ENVIRONMENT=Development`, or start the TypeScript host with `NODE_ENV=development` on port 3000, then test these separately. The header adapters run only in development: in Production they are not registered and even the `Librarian` header case is rejected. The checks are the same on all three backends; only the way you present a principal differs — the headers for the .NET and TypeScript fixtures, or whatever your JVM authentication handler accepts:
 
 1. Without identity headers, protected commands and queries must reject access.
 2. With a valid local principal but no `Librarian` role, they must still reject access.
@@ -80,7 +70,7 @@ Rebuild and restart with the checkpoint's `-e ASPNETCORE_ENVIRONMENT=Development
 
 Inspect `isAuthorized` on the command/query result. Authentication middleware may reject a request before an Arc result is created, so also inspect the HTTP response. The recap below assumes you observed all three principal cases, not merely added attributes.
 
-For production authentication and domain details, continue with [Identity](/arc/backend/csharp/identity/) and [Authorizing commands and queries](/arc/backend/csharp/authorizing-commands-and-queries/), or with the JVM's [security guide](/arc/backend/kotlin/guides/security/).
+For production authentication and domain details, continue with [Identity](/arc/backend/csharp/identity/) and [Authorizing commands and queries](/arc/backend/csharp/authorizing-commands-and-queries/), the JVM [security guide](/arc/backend/kotlin/guides/security/), or TypeScript's [authentication guide](/arc/backend/typescript/core/authentication/).
 
 ## Look back at what you built
 
@@ -90,7 +80,7 @@ Five chapters ago we had nothing. Now we have a real full-stack library back off
 - **Chapter 2** — trust: a `ConceptValidator` on the value type and a `CommandValidator` business rule, both surfaced in the UI through the generated proxy.
 - **Chapter 3** — relationships: a second slice and a filtered query that reads one author's catalog, no join.
 - **Chapter 4** — life: observable queries as standing subscriptions, database to browser.
-- **Chapter 5** — authorization: `[Roles(...)]` at the boundary, on both commands and queries, tied to the signed-in user.
+- **Chapter 5** — authorization: `[Roles(...)]` at the boundary, on both commands and queries (with `@Roles` on the JVM and `@roles` on TypeScript), tied to the signed-in user.
 
 The thing worth taking with you is the loop itself: **something happens (a command) → it writes state → that state is served (a query) → and React calls all of it, typed end to end.** Every feature you build from here is another turn of that loop in its own folder. You never go back and edit the last one to add the next.
 

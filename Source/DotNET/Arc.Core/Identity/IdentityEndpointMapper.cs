@@ -4,7 +4,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
-using System.Text.Json.Serialization.Metadata;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
 using Cratis.Types;
@@ -60,7 +59,7 @@ public static class IdentityEndpointMapper
                         .SingleOrDefault() ?? typeof(object);
 
                     var jsonSerializerOptions = new JsonSerializerOptions(context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
-                    jsonSerializerOptions.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+                    jsonSerializerOptions.TypeInfoResolver ??= JsonSerializerOptionsConfiguration.ReflectionResolver;
                     var schema = jsonSerializerOptions.GetJsonSchemaAsNode(detailsType);
                     await context.WriteResponseAsJson(schema, schema.GetType(), context.RequestAborted);
                 },

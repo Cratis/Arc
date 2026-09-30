@@ -71,7 +71,7 @@ app.Run();
 
 ## Why This Rule Exists
 
-`AddCratisArc` deliberately supports [running Arc without an event store](../../../../arc-without-event-sourcing.md), backed by MongoDB or EF Core. That flexibility means the framework cannot assume Chronicle is wanted — so forgetting `WithChronicle()` is a silent mistake that only surfaces the first time an event is appended or read. This rule catches it at compile time, before the application runs.
+`AddCratisArc` deliberately supports [running Arc without an event store](../../../../arc-without-event-sourcing.mdx), backed by MongoDB or EF Core. That flexibility means the framework cannot assume Chronicle is wanted — so forgetting `WithChronicle()` is a silent mistake that only surfaces the first time an event is appended or read. This rule catches it at compile time, before the application runs.
 
 ## Related Rules
 

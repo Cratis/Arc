@@ -40,6 +40,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SNIPPET_ROOT = REPO_ROOT / "Documentation" / "client-snippets"
 GENERATED_DIR = REPO_ROOT / "Documentation" / ".client-snippet-validation"
 GENERATED_PROJECT = GENERATED_DIR / "ClientSnippetValidation.csproj"
+# The type --self-test references in one snippet of each project. A project's build must fail
+# naming it: any other failure would not prove that project compiles the planted snippet.
+PLANTED_SYMBOL = "ThisTypeDoesNotExistAnywhereInArc"
 
 FENCE_RE = re.compile(r"```([^\s`]+)[^\n]*\n(.*?)\n```", re.DOTALL)
 USING_DIRECTIVE_RE = re.compile(
@@ -269,6 +272,10 @@ class SnippetContext:
                off `this`.
     prelude:   supporting declarations, sibling members or locals that the rendered
                snippet deliberately leaves out and no fixture supplies.
+    project:   the generated project the snippet compiles in. Snippets that show
+               whole files of one application share a project of their own, so their
+               namespaces cannot collide with another page's application that uses the
+               same names. Empty means the shared project.
     """
 
     kind: str = "declaration"
@@ -276,6 +283,7 @@ class SnippetContext:
     usings: tuple[str, ...] = ()
     host: str = ""
     prelude: str = ""
+    project: str = ""
 
 
 KNOWN_KINDS = ("declaration", "member", "body", "file")
@@ -290,13 +298,89 @@ USING_ARC_TESTING = "using Cratis.Arc.Testing.Commands;"
 USING_ARC_CHRONICLE_TESTING = "using Cratis.Arc.Chronicle.Testing.Commands;"
 
 
+LIBRARY_APPLICATION = "library-application"
+# The Real-Time Chat pages each show one chat backend as a whole file in `MyApp.Chat`; a project
+# per page keeps the in-memory and the RabbitMQ `ChatRoom` apart.
+CHAT_IN_MEMORY = "chat-in-memory"
+CHAT_RABBITMQ = "chat-rabbitmq"
+# The Testing with Cratis page shows one Library slice and its spec as whole files; the spec
+# runs against the very command the page shows beside it.
+TESTING_WITH_CRATIS = "testing-with-cratis"
+
+
 # Per-snippet preludes. A snippet id is its path under client-snippets without the
 # extension. Unlisted snippets compile as declarations with DEFAULT_USINGS only;
 # add an entry here when a snippet needs more context than that.
 SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
-    "guides/chronicle/event-from-command": SnippetContext(
-        kind="declaration",
+    "capstone/host": SnippetContext(
+        kind="body",
+        usings=(
+            "using Microsoft.AspNetCore.Builder;",
+            "using Microsoft.Extensions.DependencyInjection;",
+            "using Cratis.Arc.MongoDB;",
+            "using Cratis.Arc.Swagger;",
+            "using Cratis.Chronicle;",
+        ),
+        prelude="string[] args = [];"
+    ),
+    "capstone/author-id": SnippetContext(usings=("using Cratis.Chronicle.Events;",)),
+    "capstone/register-author": SnippetContext(
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);",
+    ),
+    "capstone/author-read-model": SnippetContext(
+        usings=("using Cratis.Chronicle.Events;", "using Cratis.Chronicle.Projections.ModelBound;", USING_REACTIVE, USING_MONGO, "using Cratis.Arc.MongoDB;"),
+        prelude="""
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            [EventType] public record AuthorRegistered(string Name);
+        """,
+    ),
+    "scenarios/vertical-slices/state-view/author-list": SnippetContext(
         fixtures=("library",),
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="""
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            public record AuthorRegistered(AuthorName FirstName, AuthorName LastName);
+        """,
+    ),
+    "scenarios/vertical-slices/state-view/fluent-projection": SnippetContext(
+        fixtures=("library",),
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="""
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            public record AuthorRegistered(AuthorName FirstName, AuthorName LastName);
+            public record Author(AuthorId Id, AuthorName FirstName, AuthorName LastName);
+        """,
+    ),
+    # The State Change, Automation and Translation pages show whole files of one Library
+    # application, each in its own namespace. Compiled as "file" snippets in a project of
+    # their own they form that application together: the spec runs against the very command
+    # the page shows, and the reservation events use the member identity from the Translation
+    # page. The separate project keeps their `Library.Authors` apart from the one the
+    # test-a-command snippets declare.
+    "scenarios/vertical-slices/state-change/concepts": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/state-change/registration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/state-change/unique-author-name": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/state-change/register-author-spec": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/automation/reservation-domain": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/automation/expiry-management": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/member-concepts": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/member-registration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/unique-member-name": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "scenarios/vertical-slices/translator/hr-integration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
+    "testing-with-cratis/register-author": SnippetContext(kind="file", project=TESTING_WITH_CRATIS),
+    "testing-with-cratis/register-author-spec": SnippetContext(kind="file", project=TESTING_WITH_CRATIS),
+    "scenarios/chat/in-memory/backend": SnippetContext(kind="file", project=CHAT_IN_MEMORY),
+    "scenarios/chat/rabbitmq/backend": SnippetContext(kind="file", project=CHAT_RABBITMQ),
+    # The Camel Casing page's host, the same shape as the capstone host.
+    "scenarios/camel-casing/setup": SnippetContext(
+        kind="body",
+        usings=(
+            "using Microsoft.AspNetCore.Builder;",
+            "using Cratis.Arc.MongoDB;",
+            "using Cratis.Chronicle;",
+        ),
+        prelude="string[] args = [];"
     ),
     "scenarios/provide-data-to-a-command/assess-loan": SnippetContext(
         kind="declaration",
@@ -446,6 +530,74 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
 
             public record UpdateProfile(ProfileName Name, EmailAddress Email);
         """,
+    ),
+    "arc-without-event-sourcing/author-read-model": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_REACTIVE, USING_MONGO),
+    ),
+    "arc-without-event-sourcing/register-author": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_MONGO,),
+    ),
+    "arc-without-event-sourcing/rename-author": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_MONGO,),
+    ),
+    "arc-without-event-sourcing/standalone-host": SnippetContext(
+        kind="body",
+        usings=("using Microsoft.AspNetCore.Builder;",),
+        prelude="string[] args = [];",
+    ),
+    "tutorial/authorization/development-header-adapter": SnippetContext(
+        kind="body",
+        usings=(
+            "using Microsoft.AspNetCore.Builder;",
+            "using Microsoft.Extensions.DependencyInjection;",
+            "using Microsoft.Extensions.Hosting;",
+        ),
+        prelude="var builder = WebApplication.CreateBuilder();",
+    ),
+    "tutorial/authorization/development-authentication-middleware": SnippetContext(
+        kind="body",
+        usings=(
+            "using Microsoft.AspNetCore.Builder;",
+            "using Microsoft.AspNetCore.Authentication;",
+            "using Microsoft.Extensions.Hosting;",
+        ),
+        prelude="var app = WebApplication.CreateBuilder().Build();",
+    ),
+    "tutorial/validation/relational-duplicate-name-rule": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_ARC_COMMANDS, USING_FLUENT_VALIDATION, "using Microsoft.EntityFrameworkCore;"),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Author> Authors => Set<Author>(); }",
+    ),
+    "tutorial/validation/mongodb-unique-index": SnippetContext(
+        kind="body",
+        fixtures=("library",),
+        usings=(USING_MONGO, "using Microsoft.AspNetCore.Builder;", "using Microsoft.Extensions.DependencyInjection;"),
+        prelude="var app = WebApplication.CreateBuilder().Build();",
+    ),
+    "tutorial/books-and-relationships/relational-add-book": SnippetContext(
+        fixtures=("library",),
+        usings=("using Microsoft.EntityFrameworkCore;",),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Book> Books => Set<Book>(); }",
+    ),
+    "tutorial/books-and-relationships/relational-books-for-author": SnippetContext(
+        kind="declaration", fixtures=("library",),
+        usings=(USING_REACTIVE, "using Microsoft.EntityFrameworkCore;"),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Book> Books => Set<Book>(); }",
+    ),
+    "tutorial/validation/relational-unique-name": SnippetContext(
+        kind="declaration", fixtures=("library",),
+        usings=("using Microsoft.EntityFrameworkCore;",),
+    ),
+    "tutorial/first-slice/relational-author-slice": SnippetContext(
+        fixtures=("library",),
+        usings=(USING_REACTIVE, "using Microsoft.EntityFrameworkCore;"),
+        prelude="public class LibraryDbContext : DbContext { public DbSet<Author> Authors => Set<Author>(); }",
+    ),
+    "tutorial/first-slice/typed-command": SnippetContext(
+        kind="declaration", fixtures=("library",), usings=(USING_MONGO,),
     ),
     "tutorial/first-slice/author-slice": SnippetContext(
         # The chapter's own RegisterAuthor and Author shadow the fixture's, which is the
@@ -750,8 +902,11 @@ def generate_project(sources: list[Path]) -> str:
 
     <ItemGroup>
         <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
+        <!-- The complete host snippet uses AddCratis and Swagger from Arc's composition project. -->
+        <ProjectReference Include="../../Source/DotNET/Cratis/Cratis.csproj" />
         <ProjectReference Include="../../Source/DotNET/Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../../Source/DotNET/MongoDB/MongoDB.csproj" />
+        <ProjectReference Include="../../Source/DotNET/EntityFrameworkCore/EntityFrameworkCore.csproj" />
         <!-- Cratis.Arc.Testing - the CommandScenario<T> and CommandResult assertions the
              test-a-command snippets are teaching. -->
         <ProjectReference Include="../../Source/DotNET/Testing/Testing.csproj" />
@@ -772,51 +927,82 @@ def generate_project(sources: list[Path]) -> str:
 """
 
 
-def write_generated(snippets: list[Snippet], corrupt: str | None = None) -> list[Path]:
-    GENERATED_DIR.mkdir(parents=True, exist_ok=True)
-    sources: list[Path] = []
+def project_directory(project: str) -> Path:
+    """Where a generated project lives. Every one is a sibling of the shared project, so the
+    relative project references in `generate_project` resolve the same way for each."""
+    return GENERATED_DIR if not project else GENERATED_DIR.with_name(f"{GENERATED_DIR.name}-{project}")
 
-    required_fixtures = sorted({
-        name
-        for snippet in snippets
-        for name in SNIPPET_CONTEXTS.get(snippet.identifier, SnippetContext()).fixtures})
-    for name in required_fixtures:
-        path = GENERATED_DIR / f"Fixture_{sanitized(name)}.cs"
-        path.write_text(generate_fixture_source(name), encoding="utf-8")
-        sources.append(path)
 
+def generated_directories() -> list[Path]:
+    return [project_directory(project) for project in
+            sorted({"", *(context.project for context in SNIPPET_CONTEXTS.values())})]
+
+
+def write_generated(snippets: list[Snippet], corrupt: set[str] | None = None) -> tuple[list[Path], list[Path]]:
+    """Write one project per snippet group; return the snippet sources and the projects."""
     snippet_sources: list[Path] = []
+    projects: list[Path] = []
+    groups: dict[str, list[Snippet]] = {}
     for snippet in snippets:
-        source = generate_snippet_source(snippet)
-        if corrupt is not None and snippet.identifier == corrupt:
-            source += (
-                "\n// --self-test planted defect\n"
-                "internal sealed class PlantedSelfTestDefect : "
-                "ThisTypeDoesNotExistAnywhereInArc;\n")
-        path = GENERATED_DIR / f"Snippet_{sanitized(snippet.identifier)}.cs"
-        path.write_text(source, encoding="utf-8")
-        snippet_sources.append(path)
+        project = SNIPPET_CONTEXTS.get(snippet.identifier, SnippetContext()).project
+        groups.setdefault(project, []).append(snippet)
 
-    GENERATED_PROJECT.write_text(generate_project([*sources, *snippet_sources]), encoding="utf-8")
-    return snippet_sources
+    for project, members in sorted(groups.items()):
+        directory = project_directory(project)
+        directory.mkdir(parents=True, exist_ok=True)
+        sources: list[Path] = []
+
+        required_fixtures = sorted({
+            name
+            for snippet in members
+            for name in SNIPPET_CONTEXTS.get(snippet.identifier, SnippetContext()).fixtures})
+        for name in required_fixtures:
+            path = directory / f"Fixture_{sanitized(name)}.cs"
+            path.write_text(generate_fixture_source(name), encoding="utf-8")
+            sources.append(path)
+
+        group_sources: list[Path] = []
+        for snippet in members:
+            source = generate_snippet_source(snippet)
+            if corrupt is not None and snippet.identifier in corrupt:
+                source += (
+                    "\n// --self-test planted defect\n"
+                    "internal sealed class PlantedSelfTestDefect : "
+                    f"{PLANTED_SYMBOL};\n")
+            path = directory / f"Snippet_{sanitized(snippet.identifier)}.cs"
+            path.write_text(source, encoding="utf-8")
+            group_sources.append(path)
+
+        project_file = directory / GENERATED_PROJECT.name
+        project_file.write_text(generate_project([*sources, *group_sources]), encoding="utf-8")
+        projects.append(project_file)
+        snippet_sources.extend(group_sources)
+    return snippet_sources, projects
 
 
-def build() -> int:
+def build(project: Path, capture: bool = False) -> tuple[int, str]:
+    """Build a generated project; with `capture`, also return its output (still echoed)."""
     # -p:CratisProxiesOutputPath= clears the property the proxy generator target is
     # conditioned on, so validating the docs never re-runs proxy generation over the
     # repository's real generated TypeScript.
-    return subprocess.run(
+    completed = subprocess.run(
         [
             "dotnet",
             "build",
-            str(GENERATED_PROJECT),
+            str(project),
             "--configuration",
             "Release",
             "-p:CratisProxiesOutputPath=",
         ],
         cwd=REPO_ROOT,
         check=False,
-    ).returncode
+        capture_output=capture,
+        text=capture,
+    )
+    output = (completed.stdout or "") + (completed.stderr or "") if capture else ""
+    if capture:
+        print(output, end="")
+    return completed.returncode, output
 
 
 def collect() -> tuple[list[Snippet], list[Snippet]]:
@@ -853,31 +1039,48 @@ def run(self_test: bool) -> int:
     if self_test:
         if not compilable:
             raise SnippetError("--self-test needs at least one compilable snippet to plant a defect in")
-        target = compilable[0].identifier
-        print(f"Self-test: planting a reference to a non-existent type in {target!r}.")
+        # One planted defect per generated project, so every project's build is proven to
+        # detect a broken snippet - not only the shared one.
+        targets: dict[str, str] = {}
+        for snippet in compilable:
+            project = SNIPPET_CONTEXTS.get(snippet.identifier, SnippetContext()).project
+            targets.setdefault(project, snippet.identifier)
+        for target in targets.values():
+            print(f"Self-test: planting a reference to a non-existent type in {target!r}.")
     elif not compilable:
         print(f"All {len(unsupported)} snippet(s) are unsupported markers - nothing to compile.")
         return 0
 
-    shutil.rmtree(GENERATED_DIR, ignore_errors=True)
+    for directory in generated_directories():
+        shutil.rmtree(directory, ignore_errors=True)
     try:
-        sources = write_generated(compilable, corrupt=target if self_test else None)
+        sources, projects = write_generated(compilable, corrupt=set(targets.values()) if self_test else None)
         if len(sources) != len(compilable):
             raise SnippetError(
                 f"Generated {len(sources)} source file(s) for {len(compilable)} snippet(s)")
 
-        exit_code = build()
+        # Build every project even after a failure, so one run reports every broken
+        # snippet; the first nonzero exit code is the verdict.
+        results = [build(project, capture=self_test) for project in projects]
+        exit_codes = [code for code, _ in results]
+        exit_code = next((code for code in exit_codes if code != 0), 0)
     finally:
-        shutil.rmtree(GENERATED_DIR, ignore_errors=True)
+        for directory in generated_directories():
+            shutil.rmtree(directory, ignore_errors=True)
 
     if self_test:
-        if exit_code == 0:
+        # A failure for another reason (a broken fixture, a restore error) would not prove the
+        # planted snippet was compiled, so each project must fail naming the planted type.
+        undetected = [project.parent.name for project, (code, output) in zip(projects, results)
+                      if code == 0 or PLANTED_SYMBOL not in output]
+        if undetected:
             print(
-                "Self-test FAILED: the build succeeded with a planted reference to a non-existent "
-                "type, so this validator is not detecting anything.",
+                "Self-test FAILED: the build did not fail on the planted reference to "
+                f"{PLANTED_SYMBOL} in {', '.join(undetected)}, so this validator is not proven to "
+                "detect a broken snippet there.",
                 file=sys.stderr)
             return 1
-        print(f"Self-test passed: the planted defect failed the build (exit code {exit_code}).")
+        print(f"Self-test passed: the planted defect failed all {len(projects)} project build(s).")
         return 0
 
     if exit_code != 0:

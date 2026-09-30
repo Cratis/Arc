@@ -48,6 +48,13 @@ public sealed class PackageGraphFixture : IDisposable
         new("cratis-with-code-analysis", ["Cratis", "Cratis.CodeAnalysis"], 1, 1, 1, 1, 1)
     ];
 
+    static readonly ExecutableConsumerDefinition[] _executableConsumerDefinitions =
+    [
+        new("exe-arc", "Cratis.Arc", DisableTransitiveProjectReferences: false, ExpectsProjectReferenceRegistration: true),
+        new("exe-arc-core", "Cratis.Arc.Core", DisableTransitiveProjectReferences: false, ExpectsProjectReferenceRegistration: true),
+        new("exe-arc-core-without-transitive-project-references", "Cratis.Arc.Core", DisableTransitiveProjectReferences: true, ExpectsProjectReferenceRegistration: false)
+    ];
+
     readonly string _workingDirectory;
     readonly string _feedDirectory;
     readonly string _packagesDirectory;
@@ -72,6 +79,7 @@ public sealed class PackageGraphFixture : IDisposable
 
         Packages = PackPackages();
         Consumers = _consumerDefinitions.Select(BuildConsumer).ToArray();
+        ExecutableConsumers = _executableConsumerDefinitions.Select(BuildExecutableConsumer).ToArray();
         ArcCodeFixResult = DiscoverArcCodeFix();
         ChronicleCodeFixResult = DiscoverChronicleCodeFix();
     }
@@ -95,6 +103,11 @@ public sealed class PackageGraphFixture : IDisposable
     /// Gets the clean consumer build results.
     /// </summary>
     public IReadOnlyCollection<ConsumerBuildResult> Consumers { get; }
+
+    /// <summary>
+    /// Gets the executable consumer build results.
+    /// </summary>
+    public IReadOnlyCollection<ExecutableConsumerBuildResult> ExecutableConsumers { get; }
 
     /// <summary>
     /// Gets the SDK-host ARC code-fix discovery result.
@@ -225,6 +238,42 @@ public sealed class PackageGraphFixture : IDisposable
             forbiddenOutputFiles);
     }
 
+    ExecutableConsumerBuildResult BuildExecutableConsumer(ExecutableConsumerDefinition definition)
+    {
+        var consumerDirectory = Path.Join(_workingDirectory, "executable-consumers", definition.Name);
+        var libraryDirectory = Path.Join(consumerDirectory, "Library");
+        var appDirectory = Path.Join(consumerDirectory, "App");
+        Directory.CreateDirectory(libraryDirectory);
+        Directory.CreateDirectory(appDirectory);
+        File.WriteAllText(
+            Path.Join(libraryDirectory, "Library.csproj"),
+            CreateConsumerProject([definition.PackageId], emitGeneratedFiles: false));
+        File.WriteAllText(
+            Path.Join(libraryDirectory, "LibraryMarker.cs"),
+            "namespace ProjectLibrary;\n\npublic static class LibraryMarker\n{\n}\n");
+
+        var appProjectPath = Path.Join(appDirectory, "App.csproj");
+        var appProperties = "<OutputType>Exe</OutputType>" +
+            (definition.DisableTransitiveProjectReferences ? "<DisableTransitiveProjectReferences>true</DisableTransitiveProjectReferences>" : string.Empty);
+        File.WriteAllText(
+            appProjectPath,
+            CreateConsumerProject([definition.PackageId], additionalProperties: appProperties, projectReferences: ["../Library/Library.csproj"]));
+        File.WriteAllText(Path.Join(appDirectory, "Program.cs"), "System.Console.WriteLine(\"consumer\");\n");
+
+        RestoreConsumer(appDirectory, appProjectPath);
+        var buildResult = RunDotNet(appDirectory, ["build", appProjectPath, "--no-restore"], isolatedPackages: true);
+
+        var generatedDirectory = Path.Join(appDirectory, "obj", "Generated");
+        var generatedRegistrations = Directory.Exists(generatedDirectory)
+            ? Directory.GetFiles(generatedDirectory, "ProjectReferenceModules.g.cs", SearchOption.AllDirectories).Select(File.ReadAllText).ToArray()
+            : [];
+
+        var buildWasClean = buildResult.StandardOutput.Contains("0 Warning(s)", StringComparison.Ordinal) &&
+                            buildResult.StandardOutput.Contains("0 Error(s)", StringComparison.Ordinal);
+
+        return new(definition, buildWasClean, generatedRegistrations);
+    }
+
     void RestoreConsumer(string consumerDirectory, string projectPath) =>
         RunDotNet(
             consumerDirectory,
@@ -333,14 +382,20 @@ public sealed class PackageGraphFixture : IDisposable
             formatResult.StandardOutput.Contains("Formatted 1", StringComparison.Ordinal));
     }
 
-    string CreateConsumerProject(IEnumerable<string> packageIds, bool emitGeneratedFiles = true)
+    string CreateConsumerProject(
+        IEnumerable<string> packageIds,
+        bool emitGeneratedFiles = true,
+        string additionalProperties = "",
+        IEnumerable<string>? projectReferences = null)
     {
         var generatedProperties = emitGeneratedFiles
             ? "<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles><CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>"
             : string.Empty;
         var references = string.Join(
             Environment.NewLine,
-            packageIds.Select(_ => $"        <PackageReference Include=\"{_}\" Version=\"{PackageVersion}\" />"));
+            packageIds
+                .Select(_ => $"        <PackageReference Include=\"{_}\" Version=\"{PackageVersion}\" />")
+                .Concat((projectReferences ?? []).Select(_ => $"        <ProjectReference Include=\"{_}\" />")));
         return $"""
             <Project Sdk="Microsoft.NET.Sdk">
                 <PropertyGroup>
@@ -348,6 +403,7 @@ public sealed class PackageGraphFixture : IDisposable
                     <ImplicitUsings>enable</ImplicitUsings>
                     <Nullable>enable</Nullable>
                     {generatedProperties}
+                    {additionalProperties}
                 </PropertyGroup>
                 <ItemGroup>
             {references}

@@ -6,7 +6,6 @@ using System.Reactive.Subjects;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Queries;
@@ -56,6 +55,9 @@ public class ObservableQueryHandler(
             await HandleAsyncEnumerableResult(context, queryName, streamingData);
         }
     }
+
+    static ObservableQueryElementOperations OperationsFor(object streamingData, Type openGenericInterface) =>
+        ObservableQueryElementOperations.For(ObservableQueryElementOperations.FindElementType(streamingData.GetType(), openGenericInterface)!);
 
     bool IsSubjectResult(object data) =>
         data.GetType().ImplementsOpenGeneric(typeof(ISubject<>));
@@ -113,42 +115,16 @@ public class ObservableQueryHandler(
 
     async Task HandleSubjectViaWebSocket(IHttpRequestContext context, object streamingData)
     {
-        var type = streamingData.GetType();
-        var subjectType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
-        var elementType = subjectType.GetGenericArguments()[0];
-
-        // Get the current query context
         var queryContext = queryContextManager.Current;
-
-        // Create ClientObservable using ActivatorUtilities to get proper dependency injection
-        var clientObservableType = typeof(ClientObservable<>).MakeGenericType(elementType);
-        var clientObservable = ActivatorUtilities.CreateInstance(
-            serviceProvider,
-            clientObservableType,
-            queryContext,
-            streamingData) as IClientObservable;
-
-        await clientObservable!.HandleConnection(context);
+        var clientObservable = OperationsFor(streamingData, typeof(ISubject<>)).CreateClientObservable(serviceProvider, queryContext, streamingData);
+        await clientObservable.HandleConnection(context);
     }
 
     async Task HandleSubjectViaSSE(IHttpRequestContext context, object streamingData)
     {
-        var type = streamingData.GetType();
-        var subjectType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(ISubject<>));
-        var elementType = subjectType.GetGenericArguments()[0];
-
-        // Get the current query context
         var queryContext = queryContextManager.Current;
-
-        // Create ClientObservableSSE using ActivatorUtilities to get proper dependency injection
-        var clientObservableType = typeof(ClientObservableSSE<>).MakeGenericType(elementType);
-        var clientObservable = ActivatorUtilities.CreateInstance(
-            serviceProvider,
-            clientObservableType,
-            queryContext,
-            streamingData) as IClientObservable;
-
-        await clientObservable!.HandleConnection(context);
+        var clientObservable = OperationsFor(streamingData, typeof(ISubject<>)).CreateClientObservableSSE(serviceProvider, queryContext, streamingData);
+        await clientObservable.HandleConnection(context);
     }
 
 #pragma warning disable IDE0060 // Remove unused parameter - kept for signature consistency
@@ -163,46 +139,16 @@ public class ObservableQueryHandler(
 
     async Task HandleAsyncEnumerableViaWebSocket(IHttpRequestContext context, object streamingData)
     {
-        var type = streamingData.GetType();
-        var enumerableType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
-        var elementType = enumerableType.GetGenericArguments()[0];
-
-        // Get the current query context
         var queryContext = queryContextManager.Current;
-
-        // Create ClientEnumerableObservable using ActivatorUtilities to get proper dependency injection.
-        // The enumerable observables implement IClientEnumerableObservable, which is unrelated to IClientObservable —
-        // casting to the latter silently yielded null and made the very next line throw a NullReferenceException.
-        var clientEnumerableObservableType = typeof(ClientEnumerableObservable<>).MakeGenericType(elementType);
-        var clientEnumerableObservable = ActivatorUtilities.CreateInstance(
-            serviceProvider,
-            clientEnumerableObservableType,
-            queryContext,
-            streamingData) as IClientEnumerableObservable;
-
-        await clientEnumerableObservable!.HandleConnection(context);
+        var clientEnumerableObservable = OperationsFor(streamingData, typeof(IAsyncEnumerable<>)).CreateClientEnumerableObservable(serviceProvider, queryContext, streamingData);
+        await clientEnumerableObservable.HandleConnection(context);
     }
 
     async Task HandleAsyncEnumerableViaSSE(IHttpRequestContext context, object streamingData)
     {
-        var type = streamingData.GetType();
-        var enumerableType = type.GetInterfaces().First(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
-        var elementType = enumerableType.GetGenericArguments()[0];
-
-        // Get the current query context
         var queryContext = queryContextManager.Current;
-
-        // Create ClientEnumerableObservableSSE using ActivatorUtilities to get proper dependency injection.
-        // The enumerable observables implement IClientEnumerableObservable, which is unrelated to IClientObservable —
-        // casting to the latter silently yielded null and made the very next line throw a NullReferenceException.
-        var clientEnumerableObservableType = typeof(ClientEnumerableObservableSSE<>).MakeGenericType(elementType);
-        var clientEnumerableObservable = ActivatorUtilities.CreateInstance(
-            serviceProvider,
-            clientEnumerableObservableType,
-            queryContext,
-            streamingData) as IClientEnumerableObservable;
-
-        await clientEnumerableObservable!.HandleConnection(context);
+        var clientEnumerableObservable = OperationsFor(streamingData, typeof(IAsyncEnumerable<>)).CreateClientEnumerableObservableSSE(serviceProvider, queryContext, streamingData);
+        await clientEnumerableObservable.HandleConnection(context);
     }
 
 #pragma warning disable IDE0060 // Remove unused parameter - kept for signature consistency

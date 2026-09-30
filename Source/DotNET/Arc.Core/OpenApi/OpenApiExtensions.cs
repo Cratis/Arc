@@ -41,7 +41,7 @@ public static class OpenApiExtensions
             pattern,
             async context =>
             {
-                var document = GenerateOpenApiDocument(httpListenerMapper, title, version);
+                var document = GenerateOpenApiDocument(httpListenerMapper.Routes, title, version);
                 var json = JsonSerializer.Serialize(document, _jsonOptions);
 
                 context.ContentType = "application/json";
@@ -56,9 +56,16 @@ public static class OpenApiExtensions
         return app;
     }
 
-    static Dictionary<string, object> GenerateOpenApiDocument(HttpListenerEndpointMapper mapper, string title, string version)
+    /// <summary>
+    /// Builds the lightweight document from the routes eligible for API descriptions.
+    /// </summary>
+    /// <param name="registeredRoutes">The registered HTTP routes.</param>
+    /// <param name="title">The API title.</param>
+    /// <param name="version">The API version.</param>
+    /// <returns>The OpenAPI document.</returns>
+    internal static Dictionary<string, object> GenerateOpenApiDocument(IEnumerable<RouteInfo> registeredRoutes, string title, string version)
     {
-        var routes = mapper.Routes.ToList();
+        var routes = registeredRoutes.Where(route => route.Metadata?.ExcludeFromApiDescription != true).ToList();
         var paths = new Dictionary<string, object>();
 
         foreach (var pathGroup in routes.GroupBy(r => r.Pattern))

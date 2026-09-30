@@ -13,8 +13,8 @@ using Microsoft.Extensions.Options;
 namespace Cratis.Arc.Queries.for_ObservableQueryHandler.when_handling_streaming_result.given;
 
 /// <summary>
-/// The handler reaches all four observable implementations reflectively, through
-/// <see cref="ActivatorUtilities.CreateInstance(IServiceProvider, Type, object[])"/> with a hand-written argument
+/// The handler constructs all four observable implementations through
+/// <see cref="ActivatorUtilities.CreateInstance{T}(IServiceProvider, object[])"/> with a hand-written argument
 /// list. An implementation whose constructor stops lining up with that list still compiles — it throws
 /// <c>InvalidOperationException</c> at runtime, on the first client that asks for that transport. A substituted
 /// service provider cannot catch that, because nothing is ever actually constructed, so these specs run the real

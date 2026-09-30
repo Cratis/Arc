@@ -19,4 +19,27 @@ public record AuthorizationPolicyContext(ClaimsPrincipal Principal, MemberInfo T
     /// A hand-constructed context has <see langword="default"/> unless the caller sets this property.
     /// </summary>
     public DateTimeOffset ReceivedAt { get; init; }
+
+    /// <summary>
+    /// Gets the ambient principal accessor for per-policy identity checks when evaluating a pipeline verdict.
+    /// It is evaluation plumbing, not policy input, so it takes no part in value equality.
+    /// </summary>
+    internal ICurrentPrincipalAccessor? PrincipalAccessor { get; init; }
+
+    /// <summary>
+    /// Compares the public policy input: principal, target, resource and received time.
+    /// </summary>
+    /// <param name="other">The context to compare with.</param>
+    /// <returns>Whether both contexts present the same policy input.</returns>
+    public virtual bool Equals(AuthorizationPolicyContext? other) =>
+        other is not null &&
+        (ReferenceEquals(this, other) ||
+         (EqualityContract == other.EqualityContract &&
+          EqualityComparer<ClaimsPrincipal>.Default.Equals(Principal, other.Principal) &&
+          EqualityComparer<MemberInfo>.Default.Equals(Target, other.Target) &&
+          EqualityComparer<object>.Default.Equals(Resource, other.Resource) &&
+          ReceivedAt == other.ReceivedAt));
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => HashCode.Combine(EqualityContract, Principal, Target, Resource, ReceivedAt);
 }

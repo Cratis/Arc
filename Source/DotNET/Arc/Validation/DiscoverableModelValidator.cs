@@ -26,8 +26,10 @@ public class DiscoverableModelValidator(IValidator validator) : IModelValidator
                 return failures;
             }
 
-            var validationContextType = typeof(ValidationContext<>).MakeGenericType(context.ModelMetadata.ModelType);
-            var validationContext = (Activator.CreateInstance(validationContextType, [context.Model!]) as IValidationContext)!;
+            // A ValidationContext<object> is enough: AbstractValidator<T>.ValidateAsync rebuilds a ValidationContext<T>
+            // from any non-generic context whose instance is a T, keeping its root context data (command or query).
+            // Building ValidationContext<T> through MakeGenericType is not something NativeAOT or trimming can preserve.
+            var validationContext = new ValidationContext<object>(context.Model);
 
             SetValidationType(context, validationContext);
 

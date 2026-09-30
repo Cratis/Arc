@@ -87,7 +87,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
         {
             return null;
         }
-        return JsonSerializer.Deserialize(json, type, JsonSerializerOptions);
+        return JsonSerializer.Deserialize(json, JsonSerializerOptions.ResolveTypeInfo(type));
     }
 
     /// <inheritdoc/>
@@ -110,7 +110,7 @@ public class HttpListenerRequestContext(HttpListenerContext context, IServicePro
     {
         cancellationToken.ThrowIfCancellationRequested();
         context.Response.ContentType = "application/json";
-        var json = JsonSerializer.Serialize(value, type, JsonSerializerOptions);
+        var json = JsonSerializer.Serialize(value, JsonSerializerOptions.ResolveTypeInfo(type));
         var buffer = Encoding.UTF8.GetBytes(json);
         await context.Response.OutputStream.WriteAsync(buffer, cancellationToken);
     }

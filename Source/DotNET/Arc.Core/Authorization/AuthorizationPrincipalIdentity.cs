@@ -7,12 +7,14 @@ using System.Text.Json;
 namespace Cratis.Arc.Authorization;
 
 /// <summary>
-/// Conservatively compares a complete standard principal, not just its subject or tenant, across nested commands.
+/// Compares captured standard identity content (claims, authentication type, name/role claim types and actor chain),
+/// not hidden mutable behavior of custom identities or state inside opaque bootstrap contexts.
 /// </summary>
 internal static class AuthorizationPrincipalIdentity
 {
     /// <summary>
-    /// Captures immutable principal content before application code can mutate its identities or claims.
+    /// Captures standard identity content before application code can mutate its identities or claims.
+    /// Opaque custom state is not copied or fingerprinted.
     /// </summary>
     /// <param name="principal">The current principal.</param>
     /// <returns>An immutable identity description.</returns>
@@ -28,7 +30,7 @@ internal static class AuthorizationPrincipalIdentity
     /// </summary>
     /// <param name="snapshot">The previously captured identity.</param>
     /// <param name="principal">The proposed principal.</param>
-    /// <returns>Whether both describe exactly the same standard principal.</returns>
+    /// <returns>Whether captured standard content and required custom/opaque references still match; not whether hidden custom state is unchanged.</returns>
     internal static bool Same(PrincipalSnapshot snapshot, ClaimsPrincipal? principal)
     {
         if ((!snapshot.IsStandard || !IsStandard(principal)) && !ReferenceEquals(snapshot.Reference, principal))

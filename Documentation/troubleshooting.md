@@ -5,17 +5,16 @@ description: Fixes for the issues that come up most when building with Arc — p
 
 Most Arc snags come down to a handful of causes. Here they are. If the slice uses the Chronicle integration, see [Chronicle troubleshooting](/chronicle/troubleshooting/) for event-store-specific issues.
 
-:::note[Building on Kotlin or Java?]
-The symptoms below are the same on either backend, but the fixes here are
-written for the C# stack. See
-[Troubleshooting and FAQ](/arc/backend/kotlin/troubleshooting/) for the JVM
-equivalents — Gradle and KSP build failures, `ARCKSP` diagnostic codes, and
-Spring Boot runtime behaviour.
+:::note[Using another backend?]
+The fixes below are for C#. See [JVM troubleshooting](/arc/backend/kotlin/troubleshooting/)
+for Gradle, KSP, and Spring Boot, or [TypeScript proxy generation](/arc/backend/typescript/proxy-generation/getting-started/)
+and the [TypeScript capability reference](/arc/backend/typescript/reference/capabilities/)
+for the source preview. Do not apply the .NET build or discovery steps to those hosts.
 :::
 
 ## My frontend can't find the generated proxy
 
-Proxies are generated when the **backend builds**. If the import doesn't resolve:
+For **C#**, proxies generate on a configured Debug backend build. If the import doesn't resolve:
 
 - Install `Cratis.Arc.ProxyGenerator.Build`, set `CratisProxiesOutputPath`, and run `dotnet build -c Debug` on the backend and confirm it succeeds — no proxies are emitted until the C# compiles.
 - Check the command/query is discoverable: a `[Command]` record with a `Handle()` method, or a static query method on a `[ReadModel]`.
@@ -23,7 +22,7 @@ Proxies are generated when the **backend builds**. If the import doesn't resolve
 
 ## I changed the C# but the TypeScript is stale
 
-The proxies regenerate on build. Rebuild the backend; the frontend types update with it. If a renamed property doesn't surface, you've found the feature working — the old name should now fail to compile until you update the call site.
+With C# generation configured, proxies regenerate on a Debug build. Rebuild the backend; the frontend types update with it. If a renamed property doesn't surface, you've found the feature working — the old name should now fail to compile until you update the call site.
 
 ## My command's OK/Submit button stays disabled
 

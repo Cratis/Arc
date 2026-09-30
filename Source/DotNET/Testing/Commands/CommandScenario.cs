@@ -310,6 +310,9 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
         // resolving services from a provider the scenario disposes, and would race with any other live scenario.
         _serviceProvider = Services.BuildServiceProvider();
         serviceProvider = _serviceProvider;
+
+        // No host is started here, so the reporter AddCratisArcCore registers never runs; report skips directly.
+        GeneratedMetadataRegistration.LogSkippedProjectAssemblies(_serviceProvider);
         _pipeline = _serviceProvider.GetRequiredService<ICommandPipeline>();
     }
 }

@@ -31,6 +31,7 @@ public static class ApplicationBuilderExtensions
         app.Properties[CratisArcInitializedKey] = true;
 
         Cratis.Arc.Internals.ServiceProvider = app.ApplicationServices;
+        Cratis.Arc.GeneratedMetadataRegistration.LogSkippedProjectAssemblies(app.ApplicationServices);
 
         app.MapIdentityProvider();
         app.MapIntrospectionEndpoints();

@@ -307,5 +307,8 @@ vite*.map
 
 .playwright-mcp
 dist-minified
+# Throwaway projects Documentation/validate-client-snippets.py writes and deletes
+Documentation/.client-snippet-validation*/
+
 # Local AI work artifacts (plans, handovers, session notes) — never tracked
 .ai-work/

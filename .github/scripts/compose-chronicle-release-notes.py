@@ -3,7 +3,8 @@
 
 The body doubles as Arc's release notes - `cratis/release-action` publishes the merged
 pull request's body verbatim as the GitHub release - so it has to follow
-`.github/pull_request_template.md` exactly: an optional short summary plus the
+`.github/pull_request_template.md` exactly: an optional short `## Summary` of prose
+(level 2 - `# Summary` fails the release-notes check) plus the
 `Added`/`Changed`/`Fixed`/`Removed`/`Security`/`Deprecated` sections that apply, and
 nothing else. Anything about CI belongs in a pull request comment, never in the body.
 
@@ -154,7 +155,7 @@ def compose(previous, target, repository, picked):
 
     # Without the Chronicle releases to point at, the summary would only restate the single
     # bullet below it - the template says to drop it in exactly that case.
-    body = ['# Summary', '', compose_summary(previous, target, picked)] if picked else []
+    body = ['## Summary', '', compose_summary(previous, target, picked)] if picked else []
 
     for name in SECTIONS:
         bullets = changed if name == 'Changed' else inherited[name]

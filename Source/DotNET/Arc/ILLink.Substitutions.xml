@@ -1,0 +1,13 @@
+<linker>
+    <!-- The .NET 8 trimmer does not recognize [FeatureSwitchDefinition], so this declares the controllers switch for
+         it. Embedded in the net8.0 assembly only; from .NET 9 on the attribute on the property does the same. -->
+    <assembly fullname="Cratis.Arc">
+        <type fullname="Cratis.Arc.ArcFeatureSwitches">
+            <method signature="System.Boolean get_ControllersAreSupported()"
+                    body="stub"
+                    value="false"
+                    feature="Cratis.Arc.Controllers.IsSupported"
+                    featurevalue="false" />
+        </type>
+    </assembly>
+</linker>

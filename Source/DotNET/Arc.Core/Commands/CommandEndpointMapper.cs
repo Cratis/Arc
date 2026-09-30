@@ -40,7 +40,8 @@ public static class CommandEndpointMapper
                 options.IncludeCommandNameInRoute,
                 location,
                 handlersByNamespace);
-            var url = EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
+            var url = CommandRoute.CustomRoute(handler) ??
+                EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
             MapCommandEndpoint(
                 mapper,
@@ -49,7 +50,8 @@ public static class CommandEndpointMapper
                 $"Execute {handler.CommandType.Name} command in {handler.CommandType.Namespace}",
                 handler.CommandType,
                 location,
-                handler.AllowsAnonymousAccess);
+                handler.AllowsAnonymousAccess,
+                excludeFromApiDescription: handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true));
 
             MapCommandEndpoint(
                 mapper,
@@ -59,7 +61,8 @@ public static class CommandEndpointMapper
                 handler.CommandType,
                 location,
                 handler.AllowsAnonymousAccess,
-                validateOnly: true);
+                validateOnly: true,
+                excludeFromApiDescription: handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true));
         }
     }
 
@@ -113,7 +116,8 @@ public static class CommandEndpointMapper
         Type commandType,
         IEnumerable<string> location,
         bool allowAnonymous,
-        bool validateOnly = false)
+        bool validateOnly = false,
+        bool excludeFromApiDescription = false)
     {
         if (mapper.EndpointExists(endpointName))
         {
@@ -126,7 +130,8 @@ public static class CommandEndpointMapper
             [string.Join('.', location)],
             allowAnonymous,
             RequestBodyType: commandType,
-            ResponseType: typeof(CommandResult));
+            ResponseType: typeof(CommandResult),
+            ExcludeFromApiDescription: excludeFromApiDescription);
 
         mapper.MapPost(
             url,

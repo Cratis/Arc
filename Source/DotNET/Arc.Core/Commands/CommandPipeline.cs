@@ -929,7 +929,14 @@ public class CommandPipeline(
 
     CommandResult CreateCommandResultWithResponse(CorrelationId correlationId, object response)
     {
-        var commandResultType = typeof(CommandResult<>).MakeGenericType(response.GetType());
-        return (Activator.CreateInstance(commandResultType, correlationId, response) as CommandResult)!;
+        if (CommandResultFactories.TryCreate(correlationId, response, out var result))
+        {
+            return result;
+        }
+
+        // Responses without a generated factory, such as a subtype of the declared response type, are wrapped through
+        // reflection. That works under the JIT whatever the dynamic code settings say (an app built with PublishAot runs
+        // under the JIT from dotnet run or a test host); only ahead-of-time compiled code cannot create the type.
+        return CommandResultFactories.CreateWithoutFactory(correlationId, response, CommandResultFactories.CreateThroughReflection);
     }
 }

@@ -91,7 +91,7 @@ public static class QueryEndpointMapper
             performer.AllowsAnonymousAccess,
             RequestBodyType: reader.RequestBodyType,
             ResponseType: typeof(QueryResult),
-            ExcludeFromApiDescription: !reader.IncludeInApiDescription);
+            ExcludeFromApiDescription: !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery());
 
         mapper.MapMethod(
             reader.HttpMethod,

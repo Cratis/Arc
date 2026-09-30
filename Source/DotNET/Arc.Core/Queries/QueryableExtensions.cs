@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -9,42 +10,21 @@ namespace Cratis.Arc.Queries;
 /// <summary>
 /// Provides a set of methods for working with <see cref="IQueryable"/>.
 /// </summary>
+/// <remarks>
+/// The element type of a non-generic <see cref="IQueryable"/> is only known at runtime. Each operation is therefore
+/// performed by a generic method closed over the element type, which calls the typed <see cref="Queryable"/> operator
+/// directly. The generic methods are looked up by name on this type, so the trimmer can see which methods are needed.
+/// </remarks>
 public static class QueryableExtensions
 {
-    static readonly MethodInfo _countMethod;
-    static readonly MethodInfo _skipMethod;
-    static readonly MethodInfo _takeMethod;
-    static readonly MethodInfo _orderByMethod;
-    static readonly MethodInfo _orderByDescendingMethod;
-
-    static QueryableExtensions()
-    {
-        var queryableMethods = typeof(Queryable).GetTypeInfo().GetMethods(BindingFlags.Public | BindingFlags.Static);
-
-        _countMethod = queryableMethods.First(m => m.Name == nameof(Queryable.Count) && m.GetParameters().Length == 1);
-        _skipMethod = queryableMethods.First(m => m.Name == nameof(Queryable.Skip));
-        _takeMethod = queryableMethods.First(m => m.Name == nameof(Queryable.Take));
-        _orderByMethod = queryableMethods.First(
-            m => m.Name == nameof(Queryable.OrderBy) &&
-            m.GetParameters().Length == 2 &&
-            m.GetParameters()[1].ParameterType.GetGenericTypeDefinition() == typeof(Expression<>));
-        _orderByDescendingMethod = queryableMethods.First(
-            m => m.Name == nameof(Queryable.OrderByDescending) &&
-            m.GetParameters().Length == 2 &&
-            m.GetParameters()[1].ParameterType.GetGenericTypeDefinition() == typeof(Expression<>));
-    }
+    static readonly ConcurrentDictionary<Type, ElementOperations> _operationsByElementType = new();
 
     /// <summary>
     /// Returns the number of elements in a sequence.
     /// </summary>
     /// <param name="queryable">The <see cref="IQueryable"/> to adorn.</param>
     /// <returns>The number of elements in the input sequence.</returns>
-    public static int Count(this IQueryable queryable)
-    {
-        var genericMethod = _countMethod.MakeGenericMethod([queryable.ElementType]);
-        var countExpression = Expression.Call(null, genericMethod, queryable.Expression);
-        return queryable.Provider.Execute<int>(countExpression);
-    }
+    public static int Count(this IQueryable queryable) => OperationsFor(queryable.ElementType).Count(queryable);
 
     /// <summary>
     /// Bypasses a specified number of elements in a sequence and then returns the remaining elements.
@@ -52,11 +32,7 @@ public static class QueryableExtensions
     /// <param name="queryable">An <see cref="IQueryable"/> to adorn.</param>
     /// <param name="count">The number of elements to skip before returning the remaining elements.</param>
     /// <returns>An <see cref="IQueryable"/> for continuation.</returns>
-    public static IQueryable Skip(this IQueryable queryable, int count)
-    {
-        var genericMethod = _skipMethod.MakeGenericMethod([queryable.ElementType]);
-        return (genericMethod.Invoke(null, [queryable, count]) as IQueryable)!;
-    }
+    public static IQueryable Skip(this IQueryable queryable, int count) => OperationsFor(queryable.ElementType).Skip(queryable, count);
 
     /// <summary>
     /// Returns a specified number of contiguous elements from the start of a sequence.
@@ -64,11 +40,7 @@ public static class QueryableExtensions
     /// <param name="queryable">The <see cref="IQueryable"/> to adorn.</param>
     /// <param name="count">The number of elements to return.</param>
     /// <returns>An <see cref="IQueryable"/> for continuation.</returns>
-    public static IQueryable Take(this IQueryable queryable, int count)
-    {
-        var genericMethod = _takeMethod.MakeGenericMethod([queryable.ElementType]);
-        return (genericMethod.Invoke(null, [queryable, count]) as IQueryable)!;
-    }
+    public static IQueryable Take(this IQueryable queryable, int count) => OperationsFor(queryable.ElementType).Take(queryable, count);
 
     /// <summary>
     /// Sorts the elements of a sequence in ascending or descending order according to a key.
@@ -79,15 +51,12 @@ public static class QueryableExtensions
     /// <returns>An <see cref="IQueryable"/> for continuation.</returns>
     public static IQueryable OrderBy(this IQueryable queryable, string field, SortDirection direction = SortDirection.Ascending)
     {
-        var orderMethod = direction == SortDirection.Ascending ? _orderByMethod : _orderByDescendingMethod;
-        var elementTypeProperty = queryable.ElementType.GetProperty(field);
-        orderMethod = orderMethod.MakeGenericMethod(queryable.ElementType, elementTypeProperty!.PropertyType);
+        var elementTypeProperty = queryable.ElementType.GetProperty(field)!;
+        var orderBy = typeof(QueryableExtensions)
+            .GetMethod(nameof(OrderByProperty), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(queryable.ElementType, elementTypeProperty.PropertyType);
 
-        var parameter = Expression.Parameter(queryable.ElementType, "x");
-        var property = Expression.Property(parameter, field);
-        var lambda = Expression.Lambda(property, parameter);
-
-        return (orderMethod.Invoke(null, [queryable, lambda]) as IQueryable)!;
+        return (orderBy.Invoke(null, [queryable, elementTypeProperty, direction]) as IQueryable)!;
     }
 
     /// <summary>
@@ -98,4 +67,37 @@ public static class QueryableExtensions
     /// <returns>An <see cref="IQueryable"/> for continuation.</returns>
     public static IQueryable OrderByDescending(this IQueryable queryable, string field) =>
         queryable.OrderBy(field, SortDirection.Descending);
+
+    static ElementOperations OperationsFor(Type elementType) =>
+        _operationsByElementType.GetOrAdd(
+            elementType,
+            static type => (ElementOperations)typeof(QueryableExtensions)
+                .GetMethod(nameof(CreateOperations), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(type)
+                .Invoke(null, null)!);
+
+    static ElementOperations<TElement> CreateOperations<TElement>() => new();
+
+    static IQueryable<TElement> OrderByProperty<TElement, TKey>(IQueryable queryable, PropertyInfo property, SortDirection direction)
+    {
+        var parameter = Expression.Parameter(typeof(TElement), "x");
+        var keySelector = Expression.Lambda<Func<TElement, TKey>>(Expression.Property(parameter, property), parameter);
+        var typed = (IQueryable<TElement>)queryable;
+
+        return direction == SortDirection.Ascending ? typed.OrderBy(keySelector) : typed.OrderByDescending(keySelector);
+    }
+
+    abstract class ElementOperations
+    {
+        public abstract int Count(IQueryable queryable);
+        public abstract IQueryable Skip(IQueryable queryable, int count);
+        public abstract IQueryable Take(IQueryable queryable, int count);
+    }
+
+    sealed class ElementOperations<TElement> : ElementOperations
+    {
+        public override int Count(IQueryable queryable) => Queryable.Count((IQueryable<TElement>)queryable);
+        public override IQueryable Skip(IQueryable queryable, int count) => Queryable.Skip((IQueryable<TElement>)queryable, count);
+        public override IQueryable Take(IQueryable queryable, int count) => Queryable.Take((IQueryable<TElement>)queryable, count);
+    }
 }

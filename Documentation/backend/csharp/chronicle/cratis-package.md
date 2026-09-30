@@ -90,7 +90,7 @@ Arc and the Chronicle client share the application host and its configured integ
 
 `AddCratis` is the batteries-included front door, but the pieces underneath are independent — take just the part you need:
 
-- **Arc without an event store.** Call `AddCratisArc()` on its own and back your commands and queries with MongoDB or EF Core instead of Chronicle. You keep the full CQRS and proxy-generation experience with no event log. See [CQRS without event sourcing](../../../arc-without-event-sourcing.md).
+- **Arc without an event store.** Call `AddCratisArc()` on its own and back your commands and queries with MongoDB or EF Core instead of Chronicle. You keep the full CQRS and proxy-generation experience with no event log. See [CQRS without event sourcing](../../../arc-without-event-sourcing.mdx).
 - **Arc + Chronicle without the baked-in identity.** Retain the **`Cratis` package reference** for this ASP.NET Core example. Call `AddCratisArc()` and add its ASP.NET Core `WithChronicle()` composition yourself. This is exactly what `AddCratis` does, minus `AddMicrosoftIdentityPlatformIdentityAuthentication()` — reach for it when you bring your own authentication. `Cratis.Arc.Chronicle` alone provides the generic-host integration, not all the ASP.NET Core extensions below.
 
 ```csharp

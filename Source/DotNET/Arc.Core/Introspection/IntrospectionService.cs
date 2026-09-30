@@ -4,7 +4,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Schema;
-using System.Text.Json.Serialization.Metadata;
 using System.Xml.Linq;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Http;
@@ -58,14 +57,15 @@ public class IntrospectionService : IIntrospectionService
             h => h.Location,
             options.SegmentsToSkipForRoute);
 
-        return providers.Handlers.Select(handler =>
+        return providers.Handlers.Where(handler => !handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true)).Select(handler =>
         {
             var location = handler.Location.Skip(options.SegmentsToSkipForRoute);
             var includeCommandName = EndpointRouteHelper.ShouldIncludeNameInRoute(
                 options.IncludeCommandNameInRoute,
                 location,
                 handlersByNamespace);
-            var route = EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
+            var route = CommandRoute.CustomRoute(handler) ??
+                EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
             return new CommandIntrospectionMetadata(
                 handler.CommandType.Name,
@@ -84,14 +84,15 @@ public class IntrospectionService : IIntrospectionService
             p => p.Location,
             options.SegmentsToSkipForRoute);
 
-        return providers.Performers.Select(performer =>
+        return providers.Performers.Where(performer => !performer.IsExcludedFromDiscovery()).Select(performer =>
         {
             var location = performer.Location.Skip(options.SegmentsToSkipForRoute);
             var includeQueryName = EndpointRouteHelper.ShouldIncludeNameInRoute(
                 options.IncludeQueryNameInRoute,
                 location,
                 performersByNamespace);
-            var route = EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
+            var route = !string.IsNullOrEmpty(performer.CustomRoute) ? performer.CustomRoute :
+                EndpointRouteHelper.BuildRouteUrl(options, performer.Location, options.SegmentsToSkipForRoute, performer.Name.ToString(), includeQueryName);
 
             return new QueryIntrospectionMetadata(
                 performer.Name.ToString(),
@@ -107,7 +108,7 @@ public class IntrospectionService : IIntrospectionService
     static JsonSerializerOptions CreateSchemaGenerationOptions(JsonSerializerOptions baseOptions)
     {
         var schemaGenerationOptions = new JsonSerializerOptions(baseOptions);
-        schemaGenerationOptions.TypeInfoResolver ??= new DefaultJsonTypeInfoResolver();
+        schemaGenerationOptions.TypeInfoResolver ??= JsonSerializerOptionsConfiguration.ReflectionResolver;
         return schemaGenerationOptions;
     }
 

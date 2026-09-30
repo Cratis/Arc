@@ -33,21 +33,25 @@ On the JVM, the same four declarations go in a `books` package beside the `autho
 
    <ArcBackendTabs snippet="tutorial/books-and-relationships/add-book" />
 
-   **On the relational branch**, the C# handler takes the context and saves through it:
+   **On the relational branch**, .NET takes the context and saves through it. The JVM and TypeScript handlers still use a repository; its implementation supplies the relational write:
 
-   ```csharp
-   [Command]
-   public record AddBook(AuthorId AuthorId, BookId BookId, BookTitle Title)
-   {
-       public async Task Handle(LibraryDbContext db)
-       {
-           db.Books.Add(new Book(BookId, AuthorId, Title));
-           await db.SaveChangesAsync();
-       }
-   }
-   ```
+   <ArcBackendTabs snippet="tutorial/books-and-relationships/relational-add-book" />
 
-   The JVM handler is the same either way — `BookRepository` is a `MongoRepository` or a `JpaRepository`, and the command never knows which.
+   On the JVM, the command still uses `BookRepository`: its document-store implementation can use `MongoRepository<Book, …>`, while its relational implementation delegates to `JpaRepository<BookRow, UUID>` and converts between `Book` and the mapped row.
+
+On TypeScript, create `Features/Books/BookId.ts` and `BookTitle.ts` from the concepts above, `Features/Books/Book.ts` from the query below, and `Features/Books/AddBook.ts` from the command above. Import each type the excerpts use from its feature file, with `.js` on relative backend imports. Put this runtime token in `Features/Books/BookRepository.ts`; both the command and query import it (not as a type-only import):
+
+<ArcBackendTabs snippet="tutorial/books-and-relationships/book-repository" variants="typescript" />
+
+The MongoDB implementation belongs beside it in `Features/Books/MongoBookRepository.ts`. It encodes books through the collection's codec before writing; the filter uses the codec's stored field name and the encoded author id so it matches MongoDB's UUID representation, not a JavaScript `Guid` object:
+
+<ArcBackendTabs snippet="tutorial/books-and-relationships/mongodb-book-repository" variants="typescript" />
+
+In `main.ts`, import `Book`, `BookRepository`, and `MongoBookRepository`, then add `Book` to the existing `readModels` list and register the repository **before** `builder.discover(...)`. Keep the chapter-1 tenant resolver, author repository, and chapter-2 unique index startup:
+
+<ArcBackendTabs snippet="tutorial/books-and-relationships/mongodb-book-registration" variants="typescript" />
+
+Regenerate with `npm run generate` after adding the files. The [MongoDB setup](/arc/backend/typescript/mongodb/getting-started/) explains collection tokens and model registration in more detail.
 
 
 ## Read a catalog back, filtered
@@ -56,22 +60,15 @@ The read model is just the book document — it carries the `AuthorId` it belong
 
 <ArcBackendTabs snippet="tutorial/books-and-relationships/books-for-author" />
 
-The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, while the JVM passes Spring Data `Criteria` naming the stored field. Both return a stream — `ISubject<…>` or a `Flow<List<…>>` — which is what makes the query live.
+The filter is the only difference worth noting: C# expresses it as a typed predicate over the read model, the JVM passes Spring Data `Criteria` naming the stored field, and TypeScript's MongoDB repository observes a filter on the collection's mapped `authorId` field. Each returns a stream — `ISubject<…>`, `Flow<List<…>>`, or `ObservableSource<Book[]>` — which is what makes the query live. On the TypeScript relational branch, the Drizzle repository uses `eq(books.authorId, authorId.value)` and announces changes after committed writes.
 
-**On the relational branch**, the C# query reads through the context instead:
+**On the relational branch**, read from the configured relational store instead:
 
-```csharp
-[ReadModel]
-public record Book(BookId Id, AuthorId AuthorId, BookTitle Title)
-{
-    public static ISubject<IEnumerable<Book>> BooksForAuthor(AuthorId authorId, LibraryDbContext db) =>
-        db.Books.Observe(b => b.AuthorId == authorId);
-}
-```
+<ArcBackendTabs snippet="tutorial/books-and-relationships/relational-books-for-author" />
 
-For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/csharp/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write. On the JVM, a relational branch injects [`JpaObservableQuery`](/arc/backend/kotlin/guides/spring-data/observable-snapshots/) in place of `MongoObservableQuery` and lets your schema tooling create the table; remember that JPA observation is in-process only.
+For EF Core, also add `public DbSet<Book> Books => Set<Book>();` to `LibraryDbContext`. Apply the schema change before running: recreate only the disposable tutorial SQLite database as explained in [setup](/arc/backend/csharp/getting-started/), or use a migration for retained data. Re-register an author after recreating it. MongoDB creates its book collection on the first write. On the JVM, the snapshot query projects mapped JPA rows into the `Book` read model; configure the repository to persist those rows and publish changes for `Book` after commit. JPA observation is in-process only. TypeScript's Drizzle observation also requires explicit table registration and change announcements after writes. The tab shows the SQLite/`sql.js` adapter; [observe SQL tables](/arc/backend/typescript/sql/observing-tables/) shows the `withDrizzle` registration, schema setup, and scoped repository pattern. SQL writes must be committed before `notifyChanged` when a transaction is owned outside Arc.
 
-Before adding React, regenerate the proxies — `dotnet build -c Debug`, or `./gradlew generateArcProxies` on the JVM. Verify `src/Books/AddBook.ts` and `src/Books/Book.ts` exist; the latter includes `BooksForAuthor` in source-file output mode.
+Before adding React, regenerate the proxies — `dotnet build -c Debug` on C#, `./gradlew generateArcProxies` on the JVM, or `npm run generate` on TypeScript (using the [application's generator script](/arc/backend/typescript/getting-started/create-an-application/)). On C# and JVM, verify `src/Books/AddBook.ts` and `src/Books/Book.ts` exist; the latter includes `BooksForAuthor` in source-file output mode. With the TypeScript backend's co-located `--use-proxy-file-suffix` setup, import `AllAuthors` in `src/Catalog.tsx` from `../Features/Authors/AllAuthors.proxy`, `BooksForAuthor` from `../Features/Books/BooksForAuthor.proxy`, and `AddBook` in `src/AddBook.tsx` from `../Features/Books/AddBook.proxy`. The `src/Books/Book` and `src/Books/AddBook` imports in the React examples below are for the .NET/JVM source-file grouping.
 
 <Aside type="tip" title="The relationship is a filter, not an existence constraint">
 `Observe(b => b.AuthorId == authorId)` reads books carrying this author's id, without a join. The form supplies an existing author, but these examples do not prevent a direct caller from submitting an unknown id. Add server validation and, where supported, a database foreign-key constraint if author existence is a required invariant.
@@ -175,7 +172,7 @@ export const App = () => (
 
 ## Check the relationship
 
-Click **Add book** beside one author, add a book, then open the dialog again to add a second book. Verify that their ids differ and only that author's list grows. Another author's list should remain unchanged. Run `npx tsc --noEmit` and `npx vite build` from the frontend project root: `BooksForAuthor.use({ authorId })` requires a parameter object, not a positional id or a string conversion.
+Click **Add book** beside one author, add a book, then open the dialog again to add a second book. Verify that their ids differ and only that author's list grows. Another author's list should remain unchanged. Run `npx tsc -p tsconfig.web.json --noEmit` (or `npx tsc6 -p tsconfig.web.json --noEmit` with the TypeScript backend) and `npx vite build` from the frontend project root: `BooksForAuthor.use({ authorId })` requires a parameter object, not a positional id or a string conversion; use the `dist-web` output from chapter 1 so the TypeScript backend's `dist/main.js` survives the Vite build.
 
 ## What you built
 
