@@ -29,6 +29,7 @@ public class and_the_validator_takes_dependencies : given.a_protected_decision
 
     [Fact] void should_refuse_it() => _result.Error.ShouldBeOfExactType<DiscoverableValidatorRefusedInProtectedDecision>();
     [Fact] void should_say_its_constructor_takes_dependencies() => _result.Error!.Message.Contains("constructor takes dependencies").ShouldBeTrue();
+    [Fact] void should_advise_moving_the_rule_into_a_decision_read() => _result.Error!.Message.Contains("Provide or Handle as DecisionRead<T>").ShouldBeTrue();
     [Fact] void should_not_resolve_its_dependencies() => _dependenciesResolved.ShouldEqual(0);
     [Fact] void should_not_run_its_registration() => _validatorsConstructed.ShouldEqual(0);
 }

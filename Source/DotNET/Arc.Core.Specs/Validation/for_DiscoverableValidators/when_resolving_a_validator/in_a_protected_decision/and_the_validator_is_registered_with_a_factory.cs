@@ -15,4 +15,5 @@ public class and_the_validator_is_registered_with_a_factory : given.a_protected_
 
     [Fact] void should_refuse_it() => _result.Error.ShouldBeOfExactType<DiscoverableValidatorRefusedInProtectedDecision>();
     [Fact] void should_say_arc_did_not_construct_it() => _result.Error!.Message.Contains("instance Arc did not construct").ShouldBeTrue();
+    [Fact] void should_advise_letting_convention_discovery_register_it() => _result.Error!.Message.Contains("let convention discovery register it").ShouldBeTrue();
 }
