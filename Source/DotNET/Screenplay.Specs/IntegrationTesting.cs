@@ -158,6 +158,8 @@ public static class IntegrationTesting
                 {
                 }
 
+                public static Task ShouldHaveAppendedEvent<TEvent>(this IEventSequence sequence, EventSourceId eventSourceId, System.Func<TEvent, bool> predicate) => Task.CompletedTask;
+
                 public static void ShouldHaveTailSequenceNumber(this IEventSequence sequence, int expected)
                 {
                 }
