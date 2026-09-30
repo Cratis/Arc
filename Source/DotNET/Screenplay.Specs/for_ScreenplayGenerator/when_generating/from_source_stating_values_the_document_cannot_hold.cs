@@ -104,6 +104,9 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
         _compiled = new ScreenplayCompiler().Compile(_result.Source);
     }
 
+    IEnumerable<string> Reasons() =>
+        _result.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecificationValue).Select(_ => _.Message);
+
     IEnumerable<string> Lines() =>
         _result.Source.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(_ => _.Trim());
 
@@ -114,6 +117,10 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
     [Fact] void should_still_state_the_other_values_of_the_command() => Lines().ShouldContain(@"note = ""again""");
     [Fact] void should_never_state_null_for_a_record_the_command_requires() => Lines().ShouldNotContain("preferences = null");
     [Fact] void should_still_state_null_for_a_record_that_may_be_absent() => Lines().ShouldContain("fallback = null");
-    [Fact] void should_report_each_value_it_left_out() => _result.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecificationValue).ShouldEqual(2);
+    [Fact] void should_report_each_value_it_left_out() => Reasons().Count().ShouldEqual(2);
+    [Fact] void should_say_which_number_no_member_is_declared_with() => Reasons().ShouldContain(
+        "The value 'when_reissuing_and_the_side_is_not_a_contract_side' states for 'ReissueSigning.Side' is 99, which no member of the enumeration 'ContractSide' is declared with, so the scenario states everything but that value");
+    [Fact] void should_say_which_required_property_was_given_null() => Reasons().ShouldContain(
+        "The value 'when_setting_preferences_and_the_preferences_are_null' states for 'SetSigningPreferences.Preferences' is null, which a required property of type 'SigningPreferences' cannot hold, so the scenario states everything but that value");
     [Fact] void should_not_claim_to_write_the_number() => _result.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.UnnamedEnumerationValue).ShouldBeFalse();
 }

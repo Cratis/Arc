@@ -48,4 +48,21 @@ static class StatableValues
         value = member;
         return true;
     }
+
+    /// <summary>
+    /// Says why the document cannot hold a constant for a property.
+    /// </summary>
+    /// <param name="propertyType">The type of the property.</param>
+    /// <param name="constant">The value the compiler handed over.</param>
+    /// <returns>The value and the reason it cannot be stated, to follow "is".</returns>
+    public static string WhyNot(ITypeSymbol propertyType, object? constant)
+    {
+        var optional = false;
+        var collection = false;
+        var underlying = UnderlyingTypes.Of(propertyType, ref optional, ref collection);
+
+        return constant is null
+            ? $"null, which a required property of type '{underlying.Name}' cannot hold"
+            : $"{constant}, which no member of the enumeration '{underlying.Name}' is declared with";
+    }
 }

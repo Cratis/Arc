@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Numerics;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -80,10 +81,36 @@ public static class EnumConstants
     /// the same compilation produce the same document, which is the whole point of a document worth committing.
     /// </remarks>
     static string? MemberOf(ITypeSymbol type, object value) =>
-        type.GetMembers()
-            .OfType<IFieldSymbol>()
-            .Where(_ => _.HasConstantValue && Equals(_.ConstantValue, value))
-            .Select(_ => _.Name)
-            .Order(StringComparer.Ordinal)
-            .FirstOrDefault();
+        Normalize(value) is not { } wanted
+            ? null
+            : type.GetMembers()
+                .OfType<IFieldSymbol>()
+                .Where(_ => _.HasConstantValue && Normalize(_.ConstantValue) == wanted)
+                .Select(_ => _.Name)
+                .Order(StringComparer.Ordinal)
+                .FirstOrDefault();
+
+    /// <summary>
+    /// Gets the number behind a constant, whichever integral type the compiler handed it over as.
+    /// </summary>
+    /// <param name="value">The constant to read.</param>
+    /// <returns>The number, or <see langword="null"/> when the constant is not an integer.</returns>
+    /// <remarks>
+    /// A member is declared with a constant of the underlying type of its enumeration, while a constant read from
+    /// behind a cast or written bare is an <see cref="int"/> - so <c>(ByteEnum)1</c> and the member declared with
+    /// <c>1</c> are the same value held as different types, and comparing them as objects never matches.
+    /// </remarks>
+    static BigInteger? Normalize(object? value) => value switch
+    {
+        sbyte number => number,
+        byte number => number,
+        short number => number,
+        ushort number => number,
+        int number => number,
+        uint number => number,
+        long number => number,
+        ulong number => number,
+        char number => number,
+        _ => null
+    };
 }

@@ -58,9 +58,12 @@ static class SpecificationEventPredicateValues
 
         var recovered = new List<(PropertyMappingModel Value, Location Source)>();
         var properties = new HashSet<string>(StringComparer.Ordinal);
-        if (!TryRead(body, eventType, parameter, semanticModel, recovered, properties))
+        var unstatable = new List<string>();
+        if (!TryRead(body, eventType, parameter, semanticModel, recovered, properties, unstatable))
         {
-            reason = "an expected event predicate is not a conjunction of direct event-property equalities to constants the document can state";
+            reason = unstatable.Count > 0
+                ? $"an expected event predicate states {unstatable[0]}"
+                : "an expected event predicate is not a conjunction of direct event-property equalities to constants the document can state";
             return false;
         }
 
@@ -86,13 +89,14 @@ static class SpecificationEventPredicateValues
         IParameterSymbol parameter,
         SemanticModel semanticModel,
         List<(PropertyMappingModel Value, Location Source)> values,
-        HashSet<string> properties)
+        HashSet<string> properties,
+        List<string> unstatable)
     {
         expression = Unwrap(expression);
         if (expression is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalAndExpression } conjunction)
         {
-            return TryRead(conjunction.Left, eventType, parameter, semanticModel, values, properties) &&
-                   TryRead(conjunction.Right, eventType, parameter, semanticModel, values, properties);
+            return TryRead(conjunction.Left, eventType, parameter, semanticModel, values, properties, unstatable) &&
+                   TryRead(conjunction.Right, eventType, parameter, semanticModel, values, properties, unstatable);
         }
 
         if (expression is not BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } equality)
@@ -100,8 +104,8 @@ static class SpecificationEventPredicateValues
             return false;
         }
 
-        return TryRead(equality.Left, equality.Right, eventType, parameter, semanticModel, values, properties) ||
-               TryRead(equality.Right, equality.Left, eventType, parameter, semanticModel, values, properties);
+        return TryRead(equality.Left, equality.Right, eventType, parameter, semanticModel, values, properties, unstatable) ||
+               TryRead(equality.Right, equality.Left, eventType, parameter, semanticModel, values, properties, unstatable);
     }
 
     static bool TryRead(
@@ -111,7 +115,8 @@ static class SpecificationEventPredicateValues
         IParameterSymbol parameter,
         SemanticModel semanticModel,
         List<(PropertyMappingModel Value, Location Source)> values,
-        HashSet<string> properties)
+        HashSet<string> properties,
+        List<string> unstatable)
     {
         memberExpression = Unwrap(memberExpression);
         valueExpression = Unwrap(valueExpression);
@@ -119,9 +124,18 @@ static class SpecificationEventPredicateValues
             !SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(receiver).Symbol, parameter) ||
             semanticModel.GetSymbolInfo(member).Symbol is not IPropertySymbol property ||
             !SymbolEqualityComparer.Default.Equals(property.ContainingType, eventType) ||
-            semanticModel.GetConstantValue(valueExpression) is not { HasValue: true } constant ||
-            !StatableValues.TryState(property.Type, constant.Value, out var value) ||
-            !properties.Add(property.Name))
+            semanticModel.GetConstantValue(valueExpression) is not { HasValue: true } constant)
+        {
+            return false;
+        }
+
+        if (!StatableValues.TryState(property.Type, constant.Value, out var value))
+        {
+            unstatable.Add($"'{eventType.Name}.{property.Name}' as {StatableValues.WhyNot(property.Type, constant.Value)}");
+            return false;
+        }
+
+        if (!properties.Add(property.Name))
         {
             return false;
         }

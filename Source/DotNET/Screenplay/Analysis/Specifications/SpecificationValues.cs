@@ -191,7 +191,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnreadableSpecificationValue,
-                $"The value '{specification}' states for '{type.Name}.{property}' is '{constant.Value ?? "null"}', which the document cannot hold for a property of type '{localProperty.Type.Name}', so the scenario states everything but that value",
+                $"The value '{specification}' states for '{type.Name}.{property}' is {StatableValues.WhyNot(localProperty.Type, constant.Value)}, so the scenario states everything but that value",
                 location);
             return;
         }
