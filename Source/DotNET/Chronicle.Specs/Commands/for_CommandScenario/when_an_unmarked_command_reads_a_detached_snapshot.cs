@@ -18,8 +18,9 @@ namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario;
 #pragma warning disable SA1402, SA1649
 
 /// <summary>
-/// Unmarked commands must behave exactly as before protected decisions existed: Chronicle's detached decision reads
-/// (shipped since Chronicle 19.13) keep working in their handlers and validators, on both validate and execute.
+/// Unmarked and [Unprotected] commands must behave exactly as before protected decisions existed: Chronicle's detached
+/// decision reads (shipped since Chronicle 19.13) keep working in their handlers and validators, on both validate and
+/// execute. Only [ProtectedDecision] refuses them.
 /// </summary>
 public class when_an_unmarked_command_reads_a_detached_snapshot
 {
@@ -42,6 +43,32 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
         await using var scenario = new CommandScenario<UnmarkedDetachedValidated>();
         var reader = UseDetachedReader(scenario);
         var command = new UnmarkedDetachedValidated(EventSourceId.New());
+
+        (await scenario.Validate(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command)).ShouldBeSuccessful();
+        await reader.Received(2).GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)command.EventSourceId, Arg.Any<CancellationToken>());
+        Assert.Single(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task unprotected_handler_reads_the_detached_snapshot_on_validate_and_execute()
+    {
+        await using var scenario = new CommandScenario<UnprotectedDetachedHandler>();
+        var reader = UseDetachedReader(scenario);
+        var command = new UnprotectedDetachedHandler(EventSourceId.New());
+
+        (await scenario.Validate(command)).ShouldBeSuccessful();
+        (await scenario.Execute(command)).ShouldBeSuccessful();
+        await reader.Received(1).GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)command.EventSourceId, Arg.Any<CancellationToken>());
+        Assert.Single(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task unprotected_validator_reads_the_detached_snapshot_on_validate_and_execute()
+    {
+        await using var scenario = new CommandScenario<UnprotectedDetachedValidated>();
+        var reader = UseDetachedReader(scenario);
+        var command = new UnprotectedDetachedValidated(EventSourceId.New());
 
         (await scenario.Validate(command)).ShouldBeSuccessful();
         (await scenario.Execute(command)).ShouldBeSuccessful();
@@ -101,6 +128,30 @@ public class when_an_unmarked_command_reads_a_detached_snapshot
     public class UnmarkedDetachedValidatedValidator : CommandValidator<UnmarkedDetachedValidated>
     {
         public UnmarkedDetachedValidatedValidator(IDecisionReads reads) =>
+            RuleFor(command => command.EventSourceId)
+                .MustAsync(async (id, cancellationToken) =>
+                    !(await reads.GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)id, cancellationToken)).Exists)
+                .WithMessage("Already decided.");
+    }
+
+    [Command]
+    [Unprotected]
+    public record UnprotectedDetachedHandler(EventSourceId EventSourceId)
+    {
+        public async Task<when_using_decision_mode.DecisionFinished> Handle(IDecisionReads reads) =>
+            new((await reads.GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)EventSourceId)).Exists);
+    }
+
+    [Command]
+    [Unprotected]
+    public record UnprotectedDetachedValidated(EventSourceId EventSourceId)
+    {
+        public when_using_decision_mode.DecisionFinished Handle() => new(false);
+    }
+
+    public class UnprotectedDetachedValidatedValidator : CommandValidator<UnprotectedDetachedValidated>
+    {
+        public UnprotectedDetachedValidatedValidator(IDecisionReads reads) =>
             RuleFor(command => command.EventSourceId)
                 .MustAsync(async (id, cancellationToken) =>
                     !(await reads.GetDetached<when_using_decision_mode.DecisionState>((ReadModelKey)id, cancellationToken)).Exists)

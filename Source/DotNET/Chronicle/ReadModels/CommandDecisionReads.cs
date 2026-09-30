@@ -47,15 +47,11 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     public Task<DecisionRead<T>> GetDetached<T>(ReadModelKey key, CancellationToken cancellationToken = default)
         where T : class
     {
-        // Only a declared profile changes the Chronicle contract. Unmarked commands, queries and other callers read
-        // detached snapshots exactly as Chronicle's own reader does.
-        switch (CommandDecisionPolicy.Mode)
+        // Only [ProtectedDecision] changes the Chronicle contract. Unmarked and [Unprotected] commands, queries and other
+        // callers read detached snapshots exactly as Chronicle's own reader does: an explicitly advisory, unguarded profile.
+        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Protected)
         {
-            case CommandDecisionMode.Protected:
-                throw new DecisionReadCouldNotBeAcquired(new DetachedDecisionReadRefused());
-
-            case CommandDecisionMode.Unprotected when !CommandValidationExecution.IsActive:
-                throw new DetachedDecisionReadRefused();
+            throw new DecisionReadCouldNotBeAcquired(new DetachedDecisionReadRefused());
         }
 
         return inner.GetDetached<T>(key, cancellationToken);

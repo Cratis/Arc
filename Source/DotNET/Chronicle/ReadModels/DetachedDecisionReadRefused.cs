@@ -6,4 +6,4 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// <summary>
 /// The exception that is thrown when a detached decision read is attempted inside an executing command that declares a decision profile.
 /// </summary>
-public class DetachedDecisionReadRefused() : Exception("Detached decision reads cannot be used inside an executing [ProtectedDecision] or [Unprotected] command.");
+public class DetachedDecisionReadRefused() : Exception("Detached decision reads cannot be used inside an executing [ProtectedDecision] command.");
