@@ -24,7 +24,8 @@ namespace Cratis.Arc.Generators;
 /// Each type is named in its own lambda, so the runtime resolves each separately and one that cannot be loaded does
 /// not stop the others. Types with no interfaces and a base type from the core library are preferred, as they load
 /// with the fewest other assemblies. Types in Arc's own generated namespaces are never chosen: the same generated
-/// class exists in every executable, so naming one would reach the wrong module.
+/// class exists in every executable, so naming one would reach the wrong module. Nor is a type that source cannot name by
+/// its full name, such as a file-local type another generator added to the reference.
 /// </para>
 /// <para>
 /// Project references are those the <c>Cratis.Arc.Core</c> build targets report through the
@@ -264,11 +265,13 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
 
     static bool IsReachable(Compilation compilation, INamedTypeSymbol type) =>
         !type.IsGenericType &&
+        !type.IsFileLocal &&
+        !type.IsImplicitlyDeclared &&
         type.CanBeReferencedByName &&
         !IsGeneratedByArc(type) &&
         compilation.IsSymbolAccessibleWithin(type, compilation.Assembly) &&
         !type.GetAttributes().Any(_ => _excludedAttributes.Contains(_.AttributeClass?.ToDisplayString() ?? string.Empty)) &&
-        SymbolEqualityComparer.Default.Equals(compilation.GetTypeByMetadataName(GetMetadataName(type)), type);
+        SymbolEqualityComparer.Default.Equals(compilation.GetTypeByMetadataName(GetNameAsWritten(type)), type);
 
     /// <summary>
     /// Whether the type is one Arc's own generators emit. The registration class this generator emits for an executable
@@ -289,9 +292,17 @@ public class ProjectReferenceModulesGenerator : IIncrementalGenerator
             (@namespace.EndsWith(".Generated", StringComparison.Ordinal) || @namespace.IndexOf(".Generated.", StringComparison.Ordinal) >= 0);
     }
 
-    static string GetMetadataName(INamedTypeSymbol type)
+    /// <summary>
+    /// Gets the full name the generated source names the type by. Looking it up must find the type itself: it does not
+    /// for a file-local type, whose metadata name is mangled and which no other file can name - including one read from
+    /// a referenced assembly, where it is an ordinary internal type that <c>InternalsVisibleTo</c> makes accessible - nor
+    /// for a name that is ambiguous across references.
+    /// </summary>
+    /// <param name="type">The non-generic, top-level type.</param>
+    /// <returns>The full name, without the <c>global::</c> alias.</returns>
+    static string GetNameAsWritten(INamedTypeSymbol type)
     {
-        var name = type.MetadataName;
+        var name = type.Name;
         for (var @namespace = type.ContainingNamespace; !@namespace.IsGlobalNamespace; @namespace = @namespace.ContainingNamespace)
         {
             name = $"{@namespace.MetadataName}.{name}";
