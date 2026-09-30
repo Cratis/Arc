@@ -21,9 +21,9 @@ public class with_a_traced_query_that_is_not_known : given.a_traced_query_pipeli
     Task Because() => Perform();
 
     [Fact] void should_fail() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_keep_the_generic_span_name() => QuerySpan.DisplayName.ShouldEqual("cratis.arc.query.perform");
-    [Fact] void should_not_add_the_query_name() => QuerySpan.GetTagItem("cratis.arc.query.name").ShouldBeNull();
+    [Fact] void should_keep_the_generic_span_name() => QuerySpan.DisplayName.ShouldEqual(WellKnownTelemetryNames.QueryPerformSpan);
+    [Fact] void should_not_add_the_query_name() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryName).ShouldBeNull();
     [Fact] void should_set_the_status_to_error() => QuerySpan.Status.ShouldEqual(ActivityStatusCode.Error);
-    [Fact] void should_record_the_duration_under_other() => Duration.Tags["cratis.arc.query.name"].ShouldEqual("_other");
-    [Fact] void should_record_the_duration_as_an_error() => Duration.Tags["cratis.arc.query.outcome"].ShouldEqual("error");
+    [Fact] void should_record_the_duration_under_other() => Duration.Tags[WellKnownTelemetryNames.QueryName].ShouldEqual(WellKnownTelemetryNames.Other);
+    [Fact] void should_record_the_duration_as_an_error() => Duration.Tags[WellKnownTelemetryNames.QueryOutcome].ShouldEqual(WellKnownOperationOutcomes.Error);
 }

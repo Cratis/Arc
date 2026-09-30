@@ -17,6 +17,6 @@ public class with_a_traced_observable_query : given.a_traced_query_pipeline
 
     Task Because() => Perform();
 
-    [Fact] void should_add_the_observable_transport() => QuerySpan.GetTagItem("cratis.arc.query.transport").ShouldEqual("observable");
-    [Fact] void should_record_the_duration_for_the_transport() => Duration.Tags["cratis.arc.query.transport"].ShouldEqual("observable");
+    [Fact] void should_add_the_observable_transport() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryTransport).ShouldEqual(WellKnownTelemetryNames.ObservableTransport);
+    [Fact] void should_record_the_duration_for_the_transport() => Duration.Tags[WellKnownTelemetryNames.QueryTransport].ShouldEqual(WellKnownTelemetryNames.ObservableTransport);
 }

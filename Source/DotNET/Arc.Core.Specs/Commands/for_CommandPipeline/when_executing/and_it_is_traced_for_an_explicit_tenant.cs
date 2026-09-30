@@ -23,5 +23,5 @@ public class and_it_is_traced_for_an_explicit_tenant : given.a_traced_command_pi
         _result = await _commandPipeline.Execute(_command, _serviceProvider);
     }
 
-    [Fact] void should_add_the_tenant() => CommandSpan.GetTagItem("cratis.tenant").ShouldEqual(_tenant.Value);
+    [Fact] void should_add_the_tenant() => CommandSpan.GetTagItem(WellKnownTelemetryNames.Tenant).ShouldEqual(_tenant.Value);
 }

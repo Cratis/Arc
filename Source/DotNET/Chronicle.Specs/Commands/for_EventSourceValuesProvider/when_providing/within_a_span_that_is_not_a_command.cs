@@ -37,12 +37,12 @@ public class within_a_span_that_is_not_a_command : Specification
 
     void Because()
     {
-        using var span = _source.StartActivity("cratis.arc.command.execute")!;
+        using var span = _source.StartActivity(WellKnownTelemetryNames.CommandExecuteSpan)!;
         _provider.Provide(new RegisterAuthor(new EventSourceId<Guid>(Guid.NewGuid())));
         _span = span;
     }
 
-    [Fact] void should_not_add_the_type_of_the_event_source_id() => _span.GetTagItem("cratis.arc.command.event_source_id.type").ShouldBeNull();
+    [Fact] void should_not_add_the_type_of_the_event_source_id() => _span.GetTagItem(WellKnownTelemetryNames.CommandKeyType).ShouldBeNull();
 
     record RegisterAuthor(EventSourceId<Guid> Id);
 }

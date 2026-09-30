@@ -19,12 +19,13 @@ public class and_it_is_traced_and_the_append_is_rejected : given.a_traced_comman
 
     async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
-    ActivityEvent Event => CommandSpan.Events.Single(_ => _.Name == "cratis.arc.validation.failed");
+    ActivityEvent Event => CommandSpan.Events.Single(_ => _.Name == WellKnownTelemetryNames.ValidationFailedEvent);
 
     [Fact] void should_fail() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_add_the_outcome() => CommandSpan.GetTagItem("cratis.arc.command.outcome").ShouldEqual("append_rejected");
-    [Fact] void should_name_the_reason() => Event.Tags.Single(_ => _.Key == "cratis.arc.validation.reason").Value.ShouldEqual("constraintViolation");
-    [Fact] void should_name_the_constraint() => Event.Tags.Single(_ => _.Key == "cratis.arc.validation.reason_detail").Value.ShouldEqual(ConstraintName);
-    [Fact] void should_count_an_append_rejected_outcome() => Outcomes.Single().Tags["cratis.arc.command.outcome"].ShouldEqual("append_rejected");
+    [Fact] void should_leave_the_status_unset() => CommandSpan.Status.ShouldEqual(ActivityStatusCode.Unset);
+    [Fact] void should_add_the_outcome() => CommandSpan.GetTagItem(WellKnownTelemetryNames.CommandOutcome).ShouldEqual(WellKnownOperationOutcomes.AppendRejected);
+    [Fact] void should_name_the_reason() => Event.Tags.Single(_ => _.Key == WellKnownTelemetryNames.ValidationReason).Value.ShouldEqual("constraintViolation");
+    [Fact] void should_name_the_constraint() => Event.Tags.Single(_ => _.Key == WellKnownTelemetryNames.ValidationReasonDetail).Value.ShouldEqual(ConstraintName);
+    [Fact] void should_count_an_append_rejected_outcome() => Outcomes.Single().Tags[WellKnownTelemetryNames.CommandOutcome].ShouldEqual(WellKnownOperationOutcomes.AppendRejected);
     [Fact] void should_not_record_the_value() => _telemetry.AnyTagContains(SecretName).ShouldBeFalse();
 }

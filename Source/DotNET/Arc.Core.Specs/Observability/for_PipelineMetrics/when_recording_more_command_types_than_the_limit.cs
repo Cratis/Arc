@@ -30,14 +30,14 @@ public class when_recording_more_command_types_than_the_limit : Specification
 
     void Because()
     {
-        _metrics.RecordCommand("RegisterAuthor", OperationOutcomes.Success, TimeSpan.FromMilliseconds(250));
-        _metrics.RecordCommand("RenameAuthor", OperationOutcomes.Validation, TimeSpan.FromMilliseconds(10));
+        _metrics.RecordCommand("RegisterAuthor", WellKnownOperationOutcomes.Success, TimeSpan.FromMilliseconds(250));
+        _metrics.RecordCommand("RenameAuthor", WellKnownOperationOutcomes.Validation, TimeSpan.FromMilliseconds(10));
     }
 
-    IEnumerable<string?> RecordedTypes => _telemetry.MeasurementsOf("cratis.arc.command.duration").Select(_ => _.Tags["cratis.arc.command.type"] as string);
+    IEnumerable<string?> RecordedTypes => _telemetry.MeasurementsOf(WellKnownTelemetryNames.CommandDurationMetric).Select(_ => _.Tags[WellKnownTelemetryNames.CommandType] as string);
 
     [Fact] void should_record_the_first_type() => RecordedTypes.First().ShouldEqual("RegisterAuthor");
-    [Fact] void should_fold_the_type_past_the_limit_into_other() => RecordedTypes.Last().ShouldEqual("_other");
-    [Fact] void should_record_the_duration_in_seconds() => _telemetry.MeasurementsOf("cratis.arc.command.duration").First().Value.ShouldEqual(0.25);
-    [Fact] void should_count_each_outcome() => _telemetry.MeasurementsOf("cratis.arc.command.outcomes").Select(_ => _.Tags["cratis.arc.command.outcome"]).ShouldContainOnly("success", "validation");
+    [Fact] void should_fold_the_type_past_the_limit_into_other() => RecordedTypes.Last().ShouldEqual(WellKnownTelemetryNames.Other);
+    [Fact] void should_record_the_duration_in_seconds() => _telemetry.MeasurementsOf(WellKnownTelemetryNames.CommandDurationMetric).First().Value.ShouldEqual(0.25);
+    [Fact] void should_count_each_outcome() => _telemetry.MeasurementsOf(WellKnownTelemetryNames.CommandOutcomesMetric).Select(_ => _.Tags[WellKnownTelemetryNames.CommandOutcome]).ShouldContainOnly(WellKnownOperationOutcomes.Success, WellKnownOperationOutcomes.Validation);
 }

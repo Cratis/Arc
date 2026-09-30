@@ -40,11 +40,12 @@ public class and_authorization_is_traced_and_denies : Specification
 
     async Task Because() => await _filters.OnExecution(_context);
 
-    Activity AuthorizeSpan => _telemetry.Span("cratis.arc.command.authorize");
+    Activity AuthorizeSpan => _telemetry.Span(WellKnownTelemetryNames.CommandAuthorizeSpan);
 
     [Fact] void should_name_the_span_after_the_command() => AuthorizeSpan.DisplayName.ShouldEqual($"authorize {nameof(RegisterAuthor)}");
-    [Fact] void should_add_the_command_type() => AuthorizeSpan.GetTagItem("cratis.arc.command.type").ShouldEqual(typeof(RegisterAuthor).FullName);
-    [Fact] void should_set_the_status_to_error() => AuthorizeSpan.Status.ShouldEqual(ActivityStatusCode.Error);
-    [Fact] void should_nest_it_in_the_filter_span() => AuthorizeSpan.ParentSpanId.ShouldEqual(_telemetry.Span("cratis.arc.command.filter").SpanId);
-    [Fact] void should_raise_one_authorize_span() => _telemetry.Activities.Count(_ => _.OperationName == "cratis.arc.command.authorize").ShouldEqual(1);
+    [Fact] void should_add_the_command_type() => AuthorizeSpan.GetTagItem(WellKnownTelemetryNames.CommandType).ShouldEqual(typeof(RegisterAuthor).FullName);
+    [Fact] void should_leave_the_status_unset() => AuthorizeSpan.Status.ShouldEqual(ActivityStatusCode.Unset);
+    [Fact] void should_add_an_authorization_denied_event() => AuthorizeSpan.Events.Count(_ => _.Name == WellKnownTelemetryNames.AuthorizationDeniedEvent).ShouldEqual(1);
+    [Fact] void should_nest_it_in_the_filter_span() => AuthorizeSpan.ParentSpanId.ShouldEqual(_telemetry.Span(WellKnownTelemetryNames.CommandFilterSpan).SpanId);
+    [Fact] void should_raise_one_authorize_span() => _telemetry.Activities.Count(_ => _.OperationName == WellKnownTelemetryNames.CommandAuthorizeSpan).ShouldEqual(1);
 }

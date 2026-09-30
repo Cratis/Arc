@@ -48,9 +48,9 @@ public class and_it_is_traced : given.a_model_graph_validator
 
     async Task Because() => await _validator.Validate(new ModelGraphValidationRequest(new RegisterAuthor("a name"), _serviceProvider));
 
-    Activity ValidatorSpan => _telemetry.Span("cratis.arc.validator.invoke");
+    Activity ValidatorSpan => _telemetry.Span(WellKnownTelemetryNames.ValidatorInvokeSpan);
 
     [Fact] void should_name_the_span_after_the_validator() => ValidatorSpan.DisplayName.ShouldEqual($"validate {nameof(RegisterAuthorValidator)}");
-    [Fact] void should_add_the_validator_type() => ValidatorSpan.GetTagItem("cratis.arc.validator.type").ShouldEqual(typeof(RegisterAuthorValidator).FullName);
-    [Fact] void should_add_the_number_of_results() => ValidatorSpan.GetTagItem("cratis.arc.validation.result_count").ShouldEqual(1);
+    [Fact] void should_add_the_validator_type() => ValidatorSpan.GetTagItem(WellKnownTelemetryNames.ValidatorType).ShouldEqual(typeof(RegisterAuthorValidator).FullName);
+    [Fact] void should_add_the_number_of_results() => ValidatorSpan.GetTagItem(WellKnownTelemetryNames.ValidationResultCount).ShouldEqual(1);
 }

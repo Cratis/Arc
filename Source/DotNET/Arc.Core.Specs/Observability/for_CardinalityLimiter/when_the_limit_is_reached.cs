@@ -23,6 +23,6 @@ public class when_the_limit_is_reached : Specification
 
     [Fact] void should_let_the_first_value_through() => _first.ShouldEqual("RegisterAuthor");
     [Fact] void should_let_the_second_value_through() => _second.ShouldEqual("RenameAuthor");
-    [Fact] void should_fold_a_value_past_the_limit_into_other() => _third.ShouldEqual("_other");
+    [Fact] void should_fold_a_value_past_the_limit_into_other() => _third.ShouldEqual(WellKnownTelemetryNames.Other);
     [Fact] void should_keep_letting_a_value_it_has_seen_through() => _firstAgain.ShouldEqual("RegisterAuthor");
 }

@@ -12,8 +12,8 @@ public class and_it_is_traced_and_authorization_denies : given.a_traced_command_
     async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_not_be_authorized() => _result.IsAuthorized.ShouldBeFalse();
-    [Fact] void should_set_the_status_to_error() => CommandSpan.Status.ShouldEqual(ActivityStatusCode.Error);
-    [Fact] void should_describe_the_status_as_authorization() => CommandSpan.StatusDescription.ShouldEqual("authorization");
-    [Fact] void should_add_an_authorization_denied_event() => CommandSpan.Events.Count(_ => _.Name == "cratis.arc.authorization.denied").ShouldEqual(1);
-    [Fact] void should_count_an_authorization_outcome() => Outcomes.Single().Tags["cratis.arc.command.outcome"].ShouldEqual("authorization");
+    [Fact] void should_leave_the_status_unset() => CommandSpan.Status.ShouldEqual(ActivityStatusCode.Unset);
+    [Fact] void should_add_the_outcome() => CommandSpan.GetTagItem(WellKnownTelemetryNames.CommandOutcome).ShouldEqual(WellKnownOperationOutcomes.Authorization);
+    [Fact] void should_add_an_authorization_denied_event() => CommandSpan.Events.Count(_ => _.Name == WellKnownTelemetryNames.AuthorizationDeniedEvent).ShouldEqual(1);
+    [Fact] void should_count_an_authorization_outcome() => Outcomes.Single().Tags[WellKnownTelemetryNames.CommandOutcome].ShouldEqual(WellKnownOperationOutcomes.Authorization);
 }

@@ -19,12 +19,12 @@ public class with_a_traced_snapshot_query : given.a_traced_query_pipeline
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_name_the_span_after_the_query() => QuerySpan.DisplayName.ShouldEqual("AllAuthors");
-    [Fact] void should_add_the_query_name() => QuerySpan.GetTagItem("cratis.arc.query.name").ShouldEqual(_queryName.Value);
-    [Fact] void should_add_the_snapshot_transport() => QuerySpan.GetTagItem("cratis.arc.query.transport").ShouldEqual("snapshot");
-    [Fact] void should_add_the_correlation_id() => QuerySpan.GetTagItem("cratis.correlation_id").ShouldEqual(_correlationId.ToString());
-    [Fact] void should_add_the_outcome() => QuerySpan.GetTagItem("cratis.arc.query.outcome").ShouldEqual("success");
+    [Fact] void should_add_the_query_name() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryName).ShouldEqual(_queryName.Value);
+    [Fact] void should_add_the_snapshot_transport() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryTransport).ShouldEqual(WellKnownTelemetryNames.SnapshotTransport);
+    [Fact] void should_add_the_correlation_id() => QuerySpan.GetTagItem(WellKnownTelemetryNames.CorrelationId).ShouldEqual(_correlationId.ToString());
+    [Fact] void should_add_the_outcome() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryOutcome).ShouldEqual(WellKnownOperationOutcomes.Success);
     [Fact] void should_leave_the_status_unset() => QuerySpan.Status.ShouldEqual(ActivityStatusCode.Unset);
-    [Fact] void should_record_the_duration_for_the_query() => Duration.Tags["cratis.arc.query.name"].ShouldEqual(_queryName.Value);
-    [Fact] void should_record_the_duration_for_the_transport() => Duration.Tags["cratis.arc.query.transport"].ShouldEqual("snapshot");
-    [Fact] void should_record_the_duration_as_a_success() => Duration.Tags["cratis.arc.query.outcome"].ShouldEqual("success");
+    [Fact] void should_record_the_duration_for_the_query() => Duration.Tags[WellKnownTelemetryNames.QueryName].ShouldEqual(_queryName.Value);
+    [Fact] void should_record_the_duration_for_the_transport() => Duration.Tags[WellKnownTelemetryNames.QueryTransport].ShouldEqual(WellKnownTelemetryNames.SnapshotTransport);
+    [Fact] void should_record_the_duration_as_a_success() => Duration.Tags[WellKnownTelemetryNames.QueryOutcome].ShouldEqual(WellKnownOperationOutcomes.Success);
 }

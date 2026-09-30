@@ -35,13 +35,13 @@ public class within_a_traced_command : Specification
 
     void Because()
     {
-        using var span = _source.StartActivity("cratis.arc.command.execute")!;
+        using var span = _source.StartActivity(WellKnownTelemetryNames.CommandExecuteSpan)!;
         _provider.Provide(new RegisterAuthor(new EventSourceId<Guid>(_id)));
         _span = span;
     }
 
     [Fact] void should_add_the_type_of_the_event_source_id() =>
-        _span.GetTagItem("cratis.arc.command.event_source_id.type").ShouldEqual("Cratis.Chronicle.Events.EventSourceId<System.Guid>");
+        _span.GetTagItem(WellKnownTelemetryNames.CommandKeyType).ShouldEqual("Cratis.Chronicle.Events.EventSourceId<System.Guid>");
     [Fact] void should_not_add_the_event_source_id() =>
         _span.TagObjects.Any(_ => _.Value?.ToString()?.Contains(_id.ToString(), StringComparison.Ordinal) == true).ShouldBeFalse();
 

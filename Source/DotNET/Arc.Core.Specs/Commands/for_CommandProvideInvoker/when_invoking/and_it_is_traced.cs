@@ -34,8 +34,8 @@ public class and_it_is_traced : given.a_command_provide_invoker
 
     async Task Because() => await Invoke(new RegisterAuthor());
 
-    Activity ProvideSpan => _telemetry.Span("cratis.arc.command.provide");
+    Activity ProvideSpan => _telemetry.Span(WellKnownTelemetryNames.CommandProvideSpan);
 
     [Fact] void should_name_the_span_after_the_command() => ProvideSpan.DisplayName.ShouldEqual($"{nameof(RegisterAuthor)}.Provide()");
-    [Fact] void should_add_the_command_type() => ProvideSpan.GetTagItem("cratis.arc.command.type").ShouldEqual(typeof(RegisterAuthor).FullName);
+    [Fact] void should_add_the_command_type() => ProvideSpan.GetTagItem(WellKnownTelemetryNames.CommandType).ShouldEqual(typeof(RegisterAuthor).FullName);
 }

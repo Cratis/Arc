@@ -14,9 +14,9 @@ public class a_traced_query_pipeline : a_query_pipeline
     protected QueryResult _result;
     Meter _meter;
 
-    protected Activity QuerySpan => _telemetry.Span("cratis.arc.query.perform");
+    protected Activity QuerySpan => _telemetry.Span(WellKnownTelemetryNames.QueryPerformSpan);
 
-    protected RecordedMeasurement Duration => _telemetry.MeasurementsOf("cratis.arc.query.duration").Single();
+    protected RecordedMeasurement Duration => _telemetry.MeasurementsOf(WellKnownTelemetryNames.QueryDurationMetric).Single();
 
     void Establish()
     {

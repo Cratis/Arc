@@ -11,16 +11,17 @@ public class and_it_is_traced_and_the_handler_throws : given.a_traced_command_pi
 
     async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
-    Activity HandleSpan => _telemetry.Span("cratis.arc.command.handle");
+    Activity HandleSpan => _telemetry.Span(WellKnownTelemetryNames.CommandHandleSpan);
 
-    ActivityEvent ExceptionEvent => CommandSpan.Events.Single(_ => _.Name == "exception");
+    ActivityEvent ExceptionEvent => CommandSpan.Events.Single(_ => _.Name == WellKnownTelemetryNames.ExceptionEvent);
 
     [Fact] void should_fail() => _result.HasExceptions.ShouldBeTrue();
     [Fact] void should_set_the_command_status_to_error() => CommandSpan.Status.ShouldEqual(ActivityStatusCode.Error);
-    [Fact] void should_add_the_outcome() => CommandSpan.GetTagItem("cratis.arc.command.outcome").ShouldEqual("error");
-    [Fact] void should_record_the_exception_type() => ExceptionEvent.Tags.Single(_ => _.Key == "exception.type").Value.ShouldEqual(typeof(InvalidOperationException).FullName);
+    [Fact] void should_describe_the_status_as_an_error() => CommandSpan.StatusDescription.ShouldEqual(WellKnownOperationOutcomes.Error);
+    [Fact] void should_add_the_outcome() => CommandSpan.GetTagItem(WellKnownTelemetryNames.CommandOutcome).ShouldEqual(WellKnownOperationOutcomes.Error);
+    [Fact] void should_record_the_exception_type() => ExceptionEvent.Tags.Single(_ => _.Key == WellKnownTelemetryNames.ExceptionType).Value.ShouldEqual(typeof(InvalidOperationException).FullName);
     [Fact] void should_record_only_the_exception_type() => ExceptionEvent.Tags.Count().ShouldEqual(1);
     [Fact] void should_set_the_handle_status_to_error() => HandleSpan.Status.ShouldEqual(ActivityStatusCode.Error);
-    [Fact] void should_count_an_error_outcome() => Outcomes.Single().Tags["cratis.arc.command.outcome"].ShouldEqual("error");
+    [Fact] void should_count_an_error_outcome() => Outcomes.Single().Tags[WellKnownTelemetryNames.CommandOutcome].ShouldEqual(WellKnownOperationOutcomes.Error);
     [Fact] void should_not_record_the_exception_message() => _telemetry.AnyTagContains(SecretName).ShouldBeFalse();
 }

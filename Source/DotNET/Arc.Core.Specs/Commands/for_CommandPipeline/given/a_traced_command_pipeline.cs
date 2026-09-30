@@ -17,11 +17,11 @@ public class a_traced_command_pipeline : a_command_pipeline
     protected CommandResult _result;
     Meter _meter;
 
-    protected Activity CommandSpan => _telemetry.Span("cratis.arc.command.execute");
+    protected Activity CommandSpan => _telemetry.Span(WellKnownTelemetryNames.CommandExecuteSpan);
 
-    protected IEnumerable<RecordedMeasurement> Durations => _telemetry.MeasurementsOf("cratis.arc.command.duration");
+    protected IEnumerable<RecordedMeasurement> Durations => _telemetry.MeasurementsOf(WellKnownTelemetryNames.CommandDurationMetric);
 
-    protected IEnumerable<RecordedMeasurement> Outcomes => _telemetry.MeasurementsOf("cratis.arc.command.outcomes");
+    protected IEnumerable<RecordedMeasurement> Outcomes => _telemetry.MeasurementsOf(WellKnownTelemetryNames.CommandOutcomesMetric);
 
     void Establish()
     {
