@@ -37,6 +37,7 @@ public class a_specification_whose_steps_cannot_be_read : Specification
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Authors.Registration;
         using Xunit;

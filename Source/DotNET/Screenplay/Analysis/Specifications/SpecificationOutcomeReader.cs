@@ -32,19 +32,48 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// <param name="draft">The scenario collected so far.</param>
     /// <param name="name">The name of the specification.</param>
     /// <param name="location">Where the specification lives, for use in diagnostics.</param>
+    /// <remarks>
+    /// A command that was rejected appended nothing, so an assertion that the log holds an event the scenario started
+    /// with is about what had already happened and not about what followed. Whether the command was rejected is
+    /// said by an assertion that may be written anywhere among them, so it is asked before any of them is read.
+    /// </remarks>
     public void Read(INamedTypeSymbol type, SpecificationDraft draft, string name, string location)
     {
-        foreach (var assertion in SpecificationMembers.AssertionsIn(type))
+        var bodies = SpecificationMembers.AssertionsIn(type)
+            .SelectMany(HandlerBodies.Of)
+            .Select(body => (Body: body, Model: models.For(body.SyntaxTree)))
+            .Where(_ => _.Model is not null)
+            .ToList();
+
+        var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
+
+        foreach (var (body, semanticModel) in bodies)
         {
-            foreach (var body in HandlerBodies.Of(assertion))
-            {
-                if (models.For(body.SyntaxTree) is { } semanticModel)
-                {
-                    ReadBody(body, semanticModel, draft, name, location);
-                }
-            }
+            ReadBody(body, semanticModel!, draft, name, location, rejected);
         }
     }
+
+    /// <summary>
+    /// Determines whether an event is one the scenario started with.
+    /// </summary>
+    /// <param name="appended">The type the assertion names.</param>
+    /// <param name="draft">The scenario collected so far.</param>
+    /// <returns>True when the scenario states an event of that type as already happened.</returns>
+    static bool StartedWith(ITypeSymbol appended, SpecificationDraft draft) =>
+        draft.Given.Any(_ => _.Kind == SpecificationStateKind.Event && string.Equals(_.Name, appended.Name, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Determines whether a body asserts that the command was rejected.
+    /// </summary>
+    /// <param name="body">The body of the assertion.</param>
+    /// <param name="semanticModel">The semantic model of the tree the body lives in.</param>
+    /// <returns>True when the body holds a rejection.</returns>
+    static bool Rejects(SyntaxNode body, SemanticModel semanticModel) =>
+        body.DescendantNodesAndSelf()
+            .OfType<InvocationExpressionSyntax>()
+            .Any(invocation =>
+                semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
+                SpecificationAssertions.IsRejection(invocation, method));
 
     /// <summary>
     /// Adds an event a specification says followed, or records that it cannot be read.
@@ -98,7 +127,8 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// <param name="draft">The scenario collected so far.</param>
     /// <param name="name">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
-    void ReadBody(SyntaxNode body, SemanticModel semanticModel, SpecificationDraft draft, string name, string location)
+    /// <param name="rejected">Whether an assertion of the specification says the command was rejected.</param>
+    void ReadBody(SyntaxNode body, SemanticModel semanticModel, SpecificationDraft draft, string name, string location, bool rejected)
     {
         foreach (var invocation in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         {
@@ -128,6 +158,11 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
             if (appended is not null)
             {
+                if (rejected && StartedWith(appended, draft))
+                {
+                    continue;
+                }
+
                 AddEvent(appended, invocation, method, semanticModel, draft);
                 continue;
             }

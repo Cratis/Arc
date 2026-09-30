@@ -64,6 +64,7 @@ public class a_scenario_stating_an_identity_a_sibling_project_declares : Specifi
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Authors.Registration;
         using Xunit;
