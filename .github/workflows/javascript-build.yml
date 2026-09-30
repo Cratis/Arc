@@ -53,11 +53,12 @@ jobs:
             .yarn/cache
             **/node_modules
             **/.eslintcache
-            **/yarn.lock
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/package.json') }}
+          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
+          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
+          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
   
       - name: Yarn install
-        run: yarn
+        run: yarn install --immutable
 
       - name: Build JS/TS
         run: |
