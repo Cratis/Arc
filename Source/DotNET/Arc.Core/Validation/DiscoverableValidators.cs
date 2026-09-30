@@ -113,8 +113,8 @@ public class DiscoverableValidators : IDiscoverableValidators
     }
 
     /// <summary>
-    /// Constructs a validator for a protected decision command, refusing any validator whose rules could depend on
-    /// something other than the model it validates (Arc#2831).
+    /// Constructs a validator for a protected decision command, refusing a validator that takes dependencies or that
+    /// Arc did not construct (Arc#2831).
     /// </summary>
     /// <param name="serviceProvider">The executing <see cref="IServiceProvider"/>.</param>
     /// <param name="validatorType">The validator type to construct.</param>
