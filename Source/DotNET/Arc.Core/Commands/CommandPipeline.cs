@@ -1,9 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -269,6 +271,19 @@ public class CommandPipeline(
         }
     }
 
+    static void DescribeCommand(Activity? activity, string displayName, string commandTypeName, CorrelationId correlationId)
+    {
+        OperationActivity.Describe(activity, displayName, correlationId);
+        activity?.SetTag(TelemetryNames.CommandType, commandTypeName);
+    }
+
+    static void RecordCommand(Activity? activity, IServiceProvider serviceProvider, string commandTypeName, string outcome, IEnumerable<ValidationResult> validationResults, TimeSpan elapsed)
+    {
+        OperationActivity.AddResolvedTenant(activity, serviceProvider);
+        OperationActivity.RecordOutcome(activity, TelemetryNames.CommandOutcome, outcome, validationResults);
+        serviceProvider.GetService<PipelineMetrics>()?.RecordCommand(commandTypeName, outcome, elapsed);
+    }
+
     async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)
     {
         try
@@ -295,9 +310,30 @@ public class CommandPipeline(
 
     async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
+        var commandType = command.GetType();
+        var commandTypeName = commandType.FullName ?? commandType.Name;
+        var correlationId = GetCorrelationId();
+        var started = Stopwatch.GetTimestamp();
+        using var span = activitySource.Execute(commandTypeName);
+        DescribeCommand(span.Activity, OperationActivity.ShortNameOf(commandType), commandTypeName, correlationId);
+        try
+        {
+            var result = await ExecuteObserved(command, serviceProvider, allowedSeverity, suppliedAuthorization, correlationId, span.Activity, cancellationToken);
+            RecordCommand(span.Activity, serviceProvider, commandTypeName, OperationOutcomes.For(result), result.ValidationResults, Stopwatch.GetElapsedTime(started));
+            return result;
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordException(span.Activity, ex);
+            RecordCommand(span.Activity, serviceProvider, commandTypeName, OperationOutcomes.Error, [], Stopwatch.GetElapsedTime(started));
+            throw;
+        }
+    }
+
+    async Task<CommandResult> ExecuteObserved(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CorrelationId correlationId, Activity? activity, CancellationToken cancellationToken)
+    {
         using var execution = CommandValidationExecution.Suspend();
         using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
-        var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
         using var identityLease = new AuthorizationPrincipalLease();
@@ -318,7 +354,6 @@ public class CommandPipeline(
         }
 
         using var boundary = frame;
-        using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
             EnsureDecisionSupport(serviceProvider);
@@ -437,7 +472,8 @@ public class CommandPipeline(
                 return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
             }
 
-            var response = await commandHandler.Handle(commandContext);
+            OperationActivity.AddResolvedTenant(activity, serviceProvider);
+            var response = await Handle(commandHandler, commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
             {
@@ -491,6 +527,7 @@ public class CommandPipeline(
         }
         catch (Exception ex)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(CommandResult.FromException(correlationId, ex));
             operations?.CaptureFailure(result, ex is OperationCanceledException ? CommandOperationFailureSource.Cancellation : failureSource);
         }
@@ -520,6 +557,7 @@ public class CommandPipeline(
                 }
                 catch (Exception ex)
                 {
+                    OperationActivity.RecordException(activity, ex);
                     commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
                 }
 
@@ -535,6 +573,7 @@ public class CommandPipeline(
                 }
                 catch (Exception exception)
                 {
+                    OperationActivity.RecordException(activity, exception);
                     commandResult.MergeWith(CommandResult.FromException(correlationId, exception));
                     operations.CaptureFailure(commandResult, CommandOperationFailureSource.ScopeCompletion);
                 }
@@ -557,12 +596,45 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
     {
+        var commandType = command.GetType();
+        var commandTypeName = commandType.FullName ?? commandType.Name;
+        var correlationId = GetCorrelationId();
+        using var span = activitySource.Validate(commandTypeName);
+        DescribeCommand(span.Activity, $"validate {OperationActivity.ShortNameOf(commandType)}", commandTypeName, correlationId);
+        var result = await ValidateObserved(command, serviceProvider, allowedSeverity, suppliedAuthorization, correlationId, span.Activity, cancellationToken);
+        OperationActivity.AddResolvedTenant(span.Activity, serviceProvider);
+        OperationActivity.RecordOutcome(span.Activity, TelemetryNames.CommandOutcome, OperationOutcomes.For(result), result.ValidationResults);
+        return result;
+    }
+
+    async ValueTask<object?> Handle(ICommandHandler handler, CommandContext context)
+    {
+        var commandTypeName = context.Type.FullName ?? context.Type.Name;
+        using var span = activitySource.Handle(commandTypeName);
+        if (span.Activity is { IsAllDataRequested: true } activity)
+        {
+            activity.DisplayName = $"{OperationActivity.ShortNameOf(context.Type)}.Handle()";
+            activity.SetTag(TelemetryNames.CommandType, commandTypeName);
+        }
+
+        try
+        {
+            return await handler.Handle(context);
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordException(span.Activity, ex);
+            span.Activity?.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Error);
+            throw;
+        }
+    }
+
+    async Task<CommandResult> ValidateObserved(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CorrelationId correlationId, Activity? activity, CancellationToken cancellationToken)
+    {
         using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
         using var validation = CommandValidationExecution.Begin(command.GetType());
-        var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
-        using var span = activitySource.Validate(command.GetType().FullName ?? command.GetType().Name);
         try
         {
             EnsureDecisionSupport(serviceProvider);
@@ -625,6 +697,7 @@ public class CommandPipeline(
         }
         catch (Exception ex)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(CommandResult.FromException(correlationId, ex));
         }
 

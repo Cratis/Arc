@@ -2,13 +2,17 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Tasks;
+using Cratis.Traces;
+using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -30,10 +34,33 @@ public class CommandProvideInvoker : ICommandProvideInvoker
             return [];
         }
 
-        var arguments = ResolveArguments(context, provideMethod, serviceProvider);
-        var invocationResult = Invoke(provideMethod, context.Command, arguments);
-        var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-        return Flatten(value);
+        using var span = BeginProvide(context.Type, serviceProvider);
+        try
+        {
+            var arguments = ResolveArguments(context, provideMethod, serviceProvider);
+            var invocationResult = Invoke(provideMethod, context.Command, arguments);
+            var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
+            return Flatten(value);
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordException(span?.Activity, ex);
+            span?.Activity?.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Error);
+            throw;
+        }
+    }
+
+    static IActivityScope<CommandProvideInvoker>? BeginProvide(Type commandType, IServiceProvider serviceProvider)
+    {
+        var commandTypeName = commandType.FullName ?? commandType.Name;
+        var span = serviceProvider.GetService<IActivitySource<CommandProvideInvoker>>()?.Provide(commandTypeName);
+        if (span?.Activity is { IsAllDataRequested: true } activity)
+        {
+            activity.DisplayName = $"{OperationActivity.ShortNameOf(commandType)}.Provide()";
+            activity.SetTag(TelemetryNames.CommandType, commandTypeName);
+        }
+
+        return span;
     }
 
     static object?[]? ResolveArguments(CommandContext context, MethodInfo provideMethod, IServiceProvider serviceProvider)

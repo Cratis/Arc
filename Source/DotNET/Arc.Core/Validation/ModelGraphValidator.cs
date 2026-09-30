@@ -3,11 +3,15 @@
 
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
+using Cratis.Traces;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -98,6 +102,31 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     static bool IsLeaf(Type type) =>
         _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
 
+    async Task<IEnumerable<ValidationResult>> Invoke(ModelGraphValidationRequest request, object instance, IValidator validator, string path, CancellationToken cancellationToken)
+    {
+        var validatorType = validator.GetType();
+        using var span = request.ServiceProvider?.GetService<IActivitySource<ModelGraphValidator>>()?.Invoke(validatorType.FullName ?? validatorType.Name);
+        var activity = span?.Activity;
+        if (activity is { IsAllDataRequested: true })
+        {
+            activity.DisplayName = $"validate {OperationActivity.ShortNameOf(validatorType)}";
+            activity.SetTag(TelemetryNames.ValidatorType, validatorType.FullName ?? validatorType.Name);
+        }
+
+        try
+        {
+            var results = (await validatorInvoker.Invoke(instance, validator, path, cancellationToken)).ToArray();
+            activity?.SetTag(TelemetryNames.ValidationResultCount, results.Length);
+            return results;
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordException(activity, ex);
+            activity?.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Error);
+            throw;
+        }
+    }
+
     async Task Validate(
         ModelGraphValidationRequest request,
         object instance,
@@ -123,7 +152,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         IReadOnlySet<string>? ignoredConceptRuleMembers = null;
         if (!skipOwnValidator && TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
-            results.AddRange(await validatorInvoker.Invoke(instance, validator, path, cancellationToken));
+            results.AddRange(await Invoke(request, instance, validator, path, cancellationToken));
 
             // A validator can suppress a cross-cutting concept validator for one of its own properties (see
             // BaseValidator<T>.RuleFor(...).IgnoreConceptRules()) — typically because that property names an
