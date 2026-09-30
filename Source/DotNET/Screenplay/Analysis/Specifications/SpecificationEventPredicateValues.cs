@@ -60,7 +60,7 @@ static class SpecificationEventPredicateValues
         var properties = new HashSet<string>(StringComparer.Ordinal);
         if (!TryRead(body, eventType, parameter, semanticModel, recovered, properties))
         {
-            reason = "an expected event predicate is not a conjunction of direct event-property equalities to exact constants or declared enumeration members";
+            reason = "an expected event predicate is not a conjunction of direct event-property equalities to constants the document can state";
             return false;
         }
 
@@ -120,44 +120,13 @@ static class SpecificationEventPredicateValues
             semanticModel.GetSymbolInfo(member).Symbol is not IPropertySymbol property ||
             !SymbolEqualityComparer.Default.Equals(property.ContainingType, eventType) ||
             semanticModel.GetConstantValue(valueExpression) is not { HasValue: true } constant ||
-            !TryResolve(property.Type, constant.Value, out var value) ||
+            !StatableValues.TryState(property.Type, constant.Value, out var value) ||
             !properties.Add(property.Name))
         {
             return false;
         }
 
         values.Add((new(property.Name, new LiteralSource(value)), valueExpression.GetLocation()));
-        return true;
-    }
-
-    /// <summary>
-    /// Recovers the declared member a constant compared with an enumeration property names.
-    /// </summary>
-    /// <param name="propertyType">The type of the event property.</param>
-    /// <param name="constant">The value the compiler handed over, which for an enumeration is the number behind a member.</param>
-    /// <param name="value">The value to carry.</param>
-    /// <returns><see langword="false"/> when the property is an enumeration declaring no member with the value.</returns>
-    /// <remarks>
-    /// A value no member is declared with - an undeclared combination of flags, or an arbitrary cast - has no name, and
-    /// inventing one would describe a value the application does not have, so the predicate is not exact.
-    /// </remarks>
-    static bool TryResolve(ITypeSymbol propertyType, object? constant, out object? value)
-    {
-        value = constant;
-        var enumeration = propertyType is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T, TypeArguments: [var underlying] }
-            ? underlying
-            : propertyType;
-        if (constant is null || !EnumConstants.IsEnumeration(enumeration))
-        {
-            return true;
-        }
-
-        if (!EnumConstants.TryResolve(enumeration, constant, out var member))
-        {
-            return false;
-        }
-
-        value = member;
         return true;
     }
 

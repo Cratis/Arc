@@ -81,5 +81,5 @@ public class from_source_expecting_an_event_carrying_flags_no_member_declares : 
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
     [Fact] void should_never_state_the_combination_as_a_number() => Lines().ShouldNotContain("timesheets = 3");
     [Fact] void should_never_state_the_expected_event_with_a_value_it_cannot_name() => Lines().ShouldNotContain("then NotificationPreferencesUpdated");
-    [Fact] void should_say_the_expectation_could_not_be_read() => _result.Diagnostics.Any(_ => _.Message.Contains("declared enumeration members", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_say_the_expectation_could_not_be_read() => _result.Diagnostics.Any(_ => _.Message.Contains("constants the document can state", StringComparison.Ordinal)).ShouldBeTrue();
 }

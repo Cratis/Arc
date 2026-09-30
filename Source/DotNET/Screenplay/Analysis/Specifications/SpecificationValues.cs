@@ -185,6 +185,16 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
                 ? _sources.ReadQueryLiteral(expression, semanticModel, localProperty.Type, sourceProperty.Type)
                 : null;
         }
+        else if (localProperty is not null &&
+                 semanticModel.GetConstantValue(MappingSourceReader.Unwrap(expression)) is { HasValue: true } constant &&
+                 !StatableValues.TryState(localProperty.Type, constant.Value, out _))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnreadableSpecificationValue,
+                $"The value '{specification}' states for '{type.Name}.{property}' is '{constant.Value ?? "null"}', which the document cannot hold for a property of type '{localProperty.Type.Name}', so the scenario states everything but that value",
+                location);
+            return;
+        }
         else
         {
             literal = _sources.Read(expression, semanticModel, type, location) as LiteralSource;
