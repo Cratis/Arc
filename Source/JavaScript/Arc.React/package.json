@@ -126,13 +126,13 @@
     },
     "devDependencies": {
         "@cratis/fundamentals": "7.19.6",
-        "@storybook/addon-links": "^10.6.0",
-        "@storybook/react": "^10.6.0",
-        "@storybook/react-vite": "^10.6.0",
+        "@storybook/addon-links": "^10.6.1",
+        "@storybook/react": "^10.6.1",
+        "@storybook/react-vite": "^10.6.1",
         "@vitejs/plugin-react": "^6.1.1",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
-        "storybook": "^10.6.0",
+        "storybook": "^10.6.1",
         "vite": "^8.3.1"
     },
     "peerDependencies": {
