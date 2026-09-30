@@ -5,17 +5,23 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
-/// <summary>Inserts queued competing events after the handler's decision reads and before Chronicle's owner commit.</summary>
+/// <summary>
+/// Inserts queued competing events after the handler's decision reads and before Chronicle's owner commit.
+/// </summary>
 public sealed class DecisionScenarioConcurrentAppendScope : ICommandOperationExecutionScope
 {
     readonly DecisionCommandScenario? _scenario;
 
-    /// <summary>Constructs a no-op scope for ordinary scenarios discovered by type discovery.</summary>
+    /// <summary>
+    /// Constructs a no-op scope for ordinary scenarios discovered by type discovery.
+    /// </summary>
     public DecisionScenarioConcurrentAppendScope()
     {
     }
 
-    /// <summary>Constructs the scope used by a decision scenario.</summary>
+    /// <summary>
+    /// Constructs the scope used by a decision scenario.
+    /// </summary>
     /// <param name="scenario">The opted-in scenario.</param>
     internal DecisionScenarioConcurrentAppendScope(DecisionCommandScenario scenario) => _scenario = scenario;
 

@@ -47,12 +47,15 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
     /// </summary>
     /// <typeparam name="TReadModel">Type of read model to pin. Inferred from <paramref name="readModel"/>.</typeparam>
     /// <param name="readModel">The read model instance.</param>
-    /// <exception cref="NotSupportedException">Pinned state cannot supply a protected decision read.</exception>
+    /// <exception cref="PinnedReadModelCannotProvideDecisionToken">Pinned state cannot supply a protected decision read.</exception>
     public void ReadModel<TReadModel>(TReadModel readModel)
         where TReadModel : class
     {
         if (_scenario.Context.ContainsKey(ChronicleCommandScenarioExtender.DecisionScenarioKey))
-            throw new NotSupportedException("Pinned read models cannot provide protected decision tokens. Seed events into the decision-mode log instead.");
+        {
+            throw new PinnedReadModelCannotProvideDecisionToken();
+        }
+
         ReadModels().SeedInstance(typeof(TReadModel), _eventSourceId, readModel);
     }
 

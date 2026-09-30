@@ -3,18 +3,26 @@
 
 namespace Cratis.Arc.Commands;
 
-/// <summary>Identifies a validation-only command invocation to optional read providers.</summary>
+/// <summary>
+/// Identifies a validation-only command invocation to optional read providers.
+/// </summary>
 public static class CommandValidationExecution
 {
     static readonly AsyncLocal<(object Token, Type CommandType)?> _active = new();
 
-    /// <summary>Gets whether this async flow is validating without executing the command.</summary>
+    /// <summary>
+    /// Gets whether this async flow is validating without executing the command.
+    /// </summary>
     public static bool IsActive => _active.Value is not null;
 
-    /// <summary>Gets the identity and command type of the current validation invocation, if any.</summary>
+    /// <summary>
+    /// Gets the identity and command type of the current validation invocation, if any.
+    /// </summary>
     public static (object Token, Type CommandType)? Current => _active.Value;
 
-    /// <summary>Begins the validation-only flow, restoring any previous invocation on disposal.</summary>
+    /// <summary>
+    /// Begins the validation-only flow, restoring any previous invocation on disposal.
+    /// </summary>
     /// <param name="commandType">The command type being validated.</param>
     /// <returns>A lease for the validation invocation.</returns>
     internal static IDisposable Begin(Type commandType)
@@ -24,7 +32,9 @@ public static class CommandValidationExecution
         return new Lease(previous);
     }
 
-    /// <summary>Suspends an enclosing validation-only flow while a nested command actually executes.</summary>
+    /// <summary>
+    /// Suspends an enclosing validation-only flow while a nested command actually executes.
+    /// </summary>
     /// <returns>A lease that restores the enclosing validation flow.</returns>
     internal static IDisposable Suspend()
     {

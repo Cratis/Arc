@@ -22,7 +22,7 @@ public class when_a_completed_unit_has_enrolled_decision_reads : Specification
     void should_refuse_the_immediate_append_even_after_completion()
     {
         CommandTransaction.Current = _unitOfWork;
-        Assert.Throws<InvalidOperationException>(CommandTransaction.RefuseImmediateAppend);
+        Assert.Throws<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(CommandTransaction.RefuseImmediateAppend);
     }
 
     void Cleanup()

@@ -27,10 +27,10 @@ public static class CommandScenarioChronicleExtensions
         /// <remarks>
         /// Use <see cref="EventScenario.Given"/> to seed events before the command runs in legacy mode.
         /// </remarks>
-        /// <exception cref="NotSupportedException">The decision-mode store cannot be represented as an EventScenario.</exception>
+        /// <exception cref="EventScenarioUnavailableInDecisionMode">The decision-mode store cannot be represented as an EventScenario.</exception>
         public EventScenario EventScenario =>
             scenario.Context.ContainsKey(ChronicleCommandScenarioExtender.DecisionScenarioKey)
-                ? throw new NotSupportedException("EventScenario uses a separate log. In decision mode use EventLog and Given.ForEventSource(...).Events(...) instead.")
+                ? throw new EventScenarioUnavailableInDecisionMode()
                 : (EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey];
 
         /// <summary>
@@ -66,25 +66,34 @@ public static class CommandScenarioChronicleExtensions
         public CommandScenarioChronicleGivenBuilder<TCommand> Given =>
             new(scenario);
 
-        /// <summary>Opts into one real in-process event log for seeded events, decision reads and command commits.</summary>
+        /// <summary>
+        /// Opts into one real in-process event log for seeded events, decision reads and command commits.
+        /// </summary>
         /// <remarks>Call before seeding events or executing. The legacy EventScenario and pinned read models cannot be used in this mode.</remarks>
-        /// <exception cref="InvalidOperationException">The scenario has already initialized or legacy state has been seeded.</exception>
-        /// <exception cref="NotSupportedException">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
+        /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
+        /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
         public CommandScenario<TCommand> UseDecisionReads()
         {
-            if (scenario.IsInitialized) throw new InvalidOperationException("Enable decision reads before the first Execute or Validate call.");
+            if (scenario.IsInitialized)
+            {
+                throw new DecisionReadsMustBeEnabledBeforeExecution();
+            }
+
             ChronicleCommandScenarioExtender.EnableDecisionReads(scenario.Services, scenario.Context);
             return scenario;
         }
 
-        /// <summary>Queues competing facts to append after the handler reads and before its owner commits.</summary>
+        /// <summary>
+        /// Queues competing facts to append after the handler reads and before its owner commits.
+        /// </summary>
         /// <param name="eventSourceId">The source being changed by a competitor.</param>
         /// <param name="events">The competing events.</param>
-        /// <exception cref="NotSupportedException">Protected decision mode was not enabled.</exception>
+        /// <exception cref="ConcurrentAppendRequiresDecisionReads">Protected decision mode was not enabled.</exception>
         public void AppendConcurrently(EventSourceId eventSourceId, params object[] events)
         {
             if (!scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
-                throw new NotSupportedException("AppendConcurrently requires UseDecisionReads().");
+                throw new ConcurrentAppendRequiresDecisionReads();
             ((DecisionCommandScenario)decision).QueueCompetingAppend(eventSourceId, events);
         }
     }

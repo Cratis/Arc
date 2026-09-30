@@ -58,7 +58,7 @@ public class DiscoverableValidators : IDiscoverableValidators
         {
             if (CommandDecisionPolicy.IsProtected)
             {
-                throw new InvalidOperationException($"Discoverable validator '{value}' cannot run in a protected decision command; see Arc#2831.");
+                throw new DiscoverableValidatorRefusedInProtectedDecision(value);
             }
 
             validator = (Construct(serviceProvider, value) as IValidator)!;
@@ -122,11 +122,17 @@ public class DiscoverableValidators : IDiscoverableValidators
         var safetyChecks = serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [];
         if (isService?.IsService(validatorType) != false)
         {
-            foreach (var safety in safetyChecks) safety.ValidateRegisteredValidator(validatorType);
+            foreach (var safety in safetyChecks)
+            {
+                safety.ValidateRegisteredValidator(validatorType);
+            }
         }
 
         var registered = serviceProvider.GetService(validatorType);
-        if (registered is not null) return registered;
+        if (registered is not null)
+        {
+            return registered;
+        }
 
         var legacyConstructor = validatorType.GetConstructors()
             .OrderByDescending(_ => _.GetParameters().Length)

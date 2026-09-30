@@ -167,7 +167,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
                 {
                     if (unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true })
                     {
-                        throw new InvalidOperationException("Protected command decisions require Chronicle's owner-capable UnitOfWork.");
+                        throw new ProtectedDecisionRequiresOwnerCapableUnitOfWork();
                     }
                     await unitOfWork.Commit();
                 }
@@ -209,7 +209,11 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     static TransactionFrame? ActiveFrame()
     {
         var frame = _frames.Value;
-        while (frame?.Completed == true) frame = frame.Previous;
+        while (frame?.Completed == true)
+        {
+            frame = frame.Previous;
+        }
+
         return frame;
     }
 

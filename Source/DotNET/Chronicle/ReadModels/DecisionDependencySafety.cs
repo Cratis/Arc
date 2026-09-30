@@ -7,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
-/// <summary>Rejects supplied foreign tokens and validators with unknown registration lifetimes.</summary>
+/// <summary>
+/// Rejects supplied foreign tokens and validators with unknown registration lifetimes.
+/// </summary>
 internal sealed class DecisionDependencySafety : ICommandDependencySafety, ICommandProtectedDecisionSupport
 {
     /// <inheritdoc/>
@@ -18,7 +20,7 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
     {
         if (CommandDecisionPolicy.IsProtected)
         {
-            throw new InvalidOperationException($"Registered validator '{validatorType}' cannot run in a protected decision command; see Arc#2831.");
+            throw new RegisteredValidatorRefusedInProtectedDecision(validatorType);
         }
     }
 
@@ -27,7 +29,7 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
     {
         if (services.GetService<IDecisionReads>() is not CommandDecisionReads)
         {
-            throw new InvalidOperationException("Protected decisions require a command-aware Chronicle decision reader in the command provider.");
+            throw new ProtectedDecisionsRequireCommandAwareReader();
         }
     }
 
@@ -36,14 +38,14 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
     {
         if (dependencyType == typeof(IDecisionReads) && dependency is not CommandDecisionReads)
         {
-            throw new InvalidOperationException("A protected command requires the command-aware IDecisionReads reader.");
+            throw new ProtectedCommandRequiresCommandAwareReader();
         }
 
         if (IsDecisionRead(dependencyType))
         {
             if (dependency is null)
             {
-                throw new InvalidOperationException("A protected command requires a directly issued DecisionRead<T> token.");
+                throw new ProtectedCommandRequiresIssuedDecisionRead();
             }
             CommandDecisionReads.VerifyProvided(dependency);
         }
@@ -51,7 +53,7 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
 
     /// <inheritdoc/>
     public void ValidateValidatorDependencyShape(Type dependencyType) =>
-        throw new InvalidOperationException($"Protected validator dependency '{dependencyType}' is unsupported; discoverable validators cannot run in protected decision commands (Arc#2831).");
+        throw new ProtectedValidatorDependencyUnsupported(dependencyType);
 
     /// <inheritdoc/>
     public void ValidateValidatorDependency(Type dependencyType, object? dependency) => ValidateValidatorDependencyShape(dependencyType);

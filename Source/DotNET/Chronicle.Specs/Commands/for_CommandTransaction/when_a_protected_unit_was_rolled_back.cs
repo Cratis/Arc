@@ -31,11 +31,11 @@ public class when_a_protected_unit_was_rolled_back
         CommandTransaction.Current = unit;
         try
         {
-            await Assert.ThrowsAsync<InvalidOperationException>(() => new SingleEventCommandResponseValueHandler(log, types, strategies).Handle(context, @event));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => new SingleEventForEventSourceIdCommandResponseValueHandler(log, types, strategies).Handle(context, wrapped));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => new EventsCommandResponseValueHandler(log, types, strategies).Handle(context, new[] { @event }));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => new EventsForEventSourceIdCommandResponseValueHandler(log, types, strategies).Handle(context, new[] { wrapped }));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => new EventsWithConcurrencyScopesCommandResponseValueHandler(log)
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new SingleEventCommandResponseValueHandler(log, types, strategies).Handle(context, @event));
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new SingleEventForEventSourceIdCommandResponseValueHandler(log, types, strategies).Handle(context, wrapped));
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsCommandResponseValueHandler(log, types, strategies).Handle(context, new[] { @event }));
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsForEventSourceIdCommandResponseValueHandler(log, types, strategies).Handle(context, new[] { wrapped }));
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsWithConcurrencyScopesCommandResponseValueHandler(log)
                 .Handle(context, new EventsWithConcurrencyScopes([wrapped], [])));
             Assert.False(CommandTransaction.TryGetActive(out _));
         }

@@ -3,5 +3,7 @@
 
 namespace Cratis.Arc.Commands;
 
-/// <summary>Marker for an explicitly protected decision command.</summary>
+/// <summary>
+/// Marker for an explicitly protected decision command.
+/// </summary>
 public interface IProtectedDecisionCommand;

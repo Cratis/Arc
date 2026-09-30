@@ -52,7 +52,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// </summary>
     internal const string ReadModelsKey = "Chronicle.ReadModels";
 
-    /// <summary>Key for the opt-in single-log decision scenario.</summary>
+    /// <summary>
+    /// Key for the opt-in single-log decision scenario.
+    /// </summary>
     internal const string DecisionScenarioKey = "Chronicle.DecisionScenario";
 
     /// <inheritdoc/>
@@ -82,22 +84,29 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[ReadModelsKey] = readModels;
     }
 
-    /// <summary>Switches a scenario to Chronicle's in-process protected decision reader before its first execution.</summary>
+    /// <summary>
+    /// Switches a scenario to Chronicle's in-process protected decision reader before its first execution.
+    /// </summary>
     /// <param name="services">The services of the uninitialized scenario.</param>
     /// <param name="context">The scenario context.</param>
-    /// <exception cref="InvalidOperationException">Legacy state has already been seeded, or no transactional scope was discovered.</exception>
-    /// <exception cref="NotSupportedException">Custom execution scopes cannot be safely ordered around the owner.</exception>
+    /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has already been seeded.</exception>
+    /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+    /// <exception cref="DecisionScenarioRequiresTransactionalCommandScope">No transactional scope was discovered.</exception>
     internal static void EnableDecisionReads(IServiceCollection services, IDictionary<string, object> context)
     {
-        if (context.ContainsKey(DecisionScenarioKey)) return;
+        if (context.ContainsKey(DecisionScenarioKey))
+        {
+            return;
+        }
+
         if (((CommandScenarioReadModels)context[ReadModelsKey]).HasSeededState() ||
             !((EventScenario)context[ContextKey]).EventLog.GetTailSequenceNumber().GetAwaiter().GetResult().IsUnavailable)
         {
-            throw new InvalidOperationException("Enable decision reads before seeding legacy EventScenario or read model state.");
+            throw new DecisionReadsMustBeEnabledBeforeSeeding();
         }
         if (services.Any(_ => _.ServiceType == typeof(IInstancesOf<ICommandExecutionScope>) || _.ServiceType == typeof(ICommandExecutionScope)))
         {
-            throw new NotSupportedException("Decision scenarios cannot order custom execution scopes safely. Use a host integration test for that scope combination.");
+            throw new DecisionScenarioCannotOrderCustomExecutionScopes();
         }
         var store = new EventStoreForTesting(serviceProvider: null, clientArtifactsProvider: Defaults.Instance.ClientArtifactsProvider);
         var commandEvents = new List<AppendedEventWithResult>();
@@ -118,7 +127,11 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
                 .ToArray();
             var scopes = types.Select(type => (ICommandExecutionScope)ActivatorUtilities.GetServiceOrCreateInstance(sp, type)).ToList();
             var ownerIndex = scopes.FindIndex(scope => scope is TransactionalCommandScope);
-            if (ownerIndex < 0) throw new InvalidOperationException("Decision scenarios require TransactionalCommandScope.");
+            if (ownerIndex < 0)
+            {
+                throw new DecisionScenarioRequiresTransactionalCommandScope();
+            }
+
             scopes.Insert(ownerIndex, new DecisionScenarioCommandCaptureScope(scenario));
             scopes.Insert(ownerIndex + 2, new DecisionScenarioConcurrentAppendScope(scenario));
             return new KnownInstancesOf<ICommandExecutionScope>(scopes);

@@ -34,7 +34,7 @@ public class when_resolving_registered_validators
         var validators = new DiscoverableValidators(TypeCatalog.Instance);
         using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedReaderCommand));
 
-        Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(ReaderCommand), provider, out _));
+        Assert.Throws<DiscoverableValidatorRefusedInProtectedDecision>(() => validators.TryGet(typeof(ReaderCommand), provider, out _));
         Assert.Equal(0, constructions);
         Assert.Equal(0, readsResolved);
     }
@@ -60,7 +60,7 @@ public class when_resolving_registered_validators
         var validators = new DiscoverableValidators(TypeCatalog.Instance);
         using var policy = DecisionPolicyForSpecs.Begin(typeof(ProtectedReaderCommand));
 
-        Assert.Throws<InvalidOperationException>(() => validators.TryGet(typeof(TokenCommand), provider, out _));
+        Assert.Throws<DiscoverableValidatorRefusedInProtectedDecision>(() => validators.TryGet(typeof(TokenCommand), provider, out _));
         Assert.Equal(0, folds);
         Assert.Equal(0, validatorFactories);
     }
@@ -69,12 +69,12 @@ public class when_resolving_registered_validators
     public void should_refuse_every_validator_dependency_shape_but_keep_command_dependency_guards()
     {
         var safety = new DecisionDependencySafety();
-        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependencyShape(typeof(IDecisionReads)));
-        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependencyShape(typeof(DecisionRead<TokenModel>)));
-        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependency(typeof(IDecisionReads), null));
-        Assert.Throws<InvalidOperationException>(() => safety.ValidateValidatorDependency(typeof(DecisionRead<TokenModel>), null));
-        Assert.Throws<InvalidOperationException>(() => safety.ValidateCommandDependency(typeof(IDecisionReads), null));
-        Assert.Throws<InvalidOperationException>(() => safety.ValidateCommandDependency(typeof(DecisionRead<TokenModel>), null));
+        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependencyShape(typeof(IDecisionReads)));
+        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependencyShape(typeof(DecisionRead<TokenModel>)));
+        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependency(typeof(IDecisionReads), null));
+        Assert.Throws<ProtectedValidatorDependencyUnsupported>(() => safety.ValidateValidatorDependency(typeof(DecisionRead<TokenModel>), null));
+        Assert.Throws<ProtectedCommandRequiresCommandAwareReader>(() => safety.ValidateCommandDependency(typeof(IDecisionReads), null));
+        Assert.Throws<ProtectedCommandRequiresIssuedDecisionRead>(() => safety.ValidateCommandDependency(typeof(DecisionRead<TokenModel>), null));
     }
 
     [Fact]

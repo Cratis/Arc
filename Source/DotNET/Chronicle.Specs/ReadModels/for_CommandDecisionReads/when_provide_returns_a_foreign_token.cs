@@ -23,5 +23,5 @@ public class when_provide_returns_a_foreign_token : Specification
         }
     }
 
-    [Fact] void should_refuse_a_token_not_issued_for_this_invocation() => _exception.ShouldBeOfExactType<InvalidOperationException>();
+    [Fact] void should_refuse_a_token_not_issued_for_this_invocation() => _exception.ShouldBeOfExactType<DecisionReadNotIssuedForInvocation>();
 }

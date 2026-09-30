@@ -131,7 +131,9 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A raw Guid in a command response tuple is an ordinary client response, not event-source metadata. Without an explicit target, Chronicle generates a fallback event source id. If this Guid is intended to identify the event source, return EventSourceId<Guid> or a derived domain identity. An intentional ordinary Guid response with a generated event source id remains valid. This heuristic examines known tuple, Task, ValueTask, Result, OneOf, and typed event collection signatures, not erased object payloads or arbitrary method bodies.");
 
-    /// <summary>ARCCHR0011: A legacy read in an event-producing decision is not guarded.</summary>
+    /// <summary>
+    /// ARCCHR0011: A legacy read in an event-producing decision is not guarded.
+    /// </summary>
     public static readonly DiagnosticDescriptor ARCCHR0011_UnprotectedDecisionRead = new(
         id: "ARCCHR0011",
         title: "Plain read model in event-producing command is unprotected",
@@ -141,7 +143,9 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Plain Chronicle read models and IReadModels.GetInstanceById do not enroll a decision guard. This advisory identifies statically recognizable reads in event-producing commands, their Provide methods and validators; it cannot prove runtime dataflow or external I/O.");
 
-    /// <summary>ARCCHR0012: An immediate append cannot be covered by the command's decision guard.</summary>
+    /// <summary>
+    /// ARCCHR0012: An immediate append cannot be covered by the command's decision guard.
+    /// </summary>
     public static readonly DiagnosticDescriptor ARCCHR0012_ImmediateAppendAfterDecisionRead = new(
         id: "ARCCHR0012",
         title: "Immediate append bypasses protected decision",

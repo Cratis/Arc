@@ -91,7 +91,9 @@ public static class ReadModelServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Adds the command invocation guard around Chronicle's decision reader.</summary>
+    /// <summary>
+    /// Adds the command invocation guard around Chronicle's decision reader.
+    /// </summary>
     /// <param name="services">Services to configure for command-side decision reads.</param>
     /// <returns>These same services for further registrations.</returns>
     public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
@@ -150,7 +152,11 @@ public static class ReadModelServiceCollectionExtensions
     {
         var context = services.GetRequiredService<ICommandContextAccessor>().Current;
         var key = context.GetEventSourceId();
-        if (key == EventSourceId.Unspecified) throw new UnableToResolveReadModelFromCommandContext(typeof(T));
+        if (key == EventSourceId.Unspecified)
+        {
+            throw new UnableToResolveReadModelFromCommandContext(typeof(T));
+        }
+
         return services.GetRequiredService<IDecisionReads>().Get<T>((ReadModelKey)key, context.CancellationToken).GetAwaiter().GetResult();
     }
 

@@ -65,7 +65,7 @@ public class when_executing_a_command
                 try
                 {
                     Assert.Same(nested, await reader.Get<Model>((ReadModelKey)"other"));
-                    Assert.Throws<InvalidOperationException>(() => CommandDecisionReads.VerifyProvided(first));
+                    Assert.Throws<DecisionReadNotIssuedForInvocation>(() => CommandDecisionReads.VerifyProvided(first));
                 }
                 finally
                 {
@@ -116,7 +116,7 @@ public class when_executing_a_command
         inner.Admit<Model>().Returns(_ => throw new InvalidOperationException("admission refused"));
         var reader = new CommandDecisionReads(inner, store, Substitute.For<IReadModels>());
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
-        var failure = Assert.Throws<DecisionReadAcquisitionException>(reader.Admit<Model>);
+        var failure = Assert.Throws<DecisionReadCouldNotBeAcquired>(reader.Admit<Model>);
         Assert.Equal("admission refused", failure.Message);
     }
 
@@ -126,7 +126,7 @@ public class when_executing_a_command
         var (store, _, _) = DecisionFixtures.Transaction();
         var reader = new CommandDecisionReads(Substitute.For<IDecisionReads>(), store, Substitute.For<IReadModels>());
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Command));
-        await Assert.ThrowsAsync<DecisionReadAcquisitionException>(() => reader.GetDetached<Model>((ReadModelKey)"source"));
+        await Assert.ThrowsAsync<DecisionReadCouldNotBeAcquired>(() => reader.GetDetached<Model>((ReadModelKey)"source"));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class when_executing_a_command
         CommandDecisionReads.Begin(typeof(Command));
         try
         {
-            await Assert.ThrowsAsync<DecisionReadAcquisitionException>(() => reader.Get<Model>((ReadModelKey)"source"));
+            await Assert.ThrowsAsync<DecisionReadCouldNotBeAcquired>(() => reader.Get<Model>((ReadModelKey)"source"));
             await inner.DidNotReceiveWithAnyArgs().GetDetached<Model>((ReadModelKey)"source");
         }
         finally

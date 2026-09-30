@@ -47,7 +47,7 @@ public class ValidatorInvoker(ILogger<ValidatorInvoker> logger) : IValidatorInvo
             return validationResult.Errors.Select(_ =>
                 new ValidationResult(ToSeverity(_.Severity), _.ErrorMessage, [MemberFor(path, _.PropertyName, isConcept)], _.CustomState ?? null!)).ToArray();
         }
-        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadAcquisitionException))
+        catch (Exception ex) when (ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired))
         {
             // Failed decision acquisition must remain non-filterable, even with an allowed-severity override.
             // A validator that dereferences a null concept member throws while validating hostile or partial

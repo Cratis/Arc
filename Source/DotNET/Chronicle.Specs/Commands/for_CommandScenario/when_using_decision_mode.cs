@@ -192,7 +192,7 @@ public class when_using_decision_mode
     public void pinned_model_is_refused_in_decision_mode()
     {
         using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
-        Assert.Throws<NotSupportedException>(() => scenario.Given.ForEventSource(EventSourceId.New()).ReadModel(new DecisionState(Guid.NewGuid())));
+        Assert.Throws<PinnedReadModelCannotProvideDecisionToken>(() => scenario.Given.ForEventSource(EventSourceId.New()).ReadModel(new DecisionState(Guid.NewGuid())));
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public class when_using_decision_mode
     {
         using var scenario = new CommandScenario<DecideAtSource>();
         scenario.Given.ForEventSource(EventSourceId.New()).Events(new DecisionStateChanged());
-        Assert.Throws<InvalidOperationException>(scenario.UseDecisionReads);
+        Assert.Throws<DecisionReadsMustBeEnabledBeforeSeeding>(scenario.UseDecisionReads);
     }
 
     [Fact]
@@ -208,14 +208,14 @@ public class when_using_decision_mode
     {
         await using var scenario = new CommandScenario<DecideAtSource>();
         await scenario.EventLog.Append(EventSourceId.New(), new DecisionStateChanged());
-        Assert.Throws<InvalidOperationException>(scenario.UseDecisionReads);
+        Assert.Throws<DecisionReadsMustBeEnabledBeforeSeeding>(scenario.UseDecisionReads);
     }
 
     [Fact]
     public void decision_scenario_does_not_expose_a_second_event_scenario()
     {
         using var scenario = new CommandScenario<DecideAtSource>().UseDecisionReads();
-        Assert.Throws<NotSupportedException>(() => scenario.EventScenario);
+        Assert.Throws<EventScenarioUnavailableInDecisionMode>(() => scenario.EventScenario);
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public class when_using_decision_mode
     {
         using var scenario = new CommandScenario<DecideAtSource>();
         scenario.Services.AddSingleton<ICommandExecutionScope>(new DecisionScenarioConcurrentAppendScope());
-        Assert.Throws<NotSupportedException>(scenario.UseDecisionReads);
+        Assert.Throws<DecisionScenarioCannotOrderCustomExecutionScopes>(scenario.UseDecisionReads);
     }
 
     [Fact]

@@ -263,7 +263,7 @@ public class CommandPipeline(
         if (CommandDecisionPolicy.IsProtected)
         {
             var support = services.GetService<ICommandProtectedDecisionSupport>() ??
-                throw new InvalidOperationException("Protected decisions require a command-aware Chronicle decision reader in the command provider.");
+                throw new ProtectedDecisionsRequireCommandAwareReader();
             support.EnsureSupported(services);
         }
     }

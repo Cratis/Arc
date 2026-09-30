@@ -27,17 +27,22 @@ internal static class CommandTransaction
         set
         {
             _current.Value = value;
-            if (value is not null) _retained.Value = value;
+            if (value is not null)
+            {
+                _retained.Value = value;
+            }
         }
     }
 
-    /// <summary>Refuses immediate returned-event fallbacks after any protected enrollment, even after completion.</summary>
-    /// <exception cref="InvalidOperationException">The retained command unit enrolled a decision read.</exception>
+    /// <summary>
+    /// Refuses immediate returned-event fallbacks after any protected enrollment, even after completion.
+    /// </summary>
+    /// <exception cref="ReturnedEventsCannotBeAppendedOutsideDecisionTransaction">The retained command unit enrolled a decision read.</exception>
     internal static void RefuseImmediateAppend()
     {
         if (_retained.Value is UnitOfWork { HasEnrolledDecisionReads: true })
         {
-            throw new InvalidOperationException("A command with enrolled decision reads cannot append returned events outside its transaction.");
+            throw new ReturnedEventsCannotBeAppendedOutsideDecisionTransaction();
         }
     }
 

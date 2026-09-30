@@ -102,7 +102,9 @@ internal sealed class CommandScenarioReadModels(IReadModels inner) : IReadModels
     /// <inheritdoc/>
     public Task<IEnumerable<TReadModel>> Release<TReadModel>(IEnumerable<TReadModel> instances) => inner.Release(instances);
 
-    /// <summary>Checks whether state was seeded in the legacy store and cannot be transferred to decision mode.</summary>
+    /// <summary>
+    /// Checks whether state was seeded in the legacy store and cannot be transferred to decision mode.
+    /// </summary>
     /// <returns>True if state has been seeded.</returns>
     internal bool HasSeededState() => _events.Count > 0 || _instances.Count > 0;
 

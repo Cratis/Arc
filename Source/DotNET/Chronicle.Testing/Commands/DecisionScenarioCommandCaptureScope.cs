@@ -5,17 +5,23 @@ using Cratis.Arc.Commands;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
-/// <summary>Separates a command's appends from setup and competing appends around the owner commit.</summary>
+/// <summary>
+/// Separates a command's appends from setup and competing appends around the owner commit.
+/// </summary>
 public sealed class DecisionScenarioCommandCaptureScope : ICommandOperationExecutionScope
 {
     readonly DecisionCommandScenario? _scenario;
 
-    /// <summary>Constructs a no-op scope for ordinary scenarios discovered by type discovery.</summary>
+    /// <summary>
+    /// Constructs a no-op scope for ordinary scenarios discovered by type discovery.
+    /// </summary>
     public DecisionScenarioCommandCaptureScope()
     {
     }
 
-    /// <summary>Constructs the scope used by a decision scenario.</summary>
+    /// <summary>
+    /// Constructs the scope used by a decision scenario.
+    /// </summary>
     /// <param name="scenario">The opted-in scenario.</param>
     internal DecisionScenarioCommandCaptureScope(DecisionCommandScenario scenario) => _scenario = scenario;
 

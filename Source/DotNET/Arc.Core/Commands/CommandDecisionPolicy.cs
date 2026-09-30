@@ -3,27 +3,39 @@
 
 namespace Cratis.Arc.Commands;
 
-/// <summary>The immutable protection profile of the current command invocation.</summary>
+/// <summary>
+/// The immutable protection profile of the current command invocation.
+/// </summary>
 public static class CommandDecisionPolicy
 {
     static readonly AsyncLocal<Frame?> _current = new();
 
-    /// <summary>Gets the current invocation's profile, or Legacy outside the command pipeline.</summary>
+    /// <summary>
+    /// Gets the current invocation's profile, or Legacy outside the command pipeline.
+    /// </summary>
     public static CommandDecisionMode Mode => Active()?.Mode ?? CommandDecisionMode.Legacy;
 
-    /// <summary>Gets whether a command invocation is active.</summary>
+    /// <summary>
+    /// Gets whether a command invocation is active.
+    /// </summary>
     public static bool IsActive => Active() is not null;
 
-    /// <summary>The current invocation identity, distinct for nested executions even of the same command type.</summary>
+    /// <summary>
+    /// The current invocation identity, distinct for nested executions even of the same command type.
+    /// </summary>
     public static object? Token => Active();
 
-    /// <summary>Gets whether this invocation is explicitly protected.</summary>
+    /// <summary>
+    /// Gets whether this invocation is explicitly protected.
+    /// </summary>
     public static bool IsProtected => Mode == CommandDecisionMode.Protected;
 
-    /// <summary>Begins an invocation before filters, validators, and dependency construction.</summary>
+    /// <summary>
+    /// Begins an invocation before filters, validators, and dependency construction.
+    /// </summary>
     /// <param name="commandType">The command type.</param>
     /// <returns>A lease restoring the enclosing invocation.</returns>
-    /// <exception cref="InvalidOperationException">Conflicting protection profiles were declared.</exception>
+    /// <exception cref="CommandCannotBeBothProtectedAndUnprotected">Conflicting protection profiles were declared.</exception>
     internal static IDisposable Begin(Type commandType)
     {
         var attributes = commandType.GetCustomAttributes(true);
@@ -31,7 +43,7 @@ public static class CommandDecisionPolicy
         var isUnprotected = attributes.Any(_ => _ is IUnprotectedDecisionCommand);
         if (isProtected && isUnprotected)
         {
-            throw new InvalidOperationException($"Command '{commandType}' cannot be both protected and unprotected.");
+            throw new CommandCannotBeBothProtectedAndUnprotected(commandType);
         }
 
         var frame = new Frame(isProtected ? CommandDecisionMode.Protected : isUnprotected ? CommandDecisionMode.Unprotected : CommandDecisionMode.Legacy, Active());
@@ -42,7 +54,11 @@ public static class CommandDecisionPolicy
     static Frame? Active()
     {
         var frame = _current.Value;
-        while (frame?.Completed == true) frame = frame.Previous;
+        while (frame?.Completed == true)
+        {
+            frame = frame.Previous;
+        }
+
         return frame;
     }
 

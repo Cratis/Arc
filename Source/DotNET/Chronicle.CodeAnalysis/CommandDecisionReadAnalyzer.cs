@@ -9,7 +9,9 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
 
-/// <summary>Advises on recognizable unguarded Chronicle reads and immediate appends in event-producing commands.</summary>
+/// <summary>
+/// Advises on recognizable unguarded Chronicle reads and immediate appends in event-producing commands.
+/// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 {
@@ -63,7 +65,10 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         }
 
         var immediateAppend = IsImmediateAppend(syntax, called, context.SemanticModel, context.CancellationToken);
-        if (!InDecision(enclosing, out var command, immediateAppend) || HasUnprotected(command)) return;
+        if (!InDecision(enclosing, out var command, immediateAppend) || HasUnprotected(command))
+        {
+            return;
+        }
 
         if (called.Name == "GetInstanceById" && Implements(called.ContainingType, ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
         {
@@ -152,7 +157,11 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 
     static bool IsEventValue(ITypeSymbol type)
     {
-        if (type is IArrayTypeSymbol array) return IsEventValue(array.ElementType);
+        if (type is IArrayTypeSymbol array)
+        {
+            return IsEventValue(array.ElementType);
+        }
+
         if (type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" ||
             type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventForEventSourceId" ||
             type.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "Cratis.Chronicle.Events.EventTypeAttribute"))

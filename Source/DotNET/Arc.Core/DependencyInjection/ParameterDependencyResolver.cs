@@ -44,7 +44,10 @@ static class ParameterDependencyResolver
                 .ValidateCommandDependency(parameter.ParameterType, dependency);
         }
 
-        if (dependency is not null) return dependency;
+        if (dependency is not null)
+        {
+            return dependency;
+        }
 
         if (IsNullable(parameter))
         {

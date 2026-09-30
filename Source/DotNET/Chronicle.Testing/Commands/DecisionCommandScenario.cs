@@ -8,7 +8,9 @@ using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
-/// <summary>Owns the single in-process Chronicle store for an opt-in protected command scenario.</summary>
+/// <summary>
+/// Owns the single in-process Chronicle store for an opt-in protected command scenario.
+/// </summary>
 internal sealed class DecisionCommandScenario
 {
     readonly Queue<(EventSourceId Source, object[] Events)> _competitors = new();
@@ -17,7 +19,9 @@ internal sealed class DecisionCommandScenario
     bool _setupOrCompeting;
     int _executionDepth;
 
-    /// <summary>Creates a scenario sharing a real testing store with the command.</summary>
+    /// <summary>
+    /// Creates a scenario sharing a real testing store with the command.
+    /// </summary>
     /// <param name="store">The shared store.</param>
     /// <param name="commandEvents">The command-only append capture.</param>
     public DecisionCommandScenario(EventStoreForTesting store, List<AppendedEventWithResult> commandEvents)
@@ -32,36 +36,57 @@ internal sealed class DecisionCommandScenario
         });
     }
 
-    /// <summary>Gets the store used for seeding, decision reads and command commits.</summary>
+    /// <summary>
+    /// Gets the store used for seeding, decision reads and command commits.
+    /// </summary>
     public EventStoreForTesting Store { get; }
 
-    /// <summary>Gets the log with the store's real unit-of-work manager for transactional appends.</summary>
+    /// <summary>
+    /// Gets the log with the store's real unit-of-work manager for transactional appends.
+    /// </summary>
     public IEventLog EventLog { get; }
 
-    /// <summary>Marks a command execution frame, including nested commands.</summary>
+    /// <summary>
+    /// Marks a command execution frame, including nested commands.
+    /// </summary>
     public void Begin() => _executionDepth++;
 
-    /// <summary>Ends this command execution frame without ending an enclosing command's capture.</summary>
+    /// <summary>
+    /// Ends this command execution frame without ending an enclosing command's capture.
+    /// </summary>
     public void End() => _executionDepth--;
 
-    /// <summary>Schedules a competing append before the owner commits.</summary>
+    /// <summary>
+    /// Schedules a competing append before the owner commits.
+    /// </summary>
     /// <param name="source">The competitor's source.</param>
     /// <param name="events">The competing facts.</param>
-    /// <exception cref="InvalidOperationException">Execution already started.</exception>
+    /// <exception cref="CompetingEventsMustBeQueuedBeforeExecution">Execution already started.</exception>
     public void QueueCompetingAppend(EventSourceId source, object[] events)
     {
-        if (_executionDepth > 0) throw new InvalidOperationException("Queue competing events before executing the command.");
+        if (_executionDepth > 0)
+        {
+            throw new CompetingEventsMustBeQueuedBeforeExecution();
+        }
+
         _competitors.Enqueue((source, events));
     }
 
-    /// <summary>Seeds prior facts in the same log used by the decision reader.</summary>
+    /// <summary>
+    /// Seeds prior facts in the same log used by the decision reader.
+    /// </summary>
     /// <param name="source">The source of the facts.</param>
     /// <param name="events">The prior facts.</param>
     /// <returns>The seed operation.</returns>
-    /// <exception cref="InvalidOperationException">Execution already started.</exception>
+    /// <exception cref="EventsMustBeSeededBeforeExecution">Execution already started.</exception>
+    /// <exception cref="PriorEventCouldNotBeSeeded">A prior event was not appended.</exception>
     public async Task Seed(EventSourceId source, object[] events)
     {
-        if (_executionDepth > 0) throw new InvalidOperationException("Seed events before executing the command.");
+        if (_executionDepth > 0)
+        {
+            throw new EventsMustBeSeededBeforeExecution();
+        }
+
         _setupOrCompeting = true;
         try
         {
@@ -69,7 +94,10 @@ internal sealed class DecisionCommandScenario
             {
                 var result = await Store.EventLog.Append(source, @event);
                 Exclude(result.SequenceNumber);
-                if (!result.IsSuccess) throw new InvalidOperationException("A prior event could not be seeded.");
+                if (!result.IsSuccess)
+                {
+                    throw new PriorEventCouldNotBeSeeded();
+                }
             }
         }
         finally
@@ -78,13 +106,19 @@ internal sealed class DecisionCommandScenario
         }
     }
 
-    /// <summary>Appends queued competing facts after the command reads, outside its unit of work.</summary>
+    /// <summary>
+    /// Appends queued competing facts after the command reads, outside its unit of work.
+    /// </summary>
     /// <returns>The append operation.</returns>
-    /// <exception cref="InvalidOperationException">A competing append failed.</exception>
+    /// <exception cref="CompetingEventCouldNotBeAppended">A competing append failed.</exception>
     public async Task AppendCompetingEvents()
     {
         // A nested command shares this scenario but must not drain the outer command's competitor queue.
-        if (_executionDepth != 1) return;
+        if (_executionDepth != 1)
+        {
+            return;
+        }
+
         _setupOrCompeting = true;
         try
         {
@@ -96,7 +130,10 @@ internal sealed class DecisionCommandScenario
                     // keeps the owner's commit observation eligible for operation compensation on conflict.
                     var result = await Store.EventLog.Append(batch.Source, @event, correlationId: CorrelationId.New());
                     Exclude(result.SequenceNumber);
-                    if (!result.IsSuccess) throw new InvalidOperationException("A competing event could not be appended.");
+                    if (!result.IsSuccess)
+                    {
+                        throw new CompetingEventCouldNotBeAppended();
+                    }
                 }
             }
         }

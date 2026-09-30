@@ -39,7 +39,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         }
         catch (Exception ex) when (CommandDecisionPolicy.IsProtected && ex is not OperationCanceledException)
         {
-            throw new DecisionReadAcquisitionException(ex);
+            throw new DecisionReadCouldNotBeAcquired(ex);
         }
     }
 
@@ -49,8 +49,8 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     {
         if (CommandDecisionPolicy.IsProtected || (CurrentInvocation() is not null && !CommandValidationExecution.IsActive))
         {
-            var refusal = new InvalidOperationException("Detached decision reads cannot be used inside an executing command.");
-            throw CommandDecisionPolicy.IsProtected ? new DecisionReadAcquisitionException(refusal) : refusal;
+            var refusal = new DetachedDecisionReadRefused();
+            throw CommandDecisionPolicy.IsProtected ? new DecisionReadCouldNotBeAcquired(refusal) : refusal;
         }
 
         return inner.GetDetached<T>(key, cancellationToken);
@@ -64,9 +64,9 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         {
             return await GetForInvocation();
         }
-        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && ex is not (OperationCanceledException or DecisionReadAcquisitionException))
+        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired))
         {
-            throw new DecisionReadAcquisitionException(ex);
+            throw new DecisionReadCouldNotBeAcquired(ex);
         }
 
         async Task<DecisionRead<T>> GetForInvocation()
@@ -77,7 +77,10 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
                 : CurrentInvocation();
             if (!CommandDecisionPolicy.IsActive)
             {
-                if (invocation is not null) throw new InvalidOperationException("Decision reads require a command pipeline protection profile.");
+                if (invocation is not null)
+                {
+                    throw new DecisionReadRequiresProtectionProfile();
+                }
 
                 // Outside a command, preserve the Chronicle client contract (including its ambient UOW requirement).
                 return await inner.Get<T>(key, cancellationToken);
@@ -85,11 +88,11 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
 
             if (CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy)
             {
-                throw new InvalidOperationException("Protected decision reads require [ProtectedDecision] on the command. Mark intentional advisory reads [Unprotected].");
+                throw new ProtectedDecisionReadRequiresProtectedCommand();
             }
             if (invocation is null || !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token))
             {
-                throw new InvalidOperationException("Protected decision reads require an active command transaction or validation invocation.");
+                throw new ProtectedDecisionReadRequiresActiveInvocation();
             }
 
             var mode = CommandDecisionPolicy.Mode == CommandDecisionMode.Unprotected ? ReadMode.Unprotected :
@@ -98,10 +101,14 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
             IUnitOfWork? unitOfWork = null;
             if (mode == ReadMode.Protected)
             {
-                if (!CommandTransaction.TryGetActive(out unitOfWork)) throw new DecisionReadRequiresUnitOfWork();
+                if (!CommandTransaction.TryGetActive(out unitOfWork))
+                {
+                    throw new DecisionReadRequiresUnitOfWork();
+                }
+
                 if (unitOfWork is not UnitOfWork)
                 {
-                    throw new InvalidOperationException("Protected command decisions require Chronicle's owner-capable UnitOfWork.");
+                    throw new ProtectedDecisionRequiresOwnerCapableUnitOfWork();
                 }
             }
 
@@ -128,11 +135,15 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         }
     }
 
-    /// <summary>Starts an invocation with its own cache and provenance.</summary>
+    /// <summary>
+    /// Starts an invocation with its own cache and provenance.
+    /// </summary>
     /// <param name="commandType">The command type.</param>
     internal static void Begin(Type commandType) => _invocation.Value = new Invocation(commandType, CommandDecisionPolicy.Token, CurrentInvocation());
 
-    /// <summary>Restores the enclosing invocation, if any.</summary>
+    /// <summary>
+    /// Restores the enclosing invocation, if any.
+    /// </summary>
     internal static void End()
     {
         var invocation = CurrentInvocation();
@@ -143,9 +154,11 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         }
     }
 
-    /// <summary>Refuses decision tokens not issued during the current invocation.</summary>
+    /// <summary>
+    /// Refuses decision tokens not issued during the current invocation.
+    /// </summary>
     /// <param name="value">The value returned by Provide.</param>
-    /// <exception cref="InvalidOperationException">The supplied token was issued by another invocation.</exception>
+    /// <exception cref="DecisionReadNotIssuedForInvocation">The supplied token was issued by another invocation.</exception>
     internal static void VerifyProvided(object value)
     {
         var validation = CommandValidationExecution.Current;
@@ -154,14 +167,18 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         if (value is IDecisionRead read && (invocation is null ||
             !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token) || !invocation.Issued.ContainsKey(read)))
         {
-            throw new InvalidOperationException("A DecisionRead returned by Provide must be issued for this command invocation.");
+            throw new DecisionReadNotIssuedForInvocation();
         }
     }
 
     static Invocation? CurrentInvocation()
     {
         var invocation = _invocation.Value;
-        while (invocation?.Completed == true) invocation = invocation.Previous;
+        while (invocation?.Completed == true)
+        {
+            invocation = invocation.Previous;
+        }
+
         return invocation;
     }
 
