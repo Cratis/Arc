@@ -20,6 +20,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     const string ChronicleReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
     const string DecisionReads = "Cratis.Chronicle.ReadModels.IDecisionReads";
     const string EventLog = "Cratis.Chronicle.EventSequences.IEventLog";
+    const string HandlerAdvice = "Mark the command [ProtectedDecision] and use DecisionRead<T> or IDecisionReads in Provide or Handle, or mark the command or the intentional legacy read [Unprotected]";
+    const string ValidatorAdvice = "Protected commands refuse discoverable validators, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -33,17 +35,34 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeParameter, SyntaxKind.Parameter);
-        context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
+        context.RegisterCompilationStartAction(start =>
+        {
+            // Projection and reducer targets are computed once per compilation, and only when a candidate parameter needs them.
+            var backedTypes = new Lazy<ImmutableHashSet<INamedTypeSymbol>>(
+                () => ProjectionAndReducerTargets(start.Compilation),
+                LazyThreadSafetyMode.ExecutionAndPublication);
+            start.RegisterSyntaxNodeAction(_ => AnalyzeParameter(_, backedTypes), SyntaxKind.Parameter);
+            start.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
+        });
     }
 
-    static void AnalyzeParameter(SyntaxNodeAnalysisContext context)
+    static void AnalyzeParameter(SyntaxNodeAnalysisContext context, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
     {
         var syntax = (ParameterSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol parameter ||
-            parameter.ContainingSymbol is not IMethodSymbol method || !InDecision(method, out var command) ||
+
+        // Lambda and local function parameters (for example the x in RuleFor(x => ...)) inject nothing.
+        if (syntax.Parent?.Parent is not BaseMethodDeclarationSyntax and not TypeDeclarationSyntax ||
+            context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol parameter ||
+            parameter.ContainingSymbol is not IMethodSymbol method || !InDecision(method, out var command))
+        {
+            return;
+        }
+
+        // A validator's reads are injected through its constructor; other validator methods are not resolved from DI.
+        var inValidator = !SymbolEqualityComparer.Default.Equals(command, method.ContainingType);
+        if ((inValidator && method.MethodKind != MethodKind.Constructor) ||
             HasUnprotected(command) || HasUnprotected(method) || HasUnprotected(parameter) ||
-            IsDecision(parameter.Type) || !IsChronicleBacked(parameter.Type, context.Compilation))
+            IsDecision(parameter.Type) || !IsChronicleBacked(parameter.Type, backedTypes))
         {
             return;
         }
@@ -52,7 +71,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
             syntax.GetLocation(),
             command.Name,
-            parameter.Type.Name));
+            parameter.Type.Name,
+            inValidator ? ValidatorAdvice : HandlerAdvice));
     }
 
     static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
@@ -76,7 +96,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
                 DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
                 syntax.GetLocation(),
                 command.Name,
-                called.TypeArguments.FirstOrDefault()?.Name ?? "read model"));
+                called.TypeArguments.FirstOrDefault()?.Name ?? "read model",
+                SymbolEqualityComparer.Default.Equals(command, enclosing.ContainingType) ? HandlerAdvice : ValidatorAdvice));
         }
 
         if (!immediateAppend)
@@ -176,7 +197,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         return false;
     }
 
-    static bool IsChronicleBacked(ITypeSymbol type, Compilation compilation)
+    static bool IsChronicleBacked(ITypeSymbol type, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
     {
         if (type is not INamedTypeSymbol named || type.SpecialType != SpecialType.None)
         {
@@ -187,13 +208,19 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         {
             return true;
         }
-        return compilation.GetSymbolsWithName(_ => true, SymbolFilter.Type)
-            .OfType<INamedTypeSymbol>()
-            .Any(backing => backing.AllInterfaces.Any(_ => _.IsGenericType && _.TypeArguments.Length == 1 &&
-                SymbolEqualityComparer.Default.Equals(_.TypeArguments[0], named) &&
-                (_.OriginalDefinition.Name == "IProjectionFor" || _.OriginalDefinition.Name == "IReducerFor") &&
-                (_.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Projections" || _.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Reducers")));
+        return backedTypes.Value.Contains(named);
     }
+
+    static ImmutableHashSet<INamedTypeSymbol> ProjectionAndReducerTargets(Compilation compilation) =>
+        compilation.GetSymbolsWithName(_ => true, SymbolFilter.Type)
+            .OfType<INamedTypeSymbol>()
+            .SelectMany(backing => backing.AllInterfaces)
+            .Where(_ => _.IsGenericType && _.TypeArguments.Length == 1 &&
+                (_.OriginalDefinition.Name == "IProjectionFor" || _.OriginalDefinition.Name == "IReducerFor") &&
+                (_.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Projections" || _.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Reducers"))
+            .Select(_ => _.TypeArguments[0])
+            .OfType<INamedTypeSymbol>()
+            .ToImmutableHashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
 
     static bool IsImmediateAppend(InvocationExpressionSyntax syntax, IMethodSymbol method, SemanticModel model, CancellationToken cancellationToken)
     {

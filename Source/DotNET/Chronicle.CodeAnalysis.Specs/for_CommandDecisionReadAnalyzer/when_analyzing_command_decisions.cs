@@ -11,6 +11,9 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandDecisionReadAnalyze
 
 public class when_analyzing_command_decisions
 {
+    const string HandlerAdvice = "Mark the command [ProtectedDecision] and use DecisionRead<T> or IDecisionReads in Provide or Handle, or mark the command or the intentional legacy read [Unprotected]";
+    const string ValidatorAdvice = "Protected commands refuse discoverable validators, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
+
     const string Definitions = """
         using System;
         using System.Threading.Tasks;
@@ -40,7 +43,7 @@ public class when_analyzing_command_decisions
                 public Created Handle(State state) => new();
             }
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
-                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State"));
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", HandlerAdvice));
 
     [Fact]
     public async Task legacy_read_in_provide_reports_info() =>
@@ -104,7 +107,7 @@ public class when_analyzing_command_decisions
                 public Created[] Handle(State state) => [new Created()];
             }
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
-                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State"));
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", HandlerAdvice));
 
     [Fact]
     public async Task validator_plain_model_and_explicit_legacy_read_report_info() =>
@@ -123,6 +126,41 @@ public class when_analyzing_command_decisions
             }
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011").WithSeverity(DiagnosticSeverity.Info),
             AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011").WithSeverity(DiagnosticSeverity.Info));
+
+    [Fact]
+    public async Task validator_read_advises_moving_it_out_of_the_validator() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public Created Handle() => new();
+            }
+            public class CreateValidator(State state) : CommandValidator<Create>;
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", ValidatorAdvice));
+
+    [Fact]
+    public async Task lambda_and_non_constructor_validator_parameters_are_not_reported() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId, State Snapshot)
+            {
+                public Created Handle() => new();
+            }
+            public class CreateValidator : CommandValidator<Create>
+            {
+                public CreateValidator()
+                {
+                    System.Func<State, bool> check = (State state) => state is not null;
+                    Use(state => state is not null);
+                    bool Local(State state) => state is not null;
+                }
+
+                public static bool Check(State state) => state is not null;
+
+                static void Use(System.Func<State, bool> check) { }
+            }
+            """);
 
     [Fact]
     public async Task unprotected_parameter_is_acknowledged_without_disabling_other_legacy_reads() =>

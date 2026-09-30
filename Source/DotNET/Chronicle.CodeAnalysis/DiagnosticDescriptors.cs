@@ -137,7 +137,7 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0011_UnprotectedDecisionRead = new(
         id: "ARCCHR0011",
         title: "Plain read model in event-producing command is unprotected",
-        messageFormat: "Command '{0}' reads Chronicle model '{1}' without protecting its decision. Use DecisionRead<T> or IDecisionReads, or mark the intentional legacy read [Unprotected].",
+        messageFormat: "Command '{0}' reads Chronicle model '{1}' without protecting its decision. {2}.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
