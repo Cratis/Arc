@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Microsoft.Extensions.Logging;
@@ -13,10 +14,19 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="logger">The <see cref="ILogger"/> to use for logging.</param>
 public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger) : ICommandContextValuesProvider
 {
+    /// <summary>
+    /// The attribute the type of the command's event source id is recorded under.
+    /// </summary>
+    internal const string EventSourceIdTypeAttribute = "cratis.arc.command.event_source_id.type";
+
+    const string ExecuteCommandSpan = "cratis.arc.command.execute";
+    const string ValidateCommandSpan = "cratis.arc.command.validate";
+
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
-        var eventSourceId = ResolveEventSourceId(command);
+        var eventSourceId = ResolveEventSourceId(command, out var declaredType);
+        DescribeEventSourceIdType(declaredType);
 
         // Also expose the id as the provider-neutral resolved key so a read model backing provider that does not depend
         // on Chronicle (for example Entity Framework Core) can load a read model by the same key. An unspecified id
@@ -26,6 +36,40 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
             { WellKnownCommandContextKeys.EventSourceId, eventSourceId },
             { Cratis.Arc.Commands.CommandContextKeys.ResolvedKey, NeutralKeyFrom(eventSourceId) }
         };
+    }
+
+    /// <summary>
+    /// Adds the type of the command's event source id to the command span Arc is running it in.
+    /// </summary>
+    /// <param name="type">The type the command declares its event source id as, if any.</param>
+    /// <remarks>
+    /// Only the type is recorded, never the id: an id can identify a person. The span is only touched when it is the
+    /// command span Arc started, so a surrounding span from other instrumentation is never written to.
+    /// </remarks>
+    static void DescribeEventSourceIdType(Type? type)
+    {
+        if (Activity.Current is not { IsAllDataRequested: true } activity ||
+            activity.Source.Name != WellKnownDiagnostics.ActivitySourceName ||
+            activity.OperationName is not (ExecuteCommandSpan or ValidateCommandSpan))
+        {
+            return;
+        }
+
+        if (type is not null)
+        {
+            activity.SetTag(EventSourceIdTypeAttribute, NameOf(type));
+        }
+    }
+
+    static string NameOf(Type type)
+    {
+        if (!type.IsGenericType)
+        {
+            return type.FullName ?? type.Name;
+        }
+
+        var name = type.Name[..type.Name.IndexOf('`')];
+        return $"{type.Namespace}.{name}<{string.Join(", ", type.GetGenericArguments().Select(NameOf))}>";
     }
 
     /// <summary>
@@ -40,18 +84,22 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
     /// Resolves the event source id for a command, from a self-composing command or from a key property.
     /// </summary>
     /// <param name="command">The command to resolve the event source id for.</param>
+    /// <param name="declaredType">The type the command declares the id as, or <see langword="null"/> when it declares none.</param>
     /// <returns>The resolved event source id, or <see cref="EventSourceId.Unspecified"/> when none could be composed.</returns>
-    EventSourceId ResolveEventSourceId(object command)
+    EventSourceId ResolveEventSourceId(object command, out Type? declaredType)
     {
+        declaredType = null;
         if (command is ICanProvideEventSourceId provider)
         {
-            return ProvidedEventSourceIdOrUnspecified(provider);
+            var provided = ProvidedEventSourceIdOrUnspecified(provider);
+            declaredType = provided == EventSourceId.Unspecified ? null : provided.GetType();
+            return provided;
         }
 
         var eventSourceId = EventSourceId.New();
         if (command.HasEventSourceId())
         {
-            eventSourceId = command.GetEventSourceId();
+            eventSourceId = command.GetEventSourceIdWithDeclaredType(out declaredType);
         }
 
         return eventSourceId;
