@@ -8,25 +8,10 @@ using Cratis.Arc.Validation;
 namespace Cratis.Arc.Observability;
 
 /// <summary>
-/// The outcomes a command or query is reported with, and how a result maps to one.
+/// Maps a command or query result to one of the <see cref="WellKnownOperationOutcomes"/>.
 /// </summary>
 internal static class OperationOutcomes
 {
-    /// <summary>The operation succeeded.</summary>
-    internal const string Success = "success";
-
-    /// <summary>Validation rejected the operation.</summary>
-    internal const string Validation = "validation";
-
-    /// <summary>Authorization denied the operation.</summary>
-    internal const string Authorization = "authorization";
-
-    /// <summary>The event store rejected the append the command produced, through a constraint or a concurrency conflict.</summary>
-    internal const string AppendRejected = "append_rejected";
-
-    /// <summary>The operation failed with an error.</summary>
-    internal const string Error = "error";
-
     /// <summary>
     /// Classifies a command result.
     /// </summary>
@@ -45,21 +30,21 @@ internal static class OperationOutcomes
     {
         if (!isAuthorized)
         {
-            return Authorization;
+            return WellKnownOperationOutcomes.Authorization;
         }
 
         if (hasExceptions)
         {
-            return Error;
+            return WellKnownOperationOutcomes.Error;
         }
 
         var results = validationResults as IReadOnlyCollection<ValidationResult> ?? [.. validationResults];
         if (results.Count == 0)
         {
-            return Success;
+            return WellKnownOperationOutcomes.Success;
         }
 
-        return results.Any(IsAppendRejection) ? AppendRejected : Validation;
+        return results.Any(IsAppendRejection) ? WellKnownOperationOutcomes.AppendRejected : WellKnownOperationOutcomes.Validation;
     }
 
     static bool IsAppendRejection(ValidationResult result) =>

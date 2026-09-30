@@ -14,14 +14,6 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="logger">The <see cref="ILogger"/> to use for logging.</param>
 public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger) : ICommandContextValuesProvider
 {
-    /// <summary>
-    /// The attribute the type of the command's event source id is recorded under.
-    /// </summary>
-    internal const string EventSourceIdTypeAttribute = "cratis.arc.command.event_source_id.type";
-
-    const string ExecuteCommandSpan = "cratis.arc.command.execute";
-    const string ValidateCommandSpan = "cratis.arc.command.validate";
-
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
@@ -50,14 +42,14 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
     {
         if (Activity.Current is not { IsAllDataRequested: true } activity ||
             activity.Source.Name != WellKnownDiagnostics.ActivitySourceName ||
-            activity.OperationName is not (ExecuteCommandSpan or ValidateCommandSpan))
+            activity.OperationName is not (WellKnownTelemetryNames.CommandExecuteSpan or WellKnownTelemetryNames.CommandValidateSpan))
         {
             return;
         }
 
         if (type is not null)
         {
-            activity.SetTag(EventSourceIdTypeAttribute, NameOf(type));
+            activity.SetTag(WellKnownTelemetryNames.CommandKeyType, NameOf(type));
         }
     }
 

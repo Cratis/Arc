@@ -274,13 +274,13 @@ public class CommandPipeline(
     static void DescribeCommand(Activity? activity, string displayName, string commandTypeName, CorrelationId correlationId)
     {
         OperationActivity.Describe(activity, displayName, correlationId);
-        activity?.SetTag(TelemetryNames.CommandType, commandTypeName);
+        activity?.SetTag(WellKnownTelemetryNames.CommandType, commandTypeName);
     }
 
     static void RecordCommand(Activity? activity, IServiceProvider serviceProvider, string commandTypeName, string outcome, IEnumerable<ValidationResult> validationResults, TimeSpan elapsed)
     {
         OperationActivity.AddResolvedTenant(activity, serviceProvider);
-        OperationActivity.RecordOutcome(activity, TelemetryNames.CommandOutcome, outcome, validationResults);
+        OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.CommandOutcome, outcome, validationResults);
         serviceProvider.GetService<PipelineMetrics>()?.RecordCommand(commandTypeName, outcome, elapsed);
     }
 
@@ -325,7 +325,7 @@ public class CommandPipeline(
         catch (Exception ex)
         {
             OperationActivity.RecordException(span.Activity, ex);
-            RecordCommand(span.Activity, serviceProvider, commandTypeName, OperationOutcomes.Error, [], Stopwatch.GetElapsedTime(started));
+            RecordCommand(span.Activity, serviceProvider, commandTypeName, WellKnownOperationOutcomes.Error, [], Stopwatch.GetElapsedTime(started));
             throw;
         }
     }
@@ -603,7 +603,7 @@ public class CommandPipeline(
         DescribeCommand(span.Activity, $"validate {OperationActivity.ShortNameOf(commandType)}", commandTypeName, correlationId);
         var result = await ValidateObserved(command, serviceProvider, allowedSeverity, suppliedAuthorization, correlationId, span.Activity, cancellationToken);
         OperationActivity.AddResolvedTenant(span.Activity, serviceProvider);
-        OperationActivity.RecordOutcome(span.Activity, TelemetryNames.CommandOutcome, OperationOutcomes.For(result), result.ValidationResults);
+        OperationActivity.RecordOutcome(span.Activity, WellKnownTelemetryNames.CommandOutcome, OperationOutcomes.For(result), result.ValidationResults);
         return result;
     }
 
@@ -614,7 +614,7 @@ public class CommandPipeline(
         if (span.Activity is { IsAllDataRequested: true } activity)
         {
             activity.DisplayName = $"{OperationActivity.ShortNameOf(context.Type)}.Handle()";
-            activity.SetTag(TelemetryNames.CommandType, commandTypeName);
+            activity.SetTag(WellKnownTelemetryNames.CommandType, commandTypeName);
         }
 
         try
@@ -624,7 +624,7 @@ public class CommandPipeline(
         catch (Exception ex)
         {
             OperationActivity.RecordException(span.Activity, ex);
-            span.Activity?.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Error);
+            span.Activity?.SetStatus(ActivityStatusCode.Error, WellKnownOperationOutcomes.Error);
             throw;
         }
     }

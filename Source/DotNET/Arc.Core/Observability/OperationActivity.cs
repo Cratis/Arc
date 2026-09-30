@@ -37,7 +37,7 @@ internal static class OperationActivity
         }
 
         activity.DisplayName = displayName;
-        activity.SetTag(TelemetryNames.CorrelationId, correlationId.ToString());
+        activity.SetTag(WellKnownTelemetryNames.CorrelationId, correlationId.ToString());
     }
 
     /// <summary>
@@ -60,16 +60,16 @@ internal static class OperationActivity
         var tenant = accessor?.ExplicitTenant ?? accessor?.Cached;
         if (tenant is not null && tenant != TenantId.NotSet)
         {
-            activity.SetTag(TelemetryNames.Tenant, tenant.Value);
+            activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value);
         }
     }
 
     /// <summary>
-    /// Records the outcome of an operation on its span, as status and events.
+    /// Records the outcome of an operation on its span, as an attribute, events and, for an error, the status.
     /// </summary>
     /// <param name="activity">The <see cref="Activity"/> to record on, if any.</param>
     /// <param name="outcomeAttribute">The name of the outcome attribute.</param>
-    /// <param name="outcome">The outcome, one of the <see cref="OperationOutcomes"/>.</param>
+    /// <param name="outcome">The outcome, one of the <see cref="WellKnownOperationOutcomes"/>.</param>
     /// <param name="validationResults">The validation results that blocked the operation.</param>
     internal static void RecordOutcome(Activity? activity, string outcomeAttribute, string outcome, IEnumerable<ValidationResult> validationResults)
     {
@@ -79,15 +79,21 @@ internal static class OperationActivity
         }
 
         activity.SetTag(outcomeAttribute, outcome);
-        if (outcome == OperationOutcomes.Success)
+        if (outcome == WellKnownOperationOutcomes.Success)
         {
             return;
         }
 
-        activity.SetStatus(ActivityStatusCode.Error, outcome);
-        if (outcome == OperationOutcomes.Authorization)
+        // Following OpenTelemetry, only an error fails the span. A rejection by validation, authorization or the event
+        // store is an expected business outcome: it is told apart by the outcome attribute and the events below.
+        if (outcome == WellKnownOperationOutcomes.Error)
         {
-            activity.AddEvent(new ActivityEvent(TelemetryNames.AuthorizationDeniedEvent));
+            activity.SetStatus(ActivityStatusCode.Error, outcome);
+        }
+
+        if (outcome == WellKnownOperationOutcomes.Authorization)
+        {
+            activity.AddEvent(new ActivityEvent(WellKnownTelemetryNames.AuthorizationDeniedEvent));
         }
 
         foreach (var result in validationResults.Take(MaxValidationEvents))
@@ -113,8 +119,8 @@ internal static class OperationActivity
         }
 
         activity.AddEvent(new ActivityEvent(
-            TelemetryNames.ExceptionEvent,
-            tags: new ActivityTagsCollection { { TelemetryNames.ExceptionType, exception.GetType().FullName ?? exception.GetType().Name } }));
+            WellKnownTelemetryNames.ExceptionEvent,
+            tags: new ActivityTagsCollection { { WellKnownTelemetryNames.ExceptionType, exception.GetType().FullName ?? exception.GetType().Name } }));
     }
 
     /// <summary>
@@ -133,16 +139,16 @@ internal static class OperationActivity
     {
         var tags = new ActivityTagsCollection
         {
-            { TelemetryNames.ValidationSeverity, result.Severity.ToString() },
-            { TelemetryNames.ValidationMembers, result.Members.ToArray() },
-            { TelemetryNames.ValidationReason, result.Reason?.Value ?? ValidationResultReason.Rule.Value }
+            { WellKnownTelemetryNames.ValidationSeverity, result.Severity.ToString() },
+            { WellKnownTelemetryNames.ValidationMembers, result.Members.ToArray() },
+            { WellKnownTelemetryNames.ValidationReason, result.Reason?.Value ?? ValidationResultReason.Rule.Value }
         };
 
         if (!string.IsNullOrEmpty(result.ReasonDetail))
         {
-            tags.Add(TelemetryNames.ValidationReasonDetail, result.ReasonDetail);
+            tags.Add(WellKnownTelemetryNames.ValidationReasonDetail, result.ReasonDetail);
         }
 
-        return new ActivityEvent(TelemetryNames.ValidationFailedEvent, tags: tags);
+        return new ActivityEvent(WellKnownTelemetryNames.ValidationFailedEvent, tags: tags);
     }
 }

@@ -21,7 +21,7 @@ internal sealed class CardinalityLimiter(int limit)
     /// Gets the value to record for the given value.
     /// </summary>
     /// <param name="value">The value to record.</param>
-    /// <returns>The value itself while under the limit or already seen; otherwise <see cref="TelemetryNames.Other"/>.</returns>
+    /// <returns>The value itself while under the limit or already seen; otherwise <see cref="WellKnownTelemetryNames.Other"/>.</returns>
     internal string Limit(string value)
     {
         if (_seen.ContainsKey(value))
@@ -31,7 +31,7 @@ internal sealed class CardinalityLimiter(int limit)
 
         if (_seen.Count >= limit)
         {
-            return TelemetryNames.Other;
+            return WellKnownTelemetryNames.Other;
         }
 
         _seen.TryAdd(value, 0);

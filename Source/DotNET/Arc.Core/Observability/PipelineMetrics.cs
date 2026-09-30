@@ -13,7 +13,7 @@ internal sealed class PipelineMetrics
 {
     /// <summary>
     /// The number of distinct command types and query names recorded before further ones are folded into
-    /// <see cref="TelemetryNames.Other"/>.
+    /// <see cref="WellKnownTelemetryNames.Other"/>.
     /// </summary>
     internal const int DefaultCardinalityLimit = 1000;
 
@@ -34,9 +34,9 @@ internal sealed class PipelineMetrics
     /// <param name="cardinalityLimit">The number of distinct command types and query names to record.</param>
     internal PipelineMetrics(Meter meter, int cardinalityLimit = DefaultCardinalityLimit)
     {
-        _commandDuration = CreateDurationHistogram(meter, TelemetryNames.CommandDurationMetric, "How long commands take to run through the command pipeline.");
-        _commandOutcomes = meter.CreateCounter<long>(TelemetryNames.CommandOutcomesMetric, "{command}", "The number of commands run, by outcome.");
-        _queryDuration = CreateDurationHistogram(meter, TelemetryNames.QueryDurationMetric, "How long queries take to run through the query pipeline.");
+        _commandDuration = CreateDurationHistogram(meter, WellKnownTelemetryNames.CommandDurationMetric, "How long commands take to run through the command pipeline.");
+        _commandOutcomes = meter.CreateCounter<long>(WellKnownTelemetryNames.CommandOutcomesMetric, "{command}", "The number of commands run, by outcome.");
+        _queryDuration = CreateDurationHistogram(meter, WellKnownTelemetryNames.QueryDurationMetric, "How long queries take to run through the query pipeline.");
         _commandTypes = new(cardinalityLimit);
         _queryNames = new(cardinalityLimit);
     }
@@ -45,14 +45,14 @@ internal sealed class PipelineMetrics
     /// Records that a command ran.
     /// </summary>
     /// <param name="commandType">The full name of the command type.</param>
-    /// <param name="outcome">The outcome, one of the <see cref="OperationOutcomes"/>.</param>
+    /// <param name="outcome">The outcome, one of the <see cref="WellKnownOperationOutcomes"/>.</param>
     /// <param name="elapsed">How long the command took.</param>
     internal void RecordCommand(string commandType, string outcome, TimeSpan elapsed)
     {
         var tags = new TagList
         {
-            { TelemetryNames.CommandType, _commandTypes.Limit(commandType) },
-            { TelemetryNames.CommandOutcome, outcome }
+            { WellKnownTelemetryNames.CommandType, _commandTypes.Limit(commandType) },
+            { WellKnownTelemetryNames.CommandOutcome, outcome }
         };
         _commandDuration.Record(elapsed.TotalSeconds, tags);
         _commandOutcomes.Add(1, tags);
@@ -61,17 +61,17 @@ internal sealed class PipelineMetrics
     /// <summary>
     /// Records that a query ran.
     /// </summary>
-    /// <param name="queryName">The fully qualified name of the query, or <see cref="TelemetryNames.Other"/> for a query that is not known.</param>
+    /// <param name="queryName">The fully qualified name of the query, or <see cref="WellKnownTelemetryNames.Other"/> for a query that is not known.</param>
     /// <param name="transport">The transport the result is delivered over.</param>
-    /// <param name="outcome">The outcome, one of the <see cref="OperationOutcomes"/>.</param>
+    /// <param name="outcome">The outcome, one of the <see cref="WellKnownOperationOutcomes"/>.</param>
     /// <param name="elapsed">How long the query took.</param>
     internal void RecordQuery(string queryName, string transport, string outcome, TimeSpan elapsed)
     {
         var tags = new TagList
         {
-            { TelemetryNames.QueryName, _queryNames.Limit(queryName) },
-            { TelemetryNames.QueryTransport, transport },
-            { TelemetryNames.QueryOutcome, outcome }
+            { WellKnownTelemetryNames.QueryName, _queryNames.Limit(queryName) },
+            { WellKnownTelemetryNames.QueryTransport, transport },
+            { WellKnownTelemetryNames.QueryOutcome, outcome }
         };
         _queryDuration.Record(elapsed.TotalSeconds, tags);
     }

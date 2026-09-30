@@ -45,7 +45,7 @@ public class CommandProvideInvoker : ICommandProvideInvoker
         catch (Exception ex)
         {
             OperationActivity.RecordException(span?.Activity, ex);
-            span?.Activity?.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Error);
+            span?.Activity?.SetStatus(ActivityStatusCode.Error, WellKnownOperationOutcomes.Error);
             throw;
         }
     }
@@ -57,7 +57,7 @@ public class CommandProvideInvoker : ICommandProvideInvoker
         if (span?.Activity is { IsAllDataRequested: true } activity)
         {
             activity.DisplayName = $"{OperationActivity.ShortNameOf(commandType)}.Provide()";
-            activity.SetTag(TelemetryNames.CommandType, commandTypeName);
+            activity.SetTag(WellKnownTelemetryNames.CommandType, commandTypeName);
         }
 
         return span;

@@ -110,19 +110,19 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         if (activity is { IsAllDataRequested: true })
         {
             activity.DisplayName = $"validate {OperationActivity.ShortNameOf(validatorType)}";
-            activity.SetTag(TelemetryNames.ValidatorType, validatorType.FullName ?? validatorType.Name);
+            activity.SetTag(WellKnownTelemetryNames.ValidatorType, validatorType.FullName ?? validatorType.Name);
         }
 
         try
         {
             var results = (await validatorInvoker.Invoke(instance, validator, path, cancellationToken)).ToArray();
-            activity?.SetTag(TelemetryNames.ValidationResultCount, results.Length);
+            activity?.SetTag(WellKnownTelemetryNames.ValidationResultCount, results.Length);
             return results;
         }
         catch (Exception ex)
         {
             OperationActivity.RecordException(activity, ex);
-            activity?.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Error);
+            activity?.SetStatus(ActivityStatusCode.Error, WellKnownOperationOutcomes.Error);
             throw;
         }
     }

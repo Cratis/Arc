@@ -94,23 +94,23 @@ public class QueryPipeline(
     {
         if (result.Data is null)
         {
-            return result.IsSuccess ? TelemetryNames.Snapshot : TelemetryNames.Unknown;
+            return result.IsSuccess ? WellKnownTelemetryNames.SnapshotTransport : WellKnownTelemetryNames.UnknownTransport;
         }
 
         var dataType = result.Data.GetType();
         return dataType.ImplementsOpenGeneric(typeof(ISubject<>)) || dataType.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>))
-            ? TelemetryNames.Observable
-            : TelemetryNames.Snapshot;
+            ? WellKnownTelemetryNames.ObservableTransport
+            : WellKnownTelemetryNames.SnapshotTransport;
     }
 
     static void RecordQuery(Activity? activity, IServiceProvider serviceProvider, string? queryName, string transport, string outcome, QueryResult? result, TimeSpan elapsed)
     {
         if (activity is { IsAllDataRequested: true })
         {
-            activity.SetTag(TelemetryNames.QueryTransport, transport);
+            activity.SetTag(WellKnownTelemetryNames.QueryTransport, transport);
             if (result?.AuthorizedTenant is { } tenant && tenant != TenantId.NotSet)
             {
-                activity.SetTag(TelemetryNames.Tenant, tenant.Value);
+                activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value);
             }
             else
             {
@@ -118,8 +118,8 @@ public class QueryPipeline(
             }
         }
 
-        OperationActivity.RecordOutcome(activity, TelemetryNames.QueryOutcome, outcome, result?.ValidationResults ?? []);
-        serviceProvider.GetService<PipelineMetrics>()?.RecordQuery(queryName ?? TelemetryNames.Other, transport, outcome, elapsed);
+        OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.QueryOutcome, outcome, result?.ValidationResults ?? []);
+        serviceProvider.GetService<PipelineMetrics>()?.RecordQuery(queryName ?? WellKnownTelemetryNames.Other, transport, outcome, elapsed);
     }
 
     async Task<QueryResult> PerformHostedCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
@@ -238,7 +238,7 @@ public class QueryPipeline(
         OperationActivity.Describe(span.Activity, known ? DisplayNameOf(queryName) : span.Activity?.DisplayName ?? string.Empty, correlationId);
         if (knownQueryName is not null)
         {
-            span.Activity?.SetTag(TelemetryNames.QueryName, knownQueryName);
+            span.Activity?.SetTag(WellKnownTelemetryNames.QueryName, knownQueryName);
         }
 
         try
@@ -250,7 +250,7 @@ public class QueryPipeline(
         catch (Exception ex)
         {
             OperationActivity.RecordException(span.Activity, ex);
-            RecordQuery(span.Activity, serviceProvider, knownQueryName, TelemetryNames.Unknown, OperationOutcomes.Error, null, Stopwatch.GetElapsedTime(started));
+            RecordQuery(span.Activity, serviceProvider, knownQueryName, WellKnownTelemetryNames.UnknownTransport, WellKnownOperationOutcomes.Error, null, Stopwatch.GetElapsedTime(started));
             throw;
         }
     }

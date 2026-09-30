@@ -65,7 +65,7 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
 
             if (authorizationSpan?.Activity is { IsAllDataRequested: true } authorizationActivity && !result.IsAuthorized)
             {
-                authorizationActivity.SetStatus(ActivityStatusCode.Error, OperationOutcomes.Authorization);
+                authorizationActivity.AddEvent(new ActivityEvent(WellKnownTelemetryNames.AuthorizationDeniedEvent));
             }
 
             // Preserve non-blocking validation results while still running later filters that may reject the command.
@@ -84,7 +84,7 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
         if (activity is { IsAllDataRequested: true })
         {
             activity.DisplayName = $"authorize {OperationActivity.ShortNameOf(commandType)}";
-            activity.SetTag(TelemetryNames.CommandType, commandType.FullName ?? commandType.Name);
+            activity.SetTag(WellKnownTelemetryNames.CommandType, commandType.FullName ?? commandType.Name);
         }
     }
 }
