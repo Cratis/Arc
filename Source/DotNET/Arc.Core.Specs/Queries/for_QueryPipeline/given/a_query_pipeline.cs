@@ -21,7 +21,7 @@ public class a_query_pipeline : Specification
     protected IQueryPerformer _queryPerformer;
     protected CorrelationId _correlationId;
     protected IDiscoverableValidators _discoverableValidators;
-    System.Diagnostics.ActivitySource _activitySource;
+    protected System.Diagnostics.ActivitySource _activitySource;
 
     void Establish()
     {
