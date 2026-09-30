@@ -32,7 +32,9 @@ internal sealed class DecisionCommandScenario
         Store.EventLog.AppendOperations.Subscribe(events =>
         {
             if (_executionDepth > 0 && !_setupOrCompeting)
+            {
                 _commandEvents.AddRange(events.Where(_ => _.Result.IsSuccess && !_excludedSequenceNumbers.Contains(_.Result.SequenceNumber)));
+            }
         });
     }
 

@@ -44,6 +44,18 @@ internal sealed class EventLogForScenario(IEventLog inner, IUnitOfWorkManager un
         inner.AppendMany(events, correlationId, tags, concurrencyScopes);
 
     /// <inheritdoc/>
+    public Task<AppendResult> AppendWithNamedTags(EventSourceId eventSourceId, object @event, IEnumerable<NamedTag> namedTags, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null) =>
+        inner.AppendWithNamedTags(eventSourceId, @event, namedTags, eventStreamType, eventStreamId, eventSourceType, correlationId, tags, concurrencyScope, occurred, subject);
+
+    /// <inheritdoc/>
+    public Task<AppendManyResult> AppendManyWithNamedTags(EventSourceId eventSourceId, IEnumerable<object> events, IEnumerable<NamedTag> namedTags, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, ConcurrencyScope? concurrencyScope = null, DateTimeOffset? occurred = null, Subject? subject = null) =>
+        inner.AppendManyWithNamedTags(eventSourceId, events, namedTags, eventStreamType, eventStreamId, eventSourceType, correlationId, tags, concurrencyScope, occurred, subject);
+
+    /// <inheritdoc/>
+    public Task<AppendManyResult> AppendManyWithNamedTags(IEnumerable<EventForEventSourceId> events, IEnumerable<NamedTag> namedTags, CorrelationId? correlationId = null, IEnumerable<string>? tags = null, IDictionary<EventSourceId, ConcurrencyScope>? concurrencyScopes = null) =>
+        inner.AppendManyWithNamedTags(events, namedTags, correlationId, tags, concurrencyScopes);
+
+    /// <inheritdoc/>
     public Task<IImmutableList<AppendedEvent>> GetForEventSourceIdAndEventTypes(EventSourceId eventSourceId, IEnumerable<EventType> filterEventTypes, EventStreamType? eventStreamType = null, EventStreamId? eventStreamId = null, EventSourceType? eventSourceType = null) =>
         inner.GetForEventSourceIdAndEventTypes(eventSourceId, filterEventTypes, eventStreamType, eventStreamId, eventSourceType);
 

@@ -93,7 +93,10 @@ public static class CommandScenarioChronicleExtensions
         public void AppendConcurrently(EventSourceId eventSourceId, params object[] events)
         {
             if (!scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
+            {
                 throw new ConcurrentAppendRequiresDecisionReads();
+            }
+
             ((DecisionCommandScenario)decision).QueueCompetingAppend(eventSourceId, events);
         }
     }
