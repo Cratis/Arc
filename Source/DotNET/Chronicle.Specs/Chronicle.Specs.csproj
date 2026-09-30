@@ -6,7 +6,7 @@
         <IsTestProject>true</IsTestProject>
         <IsPackable>false</IsPackable>
         <TargetFrameworks>net10.0</TargetFrameworks>
-        <!-- Legacy specs intentionally exercise invalid event and model-bound shapes; Chronicle 19.13 analyzers
+        <!-- Legacy specs intentionally exercise invalid event and model-bound shapes; Chronicle analyzers
              flag these test fixtures, but production projects retain their full diagnostic coverage. -->
         <NoWarn>$(NoWarn);CHR0001;CHR0003;CHR0021;CHR0024;CHR0027</NoWarn>
     </PropertyGroup>
