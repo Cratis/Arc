@@ -75,7 +75,7 @@ A query whose name matches no known query keeps the generic
 |---|---|---|
 | `cratis.arc.command.type` | command spans and their children | the full name of the command type |
 | `cratis.arc.command.outcome` | `execute`, `validate` | `success`, `validation`, `authorization`, `append_rejected` or `error` |
-| `cratis.arc.command.event_source_id.type` | `execute`, `validate` | the type of the command's event source id, with the Chronicle integration |
+| `cratis.arc.command.key.type` | `execute`, `validate` | the type the command declares its key as, such as its event source id with the Chronicle integration |
 | `cratis.arc.query.name` | `perform` | the fully qualified name of a known query |
 | `cratis.arc.query.transport` | `perform` | `snapshot`, `observable`, or `unknown` when the query failed before it ran |
 | `cratis.arc.query.outcome` | `perform` | `success`, `validation`, `authorization` or `error` |
@@ -86,14 +86,17 @@ A query whose name matches no known query keeps the generic
 
 ### Outcomes
 
-An operation that succeeds leaves the span status unset. Any other outcome sets
-the status to `Error`, with the outcome as its description, and adds events that
-say why:
+The outcome attribute says how an operation ended. Following OpenTelemetry, only
+an `error` outcome, an exception Arc did not expect, sets the span status to
+`Error`. A command rejected by validation, by authorization or by the event store
+is the application working as intended, so its span status stays unset; filter
+on the outcome attribute to find those. Every outcome other than `success` adds
+events that say why:
 
 | Event | Raised when | Attributes |
 |---|---|---|
 | `cratis.arc.validation.failed` | once for each validation result that blocked the operation, up to 16 | `cratis.arc.validation.severity`, `cratis.arc.validation.members`, `cratis.arc.validation.reason` and, when set, `cratis.arc.validation.reason_detail` |
-| `cratis.arc.authorization.denied` | authorization denied the operation | — |
+| `cratis.arc.authorization.denied` | authorization denied the operation, on the operation span and the `authorize` span | — |
 | `exception` | an exception was thrown | `exception.type` |
 
 `append_rejected` is the outcome when the rejection came from the event store
@@ -109,6 +112,13 @@ validation event names the member and the rule but not the message, which often
 quotes the value, and why an exception event carries the exception type but not
 its message or stack trace; those stay in your logs. The event source id is
 recorded by its type, never by its value.
+
+### Names as constants
+
+Every span, attribute, event and metric name in this page is a constant on
+`WellKnownTelemetryNames`, and every outcome is a constant on
+`WellKnownOperationOutcomes`, so dashboards, alerts and tests built in C# can use
+them instead of repeating the strings.
 
 ## What this is useful for
 
@@ -137,8 +147,9 @@ Only commands that run are measured; validating a command without running it is
 traced but not counted. For an observable query the duration covers setting up
 the subscription, not how long it stays open.
 
-Each metric records at most 1,000 distinct command types or query names. Past
-that, further ones are recorded as `_other`, so a metric backend never has to
+Each metric records at most 1,000 distinct command types or query names. The
+limit is fixed; there is no option to change it. Past that, further ones are
+recorded as `_other`, so a metric backend never has to
 hold an unbounded number of series. A query name that matches no known query is
 always recorded as `_other`.
 
