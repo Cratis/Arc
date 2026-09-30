@@ -131,7 +131,7 @@ static class SpecificationEventPredicateValues
 
         if (!StatableValues.TryState(property.Type, constant.Value, out var value))
         {
-            unstatable.Add($"'{eventType.Name}.{property.Name}' as {StatableValues.WhyNot(property.Type, constant.Value)}");
+            unstatable.Add(StatableValues.WhyNot(eventType, property, constant.Value));
             return false;
         }
 

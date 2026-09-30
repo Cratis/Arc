@@ -161,8 +161,10 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="queryValues">Whether the additive Stage query literal syntax is admitted.</param>
     /// <remarks>
     /// An identity made on the spot is left out without a word, because there is no value for the document to have
-    /// missed - see <see cref="GeneratedIdentities"/>. Every other value that cannot be read is one the source states
-    /// and the document does not, which is the difference worth reading.
+    /// missed - see <see cref="GeneratedIdentities"/>. A value that is code is one the source states and the document
+    /// does not, which is the difference worth reading. A constant the document cannot hold at all - a number no
+    /// member of an enumeration is declared with, or <see langword="null"/> for a required property - takes the whole
+    /// scenario with it, because what it issues or starts from would no longer be what was written.
     /// </remarks>
     void Add(
         List<PropertyMappingModel> values,
@@ -189,10 +191,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
                  semanticModel.GetConstantValue(MappingSourceReader.Unwrap(expression)) is { HasValue: true } constant &&
                  !StatableValues.TryState(localProperty.Type, constant.Value, out _))
         {
-            diagnostics.Information(
-                ScreenplayDiagnosticCodes.UnreadableSpecificationValue,
-                $"The value '{specification}' states for '{type.Name}.{property}' is {StatableValues.WhyNot(localProperty.Type, constant.Value)}, so the scenario states everything but that value",
-                location);
+            draft.CannotRead($"it states {StatableValues.WhyNot(type, localProperty, constant.Value)}");
             return;
         }
         else

@@ -13,7 +13,9 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// A document checks every value a scenario states against the type of its property: a member of an enumeration by
 /// the name it is declared with, and an absent value only where the property may be absent or holds a single value.
 /// A constant the document would reject - a number no member is declared with, or <see langword="null"/> handed to a
-/// property carrying a record, a list or an enumeration - has no form worth writing, so the scenario leaves it out.
+/// property carrying a record, a list or an enumeration - has no form worth writing. What the scenario does about it
+/// is the reader's decision: a scenario missing a value it issues a command with, or started from, is a different
+/// example than the one written, so the reader leaves the whole scenario out and says so.
 /// </remarks>
 static class StatableValues
 {
@@ -50,19 +52,20 @@ static class StatableValues
     }
 
     /// <summary>
-    /// Says why the document cannot hold a constant for a property.
+    /// Says which property a constant cannot be stated for, with what value, and why.
     /// </summary>
-    /// <param name="propertyType">The type of the property.</param>
+    /// <param name="owner">The type declaring the property.</param>
+    /// <param name="property">The property the constant is given.</param>
     /// <param name="constant">The value the compiler handed over.</param>
-    /// <returns>The value and the reason it cannot be stated, to follow "is".</returns>
-    public static string WhyNot(ITypeSymbol propertyType, object? constant)
+    /// <returns>The property, the value and the reason it cannot be stated, to follow "states".</returns>
+    public static string WhyNot(ITypeSymbol owner, IPropertySymbol property, object? constant)
     {
         var optional = false;
         var collection = false;
-        var underlying = UnderlyingTypes.Of(propertyType, ref optional, ref collection);
+        var underlying = UnderlyingTypes.Of(property.Type, ref optional, ref collection);
 
         return constant is null
-            ? $"null, which a required property of type '{underlying.Name}' cannot hold"
-            : $"{constant}, which no member of the enumeration '{underlying.Name}' is declared with";
+            ? $"'{owner.Name}.{property.Name}' as null, which a required property of type '{underlying.Name}' cannot hold"
+            : $"'{owner.Name}.{property.Name}' as {constant}, which no member of the enumeration '{underlying.Name}' is declared with";
     }
 }

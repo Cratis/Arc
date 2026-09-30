@@ -9,8 +9,9 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// A scenario proving a command is rejected often issues it with a value the command's type does not really allow: a
 /// number cast to an enumeration no member is declared with, or <see langword="null"/> for a record the command
 /// requires. The document checks every value against the type of its property and has no form for either, so the
-/// scenario states everything but that value - and still states <see langword="null"/> where the property may be
-/// absent.
+/// scenario is left out and reported, because writing the command or the state it starts from without that value
+/// would state a different one whose rejection has lost its cause - while <see langword="null"/> is still stated
+/// where the property may be absent.
 /// </summary>
 public class from_source_stating_values_the_document_cannot_hold : Specification
 {
@@ -87,11 +88,55 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
         }
         """;
 
+    const string SeededScenario = """
+        using System.Threading.Tasks;
+        using Cratis.Arc.Testing.Commands;
+        using Cratis.Chronicle.Testing.EventSequences;
+        using Library.Contracts.Signing;
+        using Xunit;
+
+        namespace Library.Contracts.Signing.when_reissuing;
+
+        public class and_it_was_reissued_to_a_side_that_is_not_a_contract_side
+        {
+            readonly CommandScenario<ReissueSigning> _scenario = new();
+            Result _result = null!;
+
+            void Establish() => _scenario.Given.ForEventSource("signing").Events(new SigningReissued((ContractSide)99, "before"));
+
+            async Task Because() => _result = await _scenario.Execute(new ReissueSigning(ContractSide.Customer, "again"));
+
+            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+        }
+        """;
+
+    const string OptionalScenario = """
+        using System.Threading.Tasks;
+        using Cratis.Arc.Testing.Commands;
+        using Cratis.Chronicle.Testing.EventSequences;
+        using Library.Contracts.Signing;
+        using Xunit;
+
+        namespace Library.Contracts.Signing.when_setting_preferences;
+
+        public class and_there_is_no_fallback
+        {
+            readonly CommandScenario<SetSigningPreferences> _scenario = new();
+            Result _result = null!;
+
+            async Task Because() => _result = await _scenario.Execute(new SetSigningPreferences(new SigningPreferences(true), null));
+
+            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+        }
+        """;
+
     static readonly (string Path, string Text)[] _sources =
     [
         ("Library/Contracts/Signing/Signing.cs", Slice),
         ("Library/Contracts/Signing/when_reissuing/and_the_side_is_not_a_contract_side.cs", SideScenario),
         ("Library/Contracts/Signing/when_setting_preferences/and_the_preferences_are_null.cs", PreferencesScenario),
+        ("Library/Contracts/Signing/when_reissuing/and_it_was_reissued_to_a_side_that_is_not_a_contract_side.cs", SeededScenario),
+        ("Library/Contracts/Signing/when_setting_preferences/and_there_is_no_fallback.cs", OptionalScenario),
         (IntegrationTesting.Path, IntegrationTesting.Source)
     ];
 
@@ -104,23 +149,32 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
         _compiled = new ScreenplayCompiler().Compile(_result.Source);
     }
 
-    IEnumerable<string> Reasons() =>
-        _result.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecificationValue).Select(_ => _.Message);
+    IEnumerable<string> Omissions() =>
+        _result.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Select(_ => _.Message);
 
     IEnumerable<string> Lines() =>
         _result.Source.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(_ => _.Trim());
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
-    [Fact] void should_state_both_scenarios() => Lines().Count(_ => _.StartsWith("specification ", StringComparison.Ordinal)).ShouldEqual(2);
+    [Fact] void should_state_only_the_scenario_whose_values_the_document_can_hold() => Lines().Count(_ => _.StartsWith("specification ", StringComparison.Ordinal)).ShouldEqual(1);
+    [Fact] void should_state_null_for_a_record_that_may_be_absent() => Lines().ShouldContain("fallback = null");
     [Fact] void should_never_state_a_number_no_member_is_declared_with() => Lines().ShouldNotContain("side = 99");
-    [Fact] void should_still_state_the_other_values_of_the_command() => Lines().ShouldContain(@"note = ""again""");
+    [Fact] void should_never_state_the_command_without_the_value_it_was_rejected_for() => Lines().ShouldNotContain(@"note = ""again""");
     [Fact] void should_never_state_null_for_a_record_the_command_requires() => Lines().ShouldNotContain("preferences = null");
-    [Fact] void should_still_state_null_for_a_record_that_may_be_absent() => Lines().ShouldContain("fallback = null");
-    [Fact] void should_report_each_value_it_left_out() => Reasons().Count().ShouldEqual(2);
-    [Fact] void should_say_which_number_no_member_is_declared_with() => Reasons().ShouldContain(
-        "The value 'when_reissuing_and_the_side_is_not_a_contract_side' states for 'ReissueSigning.Side' is 99, which no member of the enumeration 'ContractSide' is declared with, so the scenario states everything but that value");
-    [Fact] void should_say_which_required_property_was_given_null() => Reasons().ShouldContain(
-        "The value 'when_setting_preferences_and_the_preferences_are_null' states for 'SetSigningPreferences.Preferences' is null, which a required property of type 'SigningPreferences' cannot hold, so the scenario states everything but that value");
+    [Fact] void should_leave_out_each_scenario_it_cannot_state() => Omissions().Count().ShouldEqual(3);
+    [Fact] void should_warn_about_each_of_them() => _result.Diagnostics
+        .Where(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification)
+        .All(_ => _.Severity == ScreenplayDiagnosticSeverity.Warning)
+        .ShouldBeTrue();
+    [Fact] void should_say_which_number_no_member_is_declared_with_in_the_command() => Omissions().ShouldContain(
+        "The scenario 'when_reissuing_and_the_side_is_not_a_contract_side' was left out because it states 'ReissueSigning.Side' as 99, which no member of the enumeration 'ContractSide' is declared with");
+    [Fact] void should_say_which_number_no_member_is_declared_with_in_the_event_it_starts_from() => Omissions().ShouldContain(
+        "The scenario 'when_reissuing_and_it_was_reissued_to_a_side_that_is_not_a_contract_side' was left out because it states 'SigningReissued.Side' as 99, which no member of the enumeration 'ContractSide' is declared with");
+    [Fact] void should_say_which_required_property_was_given_null() => Omissions().ShouldContain(
+        "The scenario 'when_setting_preferences_and_the_preferences_are_null' was left out because it states 'SetSigningPreferences.Preferences' as null, which a required property of type 'SigningPreferences' cannot hold");
+    [Fact] void should_not_report_a_value_left_out_of_a_scenario_that_was_left_out() => _result.Diagnostics
+        .Any(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecificationValue && !_.Message.Contains("and_there_is_no_fallback", StringComparison.Ordinal))
+        .ShouldBeFalse();
     [Fact] void should_not_claim_to_write_the_number() => _result.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.UnnamedEnumerationValue).ShouldBeFalse();
 }
