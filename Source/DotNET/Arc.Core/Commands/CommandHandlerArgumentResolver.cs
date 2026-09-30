@@ -25,11 +25,18 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         ValidationResultSeverity? allowedSeverity)
     {
         var provided = await provideInvoker.Invoke(context, serviceProvider);
-        foreach (var value in provided)
+
+        // Unmarked (legacy) commands keep their existing Provide semantics; only declared decision profiles are checked.
+        if (provided.Count > 0 && CommandDecisionPolicy.Mode != CommandDecisionMode.Legacy &&
+            serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) is IEnumerable<ICommandDependencySafety> safetyChecks)
         {
-            foreach (var safety in serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) as IEnumerable<ICommandDependencySafety> ?? [])
+            var checks = safetyChecks.ToArray();
+            foreach (var value in provided)
             {
-                safety.ValidateProvided(value);
+                foreach (var safety in checks)
+                {
+                    safety.ValidateProvided(value);
+                }
             }
         }
 

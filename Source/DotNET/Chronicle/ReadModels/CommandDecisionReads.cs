@@ -47,10 +47,15 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
     public Task<DecisionRead<T>> GetDetached<T>(ReadModelKey key, CancellationToken cancellationToken = default)
         where T : class
     {
-        if (CommandDecisionPolicy.IsProtected || (CurrentInvocation() is not null && !CommandValidationExecution.IsActive))
+        // Only a declared profile changes the Chronicle contract. Unmarked commands, queries and other callers read
+        // detached snapshots exactly as Chronicle's own reader does.
+        switch (CommandDecisionPolicy.Mode)
         {
-            var refusal = new DetachedDecisionReadRefused();
-            throw CommandDecisionPolicy.IsProtected ? new DecisionReadCouldNotBeAcquired(refusal) : refusal;
+            case CommandDecisionMode.Protected:
+                throw new DecisionReadCouldNotBeAcquired(new DetachedDecisionReadRefused());
+
+            case CommandDecisionMode.Unprotected when !CommandValidationExecution.IsActive:
+                throw new DetachedDecisionReadRefused();
         }
 
         return inner.GetDetached<T>(key, cancellationToken);
@@ -165,7 +170,7 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         var invocation = validation is { } validating && _validationInvocations.TryGetValue(validating.Token, out var activeValidation)
             ? activeValidation : CurrentInvocation();
         if (value is IDecisionRead read && (invocation is null ||
-            !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token) || !invocation.Issued.ContainsKey(read)))
+            !ReferenceEquals(invocation.PolicyToken, CommandDecisionPolicy.Token) || !invocation.HasIssued(read)))
         {
             throw new DecisionReadNotIssuedForInvocation();
         }
@@ -189,13 +194,26 @@ internal sealed class CommandDecisionReads(IDecisionReads inner, IEventStore eve
         return instance is null ? null : await readModels.Release(instance);
     }
 
+    /// <summary>
+    /// One command invocation. Every command begins one, but only decision reads use its caches, so they are allocated on first use.
+    /// </summary>
+    /// <param name="commandType">The command type.</param>
+    /// <param name="policyToken">The decision policy token of the invocation.</param>
+    /// <param name="previous">The enclosing invocation, if any.</param>
     sealed class Invocation(Type commandType, object? policyToken, Invocation? previous)
     {
+        ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace), Lazy<Task<object>>>? _reads;
+        ConcurrentDictionary<IDecisionRead, byte>? _issued;
+
         public Type CommandType { get; } = commandType;
         public object? PolicyToken { get; } = policyToken;
         public Invocation? Previous { get; } = previous;
         public bool Completed { get; set; }
-        public ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace), Lazy<Task<object>>> Reads { get; } = new();
-        public ConcurrentDictionary<IDecisionRead, byte> Issued { get; } = new(ReferenceEqualityComparer.Instance);
+        public ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace), Lazy<Task<object>>> Reads =>
+            LazyInitializer.EnsureInitialized(ref _reads, static () => new());
+        public ConcurrentDictionary<IDecisionRead, byte> Issued =>
+            LazyInitializer.EnsureInitialized(ref _issued, static () => new(ReferenceEqualityComparer.Instance));
+
+        public bool HasIssued(IDecisionRead read) => Volatile.Read(ref _issued)?.ContainsKey(read) == true;
     }
 }

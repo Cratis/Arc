@@ -70,15 +70,17 @@ public static class ReadModelServiceCollectionExtensions
         {
             var closedType = typeof(DecisionRead<>).MakeGenericType(readModelType);
 
+            // Close the resolver once per read model at registration rather than on every resolution.
+            var resolve = typeof(ReadModelServiceCollectionExtensions)
+                .GetMethod(nameof(ResolveDecisionRead), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(readModelType);
+
             // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
             services.TryAddTransient(closedType, sp =>
             {
                 try
                 {
-                    return typeof(ReadModelServiceCollectionExtensions)
-                        .GetMethod(nameof(ResolveDecisionRead), BindingFlags.NonPublic | BindingFlags.Static)!
-                        .MakeGenericMethod(readModelType)
-                        .Invoke(null, [sp])!;
+                    return resolve.Invoke(null, [sp])!;
                 }
                 catch (TargetInvocationException exception) when (exception.InnerException is not null)
                 {

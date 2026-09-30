@@ -200,11 +200,12 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         else if (!unitOfWork.IsCompleted)
         {
             observation.Disposition = CommandCommitDisposition.Unknown;
-            if (owned.Owner is not null)
+            if (owned.Owner is not null && unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true } protectedUnit)
             {
-                // Chronicle refuses the public Rollback for an owner-claimed unit, so the failed command rolls back with the
-                // capability it claimed when it began.
-                await ((UnitOfWork)unitOfWork).RollbackAsOwner(owned.Owner);
+                // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
+                // command rolls back with the capability it claimed when it began. Without decision reads the public
+                // Rollback below keeps the exact behaviour commands had before decision reads existed.
+                await protectedUnit.RollbackAsOwner(owned.Owner);
             }
             else
             {
