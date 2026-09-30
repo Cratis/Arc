@@ -124,8 +124,9 @@ public static class HostBuilderExtensions
             .AddCratisArcMeter()
             .AddCratisArcActivitySource()
             .AddTypeDiscovery()
-            .AddBindingsByConvention()
-            .AddSelfBindings();
+            .AddBindingsByConvention();
+
+        services.AddSelfBindings();
 
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();

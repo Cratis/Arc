@@ -99,6 +99,11 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     public IServiceCollection Services { get; }
 
     /// <summary>
+    /// Gets whether the scenario has already built its provider and can no longer change registrations.
+    /// </summary>
+    public bool IsInitialized => _serviceProvider is not null;
+
+    /// <summary>
     /// Gets the scenario context dictionary, keyed by <see cref="string"/>.
     /// </summary>
     /// <remarks>

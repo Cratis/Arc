@@ -109,6 +109,24 @@ Chronicle's `EventSequenceShouldExtensions` extend `IEventSequence`. Call them o
 
 Content overloads also accept `Action<TEvent>` assertions. An action validates the first matching event; a predicate searches for a satisfying event. For all overloads, see the [Chronicle event assertions reference](/chronicle/testing/events/assertions/).
 
+## Protected decision scenarios
+
+The ordinary `EventScenario`, `Given.ForEventSource(...).Events(...)` legacy read-model seed, and pinned `.ReadModel(...)` state above serve existing scenarios unchanged. **They do not provide protected decision reads:** in the ordinary scenario, read-model seed state and the event log are separate. To exercise `DecisionRead<T>` or `IDecisionReads`, mark the command `[ProtectedDecision]` and opt the scenario in **before seeding or calling `Execute`/`Validate`**. Scenario decision mode refuses discoverable validators on protected commands, as the host does; `UseDecisionReads()` alone never implicitly protects an unmarked command. See [Arc #2831](https://github.com/Cratis/Arc/issues/2831) for future protected validator support; Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on it:
+
+```csharp
+var scenario = new CommandScenario<RegisterAuthor>().UseDecisionReads();
+scenario.Given.ForEventSource(authorId).Events(new AuthorRegistered("Jane Austen"));
+scenario.AppendConcurrently(authorId, new AuthorRegistered("Another writer"));
+var result = await scenario.Execute(new RegisterAuthor(authorId, "New name"));
+result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViolation);
+```
+
+This is an illustrative fragment: `RegisterAuthor` is marked `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`); a direct event-source-keyed admitted projection, event type registration and a handler using `DecisionRead<T>` must exist. Opt-in uses Chronicle's `EventStoreForTesting`: seeded events, decision folds, competing events and owner commits share **one real in-process event log**. `AppendConcurrently` queues an append outside the command's transaction. After handler decision reads and response processing, the competitor is appended before the command owner commits. A matching event conflicts even if the command appends to a different source, and a successful command returning no events still validates its decision. Assert the result's `concurrencyViolation` and that no **command** event committed; a competitor event is expected to remain in the log. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in this opt-in mode, not seeded or competing events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see *all* stored events.
+
+There is no `EventScenario` facade over that store. In decision mode `scenario.EventScenario` throws rather than returning a misleading second log; use `Given.ForEventSource(...).Events(...)` to seed. Pinned `.ReadModel(...)` state throws too: it cannot provide a real event-log boundary. Trying to opt in after a legacy seed or scenario initialization throws instead of silently discarding that state. A scenario with custom execution scopes registered before opt-in is also refused: this harness cannot safely order those scopes around the owner; test that combination through a host integration test. `AppendConcurrently` requires the opt-in. Ordinary scenarios keep their existing `EventScenario` and cumulative append behavior. No public API accepts invented sequence numbers or handcrafted decision tokens.
+
+This in-process harness does not stand in for a server, storage backend, authorization middleware or Chronicle's consistency exclusions. Revise/redact, generation migration, projection-definition changes, external state, and a foreign writer are outside the guard. A direct SDK `Rollback()` or `Commit()` of a protected command's unit of work, including from an aggregate, is refused with `ProtectedUnitOfWorkRequiresOwner`; Arc completes the unit as its owner. For production admission, opt-out and advisory validation behavior see [decision reads in commands](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands).
+
 ## Transactional commands in tests
 
 The harness runs commands with the same [transactional scope](../commands/transactional-commands.md) as production: the events a command returns — and appends through `eventLog.Transactional` — commit atomically when it succeeds and roll back when it fails, including when a unique constraint rejects the commit. Immediate appends through `IEventLog`/`IEventStore.EventLog` land right away and are final, but a failed one fails the command. That gives specs two natural assertions: the intended rejection and the absence of committed events.

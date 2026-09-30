@@ -49,6 +49,7 @@ public class EventsCommandResponseValueHandler(
             }
             else if (subject is not null)
             {
+                CommandTransaction.RefuseImmediateAppend();
                 foreach (var @event in events)
                 {
                     var appendResult = await eventLog.Append(
@@ -69,6 +70,7 @@ public class EventsCommandResponseValueHandler(
             }
             else
             {
+                CommandTransaction.RefuseImmediateAppend();
                 var result = await eventLog.AppendMany(
                     eventSourceId,
                     events,

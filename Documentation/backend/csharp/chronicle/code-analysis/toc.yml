@@ -20,3 +20,7 @@
   href: ARCCHR0009.md
 - name: ARCCHR0010 - Raw Guid response does not set the event source id
   href: ARCCHR0010.md
+- name: ARCCHR0011 - Unguarded legacy decision read
+  href: index.md#arcchr0011-unguarded-legacy-decision-reads
+- name: ARCCHR0012 - Immediate append with a decision read
+  href: index.md#arcchr0012-immediate-append-with-a-decision-read

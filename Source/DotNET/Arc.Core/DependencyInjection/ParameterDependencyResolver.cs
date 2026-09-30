@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Commands;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -33,6 +34,14 @@ static class ParameterDependencyResolver
             // dependencies is missing. GetService surfaces this as a raw container exception rather
             // than a null, so translate it into an actionable error that names the member and parameter.
             throw new CannotResolveDependency(parameter, failure);
+        }
+
+        // A protected decision dependency must never use nullable binding as an escape hatch: even a
+        // registered factory returning null is a missing guard, not an optional dependency.
+        if (CommandDecisionPolicy.IsProtected)
+        {
+            serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
+                .ValidateCommandDependency(parameter.ParameterType, dependency);
         }
 
         if (dependency is not null)

@@ -3,7 +3,9 @@
 
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
 using Cratis.DependencyInjection;
@@ -31,7 +33,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 [Singleton]
 public class TransactionalCommandScope : ICommandOperationExecutionScope
 {
-    static readonly AsyncLocal<OwnedTransaction?> _owned = new();
+    static readonly AsyncLocal<TransactionFrame?> _frames = new();
     static readonly ConditionalWeakTable<CommandContextValues, CommitObservation> _observations = new();
 
     /// <inheritdoc/>
@@ -65,16 +67,19 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     /// <inheritdoc/>
     public void Begin(CommandContext context)
     {
+        CommandDecisionReads.Begin(context.Type);
+        var frame = new TransactionFrame(context.Values, ActiveFrame());
+        _frames.Value = frame;
         if (context.ServiceProvider is not { } serviceProvider || CommandTransaction.TryGetActive(out _))
         {
             // A nested command joins the outermost command's transaction, and without a service provider there is
             // nothing to own — either way this frame must not inherit ownership from an outer frame.
-            _owned.Value = null;
             return;
         }
 
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
         var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
+        var owner = (unitOfWork as UnitOfWork)?.ClaimDecisionReadCommitOwnership();
         var failedAppends = new List<AppendedEventWithResult>();
         var observation = new CommitObservation(unitOfWork);
         _observations.Remove(context.Values);
@@ -97,18 +102,32 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         });
 
         CommandTransaction.Current = unitOfWork;
-        _owned.Value = new OwnedTransaction(unitOfWork, subscription, failedAppends, observation);
+        frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
     }
 
     /// <inheritdoc/>
     public async Task Complete(CommandContext context, CommandResult result)
     {
-        if (_owned.Value is not { } owned)
+        var frame = ActiveFrame();
+        if (frame is null || !ReferenceEquals(frame.Values, context.Values))
+        {
+            // Begin may have thrown before this scope created a frame. Do not complete an enclosing command.
+            return;
+        }
+
+        // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
+        CommandDecisionReads.End();
+        var owned = frame.Owned;
+
+        // Complete is async; a change to AsyncLocal.Value inside it does not propagate to its caller.
+        // Mark the shared frame instead so a resumed outer command still owns its transaction.
+        frame.Completed = true;
+        _frames.Value = frame.Previous;
+        if (owned is null)
         {
             return;
         }
 
-        _owned.Value = null;
         CommandTransaction.Current = null;
         owned.Subscription?.Dispose();
 
@@ -140,7 +159,18 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             {
                 var hasEvents = unitOfWork.GetEvents().Any();
                 observation.Disposition = CommandCommitDisposition.Unknown;
-                await unitOfWork.Commit();
+                if (owned.Owner is not null)
+                {
+                    await ((UnitOfWork)unitOfWork).CommitAsOwner(owned.Owner);
+                }
+                else
+                {
+                    if (unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true })
+                    {
+                        throw new ProtectedDecisionRequiresOwnerCapableUnitOfWork();
+                    }
+                    await unitOfWork.Commit();
+                }
                 observation.CompletionObserved = true;
                 observation.Disposition = unitOfWork.GetAppendErrors().Any()
                     ? CommandCommitDisposition.Unknown
@@ -152,16 +182,50 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
             if (!commitResult.IsSuccess)
             {
-                result.MergeWith(commitResult.ToCommandResult(result.CorrelationId));
+                var conflicts = unitOfWork is UnitOfWork protectedUnit ? protectedUnit.GetDecisionConflicts().ToArray() : [];
+                var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
+                var mapped = new AggregateRootCommitResult
+                {
+                    ConstraintViolations = commitResult.ConstraintViolations,
+                    ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
+                    Errors = commitResult.Errors,
+                    ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ValidationResult.Error(
+                        $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
+                        state: new { readModel = _.ReadModelType.Name, key = (string)_.Key },
+                        reason: ValidationResultReason.ConcurrencyViolation))).ToArray()
+                };
+                result.MergeWith(mapped.ToCommandResult(result.CorrelationId));
             }
         }
         else if (!unitOfWork.IsCompleted)
         {
             observation.Disposition = CommandCommitDisposition.Unknown;
-            await unitOfWork.Rollback();
+            if (owned.Owner is not null && unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true } protectedUnit)
+            {
+                // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
+                // command rolls back with the capability it claimed when it began. Without decision reads the public
+                // Rollback below keeps the exact behaviour commands had before decision reads existed.
+                await protectedUnit.RollbackAsOwner(owned.Owner);
+            }
+            else
+            {
+                await unitOfWork.Rollback();
+            }
+
             observation.CompletionObserved = true;
             observation.Disposition = CommandCommitDisposition.NotCommitted;
         }
+    }
+
+    static TransactionFrame? ActiveFrame()
+    {
+        var frame = _frames.Value;
+        while (frame?.Completed == true)
+        {
+            frame = frame.Previous;
+        }
+
+        return frame;
     }
 
     sealed class CommitObservation(IUnitOfWork unitOfWork)
@@ -173,5 +237,13 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public bool ImmediateUncertain { get; set; }
     }
 
-    sealed record OwnedTransaction(IUnitOfWork UnitOfWork, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
+    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous)
+    {
+        public CommandContextValues Values { get; } = values;
+        public TransactionFrame? Previous { get; } = previous;
+        public OwnedTransaction? Owned { get; set; }
+        public bool Completed { get; set; }
+    }
+
+    sealed record OwnedTransaction(IUnitOfWork UnitOfWork, DecisionReadCommitOwner? Owner, IDisposable? Subscription, List<AppendedEventWithResult> FailedAppends, CommitObservation Observation);
 }

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
 using FluentValidation;
@@ -54,6 +55,12 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
+            // Refused before construction, dependency resolution, factories or rules run (protected validators: Arc#2831).
+            if (CommandDecisionPolicy.RefusesDiscoverableValidators)
+            {
+                throw new DiscoverableValidatorRefusedInProtectedDecision(value);
+            }
+
             validator = (Construct(serviceProvider, value) as IValidator)!;
             return true;
         }

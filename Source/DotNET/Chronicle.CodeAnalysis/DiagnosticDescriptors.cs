@@ -131,5 +131,29 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A raw Guid in a command response tuple is an ordinary client response, not event-source metadata. Without an explicit target, Chronicle generates a fallback event source id. If this Guid is intended to identify the event source, return EventSourceId<Guid> or a derived domain identity. An intentional ordinary Guid response with a generated event source id remains valid. This heuristic examines known tuple, Task, ValueTask, Result, OneOf, and typed event collection signatures, not erased object payloads or arbitrary method bodies.");
 
+    /// <summary>
+    /// ARCCHR0011: A legacy read in an event-producing decision is not guarded.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0011_UnprotectedDecisionRead = new(
+        id: "ARCCHR0011",
+        title: "Plain read model in event-producing command is unprotected",
+        messageFormat: "Command '{0}' reads Chronicle model '{1}' without protecting its decision. {2}.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Plain Chronicle read models and IReadModels.GetInstanceById do not enroll a decision guard. This advisory identifies statically recognizable reads in event-producing commands, their Provide methods and validators; it cannot prove runtime dataflow or external I/O.");
+
+    /// <summary>
+    /// ARCCHR0012: An immediate append cannot be covered by the command's decision guard.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0012_ImmediateAppendAfterDecisionRead = new(
+        id: "ARCCHR0012",
+        title: "Immediate append bypasses protected decision",
+        messageFormat: "Command '{0}' uses a protected decision read and immediately appends through IEventLog. Return the event or use IEventLog.Transactional; an immediate append cannot be rolled back after a decision conflict.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A plain IEventLog.Append or AppendMany writes before decision scopes are checked at the owner's commit. This advisory does not track aliases, helpers or appends outside the command body.");
+
     const string Category = "Arc.Chronicle";
 }

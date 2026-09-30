@@ -6,6 +6,7 @@ using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -24,6 +25,21 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
         ValidationResultSeverity? allowedSeverity)
     {
         var provided = await provideInvoker.Invoke(context, serviceProvider);
+
+        // Unmarked (legacy) commands keep their existing Provide semantics; only declared decision profiles are checked.
+        if (provided.Count > 0 && CommandDecisionPolicy.Mode != CommandDecisionMode.Legacy &&
+            serviceProvider.GetService(typeof(IEnumerable<ICommandDependencySafety>)) is IEnumerable<ICommandDependencySafety> safetyChecks)
+        {
+            var checks = safetyChecks.ToArray();
+            foreach (var value in provided)
+            {
+                foreach (var safety in checks)
+                {
+                    safety.ValidateProvided(value);
+                }
+            }
+        }
+
         var controlResult = CommandResult.Success(context.CorrelationId);
         var candidates = new List<object>();
 
@@ -69,6 +85,11 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             }
             else if (candidates.Find(parameterType.IsInstanceOfType) is { } match)
             {
+                if (CommandDecisionPolicy.IsProtected)
+                {
+                    serviceProvider.GetRequiredService<ICommandProtectedDecisionSupport>()
+                        .ValidateCommandDependency(parameterType, match);
+                }
                 arguments[i] = match;
                 candidates.Remove(match);
             }
