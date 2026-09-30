@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
@@ -55,19 +56,23 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            // Refused before construction, dependency resolution, factories or rules run (protected validators: Arc#2831).
-            if (CommandDecisionPolicy.RefusesDiscoverableValidators)
-            {
-                throw new DiscoverableValidatorRefusedInProtectedDecision(value);
-            }
-
-            validator = (Construct(serviceProvider, value) as IValidator)!;
+            var instance = CommandDecisionPolicy.RefusesDiscoverableValidators
+                ? ConstructForProtectedDecision(serviceProvider, value)
+                : Construct(serviceProvider, value);
+            validator = (instance as IValidator)!;
             return true;
         }
 
         validator = null;
         return false;
     }
+
+    /// <summary>
+    /// Gets the public constructors of a validator type.
+    /// </summary>
+    /// <param name="validatorType">The validator type.</param>
+    /// <returns>The public constructors.</returns>
+    internal static ConstructorInfo[] PublicConstructorsOf(Type validatorType) => validatorType.GetConstructors();
 
     /// <summary>
     /// Gets the model type a validator declares through <see cref="IDiscoverableValidator{T}"/>.
@@ -108,6 +113,38 @@ public class DiscoverableValidators : IDiscoverableValidators
     }
 
     /// <summary>
+    /// Constructs a validator for a protected decision command, refusing any validator whose rules could depend on
+    /// something other than the model it validates (Arc#2831).
+    /// </summary>
+    /// <param name="serviceProvider">The executing <see cref="IServiceProvider"/>.</param>
+    /// <param name="validatorType">The validator type to construct.</param>
+    /// <returns>A validator constructed by Arc.</returns>
+    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The validator takes dependencies, or the provider supplied an instance Arc did not construct.</exception>
+    /// <remarks>
+    /// A validator with constructor dependencies is refused before the provider is consulted, so no dependency, factory
+    /// or rule runs. Otherwise the provider's registration still wins, as it does for other commands, so no rule a
+    /// registration adds is silently dropped: the instance it supplies is used only when Arc constructed it, and
+    /// refused otherwise. With no registration, Arc constructs the validator exactly as it does for other commands.
+    /// </remarks>
+    static object ConstructForProtectedDecision(IServiceProvider serviceProvider, Type validatorType)
+    {
+        if (!ProtectedValidatorConstruction.IsDependencyFree(validatorType))
+        {
+            throw new DiscoverableValidatorRefusedInProtectedDecision(validatorType);
+        }
+
+        var registered = serviceProvider.GetService(validatorType);
+        if (registered is null)
+        {
+            return ProtectedValidatorConstruction.Construct(validatorType);
+        }
+
+        return ProtectedValidatorConstruction.IsCertified(registered, validatorType)
+            ? registered
+            : throw DiscoverableValidatorRefusedInProtectedDecision.NotConstructedByArc(validatorType);
+    }
+
+    /// <summary>
     /// Constructs a validator from the supplied provider.
     /// </summary>
     /// <remarks>
@@ -126,7 +163,7 @@ public class DiscoverableValidators : IDiscoverableValidators
             return registered;
         }
 
-        var constructor = validatorType.GetConstructors()
+        var constructor = PublicConstructorsOf(validatorType)
             .OrderByDescending(_ => _.GetParameters().Length)
             .First();
 
