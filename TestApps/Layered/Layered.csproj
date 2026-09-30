@@ -12,6 +12,8 @@
              file and a file named after its type are turned off for here. -->
         <NoWarn>$(NoWarn);SA0001;SA1600;SA1649;SA1402;MA0048</NoWarn>
         <IsPackable>false</IsPackable>
+        <!-- xunit.core imports IsTestProject=true, but these scenarios are source-analysis fixtures, not runnable tests. -->
+        <IsTestProject>false</IsTestProject>
     </PropertyGroup>
     <ItemGroup>
         <!-- The contracts of the application, referenced the way one project of an application references another. -->
