@@ -182,7 +182,8 @@ export function asCommandFormField<TComponentProps extends WrappedFieldProps<unk
 
         const errors: string[] = [];
         if (serverError) errors.push(serverError);
-        if (customError) errors.push(customError);
+        // getFieldError already yields a custom error first, so only add it when it is a distinct message.
+        if (customError && customError !== serverError) errors.push(customError);
 
         const isInvalid = errors.length > 0;
 
