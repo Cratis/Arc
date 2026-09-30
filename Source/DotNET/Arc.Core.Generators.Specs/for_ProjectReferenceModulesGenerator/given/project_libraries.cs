@@ -14,6 +14,7 @@ public class project_libraries : Specification
     protected ProjectLibrary _compileOnlyLibrary;
     protected ProjectLibrary _derivedLibrary;
     protected ProjectLibrary _executableLibrary;
+    protected ProjectLibrary _fileLocalLibrary;
 
     void Establish()
     {
@@ -37,6 +38,20 @@ public class project_libraries : Specification
             namespace Cratis.Arc.Commands.Generated { internal static class OperationRegistration { } }
             """;
         _executableLibrary = ProjectLibrary.Compile("ExecutableLibrary", ExecutableSource);
+
+        // A library a source generator has added a file-local type to, as Fundamentals' type discovery generator does
+        // to every project. It lets the executable see its internals, so only the file-local type's own rules keep it
+        // from being named. Its metadata name starts with '<', so it sorts before every other type.
+        const string FileLocalSource = """
+            [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("App")]
+            namespace Cratis.Types.Generated { file static class GeneratedTypeDiscoveryProviderRegistration { } }
+            namespace FileLocalLibrary
+            {
+                file static class Registration { }
+                public class Visible;
+            }
+            """;
+        _fileLocalLibrary = ProjectLibrary.Compile("FileLocalLibrary", FileLocalSource);
     }
 
     protected static ProjectLibrary CompileWithModuleInitializer(string name, string types, string moduleInitializerRanKey, params ProjectLibrary[] references)
