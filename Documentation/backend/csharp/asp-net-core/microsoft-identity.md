@@ -51,7 +51,7 @@ the appropriate `AuthenticationHandler` for that scheme.
 ### Trusting the forwarded headers
 
 Registering the scheme is not enough on its own. Because the headers are not signed, the handler ignores them and returns no result, so
-every request stays anonymous and authorized endpoints return 401, until the host opts in with `TrustForwardedIdentityHeaders`. Set it in
+requests stay anonymous unless another scheme authenticates them, until the host opts in with `TrustForwardedIdentityHeaders`. Set it in
 code, as above, or in configuration:
 
 ```json
@@ -65,9 +65,10 @@ code, as above, or in configuration:
 ```
 
 Opt in only when every request reaches the application through an ingress that strips caller-supplied identity headers and sets its own,
-such as Azure App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy. While the scheme is registered and the headers
-are not trusted, the host logs a warning that names this setting on every startup, and again on the first request that carries the
-headers. The setting applies to every endpoint,
+such as Azure App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy. A host that calls
+`AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`) while the headers are not trusted logs a warning
+that names this setting on every startup. The built-in header handlers also warn on the first request that carries untrusted headers.
+The setting applies to every endpoint,
 including protected [introspection catalogs](../introspection/index.md).
 
 You can override the scheme name on the extension method by passing your own string as an argument.

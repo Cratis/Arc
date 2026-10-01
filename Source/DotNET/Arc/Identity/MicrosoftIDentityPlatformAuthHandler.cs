@@ -17,27 +17,57 @@ namespace Cratis.Arc.Identity;
 /// anonymous, unless <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled because the host runs behind a
 /// trusted ingress.
 /// </remarks>
-/// <param name="options">The <see cref="IOptionsMonitor{TOptions}"/>.</param>
-/// <param name="arcOptions">The <see cref="ArcOptions"/> that decide whether forwarded identity headers are trusted.</param>
-/// <param name="loggerFactory">The <see cref="ILoggerFactory"/>.</param>
-/// <param name="encoder">The <see cref="UrlEncoder"/>.</param>
-public class MicrosoftIDentityPlatformAuthHandler(
-    IOptionsMonitor<AuthenticationSchemeOptions> options,
-    IOptionsMonitor<ArcOptions> arcOptions,
-    ILoggerFactory loggerFactory,
-    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, loggerFactory, encoder)
+public class MicrosoftIDentityPlatformAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     /// <summary>
     /// Gets the scheme name.
     /// </summary>
     public const string SchemeName = "MicrosoftIdentityPlatform";
 
-    readonly ILogger<MicrosoftIDentityPlatformAuthHandler> _logger = loggerFactory.CreateLogger<MicrosoftIDentityPlatformAuthHandler>();
+    readonly ILogger<MicrosoftIDentityPlatformAuthHandler> _logger;
+    readonly IOptionsMonitor<ArcOptions>? _arcOptions;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MicrosoftIDentityPlatformAuthHandler"/> class.
+    /// </summary>
+    /// <param name="options">The <see cref="IOptionsMonitor{TOptions}"/>.</param>
+    /// <param name="arcOptions">The <see cref="ArcOptions"/> that decide whether forwarded identity headers are trusted.</param>
+    /// <param name="loggerFactory">The <see cref="ILoggerFactory"/>.</param>
+    /// <param name="encoder">The <see cref="UrlEncoder"/>.</param>
+    [ActivatorUtilitiesConstructor]
+    public MicrosoftIDentityPlatformAuthHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        IOptionsMonitor<ArcOptions> arcOptions,
+        ILoggerFactory loggerFactory,
+        UrlEncoder encoder)
+        : base(options, loggerFactory, encoder)
+    {
+        _arcOptions = arcOptions;
+        _logger = loggerFactory.CreateLogger<MicrosoftIDentityPlatformAuthHandler>();
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MicrosoftIDentityPlatformAuthHandler"/> class,
+    /// resolving the host's trust setting from request services when authentication runs.
+    /// </summary>
+    /// <param name="options">The <see cref="IOptionsMonitor{TOptions}"/>.</param>
+    /// <param name="loggerFactory">The <see cref="ILoggerFactory"/>.</param>
+    /// <param name="encoder">The <see cref="UrlEncoder"/>.</param>
+    [Obsolete("Use the constructor accepting IOptionsMonitor<ArcOptions>. Forwarded identity headers are untrusted unless the host opts in.")]
+    public MicrosoftIDentityPlatformAuthHandler(
+        IOptionsMonitor<AuthenticationSchemeOptions> options,
+        ILoggerFactory loggerFactory,
+        UrlEncoder encoder)
+        : base(options, loggerFactory, encoder)
+    {
+        _logger = loggerFactory.CreateLogger<MicrosoftIDentityPlatformAuthHandler>();
+    }
 
     /// <inheritdoc/>
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!arcOptions.CurrentValue.TrustForwardedIdentityHeaders)
+        var arcOptions = _arcOptions ?? Context.RequestServices.GetService<IOptionsMonitor<ArcOptions>>();
+        if (arcOptions?.CurrentValue.TrustForwardedIdentityHeaders != true)
         {
             if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
             {

@@ -11,6 +11,7 @@ public class and_name_claim_is_missing_but_header_is_present : given.an_identity
 
     void Establish()
     {
+        _options.TrustForwardedIdentityHeaders = true;
         var claims = new[]
         {
             new Claim("sub", "user-789")

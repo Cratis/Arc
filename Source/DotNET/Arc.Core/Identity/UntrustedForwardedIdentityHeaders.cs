@@ -26,9 +26,16 @@ internal static class UntrustedForwardedIdentityHeaders
     /// Logs a warning that forwarded identity headers were ignored. Only the first occurrence in the process is logged.
     /// </summary>
     /// <param name="logger">The logger to report to.</param>
-    internal static void Report(ILogger logger)
+    internal static void Report(ILogger logger) => Report(logger, ref _reported);
+
+    /// <summary>
+    /// Logs the first occurrence using the supplied reporting state.
+    /// </summary>
+    /// <param name="logger">The logger to report to.</param>
+    /// <param name="reported">The shared reporting state.</param>
+    internal static void Report(ILogger logger, ref int reported)
     {
-        if (Interlocked.Exchange(ref _reported, 1) == 0)
+        if (Interlocked.Exchange(ref reported, 1) == 0)
         {
             logger.ForwardedIdentityHeadersIgnored();
         }

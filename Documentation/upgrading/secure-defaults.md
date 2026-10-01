@@ -19,12 +19,13 @@ App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy. On 
 
 **What changed:** Arc used to trust these headers from any caller. Anyone who could reach the
 application directly could send them and act as any user. Arc now ignores them until the host
-opts in. Without the opt-in, every request is anonymous and endpoints that require an
-authenticated user return 401.
+opts in. Without the opt-in, these headers do not authenticate requests; endpoints that require an
+authenticated user return 401 unless another authentication scheme authenticates the caller.
 
-**How to tell:** an ASP.NET Core host that registers the Microsoft Identity Platform scheme
-without the opt-in logs a warning that names the setting on every startup. Any host logs a
-warning on the first request that carries the headers while they are not trusted.
+**How to tell:** an ASP.NET Core host that calls
+`AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`)
+without the opt-in logs a warning that names the setting on every startup. The built-in header
+handlers log a warning on the first request that carries the headers while they are not trusted.
 
 **What to do:** if every request reaches your application through an ingress that strips
 caller-supplied identity headers and sets its own, opt in. In code, add one line to the options
@@ -55,18 +56,6 @@ turns on the host-wide `TrustForwardedIdentityHeaders`, so a host that already s
 working. Move the setting to `Cratis:Arc:TrustForwardedIdentityHeaders`. Startup no longer
 refuses protected catalogs behind the header scheme, because the scheme authenticates
 nobody until the host opts in.
-
-### Example: Cratis Studio
-
-Cratis Studio runs every service behind AuthProxy and calls `AddCratis` from
-`AddStudioCratisService` in
-`Source/Infrastructure/CratisServiceConfigurationExtensions.cs` in the Studio repository.
-It opts in with one line in the options callback of that `builder.AddCratis(` call (line 49),
-next to `options.UseStudioTenancy();` (line 55):
-
-```csharp
-options.TrustForwardedIdentityHeaders = true;
-```
 
 See [Microsoft Identity](../backend/csharp/asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
 
