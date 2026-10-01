@@ -5,9 +5,12 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Reflection;
+using Cratis.Traces;
 using FluentValidation;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Validation;
 
@@ -36,7 +39,8 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     public async Task<IEnumerable<ValidationResult>> Validate(ModelGraphValidationRequest request, CancellationToken cancellationToken = default)
     {
         var results = new List<ValidationResult>();
-        await Validate(request, request.Instance, request.RootPath, new HashSet<object>(ReferenceEqualityComparer.Instance), results, cancellationToken);
+        var spans = ValidatorSpans.For(request.ServiceProvider?.GetService<IActivitySource<ModelGraphValidator>>());
+        await Validate(request, request.Instance, request.RootPath, new HashSet<object>(ReferenceEqualityComparer.Instance), results, spans, cancellationToken);
         return results;
     }
 
@@ -98,12 +102,38 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     static bool IsLeaf(Type type) =>
         _leafTypes.GetOrAdd(type, static _ => _.IsAPrimitiveType() || _.IsEnum);
 
+    async Task<IEnumerable<ValidationResult>> Invoke(object instance, IValidator validator, string path, ValidatorSpans? spans, CancellationToken cancellationToken)
+    {
+        using var activity = spans?.Start(validator.GetType());
+        if (activity is null)
+        {
+            return await validatorInvoker.Invoke(instance, validator, path, cancellationToken);
+        }
+
+        try
+        {
+            var results = (await validatorInvoker.Invoke(instance, validator, path, cancellationToken)).ToArray();
+            if (activity.IsAllDataRequested)
+            {
+                activity.SetTag(WellKnownTelemetryNames.ValidationResultCount, results.Length);
+            }
+
+            return results;
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordFailure(activity, ex, cancellationToken);
+            throw;
+        }
+    }
+
     async Task Validate(
         ModelGraphValidationRequest request,
         object instance,
         string path,
         HashSet<object> visited,
         List<ValidationResult> results,
+        ValidatorSpans? spans,
         CancellationToken cancellationToken,
         bool skipOwnValidator = false)
     {
@@ -123,7 +153,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         IReadOnlySet<string>? ignoredConceptRuleMembers = null;
         if (!skipOwnValidator && TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
-            results.AddRange(await validatorInvoker.Invoke(instance, validator, path, cancellationToken));
+            results.AddRange(await Invoke(instance, validator, path, spans, cancellationToken));
 
             // A validator can suppress a cross-cutting concept validator for one of its own properties (see
             // BaseValidator<T>.RuleFor(...).IgnoreConceptRules()) — typically because that property names an
@@ -147,7 +177,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             foreach (var element in (IEnumerable)instance)
             {
                 if (element is null) continue;
-                await Validate(request, element, path, visited, results, cancellationToken);
+                await Validate(request, element, path, visited, results, spans, cancellationToken);
             }
 
             return;
@@ -159,7 +189,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
             if (memberValue is not null)
             {
                 var skipMemberOwnValidator = ignoredConceptRuleMembers?.Contains(member.Name) ?? false;
-                await Validate(request, memberValue, Extend(path, member), visited, results, cancellationToken, skipMemberOwnValidator);
+                await Validate(request, memberValue, Extend(path, member), visited, results, spans, cancellationToken, skipMemberOwnValidator);
             }
         }
     }

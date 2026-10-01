@@ -2,13 +2,16 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Tasks;
+using Cratis.Traces;
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -20,6 +23,23 @@ namespace Cratis.Arc.Commands;
 public class CommandProvideInvoker : ICommandProvideInvoker
 {
     readonly ConcurrentDictionary<Type, MethodInfo?> _provideMethodsByCommandType = new();
+    readonly ActivitySource? _activitySource;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CommandProvideInvoker"/> class, without tracing.
+    /// </summary>
+    public CommandProvideInvoker()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CommandProvideInvoker"/> class.
+    /// </summary>
+    /// <param name="activitySource">The <see cref="IActivitySource{T}"/> to trace <c>Provide()</c> on.</param>
+    public CommandProvideInvoker(IActivitySource<CommandProvideInvoker> activitySource)
+    {
+        _activitySource = activitySource.ActualSource;
+    }
 
     /// <inheritdoc/>
     public async ValueTask<IReadOnlyList<object>> Invoke(CommandContext context, IServiceProvider serviceProvider)
@@ -30,10 +50,21 @@ public class CommandProvideInvoker : ICommandProvideInvoker
             return [];
         }
 
-        var arguments = ResolveArguments(context, provideMethod, serviceProvider);
-        var invocationResult = Invoke(provideMethod, context.Command, arguments);
-        var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
-        return Flatten(value);
+        using var activity = _activitySource is null
+            ? null
+            : OperationActivity.StartCommandChild(_activitySource, WellKnownTelemetryNames.CommandProvideSpan, context.Type);
+        try
+        {
+            var arguments = ResolveArguments(context, provideMethod, serviceProvider);
+            var invocationResult = Invoke(provideMethod, context.Command, arguments);
+            var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
+            return Flatten(value);
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordFailure(activity, ex, context.CancellationToken);
+            throw;
+        }
     }
 
     static object?[]? ResolveArguments(CommandContext context, MethodInfo provideMethod, IServiceProvider serviceProvider)

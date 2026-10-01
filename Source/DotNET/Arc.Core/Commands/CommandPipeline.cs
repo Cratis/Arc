@@ -1,9 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -97,7 +99,20 @@ public class CommandPipeline(
     public async Task<CommandResult> Execute(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
-        return await ExecuteCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+        using var span = activitySource.Execute(TypeNameOf(command.GetType()));
+        OperationActivity.AddCommandType(span.Activity, command.GetType());
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await ExecuteCore(command, serviceProvider, allowedSeverity, null, span.Activity, cancellationToken);
+            RecordCommand(span.Activity, serviceProvider, command.GetType(), result, started, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            RecordCommandFailure(span.Activity, serviceProvider, command.GetType(), ex, started, cancellationToken);
+            throw;
+        }
     }
 
     /// <inheritdoc/>
@@ -146,7 +161,19 @@ public class CommandPipeline(
     public async Task<CommandResult> Validate(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
-        return await ValidateCore(command, serviceProvider, allowedSeverity, null, cancellationToken);
+        using var span = activitySource.Validate(TypeNameOf(command.GetType()));
+        OperationActivity.AddCommandType(span.Activity, command.GetType());
+        try
+        {
+            var result = await ValidateCore(command, serviceProvider, allowedSeverity, null, span.Activity, cancellationToken);
+            RecordValidation(span.Activity, result, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            RecordValidationFailure(span.Activity, ex, cancellationToken);
+            throw;
+        }
     }
 
     /// <summary>
@@ -159,41 +186,22 @@ public class CommandPipeline(
     /// <returns>The command result.</returns>
     internal async Task<CommandResult> ExecuteHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        // The span starts before authorization is prepared, so a request turned away on the way in is traced and
+        // measured like one turned away inside the pipeline.
+        using var span = activitySource.Execute(TypeNameOf(command.GetType()));
+        OperationActivity.AddCommandType(span.Activity, command.GetType());
+        var started = Stopwatch.GetTimestamp();
         try
         {
-            EnsureDecisionSupport(requestServices);
+            var result = await ExecuteHostedCore(command, requestServices, allowedSeverity, span.Activity, cancellationToken);
+            RecordCommand(span.Activity, requestServices, command.GetType(), result, started, cancellationToken);
+            return result;
         }
-        catch (Exception exception)
+        catch (Exception ex)
         {
-            return CommandResult.FromException(GetCorrelationId(), exception);
+            RecordCommandFailure(span.Activity, requestServices, command.GetType(), ex, started, cancellationToken);
+            throw;
         }
-        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
-        if (declaration is null)
-        {
-            return CommandResult.Unauthorized(GetCorrelationId());
-        }
-
-        if (!declaration.RequiresAsynchronousEvaluation)
-        {
-            return await ExecuteCore(command, requestServices, allowedSeverity, null, cancellationToken);
-        }
-
-        var (prepared, failure) = await PrepareHosted(command, requestServices, cancellationToken);
-        if (failure is not null)
-        {
-            return failure;
-        }
-
-        if (!prepared!.PrincipalChanged)
-        {
-            return await ExecuteCore(command, requestServices, allowedSeverity, prepared, cancellationToken);
-        }
-
-        using var scope = scopeFactory.CreateScope();
-        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
-        return await ExecuteCore(command, scope.ServiceProvider, allowedSeverity, prepared, cancellationToken);
     }
 
     /// <summary>
@@ -206,44 +214,24 @@ public class CommandPipeline(
     /// <returns>The validation result.</returns>
     internal async Task<CommandResult> ValidateHosted(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var span = activitySource.Validate(TypeNameOf(command.GetType()));
+        OperationActivity.AddCommandType(span.Activity, command.GetType());
         try
         {
-            EnsureDecisionSupport(requestServices);
+            var result = await ValidateHostedCore(command, requestServices, allowedSeverity, span.Activity, cancellationToken);
+            RecordValidation(span.Activity, result, cancellationToken);
+            return result;
         }
-        catch (Exception exception)
+        catch (Exception ex)
         {
-            return CommandResult.FromException(GetCorrelationId(), exception);
+            RecordValidationFailure(span.Activity, ex, cancellationToken);
+            throw;
         }
-        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
-        if (declaration is null)
-        {
-            return CommandResult.Unauthorized(GetCorrelationId());
-        }
-
-        if (!declaration.RequiresAsynchronousEvaluation)
-        {
-            return await ValidateCore(command, requestServices, allowedSeverity, null, cancellationToken);
-        }
-
-        var (prepared, failure) = await PrepareHosted(command, requestServices, cancellationToken);
-        if (failure is not null)
-        {
-            return failure;
-        }
-
-        if (!prepared!.PrincipalChanged)
-        {
-            return await ValidateCore(command, requestServices, allowedSeverity, prepared, cancellationToken);
-        }
-
-        using var scope = scopeFactory.CreateScope();
-        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
-        return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, cancellationToken);
     }
 
-    static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services)
+    static string TypeNameOf(Type type) => type.FullName ?? type.Name;
+
+    static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services, Activity? activity)
     {
         try
         {
@@ -253,6 +241,7 @@ public class CommandPipeline(
         }
         catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
+            OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return null;
         }
@@ -269,7 +258,130 @@ public class CommandPipeline(
         }
     }
 
-    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)
+    static void RecordCommand(Activity? activity, IServiceProvider serviceProvider, Type commandType, CommandResult? result, long started, CancellationToken cancellationToken)
+    {
+        var metrics = serviceProvider.GetService<PipelineMetrics>();
+        var measured = metrics?.CommandsEnabled == true;
+        if (activity is not { IsAllDataRequested: true } && !measured)
+        {
+            return;
+        }
+
+        var outcome = result is null ? OperationOutcomes.ForException(cancellationToken) : OperationOutcomes.For(result, cancellationToken);
+        if (result is not null)
+        {
+            OperationActivity.AddCorrelationId(activity, result.CorrelationId);
+        }
+
+        OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.CommandOutcome, outcome, result?.ValidationResults ?? []);
+        if (measured)
+        {
+            metrics!.RecordCommand(TypeNameOf(commandType), outcome, Stopwatch.GetElapsedTime(started));
+        }
+    }
+
+    static void RecordCommandFailure(Activity? activity, IServiceProvider serviceProvider, Type commandType, Exception exception, long started, CancellationToken cancellationToken)
+    {
+        OperationActivity.RecordException(activity, exception);
+        RecordCommand(activity, serviceProvider, commandType, null, started, cancellationToken);
+    }
+
+    static void RecordValidation(Activity? activity, CommandResult result, CancellationToken cancellationToken)
+    {
+        if (activity is { IsAllDataRequested: true })
+        {
+            OperationActivity.AddCorrelationId(activity, result.CorrelationId);
+            OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.CommandOutcome, OperationOutcomes.For(result, cancellationToken), result.ValidationResults);
+        }
+    }
+
+    static void RecordValidationFailure(Activity? activity, Exception exception, CancellationToken cancellationToken)
+    {
+        OperationActivity.RecordException(activity, exception);
+        OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.CommandOutcome, OperationOutcomes.ForException(cancellationToken), []);
+    }
+
+    async Task<CommandResult> ExecuteHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
+    {
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        try
+        {
+            EnsureDecisionSupport(requestServices);
+        }
+        catch (Exception exception)
+        {
+            OperationActivity.RecordException(activity, exception);
+            return CommandResult.FromException(GetCorrelationId(), exception);
+        }
+        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices, activity);
+        if (declaration is null)
+        {
+            return CommandResult.Unauthorized(GetCorrelationId());
+        }
+
+        if (!declaration.RequiresAsynchronousEvaluation)
+        {
+            return await ExecuteCore(command, requestServices, allowedSeverity, null, activity, cancellationToken);
+        }
+
+        var (prepared, failure) = await PrepareHosted(command, requestServices, activity, cancellationToken);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        if (!prepared!.PrincipalChanged)
+        {
+            return await ExecuteCore(command, requestServices, allowedSeverity, prepared, activity, cancellationToken);
+        }
+
+        using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
+        return await ExecuteCore(command, scope.ServiceProvider, allowedSeverity, prepared, activity, cancellationToken);
+    }
+
+    async Task<CommandResult> ValidateHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
+    {
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        try
+        {
+            EnsureDecisionSupport(requestServices);
+        }
+        catch (Exception exception)
+        {
+            OperationActivity.RecordException(activity, exception);
+            return CommandResult.FromException(GetCorrelationId(), exception);
+        }
+        using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices, activity);
+        if (declaration is null)
+        {
+            return CommandResult.Unauthorized(GetCorrelationId());
+        }
+
+        if (!declaration.RequiresAsynchronousEvaluation)
+        {
+            return await ValidateCore(command, requestServices, allowedSeverity, null, activity, cancellationToken);
+        }
+
+        var (prepared, failure) = await PrepareHosted(command, requestServices, activity, cancellationToken);
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        if (!prepared!.PrincipalChanged)
+        {
+            return await ValidateCore(command, requestServices, allowedSeverity, prepared, activity, cancellationToken);
+        }
+
+        using var scope = scopeFactory.CreateScope();
+        using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
+        return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, activity, cancellationToken);
+    }
+
+    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, Activity? activity, CancellationToken token)
     {
         try
         {
@@ -283,17 +395,19 @@ public class CommandPipeline(
         }
         catch (InvalidAuthorizationConfiguration exception)
         {
+            OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return (null, CommandResult.Unauthorized(GetCorrelationId()));
         }
         catch (Exception exception)
         {
+            OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationPreparationFailed(exception);
             return (null, CommandResult.Error(GetCorrelationId(), "An error occurred while preparing authorization."));
         }
     }
 
-    async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
+    async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, Activity? activity, CancellationToken cancellationToken)
     {
         using var execution = CommandValidationExecution.Suspend();
         using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
@@ -314,11 +428,11 @@ public class CommandPipeline(
         }
         catch (InvalidCommandOperation exception)
         {
+            OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(correlationId, exception);
         }
 
         using var boundary = frame;
-        using var span = activitySource.Execute(command.GetType().FullName ?? command.GetType().Name);
         try
         {
             EnsureDecisionSupport(serviceProvider);
@@ -356,6 +470,7 @@ public class CommandPipeline(
                 preparedAuthorization is { PrincipalChanged: true } changed ? changed.SelectedPrincipal : serviceProvider.GetService<ICurrentPrincipalAccessor>()?.Current,
                 scopeFactory));
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
+            OperationActivity.AddResolvedTenant(activity, serviceProvider);
 
             var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
             commandContext = new CommandContext(
@@ -437,7 +552,9 @@ public class CommandPipeline(
                 return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
             }
 
-            var response = await commandHandler.Handle(commandContext);
+            // Read again: a context values provider or modifier can have resolved the tenant since the read above.
+            OperationActivity.AddResolvedTenant(activity, serviceProvider);
+            var response = await Handle(commandHandler, commandContext);
             var values = CommandOperationExecution.Flatten(response).ToArray();
             if (values.Any(value => CommandOperationBoundary.IsBareCollection(value.GetType())))
             {
@@ -485,12 +602,14 @@ public class CommandPipeline(
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
+            OperationActivity.RecordException(activity, ex);
             serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
             result.MergeWith(CommandResult.Unauthorized(correlationId));
             operations?.CaptureFailure(result, failureSource);
         }
         catch (Exception ex)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(CommandResult.FromException(correlationId, ex));
             operations?.CaptureFailure(result, ex is OperationCanceledException ? CommandOperationFailureSource.Cancellation : failureSource);
         }
@@ -520,6 +639,7 @@ public class CommandPipeline(
                 }
                 catch (Exception ex)
                 {
+                    OperationActivity.RecordException(activity, ex);
                     commandResult.MergeWith(CommandResult.FromException(correlationId, ex));
                 }
 
@@ -535,6 +655,7 @@ public class CommandPipeline(
                 }
                 catch (Exception exception)
                 {
+                    OperationActivity.RecordException(activity, exception);
                     commandResult.MergeWith(CommandResult.FromException(correlationId, exception));
                     operations.CaptureFailure(commandResult, CommandOperationFailureSource.ScopeCompletion);
                 }
@@ -555,14 +676,41 @@ public class CommandPipeline(
         }
     }
 
-    async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs the handler, in a handle span when anything listens.
+    /// </summary>
+    /// <param name="handler">The <see cref="ICommandHandler"/> to run.</param>
+    /// <param name="context">The <see cref="CommandContext"/> to run it with.</param>
+    /// <returns>The value the handler returned.</returns>
+    /// <remarks>
+    /// The span is started inside the async method, never here. A span started in a synchronous caller becomes
+    /// Activity.Current on the caller's execution context, and the async method stopping it only restores its own
+    /// context, so the stopped span would stay current for every span the pipeline starts afterwards.
+    /// </remarks>
+    ValueTask<object?> Handle(ICommandHandler handler, CommandContext context) =>
+        activitySource.ActualSource.HasListeners() ? HandleTraced(handler, context) : handler.Handle(context);
+
+    async ValueTask<object?> HandleTraced(ICommandHandler handler, CommandContext context)
+    {
+        using var activity = OperationActivity.StartCommandChild(activitySource.ActualSource, WellKnownTelemetryNames.CommandHandleSpan, context.Type);
+        try
+        {
+            return await handler.Handle(context);
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordFailure(activity, ex, context.CancellationToken);
+            throw;
+        }
+    }
+
+    async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, Activity? activity, CancellationToken cancellationToken)
     {
         using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
         using var validation = CommandValidationExecution.Begin(command.GetType());
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
-        using var span = activitySource.Validate(command.GetType().FullName ?? command.GetType().Name);
         try
         {
             EnsureDecisionSupport(serviceProvider);
@@ -597,6 +745,7 @@ public class CommandPipeline(
             }
 
             AuthorizationExecutionScopes.MarkWorkStarted(serviceProvider);
+            OperationActivity.AddResolvedTenant(activity, serviceProvider);
             var severityPolicy = CommandValidationResults.ForCommand(command.GetType(), allowedSeverity);
             var commandContext = new CommandContext(
                 correlationId,
@@ -620,11 +769,13 @@ public class CommandPipeline(
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
+            OperationActivity.RecordException(activity, ex);
             serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
             result.MergeWith(CommandResult.Unauthorized(correlationId));
         }
         catch (Exception ex)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(CommandResult.FromException(correlationId, ex));
         }
 
