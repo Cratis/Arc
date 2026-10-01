@@ -35,8 +35,8 @@ public static class CommandDecisionPolicy
     public static bool IsProtected => Mode == CommandDecisionMode.Protected;
 
     /// <summary>
-    /// Gets whether discoverable validators must be refused: the current invocation is protected and the caller is
-    /// not a query performed from within it. A command nested in such a query starts its own invocation and is refused again.
+    /// Gets whether discoverable validators are held to the protected-mode boundary, so only those Arc can certify run:
+    /// the current invocation is protected and the caller is not a query performed from within it. A command nested in such a query starts its own invocation and is held to the boundary again.
     /// </summary>
     internal static bool RefusesDiscoverableValidators => Active() is { Mode: CommandDecisionMode.Protected } frame &&
         !ReferenceEquals(_queryOf.Value, frame);

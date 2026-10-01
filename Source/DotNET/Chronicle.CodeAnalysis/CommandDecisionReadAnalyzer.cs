@@ -21,7 +21,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     const string DecisionReads = "Cratis.Chronicle.ReadModels.IDecisionReads";
     const string EventLog = "Cratis.Chronicle.EventSequences.IEventLog";
     const string HandlerAdvice = "Mark the command [ProtectedDecision] and use DecisionRead<T> or IDecisionReads in Provide or Handle, or mark the command or the intentional legacy read [Unprotected]";
-    const string ValidatorAdvice = "Protected commands refuse discoverable validators, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
+    const string ValidatorAdvice = "Protected commands refuse validators with constructor dependencies, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
