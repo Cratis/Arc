@@ -30,6 +30,17 @@ public class value_type_bindings : Specification
 
     public readonly record struct Value : IValue;
 
+    public interface IClock
+    {
+        TimeProvider Provider { get; }
+    }
+
+    public readonly record struct Clock(TimeProvider Provider) : IClock;
+
+    public readonly record struct SelfBoundClock(TimeProvider Provider);
+
+    public class OpenGeneric<T>;
+
     public class Constructible;
 
     public abstract class Abstract;
@@ -40,10 +51,13 @@ public class value_type_bindings : Specification
     {
         public IEnumerable<Assembly> Assemblies => [];
 
-        public IEnumerable<Type> DefinedTypes => [typeof(Policy), typeof(Value), typeof(IValue), typeof(Constructible), typeof(Abstract), typeof(Callback)];
+        public IEnumerable<Type> DefinedTypes => [typeof(Policy), typeof(Value), typeof(IValue), typeof(Constructible), typeof(Abstract), typeof(Callback), typeof(Clock), typeof(IClock), typeof(SelfBoundClock), typeof(OpenGeneric<>)];
 
         public IEnumerable<ConventionServiceBinding> ConventionServiceBindings =>
-            [new(typeof(IValue), typeof(Value), ServiceLifetime.Transient)];
+        [
+            new(typeof(IValue), typeof(Value), ServiceLifetime.Transient),
+            new(typeof(IClock), typeof(Clock), ServiceLifetime.Transient)
+        ];
 
         public IEnumerable<ConventionSelfBinding> SelfBindings =>
         [
@@ -52,6 +66,9 @@ public class value_type_bindings : Specification
             new(typeof(Abstract), ServiceLifetime.Transient),
             new(typeof(Callback), ServiceLifetime.Transient),
             new(typeof(IValue), ServiceLifetime.Transient),
+            new(typeof(Clock), ServiceLifetime.Transient),
+            new(typeof(SelfBoundClock), ServiceLifetime.Transient),
+            new(typeof(OpenGeneric<>), ServiceLifetime.Transient),
             new(typeof(Constructible), ServiceLifetime.Transient)
         ];
 

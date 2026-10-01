@@ -26,7 +26,9 @@ internal static class ArcServiceBindings
         for (var index = services.Count - 1; index >= existingCount; index--)
         {
             if (services[index].ImplementationType is { } implementationType &&
-                (!implementationType.IsClass || implementationType.IsAbstract || implementationType.IsAssignableTo(typeof(Delegate))))
+                (implementationType.IsInterface || implementationType.IsAbstract || implementationType.ContainsGenericParameters ||
+                 implementationType.IsAssignableTo(typeof(Delegate)) ||
+                 (implementationType.IsValueType && implementationType.GetConstructors().Length == 0)))
             {
                 services.RemoveAt(index);
             }
