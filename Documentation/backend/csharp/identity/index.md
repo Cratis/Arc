@@ -27,7 +27,7 @@ flowchart LR
 ```
 
 > [!WARNING]
-> The identity is presentation data. Do not use its flags, roles, or details in place of backend authorization. See [provider flow](provider-flow.md) and [trust](identity-provider-service.md#trust). Arc no longer uses the `.cratis-identity` cookie; see [upgrading from the identity cookie](identity-provider-service.md#upgrading-from-the-identity-cookie).
+> The identity is presentation data. Do not use its flags, roles, or details in place of backend authorization. See [provider flow](provider-flow.md) and [trust](identity-provider-service.md#trust). Arc no longer uses the `.cratis-identity` cookie; see [migrating from the identity cookie](migrating-from-the-identity-cookie.md).
 
 ## Topics
 
@@ -37,3 +37,4 @@ flowchart LR
 | [Identity Contracts](./contracts.md) | `IdentityProviderContext` and `IdentityDetails` structures used by providers. |
 | [IdentityProvider Service](./identity-provider-service.md) | Advanced runtime identity retrieval and mutation with `IIdentityProvider`. |
 | [Development and Topologies](./development-and-topologies.md) | Development endpoints plus single-service and multi-service composition patterns. |
+| [Migrating from the Identity Cookie](./migrating-from-the-identity-cookie.md) | What changed when Arc stopped trusting the `.cratis-identity` cookie, and what to change. |

@@ -341,7 +341,7 @@ read it from this response body; neither the C# nor the JVM implementation treat
 client as input. Whether a successful response also sets a `.cratis-identity` cookie
 differs between the implementations - see
 [the identity cookie](#the-identity-cookie-is-only-written-by-the-jvm). Arc's frontend
-packages do not read that cookie.
+packages read it only when `/.cratis/me` answers 404, as a transitional fallback.
 
 ## Validation result
 
@@ -400,10 +400,10 @@ parity: for the source preview's verified behavior and deliberate differences, u
 
 ### The identity cookie is only written by the JVM
 
-- **C#**: `/.cratis/me` does not set a cookie and ignores any `.cratis-identity` cookie the
-  client sends. Earlier versions wrote a client-readable cookie and trusted it ahead of the
-  principal; see
-  [upgrading from the identity cookie](/arc/backend/csharp/identity/identity-provider-service/#upgrading-from-the-identity-cookie).
+- **C#**: `/.cratis/me` does not set a cookie. It ignores any `.cratis-identity` cookie the
+  client sends, and expires it. Earlier versions wrote a client-readable cookie and trusted
+  it ahead of the principal; see
+  [migrating from the identity cookie](/arc/backend/csharp/identity/migrating-from-the-identity-cookie/).
 - **JVM**: a successful response sets a client-readable (`HttpOnly=false`) `.cratis-identity`
   cookie holding the Base64-encoded response JSON, `SameSite=Lax` with `Path=/`, and a
   `Secure` policy documented in the

@@ -3,7 +3,7 @@ title: Identity
 description: How the frontend gets the current identity from the /.cratis/me endpoint, keeps it in memory, and exposes it through the core identity API.
 ---
 
-The frontend gets the current identity from the `/.cratis/me` endpoint. The backend derives that identity from the authenticated request, so what the frontend sees is what the server knows about the caller, not anything the browser stored. Configure authentication on the host; identity lookup is not itself a login mechanism.
+The frontend gets the current identity from the `/.cratis/me` endpoint. The backend derives that identity from the authenticated request, so what the frontend sees is what the server knows about the caller, not anything the browser stored. Only when the server has no such endpoint does the frontend fall back to a cookie; see [upgrading from the identity cookie](#upgrading-from-the-identity-cookie). Configure authentication on the host; identity lookup is not itself a login mechanism.
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
@@ -30,7 +30,7 @@ When the server does not resolve an identity, for example because the caller is 
 
 ### Signing out
 
-`IdentityProvider.clearCache()` forgets the identity kept in memory, so the next `getCurrent()` asks the server again. It does not revoke sessions or remove authentication tokens or cookies. Real sign-out must complete through your authentication system before reconnecting anonymously.
+`IdentityProvider.clearCache()` forgets the identity kept in memory, so the next `getCurrent()` asks the server again, and expires a `.cratis-identity` cookie left by an earlier version. It does not revoke sessions or remove authentication tokens or cookies. Real sign-out must complete through your authentication system before reconnecting anonymously.
 
 `IdentityProvider.clearIdentityCookie()` is deprecated and now does the same as `clearCache()`.
 
@@ -132,11 +132,10 @@ This means that the original `identity` instance won't be updated and you would 
 
 ## Upgrading from the identity cookie
 
-Earlier versions of Arc wrote the identity to a JavaScript-readable `.cratis-identity` cookie, and `IdentityProvider` read it before asking `/.cratis/me`. Arc no longer writes or reads that cookie, because anyone able to set it - a script on the page or on a sibling subdomain - decided which identity the frontend saw.
+Earlier versions of Arc wrote the identity to a JavaScript-readable `.cratis-identity` cookie, and `IdentityProvider` read it before asking `/.cratis/me`. Now `IdentityProvider` asks `/.cratis/me` first. It reads the cookie only when that endpoint answers 404, for example behind a proxy that does not route it to the application yet. When it does, it logs a warning in the browser console. That fallback will be removed in a future major version.
 
 - Code that read `.cratis-identity` from `document.cookie` must call `IdentityProvider.getCurrent()`, or `useIdentity()` in React, instead.
 - Replace `IdentityProvider.clearIdentityCookie()` with `IdentityProvider.clearCache()`.
-- Identity is no longer available synchronously on the first render: render a loading state until `getCurrent()` resolves. In React, `useIdentity()` reports `isLoading` for this.
-- If a reverse proxy in front of your application still writes a readable `.cratis-identity` cookie, Arc ignores it. Stop the proxy from writing it.
+- Identity is no longer available before the first request completes: render a loading state until `getCurrent()` resolves. In React, `useIdentity()` reports `isLoading` for this.
 
-See [upgrading the backend](../../backend/csharp/identity/identity-provider-service.md#upgrading-from-the-identity-cookie) for the server side.
+See [migrating from the identity cookie](../../backend/csharp/identity/migrating-from-the-identity-cookie.md) for the full picture, including mixed frontend and backend versions.

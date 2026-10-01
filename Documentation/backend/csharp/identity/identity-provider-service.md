@@ -3,7 +3,7 @@ title: IdentityProvider service
 description: Read identity presentation data with IIdentityProvider, which always derives the identity from the authenticated request.
 ---
 
-`IIdentityProvider` serves identity presentation data during HTTP requests. It always derives the identity from the authenticated principal of the current request and the details your `IProvideIdentityDetails` returns for it. Nothing else the client sends, such as a cookie, is read. The result is still presentation data: **it is not authorization evidence on its own**.
+`IIdentityProvider` serves identity presentation data during HTTP requests. It always derives the identity from the authenticated principal of the current request and the details your `IProvideIdentityDetails` returns for it. Nothing else the client sends, such as the `.cratis-identity` cookie earlier versions wrote, is read. The result is still presentation data: **it is not authorization evidence on its own**.
 
 ## Key methods
 
@@ -11,7 +11,7 @@ description: Read identity presentation data with IIdentityProvider, which alway
 | --- | --- |
 | `Get()` | Builds a result from the current request principal and details provider. With no request context, or no authenticated principal, returns anonymous. |
 | `Get<TDetails>()` | Uses the same flow and converts the details to `TDetails`. |
-| `SetCookieForHttpResponse(result)` | Writes the result as the JSON response body, with `Cache-Control: no-store, private` and `Vary: Cookie`. Despite its name, it no longer writes a cookie. It does not establish a trusted principal. |
+| `SetCookieForHttpResponse(result)` | Writes the result as the JSON response body, with `Cache-Control: no-store, private` and `Vary: Cookie`. Despite its name, it no longer writes a cookie; it expires a `.cratis-identity` cookie left by an earlier version. It does not establish a trusted principal. |
 | `ModifyDetails<TDetails>(transform)` | Calls nongeneric `Get()`, applies the transform when `Details is TDetails`, and writes the modified result to the response; otherwise does nothing. |
 
 ## Trust
@@ -28,17 +28,11 @@ Never use the result's `IsAuthenticated`, `IsAuthorized`, roles, or details in p
 
 ## Upgrading from the identity cookie
 
-Earlier versions of Arc wrote the identity to an unsigned, JavaScript-readable `.cratis-identity` cookie and returned whatever that cookie decoded to before looking at the authenticated principal. A client, or a script on a sibling subdomain that could set the cookie, therefore controlled what `/.cratis/me` and `Get()` reported. Arc now neither reads nor writes the cookie.
-
-- `Get()`, `Get<TDetails>()` and `/.cratis/me` report the authenticated principal. A request without one gets an anonymous result, and `/.cratis/me` answers 401, whatever cookie it carries.
-- The details provider runs on every call instead of once per browser session.
-- `ModifyDetails` no longer persists changes across requests.
-- `IdentityProvider.IdentityCookieName` is obsolete.
-- Frontends get the identity from `/.cratis/me`; see [frontend identity](../../../frontend/core/identity.md#upgrading-from-the-identity-cookie).
-- A reverse proxy that writes its own readable `.cratis-identity` cookie should stop: nothing in Arc reads it.
+Earlier versions returned whatever the unsigned `.cratis-identity` cookie decoded to before looking at the authenticated principal, and wrote that cookie readable by any script. Arc no longer trusts or writes it. See [migrating from the identity cookie](migrating-from-the-identity-cookie.md) for what keeps working during the transition and what to change.
 
 ## Related contracts
 
+- [Migrating from the identity cookie](migrating-from-the-identity-cookie.md)
 - [Provider flow](provider-flow.md) — how a request becomes an identity.
 - [Authorization](../core/authorization.md) — trusted principal and pipeline enforcement.
 - [Frontend identity](../../../frontend/react/identity.md) — presenting identity details.
