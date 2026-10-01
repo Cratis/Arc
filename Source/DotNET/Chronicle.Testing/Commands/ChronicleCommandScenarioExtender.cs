@@ -113,7 +113,11 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var scenario = new DecisionCommandScenario(store, commandEvents);
         services.Replace(ServiceDescriptor.Singleton<IEventStore>(store));
         services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager>(store.UnitOfWorkManager));
-        services.Replace(ServiceDescriptor.Singleton<IReadModels>(store.ReadModels));
+
+        // Non-decision reads (IReadModels, injected read models and an [Unprotected] command's DecisionRead<T>) resolve a
+        // pinned instance or materialize from the same log the protected decision reads fold.
+        var readModels = new CommandScenarioReadModels(store.ReadModels, store.EventLog);
+        services.Replace(ServiceDescriptor.Singleton<IReadModels>(readModels));
         services.Replace(ServiceDescriptor.Singleton<IEventLog>(scenario.EventLog));
         services.Replace(ServiceDescriptor.Singleton<IEventSequence>(store.EventLog));
         services.AddCommandAwareDecisionReads();
@@ -138,5 +142,6 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         });
         context[DecisionScenarioKey] = scenario;
         context[AppendedEventsKey] = commandEvents;
+        context[ReadModelsKey] = readModels;
     }
 }
