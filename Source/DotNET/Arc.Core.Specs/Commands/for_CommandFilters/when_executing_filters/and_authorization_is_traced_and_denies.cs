@@ -42,7 +42,7 @@ public class and_authorization_is_traced_and_denies : Specification
 
     Activity AuthorizeSpan => _telemetry.Span(WellKnownTelemetryNames.CommandAuthorizeSpan);
 
-    [Fact] void should_name_the_span_after_the_command() => AuthorizeSpan.DisplayName.ShouldEqual($"authorize {nameof(RegisterAuthor)}");
+    [Fact] void should_keep_the_stable_span_name() => AuthorizeSpan.DisplayName.ShouldEqual(WellKnownTelemetryNames.CommandAuthorizeSpan);
     [Fact] void should_add_the_command_type() => AuthorizeSpan.GetTagItem(WellKnownTelemetryNames.CommandType).ShouldEqual(typeof(RegisterAuthor).FullName);
     [Fact] void should_leave_the_status_unset() => AuthorizeSpan.Status.ShouldEqual(ActivityStatusCode.Unset);
     [Fact] void should_add_an_authorization_denied_event() => AuthorizeSpan.Events.Count(_ => _.Name == WellKnownTelemetryNames.AuthorizationDeniedEvent).ShouldEqual(1);

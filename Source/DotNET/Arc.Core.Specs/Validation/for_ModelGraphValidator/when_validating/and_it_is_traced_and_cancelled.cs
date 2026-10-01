@@ -8,22 +8,23 @@ using FluentValidation;
 
 namespace Cratis.Arc.Validation.for_ModelGraphValidator.when_validating;
 
-public class and_it_is_traced : given.a_model_graph_validator
+public class and_it_is_traced_and_cancelled : given.a_model_graph_validator
 {
     public record RegisterAuthor(string Name);
 
     public class RegisterAuthorValidator : AbstractValidator<RegisterAuthor>
     {
-        public RegisterAuthorValidator() => RuleFor(_ => _.Name).Must(_ => false).WithMessage("rejected");
+        public RegisterAuthorValidator() => RuleFor(_ => _.Name).Must(_ => throw new OperationCanceledException());
     }
 
     IServiceProvider _serviceProvider;
+    CancellationTokenSource _cancellation;
     ActivitySource _source;
+    Exception? _error;
     TelemetryRecorder _telemetry;
 
     void Establish()
     {
-        WithValidatorFor(typeof(RegisterAuthor), new RegisterAuthorValidator());
         _discoverableValidators
             .TryGet(typeof(RegisterAuthor), Arg.Any<IServiceProvider>(), out Arg.Any<IValidator>())
             .Returns(x =>
@@ -38,19 +39,22 @@ public class and_it_is_traced : given.a_model_graph_validator
         _serviceProvider = Substitute.For<IServiceProvider>();
         _serviceProvider.GetService(typeof(IActivitySource<ModelGraphValidator>)).Returns(activitySource);
         _telemetry = new TelemetryRecorder(_source);
+        _cancellation = new();
+        _cancellation.Cancel();
     }
 
     void Destroy()
     {
+        _cancellation.Dispose();
         _telemetry.Dispose();
         _source.Dispose();
     }
 
-    async Task Because() => await _validator.Validate(new ModelGraphValidationRequest(new RegisterAuthor("a name"), _serviceProvider));
+    async Task Because() => _error = await Catch.Exception(() => _validator.Validate(new ModelGraphValidationRequest(new RegisterAuthor("a name"), _serviceProvider), _cancellation.Token));
 
     Activity ValidatorSpan => _telemetry.Span(WellKnownTelemetryNames.ValidatorInvokeSpan);
 
-    [Fact] void should_keep_the_stable_span_name() => ValidatorSpan.DisplayName.ShouldEqual(WellKnownTelemetryNames.ValidatorInvokeSpan);
-    [Fact] void should_add_the_validator_type() => ValidatorSpan.GetTagItem(WellKnownTelemetryNames.ValidatorType).ShouldEqual(typeof(RegisterAuthorValidator).FullName);
-    [Fact] void should_add_the_number_of_results() => ValidatorSpan.GetTagItem(WellKnownTelemetryNames.ValidationResultCount).ShouldEqual(1);
+    [Fact] void should_let_the_cancellation_through() => (_error is OperationCanceledException).ShouldBeTrue();
+    [Fact] void should_leave_the_status_unset() => ValidatorSpan.Status.ShouldEqual(ActivityStatusCode.Unset);
+    [Fact] void should_record_the_exception() => ValidatorSpan.Events.Count(_ => _.Name == WellKnownTelemetryNames.ExceptionEvent).ShouldEqual(1);
 }

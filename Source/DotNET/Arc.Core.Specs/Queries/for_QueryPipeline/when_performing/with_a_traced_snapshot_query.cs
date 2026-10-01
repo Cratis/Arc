@@ -18,7 +18,7 @@ public class with_a_traced_snapshot_query : given.a_traced_query_pipeline
     Task Because() => Perform();
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_name_the_span_after_the_query() => QuerySpan.DisplayName.ShouldEqual("AllAuthors");
+    [Fact] void should_keep_the_stable_span_name() => QuerySpan.DisplayName.ShouldEqual(WellKnownTelemetryNames.QueryPerformSpan);
     [Fact] void should_add_the_query_name() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryName).ShouldEqual(_queryName.Value);
     [Fact] void should_add_the_snapshot_transport() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryTransport).ShouldEqual(WellKnownTelemetryNames.SnapshotTransport);
     [Fact] void should_add_the_correlation_id() => QuerySpan.GetTagItem(WellKnownTelemetryNames.CorrelationId).ShouldEqual(_correlationId.ToString());
