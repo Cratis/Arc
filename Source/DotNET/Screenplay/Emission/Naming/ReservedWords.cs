@@ -10,9 +10,8 @@ namespace Cratis.Arc.Screenplay.Emission.Naming;
 /// <param name="Words">The words the block reserves, in the lower camel case form names are written in.</param>
 /// <remarks>
 /// Screenplay is line based and every block decides what a line is from its first word. A generated name that
-/// happens to be one of those words is therefore read as the directive it names, never as a name, and the language
-/// offers nothing to escape it with. The sets below are read from the parsers of the language and are the only
-/// reason a generated name is ever left out of a block it would otherwise belong in.
+/// happens to be one of those words must be escaped with <c>@</c>. The sets below are read from the parsers of the
+/// language and identify names the generator reports as escaped.
 /// </remarks>
 public record ReservedWords(string Block, IReadOnlySet<string> Words)
 {
