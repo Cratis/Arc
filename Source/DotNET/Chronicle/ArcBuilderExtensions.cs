@@ -56,9 +56,17 @@ public static class ArcBuilderExtensions
             });
 
         // The event store owns the manager, including its lifecycle policy and namespace.
-        // Replace any earlier convention binding; later convention passes preserve this scoped factory.
-        builder.Services.RemoveAll<IUnitOfWorkManager>();
-        builder.Services.AddScoped(services => services.GetRequiredService<IEventStore>().UnitOfWorkManager);
+        // Replace only the convention binding, preserving explicit registrations and later convention passes.
+        foreach (var descriptor in builder.Services.Where(_ =>
+            !_.IsKeyedService &&
+            _.ServiceType == typeof(IUnitOfWorkManager) &&
+            _.ImplementationType == typeof(UnitOfWorkManager) &&
+            _.ImplementationFactory is null &&
+            _.ImplementationInstance is null).ToArray())
+        {
+            builder.Services.Remove(descriptor);
+        }
+        builder.Services.TryAddScoped(services => services.GetRequiredService<IEventStore>().UnitOfWorkManager);
 
         // Register after Chronicle: its own IDecisionReads registration otherwise replaces the command-aware one.
         builder.Services.AddCommandAwareDecisionReads();
