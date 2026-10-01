@@ -24,7 +24,7 @@ describe('when opening the explorer', () => {
 
         expect(screen.getByRole('treeitem', { name: /Acme\.Orders Assembly/ }).getAttribute('aria-selected')).toBe('true');
         expect(screen.getByRole('treeitem', { name: /Ordering Module/ }).getAttribute('aria-selected')).toBe('false');
-        expect(screen.getByRole('treeitem', { name: /Checkout Feature/ })).toBeTruthy();
+        expect(screen.getByRole('treeitem', { name: /Checkout Feature/ }).querySelector('.pi-objects-column')).toBeTruthy();
         expect(board.getAttribute('data-read-only')).toBe('true');
         // The zoom controls sit in the lower right as Cratis Studio has them, on their own frosted pill, and
         // do not step aside for a viewport inset the viewer already applied by placing the canvas.

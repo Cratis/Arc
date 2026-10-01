@@ -18,7 +18,8 @@ export interface HierarchyProps {
 const kinds: Record<DocumentKind, { icon: string; label: string }> = {
     assembly: { icon: 'pi pi-box', label: 'Assembly' },
     module: { icon: 'pi pi-sitemap', label: 'Module' },
-    feature: { icon: 'pi pi-bolt', label: 'Feature' }
+    // A feature is a set of slices drawn side by side on the board - columns, as the icon shows.
+    feature: { icon: 'pi pi-objects-column', label: 'Feature' }
 };
 
 const describe = (kind: DocumentKind) => kinds[kind] ?? { icon: 'pi pi-file', label: kind };
