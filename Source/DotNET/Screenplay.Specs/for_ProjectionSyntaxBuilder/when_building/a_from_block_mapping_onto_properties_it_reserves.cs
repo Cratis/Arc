@@ -10,10 +10,9 @@ using Cratis.Screenplay.Syntax.Projections;
 namespace Cratis.Arc.Screenplay.for_ProjectionSyntaxBuilder.when_building;
 
 /// <summary>
-/// A projection <c>from</c> block dispatches on <c>key</c> and <c>parent</c>, so an assignment onto a read model
-/// property of either name is read as that directive and rejected. Only a plain assignment leads with the property
-/// though - <c>increment</c>, <c>count</c> and their kind lead with the operation - so those stay whatever they fill
-/// in, and a block that leads with the operation costs the read model nothing.
+/// A projection <c>from</c> block dispatches on <c>key</c> and <c>parent</c>, so assignments onto read model properties
+/// of either name must be escaped. The generator keeps those mappings and reports the escape. Mappings that lead with
+/// an operation remain unchanged.
 /// </summary>
 public class a_from_block_mapping_onto_properties_it_reserves : Specification
 {
@@ -54,7 +53,8 @@ public class a_from_block_mapping_onto_properties_it_reserves : Specification
 
     IEnumerable<string> Filled => _result!.Blocks.OfType<FromSyntax>().Single().Mappings.Select(_ => _.Property);
 
-    [Fact] void should_leave_out_the_assignments_the_block_reserves() => Filled.ShouldContainOnly(["count", "title"]);
+    [Fact] void should_keep_the_assignments_the_block_reserves() => Filled.ShouldContainOnly(["count", "key", "parent", "title"]);
+    [Fact] void should_report_escaped_mappings_as_information() => _diagnostics.All.All(_ => _.Severity == ScreenplayDiagnosticSeverity.Information).ShouldBeTrue();
     [Fact] void should_keep_a_mapping_leading_with_its_operation() => _result!.Blocks.OfType<FromSyntax>().Single().Mappings.OfType<IncrementMappingSyntax>().Single().Property.ShouldEqual("count");
     [Fact] void should_report_both_properties() => _diagnostics.All.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.NameReservedByGrammar, ScreenplayDiagnosticCodes.NameReservedByGrammar]);
     [Fact] void should_locate_the_reports_where_the_projection_lives() => _diagnostics.All.Select(_ => _.Location).Distinct().ShouldContainOnly(["Library.Lending.Listing"]);

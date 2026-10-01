@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Screenplay.Embedded</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay.Embedded</RootNamespace>
+        <Description>Embeds generated Screenplay documents and hosts an opt-in event-model explorer for Cratis Arc applications.</Description>
+        <PackageTags>cratis;arc;screenplay;event-modeling;roslyn;msbuild</PackageTags>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <DefaultItemExcludes>$(DefaultItemExcludes);node_modules/**;wwwroot/**</DefaultItemExcludes>
+        <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeScreenplayBuildDependencies</TargetsForTfmSpecificContentInPackage>
+    </PropertyGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Cratis.Screenplay" />
+        <Compile Remove="Build/**/*.cs;Generation/**/*.cs" />
+        <Compile Include="Generation/EmbeddedDocument.cs;Generation/EmbeddedDocumentCatalog.cs;Generation/EmbeddedDocumentKind.cs;Generation/EmbeddedResourceNames.cs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Screenplay.Embedded.Specs" />
+        <!-- buildTransitive/ is what a package depending on this one imports - the Cratis meta-package - and build/
+             is what a direct reference imports. Both are one folder below the package root, which is what the
+             targets resolve tools/ against, so the same file serves both. -->
+        <Content Include="build/*.targets" Pack="true" PackagePath="build/;buildTransitive/" />
+        <EmbeddedResource Include="wwwroot/**/*">
+            <LogicalName>Cratis.Arc.Screenplay.Embedded.Viewer.$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
+    <!-- The task is loaded by MSBuild, not the application. Its private dependencies must
+         be beside it in the package rather than relying on the consumer's load context. -->
+    <Target Name="BuildScreenplayTaskForPacking" BeforeTargets="_WalkEachTargetPerFramework" Condition="'$(NoBuild)' != 'true'">
+        <MSBuild Projects="../Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" Targets="Restore;Build" Properties="Configuration=$(Configuration)" RemoveProperties="TargetFramework;TargetFrameworks" />
+    </Target>
+    <Target Name="IncludeScreenplayBuildDependencies" DependsOnTargets="BuildOnlySettings;ResolveReferences">
+        <Error Condition="!Exists('../Tools/Screenplay.Embedded.Build/bin/$(Configuration)/$(TargetFramework)/Cratis.Arc.Screenplay.Embedded.Build.dll')" Text="The embedded Screenplay build task for $(TargetFramework) is missing. Build Source/DotNET/Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj in $(Configuration), or pack without --no-build." />
+        <ItemGroup>
+            <TfmSpecificPackageFile Include="../Tools/Screenplay.Embedded.Build/bin/$(Configuration)/$(TargetFramework)/*.dll" PackagePath="tools/$(TargetFramework)/" />
+            <TfmSpecificPackageFile Include="../Tools/Screenplay.Embedded.Build/bin/$(Configuration)/$(TargetFramework)/*.deps.json" PackagePath="tools/$(TargetFramework)/" />
+        </ItemGroup>
+    </Target>
+    <Target Name="RequireEventModelViewerForPack" BeforeTargets="Pack">
+        <Error Condition="!Exists('$(MSBuildProjectDirectory)/wwwroot/index.html')" Text="Build the embedded event-model viewer with npm ci --workspaces=false and npm run build in Source/DotNET/Screenplay.Embedded before packing." />
+    </Target>
+</Project>

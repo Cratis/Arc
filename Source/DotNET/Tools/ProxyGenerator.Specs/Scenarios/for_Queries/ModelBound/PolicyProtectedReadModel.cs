@@ -55,6 +55,7 @@ public record PolicyProtectedReadModel(string Value)
     /// <param name="httpContextAccessor">The ASP.NET Core request principal.</param>
     /// <param name="bound">A scoped collaborator capturing the tenant when constructed.</param>
     /// <returns>A protected read model.</returns>
+    [Path("/api/policy-protected-read-model")]
     public static PolicyProtectedReadModel All(ArcPrincipalAccessor principal, IHttpContextAccessor httpContextAccessor, TenantBoundService bound)
     {
         var httpContext = httpContextAccessor.HttpContext!;

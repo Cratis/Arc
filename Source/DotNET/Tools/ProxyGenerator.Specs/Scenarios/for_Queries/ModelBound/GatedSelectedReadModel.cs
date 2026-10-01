@@ -15,6 +15,7 @@ public record GatedSelectedReadModel(string Value)
     /// <summary>Returns the selected principal after the gate opens.</summary>
     /// <param name="principal">The current Arc principal.</param>
     /// <returns>The selected principal's name.</returns>
+    [Path("/api/gated-selected-read-model")]
     public static GatedSelectedReadModel All(Cratis.Arc.Authorization.ICurrentPrincipalAccessor principal) =>
         new(principal.Current?.Identity?.Name ?? "Missing");
 }

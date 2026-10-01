@@ -11,8 +11,8 @@ namespace Cratis.Arc.Screenplay.for_ProducesSyntaxBuilder.when_building;
 
 /// <summary>
 /// A produces block fills in the properties of the event it produces, and dispatches on <c>tag</c> exactly as the
-/// event body does. A mapping onto a property called <c>Tag</c> is therefore written as <c>tag = tag</c> and read as
-/// a tag whose value is an assignment, which the compiler rejects outright.
+/// event body does. A mapping onto a property called <c>Tag</c> is kept, and the printer escapes it as
+/// <c>@tag = tag</c>.
 /// </summary>
 public class a_block_mapping_onto_a_property_called_tag : Specification
 {
@@ -39,7 +39,8 @@ public class a_block_mapping_onto_a_property_called_tag : Specification
         ],
         "Library.Lending.Requesting");
 
-    [Fact] void should_leave_the_mapping_out() => _result.Single().Mappings.Select(_ => _.Property).ShouldContainOnly(["title"]);
+    [Fact] void should_keep_the_mapping() => _result.Single().Mappings.Select(_ => _.Property).ShouldContainOnly(["title", "tag"]);
+    [Fact] void should_report_it_as_information() => _diagnostics.All.Single().Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
     [Fact] void should_report_the_mapping() => _diagnostics.All.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.NameReservedByGrammar]);
     [Fact] void should_locate_the_report_where_the_command_lives() => _diagnostics.All.Single().Location.ShouldEqual("Library.Lending.Requesting");
     [Fact] void should_name_the_event_the_property_belongs_to() => _diagnostics.All.Single().Message.Contains("'BookRequested'", StringComparison.Ordinal).ShouldBeTrue();
