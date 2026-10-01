@@ -1,0 +1,254 @@
+/* Copyright (c) Cratis. All rights reserved.
+   Licensed under the MIT license. See LICENSE file in the project root for full license information. */
+
+:root {
+    color-scheme: dark;
+    --viewer-background: #15161a;
+    --viewer-panel: #1c1e24;
+    --viewer-border: #2c2f38;
+    --viewer-text: #e6e8ee;
+    --viewer-muted: #9aa1b1;
+    --viewer-accent: #4c8dff;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+}
+
+body {
+    background: var(--viewer-background);
+    color: var(--viewer-text);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 14px;
+}
+
+.app {
+    display: grid;
+    grid-template-columns: 20rem minmax(0, 1fr);
+    height: 100%;
+    overflow: hidden;
+}
+
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--viewer-panel);
+    border-right: 1px solid var(--viewer-border);
+    position: relative;
+    z-index: 1;
+}
+
+.hierarchy {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 1rem;
+}
+
+.sidebar-brand {
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 1rem;
+    border-bottom: 1px solid var(--viewer-border);
+}
+
+.sidebar-brand img {
+    width: 7rem;
+    height: auto;
+    filter: brightness(0) invert(1);
+}
+
+.sidebar-brand:focus-visible {
+    outline: 2px solid var(--viewer-accent);
+    outline-offset: -2px;
+}
+
+.hierarchy-project-name {
+    margin: 0 0 0.5rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--viewer-muted);
+}
+
+.hierarchy-nodes {
+    list-style: none;
+    margin: 0;
+    padding-left: 0.75rem;
+}
+
+.hierarchy > .hierarchy-project > div > .hierarchy-nodes {
+    padding-left: 0;
+}
+
+.hierarchy-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.hierarchy-item:hover {
+    background: rgb(255 255 255 / 6%);
+}
+
+.hierarchy-item.selected {
+    background: rgb(76 141 255 / 20%);
+    box-shadow: inset 2px 0 0 var(--viewer-accent);
+}
+
+.hierarchy-item:focus-visible,
+.tab:focus-visible {
+    outline: 2px solid var(--viewer-accent);
+    outline-offset: 1px;
+}
+
+.hierarchy-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hierarchy-kind {
+    font-size: 0.7rem;
+    color: var(--viewer-muted);
+}
+
+.document {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.tabs {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem 0;
+    border-bottom: 1px solid var(--viewer-border);
+}
+
+.tab {
+    padding: 0.5rem 1rem;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--viewer-muted);
+    font: inherit;
+    cursor: pointer;
+}
+
+.tab.selected {
+    border-bottom-color: var(--viewer-accent);
+    color: var(--viewer-text);
+}
+
+.panel {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.canvas-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.canvas {
+    position: relative;
+    contain: layout paint;
+    isolation: isolate;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+
+    /* The canvas already starts where the sidebar ends, so its controls must not step aside again. */
+    --canvas-viewport-left: 0px;
+    --canvas-viewport-right: 0px;
+}
+
+/* The view options, in the upper right of the board as Cratis Studio has them. */
+.board-view-options {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    z-index: 10;
+}
+
+/* What the canvas shows instead of a board that failed to draw; the view options above it stay usable. */
+.board-failure {
+    padding: 1rem;
+    color: var(--viewer-text);
+}
+
+.board-failure pre {
+    white-space: pre-wrap;
+    font-size: 0.75rem;
+    opacity: 0.7;
+}
+
+.view-options-failure {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--viewer-border);
+    color: #ffc864;
+}
+
+.warnings {
+    flex-shrink: 0;
+    max-height: 8rem;
+    overflow: auto;
+}
+
+.warnings {
+    margin: 0;
+    padding: 0.5rem 1rem 0.5rem 2rem;
+    border-bottom: 1px solid var(--viewer-border);
+    color: #ffc864;
+}
+
+/* The source fills the panel; Monaco scrolls it, so the panel itself never does. */
+.source {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.source-editor {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.status,
+.empty {
+    padding: 1rem;
+    color: var(--viewer-muted);
+}
+
+.status-error {
+    color: #ff8080;
+}

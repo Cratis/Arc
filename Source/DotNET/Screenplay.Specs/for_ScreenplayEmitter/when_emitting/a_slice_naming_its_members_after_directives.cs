@@ -11,8 +11,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayEmitter.when_emitting;
 /// <summary>
 /// The whole point of the rule is what it does to a real document, so this is the case end to end: a command with a
 /// property called <c>Description</c>, an event with one called <c>Tag</c>, and a produces block filling that same
-/// property in. Written out as they are, three lines are read as directives instead of names and the document stops
-/// compiling. Left out and reported, everything around them survives intact.
+/// property in. Screenplay's printer escapes those names so the document keeps every member and still compiles.
 /// </summary>
 public class a_slice_naming_its_members_after_directives : given.an_emitter
 {
@@ -34,12 +33,13 @@ public class a_slice_naming_its_members_after_directives : given.an_emitter
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
     [Fact] void should_compile_without_any_diagnostics() => _roundTrip.Diagnostics.ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
-    [Fact] void should_not_write_the_command_property_the_body_reserves() => Says("description RequestDescription").ShouldBeFalse();
-    [Fact] void should_not_write_the_event_property_the_body_reserves() => Says("tag BookTag").ShouldBeFalse();
-    [Fact] void should_not_write_the_mapping_the_produces_block_reserves() => Says("tag = tag").ShouldBeFalse();
+    [Fact] void should_keep_the_command_property_the_body_reserves() => Says("description BookTitle").ShouldBeTrue();
+    [Fact] void should_escape_the_event_property_the_body_reserves() => Says("@tag ISBN").ShouldBeTrue();
+    [Fact] void should_escape_the_mapping_the_produces_block_reserves() => Says("@tag = tag").ShouldBeTrue();
     [Fact] void should_keep_the_command_property_it_can_write() => Says("title BookTitle").ShouldBeTrue();
     [Fact] void should_keep_the_mapping_it_can_write() => Says("title = title").ShouldBeTrue();
-    [Fact] void should_report_every_line_it_left_out() => _emission.Diagnostics.Select(_ => _.Code).ShouldContainOnly(
+    [Fact] void should_report_escaped_names_only_as_information() => _emission.Diagnostics.All(_ => _.Severity == ScreenplayDiagnosticSeverity.Information).ShouldBeTrue();
+    [Fact] void should_report_every_escaped_name() => _emission.Diagnostics.Select(_ => _.Code).ShouldContainOnly(
     [
         ScreenplayDiagnosticCodes.NameReservedByGrammar,
         ScreenplayDiagnosticCodes.NameReservedByGrammar,
@@ -58,7 +58,7 @@ public class a_slice_naming_its_members_after_directives : given.an_emitter
                     null,
                     [
                         Declare.Property("Title", "BookTitle"),
-                        Declare.Property("Description", "RequestDescription")
+                        Declare.Property("Description", "BookTitle")
                     ],
                     null,
                     [],
@@ -79,7 +79,7 @@ public class a_slice_naming_its_members_after_directives : given.an_emitter
                     "BookRequested",
                     [
                         Declare.Property("Title", "BookTitle"),
-                        Declare.Property("Tag", "BookTag")
+                        Declare.Property("Tag", "ISBN")
                     ],
                     [])
             ],

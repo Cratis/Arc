@@ -127,6 +127,13 @@ jobs:
       - name: Yarn install
         run: yarn install --immutable
 
+      - name: Build embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run typecheck
+          npm run build
+
       - name: Remove any existing artifacts
         run: rm -rf ${{ env.NUGET_OUTPUT }}
 
