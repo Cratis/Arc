@@ -23,13 +23,13 @@ Arc now derives the identity only from the authenticated request, and the fronte
 The NuGet and npm packages do not have to be upgraded together:
 
 - **New backend, earlier frontend.** The earlier frontend reads the cookie first and calls `/.cratis/me` when there is none, which is now always the case for new sessions because the new backend does not write it. A cookie left from before the upgrade lasts until the browser session ends or the frontend next calls `/.cratis/me`, for example through `refresh()`. That response expires it.
-- **Earlier backend, new frontend.** The new frontend asks `/.cratis/me`, which the earlier backend serves as before.
+- **Earlier backend, new frontend.** The new frontend asks `/.cratis/me`, which the earlier backend serves as before. An explicit `refresh()` expires the readable legacy cookie before requesting the identity, so the earlier backend recomputes it from the current credentials rather than returning stale identity, roles or details.
 - **Identity from a proxy in front of the application.** Cratis AuthProxy writes its own readable `.cratis-identity` cookie. When the browser's `/.cratis/me` request reaches the application, the identity comes from the forwarded principal. When nothing answers `/.cratis/me` (404), the new frontend falls back to the proxy's cookie and logs a warning in the browser console. That fallback exists for the transition and will be removed in a future major version.
 - A 401 or 403 from `/.cratis/me` is never overruled by a cookie. The identity is reported as not set.
 
 ## What applications must change
 
-1. **Expose `/.cratis/me` to the frontend.** If the browser console shows the warning about reading the identity from the `.cratis-identity` cookie, the frontend cannot reach `/.cratis/me`. Register an `IProvideIdentityDetails`, which maps the endpoint, and make sure any proxy in front of the application routes the request to it with the forwarded principal.
+1. **Expose `/.cratis/me` to the frontend.** If the browser console shows the warning about reading the identity from the `.cratis-identity` cookie, the frontend cannot reach `/.cratis/me`. Arc maps this endpoint by default, with `DefaultIdentityDetailsProvider` when you have no custom provider. Check proxy routing and the frontend's `apiBasePath` and origin so the request reaches your Arc application, and make sure the proxy forwards the authenticated principal. Register a custom `IProvideIdentityDetails` only when you need application-specific details.
 2. **Stop reading the cookie yourself.** Code that reads `.cratis-identity` from `document.cookie`, or from the request on the server, must use `IdentityProvider.getCurrent()` or `useIdentity()` in the browser, and `IIdentityProvider.Get()` or `ICurrentPrincipalAccessor` on the server.
 3. **Replace `IdentityProvider.clearIdentityCookie()` with `IdentityProvider.clearCache()`.**
 4. **Replace `IdentityProvider.IdentityCookieName`** (.NET) and `IdentityProvider.CookieName` (TypeScript). Both are obsolete. A build that treats warnings as errors fails on the .NET constant until the reference is removed.
@@ -41,13 +41,6 @@ The NuGet and npm packages do not have to be upgraded together:
 - **Reading the cookie directly.** Code that read `.cratis-identity` itself, rather than through Arc, gets nothing once the backend is upgraded, because the backend no longer writes the cookie. Writing it again would bring back the exposure this change removes. Move that code to `/.cratis/me`.
 - **`ModifyDetails` across requests.** The modified details used to be stored in the client-controlled cookie and returned on the next request. Arc no longer trusts that cookie, so the change cannot be carried to the next request. Store such preferences through an authenticated operation and return them from your details provider.
 - **Identity before the first request.** The cookie let the first render show the identity without a round trip. The identity now arrives with the `/.cratis/me` response. Render a loading state until it does. In React, `useIdentity()` reports `isLoading`.
-
-## Example: Cratis Studio
-
-Studio's `StudioIdentityDetailsProvider` (`Source/Core/Identity/StudioIdentity.cs`) releases the user's decrypted display name into the identity details, because those details were serialized to the browser in both the response body and the readable `.cratis-identity` cookie. After the upgrade, the display name reaches the browser only through the `/.cratis/me` response, which Studio's frontend already reads through `useIdentity()`, so the name keeps showing. Studio needs two changes:
-
-- Correct the remarks on the provider and its spec, which describe the cookie.
-- Account for the provider now running, with its user and first-use lookups, on every `/.cratis/me` call rather than once per browser session.
 
 ## Related
 
