@@ -46,3 +46,5 @@
   href: development/generating-principal.md
 - name: Generating a Screenplay
   href: generating-a-screenplay.md
+- name: Embedded event-model explorer
+  href: embedded-event-model.md
