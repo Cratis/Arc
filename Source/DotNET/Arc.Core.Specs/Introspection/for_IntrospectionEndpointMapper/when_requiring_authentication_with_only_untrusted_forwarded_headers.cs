@@ -4,7 +4,7 @@
 namespace Cratis.Arc.Introspection.for_IntrospectionEndpointMapper;
 
 [Collection("UsesCurrentDirectory")]
-public class when_requiring_authentication_with_only_forwarded_headers : Specification
+public class when_requiring_authentication_with_only_untrusted_forwarded_headers : Specification
 {
     Exception? _failure;
 
@@ -16,5 +16,5 @@ public class when_requiring_authentication_with_only_forwarded_headers : Specifi
         _failure = Catch.Exception(() => app.UseCratisArc());
     }
 
-    [Fact] void should_fail_before_accepting_requests() => _failure.ShouldBeOfExactType<InvalidIntrospectionConfiguration>();
+    [Fact] void should_start_because_untrusted_headers_never_authenticate() => _failure.ShouldBeNull();
 }

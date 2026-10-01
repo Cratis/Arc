@@ -7,7 +7,6 @@ using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
-using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -35,15 +34,9 @@ public static class ArcApplicationExtensions
         }
 
         var introspection = app.Services.GetRequiredService<IOptions<ArcOptions>>().Value.Introspection;
-        if (introspection.Enabled && introspection.RequireAuthentication)
+        if (introspection.Enabled && introspection.RequireAuthentication && !app.Services.GetRequiredService<IAuthentication>().HasHandlers)
         {
-            var authentication = app.Services.GetRequiredService<IAuthentication>();
-            var hasTrustedHandler = app.Services.GetRequiredService<IInstancesOf<IAuthenticationHandler>>()
-                .Any(handler => handler is not MicrosoftIdentityPlatformAuthenticationHandler);
-            if (!authentication.HasHandlers || (!hasTrustedHandler && !introspection.TrustForwardedIdentityHeaders))
-            {
-                throw new InvalidIntrospectionConfiguration("Introspection requires an Arc.Core authentication handler other than the forwarded-header handler, or TrustForwardedIdentityHeaders=true behind trusted ingress.");
-            }
+            throw new InvalidIntrospectionConfiguration("Introspection requires an Arc.Core authentication handler when RequireAuthentication is true.");
         }
 
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);

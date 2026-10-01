@@ -7,7 +7,7 @@ Need to exercise different users and roles before wiring production login? The [
 
 ## Understand the trust boundary first
 
-`x-ms-client-principal` is Base64-encoded JSON — an **unsigned assertion**, not a signed bearer token. Arc's header handlers decode it and construct claims; they do not validate a signature, issuer, or audience. Header presence and valid JSON do not prove who sent it.
+`x-ms-client-principal` is Base64-encoded JSON — an **unsigned assertion**, not a signed bearer token. Arc's header handlers decode it and construct claims; they do not validate a signature, issuer, or audience. Header presence and valid JSON do not prove who sent it. That is why Arc ignores these headers until the host opts in with `Cratis:Arc:TrustForwardedIdentityHeaders`; your loopback development host has to opt in too, as the [authorization tutorial](/arc/tutorial/authorization/) shows.
 
 Use manually supplied headers only on an isolated, loopback-bound development host. In production, either configure a real token/cookie authentication scheme or accept these assertions only from a trusted authenticated ingress. That ingress must **strip and replace all incoming identity headers**, and the backend must not be reachable through a bypass route. An arbitrary browser or proxy sending these headers is not trustworthy.
 

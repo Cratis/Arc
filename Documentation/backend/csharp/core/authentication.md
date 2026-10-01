@@ -85,9 +85,21 @@ The handler requires all three headers, rejects an invalid principal representat
 > [!WARNING]
 > These headers are not signed credentials. Deploy this mechanism only behind trusted ingress that authenticates callers, strips caller-supplied identity headers, writes its own values, and prevents direct access to the backend. A custom `X-User-ID` or `X-User-Role` header needs the same protections. Adding a bearer validator does not make a separately accepted forwarded-header mechanism safe.
 
-For protected introspection catalogs, this handler ignores the forwarded headers and returns `AuthenticationResult.Anonymous` unless `Cratis:Arc:Introspection:TrustForwardedIdentityHeaders` is `true`. If it is the only registered handler, startup rejects `RequireAuthentication: true` without that opt-in. See [Introspection](../introspection/index.md#arccore-httplistener-host).
+The handler ignores the forwarded headers, and returns `AuthenticationResult.Anonymous`, unless the host opts in with `Cratis:Arc:TrustForwardedIdentityHeaders` (`ArcOptions.TrustForwardedIdentityHeaders`). The setting defaults to `false` and applies to every request, including protected [introspection catalogs](../introspection/index.md). Turn it on only when the host runs behind such an ingress:
 
-Arc cannot detect a custom handler that reads forwarded headers. If yours does, check the same option through `IOptions<ArcOptions>` and return `AuthenticationResult.Anonymous` when it is `false` and `context.GetEndpointMetadata()?.RequireAuthentication == true`. The request then returns 401.
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "TrustForwardedIdentityHeaders": true
+    }
+  }
+}
+```
+
+The first request that carries the headers while they are not trusted logs a warning that names this setting.
+
+Arc cannot detect a custom handler that reads forwarded headers. If yours does, check the same option through `IOptions<ArcOptions>` and return `AuthenticationResult.Anonymous` when `TrustForwardedIdentityHeaders` is `false`.
 
 In the ASP.NET Core package, the corresponding registration is `builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication()`. It is not the Core registration API. See [Microsoft Identity Platform](../asp-net-core/microsoft-identity.md) for that host's setup and local-development principals.
 

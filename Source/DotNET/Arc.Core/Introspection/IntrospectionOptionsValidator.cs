@@ -33,11 +33,6 @@ public class IntrospectionOptionsValidator : IValidateOptions<ArcOptions>
             introspection.Roles = string.Join(',', roles);
         }
 
-        if (introspection.TrustForwardedIdentityHeaders && (!introspection.Enabled || !introspection.RequireAuthentication))
-        {
-            return ValidateOptionsResult.Fail("Cratis:Arc:Introspection:TrustForwardedIdentityHeaders requires Enabled=true and RequireAuthentication=true.");
-        }
-
         return ValidateOptionsResult.Success;
     }
 }
