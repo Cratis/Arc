@@ -52,9 +52,9 @@ public static class EnumConstants
     /// <param name="member">The member the value names.</param>
     /// <returns>True when the type is an enumeration declaring a member with that value.</returns>
     /// <remarks>
-    /// A value no member is declared with - an arbitrary cast, or several flags combined into one - is not resolved.
-    /// Inventing a name for it would describe a value the application does not have, so the caller is left to write
-    /// the number and say what it lost.
+    /// A value no member is declared with - an arbitrary cast, <see langword="default"/> for an enumeration declaring no zero
+    /// member, or several flags combined into one - is not resolved. Inventing a name for it would describe a value the
+    /// application does not have, so the caller is left to say what it cannot name.
     /// </remarks>
     public static bool TryResolve(ITypeSymbol? type, object? value, out EnumValue member)
     {
@@ -67,6 +67,38 @@ public static class EnumConstants
         member = new(name);
 
         return true;
+    }
+
+    /// <summary>
+    /// Determines whether a value is several declared flags combined into one that no member is declared with.
+    /// </summary>
+    /// <param name="type">The enumeration the value was written as.</param>
+    /// <param name="value">The value the compiler handed over, which for an enumeration is the number behind a member.</param>
+    /// <returns>True when the enumeration is declared <see cref="FlagsAttribute"/>, no member has the value, and the members whose bits it holds make it up exactly.</returns>
+    /// <remarks>
+    /// This is how an <c>Email | InApp</c> that no member is declared for differs from a number nobody meant:
+    /// every bit of it is a member, yet the document names a member and has no form for a combination.
+    /// </remarks>
+    public static bool IsFlagsCombination(ITypeSymbol? type, object? value)
+    {
+        if (!IsEnumeration(type) ||
+            !type!.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.FlagsAttribute") ||
+            Normalize(value) is not { } wanted ||
+            wanted <= 0 ||
+            MemberOf(type, value!) is not null)
+        {
+            return false;
+        }
+
+        var covered = type.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(_ => _.HasConstantValue)
+            .Select(_ => Normalize(_.ConstantValue))
+            .OfType<BigInteger>()
+            .Where(member => member > 0 && (member & wanted) == member)
+            .Aggregate(BigInteger.Zero, (all, member) => all | member);
+
+        return covered == wanted;
     }
 
     /// <summary>

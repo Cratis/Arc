@@ -163,8 +163,9 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// An identity made on the spot is left out without a word, because there is no value for the document to have
     /// missed - see <see cref="GeneratedIdentities"/>. A value that is code is one the source states and the document
     /// does not, which is the difference worth reading. A constant the document cannot hold at all - a number no
-    /// member of an enumeration is declared with, or <see langword="null"/> for a required property - takes the whole
-    /// scenario with it, because what it issues or starts from would no longer be what was written.
+    /// member of an enumeration is declared with (including <see langword="default"/> for one with no zero member and flags
+    /// combined into a value no member is declared with), or <see langword="null"/> for a required property - takes the
+    /// whole scenario with it, because what it issues or starts from would no longer be what was written.
     /// </remarks>
     void Add(
         List<PropertyMappingModel> values,

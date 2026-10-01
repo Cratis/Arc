@@ -12,8 +12,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <remarks>
 /// A document checks every value a scenario states against the type of its property: a member of an enumeration by
 /// the name it is declared with, and an absent value only where the property may be absent or holds a single value.
-/// A constant the document would reject - a number no member is declared with, or <see langword="null"/> handed to a
-/// property carrying a record, a list or an enumeration - has no form worth writing. What the scenario does about it
+/// A constant the document would reject - a number no member is declared with (an arbitrary cast, <see langword="default"/> for an
+/// enumeration declaring no zero member, or several <see cref="FlagsAttribute"/> flags combined into one, which
+/// Screenplay has no form to state), or <see langword="null"/> handed to a property carrying a record, a list or an
+/// enumeration - has no form worth writing. What the scenario does about it
 /// is the reader's decision: a scenario missing a value it issues a command with, or started from, is a different
 /// example than the one written, so the reader leaves the whole scenario out and says so.
 /// </remarks>
@@ -64,8 +66,14 @@ static class StatableValues
         var collection = false;
         var underlying = UnderlyingTypes.Of(property.Type, ref optional, ref collection);
 
-        return constant is null
-            ? $"'{owner.Name}.{property.Name}' as null, which a required property of type '{underlying.Name}' cannot hold"
+        if (constant is null)
+        {
+            var carried = collection ? $"list of '{underlying.Name}'" : $"property of type '{underlying.Name}'";
+            return $"'{owner.Name}.{property.Name}' as null, which a required {carried} cannot hold";
+        }
+
+        return EnumConstants.IsFlagsCombination(underlying, constant)
+            ? $"'{owner.Name}.{property.Name}' as {constant}, a combination of flags of the enumeration '{underlying.Name}' that is not a declared member, and Screenplay cannot state combined flags"
             : $"'{owner.Name}.{property.Name}' as {constant}, which no member of the enumeration '{underlying.Name}' is declared with";
     }
 }

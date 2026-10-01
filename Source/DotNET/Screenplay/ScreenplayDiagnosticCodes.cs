@@ -360,7 +360,9 @@ public static class ScreenplayDiagnosticCodes
     /// difference between a gap that will always be there and one an afternoon closes.
     /// <para>
     /// A constant the document has no form for - a number cast to an enumeration that declares no member with that
-    /// value, or <c>null</c> for a required record, list or enumeration - is such a step too. Scenarios proving a
+    /// value, <see langword="default"/> for an enumeration declaring no zero member, several flags combined into a value no member
+    /// is declared with (the document names one member and cannot state a combination), or <c>null</c> for a required
+    /// record, list or enumeration - is such a step too. Scenarios proving a
     /// rejection routinely issue a command with exactly such a value, and writing the command without it would state a
     /// different command whose rejection has lost its cause, so the scenario is left out and this is what says which
     /// property, which value and why.
@@ -388,9 +390,9 @@ public static class ScreenplayDiagnosticCodes
     /// </para>
     /// <para>
     /// This is only for a value that is not a constant. A constant the document cannot hold - a number no member of an
-    /// enumeration is declared with, or <c>null</c> for a required property - is not reported here, because leaving it
-    /// out would leave a scenario that no longer says what was written: it is reported as <see cref="UnreadableSpecification"/>
-    /// together with the scenario.
+    /// enumeration is declared with, a combination of flags, or <c>null</c> for a required property - is not reported
+    /// here, because leaving it out would leave a scenario that no longer says what was written: it is reported as
+    /// <see cref="UnreadableSpecification"/> together with the scenario.
     /// </para>
     /// </remarks>
     public const string UnreadableSpecificationValue = "SP0040";
