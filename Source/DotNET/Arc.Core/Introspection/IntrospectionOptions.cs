@@ -25,7 +25,11 @@ public class IntrospectionOptions
 
     /// <summary>
     /// Gets or sets whether the host trusts identity headers forwarded by a trusted ingress.
-    /// Defaults to false; never enable when clients can reach the listener directly or set identity headers.
     /// </summary>
+    /// <remarks>
+    /// Trust in forwarded identity headers is now a host-wide setting that applies to every request, not only to the
+    /// catalogs. Setting this to <see langword="true"/> still turns on <see cref="ArcOptions.TrustForwardedIdentityHeaders"/>.
+    /// </remarks>
+    [Obsolete("Use ArcOptions.TrustForwardedIdentityHeaders (Cratis:Arc:TrustForwardedIdentityHeaders), which applies to every request. This setting turns it on and will be removed in a future major version.")]
     public bool TrustForwardedIdentityHeaders { get; set; }
 }

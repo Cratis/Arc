@@ -25,6 +25,14 @@ public static class WebApplicationBuilderExtensions
     /// <c>UseCratis</c> on the built application, which activates both halves for you.
     /// </para>
     /// <para>
+    /// The Microsoft Identity Platform scheme reads the identity headers that Azure App Service or Container Apps
+    /// authentication (EasyAuth) and Cratis AuthProxy forward. Those headers are not signed, so the scheme ignores them
+    /// until the host opts in with <see cref="ArcOptions.TrustForwardedIdentityHeaders"/>, for example
+    /// <c>builder.AddCratis(options =&gt; options.TrustForwardedIdentityHeaders = true)</c> or the
+    /// <c>Cratis:Arc:TrustForwardedIdentityHeaders</c> setting. Opt in only when every request reaches the application
+    /// through such an ingress; until then, every request is anonymous.
+    /// </para>
+    /// <para>
     /// What is added to your process is the Chronicle client, not the Chronicle engine. The client connects
     /// (over gRPC, using the connection string from configuration) to a Chronicle instance that runs on its own
     /// — typically the <c>cratis/chronicle</c> container. Nothing runs an event store inside your application,

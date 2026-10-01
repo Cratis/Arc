@@ -3,7 +3,6 @@
 
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using Cratis.Arc.Introspection;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,13 +13,17 @@ namespace Cratis.Arc.Identity;
 /// Represents an <see cref="AuthenticationHandler{TOptions}"/> for handling authentication in the context of Microsoft Identity Platform.
 /// </summary>
 /// <remarks>
-/// Initializes a new instance of the <see cref="MicrosoftIDentityPlatformAuthHandler"/> class.
+/// The forwarded identity headers are not signed. The handler ignores them and returns no result, so the request stays
+/// anonymous, unless <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled because the host runs behind a
+/// trusted ingress.
 /// </remarks>
 /// <param name="options">The <see cref="IOptionsMonitor{TOptions}"/>.</param>
+/// <param name="arcOptions">The <see cref="ArcOptions"/> that decide whether forwarded identity headers are trusted.</param>
 /// <param name="loggerFactory">The <see cref="ILoggerFactory"/>.</param>
 /// <param name="encoder">The <see cref="UrlEncoder"/>.</param>
 public class MicrosoftIDentityPlatformAuthHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
+    IOptionsMonitor<ArcOptions> arcOptions,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, loggerFactory, encoder)
 {
@@ -34,9 +37,13 @@ public class MicrosoftIDentityPlatformAuthHandler(
     /// <inheritdoc/>
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var catalog = Context.GetEndpoint()?.Metadata.GetMetadata<ProtectedIntrospectionCatalog>();
-        if (catalog is { TrustForwardedIdentityHeaders: false })
+        if (!arcOptions.CurrentValue.TrustForwardedIdentityHeaders)
         {
+            if (UntrustedForwardedIdentityHeaders.ArePresent(Request.Headers.ContainsKey))
+            {
+                UntrustedForwardedIdentityHeaders.Report(_logger);
+            }
+
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
@@ -80,10 +87,6 @@ public class MicrosoftIDentityPlatformAuthHandler(
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);
         var ticket = new AuthenticationTicket(principal, Scheme.Name);
-        if (Context.GetEndpoint() is null)
-        {
-            UnsignedIdentityHeaderSchemes.RecordAuthenticationBeforeRouting(Context);
-        }
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
