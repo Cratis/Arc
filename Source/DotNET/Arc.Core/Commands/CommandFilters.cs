@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Traces;
 using Cratis.Types;
@@ -35,6 +37,9 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
         // authorized. OrderBy is a stable sort, so filters within the same group keep their discovery order.
         foreach (var filter in discoveredFilters.OrderBy(filter => filter is IAuthorizationCommandFilter ? 0 : 1))
         {
+            using var authorizationSpan = filter is IAuthorizationCommandFilter
+                ? OperationActivity.StartCommandChild(activitySource.ActualSource, WellKnownTelemetryNames.CommandAuthorizeSpan, context.Type)
+                : null;
             try
             {
                 var filterResult = await filter.OnExecution(context);
@@ -56,6 +61,12 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
                 // input) to a validation failure (400) and anything else to an error (500). The short-circuit below
                 // respects the severity of validation failures.
                 result.MergeWith(CommandResult.FromException(context.CorrelationId, ex));
+                OperationActivity.RecordFailure(authorizationSpan, ex, context.CancellationToken);
+            }
+
+            if (authorizationSpan is { IsAllDataRequested: true } authorizationActivity && !result.IsAuthorized)
+            {
+                authorizationActivity.AddEvent(new ActivityEvent(WellKnownTelemetryNames.AuthorizationDeniedEvent));
             }
 
             // Preserve non-blocking validation results while still running later filters that may reject the command.

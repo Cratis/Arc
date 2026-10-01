@@ -40,7 +40,7 @@ public class an_aggregate_root_mutator : Specification
             _aggregateRoot,
             _unitOfWork,
             EventSequenceNumber.First,
-            EventSequenceNumber.First);
+            EventSequenceNumber.BeforeFirst);
 
         _eventSerializer = Substitute.For<IEventSerializer>();
         _eventHandlers = Substitute.For<IAggregateRootEventHandlers>();

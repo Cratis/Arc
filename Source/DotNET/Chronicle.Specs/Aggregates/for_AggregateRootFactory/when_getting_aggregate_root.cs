@@ -20,5 +20,7 @@ public class when_getting_aggregate_root : given.an_aggregate_root_factory
     [Fact] void should_set_context_with_aggregate_root() => _result._context.AggregateRoot.ShouldEqual(_result);
     [Fact] void should_set_mutation() => _result._mutation.ShouldNotBeNull();
     [Fact] void should_rehydrate() => _mutator.Received(1).Rehydrate();
+    [Fact] void should_expect_no_event_in_the_scope_until_rehydration_finds_one() => _result._context.TailEventSequenceNumber.ShouldEqual(EventSequenceNumber.BeforeFirst);
+    [Fact] void should_start_after_the_first_event_sequence_number() => _result._context.NextSequenceNumber.ShouldEqual(EventSequenceNumber.First);
     [Fact] void should_call_on_activate_once() => _result.OnActivateCount.ShouldEqual(1);
 }
