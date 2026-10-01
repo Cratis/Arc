@@ -23,7 +23,7 @@ public class and_command_is_executed : Specification
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_have_exceptions() => _result.HasExceptions.ShouldBeTrue();
-    [Fact] void should_include_activation_failure() => _result.ExceptionMessages.First().ShouldContain("A suitable constructor");
-    [Fact] void should_tell_the_user_constructor_services_must_be_registered() => _result.ExceptionMessages.First().ShouldContain("services are registered for all parameters");
+    [Fact] void should_include_activation_failure() => _result.ExceptionMessages.First().ShouldContain("Unable to resolve service for type");
+    [Fact] void should_identify_the_missing_constructor_dependency() => _result.ExceptionMessages.First().ShouldContain(typeof(TimesheetPhase).FullName!);
     [Fact] void should_not_have_appended_events() => _scenario.AppendedEvents.ShouldBeEmpty();
 }
