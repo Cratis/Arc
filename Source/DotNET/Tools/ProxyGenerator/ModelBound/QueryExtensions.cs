@@ -152,14 +152,19 @@ public static class QueryExtensions
 
         var conceptRules = new List<PropertyValidationDescriptor>();
         var dataAnnotationsRules = new List<PropertyValidationDescriptor>();
+        var nullabilityContext = new NullabilityInfoContext();
         foreach (var param in method.GetParameters())
         {
             var parameterName = param.Name.ToCamelCase();
 
-            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType);
-            if (rulesFromConcept.Count > 0)
+            // An absent nullable concept is valid; explicit rules and annotations still apply independently.
+            if (nullabilityContext.Create(param).WriteState != NullabilityState.Nullable)
             {
-                conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
+                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType);
+                if (rulesFromConcept.Count > 0)
+                {
+                    conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
+                }
             }
 
             var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
