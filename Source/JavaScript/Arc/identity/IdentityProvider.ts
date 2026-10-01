@@ -36,6 +36,7 @@ export class IdentityProvider extends IIdentityProvider {
 
     private static cachedResult: Promise<IdentityProviderResult | undefined> | undefined;
     private static hasWarnedAboutLegacyCookie = false;
+    private static legacyCookie: string | undefined;
 
     /**
      * Sets the HTTP headers callback.
@@ -52,6 +53,7 @@ export class IdentityProvider extends IIdentityProvider {
     static setApiBasePath(apiBasePath: string): void {
         if (IdentityProvider.apiBasePath !== apiBasePath) {
             IdentityProvider.cachedResult = undefined;
+            IdentityProvider.legacyCookie = undefined;
         }
         IdentityProvider.apiBasePath = apiBasePath;
     }
@@ -63,6 +65,7 @@ export class IdentityProvider extends IIdentityProvider {
     static setOrigin(origin: string): void {
         if (IdentityProvider.origin !== origin) {
             IdentityProvider.cachedResult = undefined;
+            IdentityProvider.legacyCookie = undefined;
         }
         IdentityProvider.origin = origin;
     }
@@ -95,11 +98,12 @@ export class IdentityProvider extends IIdentityProvider {
      * @returns The current identity as {@link IIdentity}.
      */
     static async refresh<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
-        // Earlier backends resolve the cookie before consulting the current credentials. Keep a snapshot only
-        // for the 404 transition fallback, but do not send the stale cookie with an explicit refresh request.
-        const legacyCookies = typeof document === 'undefined' ? '' : document.cookie;
-        IdentityProvider.clearCache();
-        const result = await IdentityProvider.fetchAndCache(legacyCookies);
+        // Earlier backends resolve the cookie before consulting the current credentials. Retain it only in memory
+        // for consecutive 404 transition fallbacks, but do not send it with an explicit refresh request.
+        IdentityProvider.legacyCookie = IdentityProvider.readLegacyCookie() ?? IdentityProvider.legacyCookie;
+        IdentityProvider.cachedResult = undefined;
+        IdentityProvider.expireLegacyCookie();
+        const result = await IdentityProvider.fetchAndCache();
         return IdentityProvider.toIdentity(result, type);
     }
 
@@ -109,8 +113,8 @@ export class IdentityProvider extends IIdentityProvider {
      */
     static clearCache(): void {
         IdentityProvider.cachedResult = undefined;
-        if (typeof document === 'undefined') return;
-        document.cookie = `${IdentityProvider.CookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+        IdentityProvider.legacyCookie = undefined;
+        IdentityProvider.expireLegacyCookie();
     }
 
     /**
@@ -121,8 +125,19 @@ export class IdentityProvider extends IIdentityProvider {
         IdentityProvider.clearCache();
     }
 
-    private static fetchAndCache(legacyCookies?: string): Promise<IdentityProviderResult | undefined> {
-        const pending = IdentityProvider.fetchResult(legacyCookies);
+    private static expireLegacyCookie(): void {
+        if (typeof document === 'undefined') return;
+        document.cookie = `${IdentityProvider.CookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    }
+
+    private static readLegacyCookie(): string | undefined {
+        if (typeof document === 'undefined') return undefined;
+        const prefix = `${IdentityProvider.CookieName}=`;
+        return document.cookie.split(';').map(_ => _.trim()).find(_ => _.startsWith(prefix));
+    }
+
+    private static fetchAndCache(): Promise<IdentityProviderResult | undefined> {
+        const pending = IdentityProvider.fetchResult();
         IdentityProvider.cachedResult = pending;
 
         // Only a resolved identity is worth keeping: an unset one, or a failed request, has to be asked for
@@ -139,7 +154,7 @@ export class IdentityProvider extends IIdentityProvider {
         return pending;
     }
 
-    private static async fetchResult(legacyCookies?: string): Promise<IdentityProviderResult | undefined> {
+    private static async fetchResult(): Promise<IdentityProviderResult | undefined> {
         const origin = IdentityProvider.origin || Globals.origin || '';
         const apiBasePath = IdentityProvider.apiBasePath || Globals.apiBasePath || '';
         const route = joinPaths(apiBasePath, '/.cratis/me');
@@ -154,9 +169,10 @@ export class IdentityProvider extends IIdentityProvider {
         // proxy in front of it. Anything else, a 401 or 403 above all, is the server's answer and a cookie the
         // browser holds must never overrule it.
         if (response.status === 404) {
-            return IdentityProvider.fromLegacyCookie(legacyCookies);
+            return IdentityProvider.fromLegacyCookie();
         }
 
+        IdentityProvider.legacyCookie = undefined;
         if (!response.ok) {
             return undefined;
         }
@@ -164,14 +180,15 @@ export class IdentityProvider extends IIdentityProvider {
         return await response.json() as IdentityProviderResult;
     }
 
-    private static fromLegacyCookie(legacyCookies?: string): IdentityProviderResult | undefined {
+    private static fromLegacyCookie(): IdentityProviderResult | undefined {
         if (typeof document === 'undefined') return undefined;
-        const prefix = `${IdentityProvider.CookieName}=`;
-        const cookie = (legacyCookies ?? document.cookie).split(';').map(_ => _.trim()).find(_ => _.startsWith(prefix));
+        // A proxy may issue a newer cookie on the response. Prefer it over the one expired before the request.
+        const cookie = IdentityProvider.readLegacyCookie() ?? IdentityProvider.legacyCookie;
         if (!cookie) return undefined;
+        IdentityProvider.legacyCookie = cookie;
 
         try {
-            const result = JSON.parse(atob(decodeURIComponent(cookie.substring(prefix.length)))) as IdentityProviderResult;
+            const result = JSON.parse(atob(decodeURIComponent(cookie.substring(`${IdentityProvider.CookieName}=`.length)))) as IdentityProviderResult;
             if (!IdentityProvider.hasWarnedAboutLegacyCookie) {
                 IdentityProvider.hasWarnedAboutLegacyCookie = true;
                 console.warn(

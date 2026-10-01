@@ -3,15 +3,13 @@
 
 import { IdentityProvider } from '../../IdentityProvider.js';
 import { IIdentity } from '../../IIdentity.js';
-import { an_identity_provider } from '../given/an_identity_provider.js';
+import { a_browser_with_a_legacy_identity } from '../given/a_browser_with_a_legacy_identity.js';
 import { given } from '../../../given.js';
 
-describe('when refreshing and the server has no identity endpoint', given(an_identity_provider, context => {
+describe('when refreshing and the server has no identity endpoint', given(a_browser_with_a_legacy_identity, context => {
     let refreshed: IIdentity;
 
     beforeEach(async () => {
-        document.cookie = `.cratis-identity=${btoa(JSON.stringify({ id: 'user-123', name: 'Test User', roles: ['Reader'], details: {} }))}`;
-        context.fetchStub.resolves({ ok: false, status: 404 } as Response);
         refreshed = await IdentityProvider.refresh();
     });
 
