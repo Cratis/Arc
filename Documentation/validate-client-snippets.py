@@ -551,6 +551,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "tutorial/authorization/development-header-adapter": SnippetContext(
         kind="body",
         usings=(
+            "using Cratis.Arc;",
             "using Microsoft.AspNetCore.Builder;",
             "using Microsoft.Extensions.DependencyInjection;",
             "using Microsoft.Extensions.Hosting;",
