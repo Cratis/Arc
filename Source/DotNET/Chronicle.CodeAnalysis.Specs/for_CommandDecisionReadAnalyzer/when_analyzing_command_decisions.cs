@@ -16,6 +16,7 @@ public class when_analyzing_command_decisions
 
     const string Definitions = """
         using System;
+        using System.Collections.Generic;
         using System.Threading.Tasks;
         using Cratis.Arc.Commands;
         using Cratis.Arc.Commands.ModelBound;
@@ -35,6 +36,15 @@ public class when_analyzing_command_decisions
         public record Created;
         [FromEvent<Created>]
         public record State([property: Key] Guid Id);
+        """;
+
+    const string ReadModelsWrapper = """
+        public record OwnerId(Guid Value) : EventSourceId<Guid>(Value);
+        public static class ReadModelsExtensions
+        {
+            public static Task<T> GetInstanceById<T>(this IReadModels readModels, EventSourceId id, ReadModelSessionId? sessionId = null) =>
+                readModels.GetInstanceById<T>((ReadModelKey)id, sessionId);
+        }
         """;
 
     [Fact]
@@ -206,6 +216,122 @@ public class when_analyzing_command_decisions
             }
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
                 .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", ValidatorAdvice));
+
+    [Fact]
+    public async Task validator_whole_command_rule_lambda_legacy_read_reports_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId, Guid OtherId)
+            {
+                public Created Handle() => new();
+            }
+            public class CreateValidator : CommandValidator<Create>
+            {
+                public CreateValidator(IReadModels readModels)
+                {
+                    RuleFor(_ => _)
+                        .MustAsync(async (command, token) =>
+                            await readModels.GetInstanceById<State>(new ReadModelKey(command.OtherId.ToString())) is { } state && state.Id == command.OtherId);
+                }
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", ValidatorAdvice));
+
+    [Fact]
+    public async Task enumerable_of_event_for_event_source_id_returning_handle_reports_plain_model() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public IEnumerable<EventForEventSourceId> Handle(State state) => [new(EventSourceId, new Created())];
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", HandlerAdvice));
+
+    [Fact]
+    public async Task task_of_enumerable_of_event_for_event_source_id_with_provide_reports_legacy_read() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public async Task<State?> Provide(IReadModels models) => await models.GetInstanceById<State>(new ReadModelKey("key"));
+                public Task<IReadOnlyList<EventForEventSourceId>> Handle(State? state) => default!;
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info), AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info));
+
+    [Fact]
+    public async Task validator_whole_command_rule_read_through_extension_wrapper_reports_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + ReadModelsWrapper + """
+            [Command]
+            public record Create(OwnerId OwnerId)
+            {
+                public Created Handle() => new();
+            }
+            public class CreateValidator : CommandValidator<Create>
+            {
+                public CreateValidator(IReadModels readModels)
+                {
+                    RuleFor(_ => _)
+                        .MustAsync(async (command, token) => await readModels.GetInstanceById<State>(command.OwnerId) is not null);
+                }
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", ValidatorAdvice));
+
+    [Fact]
+    public async Task provide_read_through_extension_wrapper_reports_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + ReadModelsWrapper + """
+            [Command]
+            public record Create(OwnerId OwnerId)
+            {
+                public async Task<State?> Provide(IReadModels readModels) => await readModels.GetInstanceById<State>(OwnerId);
+                public IEnumerable<EventForEventSourceId> Handle() => [new(OwnerId, new Created())];
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", HandlerAdvice));
+
+    [Fact]
+    public async Task children_from_declared_on_record_parameter_makes_plain_model_report_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            [EventType("5a3f0c14-77d1-4a3e-9d0a-0f3c7a1b2e64")]
+            public record ItemAdded(Guid ItemId);
+            public record Item(Guid ItemId);
+            public record Roster(
+                [property: Key] Guid Id,
+                [ChildrenFrom<ItemAdded>(key: nameof(ItemAdded.ItemId), identifiedBy: nameof(Item.ItemId))] IEnumerable<Item> Items);
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public IEnumerable<EventForEventSourceId> Handle(Roster? roster) => [new(EventSourceId, new Created())];
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "Roster", HandlerAdvice));
+
+    [Fact]
+    public async Task model_without_projection_attributes_is_not_reported_for_extension_wrapper_reads() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + ReadModelsWrapper + """
+            public record Unrelated(Guid Id);
+            [Command]
+            public record Get(OwnerId OwnerId)
+            {
+                public State Handle(State state) => state;
+            }
+            public static class Helpers
+            {
+                public static Task<Unrelated> GetInstanceById(this Unrelated source, EventSourceId id) => Task.FromResult(source);
+            }
+            [Command]
+            public record Create(OwnerId OwnerId)
+            {
+                public async Task<Created> Handle(Unrelated source)
+                {
+                    _ = await source.GetInstanceById(OwnerId);
+                    return new Created();
+                }
+            }
+            """);
 
     [Fact]
     public async Task validator_helper_and_field_initializer_reads_report_info() =>
