@@ -14,9 +14,17 @@ public static class ApplicationBuilderExtensions
     /// <c>AddCratis</c>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// This calls <c>UseCratisArc</c> and <c>UseCratisChronicle</c> for you. If you split the setup — calling
     /// <c>AddCratisArc</c> and <c>WithChronicle</c> yourself instead of <c>AddCratis</c> — call those two
     /// activation methods yourself rather than <c>UseCratis</c>.
+    /// </para>
+    /// <para>
+    /// It also exposes the embedded event model explorer for an application that was built without optimizations
+    /// — a Debug build. A Release build exposes nothing unless it says so with
+    /// <c>AddCratisEventModelViewer(options =&gt; options.Enabled = true)</c>, which is also where the explorer is
+    /// turned off or put behind the host's authorization.
+    /// </para>
     /// </remarks>
     /// <param name="app"><see cref="IApplicationBuilder"/> to extend.</param>
     /// <returns><see cref="IApplicationBuilder"/> for continuation.</returns>
@@ -24,6 +32,7 @@ public static class ApplicationBuilderExtensions
     {
         app.UseCratisArc();
         app.UseCratisChronicle();
+        app.UseCratisEventModelViewer();
         return app;
     }
 }

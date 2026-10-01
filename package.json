@@ -2,12 +2,13 @@
     "private": true,
     "workspaces": [
         "Source/**/*",
+        "!Source/DotNET/Screenplay.Embedded",
+        "!Source/DotNET/Screenplay.Embedded/**",
         "!**/dist",
         "!**/dist/**",
         "!**/bin/**",
         "!**/obj/**",
-        "Samples/**/*",
-        "TestApps/**/*"
+        "Samples/**/*"
     ],
     "engines": {
         "node": ">=23.0.0"

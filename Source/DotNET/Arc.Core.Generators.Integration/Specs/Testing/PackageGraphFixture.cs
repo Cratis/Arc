@@ -29,6 +29,7 @@ public sealed class PackageGraphFixture : IDisposable
         new("Cratis.Arc.Chronicle", "Chronicle/Chronicle.csproj"),
         new("Cratis.Arc.Swagger", "Swagger/Swagger.csproj"),
         new("Cratis.Arc.ProxyGenerator.Build", "Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj"),
+        new("Cratis.Arc.Screenplay.Embedded", "Screenplay.Embedded/Screenplay.Embedded.csproj"),
         new("Cratis", "Cratis/Cratis.csproj"),
         new("Cratis.CodeAnalysis", "Cratis.CodeAnalysis/Cratis.CodeAnalysis.csproj")
     ];
