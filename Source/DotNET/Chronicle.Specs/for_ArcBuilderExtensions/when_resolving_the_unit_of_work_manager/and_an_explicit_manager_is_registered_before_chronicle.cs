@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Chronicle;
 using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,7 +18,6 @@ public class and_an_explicit_manager_is_registered_before_chronicle : given.a_ch
     ServiceDescriptor _keyedDescriptor;
     IUnitOfWorkManager[] _managers;
     IUnitOfWorkManager _resolvedManager;
-    IEventStore _eventStore;
 
     void Establish()
     {
@@ -43,7 +41,6 @@ public class and_an_explicit_manager_is_registered_before_chronicle : given.a_ch
         await using var scope = _host.Services.CreateAsyncScope();
         _managers = scope.ServiceProvider.GetServices<IUnitOfWorkManager>().ToArray();
         _resolvedManager = scope.ServiceProvider.GetRequiredService<IUnitOfWorkManager>();
-        _eventStore = scope.ServiceProvider.GetRequiredService<IEventStore>();
         _resolvedKeyedManager = scope.ServiceProvider.GetRequiredKeyedService<IUnitOfWorkManager>("custom");
     }
 
@@ -53,6 +50,7 @@ public class and_an_explicit_manager_is_registered_before_chronicle : given.a_ch
     [Fact] void should_resolve_the_explicit_instance() => _managers.ShouldContain(_explicitManager);
     [Fact] void should_resolve_the_explicit_factory() => _managers.ShouldContain(_factoryManager);
     [Fact] void should_resolve_the_keyed_manager() => ReferenceEquals(_resolvedKeyedManager, _keyedManager).ShouldBeTrue();
-    [Fact] void should_use_the_event_stores_manager_by_default() => ReferenceEquals(_resolvedManager, _eventStore.UnitOfWorkManager).ShouldBeTrue();
+    [Fact] void should_use_the_last_explicit_manager_by_default() => ReferenceEquals(_resolvedManager, _factoryManager).ShouldBeTrue();
+    [Fact] void should_not_add_a_default_manager() => _managers.ShouldContainOnly(_explicitManager, _factoryManager);
     [Fact] void should_remove_the_convention_manager_descriptor() => _services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager) && !_.IsKeyedService && _.ImplementationType == typeof(UnitOfWorkManager)).ShouldBeEmpty();
 }
