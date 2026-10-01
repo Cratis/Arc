@@ -3,7 +3,9 @@
 
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle;
+using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc;
@@ -52,6 +54,11 @@ public static class ArcBuilderExtensions
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
+
+        // The event store owns the manager, including its lifecycle policy and namespace.
+        // Replace any earlier convention binding; later convention passes preserve this scoped factory.
+        builder.Services.RemoveAll<IUnitOfWorkManager>();
+        builder.Services.AddScoped(services => services.GetRequiredService<IEventStore>().UnitOfWorkManager);
 
         // Register after Chronicle: its own IDecisionReads registration otherwise replaces the command-aware one.
         builder.Services.AddCommandAwareDecisionReads();
