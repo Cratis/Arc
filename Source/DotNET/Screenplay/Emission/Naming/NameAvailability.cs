@@ -4,39 +4,36 @@
 namespace Cratis.Arc.Screenplay.Emission.Naming;
 
 /// <summary>
-/// Decides whether a name can be written where it is going, and reports every one that cannot.
+/// Decides whether a name can be written where it is going, and records names Screenplay must escape.
 /// </summary>
 /// <param name="naming">The <see cref="IScreenplayNaming"/> the name is written through.</param>
-/// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything left out is reported to.</param>
+/// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> escaped names are reported to.</param>
 /// <remarks>
-/// A line whose first word is a word the enclosing block reserves is read as that directive, so writing it produces
-/// a document that does not compile - or worse, one that compiles as something else entirely. The name cannot be
-/// escaped and cannot be changed without describing a member the application does not have, which leaves saying so
-/// and moving on as the only honest answer.
+/// Screenplay supports escaping a property, mapping, enumeration value, or projection mapping whose name is a word the
+/// enclosing block reserves. The printer adds that escape when the syntax tree needs it, so generation preserves the
+/// application's actual names instead of leaving them out.
 /// </remarks>
 public class NameAvailability(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
-    /// Gets whether a name can be written in a block, reporting it when it cannot.
+    /// Gets whether a name can be written in a block, reporting it when the printer must escape it.
     /// </summary>
     /// <param name="name">The name as the application declares it.</param>
     /// <param name="reserved">The <see cref="ReservedWords"/> of the block the name is written in.</param>
     /// <param name="declaringType">The type declaring the name, for use in diagnostics.</param>
     /// <param name="location">Where the declaring type lives, for use in diagnostics.</param>
-    /// <returns>True when the name can be written, false when it was left out.</returns>
+    /// <returns>True, because Screenplay can escape every reserved name this generator writes.</returns>
     public bool Allows(string name, ReservedWords reserved, string declaringType, string? location)
     {
         var written = naming.ToPropertyName(name);
-        if (!reserved.Reserve(written))
+        if (reserved.Reserve(written))
         {
-            return true;
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.NameReservedByGrammar,
+                $"'{name}' on '{declaringType}' is written as '@{written}' because a {reserved.Block} block reserves '{written}' as a directive",
+                location);
         }
 
-        diagnostics.Warning(
-            ScreenplayDiagnosticCodes.NameReservedByGrammar,
-            $"'{name}' on '{declaringType}' is written as '{written}', which a {reserved.Block} block reads as its own '{written}' directive rather than as a name, so it was left out",
-            location);
-
-        return false;
+        return true;
     }
 }

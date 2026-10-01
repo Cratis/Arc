@@ -17,6 +17,8 @@ namespace Cratis.Arc;
 /// </summary>
 public class ArcOptions
 {
+    bool _trustForwardedIdentityHeaders;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="ArcOptions"/> class.
     /// </summary>
@@ -54,6 +56,31 @@ public class ArcOptions
     /// Gets or sets the exposure options for command and query introspection.
     /// </summary>
     public IntrospectionOptions Introspection { get; set; } = new();
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the host trusts the Microsoft Identity Platform identity headers
+    /// (<c>x-ms-client-principal</c>, <c>x-ms-client-principal-id</c> and <c>x-ms-client-principal-name</c>) that a
+    /// trusted ingress forwards. Defaults to <see langword="false"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These headers are not signed: anyone who can reach the application directly can set them. Arc therefore
+    /// ignores them, and treats the request as anonymous, unless the host opts in. Enable this only when every
+    /// request reaches the application through an ingress that strips client-supplied identity headers and sets its
+    /// own, such as Azure App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy.
+    /// </para>
+    /// <para>
+    /// Bound from <c>Cratis:Arc:TrustForwardedIdentityHeaders</c>. The obsolete
+    /// <c>Cratis:Arc:Introspection:TrustForwardedIdentityHeaders</c> setting also turns it on.
+    /// </para>
+    /// </remarks>
+    public bool TrustForwardedIdentityHeaders
+    {
+#pragma warning disable CS0618 // Type or member is obsolete - the introspection setting is honored as an alias
+        get => _trustForwardedIdentityHeaders || (Introspection?.TrustForwardedIdentityHeaders ?? false);
+#pragma warning restore CS0618
+        set => _trustForwardedIdentityHeaders = value;
+    }
 
     /// <summary>
     /// Gets or sets the options for observable queries.

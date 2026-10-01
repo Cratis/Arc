@@ -13,6 +13,10 @@ namespace Cratis.Arc.Identity;
 /// <summary>
 /// Represents an <see cref="IAuthenticationHandler"/> for handling authentication in the context of Microsoft Identity Platform.
 /// </summary>
+/// <remarks>
+/// The forwarded identity headers are not signed. The handler ignores them, and the request stays anonymous, unless
+/// <see cref="ArcOptions.TrustForwardedIdentityHeaders"/> is enabled because the host runs behind a trusted ingress.
+/// </remarks>
 /// <param name="options">The <see cref="ArcOptions"/>.</param>
 /// <param name="loggerFactory">The <see cref="ILoggerFactory"/>.</param>
 public class MicrosoftIdentityPlatformAuthenticationHandler(
@@ -24,15 +28,17 @@ public class MicrosoftIdentityPlatformAuthenticationHandler(
     /// <inheritdoc/>
     public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext context)
     {
-        if (context.GetEndpointMetadata() is { RequireAuthentication: true } metadata &&
-            (metadata.Name == Introspection.IntrospectionEndpointMapper.CommandsEndpointName ||
-             metadata.Name == Introspection.IntrospectionEndpointMapper.QueriesEndpointName) &&
-            !options.Value.Introspection.TrustForwardedIdentityHeaders)
+        var headers = context.Headers;
+
+        if (!options.Value.TrustForwardedIdentityHeaders)
         {
+            if (UntrustedForwardedIdentityHeaders.ArePresent(headers.ContainsKey))
+            {
+                UntrustedForwardedIdentityHeaders.Report(_logger);
+            }
+
             return Task.FromResult(AuthenticationResult.Anonymous);
         }
-
-        var headers = context.Headers;
 
         if (!headers.ContainsKey(MicrosoftIdentityPlatformHeaders.IdentityIdHeader) ||
             !headers.ContainsKey(MicrosoftIdentityPlatformHeaders.IdentityNameHeader) ||

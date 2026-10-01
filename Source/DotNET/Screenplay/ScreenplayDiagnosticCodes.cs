@@ -261,8 +261,8 @@ public static class ScreenplayDiagnosticCodes
     /// Screenplay is line based and every block decides what a line is from its first word. A command property called
     /// <c>Description</c> is written as <c>description RequestDescription</c>, which the command body reads as the
     /// description of the command and rejects; an event property called <c>Tag</c> is written as <c>tag Something</c>,
-    /// which the event body reads as a tag and quietly swallows. The language has no escape for a name colliding this
-    /// way and no other name describes the member, so the line is left out and what was lost is said instead.
+    /// which the event body reads as a tag and quietly swallows. Screenplay's keyword escape preserves the name as
+    /// <c>@tag</c>, so this is reported as information that the generated name was escaped.
     /// </remarks>
     public const string NameReservedByGrammar = "SP0032";
 

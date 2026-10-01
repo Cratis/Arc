@@ -40,13 +40,36 @@ using Cratis.Arc;
 using Cratis.Arc.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddCratisArc();
+builder.AddCratisArc(options => options.TrustForwardedIdentityHeaders = true);
 builder.Services.AddMicrosoftIdentityPlatformIdentityAuthentication();
 builder.Services.AddAuthorization();
 ```
 
 The above code will then also call the `.AddAuthentication()` with the default scheme name (**MicrosoftIdentityPlatform**) and register
 the appropriate `AuthenticationHandler` for that scheme.
+
+### Trusting the forwarded headers
+
+Registering the scheme is not enough on its own. Because the headers are not signed, the handler ignores them and returns no result, so
+requests stay anonymous unless another scheme authenticates them, until the host opts in with `TrustForwardedIdentityHeaders`. Set it in
+code, as above, or in configuration:
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "TrustForwardedIdentityHeaders": true
+    }
+  }
+}
+```
+
+Opt in only when every request reaches the application through an ingress that strips caller-supplied identity headers and sets its own,
+such as Azure App Service or Container Apps authentication (EasyAuth) or Cratis AuthProxy. A host that calls
+`AddMicrosoftIdentityPlatformIdentityAuthentication()` (including through `AddCratis()`) while the headers are not trusted logs a warning
+that names this setting on every startup. The built-in header handlers also warn on the first request that carries untrusted headers.
+The setting applies to every endpoint,
+including protected [introspection catalogs](../introspection/index.md).
 
 You can override the scheme name on the extension method by passing your own string as an argument.
 

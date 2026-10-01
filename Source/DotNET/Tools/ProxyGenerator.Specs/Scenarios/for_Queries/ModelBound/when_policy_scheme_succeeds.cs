@@ -22,6 +22,7 @@ public class when_policy_scheme_succeeds : given.a_scenario_web_application
 
     async Task Because() => _result = await Bridge!.PerformQueryViaProxyAsync<PolicyProtectedReadModel>("All");
 
+    [Fact] void should_call_the_policy_protected_query_route() => _result!.RequestUrl.ShouldContain("/api/policy-protected-read-model");
     [Fact] void should_authorize_the_selected_identity() => _result!.Result.IsAuthorized.ShouldBeTrue();
     [Fact] void should_run_the_query() => PolicyProtectedReadModel.Performed.ShouldEqual(_performedBefore + 1);
     [Fact] void should_return_the_selected_identity() =>

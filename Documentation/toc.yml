@@ -28,5 +28,7 @@
   href: frontend/toc.yml
 - name: Troubleshooting
   href: troubleshooting.md
+- name: Upgrading
+  href: upgrading/toc.yml
 - name: Api
   href: ../../api/arc/

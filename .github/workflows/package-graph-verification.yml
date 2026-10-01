@@ -54,6 +54,19 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+
+      # The Screenplay.Embedded package carries the built event-model viewer and refuses to
+      # pack without it.
+      - name: Build embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run build
+
       - name: Build package graph outputs
         run: |
           dotnet build Source/DotNET/Cratis/Cratis.csproj --configuration Release

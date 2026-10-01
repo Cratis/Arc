@@ -40,9 +40,9 @@ Configure `Cratis:Arc:Introspection` to change that boundary:
 | `Enabled` | `true` | `false` leaves both catalog routes unmapped. |
 | `RequireAuthentication` | `false` | `true` requires an authenticated caller, regardless of the host's default authorization policy. |
 | `Roles` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true` and no empty entries. A caller without a listed role is denied. |
-| `TrustForwardedIdentityHeaders` | `false` | Accepts identity from unsigned forwarded headers for the protected catalog. Requires `Enabled: true` and `RequireAuthentication: true`. |
+| `TrustForwardedIdentityHeaders` | `false` | Obsolete. Setting it to `true` turns on the host-wide `Cratis:Arc:TrustForwardedIdentityHeaders`. See [Forwarded identity headers](#forwarded-identity-headers). |
 
-Startup validation rejects `Roles` or `TrustForwardedIdentityHeaders` combinations that do not meet these requirements. Arc.Core responds with 401 for anonymous requests and 403 for authenticated callers without a required role. On ASP.NET Core, the response depends on the configured authentication scheme's challenge and forbid behavior: cookie authentication can redirect instead of returning 401 or 403 unless configured otherwise.
+Startup validation rejects `Roles` combinations that do not meet these requirements. Arc.Core responds with 401 for anonymous requests and 403 for authenticated callers without a required role. On ASP.NET Core, the response depends on the configured authentication scheme's challenge and forbid behavior: cookie authentication can redirect instead of returning 401 or 403 unless configured otherwise.
 
 To omit an individual .NET command or query from the catalogs and generated OpenAPI,
 apply `[ExcludeFromDiscovery]` to the command, read model, query method, or controller
@@ -53,7 +53,7 @@ The JVM backend has no equivalent options: its catalog endpoints are always anon
 
 ### Forwarded identity headers
 
-The Microsoft Identity Platform (EasyAuth) mechanism reads `x-ms-client-principal*` headers without verifying a signature. Anyone who can reach the backend directly can forge them. Arc therefore does not accept them as the identity for a protected catalog unless you set `TrustForwardedIdentityHeaders: true`.
+The Microsoft Identity Platform (EasyAuth) mechanism reads `x-ms-client-principal*` headers without verifying a signature. Anyone who can reach the backend directly can forge them. Arc therefore ignores them on every request, including the protected catalogs, until the host sets `Cratis:Arc:TrustForwardedIdentityHeaders` to `true`. Without the opt-in, a request carrying only these headers is anonymous and a protected catalog returns 401.
 
 **Only opt in behind a trusted ingress that authenticates callers, strips client-supplied identity headers, writes its own values, and prevents direct access to the backend.**
 
@@ -61,26 +61,28 @@ The Microsoft Identity Platform (EasyAuth) mechanism reads `x-ms-client-principa
 {
   "Cratis": {
     "Arc": {
+      "TrustForwardedIdentityHeaders": true,
       "Introspection": {
-        "RequireAuthentication": true,
-        "TrustForwardedIdentityHeaders": true
+        "RequireAuthentication": true
       }
     }
   }
 }
 ```
 
+The opt-in is host-wide: once the host trusts the headers, they authenticate the catalogs exactly as they authenticate commands and queries. See [Microsoft Identity](../asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
+
 ### ASP.NET Core host
 
-With `RequireAuthentication: true`, startup requires a default authentication scheme and `builder.Services.AddAuthorization()`. Unless `TrustForwardedIdentityHeaders: true`, startup rejects a registered `MicrosoftIdentityPlatform` handler (including subclasses) reached through the default authentication scheme or an authentication scheme listed in the authorization policy applied to the catalog. This includes forwarding through policy schemes and other `AuthenticationHandler<TOptions>` handlers via `ForwardAuthenticate` or `ForwardDefault`. The catalog combines ASP.NET Core's default authorization policy with an explicit authenticated-user requirement and any configured roles. Arc checks both the default authentication scheme and schemes in the default authorization policy.
+With `RequireAuthentication: true`, startup requires a default authentication scheme and `builder.Services.AddAuthorization()`. The catalog combines ASP.NET Core's default authorization policy with an explicit authenticated-user requirement and any configured roles.
 
-A reachable scheme with `ForwardDefaultSelector` cannot be resolved without a request. If any unsigned identity-header handler is registered and that scheme has no `ForwardAuthenticate` override, startup fails closed: set `TrustForwardedIdentityHeaders: true` only behind trusted ingress, or use a static authentication scheme or `ForwardAuthenticate` instead. A selector does not block startup if no unsigned header handler is registered anywhere. Custom authentication handlers that do not derive from `AuthenticationHandler<TOptions>` and other request-dependent behavior cannot be inferred from scheme configuration; audit them and prevent direct backend access. The unsigned-header handler ignores headers for protected catalog endpoints when trust is disabled, before it can produce an authenticated principal. This also covers schemes supplied by route groups or named policies, including forwarding to the header handler, even if claims transformations rebuild identities. If authentication runs before routing identifies the endpoint, a request-local marker records successful header authentication and the catalog endpoint rejects that request with 401. These runtime checks run inside the built-in `HandleAuthenticateAsync`. A subclass that overrides `HandleAuthenticateAsync` without calling the base implementation is your own authentication handler: Arc cannot see what it reads, so call the base implementation first and return its result when it does not succeed, or do not let that scheme authenticate the protected catalogs unless `TrustForwardedIdentityHeaders` is `true`. Do not bypass authorization or endpoint filters in a custom pipeline.
+The built-in `MicrosoftIdentityPlatform` handler checks the host-wide opt-in inside `HandleAuthenticateAsync`, so the check also covers route groups, named policies, policy schemes that forward to the handler, and authentication that runs before routing. A subclass that overrides `HandleAuthenticateAsync` without calling the base implementation is your own authentication handler: Arc cannot see what it reads, so make it honor `ArcOptions.TrustForwardedIdentityHeaders` too.
 
 ### Arc.Core HttpListener host
 
-With `RequireAuthentication: true`, startup requires at least one Arc.Core authentication handler. If the only handler is the built-in `MicrosoftIdentityPlatformAuthenticationHandler`, startup also requires `TrustForwardedIdentityHeaders: true`. Without the opt-in, that handler ignores the forwarded headers on the catalog endpoints, so the request returns 401.
+With `RequireAuthentication: true`, startup requires at least one Arc.Core authentication handler. The built-in `MicrosoftIdentityPlatformAuthenticationHandler` ignores the forwarded headers until the host opts in, so a request that carries only those headers returns 401.
 
-Arc cannot tell whether your own `IAuthenticationHandler` reads forwarded headers. Startup accepts any custom handler as a credential-validating one. If your handler establishes identity from headers that an ingress sets, make it honor the same opt-in: when `TrustForwardedIdentityHeaders` is `false`, return `AuthenticationResult.Anonymous` for requests whose endpoint metadata requires authentication, as the protected catalog endpoints do, so the caller gets 401. See [Authentication](../core/authentication.md#endpoint-enforcement-and-limits).
+Arc cannot tell whether your own `IAuthenticationHandler` reads forwarded headers. If your handler establishes identity from headers that an ingress sets, make it honor the same opt-in: when `TrustForwardedIdentityHeaders` is `false`, return `AuthenticationResult.Anonymous`. See [Authentication](../core/authentication.md#microsoft-identity-platform-azure).
 
 These options do **not** change `/.cratis/identity-details/schema`, command/query invocation, or the anonymous [user and tenant discovery](../identity/development-and-topologies.md) endpoints. For the identity schema or other metadata you consider private, restrict those paths at trusted ingress and prevent direct backend access. Test anonymous and authorized requests against your deployed Production configuration.
 
