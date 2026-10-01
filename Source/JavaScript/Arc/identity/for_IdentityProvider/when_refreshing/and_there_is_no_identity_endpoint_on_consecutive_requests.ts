@@ -19,4 +19,6 @@ describe('when refreshing consecutively without an identity endpoint', given(a_b
     it('should retain the transition identity', () => refreshed.id.should.equal('user-123'));
     it('should retain the transition roles', () => refreshed.isInRole('Reader').should.be.true);
     it('should restore the root cookie for navigation', () => document.cookie.should.contain('.cratis-identity='));
+    it('should retain SameSite Lax on HTTP', () => context.cookieJar.getCookiesSync('http://localhost/')[0].sameSite!.should.equal('lax'));
+    it('should not require HTTPS on an HTTP site', () => context.cookieJar.getCookiesSync('http://localhost/')[0].secure.should.be.false);
 }));

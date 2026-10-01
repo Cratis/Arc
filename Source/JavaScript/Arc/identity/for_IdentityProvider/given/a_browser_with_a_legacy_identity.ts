@@ -8,20 +8,30 @@ import { IdentityProvider } from '../../IdentityProvider.js';
 export class a_browser_with_a_legacy_identity extends an_identity_provider {
     private browser!: JSDOM;
     private originalDocument!: Document;
+    private originalLocation: Location | undefined;
+    protected browserUrl = 'http://localhost/nested/page';
+
+    get cookieJar() {
+        return this.browser.cookieJar;
+    }
 
     constructor() {
         super();
         beforeEach(() => {
             this.originalDocument = document;
-            this.browser = new JSDOM('', { url: 'http://localhost/nested/page' });
+            this.originalLocation = global.location;
+            this.browser = new JSDOM('', { url: this.browserUrl });
             global.document = this.browser.window.document;
-            document.cookie = `.cratis-identity=${btoa(JSON.stringify({ id: 'user-123', name: 'Original User', roles: ['Reader'], details: {} }))};path=/`;
+            global.location = this.browser.window.location;
+            document.cookie = `.cratis-identity=${btoa(JSON.stringify({ id: 'user-123', name: 'Original User', roles: ['Reader'], details: {} }))};path=/;samesite=lax${location.protocol === 'https:' ? ';secure' : ''}`;
             this.fetchStub.resolves({ ok: false, status: 404 } as Response);
         });
         afterEach(() => {
             IdentityProvider.clearCache();
             this.browser.window.close();
             global.document = this.originalDocument;
+            if (this.originalLocation) global.location = this.originalLocation;
+            else delete (global as { location?: Location }).location;
         });
     }
 
@@ -31,5 +41,6 @@ export class a_browser_with_a_legacy_identity extends an_identity_provider {
         this.browser.window.close();
         this.browser = new JSDOM('', { url, cookieJar });
         global.document = this.browser.window.document;
+        global.location = this.browser.window.location;
     }
 }

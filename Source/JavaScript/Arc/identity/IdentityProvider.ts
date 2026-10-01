@@ -192,7 +192,7 @@ export class IdentityProvider extends IIdentityProvider {
             const result = JSON.parse(atob(decodeURIComponent(cookie.substring(`${IdentityProvider.CookieName}=`.length)))) as IdentityProviderResult;
             // The proxy may not reissue its cookie while its own authorization record remains valid. Restore the
             // transition fallback after a 404 so it also survives a reload, without changing a response cookie.
-            if (!responseCookie) document.cookie = `${cookie};path=/`;
+            if (!responseCookie) document.cookie = `${cookie};path=/;samesite=lax${location.protocol === 'https:' ? ';secure' : ''}`;
             if (!IdentityProvider.hasWarnedAboutLegacyCookie) {
                 IdentityProvider.hasWarnedAboutLegacyCookie = true;
                 console.warn(
