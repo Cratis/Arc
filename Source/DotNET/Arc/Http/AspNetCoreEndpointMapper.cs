@@ -39,6 +39,9 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     IReadOnlySet<string> PreExisting => _preExisting ??= endpoints.EndpointNames();
 
     /// <inheritdoc/>
+    IServiceProvider? IIntrospectionExposureGuard.Services => endpoints.ServiceProvider;
+
+    /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
         Map("GET", pattern, handler, metadata);
 

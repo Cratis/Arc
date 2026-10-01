@@ -10,6 +10,8 @@ namespace Cratis.Arc.Introspection;
 /// </summary>
 public class IntrospectionOptions
 {
+    bool? _requireAuthentication;
+
     /// <summary>
     /// Gets or sets whether both catalog endpoints are mapped. Defaults to true. Identity discovery is always mapped.
     /// </summary>
@@ -21,7 +23,8 @@ public class IntrospectionOptions
     /// <remarks>
     /// <para>
     /// When not set, the default, the endpoints are anonymous in Development and require an authenticated caller
-    /// everywhere else. Set it to <see langword="false"/> to expose them anonymously in every environment, or to
+    /// everywhere else. The getter returns false when unset, but only an explicit assignment overrides the environment default.
+    /// Set it to <see langword="false"/> to expose them anonymously in every environment, or to
     /// <see langword="true"/> to require authentication in every environment, including Development.
     /// </para>
     /// <para>
@@ -30,7 +33,11 @@ public class IntrospectionOptions
     /// <see langword="true"/>, the same host fails at startup instead.
     /// </para>
     /// </remarks>
-    public bool? RequireAuthentication { get; set; }
+    public bool RequireAuthentication
+    {
+        get => _requireAuthentication ?? false;
+        set => _requireAuthentication = value;
+    }
 
     /// <summary>
     /// Gets or sets comma-separated roles, any one of which grants access. Roles are trimmed; empty roles are rejected.
@@ -52,12 +59,17 @@ public class IntrospectionOptions
     /// <summary>
     /// Gets whether authentication was asked for explicitly, rather than by the environment default.
     /// </summary>
-    internal bool AuthenticationExplicitlyRequired => RequireAuthentication == true || Roles is not null;
+    internal bool AuthenticationExplicitlyRequired => _requireAuthentication == true || Roles is not null;
+
+    /// <summary>
+    /// Gets whether anonymous exposure was requested explicitly.
+    /// </summary>
+    internal bool AuthenticationExplicitlyDisabled => _requireAuthentication == false;
 
     /// <summary>
     /// Decides whether callers of the discovery endpoints must be authenticated.
     /// </summary>
     /// <param name="isDevelopment">Whether the host runs in the Development environment.</param>
     /// <returns>True if callers must be authenticated.</returns>
-    internal bool RequiresAuthentication(bool isDevelopment) => AuthenticationExplicitlyRequired || (RequireAuthentication ?? !isDevelopment);
+    internal bool RequiresAuthentication(bool isDevelopment) => AuthenticationExplicitlyRequired || (_requireAuthentication ?? !isDevelopment);
 }

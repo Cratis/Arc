@@ -9,6 +9,11 @@ namespace Cratis.Arc.Introspection;
 internal interface IIntrospectionExposureGuard
 {
     /// <summary>
+    /// Gets the host services, when available, for resolving the actual host environment.
+    /// </summary>
+    IServiceProvider? Services => null;
+
+    /// <summary>
     /// Finds the reason the host cannot require authenticated callers, if any.
     /// </summary>
     /// <returns>The reason, or null if the host can enforce authentication.</returns>

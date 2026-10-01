@@ -42,7 +42,7 @@ public static class IdentityEndpointMapper
         var hasIdentityDetailsProvider = serviceProviderIsService?.IsService(typeof(IProvideIdentityDetails)) == true;
         var discovery = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.Introspection ?? new IntrospectionOptions();
         var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger(typeof(IdentityEndpointMapper).FullName!);
-        var access = DiscoveryExposure.Resolve(mapper, discovery, logger);
+        var access = DiscoveryExposure.Resolve(mapper, discovery, serviceProvider, logger);
 
         if (access != DiscoveryAccess.Unavailable && !mapper.EndpointExists(GetIdentityDetailsSchemaEndpointName))
         {

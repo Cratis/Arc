@@ -82,8 +82,11 @@ invocation and `/.cratis/me` are not affected.
 anonymous only in Development, where Lens and the Cratis CLI read them locally. Everywhere else
 they require an authenticated caller, so an anonymous request gets 401. A host outside
 Development that has no way to authenticate callers, such as an ASP.NET Core host without a
-default authentication scheme, does not map them at all (404) and logs a warning that names the
-setting below on startup. Development is decided by `ASPNETCORE_ENVIRONMENT`.
+default authentication scheme or an Arc.Core host without authentication handlers, does not map
+them at all (404) and logs a warning that names the setting below on startup. Development is
+decided by the host's `IHostEnvironment.IsDevelopment()`, including environment names configured
+through `DOTNET_ENVIRONMENT`, command-line arguments or host options. Only when no host
+environment is registered does Arc fall back to `ASPNETCORE_ENVIRONMENT`.
 
 **What to do:** nothing, if only signed-in users or local tooling read these endpoints. To
 expose them anonymously as before, add one line to the options you pass to `AddCratis` or
@@ -96,8 +99,9 @@ builder.AddCratisArc(options => options.Introspection.RequireAuthentication = fa
 Or set `Cratis__Arc__Introspection__RequireAuthentication=false`. Outside Development the host
 then logs a warning on startup that the endpoints are anonymous.
 
-`Introspection.RequireAuthentication` is now `bool?`. Code that read it as a `bool` must
-compare it explicitly, for example `options.Introspection.RequireAuthentication == true`.
+`Introspection.RequireAuthentication` remains a `bool` for source compatibility. Its getter
+returns `false` when unset, but leaving it unset selects the environment default; explicitly
+assigning `false` opts into anonymous discovery in every environment.
 `Introspection.Roles` now implies authentication on its own instead of needing
 `RequireAuthentication: true`.
 

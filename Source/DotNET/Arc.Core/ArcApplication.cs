@@ -32,7 +32,7 @@ public class ArcApplication : IHost, IAsyncDisposable
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
         var logger = host.Services.GetRequiredService<ILogger<HttpListenerEndpointMapper>>();
-        EndpointMapper = new HttpListenerEndpointMapper(logger, [.. prefixes]);
+        EndpointMapper = new HttpListenerEndpointMapper(logger, host.Services, [.. prefixes]);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
         Internals.ServiceProvider = host.Services;

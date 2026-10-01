@@ -19,7 +19,7 @@ The command and query catalog endpoints are mapped in both Arc.Core and ASP.NET 
 
 ## Production access
 
-The discovery endpoints expose operation names, types, routes, users, tenants and the identity details schema, regardless of whether a caller may execute anything. By default Arc therefore exposes them anonymously only in Development, so local tooling works without configuration, and requires an authenticated caller everywhere else. Development means `ASPNETCORE_ENVIRONMENT` is `Development`, the same check that decides `ExposeExceptionDetails`.
+The discovery endpoints expose operation names, types, routes, users, tenants and the identity details schema, regardless of whether a caller may execute anything. By default Arc therefore exposes them anonymously only in Development, so local tooling works without configuration, and requires an authenticated caller everywhere else. Development follows the host's `IHostEnvironment.IsDevelopment()`, including environment names selected through configuration, command-line arguments or host options. Only without a registered host environment does discovery fall back to `ASPNETCORE_ENVIRONMENT`.
 
 Outside Development, if the host has no way to authenticate callers, for example an ASP.NET Core host without a default authentication scheme, Arc does not map the discovery endpoints at all and logs a warning that names the setting below. `/.cratis/me` is not a discovery endpoint: it answers for the caller itself and is always mapped.
 

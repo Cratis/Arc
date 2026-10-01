@@ -26,7 +26,7 @@ public class IntrospectionOptionsValidator : IValidateOptions<ArcOptions>
         if (introspection.Roles is not null)
         {
             var roles = introspection.Roles.Split(',').Select(role => role.Trim()).ToArray();
-            if (introspection.RequireAuthentication == false || roles.Any(string.IsNullOrWhiteSpace))
+            if (introspection.AuthenticationExplicitlyDisabled || roles.Any(string.IsNullOrWhiteSpace))
             {
                 return ValidateOptionsResult.Fail("Cratis:Arc:Introspection:Roles cannot be combined with RequireAuthentication=false and must be a comma-separated list of nonempty roles.");
             }

@@ -3,6 +3,8 @@
 
 using Cratis.Arc.Http;
 using Cratis.Execution;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Introspection;
@@ -13,7 +15,6 @@ namespace Cratis.Arc.Introspection;
 internal static class DiscoveryExposure
 {
     static int _reportedAnonymous;
-    static int _reportedUnavailable;
 
     /// <summary>
     /// Decides how the discovery endpoints are exposed by the given mapper.
@@ -24,7 +25,18 @@ internal static class DiscoveryExposure
     /// <returns>The <see cref="DiscoveryAccess"/> to map the endpoints with.</returns>
     /// <exception cref="InvalidIntrospectionConfiguration">The settings are invalid, or authentication is explicitly required and the host cannot enforce it.</exception>
     internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, ILogger? logger = null) =>
-        Resolve(mapper, options, RuntimeEnvironment.IsDevelopment, logger);
+        Resolve(mapper, options, (mapper as IIntrospectionExposureGuard)?.Services, logger);
+
+    /// <summary>
+    /// Decides exposure using the actual host environment, falling back only when there is no host environment.
+    /// </summary>
+    /// <param name="mapper">The endpoint mapper.</param>
+    /// <param name="options">The discovery exposure settings.</param>
+    /// <param name="services">The host services.</param>
+    /// <param name="logger">Optional logger to report exposure that needs attention.</param>
+    /// <returns>The discovery access.</returns>
+    internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, IServiceProvider? services, ILogger? logger = null) =>
+        Resolve(mapper, options, services?.GetService<IHostEnvironment>()?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment, logger);
 
     /// <summary>
     /// Decides how the discovery endpoints are exposed by the given mapper in the given environment.
@@ -56,10 +68,7 @@ internal static class DiscoveryExposure
                 throw new InvalidIntrospectionConfiguration(problem);
             }
 
-            if (logger is not null && Interlocked.Exchange(ref _reportedUnavailable, 1) == 0)
-            {
-                logger.DiscoveryNotMapped(problem);
-            }
+            logger?.DiscoveryNotMapped(problem);
 
             return DiscoveryAccess.Unavailable;
         }
