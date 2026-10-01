@@ -165,13 +165,24 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 
     static bool ProducesEvents(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol { IsGenericType: true } named && (named.Name == "Task" || named.Name == "ValueTask" || named.Name == "Result"))
+        // The command pipeline awaits Task/ValueTask, then unwraps IOneOf branches (Result, OneOf) and tuple elements, so mirror
+        // that nesting: Task<Result<EventsWithConcurrencyScopes, ValidationResult>> still produces events.
+        if (type is INamedTypeSymbol { IsGenericType: true } named)
         {
-            type = named.TypeArguments[0];
+            if (named.Name == "Task" || named.Name == "ValueTask" || named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+            {
+                return ProducesEvents(named.TypeArguments[0]);
+            }
+
+            if (named.Name == "Result" || named.Name == "OneOf" ||
+                named.AllInterfaces.Any(_ => _.Name == "IOneOf" && _.ContainingNamespace.ToDisplayString() == "OneOf"))
+            {
+                return named.TypeArguments.Any(ProducesEvents);
+            }
         }
-        if (type is INamedTypeSymbol tuple && tuple.IsTupleType)
+        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.Any(_ => IsEventValue(_.Type));
+            return tuple.TupleElements.Any(_ => ProducesEvents(_.Type));
         }
         return IsEventValue(type);
     }
@@ -180,7 +191,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     {
         if (type is IArrayTypeSymbol array)
         {
-            return IsEventValue(array.ElementType);
+            // An object[] is an IEnumerable<object>, which the pipeline accepts as a set of events.
+            return array.ElementType.SpecialType == SpecialType.System_Object || IsEventValue(array.ElementType);
         }
 
         if (type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" ||
