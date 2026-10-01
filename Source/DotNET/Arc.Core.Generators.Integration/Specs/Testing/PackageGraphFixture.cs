@@ -125,6 +125,8 @@ public sealed class PackageGraphFixture : IDisposable
 
     Dictionary<string, PackageArchive> PackPackages()
     {
+        BuildEmbeddedEventModelViewer();
+
         foreach (var package in _packageDefinitions)
         {
             var projectPath = Path.Join(RepositoryRoot, "Source", "DotNET", package.ProjectPath);
@@ -153,6 +155,22 @@ public sealed class PackageGraphFixture : IDisposable
             package => package.Id,
             package => ReadPackage(package.Id),
             StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Builds the embedded event-model viewer's wwwroot assets.
+    /// </summary>
+    /// <remarks>
+    /// Cratis.Arc.Screenplay.Embedded embeds its wwwroot assets as embedded resources and
+    /// refuses to pack without them (see RequireEventModelViewerForPack in its csproj). This
+    /// fixture packs the exact-head source, so the viewer is built here rather than relying on
+    /// whichever CI job happens to invoke this fixture to have built it beforehand.
+    /// </remarks>
+    void BuildEmbeddedEventModelViewer()
+    {
+        var viewerDirectory = Path.Join(RepositoryRoot, "Source", "DotNET", "Screenplay.Embedded");
+        RunProcess("npm", viewerDirectory, ["ci", "--workspaces=false"]);
+        RunProcess("npm", viewerDirectory, ["run", "build"]);
     }
 
     PackageArchive ReadPackage(string packageId)
@@ -458,11 +476,27 @@ public sealed class PackageGraphFixture : IDisposable
 
     ProcessResult RunDotNet(string workingDirectory, IReadOnlyCollection<string> arguments, bool isolatedPackages = false)
     {
+        var environment = new Dictionary<string, string>
+        {
+            ["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1",
+            ["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1",
+            ["MSBUILDDISABLENODEREUSE"] = "1"
+        };
+        if (isolatedPackages)
+        {
+            environment["NUGET_PACKAGES"] = _packagesDirectory;
+        }
+
+        return RunProcess("dotnet", workingDirectory, arguments, environment);
+    }
+
+    ProcessResult RunProcess(string fileName, string workingDirectory, IReadOnlyCollection<string> arguments, IReadOnlyDictionary<string, string>? environment = null)
+    {
         using var process = new Process
         {
             StartInfo = new()
             {
-                FileName = "dotnet",
+                FileName = fileName,
                 WorkingDirectory = workingDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -473,15 +507,12 @@ public sealed class PackageGraphFixture : IDisposable
         {
             process.StartInfo.ArgumentList.Add(argument);
         }
-        process.StartInfo.Environment["DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER"] = "1";
-        process.StartInfo.Environment["DOTNET_SKIP_FIRST_TIME_EXPERIENCE"] = "1";
-        process.StartInfo.Environment["MSBUILDDISABLENODEREUSE"] = "1";
-        if (isolatedPackages)
+        foreach (var (key, value) in environment ?? new Dictionary<string, string>())
         {
-            process.StartInfo.Environment["NUGET_PACKAGES"] = _packagesDirectory;
+            process.StartInfo.Environment[key] = value;
         }
 
-        var command = $"dotnet {string.Join(' ', arguments)}";
+        var command = $"{fileName} {string.Join(' ', arguments)}";
         process.Start();
         var standardOutputTask = process.StandardOutput.ReadToEndAsync();
         var standardErrorTask = process.StandardError.ReadToEndAsync();
