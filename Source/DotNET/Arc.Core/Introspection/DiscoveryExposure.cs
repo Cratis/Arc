@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.CompilerServices;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,7 @@ namespace Cratis.Arc.Introspection;
 /// </summary>
 internal static class DiscoveryExposure
 {
+    static readonly ConditionalWeakTable<object, HashSet<string>> _reportedProblems = new();
     static int _reportedAnonymous;
 
     /// <summary>
@@ -36,7 +38,7 @@ internal static class DiscoveryExposure
     /// <param name="logger">Optional logger to report exposure that needs attention.</param>
     /// <returns>The discovery access.</returns>
     internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, IServiceProvider? services, ILogger? logger = null) =>
-        Resolve(mapper, options, services?.GetService<IHostEnvironment>()?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment, logger);
+        Resolve(mapper, options, services?.GetService<IHostEnvironment>()?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment, logger, services ?? (object)mapper);
 
     /// <summary>
     /// Decides how the discovery endpoints are exposed by the given mapper in the given environment.
@@ -47,34 +49,8 @@ internal static class DiscoveryExposure
     /// <param name="logger">Optional logger to report exposure that needs attention.</param>
     /// <returns>The <see cref="DiscoveryAccess"/> to map the endpoints with.</returns>
     /// <exception cref="InvalidIntrospectionConfiguration">The settings are invalid, or authentication is explicitly required and the host cannot enforce it.</exception>
-    internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger = null)
-    {
-        ThrowIfInvalid(options);
-
-        if (!options.RequiresAuthentication(isDevelopment))
-        {
-            if (!isDevelopment && logger is not null && Interlocked.Exchange(ref _reportedAnonymous, 1) == 0)
-            {
-                logger.DiscoveryExposedAnonymously();
-            }
-
-            return DiscoveryAccess.Anonymous;
-        }
-
-        if (mapper is IIntrospectionExposureGuard guard && guard.FindEnforcementProblem() is string problem)
-        {
-            if (options.AuthenticationExplicitlyRequired)
-            {
-                throw new InvalidIntrospectionConfiguration(problem);
-            }
-
-            logger?.DiscoveryNotMapped(problem);
-
-            return DiscoveryAccess.Unavailable;
-        }
-
-        return DiscoveryAccess.Authenticated;
-    }
+    internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger = null) =>
+        Resolve(mapper, options, isDevelopment, logger, (mapper as IIntrospectionExposureGuard)?.Services ?? (object)mapper);
 
     /// <summary>
     /// Throws if the discovery exposure settings are invalid.
@@ -108,5 +84,44 @@ internal static class DiscoveryExposure
             RequireAuthentication = authenticated,
             Roles = authenticated ? options.Roles : null
         };
+    }
+
+    static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger, object host)
+    {
+        ThrowIfInvalid(options);
+
+        if (!options.RequiresAuthentication(isDevelopment))
+        {
+            if (!isDevelopment && logger is not null && Interlocked.Exchange(ref _reportedAnonymous, 1) == 0)
+            {
+                logger.DiscoveryExposedAnonymously();
+            }
+
+            return DiscoveryAccess.Anonymous;
+        }
+
+        if (mapper is IIntrospectionExposureGuard guard && guard.FindEnforcementProblem() is string problem)
+        {
+            if (options.AuthenticationExplicitlyRequired)
+            {
+                throw new InvalidIntrospectionConfiguration(problem);
+            }
+
+            if (logger is not null)
+            {
+                var reported = _reportedProblems.GetValue(host, _ => []);
+                lock (reported)
+                {
+                    if (reported.Add(problem))
+                    {
+                        logger.DiscoveryNotMapped(problem);
+                    }
+                }
+            }
+
+            return DiscoveryAccess.Unavailable;
+        }
+
+        return DiscoveryAccess.Authenticated;
     }
 }

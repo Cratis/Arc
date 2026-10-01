@@ -35,6 +35,8 @@ Configuration-bindable settings can be supplied three ways, layered in this orde
 2. **Environment variables** with the `Cratis__Arc__` prefix (.NET maps the `__` separator onto nested keys), for example `Cratis__Arc__GeneratedApis__RoutePrefix`.
 3. **Code**, via the `configureOptions` callback — it runs after binding, so it overrides the file and the environment.
 
+Bind `ArcOptions` only through the host's `AddCratisArc` / `AddCratis` registration (or `IHostBuilder.AddCratisArcCore`), not through an additional `services.Configure<ArcOptions>(section)` or `section.Bind(options)`. Arc's binding preserves an unset `Introspection.RequireAuthentication`; the stock .NET binder can write its getter's `false` value back even when the key is absent, making discovery anonymous in every environment (or failing validation when `Roles` is set). Assigning `RequireAuthentication` from its own getter, including a property-by-property copy, likewise counts as an explicit opt-out. Leave the property untouched to retain the environment default, or assign an intentional override in `configureOptions`.
+
 ```csharp
 builder.AddCratisArc(options =>
 {
@@ -88,7 +90,7 @@ For example, the equivalent `appsettings.json` keys are:
 }
 ```
 
-These settings cover the command and query catalogs, not the separately mapped identity-details schema. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
+`RequireAuthentication` and `Roles` govern all five discovery endpoints: the command and query catalogs, users, tenants, and the identity-details schema. Only `Enabled` is catalog-specific. Outside Development, hosts without authentication leave the discovery endpoints unmapped by default and warn once per host; explicitly requiring authentication on such a host fails startup. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
 
