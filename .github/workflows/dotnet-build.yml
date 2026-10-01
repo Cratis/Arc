@@ -35,6 +35,7 @@ on:
       - "Source/DotNET/**"
       - "Specifications/**"
       - "TestApps/**"
+      - "Samples/**"
       # What the build compiles against, not only what it compiles. A package
       # version bump touches none of the paths above, so it used to reach main
       # without ever having been built - which is how a Chronicle release that
@@ -133,6 +134,17 @@ jobs:
 
       - name: Yarn install
         run: yarn install --immutable
+
+      # Pull requests are built with this workflow from main, so it builds the embedded event-model viewer
+      # wherever the code being built has one, before the .NET build embeds it.
+      - name: Build and test embedded event-model viewer
+        if: hashFiles('Source/DotNET/Screenplay.Embedded/package.json') != ''
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run typecheck
+          npm test
+          npm run build
 
       - name: Build
         run: dotnet build --configuration Release
@@ -238,16 +250,22 @@ jobs:
 
       # The build output artifact carries bin folders only, and reading a project through MSBuild needs the assets
       # file that restore writes to obj.
+      # Pull requests are checked with this workflow from main while TestApps is being renamed to Samples, so the
+      # applications are read from whichever folder the code being checked has.
+      - name: Find the applications to generate from
+        run: |
+          if [ -d Samples ]; then echo "APPS=Samples" >> "$GITHUB_ENV"; else echo "APPS=TestApps" >> "$GITHUB_ENV"; fi
+
       - name: Restore the applications to generate from
         run: |
-          dotnet restore TestApps/AspNetCore/AspNetCore.csproj
-          dotnet restore TestApps/Chronicle/Chronicle.csproj
-          dotnet restore TestApps/Layered/Layered.csproj
+          dotnet restore "${APPS}/AspNetCore/AspNetCore.csproj"
+          dotnet restore "${APPS}/Chronicle/Chronicle.csproj"
+          dotnet restore "${APPS}/Layered/Layered.csproj"
 
       - name: Generate and read back the document of a real application
         run: |
           dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
-            TestApps/AspNetCore/AspNetCore.csproj \
+            "${APPS}/AspNetCore/AspNetCore.csproj" \
             "${RUNNER_TEMP}/AspNetCore.play"
 
       # Everything an event sourced application declares - events, the constants a projection sets and the scenarios
@@ -256,7 +274,7 @@ jobs:
       - name: Generate and read back the document of a real event sourced application
         run: |
           dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
-            TestApps/Chronicle/Chronicle.csproj \
+            "${APPS}/Chronicle/Chronicle.csproj" \
             "${RUNNER_TEMP}/Chronicle.play"
 
       # The two applications above are each one project, and a whole class of defect only exists between projects: a
@@ -268,9 +286,9 @@ jobs:
       - name: Generate and read back the document of a real application written as several projects
         run: |
           dotnet Source/DotNET/Screenplay.EndToEnd/bin/Release/net10.0/Cratis.Arc.Screenplay.EndToEnd.dll \
-            TestApps/Layered/Layered.csproj \
+            "${APPS}/Layered/Layered.csproj" \
             "${RUNNER_TEMP}/Layered.play" \
-            TestApps/Layered/Layered.expected
+            "${APPS}/Layered/Layered.expected"
 
   proxy-specs:
     needs: [dotnet-build]
