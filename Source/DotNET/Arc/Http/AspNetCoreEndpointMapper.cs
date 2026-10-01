@@ -26,6 +26,9 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     readonly HashSet<string> _mapped = new(StringComparer.Ordinal);
     IReadOnlySet<string>? _preExisting;
 
+    /// <inheritdoc/>
+    IServiceProvider? IIntrospectionExposureGuard.Services => endpoints.ServiceProvider;
+
     /// <summary>
     /// Gets the names of the endpoints that were already registered when this mapper started mapping.
     /// </summary>
@@ -54,15 +57,17 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     public bool EndpointExists(string name) => _mapped.Contains(name) || PreExisting.Contains(name);
 
     /// <inheritdoc/>
-    void IIntrospectionExposureGuard.Validate(IntrospectionOptions options)
+    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
     {
-        var services = endpoints.ServiceProvider;
-        _ = services.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() ??
-            throw new InvalidIntrospectionConfiguration("Introspection requires a default ASP.NET Core authentication scheme when RequireAuthentication is true.");
-        if (services.GetService<IAuthorizationService>() is null)
+        services ??= endpoints.ServiceProvider;
+        if (services.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() is null)
         {
-            throw new InvalidIntrospectionConfiguration("Introspection requires ASP.NET Core authorization services (AddAuthorization) when RequireAuthentication is true.");
+            return "Requiring authentication on the discovery endpoints needs a default ASP.NET Core authentication scheme.";
         }
+
+        return services.GetService<IAuthorizationService>() is null
+            ? "Requiring authentication on the discovery endpoints needs ASP.NET Core authorization services (AddAuthorization)."
+            : null;
     }
 
     void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)

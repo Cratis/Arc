@@ -11,7 +11,7 @@ The identity details schema introspection endpoint returns JSON Schema for the i
 
 ## When Arc maps this endpoint
 
-Normal Arc identity activation maps this endpoint unless one with the same endpoint name already exists. It is explicitly anonymous in every environment, including Production; see [production access](index.md#production-access).
+Normal Arc identity activation maps this endpoint unless one with the same endpoint name already exists or the host cannot enforce its discovery access settings. Like the other four discovery endpoints, it follows `Introspection.RequireAuthentication` and `Introspection.Roles`: anonymous in Development and authenticated elsewhere by default. Outside Development, a host without authentication leaves it unmapped and logs a warning; explicitly requiring authentication on such a host fails startup. Setting `Introspection.Enabled` to `false` disables only the command and query catalogs, not this endpoint. See [production access](index.md#production-access).
 
 ## What it returns
 

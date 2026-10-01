@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using Cratis.Arc.Authentication;
+using Cratis.Arc.Introspection;
 using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,14 +13,16 @@ namespace Cratis.Arc.Http;
 /// <summary>
 /// Implementation of <see cref="IEndpointMapper"/> using <see cref="HttpListener"/>.
 /// </summary>
-public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
+public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposureGuard, IDisposable
 {
     readonly HttpListener _listener = new();
     readonly Dictionary<string, EndpointMetadata> _endpoints = [];
     readonly ILogger<HttpListenerEndpointMapper> _logger;
     readonly List<PendingRoute> _pendingRoutes = [];
+    readonly List<Action<IServiceProvider>> _pendingDiscoveryMappings = [];
     readonly List<RouteInfo> _registeredRoutes = [];
     readonly List<StaticFileOptions> _pendingStaticFileConfigurations = [];
+    IServiceProvider? _services;
     WellKnownRoutesMiddleware? _wellKnownRoutesMiddleware;
     StaticFilesMiddleware? _staticFilesMiddleware;
     FallbackMiddleware? _fallbackMiddleware;
@@ -48,10 +52,43 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
     }
 
     /// <summary>
+    /// Initializes a new instance of the <see cref="HttpListenerEndpointMapper"/> class with host services.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="services">The host services for discovery exposure decisions.</param>
+    /// <param name="prefixes">HTTP prefixes to listen on.</param>
+    internal HttpListenerEndpointMapper(ILogger<HttpListenerEndpointMapper> logger, IServiceProvider services, params string[] prefixes)
+        : this(logger, prefixes)
+    {
+        _services = services;
+    }
+
+    /// <inheritdoc/>
+    IServiceProvider? IIntrospectionExposureGuard.Services => _services;
+
+    /// <summary>
     /// Gets all registered routes with their metadata.
     /// </summary>
     /// <returns>A collection of route information.</returns>
     public IEnumerable<RouteInfo> Routes => _registeredRoutes;
+
+    /// <inheritdoc/>
+    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services) =>
+        (services ?? _services)?.GetService<IAuthentication>()?.HasHandlers != true
+            ? "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler."
+            : null;
+
+    /// <inheritdoc/>
+    bool IIntrospectionExposureGuard.TryDeferMapping(Action<IServiceProvider> mapping)
+    {
+        if (_services is not null)
+        {
+            return false;
+        }
+
+        _pendingDiscoveryMappings.Add(mapping);
+        return true;
+    }
 
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
@@ -87,6 +124,15 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IDisposable
         {
             return;
         }
+
+        _services = serviceProvider;
+
+        // Resolve discovery before opening the listener, using the actual host rather than the process environment.
+        foreach (var mapping in _pendingDiscoveryMappings)
+        {
+            mapping(serviceProvider);
+        }
+        _pendingDiscoveryMappings.Clear();
 
         // Initialize middlewares
         _wellKnownRoutesMiddleware = new WellKnownRoutesMiddleware(
