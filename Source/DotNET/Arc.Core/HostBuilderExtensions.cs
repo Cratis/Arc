@@ -50,7 +50,7 @@ public static class HostBuilderExtensions
         builder.ConfigureServices((context, services) =>
         {
             var configSection = configSectionPath ?? ConfigurationPath.Combine(DefaultSectionPaths);
-            services.Configure<ArcOptions>(context.Configuration.GetSection(configSection));
+            ArcOptionsConfiguration.Configure(services, context.Configuration.GetSection(configSection));
 
             services.AddOptions<ArcOptions>()
                 .ValidateOnStart();

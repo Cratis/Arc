@@ -7,13 +7,13 @@ namespace Cratis.Arc.Introspection.for_IntrospectionOptions;
 
 public class when_binding_without_an_authentication_override : Specification
 {
-    IntrospectionOptions _options = new();
+    ArcOptions _options = new();
 
-    void Because() => new ConfigurationBuilder()
-        .AddInMemoryCollection(new Dictionary<string, string?> { ["Enabled"] = "true" })
-        .Build().Bind(_options);
+    void Because() => ArcOptionsConfiguration.Bind(_options, new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?> { ["Introspection:Enabled"] = "true" })
+        .Build());
 
-    [Fact] void should_keep_the_environment_default_outside_development() => _options.RequiresAuthentication(isDevelopment: false).ShouldBeTrue();
-    [Fact] void should_keep_the_environment_default_in_development() => _options.RequiresAuthentication(isDevelopment: true).ShouldBeFalse();
-    [Fact] void should_not_treat_binding_as_an_explicit_override() => _options.AuthenticationExplicitlyDisabled.ShouldBeFalse();
+    [Fact] void should_keep_the_environment_default_outside_development() => _options.Introspection.RequiresAuthentication(isDevelopment: false).ShouldBeTrue();
+    [Fact] void should_keep_the_environment_default_in_development() => _options.Introspection.RequiresAuthentication(isDevelopment: true).ShouldBeFalse();
+    [Fact] void should_not_treat_binding_as_an_explicit_override() => _options.Introspection.AuthenticationExplicitlyDisabled.ShouldBeFalse();
 }

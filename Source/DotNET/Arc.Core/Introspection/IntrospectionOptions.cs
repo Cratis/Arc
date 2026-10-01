@@ -10,8 +10,6 @@ namespace Cratis.Arc.Introspection;
 /// </summary>
 public class IntrospectionOptions
 {
-    bool? _requireAuthentication;
-
     /// <summary>
     /// Gets or sets whether both catalog endpoints are mapped. Defaults to true. Identity discovery is always mapped.
     /// </summary>
@@ -35,8 +33,8 @@ public class IntrospectionOptions
     /// </remarks>
     public bool RequireAuthentication
     {
-        get => _requireAuthentication ?? false;
-        set => _requireAuthentication = value;
+        get => AuthenticationOverride ?? false;
+        set => AuthenticationOverride = value;
     }
 
     /// <summary>
@@ -57,19 +55,24 @@ public class IntrospectionOptions
     public bool TrustForwardedIdentityHeaders { get; set; }
 
     /// <summary>
+    /// Gets or sets the explicit override for configuration binding.
+    /// </summary>
+    internal bool? AuthenticationOverride { get; set; }
+
+    /// <summary>
     /// Gets whether authentication was asked for explicitly, rather than by the environment default.
     /// </summary>
-    internal bool AuthenticationExplicitlyRequired => _requireAuthentication == true || Roles is not null;
+    internal bool AuthenticationExplicitlyRequired => AuthenticationOverride == true || Roles is not null;
 
     /// <summary>
     /// Gets whether anonymous exposure was requested explicitly.
     /// </summary>
-    internal bool AuthenticationExplicitlyDisabled => _requireAuthentication == false;
+    internal bool AuthenticationExplicitlyDisabled => AuthenticationOverride == false;
 
     /// <summary>
     /// Decides whether callers of the discovery endpoints must be authenticated.
     /// </summary>
     /// <param name="isDevelopment">Whether the host runs in the Development environment.</param>
     /// <returns>True if callers must be authenticated.</returns>
-    internal bool RequiresAuthentication(bool isDevelopment) => AuthenticationExplicitlyRequired || (_requireAuthentication ?? !isDevelopment);
+    internal bool RequiresAuthentication(bool isDevelopment) => AuthenticationExplicitlyRequired || (AuthenticationOverride ?? !isDevelopment);
 }

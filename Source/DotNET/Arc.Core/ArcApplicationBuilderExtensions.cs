@@ -31,7 +31,7 @@ public static class ArcApplicationBuilderExtensions
         builder.Services.AddCratisArcCore();
 
         var configSection = configSectionPath ?? ConfigurationPath.Combine(HostBuilderExtensions.DefaultSectionPaths);
-        builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
+        ArcOptionsConfiguration.Configure(builder.Services, builder.Configuration.GetSection(configSection));
 
         builder.Services
             .AddOptions<ArcOptions>()

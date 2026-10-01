@@ -5,7 +5,9 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using Cratis.Arc.Authentication;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
+using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +34,12 @@ public class a_listener_host : Specification
         var authentication = Substitute.For<IAuthentication>();
         authentication.HasHandlers.Returns(false);
         builder.Services.AddSingleton(authentication);
+        var commands = Substitute.For<ICommandHandlerProviders>();
+        commands.Handlers.Returns([]);
+        builder.Services.AddSingleton(commands);
+        var queries = Substitute.For<IQueryPerformerProviders>();
+        queries.Performers.Returns([]);
+        builder.Services.AddSingleton(queries);
         builder.Logging.AddProvider(new WarningLoggerProvider(_warnings));
         await using var app = builder.Build();
         app.UseCratisArc();
@@ -61,7 +69,8 @@ public class a_listener_host : Specification
 
     sealed class WarningLogger(ConcurrentQueue<string> warnings) : ILogger
     {
-        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
         public bool IsEnabled(LogLevel logLevel) => logLevel == LogLevel.Warning;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {

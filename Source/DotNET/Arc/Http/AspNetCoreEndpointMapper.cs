@@ -26,6 +26,9 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     readonly HashSet<string> _mapped = new(StringComparer.Ordinal);
     IReadOnlySet<string>? _preExisting;
 
+    /// <inheritdoc/>
+    IServiceProvider? IIntrospectionExposureGuard.Services => endpoints.ServiceProvider;
+
     /// <summary>
     /// Gets the names of the endpoints that were already registered when this mapper started mapping.
     /// </summary>
@@ -37,9 +40,6 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     /// that pass, so a single snapshot plus the names this mapper has since added is the same answer.
     /// </remarks>
     IReadOnlySet<string> PreExisting => _preExisting ??= endpoints.EndpointNames();
-
-    /// <inheritdoc/>
-    IServiceProvider? IIntrospectionExposureGuard.Services => endpoints.ServiceProvider;
 
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) =>
