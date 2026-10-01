@@ -71,7 +71,7 @@ public static class WebApplicationBuilderExtensions
         string? configSectionPath = default)
     {
         var configSection = configSectionPath ?? ConfigurationPath.Combine(Cratis.Arc.HostBuilderExtensions.DefaultSectionPaths);
-        builder.Services.Configure<ArcOptions>(builder.Configuration.GetSection(configSection));
+        ArcOptionsConfiguration.Configure(builder.Services, builder.Configuration.GetSection(configSection));
 
         builder.Services.AddOptions<ArcOptions>()
             .ValidateOnStart();

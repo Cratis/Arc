@@ -9,7 +9,7 @@ The queries introspection endpoint returns metadata for discovered query perform
 
 `GET /.cratis/queries`
 
-Normal Arc activation maps this endpoint anonymously, including in Production. Returned metadata is not filtered by the caller's query permissions. See [production access controls](index.md#production-access).
+Normal Arc activation maps this endpoint anonymously in Development and requires authentication elsewhere by default. A host that cannot authenticate leaves it unmapped and logs a warning. Returned metadata is not filtered by the caller's query permissions. See [production access controls](index.md#production-access).
 
 ## What it returns
 

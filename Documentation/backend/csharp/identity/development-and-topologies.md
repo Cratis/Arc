@@ -16,7 +16,7 @@ Normal Arc activation maps these endpoints unless replacements with the same end
 - `/.cratis/users` — Returns all available development users
 - `/.cratis/tenants` — Returns all available development tenants
 
-Without providers they return empty arrays. With providers they combine their results. **There is no Development environment check:** the endpoints are explicitly anonymous in Production too. ASP.NET fallback authorization policies do not protect explicitly anonymous endpoints. Exclude development-only provider implementations from production discovery and restrict these paths at trusted ingress when discovery is not intended to be public. A user/tenant list is not proof of authentication or membership.
+Without providers they return empty arrays. With providers they combine their results. They follow the [discovery access settings](../introspection/index.md#production-access): anonymous in Development, and requiring an authenticated caller everywhere else unless `Cratis:Arc:Introspection:RequireAuthentication` is `false`. Exclude development-only provider implementations from production discovery anyway; an authenticated caller should not see a fixture user list either. A user/tenant list is not proof of authentication or membership.
 
 ### Implementing a Users Provider
 

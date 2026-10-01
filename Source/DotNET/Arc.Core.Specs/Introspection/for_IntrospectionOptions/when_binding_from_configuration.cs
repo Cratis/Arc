@@ -21,6 +21,6 @@ public class when_binding_from_configuration : Specification
         .Build().GetSection("Cratis:Arc").Bind(_options);
 
     [Fact] void should_disable_endpoints() => _options.Introspection.Enabled.ShouldBeFalse();
-    [Fact] void should_require_authentication() => _options.Introspection.RequireAuthentication.ShouldBeTrue();
+    [Fact] void should_require_authentication() => _options.Introspection.RequireAuthentication.ShouldEqual(true);
     [Fact] void should_bind_roles() => _options.Introspection.Roles.ShouldEqual("Administrator,Operator");
 }

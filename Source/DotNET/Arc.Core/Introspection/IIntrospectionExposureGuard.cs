@@ -4,13 +4,26 @@
 namespace Cratis.Arc.Introspection;
 
 /// <summary>
-/// Validates host-specific protection before catalog routes are mapped.
+/// Checks whether the host can enforce authentication on the discovery endpoints before they are mapped.
 /// </summary>
 internal interface IIntrospectionExposureGuard
 {
     /// <summary>
-    /// Refuses protected catalogs that the host cannot enforce safely.
+    /// Gets the host services, when available, for resolving the actual host environment.
     /// </summary>
-    /// <param name="options">The catalog exposure settings.</param>
-    void Validate(IntrospectionOptions options);
+    IServiceProvider? Services => null;
+
+    /// <summary>
+    /// Finds the reason the host cannot require authenticated callers, if any.
+    /// </summary>
+    /// <param name="services">The services used to resolve discovery exposure.</param>
+    /// <returns>The reason, or null if the host can enforce authentication.</returns>
+    string? FindEnforcementProblem(IServiceProvider? services);
+
+    /// <summary>
+    /// Defers discovery mapping until the host services are available, if necessary.
+    /// </summary>
+    /// <param name="mapping">The mapping to perform with the actual host services.</param>
+    /// <returns>Whether mapping was deferred.</returns>
+    bool TryDeferMapping(Action<IServiceProvider> mapping) => false;
 }

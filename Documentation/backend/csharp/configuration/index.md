@@ -35,6 +35,8 @@ Configuration-bindable settings can be supplied three ways, layered in this orde
 2. **Environment variables** with the `Cratis__Arc__` prefix (.NET maps the `__` separator onto nested keys), for example `Cratis__Arc__GeneratedApis__RoutePrefix`.
 3. **Code**, via the `configureOptions` callback — it runs after binding, so it overrides the file and the environment.
 
+Bind `ArcOptions` only through the host's `AddCratisArc` / `AddCratis` registration (or `IHostBuilder.AddCratisArcCore`), not through an additional `services.Configure<ArcOptions>(section)` or `section.Bind(options)`. Arc's binding preserves an unset `Introspection.RequireAuthentication`; the stock .NET binder can write its getter's `false` value back even when the key is absent, making discovery anonymous in every environment (or failing validation when `Roles` is set). Assigning `RequireAuthentication` from its own getter, including a property-by-property copy, likewise counts as an explicit opt-out. Leave the property untouched to retain the environment default, or assign an intentional override in `configureOptions`.
+
 ```csharp
 builder.AddCratisArc(options =>
 {
@@ -58,8 +60,8 @@ builder.AddCratisArc(options =>
 | `Tenancy.FixedTenantId` | `string` | `development` | The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. |
 | `Tenancy.DevelopmentTenantId` | `string` | `development` | The same value under its original name — reading or writing either key sets both. Supply only one; if both are present the binder's property order decides. |
 | `Introspection.Enabled` | `bool` | `true` | Map both command and query catalog routes. Set to `false` to remove both routes. |
-| `Introspection.RequireAuthentication` | `bool` | `false` | Require an authenticated caller for both catalog routes. Requires a default ASP.NET Core authentication scheme plus `AddAuthorization()`, or an Arc.Core authentication handler. |
-| `Introspection.Roles` | `string?` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true`. No named policy option is provided. |
+| `Introspection.RequireAuthentication` | `bool` | unset (getter returns `false`) | Access to the discovery routes (catalogs, `/.cratis/users`, `/.cratis/tenants`, `/.cratis/identity-details/schema`). Not set: anonymous in Development, authenticated elsewhere. `true`: authenticated everywhere; requires a default ASP.NET Core authentication scheme plus `AddAuthorization()`, or an Arc.Core authentication handler. `false`: anonymous everywhere. |
+| `Introspection.Roles` | `string?` | `null` | Comma-separated roles; any one grants access to the discovery routes. Implies authentication; cannot be combined with `RequireAuthentication: false`. No named policy option is provided. |
 | `Introspection.TrustForwardedIdentityHeaders` | `bool` | `false` | Obsolete. Setting it to `true` turns on `TrustForwardedIdentityHeaders` for the whole host. Use `TrustForwardedIdentityHeaders` instead. |
 | `TrustForwardedIdentityHeaders` | `bool` | `false` | Trust the unsigned `x-ms-client-principal*` identity headers on every request. Until it is `true`, Arc's header handlers ignore them and requests stay anonymous. Use only behind an ingress that authenticates callers and strips client identity headers, such as EasyAuth or AuthProxy. See [Microsoft Identity](../asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers). |
 | `GeneratedApis.RoutePrefix` | `string` | `api` | Base prefix for generated command and query routes. |
@@ -88,7 +90,7 @@ For example, the equivalent `appsettings.json` keys are:
 }
 ```
 
-These settings cover the command and query catalogs, not the separately mapped identity-details schema. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
+`RequireAuthentication` and `Roles` govern all five discovery endpoints: the command and query catalogs, users, tenants, and the identity-details schema. Only `Enabled` is catalog-specific. Outside Development, hosts without authentication leave the discovery endpoints unmapped by default and warn once per host; explicitly requiring authentication on such a host fails startup. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
 
