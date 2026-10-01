@@ -268,6 +268,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             (method.ContainingType.ToDisplayString() == "Cratis.Chronicle.EventSequences.IEventSequence" || Implements(method.ContainingType, EventLog));
     }
 
-    static bool Implements(ITypeSymbol type, string fullName) => type.ToDisplayString() == fullName ||
-        type.AllInterfaces.Any(_ => _.ToDisplayString() == fullName);
+    static bool Implements(ITypeSymbol type, string fullName) =>
+        type is ITypeParameterSymbol parameter
+            ? parameter.ConstraintTypes.Any(_ => Implements(_, fullName))
+            : type.ToDisplayString() == fullName || type.AllInterfaces.Any(_ => _.ToDisplayString() == fullName);
 }

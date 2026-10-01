@@ -293,6 +293,24 @@ public class when_analyzing_command_decisions
                 .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", HandlerAdvice));
 
     [Fact]
+    public async Task provide_read_through_generic_constrained_extension_wrapper_reports_info() =>
+        await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
+            public static class GenericReadModelsExtensions
+            {
+                public static Task<TModel?> GetInstanceById<TModel, T>(this T readModels, EventSourceId id)
+                    where T : IReadModels => default!;
+            }
+            [Command]
+            public record Create(EventSourceId EventSourceId)
+            {
+                public async Task<State?> Provide<T>(T readModels)
+                    where T : IReadModels => await readModels.GetInstanceById<State, T>(EventSourceId);
+                public IEnumerable<EventForEventSourceId> Handle() => [new(EventSourceId, new Created())];
+            }
+            """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0011")
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("Create", "State", HandlerAdvice));
+
+    [Fact]
     public async Task children_from_declared_on_record_parameter_makes_plain_model_report_info() =>
         await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + """
             [EventType("5a3f0c14-77d1-4a3e-9d0a-0f3c7a1b2e64")]
@@ -313,6 +331,7 @@ public class when_analyzing_command_decisions
     public async Task model_without_projection_attributes_is_not_reported_for_extension_wrapper_reads() =>
         await AnalyzerVerifier<CommandDecisionReadAnalyzer>.VerifyAnalyzerAsync(Definitions + ReadModelsWrapper + """
             public record Unrelated(Guid Id);
+            public record Plain(Guid Id);
             [Command]
             public record Get(OwnerId OwnerId)
             {
@@ -325,7 +344,7 @@ public class when_analyzing_command_decisions
             [Command]
             public record Create(OwnerId OwnerId)
             {
-                public async Task<Created> Handle(Unrelated source)
+                public async Task<Created> Handle(Unrelated source, Plain plain)
                 {
                     _ = await source.GetInstanceById(OwnerId);
                     return new Created();
