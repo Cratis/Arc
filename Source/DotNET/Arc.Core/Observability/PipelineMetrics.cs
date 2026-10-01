@@ -42,6 +42,16 @@ internal sealed class PipelineMetrics
     }
 
     /// <summary>
+    /// Gets a value indicating whether anything listens to the command metrics.
+    /// </summary>
+    internal bool CommandsEnabled => _commandDuration.Enabled || _commandOutcomes.Enabled;
+
+    /// <summary>
+    /// Gets a value indicating whether anything listens to the query metrics.
+    /// </summary>
+    internal bool QueriesEnabled => _queryDuration.Enabled;
+
+    /// <summary>
     /// Records that a command ran.
     /// </summary>
     /// <param name="commandType">The full name of the command type.</param>
@@ -49,6 +59,11 @@ internal sealed class PipelineMetrics
     /// <param name="elapsed">How long the command took.</param>
     internal void RecordCommand(string commandType, string outcome, TimeSpan elapsed)
     {
+        if (!CommandsEnabled)
+        {
+            return;
+        }
+
         var tags = new TagList
         {
             { WellKnownTelemetryNames.CommandType, _commandTypes.Limit(commandType) },
@@ -67,6 +82,11 @@ internal sealed class PipelineMetrics
     /// <param name="elapsed">How long the query took.</param>
     internal void RecordQuery(string queryName, string transport, string outcome, TimeSpan elapsed)
     {
+        if (!QueriesEnabled)
+        {
+            return;
+        }
+
         var tags = new TagList
         {
             { WellKnownTelemetryNames.QueryName, _queryNames.Limit(queryName) },

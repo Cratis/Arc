@@ -17,7 +17,4 @@ internal static partial class CommandPipelineTraces
 
     [Span("cratis.arc.command.validate", ActivityKind.Internal)]
     internal static partial IActivityScope<CommandPipeline> Validate(this IActivitySource<CommandPipeline> source, string commandType);
-
-    [Span("cratis.arc.command.handle", ActivityKind.Internal)]
-    internal static partial IActivityScope<CommandPipeline> Handle(this IActivitySource<CommandPipeline> source, string commandType);
 }

@@ -24,20 +24,47 @@ internal static class OperationActivity
     internal const int MaxValidationEvents = 16;
 
     /// <summary>
-    /// Names a span after the operation it covers and adds the correlation id.
+    /// Starts a child span of a command, carrying the command type.
     /// </summary>
-    /// <param name="activity">The <see cref="Activity"/> to describe, if any.</param>
-    /// <param name="displayName">The name to show for the span, such as the command type name.</param>
-    /// <param name="correlationId">The <see cref="CorrelationId"/> of the operation.</param>
-    internal static void Describe(Activity? activity, string displayName, CorrelationId correlationId)
+    /// <param name="source">The <see cref="ActivitySource"/> to start the span on.</param>
+    /// <param name="name">The name of the span, one of the <see cref="WellKnownTelemetryNames"/>.</param>
+    /// <param name="commandType">The type of the command the span is part of.</param>
+    /// <returns>The started <see cref="Activity"/>, or <see langword="null"/> when nothing listens.</returns>
+    /// <remarks>
+    /// The span keeps its stable name; the command type is an attribute. Tracing backends use the name to group
+    /// spans, so a name per command type would break dashboards keyed on it and multiply what they have to index.
+    /// </remarks>
+    internal static Activity? StartCommandChild(ActivitySource source, string name, Type commandType)
     {
-        if (activity is not { IsAllDataRequested: true })
-        {
-            return;
-        }
+        var activity = source.StartActivity(name, ActivityKind.Internal);
+        AddCommandType(activity, commandType);
+        return activity;
+    }
 
-        activity.DisplayName = displayName;
-        activity.SetTag(WellKnownTelemetryNames.CorrelationId, correlationId.ToString());
+    /// <summary>
+    /// Adds the command type to a span.
+    /// </summary>
+    /// <param name="activity">The <see cref="Activity"/> to add to, if any.</param>
+    /// <param name="commandType">The type of the command.</param>
+    internal static void AddCommandType(Activity? activity, Type commandType)
+    {
+        if (activity is { IsAllDataRequested: true })
+        {
+            activity.SetTag(WellKnownTelemetryNames.CommandType, commandType.FullName ?? commandType.Name);
+        }
+    }
+
+    /// <summary>
+    /// Adds the correlation id of an operation to its span.
+    /// </summary>
+    /// <param name="activity">The <see cref="Activity"/> to add to, if any.</param>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> of the operation.</param>
+    internal static void AddCorrelationId(Activity? activity, CorrelationId correlationId)
+    {
+        if (activity is { IsAllDataRequested: true })
+        {
+            activity.SetTag(WellKnownTelemetryNames.CorrelationId, correlationId.ToString());
+        }
     }
 
     /// <summary>
@@ -47,7 +74,9 @@ internal static class OperationActivity
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> the operation ran in.</param>
     /// <remarks>
     /// Only a tenant already resolved is read. Asking the accessor for its current tenant would resolve and cache one,
-    /// which is a side effect telemetry must not have on the operation it observes.
+    /// which is a side effect telemetry must not have on the operation it observes. The accessor keeps its tenant in an
+    /// async local, and one resolved inside an awaited call is gone again once that call returns, so the pipelines call
+    /// this where their authorization scope, and with it the tenant they run for, is in place.
     /// </remarks>
     internal static void AddResolvedTenant(Activity? activity, IServiceProvider serviceProvider)
     {
@@ -85,7 +114,8 @@ internal static class OperationActivity
         }
 
         // Following OpenTelemetry, only an error fails the span. A rejection by validation, authorization or the event
-        // store is an expected business outcome: it is told apart by the outcome attribute and the events below.
+        // store is an expected business outcome, and a cancellation is the caller giving up: they are told apart by the
+        // outcome attribute and the events below.
         if (outcome == WellKnownOperationOutcomes.Error)
         {
             activity.SetStatus(ActivityStatusCode.Error, outcome);
@@ -124,16 +154,37 @@ internal static class OperationActivity
     }
 
     /// <summary>
-    /// Gets the short name to show for a type, without its namespace or generic arity.
+    /// Records an exception thrown inside a child span, and fails the span when the exception is an error.
     /// </summary>
-    /// <param name="type">The <see cref="Type"/> to name.</param>
-    /// <returns>The short name.</returns>
-    internal static string ShortNameOf(Type type)
+    /// <param name="activity">The <see cref="Activity"/> to record on, if any.</param>
+    /// <param name="exception">The <see cref="Exception"/> to record.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the operation the span is part of.</param>
+    internal static void RecordFailure(Activity? activity, Exception exception, CancellationToken cancellationToken)
     {
-        var name = type.Name;
-        var arity = name.IndexOf('`');
-        return arity < 0 ? name : name[..arity];
+        if (activity is not { IsAllDataRequested: true })
+        {
+            return;
+        }
+
+        RecordException(activity, exception);
+        if (IsError(exception, cancellationToken))
+        {
+            activity.SetStatus(ActivityStatusCode.Error, WellKnownOperationOutcomes.Error);
+        }
     }
+
+    /// <summary>
+    /// Determines whether an exception is an error, as opposed to an expected outcome the pipeline turns into a result.
+    /// </summary>
+    /// <param name="exception">The <see cref="Exception"/> to check.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> of the operation.</param>
+    /// <returns>True if the exception is an error; otherwise false.</returns>
+    /// <remarks>
+    /// An <see cref="IValidationFailure"/> becomes a validation outcome, and anything thrown once the operation was
+    /// cancelled becomes a cancelled outcome. Neither fails a span, the same as on the operation span.
+    /// </remarks>
+    internal static bool IsError(Exception exception, CancellationToken cancellationToken) =>
+        exception is not IValidationFailure && !cancellationToken.IsCancellationRequested;
 
     static ActivityEvent ValidationFailed(ValidationResult result)
     {

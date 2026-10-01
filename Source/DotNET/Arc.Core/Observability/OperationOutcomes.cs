@@ -16,17 +16,28 @@ internal static class OperationOutcomes
     /// Classifies a command result.
     /// </summary>
     /// <param name="result">The <see cref="CommandResult"/> to classify.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> the command ran with.</param>
     /// <returns>The outcome.</returns>
-    internal static string For(CommandResult result) => Classify(result.IsAuthorized, result.HasExceptions, result.ValidationResults);
+    internal static string For(CommandResult result, CancellationToken cancellationToken) =>
+        Classify(result.IsAuthorized, result.HasExceptions, result.ValidationResults, cancellationToken);
 
     /// <summary>
     /// Classifies a query result.
     /// </summary>
     /// <param name="result">The <see cref="QueryResult"/> to classify.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> the query ran with.</param>
     /// <returns>The outcome.</returns>
-    internal static string For(QueryResult result) => Classify(result.IsAuthorized, result.HasExceptions, result.ValidationResults);
+    internal static string For(QueryResult result, CancellationToken cancellationToken) =>
+        Classify(result.IsAuthorized, result.HasExceptions, result.ValidationResults, cancellationToken);
 
-    static string Classify(bool isAuthorized, bool hasExceptions, IEnumerable<ValidationResult> validationResults)
+    /// <summary>
+    /// Classifies an operation that ended with an exception instead of a result.
+    /// </summary>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> the operation ran with.</param>
+    /// <returns>The outcome.</returns>
+    internal static string ForException(CancellationToken cancellationToken) => ErrorOrCancelled(cancellationToken);
+
+    static string Classify(bool isAuthorized, bool hasExceptions, IEnumerable<ValidationResult> validationResults, CancellationToken cancellationToken)
     {
         if (!isAuthorized)
         {
@@ -35,7 +46,7 @@ internal static class OperationOutcomes
 
         if (hasExceptions)
         {
-            return WellKnownOperationOutcomes.Error;
+            return ErrorOrCancelled(cancellationToken);
         }
 
         var results = validationResults as IReadOnlyCollection<ValidationResult> ?? [.. validationResults];
@@ -46,6 +57,9 @@ internal static class OperationOutcomes
 
         return results.Any(IsAppendRejection) ? WellKnownOperationOutcomes.AppendRejected : WellKnownOperationOutcomes.Validation;
     }
+
+    static string ErrorOrCancelled(CancellationToken cancellationToken) =>
+        cancellationToken.IsCancellationRequested ? WellKnownOperationOutcomes.Cancelled : WellKnownOperationOutcomes.Error;
 
     static bool IsAppendRejection(ValidationResult result) =>
         result.Reason == ValidationResultReason.ConstraintViolation ||

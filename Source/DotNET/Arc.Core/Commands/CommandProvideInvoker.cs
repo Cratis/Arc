@@ -12,7 +12,6 @@ using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Tasks;
 using Cratis.Traces;
-using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -24,6 +23,23 @@ namespace Cratis.Arc.Commands;
 public class CommandProvideInvoker : ICommandProvideInvoker
 {
     readonly ConcurrentDictionary<Type, MethodInfo?> _provideMethodsByCommandType = new();
+    readonly ActivitySource? _activitySource;
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CommandProvideInvoker"/> class, without tracing.
+    /// </summary>
+    public CommandProvideInvoker()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CommandProvideInvoker"/> class.
+    /// </summary>
+    /// <param name="activitySource">The <see cref="IActivitySource{T}"/> to trace <c>Provide()</c> on.</param>
+    public CommandProvideInvoker(IActivitySource<CommandProvideInvoker> activitySource)
+    {
+        _activitySource = activitySource.ActualSource;
+    }
 
     /// <inheritdoc/>
     public async ValueTask<IReadOnlyList<object>> Invoke(CommandContext context, IServiceProvider serviceProvider)
@@ -34,7 +50,9 @@ public class CommandProvideInvoker : ICommandProvideInvoker
             return [];
         }
 
-        using var span = BeginProvide(context.Type, serviceProvider);
+        using var activity = _activitySource is null
+            ? null
+            : OperationActivity.StartCommandChild(_activitySource, WellKnownTelemetryNames.CommandProvideSpan, context.Type);
         try
         {
             var arguments = ResolveArguments(context, provideMethod, serviceProvider);
@@ -44,23 +62,9 @@ public class CommandProvideInvoker : ICommandProvideInvoker
         }
         catch (Exception ex)
         {
-            OperationActivity.RecordException(span?.Activity, ex);
-            span?.Activity?.SetStatus(ActivityStatusCode.Error, WellKnownOperationOutcomes.Error);
+            OperationActivity.RecordFailure(activity, ex, context.CancellationToken);
             throw;
         }
-    }
-
-    static IActivityScope<CommandProvideInvoker>? BeginProvide(Type commandType, IServiceProvider serviceProvider)
-    {
-        var commandTypeName = commandType.FullName ?? commandType.Name;
-        var span = serviceProvider.GetService<IActivitySource<CommandProvideInvoker>>()?.Provide(commandTypeName);
-        if (span?.Activity is { IsAllDataRequested: true } activity)
-        {
-            activity.DisplayName = $"{OperationActivity.ShortNameOf(commandType)}.Provide()";
-            activity.SetTag(WellKnownTelemetryNames.CommandType, commandTypeName);
-        }
-
-        return span;
     }
 
     static object?[]? ResolveArguments(CommandContext context, MethodInfo provideMethod, IServiceProvider serviceProvider)

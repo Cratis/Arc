@@ -14,7 +14,4 @@ internal static partial class CommandFiltersTraces
 {
     [Span("cratis.arc.command.filter", ActivityKind.Internal)]
     internal static partial IActivityScope<CommandFilters> OnExecution(this IActivitySource<CommandFilters> source, string commandType);
-
-    [Span("cratis.arc.command.authorize", ActivityKind.Internal)]
-    internal static partial IActivityScope<CommandFilters> Authorize(this IActivitySource<CommandFilters> source, string commandType);
 }

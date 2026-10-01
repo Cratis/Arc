@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reactive.Subjects;
 using System.Reflection;
@@ -42,11 +43,26 @@ public class QueryPipeline(
     IDiscoverableValidators discoverableValidators,
     IActivitySource<QueryPipeline> activitySource) : IQueryPipeline
 {
+    static readonly ConcurrentDictionary<Type, bool> _observableDataTypes = new();
+
     /// <inheritdoc/>
     public async Task<QueryResult> Perform(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, CancellationToken cancellationToken = default)
     {
         using var receipt = OperationContextScope.BeginPipeline(serviceProvider);
-        return await PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, cancellationToken);
+        var (knownName, nameResolved) = KnownNameWhenTraced(queryName);
+        using var span = activitySource.Perform(knownName ?? WellKnownTelemetryNames.Other);
+        var observation = BeginObservation(span.Activity, queryName, knownName, nameResolved);
+        try
+        {
+            var result = await PerformCore(queryName, arguments, paging, sorting, serviceProvider, null, span.Activity, cancellationToken);
+            Record(observation, serviceProvider, result, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            RecordFailure(observation, serviceProvider, ex, cancellationToken);
+            throw;
+        }
     }
 
     /// <summary>
@@ -64,9 +80,53 @@ public class QueryPipeline(
     internal async Task<QueryResult> PerformHosted(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
     {
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
+
+        // The span starts before authorization is prepared, so a request turned away on the way in is traced and
+        // measured like one turned away inside the pipeline.
+        var (knownName, nameResolved) = KnownNameWhenTraced(queryName);
+        using var span = activitySource.Perform(knownName ?? WellKnownTelemetryNames.Other);
+        var observation = BeginObservation(span.Activity, queryName, knownName, nameResolved);
         try
         {
-            return await PerformHostedCore(queryName, arguments, paging, sorting, requestServices, cancellationToken);
+            var result = await PerformHostedGuarded(queryName, arguments, paging, sorting, requestServices, span.Activity, cancellationToken);
+            Record(observation, requestServices, result, cancellationToken);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            RecordFailure(observation, requestServices, ex, cancellationToken);
+            throw;
+        }
+    }
+
+    static bool IsObservable(Type dataType) =>
+        _observableDataTypes.GetOrAdd(dataType, static type => type.ImplementsOpenGeneric(typeof(ISubject<>)) || type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)));
+
+    static string TransportOf(QueryResult result)
+    {
+        if (result.Data is null)
+        {
+            return result.IsSuccess ? WellKnownTelemetryNames.SnapshotTransport : WellKnownTelemetryNames.UnknownTransport;
+        }
+
+        return IsObservable(result.Data.GetType()) ? WellKnownTelemetryNames.ObservableTransport : WellKnownTelemetryNames.SnapshotTransport;
+    }
+
+    static QueryObservation BeginObservation(Activity? activity, FullyQualifiedQueryName queryName, string? knownName, bool nameResolved)
+    {
+        if (knownName is not null && activity is { IsAllDataRequested: true })
+        {
+            activity.SetTag(WellKnownTelemetryNames.QueryName, knownName);
+        }
+
+        return new(activity, queryName, knownName, nameResolved, Stopwatch.GetTimestamp());
+    }
+
+    async Task<QueryResult> PerformHostedGuarded(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, Activity? activity, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await PerformHostedCore(queryName, arguments, paging, sorting, requestServices, activity, cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -84,49 +144,66 @@ public class QueryPipeline(
         }
     }
 
-    static string DisplayNameOf(FullyQualifiedQueryName queryName)
+    (string? KnownName, bool Resolved) KnownNameWhenTraced(FullyQualifiedQueryName queryName)
     {
-        var separator = queryName.Value.LastIndexOf('.');
-        return separator < 0 ? queryName.Value : queryName.Value[(separator + 1)..];
-    }
-
-    static string TransportOf(QueryResult result)
-    {
-        if (result.Data is null)
+        // Only a query that exists is named: the name arrives from the caller, and an unknown one must neither label
+        // the span nor add a metric series. Nothing is looked up when nothing listens.
+        if (!activitySource.ActualSource.HasListeners())
         {
-            return result.IsSuccess ? WellKnownTelemetryNames.SnapshotTransport : WellKnownTelemetryNames.UnknownTransport;
+            return (null, false);
         }
 
-        var dataType = result.Data.GetType();
-        return dataType.ImplementsOpenGeneric(typeof(ISubject<>)) || dataType.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>))
-            ? WellKnownTelemetryNames.ObservableTransport
-            : WellKnownTelemetryNames.SnapshotTransport;
+        return (KnownNameOf(queryName), true);
     }
 
-    static void RecordQuery(Activity? activity, IServiceProvider serviceProvider, string? queryName, string transport, string outcome, QueryResult? result, TimeSpan elapsed)
+    string? KnownNameOf(FullyQualifiedQueryName queryName) =>
+        queryPerformerProviders.TryGetPerformersFor(queryName, out _) ? queryName.Value : null;
+
+    void RecordFailure(QueryObservation observation, IServiceProvider serviceProvider, Exception exception, CancellationToken cancellationToken)
     {
+        OperationActivity.RecordException(observation.Activity, exception);
+        Record(observation, serviceProvider, null, cancellationToken);
+    }
+
+    void Record(QueryObservation observation, IServiceProvider serviceProvider, QueryResult? result, CancellationToken cancellationToken)
+    {
+        var activity = observation.Activity;
+        var metrics = serviceProvider.GetService<PipelineMetrics>();
+        var measured = metrics?.QueriesEnabled == true;
+        if (activity is not { IsAllDataRequested: true } && !measured)
+        {
+            return;
+        }
+
+        var outcome = result is null ? OperationOutcomes.ForException(cancellationToken) : OperationOutcomes.For(result, cancellationToken);
+        var transport = result is null ? WellKnownTelemetryNames.UnknownTransport : TransportOf(result);
         if (activity is { IsAllDataRequested: true })
         {
             activity.SetTag(WellKnownTelemetryNames.QueryTransport, transport);
+            if (result is not null)
+            {
+                OperationActivity.AddCorrelationId(activity, result.CorrelationId);
+            }
+
             if (result?.AuthorizedTenant is { } tenant && tenant != TenantId.NotSet)
             {
                 activity.SetTag(WellKnownTelemetryNames.Tenant, tenant.Value);
             }
-            else
-            {
-                OperationActivity.AddResolvedTenant(activity, serviceProvider);
-            }
         }
 
         OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.QueryOutcome, outcome, result?.ValidationResults ?? []);
-        serviceProvider.GetService<PipelineMetrics>()?.RecordQuery(queryName ?? WellKnownTelemetryNames.Other, transport, outcome, elapsed);
+        if (measured)
+        {
+            var knownName = observation.NameResolved ? observation.KnownName : KnownNameOf(observation.QueryName);
+            metrics!.RecordQuery(knownName ?? WellKnownTelemetryNames.Other, transport, outcome, Stopwatch.GetElapsedTime(observation.Started));
+        }
     }
 
-    async Task<QueryResult> PerformHostedCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, CancellationToken cancellationToken)
+    async Task<QueryResult> PerformHostedCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider requestServices, Activity? activity, CancellationToken cancellationToken)
     {
         if (!queryPerformerProviders.TryGetPerformersFor(queryName, out var performer))
         {
-            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
+            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, activity, cancellationToken);
         }
 
         var declarations = requestServices.GetService<AuthorizationDeclarations>() ??
@@ -140,7 +217,7 @@ public class QueryPipeline(
         };
         if (!declaration.RequiresAsynchronousEvaluation)
         {
-            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, cancellationToken);
+            return await PerformCore(queryName, arguments, paging, sorting, requestServices, null, activity, cancellationToken);
         }
 
         var evaluation = requestServices.GetService<AuthorizationEvaluation>() ??
@@ -148,14 +225,14 @@ public class QueryPipeline(
         var prepared = await evaluation.Prepare(target, requestServices, cancellationToken);
         if (!prepared.PrincipalChanged)
         {
-            return await PerformCore(queryName, arguments, paging, sorting, requestServices, prepared, cancellationToken);
+            return await PerformCore(queryName, arguments, paging, sorting, requestServices, prepared, activity, cancellationToken);
         }
 
         var scope = requestServices.GetRequiredService<IServiceScopeFactory>().CreateScope();
         try
         {
             using var ownership = AuthorizationExecutionScopes.Begin(scope.ServiceProvider);
-            var result = await PerformCore(queryName, arguments, paging, sorting, scope.ServiceProvider, prepared, cancellationToken);
+            var result = await PerformCore(queryName, arguments, paging, sorting, scope.ServiceProvider, prepared, activity, cancellationToken);
             result.OwnedScope = scope;
             return result;
         }
@@ -225,38 +302,10 @@ public class QueryPipeline(
         }
     }
 
-    async Task<QueryResult> PerformCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, PreparedAuthorization? prepared, CancellationToken cancellationToken)
+    async Task<QueryResult> PerformCore(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, PreparedAuthorization? prepared, Activity? activity, CancellationToken cancellationToken)
     {
         var correlationId = GetCorrelationId();
-        var started = Stopwatch.GetTimestamp();
-        using var span = activitySource.Perform(queryName.Value);
 
-        // Only a query that exists is named: the name arrives from the caller, and an unknown one must neither label
-        // the span nor add a metric series.
-        var known = queryPerformerProviders.TryGetPerformersFor(queryName, out _);
-        var knownQueryName = known ? queryName.Value : null;
-        OperationActivity.Describe(span.Activity, known ? DisplayNameOf(queryName) : span.Activity?.DisplayName ?? string.Empty, correlationId);
-        if (knownQueryName is not null)
-        {
-            span.Activity?.SetTag(WellKnownTelemetryNames.QueryName, knownQueryName);
-        }
-
-        try
-        {
-            var result = await PerformObserved(queryName, arguments, paging, sorting, serviceProvider, prepared, correlationId, span.Activity, cancellationToken);
-            RecordQuery(span.Activity, serviceProvider, knownQueryName, TransportOf(result), OperationOutcomes.For(result), result, Stopwatch.GetElapsedTime(started));
-            return result;
-        }
-        catch (Exception ex)
-        {
-            OperationActivity.RecordException(span.Activity, ex);
-            RecordQuery(span.Activity, serviceProvider, knownQueryName, WellKnownTelemetryNames.UnknownTransport, WellKnownOperationOutcomes.Error, null, Stopwatch.GetElapsedTime(started));
-            throw;
-        }
-    }
-
-    async Task<QueryResult> PerformObserved(FullyQualifiedQueryName queryName, QueryArguments arguments, Paging paging, Sorting sorting, IServiceProvider serviceProvider, PreparedAuthorization? prepared, CorrelationId correlationId, Activity? activity, CancellationToken cancellationToken)
-    {
         // A query performed from a protected command is not part of that command's decision; its own validators run.
         using var decisionQuery = CommandDecisionPolicy.BeginQuery();
         var result = QueryResult.Success(correlationId);
@@ -290,6 +339,8 @@ public class QueryPipeline(
             {
                 principalLease.Attach(serviceProvider.GetRequiredService<AuthorizationPrincipalScope>().Begin(selectedPrincipal, serviceProvider));
             }
+
+            OperationActivity.AddResolvedTenant(activity, serviceProvider);
 
             if (queryFilters is IStagedQueryFilters stagedFilters)
             {
@@ -398,10 +449,12 @@ public class QueryPipeline(
         }
         catch (MissingArgumentForQuery ex)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.WithValidationError(correlationId, ex.ParameterName, ex.Message));
         }
         catch (Exception ex) when (ex is Cratis.Arc.Validation.IValidationFailure)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.FromException(correlationId, ex));
         }
         catch (AuthorizationIdentityChanged)
@@ -492,4 +545,14 @@ public class QueryPipeline(
 
         return result;
     }
+
+    /// <summary>
+    /// Holds what is needed to record a query once it has run.
+    /// </summary>
+    /// <param name="Activity">The query span, if anything listens.</param>
+    /// <param name="QueryName">The name of the query, as the caller gave it.</param>
+    /// <param name="KnownName">The name of the query when it is known, or <see langword="null"/>.</param>
+    /// <param name="NameResolved">Whether <paramref name="KnownName"/> was looked up.</param>
+    /// <param name="Started">When the query started, as a <see cref="Stopwatch"/> timestamp.</param>
+    readonly record struct QueryObservation(Activity? Activity, FullyQualifiedQueryName QueryName, string? KnownName, bool NameResolved, long Started);
 }
