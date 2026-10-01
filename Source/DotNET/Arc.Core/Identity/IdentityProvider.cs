@@ -25,8 +25,13 @@ public class IdentityProvider(
     IActivitySource<IdentityProvider> activitySource) : IIdentityProvider
 {
     /// <summary>
-    /// The name of the identity cookie.
+    /// The name of the identity cookie earlier versions of Arc wrote.
     /// </summary>
+    /// <remarks>
+    /// Arc neither reads nor writes this cookie: the identity is always derived from the authenticated request, and
+    /// frontends get it from the <c>/.cratis/me</c> endpoint.
+    /// </remarks>
+    [Obsolete("Arc no longer reads or writes the identity cookie. Get the identity from the /.cratis/me endpoint instead.")]
     public const string IdentityCookieName = ".cratis-identity";
 
     readonly JsonSerializerOptions _serializerOptions = IdentityJsonSerializerOptions.CreateFrom(options.Value.JsonSerializerOptions);
@@ -41,11 +46,6 @@ public class IdentityProvider(
             return IdentityProviderResult.Anonymous;
         }
 
-        if (TryGetFromCookie(context, out var cookieResult))
-        {
-            return cookieResult;
-        }
-
         return await CreateFromCurrentContext(context);
     }
 
@@ -57,11 +57,6 @@ public class IdentityProvider(
         if (context is null)
         {
             return new IdentityProviderResult<TDetails>(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
-        }
-
-        if (TryGetFromCookie(context, out IdentityProviderResult<TDetails> typedCookieResult))
-        {
-            return typedCookieResult;
         }
 
         var result = await CreateFromCurrentContext(context);
@@ -88,16 +83,6 @@ public class IdentityProvider(
         context.SetNoStoreResponseHeaders();
         context.ContentType = "application/json; charset=utf-8";
         var json = JsonSerializer.Serialize(result, TypeInfoFor<IdentityProviderResult>());
-        var base64Json = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-
-        context.AppendCookie(IdentityCookieName, base64Json, new CookieOptions
-        {
-            HttpOnly = false,
-            Secure = context.IsHttps,
-            SameSite = SameSiteMode.Lax,
-            Path = "/"
-        });
-
         await context.Write(json);
     }
 
@@ -124,51 +109,6 @@ public class IdentityProvider(
 
             await SetCookieForHttpResponse(modifiedResult);
         }
-    }
-
-    bool TryGetFromCookie(IHttpRequestContext context, out IdentityProviderResult result)
-    {
-        result = IdentityProviderResult.Anonymous;
-
-        if (!context.Cookies.TryGetValue(IdentityCookieName, out var encodedCookie) || string.IsNullOrWhiteSpace(encodedCookie))
-        {
-            return false;
-        }
-
-        try
-        {
-            var decodedJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedCookie));
-            result = JsonSerializer.Deserialize(decodedJson, TypeInfoFor<IdentityProviderResult>()) ?? IdentityProviderResult.Anonymous;
-        }
-        catch
-        {
-            result = IdentityProviderResult.Anonymous;
-        }
-
-        return true;
-    }
-
-    bool TryGetFromCookie<TDetails>(IHttpRequestContext context, out IdentityProviderResult<TDetails> result)
-    {
-        result = new IdentityProviderResult<TDetails>(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
-
-        if (!context.Cookies.TryGetValue(IdentityCookieName, out var encodedCookie) || string.IsNullOrWhiteSpace(encodedCookie))
-        {
-            return false;
-        }
-
-        try
-        {
-            var decodedJson = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(encodedCookie));
-            result = JsonSerializer.Deserialize(decodedJson, TypeInfoFor<IdentityProviderResult<TDetails>>())
-                ?? new IdentityProviderResult<TDetails>(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
-        }
-        catch
-        {
-            result = new IdentityProviderResult<TDetails>(IdentityId.Empty, IdentityName.Empty, false, false, [], default!);
-        }
-
-        return true;
     }
 
     async Task<IdentityProviderResult> CreateFromCurrentContext(IHttpRequestContext context)
