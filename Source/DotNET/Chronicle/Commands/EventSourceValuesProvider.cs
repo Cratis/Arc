@@ -1,6 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Text;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Microsoft.Extensions.Logging;
@@ -13,10 +16,13 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="logger">The <see cref="ILogger"/> to use for logging.</param>
 public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger) : ICommandContextValuesProvider
 {
+    static readonly ConcurrentDictionary<Type, string> _keyTypeNames = new();
+
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
-        var eventSourceId = ResolveEventSourceId(command);
+        var eventSourceId = ResolveEventSourceId(command, out var declaredType);
+        DescribeEventSourceIdType(declaredType);
 
         // Also expose the id as the provider-neutral resolved key so a read model backing provider that does not depend
         // on Chronicle (for example Entity Framework Core) can load a read model by the same key. An unspecified id
@@ -26,6 +32,72 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
             { WellKnownCommandContextKeys.EventSourceId, eventSourceId },
             { Cratis.Arc.Commands.CommandContextKeys.ResolvedKey, NeutralKeyFrom(eventSourceId) }
         };
+    }
+
+    /// <summary>
+    /// Gets the name to record for a key type, such as <c>MyApp.Key&lt;System.Guid&gt;</c> for a generic one.
+    /// </summary>
+    /// <param name="type">The <see cref="Type"/> to name.</param>
+    /// <returns>The name.</returns>
+    /// <remarks>
+    /// This only runs for telemetry, so it must not fail the command it describes: it handles every shape a
+    /// <see cref="Type"/> can take, including a type nested in a generic type, whose own name has no arity marker,
+    /// and a generic parameter, which has no full name.
+    /// </remarks>
+    internal static string NameOf(Type type) => _keyTypeNames.GetOrAdd(type, static _ => Describe(_));
+
+    /// <summary>
+    /// Adds the type of the command's event source id to the command span Arc is running it in.
+    /// </summary>
+    /// <param name="type">The type the command declares its event source id as, if any.</param>
+    /// <remarks>
+    /// Only the type is recorded, never the id: an id can identify a person. The span is only touched when it is the
+    /// command span Arc started, so a surrounding span from other instrumentation is never written to.
+    /// </remarks>
+    static void DescribeEventSourceIdType(Type? type)
+    {
+        if (Activity.Current is not { IsAllDataRequested: true } activity ||
+            activity.Source.Name != WellKnownDiagnostics.ActivitySourceName ||
+            activity.OperationName is not (WellKnownTelemetryNames.CommandExecuteSpan or WellKnownTelemetryNames.CommandValidateSpan))
+        {
+            return;
+        }
+
+        if (type is not null)
+        {
+            activity.SetTag(WellKnownTelemetryNames.CommandKeyType, NameOf(type));
+        }
+    }
+
+    static string Describe(Type type)
+    {
+        if (!type.IsGenericType || type.IsGenericTypeDefinition)
+        {
+            return type.FullName ?? type.Name;
+        }
+
+        var definition = type.GetGenericTypeDefinition();
+        return $"{WithoutArity(definition.FullName ?? definition.Name)}<{string.Join(", ", type.GetGenericArguments().Select(Describe))}>";
+    }
+
+    static string WithoutArity(string name)
+    {
+        var builder = new StringBuilder(name.Length);
+        for (var index = 0; index < name.Length; index++)
+        {
+            if (name[index] != '`')
+            {
+                builder.Append(name[index]);
+                continue;
+            }
+
+            while (index + 1 < name.Length && char.IsAsciiDigit(name[index + 1]))
+            {
+                index++;
+            }
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>
@@ -40,18 +112,22 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
     /// Resolves the event source id for a command, from a self-composing command or from a key property.
     /// </summary>
     /// <param name="command">The command to resolve the event source id for.</param>
+    /// <param name="declaredType">The type the command declares the id as, or <see langword="null"/> when it declares none.</param>
     /// <returns>The resolved event source id, or <see cref="EventSourceId.Unspecified"/> when none could be composed.</returns>
-    EventSourceId ResolveEventSourceId(object command)
+    EventSourceId ResolveEventSourceId(object command, out Type? declaredType)
     {
+        declaredType = null;
         if (command is ICanProvideEventSourceId provider)
         {
-            return ProvidedEventSourceIdOrUnspecified(provider);
+            var provided = ProvidedEventSourceIdOrUnspecified(provider);
+            declaredType = provided == EventSourceId.Unspecified ? null : provided.GetType();
+            return provided;
         }
 
         var eventSourceId = EventSourceId.New();
         if (command.HasEventSourceId())
         {
-            eventSourceId = command.GetEventSourceId();
+            eventSourceId = command.GetEventSourceIdWithDeclaredType(out declaredType);
         }
 
         return eventSourceId;

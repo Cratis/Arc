@@ -14,12 +14,12 @@ internal static class Internals
     /// <summary>
     /// Gets the name of the meter used by the Arc.
     /// </summary>
-    internal const string MeterName = "Cratis.Arc";
+    internal const string MeterName = WellKnownDiagnostics.MeterName;
 
     /// <summary>
     /// Gets the name of the activity source used by the Arc.
     /// </summary>
-    internal const string ActivitySourceName = "Cratis.Arc";
+    internal const string ActivitySourceName = WellKnownDiagnostics.ActivitySourceName;
     static IServiceProvider? _serviceProvider;
     static ITypes? _types;
     static IDerivedTypes? _derivedTypes;

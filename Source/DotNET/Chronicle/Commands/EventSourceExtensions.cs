@@ -46,9 +46,18 @@ public static class EventSourceExtensions
     /// </summary>
     /// <param name="command">The command to get the event source ID from.</param>
     /// <returns>The event source ID.</returns>
-    public static EventSourceId GetEventSourceId(this object command)
+    public static EventSourceId GetEventSourceId(this object command) => command.GetEventSourceIdWithDeclaredType(out _);
+
+    /// <summary>
+    /// Gets the event source ID associated with the command, along with the type the command declares it as.
+    /// </summary>
+    /// <param name="command">The command to get the event source ID from.</param>
+    /// <param name="declaredType">The type of the key property or tuple element holding the id, or <see langword="null"/> when the command has none.</param>
+    /// <returns>The event source ID.</returns>
+    internal static EventSourceId GetEventSourceIdWithDeclaredType(this object command, out Type? declaredType)
     {
         var eventSourceId = EventSourceId.Unspecified;
+        declaredType = null;
 
         if (command is ITuple tuple)
         {
@@ -61,6 +70,7 @@ public static class EventSourceExtensions
             var id = values.Find(IsEventSourceIdValue);
             if (id is not null)
             {
+                declaredType = id.GetType();
                 eventSourceId = ToEventSourceIdOrUnspecified(id);
             }
         }
@@ -71,6 +81,7 @@ public static class EventSourceExtensions
 
             if (property is not null)
             {
+                declaredType = property.PropertyType;
                 var value = property.GetValue(command);
                 if (value is not null)
                 {
