@@ -10,6 +10,8 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 Model-bound queries inject services as method parameters. A registered **reference type** can be classified as a dependency, except for concepts (`ConceptAs<T>`), which are always caller-supplied arguments even when registered. Value types also remain caller arguments. The performer resolves dependencies from the service provider supplied to the query pipeline.
 
+A `CancellationToken` parameter is neither: Arc binds it to the request's abort token, as ASP.NET Core does for an endpoint handler, so the query can stop when the client disconnects. It is not a query argument and does not appear in the generated TypeScript proxy.
+
 Do not register a query-input DTO as a service and expect HTTP to populate it. A registered reference type can become an injected dependency instead. Use [scalar arguments](query-arguments.md) for the built-in HTTP readers and keep service interfaces distinct from input types.
 
 ## Inject only what the read needs

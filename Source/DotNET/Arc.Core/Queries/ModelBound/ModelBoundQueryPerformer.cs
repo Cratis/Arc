@@ -17,6 +17,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
 {
     readonly ImmutableArray<ParameterInfo> _parameters;
     readonly ImmutableHashSet<int> _dependencyPositions;
+    readonly ImmutableHashSet<int> _cancellationTokenPositions;
     readonly IAuthorizationEvaluator? _authorizationEvaluator;
     readonly Func<QueryContext, bool>? _authorizeFromScope;
 
@@ -86,11 +87,18 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
 
         _parameters = performMethod.GetParameters().ToImmutableArray();
         var dependencyPositions = ImmutableHashSet.CreateBuilder<int>();
+        var cancellationTokenPositions = ImmutableHashSet.CreateBuilder<int>();
         var dependencyTypes = ImmutableArray.CreateBuilder<Type>();
         var queryParameters = ImmutableArray.CreateBuilder<QueryParameter>();
         foreach (var parameter in _parameters)
         {
-            if (IsDependency(serviceProviderIsService, parameter))
+            // A CancellationToken is bound to the request's abort token, the way ASP.NET Core binds it for an endpoint
+            // handler. It is neither a dependency nor an argument the caller supplies, so it is not a query parameter.
+            if (parameter.ParameterType == typeof(CancellationToken))
+            {
+                cancellationTokenPositions.Add(parameter.Position);
+            }
+            else if (IsDependency(serviceProviderIsService, parameter))
             {
                 dependencyPositions.Add(parameter.Position);
                 dependencyTypes.Add(parameter.ParameterType);
@@ -102,6 +110,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         }
 
         _dependencyPositions = dependencyPositions.ToImmutable();
+        _cancellationTokenPositions = cancellationTokenPositions.ToImmutable();
         Dependencies = dependencyTypes.ToImmutable();
         Parameters = new(queryParameters.ToImmutable());
         AllowsAnonymousAccess = performMethod.IsAnonymousAllowed();
@@ -155,7 +164,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     {
         var dependencies = context.Dependencies?.ToArray() ?? [];
         var queryStringParameters = context.Arguments ?? QueryArguments.Empty;
-        var args = GetMethodArguments(dependencies, queryStringParameters);
+        var args = GetMethodArguments(dependencies, queryStringParameters, context.CancellationToken);
         if ((context.PreparedAuthorization?.Declaration.RequiresAsynchronousEvaluation == true && context.AuthorizedExecution is null) ||
             (context.AuthorizedExecution is { } verdict &&
              !verdict.IsCurrent(
@@ -293,7 +302,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         return returnType.IsAssignableTo(typeof(IQueryable));
     }
 
-    object?[] GetMethodArguments(object[] dependencies, QueryArguments queryStringParameters)
+    object?[] GetMethodArguments(object[] dependencies, QueryArguments queryStringParameters, CancellationToken cancellationToken)
     {
         var dependencyIndex = 0;
         var args = new object?[_parameters.Length];
@@ -301,7 +310,11 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
         {
             var parameter = _parameters[i];
 
-            if (_dependencyPositions.Contains(parameter.Position))
+            if (_cancellationTokenPositions.Contains(parameter.Position))
+            {
+                args[i] = cancellationToken;
+            }
+            else if (_dependencyPositions.Contains(parameter.Position))
             {
                 args[i] = ResolveDependency(dependencies, ref dependencyIndex);
             }
