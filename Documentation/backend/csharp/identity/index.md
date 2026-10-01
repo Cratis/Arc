@@ -22,7 +22,7 @@ flowchart LR
     B --> C{Authorized?}
     C -- No --> D[HTTP 403]
     C -- Yes --> E[Identity Details JSON]
-    E --> F[/.cratis/me response/]
+    E --> F["/.cratis/me response"]
     F --> G[Frontend Identity Consumption]
 ```
 
