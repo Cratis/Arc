@@ -24,4 +24,12 @@ export class a_browser_with_a_legacy_identity extends an_identity_provider {
             global.document = this.originalDocument;
         });
     }
+
+    reload(): void {
+        const cookieJar = this.browser.cookieJar;
+        const url = this.browser.window.location.href;
+        this.browser.window.close();
+        this.browser = new JSDOM('', { url, cookieJar });
+        global.document = this.browser.window.document;
+    }
 }

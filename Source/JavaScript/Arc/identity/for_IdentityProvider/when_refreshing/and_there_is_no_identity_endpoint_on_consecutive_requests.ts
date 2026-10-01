@@ -18,5 +18,5 @@ describe('when refreshing consecutively without an identity endpoint', given(a_b
     it('should ask the server for each refresh', () => context.fetchStub.calledTwice.should.be.true);
     it('should retain the transition identity', () => refreshed.id.should.equal('user-123'));
     it('should retain the transition roles', () => refreshed.isInRole('Reader').should.be.true);
-    it('should expire the root cookie even on a nested page', () => document.cookie.should.equal(''));
+    it('should restore the root cookie for navigation', () => document.cookie.should.contain('.cratis-identity='));
 }));

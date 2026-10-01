@@ -98,8 +98,8 @@ export class IdentityProvider extends IIdentityProvider {
      * @returns The current identity as {@link IIdentity}.
      */
     static async refresh<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
-        // Earlier backends resolve the cookie before consulting the current credentials. Retain it only in memory
-        // for consecutive 404 transition fallbacks, but do not send it with an explicit refresh request.
+        // Earlier backends resolve the cookie before consulting the current credentials. Retain it during the
+        // request for a possible 404 transition fallback, but do not send it with an explicit refresh request.
         IdentityProvider.legacyCookie = IdentityProvider.readLegacyCookie() ?? IdentityProvider.legacyCookie;
         IdentityProvider.cachedResult = undefined;
         IdentityProvider.expireLegacyCookie();
@@ -183,12 +183,16 @@ export class IdentityProvider extends IIdentityProvider {
     private static fromLegacyCookie(): IdentityProviderResult | undefined {
         if (typeof document === 'undefined') return undefined;
         // A proxy may issue a newer cookie on the response. Prefer it over the one expired before the request.
-        const cookie = IdentityProvider.readLegacyCookie() ?? IdentityProvider.legacyCookie;
+        const responseCookie = IdentityProvider.readLegacyCookie();
+        const cookie = responseCookie ?? IdentityProvider.legacyCookie;
         if (!cookie) return undefined;
         IdentityProvider.legacyCookie = cookie;
 
         try {
             const result = JSON.parse(atob(decodeURIComponent(cookie.substring(`${IdentityProvider.CookieName}=`.length)))) as IdentityProviderResult;
+            // The proxy may not reissue its cookie while its own authorization record remains valid. Restore the
+            // transition fallback after a 404 so it also survives a reload, without changing a response cookie.
+            if (!responseCookie) document.cookie = `${cookie};path=/`;
             if (!IdentityProvider.hasWarnedAboutLegacyCookie) {
                 IdentityProvider.hasWarnedAboutLegacyCookie = true;
                 console.warn(
