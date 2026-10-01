@@ -20,4 +20,5 @@ describe('when clearing cache', given(an_identity_provider, context => {
 
     it('should ask the server again', () => context.fetchStub.calledTwice.should.be.true);
     it('should report what the server reports now', () => identity.isSet.should.be.false);
+    it('should expire a legacy identity cookie', () => (global as { document?: { cookie: string } }).document!.cookie.should.contain('.cratis-identity=;expires=Thu, 01 Jan 1970'));
 }));

@@ -14,15 +14,20 @@ import { joinPaths } from '../joinPaths.js';
 /**
  * Represents an implementation of {@link IIdentityProvider}.
  *
- * The identity always comes from the `/.cratis/me` endpoint, which derives it from the authenticated request. The
+ * The identity comes from the `/.cratis/me` endpoint, which derives it from the authenticated request. The
  * result is kept in memory for the page, so repeated calls to {@link IdentityProvider.getCurrent} do not each go to
  * the server; {@link IdentityProvider.refresh} always asks the server again.
+ *
+ * Only when the server has no `/.cratis/me` endpoint (it answers 404) does it fall back to the readable
+ * `.cratis-identity` cookie earlier versions relied on, and it warns when it does. That fallback is for the transition
+ * and will be removed.
 */
 export class IdentityProvider extends IIdentityProvider {
 
     /**
      * The name of the identity cookie earlier versions of Arc wrote and read.
-     * @deprecated Arc no longer reads or writes this cookie. The identity comes from the `/.cratis/me` endpoint.
+     * @deprecated The identity comes from the `/.cratis/me` endpoint. The cookie is only read when that endpoint does
+     * not exist, and that fallback will be removed.
      */
     static readonly CookieName = '.cratis-identity';
     static httpHeadersCallback: GetHttpHeaders | undefined;
@@ -30,6 +35,7 @@ export class IdentityProvider extends IIdentityProvider {
     static origin: string = '';
 
     private static cachedResult: Promise<IdentityProviderResult | undefined> | undefined;
+    private static hasWarnedAboutLegacyCookie = false;
 
     /**
      * Sets the HTTP headers callback.
@@ -45,7 +51,7 @@ export class IdentityProvider extends IIdentityProvider {
      */
     static setApiBasePath(apiBasePath: string): void {
         if (IdentityProvider.apiBasePath !== apiBasePath) {
-            IdentityProvider.clearCache();
+            IdentityProvider.cachedResult = undefined;
         }
         IdentityProvider.apiBasePath = apiBasePath;
     }
@@ -56,7 +62,7 @@ export class IdentityProvider extends IIdentityProvider {
      */
     static setOrigin(origin: string): void {
         if (IdentityProvider.origin !== origin) {
-            IdentityProvider.clearCache();
+            IdentityProvider.cachedResult = undefined;
         }
         IdentityProvider.origin = origin;
     }
@@ -95,10 +101,12 @@ export class IdentityProvider extends IIdentityProvider {
 
     /**
      * Forgets the identity kept in memory, so the next {@link IdentityProvider.getCurrent} asks the server again.
-     * Call this when the user logs out.
+     * It also expires a readable `.cratis-identity` cookie left by an earlier version. Call this when the user logs out.
      */
     static clearCache(): void {
         IdentityProvider.cachedResult = undefined;
+        if (typeof document === 'undefined') return;
+        document.cookie = `${IdentityProvider.CookieName}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
     }
 
     /**
@@ -138,11 +146,39 @@ export class IdentityProvider extends IIdentityProvider {
             headers: IdentityProvider.httpHeadersCallback?.() ?? {}
         });
 
+        // No identity endpoint at all - an application that has not mapped one, or one whose identity comes from a
+        // proxy in front of it. Anything else, a 401 or 403 above all, is the server's answer and a cookie the
+        // browser holds must never overrule it.
+        if (response.status === 404) {
+            return IdentityProvider.fromLegacyCookie();
+        }
+
         if (!response.ok) {
             return undefined;
         }
 
         return await response.json() as IdentityProviderResult;
+    }
+
+    private static fromLegacyCookie(): IdentityProviderResult | undefined {
+        if (typeof document === 'undefined') return undefined;
+        const prefix = `${IdentityProvider.CookieName}=`;
+        const cookie = document.cookie.split(';').map(_ => _.trim()).find(_ => _.startsWith(prefix));
+        if (!cookie) return undefined;
+
+        try {
+            const result = JSON.parse(atob(decodeURIComponent(cookie.substring(prefix.length)))) as IdentityProviderResult;
+            if (!IdentityProvider.hasWarnedAboutLegacyCookie) {
+                IdentityProvider.hasWarnedAboutLegacyCookie = true;
+                console.warn(
+                    `The server has no '/.cratis/me' endpoint, so the identity was read from the '${IdentityProvider.CookieName}' cookie. ` +
+                    'That cookie is not protected and the fallback will be removed in a future major version. ' +
+                    'Expose /.cratis/me to the frontend: https://github.com/Cratis/Arc/blob/main/Documentation/backend/csharp/identity/migrating-from-the-identity-cookie.md');
+            }
+            return result;
+        } catch {
+            return undefined;
+        }
     }
 
     private static toIdentity<TDetails extends object = object>(result: IdentityProviderResult | undefined, type?: Constructor<TDetails>): IIdentity<TDetails> {
