@@ -15,6 +15,6 @@ public class without_events : given.an_aggregate_root_mutator
 
     async Task Because() => await _mutator.Rehydrate();
 
-    [Fact] void should_keep_the_initial_tail() => _aggregateRootContext.TailEventSequenceNumber.ShouldEqual(EventSequenceNumber.First);
+    [Fact] void should_keep_expecting_no_event_in_the_scope() => _aggregateRootContext.TailEventSequenceNumber.ShouldEqual(EventSequenceNumber.BeforeFirst);
     [Fact] void should_not_have_events() => _aggregateRootContext.HasEvents.ShouldBeFalse();
 }
