@@ -95,7 +95,7 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
     };
 
     const clearIdentity = (): void => {
-        RootIdentityProvider.clearIdentityCookie();
+        RootIdentityProvider.clearCache();
         setIdentityState({
             identity: wrapRefresh(initialIdentity),
             detailsConstructor: props.detailsType,
@@ -137,9 +137,8 @@ export const IdentityProvider = (props: IdentityProviderProps) => {
                         resolve(wrappedIdentity);
                     }).catch(error => {
                         // The identity that is still in state is the one from before the refresh, and it
-                        // is now suspect - the cookie it came from was cleared before the request went
-                        // out. Settling the question is all this can do; the caller decides what a failed
-                        // refresh means for the session.
+                        // is now suspect - the server could not confirm it. Settling the question is all
+                        // this can do; the caller decides what a failed refresh means for the session.
                         stopLoading();
                         reject(error);
                     });

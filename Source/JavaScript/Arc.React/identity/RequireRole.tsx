@@ -107,9 +107,9 @@ export type RequireRoleProps<TDetails = object> = RequireRoleSlots & (RequireRol
  * the same as one who is anonymous, and treating the two alike makes a signed-in user flash the
  * forbidden state on every load. {@link IIdentityContext.isLoading} is what separates them.
  *
- * **This hides UI, it does not protect data.** The identity it reads comes from a cookie that is
- * deliberately not `HttpOnly`, so the browser - and anyone using it - can edit it and render these
- * children at will. Treat the gate as a way to keep people out of screens that would only frustrate
+ * **This hides UI, it does not protect data.** The identity it reads comes from `/.cratis/me` and is
+ * held in the page's memory, so anyone with the browser's developer tools can change it and render
+ * these children at will. Treat the gate as a way to keep people out of screens that would only frustrate
  * them, never as the thing that keeps them out of the data: every query and command behind it has to
  * carry its own `[Authorize]`/`[Roles]` on the server, where the decision cannot be edited.
  * @typeparam TDetails Type of the details carried by the identity.

@@ -12,7 +12,7 @@ class UndecoratedDetails {
     role!: string;
 }
 
-describe('when getting current with a details type that declares no fields', given(an_identity_provider, () => {
+describe('when getting current with a details type that declares no fields', given(an_identity_provider, context => {
     let originalConsoleWarn: typeof console.warn;
     let result: { details: UndecoratedDetails };
 
@@ -28,8 +28,7 @@ describe('when getting current with a details type that declares no fields', giv
                 role: 'admin'
             }
         };
-        const encodedData = btoa(JSON.stringify(identityData));
-        (global as { document?: { cookie: string } }).document!.cookie = `.cratis-identity=${encodedData}`;
+        context.serverReports(identityData);
 
         const identity = await IdentityProvider.getCurrent(UndecoratedDetails);
         result = { details: identity.details };

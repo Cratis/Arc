@@ -33,8 +33,7 @@ function isPrimitiveDetailsType(type: Constructor): boolean {
  * would otherwise crash or silently destroy the payload.
  * @param {Constructor | undefined} type The details type to deserialize into, or `undefined` to leave
  * the payload untouched.
- * @param {unknown} details The raw details payload - parsed JSON from the identity cookie or the
- * `/.cratis/me` endpoint.
+ * @param {unknown} details The raw details payload - parsed JSON from the `/.cratis/me` endpoint.
  * @returns {unknown} The deserialized instance, or `details` unchanged when deserializing it would be
  * unsafe, pointless, or has already been done.
  * @remarks

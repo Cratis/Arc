@@ -27,5 +27,24 @@ export class an_identity_provider {
         
         this.fetchHelper = createFetchHelper();
         this.fetchStub = this.fetchHelper.stubFetch();
+
+        // The context is created once per suite, but every spec has to start from a page that has not asked
+        // for the identity yet.
+        beforeEach(() => {
+            (global as { document?: { cookie: string } }).document!.cookie = '';
+            IdentityProvider.clearCache();
+            this.fetchStub.resetHistory();
+        });
+    }
+
+    /**
+     * Answers every request to `/.cratis/me` with the given identity.
+     * @param identity The identity the server reports.
+     */
+    serverReports(identity: object) {
+        this.fetchStub.resolves({
+            ok: true,
+            json: async () => identity
+        } as Response);
     }
 }

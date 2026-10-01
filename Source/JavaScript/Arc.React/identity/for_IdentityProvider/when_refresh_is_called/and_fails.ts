@@ -5,8 +5,7 @@ import { given } from '../../../given.js';
 import { an_identity_provider } from '../given/an_identity_provider.js';
 
 /**
- * A refresh clears the identity cookie on its way out, so a failed one leaves the identity in hand
- * older than the credential it came from. That is the caller's problem to act on - but only if the
+ * A failed refresh leaves the identity in hand unconfirmed by the server. That is the caller's problem to act on - but only if the
  * provider stops claiming a request is still in flight.
  */
 describe('when refresh is called and fails', given(an_identity_provider, context => {

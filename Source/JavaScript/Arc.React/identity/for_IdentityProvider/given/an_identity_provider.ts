@@ -25,6 +25,7 @@ export class an_identity_provider {
     constructor() {
         this.originalApiBasePath = RootIdentityProvider.apiBasePath;
         this.originalOrigin = RootIdentityProvider.origin;
+        RootIdentityProvider.clearCache();
 
         RootIdentityProvider.setOrigin('https://example.com');
         RootIdentityProvider.setApiBasePath('https://example.com/api');
@@ -173,6 +174,7 @@ export class an_identity_provider {
         this.fetchHelper.restore();
         RootIdentityProvider.setApiBasePath(this.originalApiBasePath);
         RootIdentityProvider.setOrigin(this.originalOrigin);
+        RootIdentityProvider.clearCache();
         if (this.renderResult) {
             this.renderResult.unmount();
         }
