@@ -16,7 +16,7 @@ namespace Cratis.Arc.Chronicle.Commands.for_CommandScenario;
 
 #pragma warning disable SA1402, SA1649
 
-public class when_a_protected_command_with_a_discoverable_validator_is_posted
+public class when_a_protected_command_with_a_validator_that_takes_dependencies_is_posted
 {
     [Fact]
     public Task execute_endpoint_refuses_it_as_a_server_error_with_the_redacted_message_and_no_side_effects() =>
@@ -46,6 +46,7 @@ public class when_a_protected_command_with_a_discoverable_validator_is_posted
             var message = response.ExceptionMessages.Single();
             Assert.Contains("Discoverable validator", message);
             Assert.Contains(nameof(ProtectedWithValidatorValidator), message);
+            Assert.Contains("constructor takes dependencies", message);
             Assert.Contains("Arc#2831", message);
         });
 
@@ -94,5 +95,8 @@ public class when_a_protected_command_with_a_discoverable_validator_is_posted
         }
     }
 
-    public class ProtectedWithValidatorValidator : CommandValidator<ProtectedWithValidator>;
+    public class ProtectedWithValidatorValidator(TimeProvider clock) : CommandValidator<ProtectedWithValidator>
+    {
+        public TimeProvider Clock { get; } = clock;
+    }
 }

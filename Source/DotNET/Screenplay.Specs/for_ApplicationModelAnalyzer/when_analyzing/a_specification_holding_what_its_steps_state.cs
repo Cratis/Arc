@@ -33,6 +33,7 @@ public class a_specification_holding_what_its_steps_state : Specification
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Authors.Registration;
         using Xunit;

@@ -45,8 +45,20 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
         foreach (var (invocation, method, semanticModel, always) in calls)
         {
-            if (!SpecificationCalls.IsGivenEvents(method) && !SpecificationCalls.IsGivenReadModel(method))
+            var seeding = SpecificationCalls.IsSeedingTheEventLog(method);
+            if (!seeding && !SpecificationCalls.IsGivenEvents(method) && !SpecificationCalls.IsGivenReadModel(method))
             {
+                continue;
+            }
+
+            if (seeding && !SpecificationCalls.IsReachedThroughACommandScenario(invocation, semanticModel))
+            {
+                if (SpecificationMembers.HoldsAScenario(steps))
+                {
+                    draft.CannotRead("it seeds an event log that this cannot tell the command it issues runs against");
+                    return;
+                }
+
                 continue;
             }
 

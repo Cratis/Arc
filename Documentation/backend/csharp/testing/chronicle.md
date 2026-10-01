@@ -111,7 +111,7 @@ Content overloads also accept `Action<TEvent>` assertions. An action validates t
 
 ## Protected decision scenarios
 
-The ordinary `EventScenario`, `Given.ForEventSource(...).Events(...)` legacy read-model seed, and pinned `.ReadModel(...)` state above serve existing scenarios unchanged. **They do not provide protected decision reads:** in the ordinary scenario, read-model seed state and the event log are separate. To exercise `DecisionRead<T>` or `IDecisionReads`, mark the command `[ProtectedDecision]` and opt the scenario in **before seeding or calling `Execute`/`Validate`**. Scenario decision mode refuses discoverable validators on protected commands, as the host does; `UseDecisionReads()` alone never implicitly protects an unmarked command. See [Arc #2831](https://github.com/Cratis/Arc/issues/2831) for future protected validator support; Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on it:
+The ordinary `EventScenario`, `Given.ForEventSource(...).Events(...)` legacy read-model seed, and pinned `.ReadModel(...)` state above serve existing scenarios unchanged. **They do not provide protected decision reads:** in the ordinary scenario, read-model seed state and the event log are separate. To exercise `DecisionRead<T>` or `IDecisionReads`, mark the command `[ProtectedDecision]` and opt the scenario in **before seeding or calling `Execute`/`Validate`**. Scenario decision mode applies the host's [protected-mode validator boundary](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands): parameterless validators run, validators with constructor dependencies are refused. `UseDecisionReads()` alone never implicitly protects an unmarked command. See [Arc #2831](https://github.com/Cratis/Arc/issues/2831) for validators that read decision state; Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on it:
 
 ```csharp
 var scenario = new CommandScenario<RegisterAuthor>().UseDecisionReads();
@@ -123,9 +123,36 @@ result.ShouldHaveValidationErrorBecauseOf(ValidationResultReason.ConcurrencyViol
 
 This is an illustrative fragment: `RegisterAuthor` is marked `[ProtectedDecision]` (`Cratis.Arc.Chronicle.ReadModels`); a direct event-source-keyed admitted projection, event type registration and a handler using `DecisionRead<T>` must exist. Opt-in uses Chronicle's `EventStoreForTesting`: seeded events, decision folds, competing events and owner commits share **one real in-process event log**. `AppendConcurrently` queues an append outside the command's transaction. After handler decision reads and response processing, the competitor is appended before the command owner commits. A matching event conflicts even if the command appends to a different source, and a successful command returning no events still validates its decision. Assert the result's `concurrencyViolation` and that no **command** event committed; a competitor event is expected to remain in the log. `scenario.AppendedEvents` and scenario-level `ShouldHaveAppendedEvent` count successful **command** appends in this opt-in mode, not seeded or competing events. `scenario.EventLog` and `scenario.EventSequence` point at the shared log, so log assertions see *all* stored events.
 
-There is no `EventScenario` facade over that store. In decision mode `scenario.EventScenario` throws rather than returning a misleading second log; use `Given.ForEventSource(...).Events(...)` to seed. Pinned `.ReadModel(...)` state throws too: it cannot provide a real event-log boundary. Trying to opt in after a legacy seed or scenario initialization throws instead of silently discarding that state. A scenario with custom execution scopes registered before opt-in is also refused: this harness cannot safely order those scopes around the owner; test that combination through a host integration test. `AppendConcurrently` requires the opt-in. Ordinary scenarios keep their existing `EventScenario` and cumulative append behavior. No public API accepts invented sequence numbers or handcrafted decision tokens.
+There is no `EventScenario` facade over that store. In decision mode `scenario.EventScenario` throws rather than returning a misleading second log; use `Given.ForEventSource(...).Events(...)` to seed. Trying to opt in after a legacy seed or scenario initialization throws instead of silently discarding that state. A scenario with custom execution scopes registered before opt-in is also refused: this harness cannot safely order those scopes around the owner; test that combination through a host integration test. `AppendConcurrently` requires the opt-in. Ordinary scenarios keep their existing `EventScenario` and cumulative append behavior. No public API accepts invented sequence numbers or handcrafted decision tokens.
 
 This in-process harness does not stand in for a server, storage backend, authorization middleware or Chronicle's consistency exclusions. Revise/redact, generation migration, projection-definition changes, external state, and a foreign writer are outside the guard. A direct SDK `Rollback()` or `Commit()` of a protected command's unit of work, including from an aggregate, is refused with `ProtectedUnitOfWorkRequiresOwner`; Arc completes the unit as its owner. For production admission, opt-out and advisory validation behavior see [decision reads in commands](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands).
+
+### Reads that do not guard the decision
+
+A protected command can also read state it does not guard: an injected read model, `IReadModels.GetInstanceById`, or a `DecisionRead<T>` in an `[Unprotected]` command. In decision mode these resolve the way production resolves them from a caught-up read model store:
+
+- Events seeded with `Given.ForEventSource(...).Events(...)` (or appended to `scenario.EventLog` before `Execute`) are projected through the read model's own projection or reducer, from the same log the decision reads fold. Seed once; both kinds of read see it.
+- A read model exists only once an event its projection or reducer handles has been seeded for the event source: a nullable read model stays `null` when the source only has unrelated events, as in production.
+- A read is resolved from the events seeded for the one event source it is asked for, and the key is not matched against the result. A read model keyed by an event property is still materialized, under that property's value, and is returned for the event source whose events produced it, whether or not the value equals the event source id; events seeded for another source never contribute, so a read for a source with only unrelated events is `null`. If one source's events produce several instances (several key values), the command fails. Parts fed by the events of other sources, such as children, come out empty. Pin the read model with `.ReadModel(...)` to supply the complete value.
+- A pinned `.ReadModel(...)` instance serves these reads and takes precedence over seeded events for that read model and event source, whether the events were seeded before or after the pin.
+- A competing event queued with `AppendConcurrently` arrives after the reads, so it neither shows up in them nor conflicts with them: only decision reads are guarded.
+
+A protected decision read always folds the log and never sees a pinned instance. Pinning a read model that the command takes as a `DecisionRead<T>` parameter throws `PinnedReadModelCannotProvideDecisionToken`; a read made through `IDecisionReads.Get<T>(key)` is not visible up front, so a pin is never refused for it and never reaches it: seed events for it.
+
+### Check that Chronicle admits the decision reads
+
+Chronicle guards only flat, event-source-keyed projections. A `DecisionRead<T>` whose read model has children or nested objects, a join, a reducer, more than one projection, or routing by an event property compiles, but the command fails each time it executes. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
+
+```csharp
+public class when_checking_decision_read_admission
+{
+    [Fact]
+    public void should_admit_every_protected_decision_read() =>
+        DecisionReadAdmissions.ShouldAdmitDecisionReadsIn(typeof(RegisterAuthor).Assembly);
+}
+```
+
+`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. Only `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of the `Handle` and `Provide` methods of `[ProtectedDecision]` commands are checked, including methods inherited from a base type; abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
 
 ## Transactional commands in tests
 

@@ -1,8 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Runtime.CompilerServices;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing.ReadModels;
 
@@ -13,13 +13,18 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// projecting seeded events through the read model's own reducer or projection — keyed by event source id.
 /// </summary>
 /// <param name="inner">The inner <see cref="IReadModels"/> to delegate non-resolution operations to.</param>
+/// <param name="eventLog">
+/// The event log to materialize read models from, or <see langword="null"/> to materialize them from events seeded through
+/// <see cref="SeedEvents"/>. Decision mode passes its single in-process log, so non-decision reads see the same events that
+/// protected decision reads fold.
+/// </param>
 /// <remarks>
 /// Seeding events is deliberately type-agnostic: a test states the events that happened for an event source, and any
 /// read model a command injects for that source is materialized from those events on demand — mirroring how the real
 /// system derives read models from the event log. Pinned instances take precedence when a test wants to assert against
 /// a specific read model value directly.
 /// </remarks>
-internal sealed class CommandScenarioReadModels(IReadModels inner) : IReadModels
+internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null) : IReadModels
 {
     readonly Dictionary<(Type ReadModelType, string EventSourceId), object> _instances = [];
     readonly Dictionary<string, List<object>> _events = [];
@@ -60,14 +65,16 @@ internal sealed class CommandScenarioReadModels(IReadModels inner) : IReadModels
             return instance;
         }
 
-        if (_events.TryGetValue(key.Value, out var events))
+        var events = await EventsFor(new EventSourceId(key.Value));
+        if (events.Count > 0)
         {
             return (await ProjectReadModel(readModelType, new EventSourceId(key.Value), events))!;
         }
 
-        // Nothing seeded for this event source id: the read model does not exist. Command-scoped code can inject a
-        // nullable read model and treat null as "does not exist", exactly as in production. We do not fall through to
-        // the inner read models, which would require a live Chronicle backing store that a command scenario has not.
+        // Nothing seeded for this event source id, or none of it concerns this read model (the projection yields no
+        // instance): the read model does not exist. Command-scoped code can inject a nullable read model and treat null
+        // as "does not exist", exactly as in production. We do not fall through to the inner read models, which would
+        // require a live Chronicle backing store that a command scenario has not.
         return null!;
     }
 
@@ -112,12 +119,14 @@ internal sealed class CommandScenarioReadModels(IReadModels inner) : IReadModels
     {
         // ReadModelScenario<T> is Chronicle's own engine for materializing a read model from events through its real
         // reducer or projection — we build on it here rather than reimplementing projection. Reflection is used only
-        // because it is generic and the read model type is known at runtime. We read the materialized Instance and
-        // deliberately do NOT route through its ReadModels facade: that facade throws ("Read model returned null")
-        // when a read model does not exist instead of returning null, which would break the nullable "does not exist"
-        // semantics command-scoped code relies on.
+        // because it is generic and the read model type is known at runtime. No initial state is supplied: an explicit
+        // one makes the read model exist even when none of the events concern it, whereas production only has a read
+        // model once an event it handles has happened, so the instance is null when the events are unrelated to it.
+        // We read the materialized Instance and deliberately do NOT route through its ReadModels facade: that facade
+        // throws ("Read model returned null") when a read model does not exist instead of returning null, which would
+        // break the nullable "does not exist" semantics command-scoped code relies on.
         var scenarioType = typeof(ReadModelScenario<>).MakeGenericType(readModelType);
-        var scenario = Activator.CreateInstance(scenarioType, CreateSeed(readModelType))!;
+        var scenario = Activator.CreateInstance(scenarioType, [null])!;
 
         var processTask = (Task)scenarioType.GetMethod("ProcessEventsFor")!.Invoke(scenario, [eventSourceId, events])!;
         await processTask;
@@ -125,15 +134,18 @@ internal sealed class CommandScenarioReadModels(IReadModels inner) : IReadModels
         return scenarioType.GetProperty("Instance")!.GetValue(scenario);
     }
 
-    static object CreateSeed(Type readModelType)
+    async Task<IReadOnlyList<object>> EventsFor(EventSourceId eventSourceId)
     {
-        try
+        if (eventLog is null)
         {
-            return Activator.CreateInstance(readModelType)!;
+            return _events.TryGetValue(eventSourceId.Value, out var seeded) ? seeded : [];
         }
-        catch (MissingMethodException)
-        {
-            return RuntimeHelpers.GetUninitializedObject(readModelType);
-        }
+
+        // Production derives a read model from the event log; resolving from the same log the decision reads fold keeps
+        // the two consistent. The read is taken when the command asks for it, so events appended later in the scenario
+        // (such as competing appends queued with AppendConcurrently) are not visible to it, just as a read made before a
+        // concurrent write would not see that write.
+        var appended = await eventLog.GetFromSequenceNumber(EventSequenceNumber.First, eventSourceId);
+        return appended.Select(_ => _.Content).ToArray();
     }
 }

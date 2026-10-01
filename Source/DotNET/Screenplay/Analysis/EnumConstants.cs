@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Numerics;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -51,9 +52,9 @@ public static class EnumConstants
     /// <param name="member">The member the value names.</param>
     /// <returns>True when the type is an enumeration declaring a member with that value.</returns>
     /// <remarks>
-    /// A value no member is declared with - an arbitrary cast, or several flags combined into one - is not resolved.
-    /// Inventing a name for it would describe a value the application does not have, so the caller is left to write
-    /// the number and say what it lost.
+    /// A value no member is declared with - an arbitrary cast, <see langword="default"/> for an enumeration declaring no zero
+    /// member, or several flags combined into one - is not resolved. Inventing a name for it would describe a value the
+    /// application does not have, so the caller is left to say what it cannot name.
     /// </remarks>
     public static bool TryResolve(ITypeSymbol? type, object? value, out EnumValue member)
     {
@@ -69,6 +70,38 @@ public static class EnumConstants
     }
 
     /// <summary>
+    /// Determines whether a value is several declared flags combined into one that no member is declared with.
+    /// </summary>
+    /// <param name="type">The enumeration the value was written as.</param>
+    /// <param name="value">The value the compiler handed over, which for an enumeration is the number behind a member.</param>
+    /// <returns>True when the enumeration is declared <see cref="FlagsAttribute"/>, no member has the value, and the members whose bits it holds make it up exactly.</returns>
+    /// <remarks>
+    /// This is how an <c>Email | InApp</c> that no member is declared for differs from a number nobody meant:
+    /// every bit of it is a member, yet the document names a member and has no form for a combination.
+    /// </remarks>
+    public static bool IsFlagsCombination(ITypeSymbol? type, object? value)
+    {
+        if (!IsEnumeration(type) ||
+            !type!.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.FlagsAttribute") ||
+            Normalize(value) is not { } wanted ||
+            wanted <= 0 ||
+            MemberOf(type, value!) is not null)
+        {
+            return false;
+        }
+
+        var covered = type.GetMembers()
+            .OfType<IFieldSymbol>()
+            .Where(_ => _.HasConstantValue)
+            .Select(_ => Normalize(_.ConstantValue))
+            .OfType<BigInteger>()
+            .Where(member => member > 0 && (member & wanted) == member)
+            .Aggregate(BigInteger.Zero, (all, member) => all | member);
+
+        return covered == wanted;
+    }
+
+    /// <summary>
     /// Gets the name of the member an enumeration declares a value with.
     /// </summary>
     /// <param name="type">The enumeration to read.</param>
@@ -80,10 +113,36 @@ public static class EnumConstants
     /// the same compilation produce the same document, which is the whole point of a document worth committing.
     /// </remarks>
     static string? MemberOf(ITypeSymbol type, object value) =>
-        type.GetMembers()
-            .OfType<IFieldSymbol>()
-            .Where(_ => _.HasConstantValue && Equals(_.ConstantValue, value))
-            .Select(_ => _.Name)
-            .Order(StringComparer.Ordinal)
-            .FirstOrDefault();
+        Normalize(value) is not { } wanted
+            ? null
+            : type.GetMembers()
+                .OfType<IFieldSymbol>()
+                .Where(_ => _.HasConstantValue && Normalize(_.ConstantValue) == wanted)
+                .Select(_ => _.Name)
+                .Order(StringComparer.Ordinal)
+                .FirstOrDefault();
+
+    /// <summary>
+    /// Gets the number behind a constant, whichever integral type the compiler handed it over as.
+    /// </summary>
+    /// <param name="value">The constant to read.</param>
+    /// <returns>The number, or <see langword="null"/> when the constant is not an integer.</returns>
+    /// <remarks>
+    /// A member is declared with a constant of the underlying type of its enumeration, while a constant read from
+    /// behind a cast or written bare is an <see cref="int"/> - so <c>(ByteEnum)1</c> and the member declared with
+    /// <c>1</c> are the same value held as different types, and comparing them as objects never matches.
+    /// </remarks>
+    static BigInteger? Normalize(object? value) => value switch
+    {
+        sbyte number => number,
+        byte number => number,
+        short number => number,
+        ushort number => number,
+        int number => number,
+        uint number => number,
+        long number => number,
+        ulong number => number,
+        char number => number,
+        _ => null
+    };
 }

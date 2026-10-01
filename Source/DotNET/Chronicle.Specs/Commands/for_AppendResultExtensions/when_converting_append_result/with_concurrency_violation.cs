@@ -35,7 +35,7 @@ public class with_concurrency_violation : given.all_dependencies
     [Fact] void should_have_correct_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
     [Fact] void should_have_validation_results() => _result.ValidationResults.ShouldNotBeEmpty();
     [Fact] void should_have_one_validation_result() => _result.ValidationResults.Count().ShouldEqual(1);
-    [Fact] void should_include_concurrency_violation_message() => _result.ValidationResults.First().Message.ShouldContain("Concurrency violation");
+    [Fact] void should_include_concurrency_violation_message() => _result.ValidationResults.First().Message.ShouldContain("has new events since the command read it");
     [Fact] void should_include_expected_sequence_number() => _result.ValidationResults.First().Message.ShouldContain("10");
     [Fact] void should_include_actual_sequence_number() => _result.ValidationResults.First().Message.ShouldContain("15");
 

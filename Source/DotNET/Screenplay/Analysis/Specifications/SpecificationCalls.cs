@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 
@@ -38,6 +39,9 @@ public static class SpecificationCalls
     /// <summary>The method issuing a command over HTTP.</summary>
     public const string ExecuteCommandMethod = "ExecuteCommand";
 
+    /// <summary>The property of a command scenario handing out the event scenario it runs against.</summary>
+    public const string EventScenarioProperty = "EventScenario";
+
     /// <summary>The parameter carrying the single event an append is given.</summary>
     public const string EventParameter = "event";
 
@@ -58,6 +62,51 @@ public static class SpecificationCalls
     public static bool IsGivenEvents(IMethodSymbol method) =>
         (IsOn(method, WellKnownTypeNames.EventSequence) && (Named(method, AppendMethod) || Named(method, AppendManyMethod))) ||
         (OnAGivenBuilder(method) && Named(method, EventsMethod));
+
+    /// <summary>
+    /// Determines whether a call seeds the event log of an event scenario.
+    /// </summary>
+    /// <param name="method">The method being called.</param>
+    /// <returns>True when the call seeds an event log.</returns>
+    /// <remarks>
+    /// A command scenario hands out the event scenario it runs against, and seeding that is stating what had happened
+    /// just as seeding through the scenario itself is. An event scenario held on its own is not: what a specification
+    /// says through one is a statement about the event log rather than about a command, so whether the call is a given
+    /// depends on where it was reached from - see <see cref="IsReachedThroughACommandScenario"/>.
+    /// </remarks>
+    public static bool IsSeedingTheEventLog(IMethodSymbol method) =>
+        IsOn(method, WellKnownTypeNames.EventSourceGivenBuilder) && Named(method, EventsMethod);
+
+    /// <summary>
+    /// Determines whether a call was reached through the event scenario a command scenario hands out.
+    /// </summary>
+    /// <param name="invocation">The call to check.</param>
+    /// <param name="semanticModel">The semantic model of the tree the call lives in.</param>
+    /// <returns>True when the receiver of the call is the event scenario of a command scenario.</returns>
+    public static bool IsReachedThroughACommandScenario(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        ExpressionSyntax current = invocation;
+        while (true)
+        {
+            switch (current)
+            {
+                case InvocationExpressionSyntax call:
+                    current = call.Expression;
+                    break;
+                case MemberAccessExpressionSyntax member when string.Equals(member.Name.Identifier.ValueText, EventScenarioProperty, StringComparison.Ordinal):
+                    return semanticModel.GetTypeInfo(member).Type.Is(WellKnownTypeNames.EventScenario) &&
+                        semanticModel.GetTypeInfo(member.Expression).Type.Is(WellKnownTypeNames.CommandScenario);
+                case MemberAccessExpressionSyntax member:
+                    current = member.Expression;
+                    break;
+                case ParenthesizedExpressionSyntax parenthesized:
+                    current = parenthesized.Expression;
+                    break;
+                default:
+                    return false;
+            }
+        }
+    }
 
     /// <summary>
     /// Determines whether a call pins the read model a specification starts from.
@@ -86,6 +135,11 @@ public static class SpecificationCalls
         if (IsGivenReadModel(method))
         {
             return ReadModelParameter;
+        }
+
+        if (IsSeedingTheEventLog(method))
+        {
+            return EventsParameter;
         }
 
         if (IsExecution(method))

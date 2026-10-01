@@ -133,6 +133,7 @@ public static class HostBuilderExtensions
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();
         Internals.DerivedTypes = services.UseDerivedTypesFrom(Internals.Types);
+        services.ConstructDependencyFreeValidatorsThroughArc(Internals.Types);
 
         services.AddCratisCommands();
         services.AddCratisQueries();

@@ -69,7 +69,11 @@ public static class CommandScenarioChronicleExtensions
         /// <summary>
         /// Opts into one real in-process event log for seeded events, decision reads and command commits.
         /// </summary>
-        /// <remarks>Call before seeding events or executing. The legacy EventScenario and pinned read models cannot be used in this mode.</remarks>
+        /// <remarks>
+        /// Call before seeding events or executing. The legacy EventScenario cannot be used in this mode: seed events with
+        /// <c>Given.ForEventSource(...).Events(...)</c>. Non-decision reads resolve a pinned read model or materialize from the
+        /// same log the protected decision reads fold; protected decision reads always fold the log.
+        /// </remarks>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
         /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>

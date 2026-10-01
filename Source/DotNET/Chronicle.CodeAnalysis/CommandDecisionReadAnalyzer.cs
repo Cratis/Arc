@@ -21,7 +21,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     const string DecisionReads = "Cratis.Chronicle.ReadModels.IDecisionReads";
     const string EventLog = "Cratis.Chronicle.EventSequences.IEventLog";
     const string HandlerAdvice = "Mark the command [ProtectedDecision] and use DecisionRead<T> or IDecisionReads in Provide or Handle, or mark the command or the intentional legacy read [Unprotected]";
-    const string ValidatorAdvice = "Protected commands refuse discoverable validators, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
+    const string ValidatorAdvice = "Protected commands refuse validators with constructor dependencies, so move the read into Provide or Handle as DecisionRead<T> under [ProtectedDecision], or mark the command [Unprotected]";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -90,7 +90,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (called.Name == "GetInstanceById" && Implements(called.ContainingType, ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
+        if (called.Name == "GetInstanceById" && Implements(ReceiverOf(called), ChronicleReadModels) && !HasUnprotected(enclosing) && IsCommand(command))
         {
             context.ReportDiagnostic(Diagnostic.Create(
                 DiagnosticDescriptors.ARCCHR0011_UnprotectedDecisionRead,
@@ -118,6 +118,17 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
                 syntax.GetLocation(),
                 command.Name));
         }
+    }
+
+    static ITypeSymbol ReceiverOf(IMethodSymbol method)
+    {
+        // An application wrapper such as GetInstanceById(this IReadModels, EventSourceId) is an extension method, so its containing
+        // type is the static class and the read goes through the receiver.
+        if (method.ReducedFrom is not null)
+        {
+            return method.ReceiverType ?? method.ContainingType;
+        }
+        return method.IsExtensionMethod && method.Parameters.Length > 0 ? method.Parameters[0].Type : method.ContainingType;
     }
 
     static bool InDecision(IMethodSymbol method, out INamedTypeSymbol command, bool allowImmediateAppend = false)
@@ -165,13 +176,24 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 
     static bool ProducesEvents(ITypeSymbol type)
     {
-        if (type is INamedTypeSymbol { IsGenericType: true } named && (named.Name == "Task" || named.Name == "ValueTask" || named.Name == "Result"))
+        // The command pipeline awaits Task/ValueTask, then unwraps IOneOf branches (Result, OneOf) and tuple elements, so mirror
+        // that nesting: Task<Result<EventsWithConcurrencyScopes, ValidationResult>> still produces events.
+        if (type is INamedTypeSymbol { IsGenericType: true } named)
         {
-            type = named.TypeArguments[0];
+            if (named.Name == "Task" || named.Name == "ValueTask" || named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+            {
+                return ProducesEvents(named.TypeArguments[0]);
+            }
+
+            if (named.Name == "Result" || named.Name == "OneOf" ||
+                named.AllInterfaces.Any(_ => _.Name == "IOneOf" && _.ContainingNamespace.ToDisplayString() == "OneOf"))
+            {
+                return named.TypeArguments.Any(ProducesEvents);
+            }
         }
-        if (type is INamedTypeSymbol tuple && tuple.IsTupleType)
+        if (type is INamedTypeSymbol { IsTupleType: true } tuple)
         {
-            return tuple.TupleElements.Any(_ => IsEventValue(_.Type));
+            return tuple.TupleElements.Any(_ => ProducesEvents(_.Type));
         }
         return IsEventValue(type);
     }
@@ -180,7 +202,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     {
         if (type is IArrayTypeSymbol array)
         {
-            return IsEventValue(array.ElementType);
+            // An object[] is an IEnumerable<object>, which the pipeline accepts as a set of events.
+            return array.ElementType.SpecialType == SpecialType.System_Object || IsEventValue(array.ElementType);
         }
 
         if (type.ToDisplayString() == "Cratis.Chronicle.EventSequences.EventsWithConcurrencyScopes" ||
@@ -208,8 +231,20 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         {
             return true;
         }
-        return backedTypes.Value.Contains(named);
+        return HasModelBoundMember(named) || backedTypes.Value.Contains(named);
     }
+
+    static bool HasModelBoundMember(INamedTypeSymbol type)
+    {
+        // Model-bound projections are also declared on properties and record parameters (ChildrenFrom, Join, SetFrom, Count and so on).
+        return type.GetMembers().OfType<IPropertySymbol>().Any(_ => HasModelBoundAttribute(_.GetAttributes())) ||
+            type.InstanceConstructors.Any(_ => _.Parameters.Any(p => HasModelBoundAttribute(p.GetAttributes())));
+    }
+
+    static bool HasModelBoundAttribute(ImmutableArray<AttributeData> attributes) =>
+        attributes.Any(_ => _.AttributeClass is { } attribute &&
+            attribute.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Projections.ModelBound" &&
+            attribute.Name != "NotProjectedAttribute" && attribute.Name != "NotRewindableAttribute" && attribute.Name != "NestedAttribute");
 
     static ImmutableHashSet<INamedTypeSymbol> ProjectionAndReducerTargets(Compilation compilation) =>
         compilation.GetSymbolsWithName(_ => true, SymbolFilter.Type)
@@ -233,6 +268,8 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             (method.ContainingType.ToDisplayString() == "Cratis.Chronicle.EventSequences.IEventSequence" || Implements(method.ContainingType, EventLog));
     }
 
-    static bool Implements(ITypeSymbol type, string fullName) => type.ToDisplayString() == fullName ||
-        type.AllInterfaces.Any(_ => _.ToDisplayString() == fullName);
+    static bool Implements(ITypeSymbol type, string fullName) =>
+        type is ITypeParameterSymbol parameter
+            ? parameter.ConstraintTypes.Any(_ => Implements(_, fullName))
+            : type.ToDisplayString() == fullName || type.AllInterfaces.Any(_ => _.ToDisplayString() == fullName);
 }

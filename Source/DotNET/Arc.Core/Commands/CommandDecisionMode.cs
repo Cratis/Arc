@@ -14,7 +14,7 @@ public enum CommandDecisionMode
     Legacy = 0,
 
     /// <summary>
-    /// Protected decision reads; discoverable validators are refused.
+    /// Protected decision reads; only discoverable validators that Arc constructed through a parameterless constructor run.
     /// </summary>
     Protected = 1,
 
