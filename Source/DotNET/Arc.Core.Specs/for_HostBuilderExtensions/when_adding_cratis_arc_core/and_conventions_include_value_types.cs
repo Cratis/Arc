@@ -15,7 +15,8 @@ public class and_conventions_include_value_types : given.value_type_bindings
     }
 
     [Fact] void should_not_self_bind_enums() => _services.Where(_ => _.ServiceType == typeof(Policy)).ShouldBeEmpty();
-    [Fact] void should_not_self_bind_structs() => _services.Where(_ => _.ServiceType == typeof(Value)).ShouldBeEmpty();
-    [Fact] void should_not_bind_interfaces_to_structs() => _services.Where(_ => _.ServiceType == typeof(IValue)).ShouldBeEmpty();
+    [Fact] void should_not_bind_interfaces_to_enums() => _services.Where(_ => _.ServiceType == typeof(IComparable)).ShouldBeEmpty();
+    [Fact] void should_resolve_self_bound_structs_with_a_public_constructor() => _provider.GetRequiredService<Value>().Number.ShouldEqual(42);
+    [Fact] void should_resolve_convention_bound_structs_with_a_public_constructor() => ((Value)_provider.GetRequiredService<IValue>()).Number.ShouldEqual(42);
     [Fact] void should_still_resolve_concrete_classes() => _provider.GetRequiredService<Constructible>().ShouldBeOfExactType<Constructible>();
 }

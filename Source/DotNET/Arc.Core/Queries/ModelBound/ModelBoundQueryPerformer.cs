@@ -232,10 +232,9 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     /// <param name="parameter">The <see cref="ParameterInfo"/> to classify.</param>
     /// <returns>True when the parameter should be resolved from the container; otherwise false.</returns>
     /// <remarks>
-    /// Asking the container alone is not sufficient. <c>AddSelfBindings</c> self-registers every discovered concrete
-    /// type, and an enum is concrete - so <c>IsService</c> answers true for it and an enum query argument was
-    /// classified as a dependency, then failed to resolve at request time with a container error naming the enum.
-    /// A value type is never something the caller injects here, so it is excluded before the container is consulted.
+    /// Asking the container alone is not sufficient. Arc excludes enums from convention and self binding, but
+    /// structs can still be convention-bound and callers can explicitly register value types, including enums.
+    /// A value type is always a caller-supplied query argument here, so it is excluded before the container is consulted.
     /// <para>
     /// The same is true, for a different reason, of an <c>IEnumerable&lt;T&gt;</c> whose element type is a
     /// primitive, a concept, or an enum: the BCL's default <see cref="IServiceProviderIsService"/> answers true for
@@ -249,7 +248,7 @@ public class ModelBoundQueryPerformer : IQueryPerformer, IFrameworkAuthorization
     /// as before.
     /// </para>
     /// <para>
-    /// A concept (<c>ConceptAs&lt;T&gt;</c>) is excluded for the same reason as an enum: it is a concrete reference
+    /// A concept (<c>ConceptAs&lt;T&gt;</c>) is also excluded because it is a concrete reference
     /// type, so self-binding registers it and <c>IsService</c> answers true. It was then resolved from the container
     /// instead of bound from the request, and failed trying to construct it from its primitive value. A concept is
     /// always a caller-supplied argument, as it already is inside a collection and in the generated proxy. A nullable

@@ -28,7 +28,12 @@ public class value_type_bindings : Specification
 
     public interface IValue;
 
-    public readonly record struct Value : IValue;
+    public readonly record struct Value : IValue
+    {
+        public Value() => Number = 42;
+
+        public int Number { get; }
+    }
 
     public class Constructible;
 
@@ -39,7 +44,10 @@ public class value_type_bindings : Specification
         public IEnumerable<Type> DefinedTypes => [typeof(Policy), typeof(Value), typeof(IValue), typeof(Constructible)];
 
         public IEnumerable<ConventionServiceBinding> ConventionServiceBindings =>
-            [new(typeof(IValue), typeof(Value), ServiceLifetime.Transient)];
+        [
+            new(typeof(IValue), typeof(Value), ServiceLifetime.Transient),
+            new(typeof(IComparable), typeof(Policy), ServiceLifetime.Transient)
+        ];
 
         public IEnumerable<ConventionSelfBinding> SelfBindings =>
         [

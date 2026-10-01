@@ -21,11 +21,11 @@ internal static class ArcServiceBindings
         var existingCount = services.Count;
         services.AddBindingsByConvention().AddSelfBindings();
 
-        // Fundamentals can supply enum and struct implementation types, which Microsoft DI cannot activate.
+        // Fundamentals can supply enum implementation types, which Microsoft DI cannot activate.
         // Filter only the descriptors it just added; explicit caller registrations remain untouched.
         for (var index = services.Count - 1; index >= existingCount; index--)
         {
-            if (services[index].ImplementationType?.IsValueType == true)
+            if (services[index].ImplementationType?.IsEnum == true)
             {
                 services.RemoveAt(index);
             }
