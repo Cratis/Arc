@@ -95,7 +95,11 @@ export class IdentityProvider extends IIdentityProvider {
      * @returns The current identity as {@link IIdentity}.
      */
     static async refresh<TDetails extends object = object>(type?: Constructor<TDetails>): Promise<IIdentity<TDetails>> {
-        const result = await IdentityProvider.fetchAndCache();
+        // Earlier backends resolve the cookie before consulting the current credentials. Keep a snapshot only
+        // for the 404 transition fallback, but do not send the stale cookie with an explicit refresh request.
+        const legacyCookies = typeof document === 'undefined' ? '' : document.cookie;
+        IdentityProvider.clearCache();
+        const result = await IdentityProvider.fetchAndCache(legacyCookies);
         return IdentityProvider.toIdentity(result, type);
     }
 
@@ -117,8 +121,8 @@ export class IdentityProvider extends IIdentityProvider {
         IdentityProvider.clearCache();
     }
 
-    private static fetchAndCache(): Promise<IdentityProviderResult | undefined> {
-        const pending = IdentityProvider.fetchResult();
+    private static fetchAndCache(legacyCookies?: string): Promise<IdentityProviderResult | undefined> {
+        const pending = IdentityProvider.fetchResult(legacyCookies);
         IdentityProvider.cachedResult = pending;
 
         // Only a resolved identity is worth keeping: an unset one, or a failed request, has to be asked for
@@ -135,7 +139,7 @@ export class IdentityProvider extends IIdentityProvider {
         return pending;
     }
 
-    private static async fetchResult(): Promise<IdentityProviderResult | undefined> {
+    private static async fetchResult(legacyCookies?: string): Promise<IdentityProviderResult | undefined> {
         const origin = IdentityProvider.origin || Globals.origin || '';
         const apiBasePath = IdentityProvider.apiBasePath || Globals.apiBasePath || '';
         const route = joinPaths(apiBasePath, '/.cratis/me');
@@ -150,7 +154,7 @@ export class IdentityProvider extends IIdentityProvider {
         // proxy in front of it. Anything else, a 401 or 403 above all, is the server's answer and a cookie the
         // browser holds must never overrule it.
         if (response.status === 404) {
-            return IdentityProvider.fromLegacyCookie();
+            return IdentityProvider.fromLegacyCookie(legacyCookies);
         }
 
         if (!response.ok) {
@@ -160,10 +164,10 @@ export class IdentityProvider extends IIdentityProvider {
         return await response.json() as IdentityProviderResult;
     }
 
-    private static fromLegacyCookie(): IdentityProviderResult | undefined {
+    private static fromLegacyCookie(legacyCookies?: string): IdentityProviderResult | undefined {
         if (typeof document === 'undefined') return undefined;
         const prefix = `${IdentityProvider.CookieName}=`;
-        const cookie = document.cookie.split(';').map(_ => _.trim()).find(_ => _.startsWith(prefix));
+        const cookie = (legacyCookies ?? document.cookie).split(';').map(_ => _.trim()).find(_ => _.startsWith(prefix));
         if (!cookie) return undefined;
 
         try {
