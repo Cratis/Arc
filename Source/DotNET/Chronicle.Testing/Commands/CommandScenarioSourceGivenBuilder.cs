@@ -47,13 +47,19 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
     /// </summary>
     /// <typeparam name="TReadModel">Type of read model to pin. Inferred from <paramref name="readModel"/>.</typeparam>
     /// <param name="readModel">The read model instance.</param>
-    /// <exception cref="PinnedReadModelCannotProvideDecisionToken">Pinned state cannot supply a protected decision read.</exception>
+    /// <remarks>
+    /// In decision mode a pinned instance serves the reads that do not guard the decision: <c>IReadModels</c>, injected
+    /// read models and an <c>[Unprotected]</c> command's <c>DecisionRead&lt;T&gt;</c>. A protected decision read always folds
+    /// the scenario's event log, exactly as in production, and never sees a pinned instance; seed events for it instead.
+    /// </remarks>
+    /// <exception cref="PinnedReadModelCannotProvideDecisionToken">The command reads this read model as a protected decision read parameter.</exception>
     public void ReadModel<TReadModel>(TReadModel readModel)
         where TReadModel : class
     {
-        if (_scenario.Context.ContainsKey(ChronicleCommandScenarioExtender.DecisionScenarioKey))
+        if (_scenario.Context.ContainsKey(ChronicleCommandScenarioExtender.DecisionScenarioKey) &&
+            ProtectedDecisionReadParameters.ReadModelTypesOf(typeof(TCommand)).Contains(typeof(TReadModel)))
         {
-            throw new PinnedReadModelCannotProvideDecisionToken();
+            throw new PinnedReadModelCannotProvideDecisionToken(typeof(TCommand), typeof(TReadModel));
         }
 
         ReadModels().SeedInstance(typeof(TReadModel), _eventSourceId, readModel);
