@@ -45,13 +45,13 @@ HTTP evidence that backs the JVM side. For Arc for TypeScript, see its
 | `/.cratis/queries/sse` | `GET` | Multiplexed SSE hub; the stream opens with a `Connected` message carrying the connection ID. |
 | `/.cratis/queries/sse/subscribe` | `POST` | Adds or revision-replaces a subscription on an established SSE connection. |
 | `/.cratis/queries/sse/unsubscribe` | `POST` | Cancels a subscription or records its revision tombstone. |
-| `/.cratis/commands` | `GET` | Command introspection metadata; anonymous by default. See [the divergence note](#introspection-access-is-configurable-on-net). |
-| `/.cratis/queries` | `GET` | Query introspection metadata; anonymous by default. See [the divergence note](#introspection-access-is-configurable-on-net). |
+| `/.cratis/commands` | `GET` | Command introspection metadata. Access differs by backend; see [the divergence note](#introspection-access-is-configurable-on-net). |
+| `/.cratis/queries` | `GET` | Query introspection metadata. Access differs by backend; see [the divergence note](#introspection-access-is-configurable-on-net). |
 | `/.cratis/queries/health` | `GET`, `QUERY` | Current observable connection and subscription health, served as an observable query. |
 | `/.cratis/me` | `GET` | Registered only when an identity details provider is registered. |
 | `/.cratis/identity-details/schema` | `GET` | Always registered; returns `{}` when no provider is registered. |
-| `/.cratis/users` | `GET` | Anonymous development-user discovery; returns an array, or `[]` when no provider contributes. |
-| `/.cratis/tenants` | `GET` | Anonymous development-tenant discovery; returns an array, or `[]` when no provider contributes. |
+| `/.cratis/users` | `GET` | Development-user discovery; returns an array, or `[]` when no provider contributes. Access differs by backend; see [the divergence note](#introspection-access-is-configurable-on-net). |
+| `/.cratis/tenants` | `GET` | Development-tenant discovery; returns an array, or `[]` when no provider contributes. Access differs by backend; see [the divergence note](#introspection-access-is-configurable-on-net). |
 
 Conventional routes are built from the configured route prefix (`api` by default),
 the artifact's namespace with the configured number of leading segments skipped,
@@ -230,9 +230,9 @@ recognizes the request decides the outcome:
   request at all.
 
 An artifact marked to allow anonymous access proceeds without an authenticated result.
-The development-user, development-tenant, and identity-schema routes are anonymous
-endpoints. The introspection routes are anonymous by default; the C# host can unmap them
-or require authentication (see
+The introspection, development-user, development-tenant, and identity-schema routes are
+the discovery routes. The JVM serves them anonymously; the C# host serves them anonymously
+only in Development by default (see
 [Introspection access is configurable on .NET](#introspection-access-is-configurable-on-net)).
 
 `/.cratis/commands` returns, for each command, its name, namespace, route, type, a
@@ -241,11 +241,12 @@ when the artifact carries none), and a JSON schema for the payload. `/.cratis/qu
 returns the same for each query plus its fully qualified query name and an arguments
 schema whose `required` list holds the parameters the query actually requires.
 
-:::caution[Introspection is anonymous by default]
-In their default configuration these endpoints expose operation names, types, routes, and
-schemas to any caller, regardless of whether that caller may execute the operations. On
-the JVM they are always anonymous. If that metadata is sensitive, restrict these exact
-paths at trusted ingress, or on C# configure the introspection options.
+:::caution[Introspection exposes your operation surface]
+These endpoints expose operation names, types, routes, and schemas to any caller who can
+reach them, regardless of whether that caller may execute the operations. The C# host
+requires an authenticated caller outside Development by default. On the JVM they are
+always anonymous: restrict these exact paths at trusted ingress if that metadata is
+sensitive.
 :::
 
 ## Command result envelope
@@ -563,11 +564,15 @@ are validated - and therefore which configuration governs them - is not.
 
 ### Introspection access is configurable on .NET
 
-- **C#**: `Cratis:Arc:Introspection` controls `/.cratis/commands` and `/.cratis/queries`.
-  `Enabled` (default `true`) maps or unmaps both routes. `RequireAuthentication` (default
-  `false`) makes an anonymous request return 401 on Arc.Core. `Roles` (default unset,
-  requires `RequireAuthentication`) makes a caller without any listed role receive 403
-  on Arc.Core. On ASP.NET Core, the response depends on the authentication scheme's
+- **C#**: `Cratis:Arc:Introspection` controls the discovery routes: `/.cratis/commands`,
+  `/.cratis/queries`, `/.cratis/users`, `/.cratis/tenants` and
+  `/.cratis/identity-details/schema`. `Enabled` (default `true`) maps or unmaps the two
+  catalog routes. `RequireAuthentication`, when not set, serves the discovery routes
+  anonymously in Development and requires an authenticated caller elsewhere; outside
+  Development a host that cannot authenticate callers leaves them unmapped (404). `true`
+  requires authentication everywhere and `false` exposes them anonymously everywhere. An
+  anonymous request to a protected route returns 401 on Arc.Core. `Roles` (default unset,
+  implies authentication) makes a caller without any listed role receive 403 on Arc.Core. On ASP.NET Core, the response depends on the authentication scheme's
   challenge or forbid behavior (for example, cookies can redirect).
   Unsigned forwarded identity headers (`x-ms-client-principal*`) authenticate nothing,
   on the catalog or anywhere else, until the host sets `Cratis:Arc:TrustForwardedIdentityHeaders`

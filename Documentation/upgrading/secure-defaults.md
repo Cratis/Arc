@@ -1,6 +1,6 @@
 ---
 title: Migrating to secure defaults
-description: Arc no longer trusts forwarded identity headers by default. Who is affected, how to tell, and the one setting that restores the previous behavior.
+description: Arc no longer trusts forwarded identity headers or exposes discovery endpoints anonymously outside Development by default. Who is affected, how to tell, and the one setting that restores the previous behavior.
 ---
 
 Some Arc defaults used to be convenient but unsafe on a deployed host. Arc now ships safe
@@ -69,3 +69,36 @@ options.TrustForwardedIdentityHeaders = true;
 ```
 
 See [Microsoft Identity](../backend/csharp/asp-net-core/microsoft-identity.md#trusting-the-forwarded-headers).
+
+## Discovery endpoints require authentication outside Development
+
+**Who is affected:** applications or tools that read the discovery endpoints of a host running
+outside Development without signing in. The discovery endpoints are the command and query
+catalogs (`/.cratis/commands` and `/.cratis/queries`) and identity discovery
+(`/.cratis/users`, `/.cratis/tenants` and `/.cratis/identity-details/schema`). Command and query
+invocation and `/.cratis/me` are not affected.
+
+**What changed:** these endpoints used to be anonymous in every environment. They are now
+anonymous only in Development, where Lens and the Cratis CLI read them locally. Everywhere else
+they require an authenticated caller, so an anonymous request gets 401. A host outside
+Development that has no way to authenticate callers, such as an ASP.NET Core host without a
+default authentication scheme, does not map them at all (404) and logs a warning that names the
+setting below on startup. Development is decided by `ASPNETCORE_ENVIRONMENT`.
+
+**What to do:** nothing, if only signed-in users or local tooling read these endpoints. To
+expose them anonymously as before, add one line to the options you pass to `AddCratis` or
+`AddCratisArc`:
+
+```csharp
+builder.AddCratisArc(options => options.Introspection.RequireAuthentication = false);
+```
+
+Or set `Cratis__Arc__Introspection__RequireAuthentication=false`. Outside Development the host
+then logs a warning on startup that the endpoints are anonymous.
+
+`Introspection.RequireAuthentication` is now `bool?`. Code that read it as a `bool` must
+compare it explicitly, for example `options.Introspection.RequireAuthentication == true`.
+`Introspection.Roles` now implies authentication on its own instead of needing
+`RequireAuthentication: true`.
+
+See [Introspection](../backend/csharp/introspection/index.md#production-access).

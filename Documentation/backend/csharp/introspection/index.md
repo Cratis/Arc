@@ -13,11 +13,15 @@ Normal `UseCratisArc()` activation maps these endpoints unless replacements with
 - `/.cratis/queries`
 - `/.cratis/identity-details/schema` (also mapped without a details provider; then returns `{}`)
 
-The command and query catalog endpoints are mapped in both Arc.Core and ASP.NET Core hosting scenarios through `MapIntrospectionEndpoints()`. Normal Arc activation calls it automatically. The identity-details schema is mapped separately by the identity endpoint mapper and is not controlled by the catalog options: identity setup and clients can still need its schema when catalog discovery is disabled.
+Together with [user and tenant discovery](../identity/development-and-topologies.md) (`/.cratis/users` and `/.cratis/tenants`) these are Arc's **discovery endpoints**, the routes local tooling such as Lens and the Cratis CLI reads.
+
+The command and query catalog endpoints are mapped in both Arc.Core and ASP.NET Core hosting scenarios through `MapIntrospectionEndpoints()`. Normal Arc activation calls it automatically. The identity-details schema, users and tenants are mapped by the identity endpoint mapper. `Enabled` controls only the catalogs; the access settings below apply to every discovery endpoint.
 
 ## Production access
 
-By default, both catalog endpoints are enabled and explicitly anonymous, including in Production. They expose operation names, types, and routes regardless of whether a caller may execute the operations. An ASP.NET fallback policy does not protect the anonymous default.
+The discovery endpoints expose operation names, types, routes, users, tenants and the identity details schema, regardless of whether a caller may execute anything. By default Arc therefore exposes them anonymously only in Development, so local tooling works without configuration, and requires an authenticated caller everywhere else. Development means `ASPNETCORE_ENVIRONMENT` is `Development`, the same check that decides `ExposeExceptionDetails`.
+
+Outside Development, if the host has no way to authenticate callers, for example an ASP.NET Core host without a default authentication scheme, Arc does not map the discovery endpoints at all and logs a warning that names the setting below. `/.cratis/me` is not a discovery endpoint: it answers for the caller itself and is always mapped.
 
 Configure `Cratis:Arc:Introspection` to change that boundary:
 
@@ -38,8 +42,8 @@ Configure `Cratis:Arc:Introspection` to change that boundary:
 | Option | Default | Effect |
 | --- | --- | --- |
 | `Enabled` | `true` | `false` leaves both catalog routes unmapped. |
-| `RequireAuthentication` | `false` | `true` requires an authenticated caller, regardless of the host's default authorization policy. |
-| `Roles` | `null` | Comma-separated roles; any one grants access. Requires `RequireAuthentication: true` and no empty entries. A caller without a listed role is denied. |
+| `RequireAuthentication` | not set | Not set: anonymous in Development, authenticated elsewhere. `true` requires an authenticated caller in every environment, regardless of the host's default authorization policy, and fails startup if the host cannot authenticate callers. `false` exposes every discovery endpoint anonymously in every environment, and logs a warning on startup outside Development. |
+| `Roles` | `null` | Comma-separated roles; any one grants access. Requires an authenticated caller in every environment, cannot be combined with `RequireAuthentication: false`, and rejects empty entries. A caller without a listed role is denied. |
 | `TrustForwardedIdentityHeaders` | `false` | Obsolete. Setting it to `true` turns on the host-wide `Cratis:Arc:TrustForwardedIdentityHeaders`. See [Forwarded identity headers](#forwarded-identity-headers). |
 
 Startup validation rejects `Roles` combinations that do not meet these requirements. Arc.Core responds with 401 for anonymous requests and 403 for authenticated callers without a required role. On ASP.NET Core, the response depends on the configured authentication scheme's challenge and forbid behavior: cookie authentication can redirect instead of returning 401 or 403 unless configured otherwise.
@@ -84,7 +88,21 @@ With `RequireAuthentication: true`, startup requires at least one Arc.Core authe
 
 Arc cannot tell whether your own `IAuthenticationHandler` reads forwarded headers. If your handler establishes identity from headers that an ingress sets, make it honor the same opt-in: when `TrustForwardedIdentityHeaders` is `false`, return `AuthenticationResult.Anonymous`. See [Authentication](../core/authentication.md#microsoft-identity-platform-azure).
 
-These options do **not** change `/.cratis/identity-details/schema`, command/query invocation, or the anonymous [user and tenant discovery](../identity/development-and-topologies.md) endpoints. For the identity schema or other metadata you consider private, restrict those paths at trusted ingress and prevent direct backend access. Test anonymous and authorized requests against your deployed Production configuration.
+These options do **not** change command/query invocation or `/.cratis/me`. Test anonymous and authorized requests against your deployed Production configuration.
+
+To keep the discovery endpoints anonymous outside Development, for example for tooling that reads a deployed host without signing in, set:
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "Introspection": {
+        "RequireAuthentication": false
+      }
+    }
+  }
+}
+```
 
 ## What introspection does
 
