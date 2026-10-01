@@ -9,7 +9,7 @@ The commands introspection endpoint returns metadata for discovered command hand
 
 `GET /.cratis/commands`
 
-Normal Arc activation maps this endpoint anonymously, including in Production. Returned metadata is not filtered by the caller's command permissions. See [production access controls](index.md#production-access).
+Normal Arc activation maps this endpoint anonymously in Development and requires authentication elsewhere by default. A host that cannot authenticate leaves it unmapped and logs a warning. Returned metadata is not filtered by the caller's command permissions. See [production access controls](index.md#production-access).
 
 ## What it returns
 

@@ -19,6 +19,7 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     readonly Dictionary<string, EndpointMetadata> _endpoints = [];
     readonly ILogger<HttpListenerEndpointMapper> _logger;
     readonly List<PendingRoute> _pendingRoutes = [];
+    readonly List<Action<IServiceProvider>> _pendingDiscoveryMappings = [];
     readonly List<RouteInfo> _registeredRoutes = [];
     readonly List<StaticFileOptions> _pendingStaticFileConfigurations = [];
     IServiceProvider? _services;
@@ -72,10 +73,22 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     public IEnumerable<RouteInfo> Routes => _registeredRoutes;
 
     /// <inheritdoc/>
-    string? IIntrospectionExposureGuard.FindEnforcementProblem() =>
-        _services is not null && _services.GetService<IAuthentication>()?.HasHandlers != true
+    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services) =>
+        (services ?? _services)?.GetService<IAuthentication>()?.HasHandlers != true
             ? "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler."
             : null;
+
+    /// <inheritdoc/>
+    bool IIntrospectionExposureGuard.TryDeferMapping(Action<IServiceProvider> mapping)
+    {
+        if (_services is not null)
+        {
+            return false;
+        }
+
+        _pendingDiscoveryMappings.Add(mapping);
+        return true;
+    }
 
     /// <inheritdoc/>
     public void MapGet(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null)
@@ -113,6 +126,13 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
         }
 
         _services = serviceProvider;
+
+        // Resolve discovery before opening the listener, using the actual host rather than the process environment.
+        foreach (var mapping in _pendingDiscoveryMappings)
+        {
+            mapping(serviceProvider);
+        }
+        _pendingDiscoveryMappings.Clear();
 
         // Initialize middlewares
         _wellKnownRoutesMiddleware = new WellKnownRoutesMiddleware(

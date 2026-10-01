@@ -40,49 +40,10 @@ public static class IdentityEndpointMapper
     {
         var serviceProviderIsService = serviceProvider.GetService<IServiceProviderIsService>();
         var hasIdentityDetailsProvider = serviceProviderIsService?.IsService(typeof(IProvideIdentityDetails)) == true;
-        var discovery = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.Introspection ?? new IntrospectionOptions();
-        var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger(typeof(IdentityEndpointMapper).FullName!);
-        var access = DiscoveryExposure.Resolve(mapper, discovery, serviceProvider, logger);
-
-        if (access != DiscoveryAccess.Unavailable && !mapper.EndpointExists(GetIdentityDetailsSchemaEndpointName))
-        {
-            var schemaMetadata = DiscoveryExposure.MetadataFor(
-                access,
-                discovery,
-                GetIdentityDetailsSchemaEndpointName,
-                "Get current user identity details schema",
-                "Cratis Identity",
-                typeof(JsonNode));
-
-            mapper.MapGet(
-                "/.cratis/identity-details/schema",
-                async context =>
-                {
-                    var identityDetailsProvider = context.RequestServices.GetService<IProvideIdentityDetails>();
-                    if (identityDetailsProvider is null)
-                    {
-                        await context.WriteResponseAsJson(new JsonObject(), typeof(JsonObject), context.RequestAborted);
-                        return;
-                    }
-
-                    var detailsType = identityDetailsProvider.GetType()
-                        .GetInterfaces()
-                        .FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IProvideIdentityDetails<>))
-                        ?.GetGenericArguments()
-                        .SingleOrDefault() ?? typeof(object);
-
-                    var jsonSerializerOptions = new JsonSerializerOptions(context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
-                    jsonSerializerOptions.TypeInfoResolver ??= JsonSerializerOptionsConfiguration.ReflectionResolver;
-                    var schema = jsonSerializerOptions.GetJsonSchemaAsNode(detailsType);
-                    await context.WriteResponseAsJson(schema, schema.GetType(), context.RequestAborted);
-                },
-                schemaMetadata);
-        }
+        MapDiscoveryEndpoints(mapper, serviceProvider);
 
         if (!hasIdentityDetailsProvider)
         {
-            MapUsersEndpoint(mapper, access, discovery);
-            MapTenantsEndpoint(mapper, access, discovery);
             return;
         }
 
@@ -120,6 +81,53 @@ public static class IdentityEndpointMapper
                 await identityProvider.SetCookieForHttpResponse(result);
             },
             metadata);
+    }
+
+    static void MapDiscoveryEndpoints(IEndpointMapper mapper, IServiceProvider serviceProvider)
+    {
+        var discovery = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.Introspection ?? new IntrospectionOptions();
+        DiscoveryExposure.ThrowIfInvalid(discovery);
+        if (mapper is IIntrospectionExposureGuard guard && guard.TryDeferMapping(services => MapDiscoveryEndpoints(mapper, services)))
+        {
+            return;
+        }
+
+        var logger = serviceProvider.GetService<ILoggerFactory>()?.CreateLogger(typeof(IdentityEndpointMapper).FullName!);
+        var access = DiscoveryExposure.Resolve(mapper, discovery, serviceProvider, logger);
+        if (access != DiscoveryAccess.Unavailable && !mapper.EndpointExists(GetIdentityDetailsSchemaEndpointName))
+        {
+            var schemaMetadata = DiscoveryExposure.MetadataFor(
+                access,
+                discovery,
+                GetIdentityDetailsSchemaEndpointName,
+                "Get current user identity details schema",
+                "Cratis Identity",
+                typeof(JsonNode));
+
+            mapper.MapGet(
+                "/.cratis/identity-details/schema",
+                async context =>
+                {
+                    var identityDetailsProvider = context.RequestServices.GetService<IProvideIdentityDetails>();
+                    if (identityDetailsProvider is null)
+                    {
+                        await context.WriteResponseAsJson(new JsonObject(), typeof(JsonObject), context.RequestAborted);
+                        return;
+                    }
+
+                    var detailsType = identityDetailsProvider.GetType()
+                        .GetInterfaces()
+                        .FirstOrDefault(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IProvideIdentityDetails<>))
+                        ?.GetGenericArguments()
+                        .SingleOrDefault() ?? typeof(object);
+
+                    var jsonSerializerOptions = new JsonSerializerOptions(context.RequestServices.GetRequiredService<IOptions<ArcOptions>>().Value.JsonSerializerOptions);
+                    jsonSerializerOptions.TypeInfoResolver ??= JsonSerializerOptionsConfiguration.ReflectionResolver;
+                    var schema = jsonSerializerOptions.GetJsonSchemaAsNode(detailsType);
+                    await context.WriteResponseAsJson(schema, schema.GetType(), context.RequestAborted);
+                },
+                schemaMetadata);
+        }
 
         MapUsersEndpoint(mapper, access, discovery);
         MapTenantsEndpoint(mapper, access, discovery);

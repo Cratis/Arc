@@ -16,6 +16,14 @@ internal interface IIntrospectionExposureGuard
     /// <summary>
     /// Finds the reason the host cannot require authenticated callers, if any.
     /// </summary>
+    /// <param name="services">The services used to resolve discovery exposure.</param>
     /// <returns>The reason, or null if the host can enforce authentication.</returns>
-    string? FindEnforcementProblem();
+    string? FindEnforcementProblem(IServiceProvider? services);
+
+    /// <summary>
+    /// Defers discovery mapping until the host services are available, if necessary.
+    /// </summary>
+    /// <param name="mapping">The mapping to perform with the actual host services.</param>
+    /// <returns>Whether mapping was deferred.</returns>
+    bool TryDeferMapping(Action<IServiceProvider> mapping) => false;
 }

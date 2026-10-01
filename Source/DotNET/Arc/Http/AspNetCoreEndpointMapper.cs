@@ -57,9 +57,9 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     public bool EndpointExists(string name) => _mapped.Contains(name) || PreExisting.Contains(name);
 
     /// <inheritdoc/>
-    string? IIntrospectionExposureGuard.FindEnforcementProblem()
+    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
     {
-        var services = endpoints.ServiceProvider;
+        services ??= endpoints.ServiceProvider;
         if (services.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() is null)
         {
             return "Requiring authentication on the discovery endpoints needs a default ASP.NET Core authentication scheme.";

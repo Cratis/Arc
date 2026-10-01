@@ -54,6 +54,13 @@ public static class IntrospectionEndpointMapper
             return;
         }
 
+        DiscoveryExposure.ThrowIfInvalid(options);
+        if (mapper is IIntrospectionExposureGuard guard && guard.TryDeferMapping(services =>
+            mapper.MapIntrospectionEndpoints(options, logger ?? services.GetService<ILoggerFactory>()?.CreateLogger(typeof(IntrospectionEndpointMapper).FullName!))))
+        {
+            return;
+        }
+
         var access = DiscoveryExposure.Resolve(mapper, options, logger);
         if (access == DiscoveryAccess.Unavailable)
         {

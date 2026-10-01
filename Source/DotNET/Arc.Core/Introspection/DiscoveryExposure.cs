@@ -38,7 +38,7 @@ internal static class DiscoveryExposure
     /// <param name="logger">Optional logger to report exposure that needs attention.</param>
     /// <returns>The discovery access.</returns>
     internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, IServiceProvider? services, ILogger? logger = null) =>
-        Resolve(mapper, options, services?.GetService<IHostEnvironment>()?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment, logger, services ?? (object)mapper);
+        Resolve(mapper, options, services?.GetService<IHostEnvironment>()?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment, logger, services ?? (object)mapper, services);
 
     /// <summary>
     /// Decides how the discovery endpoints are exposed by the given mapper in the given environment.
@@ -50,7 +50,7 @@ internal static class DiscoveryExposure
     /// <returns>The <see cref="DiscoveryAccess"/> to map the endpoints with.</returns>
     /// <exception cref="InvalidIntrospectionConfiguration">The settings are invalid, or authentication is explicitly required and the host cannot enforce it.</exception>
     internal static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger = null) =>
-        Resolve(mapper, options, isDevelopment, logger, (mapper as IIntrospectionExposureGuard)?.Services ?? (object)mapper);
+        Resolve(mapper, options, isDevelopment, logger, (mapper as IIntrospectionExposureGuard)?.Services ?? (object)mapper, (mapper as IIntrospectionExposureGuard)?.Services);
 
     /// <summary>
     /// Throws if the discovery exposure settings are invalid.
@@ -86,7 +86,7 @@ internal static class DiscoveryExposure
         };
     }
 
-    static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger, object host)
+    static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger, object host, IServiceProvider? services)
     {
         ThrowIfInvalid(options);
 
@@ -100,7 +100,7 @@ internal static class DiscoveryExposure
             return DiscoveryAccess.Anonymous;
         }
 
-        if (mapper is IIntrospectionExposureGuard guard && guard.FindEnforcementProblem() is string problem)
+        if (mapper is IIntrospectionExposureGuard guard && guard.FindEnforcementProblem(services) is string problem)
         {
             if (options.AuthenticationExplicitlyRequired)
             {

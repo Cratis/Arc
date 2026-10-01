@@ -27,6 +27,6 @@ public class a_host : Specification
         public void MapPost(string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) => inner.MapPost(pattern, handler, metadata);
         public void MapMethod(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata = null) => inner.MapMethod(httpMethod, pattern, handler, metadata);
         public bool EndpointExists(string name) => inner.EndpointExists(name);
-        public string? FindEnforcementProblem() => "No authentication scheme.";
+        public string? FindEnforcementProblem(IServiceProvider? services) => "No authentication scheme.";
     }
 }
