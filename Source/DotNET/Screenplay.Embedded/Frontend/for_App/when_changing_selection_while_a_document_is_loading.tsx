@@ -9,6 +9,7 @@ import { App } from '../App';
 vi.mock('@cratis/event-models', () => import('../Specs/given/eventModelsStub'));
 vi.mock('@cratis/scene/Prototypes', () => import('../Specs/given/sceneStub'));
 vi.mock('@cratis/components/Toolbar', () => import('../Specs/given/toolbarStub'));
+vi.mock('../ScreenplayEditor', () => import('../Specs/given/screenplayEditorStub'));
 
 describe('when changing selection while a document is loading', () => {
     afterEach(() => vi.unstubAllGlobals());
@@ -37,8 +38,8 @@ describe('when changing selection while a document is loading', () => {
 
         releaseFirstSource?.();
 
-        const source = await screen.findByLabelText('Screenplay source');
-        expect(source.textContent).toContain('the selected feature source');
+        const editor = await screen.findByTestId('screenplay-editor');
+        expect(editor.textContent).toBe('the selected feature source');
         expect(screen.queryByText(/stale assembly source/)).toBeNull();
     });
 });

@@ -17,6 +17,8 @@
         "@cratis/event-models": "^0.108.0",
         "@cratis/fundamentals": "^7.19.6",
         "@cratis/scene": "^0.108.0",
+        "@cratis/screenplay-language": "^4.46.3",
+        "monaco-editor": "^0.57.0",
         "pixi.js": "^8.21.0",
         "primeicons": "^8.0.0",
         "react": "^19.3.0",

@@ -24,6 +24,7 @@ export default defineConfig({
                 manualChunks(id: string) {
                     if (!id.includes('node_modules')) return undefined;
                     if (id.includes('pixi.js')) return 'pixi';
+                    if (id.includes('monaco-editor') || id.includes('@cratis/screenplay-language')) return 'monaco';
                     if (id.includes('primereact') || id.includes('primeicons')) return 'primereact';
                     if (id.includes('/react-dom') || id.includes('/react/') || id.includes('/scheduler')) return 'react-vendor';
                     return undefined;
@@ -32,6 +33,9 @@ export default defineConfig({
         }
     },
     resolve: {
+        // The Screenplay language brings its own tokenizer, so only Monaco's core editor is needed - not the
+        // dozens of languages the bare 'monaco-editor' entry registers.
+        alias: [{ find: /^monaco-editor$/, replacement: 'monaco-editor/editor/editor.api' }],
         // The board, the scene and the component library must all bind to one React instance.
         dedupe: ['@cratis/fundamentals', 'react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime']
     },

@@ -135,9 +135,9 @@ These choices are stored in your browser's local storage and restored on the nex
 
 ![Upper-right View menu showing detail level, property visibility, and visualization choices](images/embedded-event-model-view-options.png)
 
-Choose **Source** to inspect the generated Screenplay for the selected document. This is useful when a conversion warning says a declaration or mapping cannot be represented on the board.
+Choose **Source** to inspect the generated Screenplay for the selected document, highlighted the way the Screenplay editor shows it. The source is read-only because it is generated from your code. This is useful when a conversion warning says a declaration or mapping cannot be represented on the board.
 
-![Source tab showing the generated Screenplay for the selected Authors feature](images/embedded-event-model-source.png)
+![Source tab showing the generated Screenplay with syntax highlighting](images/embedded-event-model-source.png)
 
 ## Query the documents
 

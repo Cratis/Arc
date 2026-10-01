@@ -229,11 +229,18 @@ body {
     color: #ffc864;
 }
 
+/* The source fills the panel; Monaco scrolls it, so the panel itself never does. */
 .source {
-    margin: 0;
-    padding: 1rem;
-    font-family: ui-monospace, 'Cascadia Code', monospace;
-    white-space: pre-wrap;
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.source-editor {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
 }
 
 .status,

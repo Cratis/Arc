@@ -9,6 +9,7 @@ import { App } from '../App';
 vi.mock('@cratis/event-models', () => import('../Specs/given/eventModelsStub'));
 vi.mock('@cratis/scene/Prototypes', () => import('../Specs/given/sceneStub'));
 vi.mock('@cratis/components/Toolbar', () => import('../Specs/given/toolbarStub'));
+vi.mock('../ScreenplayEditor', () => import('../Specs/given/screenplayEditorStub'));
 
 describe('when selecting a feature and showing its source', () => {
     afterEach(() => vi.unstubAllGlobals());
@@ -22,8 +23,10 @@ describe('when selecting a feature and showing its source', () => {
         fireEvent.click(screen.getByRole('tab', { name: 'Source' }));
 
         const source = await screen.findByLabelText('Screenplay source');
+        const editor = await screen.findByTestId('screenplay-editor');
 
-        expect(source.textContent).toContain('feature Checkout {}');
+        expect(source.contains(editor)).toBe(true);
+        expect(editor.textContent).toBe('feature Checkout {}');
         expect(screen.getByRole('tab', { name: 'Source' }).getAttribute('aria-selected')).toBe('true');
         expect(requests.at(-1)!.url).toBe(
             'http://localhost/.cratis/event-model/documents/Acme.Orders/Acme.Orders.Ordering.Checkout/source');
