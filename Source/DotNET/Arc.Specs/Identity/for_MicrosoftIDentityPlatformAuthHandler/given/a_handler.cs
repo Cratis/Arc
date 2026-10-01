@@ -22,11 +22,15 @@ public class a_handler : Specification
     protected const string IngressProviderKeyClaimValue = "workforce";
 
     protected IServiceProvider _services;
+    protected ArcOptions _arcOptions;
 
-    void Establish() =>
+    void Establish()
+    {
+        _arcOptions = new() { TrustForwardedIdentityHeaders = true };
         _services = new ServiceCollection()
-            .AddSingleton(Options.Create(new ArcOptions()))
+            .AddSingleton(Options.Create(_arcOptions))
             .BuildServiceProvider();
+    }
 
     /// <summary>
     /// Runs one authentication through a freshly initialized handler, with the principal header holding the exact
@@ -45,7 +49,10 @@ public class a_handler : Specification
         var schemeOptions = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
         schemeOptions.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions());
 
-        var handler = new MicrosoftIDentityPlatformAuthHandler(schemeOptions, NullLoggerFactory.Instance, UrlEncoder.Default);
+        var arcOptions = Substitute.For<IOptionsMonitor<ArcOptions>>();
+        arcOptions.CurrentValue.Returns(_arcOptions);
+
+        var handler = new MicrosoftIDentityPlatformAuthHandler(schemeOptions, arcOptions, NullLoggerFactory.Instance, UrlEncoder.Default);
         await handler.InitializeAsync(
             new AuthenticationScheme(
                 MicrosoftIDentityPlatformAuthHandler.SchemeName,

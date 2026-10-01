@@ -24,7 +24,7 @@ public class a_handler : Specification
     void Establish()
     {
         var options = Substitute.For<IOptions<ArcOptions>>();
-        options.Value.Returns(new ArcOptions());
+        options.Value.Returns(new ArcOptions { TrustForwardedIdentityHeaders = true });
         _handler = new(options, NullLoggerFactory.Instance);
     }
 

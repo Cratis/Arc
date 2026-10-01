@@ -8,5 +8,5 @@ using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Introspection.for_IntrospectionEndpointsExtensions.given;
 
-public class derived_header_handler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
-    : Identity.MicrosoftIDentityPlatformAuthHandler(options, logger, encoder);
+public class derived_header_handler(IOptionsMonitor<AuthenticationSchemeOptions> options, IOptionsMonitor<ArcOptions> arcOptions, ILoggerFactory logger, UrlEncoder encoder)
+    : Identity.MicrosoftIDentityPlatformAuthHandler(options, arcOptions, logger, encoder);

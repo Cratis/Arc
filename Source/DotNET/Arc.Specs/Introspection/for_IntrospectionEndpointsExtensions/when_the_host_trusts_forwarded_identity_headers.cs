@@ -13,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.Introspection.for_IntrospectionEndpointsExtensions;
 
 [Collection("UsesCurrentDirectory")]
-public class when_group_trusts_unsigned_headers : Specification
+public class when_the_host_trusts_forwarded_identity_headers : Specification
 {
     HttpStatusCode _status;
 
@@ -25,10 +25,10 @@ public class when_group_trusts_unsigned_headers : Specification
             .AddScheme<AuthenticationSchemeOptions, given.catalog_authentication_handler>("Clean", _ => { })
             .AddScheme<AuthenticationSchemeOptions, Identity.MicrosoftIDentityPlatformAuthHandler>("Headers", _ => { });
         builder.Services.AddAuthorization();
-        builder.AddCratisArc();
+        builder.AddCratisArc(options => options.TrustForwardedIdentityHeaders = true);
         await using var app = builder.Build();
         var group = app.MapGroup("/group").RequireAuthorization(new AuthorizeAttribute { AuthenticationSchemes = "Headers" });
-        new AspNetCoreEndpointMapper(group).MapIntrospectionEndpoints(new IntrospectionOptions { RequireAuthentication = true, TrustForwardedIdentityHeaders = true });
+        new AspNetCoreEndpointMapper(group).MapIntrospectionEndpoints(new IntrospectionOptions { RequireAuthentication = true });
         await app.StartAsync();
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         using var client = new HttpClient { BaseAddress = new Uri(address) };
