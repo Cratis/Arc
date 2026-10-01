@@ -11,7 +11,6 @@ using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Cratis.Conversion;
-using Cratis.DependencyInjection;
 using Cratis.Execution;
 using Cratis.Serialization;
 using Cratis.Types;
@@ -126,9 +125,7 @@ public static class HostBuilderExtensions
             .AddCratisArcMeter()
             .AddCratisArcActivitySource()
             .AddTypeDiscovery()
-            .AddBindingsByConvention();
-
-        services.AddSelfBindings();
+            .AddArcServiceBindings();
 
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();
