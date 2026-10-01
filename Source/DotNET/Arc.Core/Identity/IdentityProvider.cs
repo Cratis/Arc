@@ -85,12 +85,7 @@ public class IdentityProvider(
         context.SetNoStoreResponseHeaders();
         context.ContentType = "application/json; charset=utf-8";
 
-        // A readable identity cookie written by an earlier version would otherwise linger in the browser, and a
-        // frontend that still reads it would keep showing it instead of asking for the identity again.
-        if (context.Cookies.ContainsKey(LegacyIdentityCookieName))
-        {
-            context.RemoveCookie(LegacyIdentityCookieName);
-        }
+        ExpireLegacyCookie(context);
 
         var json = JsonSerializer.Serialize(result, TypeInfoFor<IdentityProviderResult>());
         await context.Write(json);
@@ -118,6 +113,20 @@ public class IdentityProvider(
                 modifiedDetails);
 
             await SetCookieForHttpResponse(modifiedResult);
+        }
+    }
+
+    /// <summary>
+    /// Expires a readable identity cookie left by an earlier version of Arc.
+    /// </summary>
+    /// <param name="context">The request whose response should expire the cookie.</param>
+    internal static void ExpireLegacyCookie(IHttpRequestContext context)
+    {
+        // A readable identity cookie written by an earlier version would otherwise linger in the browser, and a
+        // frontend that still reads it would keep showing it instead of asking for the identity again.
+        if (context.Cookies.ContainsKey(LegacyIdentityCookieName))
+        {
+            context.RemoveCookie(LegacyIdentityCookieName);
         }
     }
 
