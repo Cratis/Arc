@@ -1,7 +1,9 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Microsoft.Extensions.Logging;
@@ -14,6 +16,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="logger">The <see cref="ILogger"/> to use for logging.</param>
 public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger) : ICommandContextValuesProvider
 {
+    static readonly ConcurrentDictionary<Type, string> _keyTypeNames = new();
+
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
@@ -29,6 +33,18 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
             { Cratis.Arc.Commands.CommandContextKeys.ResolvedKey, NeutralKeyFrom(eventSourceId) }
         };
     }
+
+    /// <summary>
+    /// Gets the name to record for a key type, such as <c>MyApp.Key&lt;System.Guid&gt;</c> for a generic one.
+    /// </summary>
+    /// <param name="type">The <see cref="Type"/> to name.</param>
+    /// <returns>The name.</returns>
+    /// <remarks>
+    /// This only runs for telemetry, so it must not fail the command it describes: it handles every shape a
+    /// <see cref="Type"/> can take, including a type nested in a generic type, whose own name has no arity marker,
+    /// and a generic parameter, which has no full name.
+    /// </remarks>
+    internal static string NameOf(Type type) => _keyTypeNames.GetOrAdd(type, static _ => Describe(_));
 
     /// <summary>
     /// Adds the type of the command's event source id to the command span Arc is running it in.
@@ -53,15 +69,35 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
         }
     }
 
-    static string NameOf(Type type)
+    static string Describe(Type type)
     {
-        if (!type.IsGenericType)
+        if (!type.IsGenericType || type.IsGenericTypeDefinition)
         {
             return type.FullName ?? type.Name;
         }
 
-        var name = type.Name[..type.Name.IndexOf('`')];
-        return $"{type.Namespace}.{name}<{string.Join(", ", type.GetGenericArguments().Select(NameOf))}>";
+        var definition = type.GetGenericTypeDefinition();
+        return $"{WithoutArity(definition.FullName ?? definition.Name)}<{string.Join(", ", type.GetGenericArguments().Select(Describe))}>";
+    }
+
+    static string WithoutArity(string name)
+    {
+        var builder = new StringBuilder(name.Length);
+        for (var index = 0; index < name.Length; index++)
+        {
+            if (name[index] != '`')
+            {
+                builder.Append(name[index]);
+                continue;
+            }
+
+            while (index + 1 < name.Length && char.IsAsciiDigit(name[index + 1]))
+            {
+                index++;
+            }
+        }
+
+        return builder.ToString();
     }
 
     /// <summary>
