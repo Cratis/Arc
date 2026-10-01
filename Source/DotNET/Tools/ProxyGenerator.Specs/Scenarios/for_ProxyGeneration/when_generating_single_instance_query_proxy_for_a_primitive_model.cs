@@ -8,7 +8,7 @@ namespace Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration;
 
 /// <summary>
 /// Pins <c>{} as string</c> for a single-instance query whose model is a bare primitive — a shape that
-/// already exists in real generated output (e.g. <c>TestApps/AspNetCore/ObservableQueries.ts</c>) and that
+/// already exists in real generated output (e.g. <c>Samples/AspNetCore/ObservableQueries.ts</c>) and that
 /// a naive fix (always emitting the model type without considering it might already be a primitive) could
 /// still get wrong.
 /// </summary>

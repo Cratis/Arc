@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project>
+
+    <!-- The documents an application embeds are generated from the same inputs the C# compiler is about to be
+         given, and embedded by that same compilation. A source generator cannot add a manifest resource and a step
+         after the build would have to rewrite an assembly that already exists, so this runs before resource names
+         are prepared and hands the compiler ordinary EmbeddedResource items. -->
+
+    <PropertyGroup>
+        <!-- On by default: an application that referenced this package and got no documents would have to be told
+             why, and the one control that matters is the one that turns it off. A package that composes this one -
+             the Cratis meta-package - states a different default in its own props, which are read first; what the
+             project itself sets still wins over both. -->
+        <CratisEmbeddedScreenplayEnabled Condition="'$(CratisEmbeddedScreenplayEnabled)' == ''">$(CratisEmbeddedScreenplayEnabledByDefault)</CratisEmbeddedScreenplayEnabled>
+        <CratisEmbeddedScreenplayEnabled Condition="'$(CratisEmbeddedScreenplayEnabled)' == ''">true</CratisEmbeddedScreenplayEnabled>
+
+        <!-- The task is loaded by MSBuild rather than by the application, so it is taken from tools/ alongside its
+             own dependencies. tools/ sits beside the folder this file is imported from, and that holds whether
+             NuGet imported it from build/ for a direct reference or from buildTransitive/ for a package that
+             depends on this one - so the path is resolved from this file rather than from either folder's name.
+             A build that needs to point at a task built elsewhere - a specification, a fixture consuming the
+             package from the repository it is built in - overrides CratisEmbeddedScreenplayTaskAssembly. -->
+        <CratisEmbeddedScreenplayToolsPath Condition="'$(CratisEmbeddedScreenplayToolsPath)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', 'tools'))</CratisEmbeddedScreenplayToolsPath>
+        <CratisEmbeddedScreenplayTaskFramework>net8.0</CratisEmbeddedScreenplayTaskFramework>
+        <CratisEmbeddedScreenplayTaskFramework Condition="$([System.Environment]::Version.Major) &gt;= 9 and Exists('$(CratisEmbeddedScreenplayToolsPath)net9.0/Cratis.Arc.Screenplay.Embedded.Build.dll')">net9.0</CratisEmbeddedScreenplayTaskFramework>
+        <CratisEmbeddedScreenplayTaskFramework Condition="$([System.Environment]::Version.Major) &gt;= 10 and Exists('$(CratisEmbeddedScreenplayToolsPath)net10.0/Cratis.Arc.Screenplay.Embedded.Build.dll')">net10.0</CratisEmbeddedScreenplayTaskFramework>
+        <CratisEmbeddedScreenplayTaskAssembly Condition="'$(CratisEmbeddedScreenplayTaskAssembly)' == ''">$([MSBuild]::NormalizePath('$(CratisEmbeddedScreenplayToolsPath)', '$(CratisEmbeddedScreenplayTaskFramework)', 'Cratis.Arc.Screenplay.Embedded.Build.dll'))</CratisEmbeddedScreenplayTaskAssembly>
+
+    </PropertyGroup>
+
+    <!-- MSBuild running on .NET loads the task in process. MSBuild running on .NET Framework - Visual Studio, and
+         msbuild.exe - cannot load a .NET assembly at all, so there the task runs in the out of process task host
+         that targets the .NET runtime. -->
+    <UsingTask TaskName="Cratis.Arc.Screenplay.Embedded.Build.GenerateEmbeddedScreenplayDocuments"
+               AssemblyFile="$(CratisEmbeddedScreenplayTaskAssembly)"
+               Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(MSBuildRuntimeType)' == 'Core'" />
+
+    <UsingTask TaskName="Cratis.Arc.Screenplay.Embedded.Build.GenerateEmbeddedScreenplayDocuments"
+               AssemblyFile="$(CratisEmbeddedScreenplayTaskAssembly)"
+               TaskFactory="TaskHostFactory"
+               Runtime="NET"
+               Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(MSBuildRuntimeType)' != 'Core'" />
+
+    <!-- Skipped during a design time build: the IDE asks for the compiler inputs many times a second and never
+         consumes the resources, so analyzing the whole application there would cost everything and produce
+         nothing.
+
+         The resources have to exist before AssignTargetPaths - the first target that reads EmbeddedResource items -
+         because PrepareResourceNames reaches that through its own dependencies, so a target that only promised to
+         run before PrepareResourceNames would add its items after they had already been collected and the compiler
+         would embed nothing. -->
+    <Target Name="GenerateCratisEmbeddedScreenplayDocuments"
+            Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'"
+            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;GenerateMSBuildEditorConfigFile"
+            BeforeTargets="AssignTargetPaths;SplitResourcesByCulture;PrepareResourceNames;CoreCompile">
+
+        <!-- Resolved here rather than at evaluation time: where the targets of a package are imported from decides
+             whether the intermediate output path has been set yet, and a default evaluated too early would write
+             the generated files beside the project instead of into its intermediate output. The path is relative to
+             the project rather than to whatever directory the build was started from. -->
+        <PropertyGroup>
+            <CratisEmbeddedScreenplayOutputPath Condition="'$(CratisEmbeddedScreenplayOutputPath)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'CratisScreenplay'))</CratisEmbeddedScreenplayOutputPath>
+        </PropertyGroup>
+
+        <GenerateEmbeddedScreenplayDocuments
+            Sources="@(Compile)"
+            References="@(ReferencePathWithRefAssemblies)"
+            Analyzers="@(Analyzer)"
+            AdditionalFiles="@(AdditionalFiles)"
+            AnalyzerConfigFiles="@(EditorConfigFiles)"
+            DefineConstants="$(DefineConstants)"
+            LanguageVersion="$(LangVersion)"
+            OutputType="$(OutputType)"
+            AssemblyName="$(AssemblyName)"
+            RootNamespace="$(RootNamespace)"
+            OutputPath="$(CratisEmbeddedScreenplayOutputPath)">
+            <Output TaskParameter="Documents" ItemName="CratisEmbeddedScreenplayDocument" />
+        </GenerateEmbeddedScreenplayDocuments>
+
+        <ItemGroup>
+            <EmbeddedResource Include="@(CratisEmbeddedScreenplayDocument)" />
+            <FileWrites Include="@(CratisEmbeddedScreenplayDocument)" />
+        </ItemGroup>
+    </Target>
+
+</Project>

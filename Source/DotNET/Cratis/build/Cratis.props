@@ -1,4 +1,13 @@
 <Project>
+  <!-- The meta-package's default for the embedded event model: generate documents for the build a developer runs,
+       and leave them out of an explicit Release build, which is what gets published. A project that wants the
+       documents in its Release build sets CratisEmbeddedScreenplayEnabled to true and gets them; this only decides
+       what happens when nothing was said. The default lives in a props file so it is read before the Screenplay
+       package's targets apply their own, whichever order the two packages are imported in. -->
+  <PropertyGroup>
+    <CratisEmbeddedScreenplayEnabledByDefault Condition="'$(CratisEmbeddedScreenplayEnabledByDefault)' == '' and '$(Configuration)' == 'Release'">false</CratisEmbeddedScreenplayEnabledByDefault>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)\..\contentFiles\cs\any\GlobalUsings.cs" Link="GlobalUsings.Cratis.cs" Visible="false" />
   </ItemGroup>

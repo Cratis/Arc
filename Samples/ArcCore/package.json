@@ -1,0 +1,26 @@
+{
+    "name": "@samples/arccore",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --config .frontend/vite.config.ts",
+        "build": "tsc -b && vite build --config .frontend/vite.config.ts",
+        "preview": "vite preview --config .frontend/vite.config.ts",
+        "build:minified": "tsc -b && vite build --config .frontend/vite.config.minified.ts",
+        "serve:minified": "yarn build:minified && vite preview --config .frontend/vite.config.minified.ts"
+    },
+    "dependencies": {
+        "@cratis/arc": "1.0.0",
+        "@cratis/arc.react": "1.0.0",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0"
+    },
+    "devDependencies": {
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^6.1.1",
+        "typescript": "^7.0.2",
+        "vite": "^8.3.2"
+    }
+}

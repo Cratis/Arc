@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- CA1707 is off because a concept here is named with a separator on purpose, so that the reduction every name
+         reaching a Screenplay document goes through is exercised by a real compilation rather than only by source
+         strings. See Features/Reservations/Reservations.cs. -->
+    <NoWarn>$(NoWarn);SA0001;SA1600;SA1649;SA1402;MA0048;IDE0005;CA1707</NoWarn>
+    <IsPackable>false</IsPackable>
+    <CratisEmbeddedScreenplayEnabled Condition="'$(Configuration)' != 'Debug'">false</CratisEmbeddedScreenplayEnabled>
+    <CratisEmbeddedScreenplayTaskAssembly>$(MSBuildThisFileDirectory)../../Source/DotNET/Tools/Screenplay.Embedded.Build/bin/$(Configuration)/$(TargetFramework)/Cratis.Arc.Screenplay.Embedded.Build.dll</CratisEmbeddedScreenplayTaskAssembly>
+
+    <CratisProxiesOutputPath>$(MSBuildThisFileDirectory)/</CratisProxiesOutputPath>
+    <CratisProxiesSegmentsToSkip>1</CratisProxiesSegmentsToSkip>
+    <CratisProxiesSkipOutputDeletion>true</CratisProxiesSkipOutputDeletion>
+    <CratisProxiesSkipCommandNameInRoute>true</CratisProxiesSkipCommandNameInRoute>
+    <CratisProxiesUseSourceFileAsOutputFile>true</CratisProxiesUseSourceFileAsOutputFile>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
+    <ProjectReference Include="../../Source/DotNET/Screenplay.Embedded/Screenplay.Embedded.csproj" />
+    <ProjectReference Include="../../Source/DotNET/Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../Source/DotNET/Arc.Core.Generators/Arc.Core.Generators.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../../Source/DotNET/MongoDB/MongoDB.csproj" />
+    <ProjectReference Include="../../Source/DotNET/Swagger/Swagger.csproj" />
+    <ProjectReference Include="../Shared/Shared.csproj" />
+    <ProjectReference Include="../../Source/DotNET/Tools/ProxyGenerator.Build/ProxyGenerator.Build.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Import Project="../../Source/DotNET/Tools/ProxyGenerator.Build/build/Cratis.Arc.ProxyGenerator.Build.targets" />
+  <Import Project="../../Source/DotNET/Screenplay.Embedded/build/Cratis.Arc.Screenplay.Embedded.targets" />
+
+</Project>

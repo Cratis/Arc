@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Screenplay.Embedded.Build</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay.Embedded</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    </PropertyGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../Screenplay.Embedded/Screenplay.Embedded.csproj" />
+        <ProjectReference Include="../../Screenplay/Screenplay.csproj" />
+        <PackageReference Include="Microsoft.Build.Framework" PrivateAssets="all" />
+        <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" />
+        <PackageVersion Update="Microsoft.NET.StringTools" Version="17.14.28" Condition="'$(TargetFramework)' == 'net9.0'" />
+        <!-- The 17.14 line supplies .NET 9 runtime assets, not .NET 8 ones. -->
+        <PackageVersion Update="Microsoft.Build.Framework" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
+        <PackageVersion Update="Microsoft.Build.Utilities.Core" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
+        <PackageVersion Update="Microsoft.NET.StringTools" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
+        <Compile Include="../../Screenplay.Embedded/Build/**/*.cs" />
+        <Compile Include="../../Screenplay.Embedded/Generation/**/*.cs" Exclude="../../Screenplay.Embedded/Generation/EmbeddedDocument.cs;../../Screenplay.Embedded/Generation/EmbeddedDocumentCatalog.cs;../../Screenplay.Embedded/Generation/EmbeddedDocumentKind.cs;../../Screenplay.Embedded/Generation/EmbeddedResourceNames.cs" />
+    </ItemGroup>
+</Project>

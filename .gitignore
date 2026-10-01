@@ -282,6 +282,7 @@ __pycache__/
 
 package-json.lock
 package-lock.json
+!Source/DotNET/Screenplay.Embedded/package-lock.json
 dist
 **/node_modules/
 *.tsbuildinfo

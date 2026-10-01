@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Screenplay.Embedded.Specs</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay.Embedded</RootNamespace>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Remove="Fixtures/**/*.cs" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <ProjectReference Include="../Screenplay.Embedded/Screenplay.Embedded.csproj" />
+        <ProjectReference Include="../Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" />
+        <ProjectReference Include="Fixtures/Consumer/Consumer.csproj" />
+        <PackageReference Include="Cratis.Fundamentals" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <PackageReference Include="Microsoft.Build.Framework" />
+        <PackageReference Include="Microsoft.Build.Utilities.Core" />
+        <PackageVersion Update="Microsoft.NET.StringTools" Version="17.14.28" Condition="'$(TargetFramework)' == 'net9.0'" />
+        <!-- Match the task's compatible runtime assets on each supported framework. -->
+        <PackageVersion Update="Microsoft.Build.Framework" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
+        <PackageVersion Update="Microsoft.Build.Utilities.Core" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
+        <PackageVersion Update="Microsoft.NET.StringTools" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
+    </ItemGroup>
+</Project>
