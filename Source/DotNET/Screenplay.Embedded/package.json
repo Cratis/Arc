@@ -18,6 +18,7 @@
         "@cratis/fundamentals": "^7.19.6",
         "@cratis/scene": "^0.108.0",
         "@cratis/screenplay-language": "^4.46.3",
+        "dompurify": "^3.4.16",
         "monaco-editor": "^0.57.0",
         "pixi.js": "^8.21.0",
         "primeicons": "^8.0.0",
@@ -34,5 +35,8 @@
         "typescript": "^5.9.3",
         "vite": "^8.3.1",
         "vitest": "^5.0.3"
+    },
+    "overrides": {
+        "dompurify": "$dompurify"
     }
 }

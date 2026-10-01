@@ -4,6 +4,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
+import { monacoAliases } from './monaco.aliases';
 
 // The viewer is served from inside the hosting assembly, under whatever PathBase the host happens to
 // run on, so every asset reference has to be relative - base './' - and the application resolves its
@@ -33,9 +34,7 @@ export default defineConfig({
         }
     },
     resolve: {
-        // The Screenplay language brings its own tokenizer, so only Monaco's core editor is needed - not the
-        // dozens of languages the bare 'monaco-editor' entry registers.
-        alias: [{ find: /^monaco-editor$/, replacement: 'monaco-editor/editor/editor.api' }],
+        alias: monacoAliases,
         // The board, the scene and the component library must all bind to one React instance.
         dedupe: ['@cratis/fundamentals', 'react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime']
     },
