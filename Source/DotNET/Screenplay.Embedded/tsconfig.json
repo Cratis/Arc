@@ -17,5 +17,5 @@
         "skipLibCheck": true,
         "noEmit": true
     },
-    "include": ["Frontend/**/*.ts", "Frontend/**/*.tsx", "vite.config.ts", "vitest.config.ts"]
+    "include": ["Frontend/**/*.ts", "Frontend/**/*.tsx", "monaco.aliases.ts", "vite.config.ts", "vitest.config.ts"]
 }
