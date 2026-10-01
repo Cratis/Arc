@@ -6,6 +6,7 @@ using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
@@ -148,6 +149,7 @@ public static class HostBuilderExtensions
     public static IServiceCollection AddCratisArcMeter(this IServiceCollection services)
     {
         services.TryAddKeyedSingleton(Internals.MeterName, (_, _) => new Meter(Internals.MeterName));
+        services.TryAddSingleton(sp => new PipelineMetrics(sp.GetRequiredKeyedService<Meter>(Internals.MeterName)));
         return services;
     }
 
@@ -162,6 +164,8 @@ public static class HostBuilderExtensions
             .AddActivitySource(Internals.ActivitySourceName)
             .AddActivitySource<CommandFilters>(Internals.ActivitySourceName)
             .AddActivitySource<CommandPipeline>(Internals.ActivitySourceName)
+            .AddActivitySource<CommandProvideInvoker>(Internals.ActivitySourceName)
+            .AddActivitySource<ModelGraphValidator>(Internals.ActivitySourceName)
             .AddActivitySource<QueryFilters>(Internals.ActivitySourceName)
             .AddActivitySource<QueryPipeline>(Internals.ActivitySourceName)
             .AddActivitySource<IdentityProvider>(Internals.ActivitySourceName);
