@@ -132,10 +132,12 @@ This in-process harness does not stand in for a server, storage backend, authori
 A protected command can also read state it does not guard: an injected read model, `IReadModels.GetInstanceById`, or a `DecisionRead<T>` in an `[Unprotected]` command. In decision mode these resolve the way production resolves them from a caught-up read model store:
 
 - Events seeded with `Given.ForEventSource(...).Events(...)` (or appended to `scenario.EventLog` before `Execute`) are projected through the read model's own projection or reducer, from the same log the decision reads fold. Seed once; both kinds of read see it.
-- A pinned `.ReadModel(...)` instance serves these reads and takes precedence over seeded events for that read model and event source.
+- A read model exists only once an event its projection or reducer handles has been seeded for the event source: a nullable read model stays `null` when the source only has unrelated events, as in production.
+- The read model is looked up by event source id and materialized from the events of that one source. A read model keyed by an event property, or built from the events of other sources (children, joins), is not materialized here; pin it with `.ReadModel(...)`.
+- A pinned `.ReadModel(...)` instance serves these reads and takes precedence over seeded events for that read model and event source, whether the events were seeded before or after the pin.
 - A competing event queued with `AppendConcurrently` arrives after the reads, so it neither shows up in them nor conflicts with them: only decision reads are guarded.
 
-A protected decision read always folds the log and never sees a pinned instance. Pinning a read model that the command takes as a `DecisionRead<T>` parameter throws `PinnedReadModelCannotProvideDecisionToken`; a read made through `IDecisionReads.Get<T>(key)` is not visible up front, so seed events for it.
+A protected decision read always folds the log and never sees a pinned instance. Pinning a read model that the command takes as a `DecisionRead<T>` parameter throws `PinnedReadModelCannotProvideDecisionToken`; a read made through `IDecisionReads.Get<T>(key)` is not visible up front, so a pin is never refused for it and never reaches it: seed events for it.
 
 ### Check that Chronicle admits the decision reads
 
@@ -150,7 +152,7 @@ public class when_checking_decision_read_admission
 }
 ```
 
-`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. Only `DecisionRead<T>` parameters of `[ProtectedDecision]` commands are checked; `IDecisionReads.Get<T>(key)` calls inside a method body are not. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
+`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. Only `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of the `Handle` and `Provide` methods of `[ProtectedDecision]` commands are checked, including methods inherited from a base type; abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
 
 ## Transactional commands in tests
 

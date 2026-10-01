@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Runtime.CompilerServices;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.ReadModels;
@@ -72,9 +71,10 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
             return (await ProjectReadModel(readModelType, new EventSourceId(key.Value), events))!;
         }
 
-        // Nothing seeded for this event source id: the read model does not exist. Command-scoped code can inject a
-        // nullable read model and treat null as "does not exist", exactly as in production. We do not fall through to
-        // the inner read models, which would require a live Chronicle backing store that a command scenario has not.
+        // Nothing seeded for this event source id, or none of it concerns this read model (the projection yields no
+        // instance): the read model does not exist. Command-scoped code can inject a nullable read model and treat null
+        // as "does not exist", exactly as in production. We do not fall through to the inner read models, which would
+        // require a live Chronicle backing store that a command scenario has not.
         return null!;
     }
 
@@ -119,29 +119,19 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
     {
         // ReadModelScenario<T> is Chronicle's own engine for materializing a read model from events through its real
         // reducer or projection — we build on it here rather than reimplementing projection. Reflection is used only
-        // because it is generic and the read model type is known at runtime. We read the materialized Instance and
-        // deliberately do NOT route through its ReadModels facade: that facade throws ("Read model returned null")
-        // when a read model does not exist instead of returning null, which would break the nullable "does not exist"
-        // semantics command-scoped code relies on.
+        // because it is generic and the read model type is known at runtime. No initial state is supplied: an explicit
+        // one makes the read model exist even when none of the events concern it, whereas production only has a read
+        // model once an event it handles has happened, so the instance is null when the events are unrelated to it.
+        // We read the materialized Instance and deliberately do NOT route through its ReadModels facade: that facade
+        // throws ("Read model returned null") when a read model does not exist instead of returning null, which would
+        // break the nullable "does not exist" semantics command-scoped code relies on.
         var scenarioType = typeof(ReadModelScenario<>).MakeGenericType(readModelType);
-        var scenario = Activator.CreateInstance(scenarioType, CreateSeed(readModelType))!;
+        var scenario = Activator.CreateInstance(scenarioType, [null])!;
 
         var processTask = (Task)scenarioType.GetMethod("ProcessEventsFor")!.Invoke(scenario, [eventSourceId, events])!;
         await processTask;
 
         return scenarioType.GetProperty("Instance")!.GetValue(scenario);
-    }
-
-    static object CreateSeed(Type readModelType)
-    {
-        try
-        {
-            return Activator.CreateInstance(readModelType)!;
-        }
-        catch (MissingMethodException)
-        {
-            return RuntimeHelpers.GetUninitializedObject(readModelType);
-        }
     }
 
     async Task<IReadOnlyList<object>> EventsFor(EventSourceId eventSourceId)

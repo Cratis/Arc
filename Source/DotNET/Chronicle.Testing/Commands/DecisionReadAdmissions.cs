@@ -20,9 +20,9 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// the artifacts discovered for the test run, without a running Chronicle.
 /// </para>
 /// <para>
-/// Only <see cref="DecisionRead{T}"/> parameters of <c>[ProtectedDecision]</c> commands are checked. Explicit
-/// <see cref="IDecisionReads.Get{T}"/> calls inside a method body are not statically visible. Projections compiled into
-/// the test run (for example spec-local projections for a production read model) take part in discovery, and can make a
+/// Only <see cref="DecisionRead{T}"/> parameters of the <c>Handle</c> and <c>Provide</c> methods of <c>[ProtectedDecision]</c>
+/// commands, including those inherited from a base type, are checked. Explicit <see cref="IDecisionReads.Get{T}"/> calls
+/// inside a method body are not statically visible. Projections compiled into the test run (for example spec-local projections for a production read model) take part in discovery, and can make a
 /// read model ambiguous here that is admitted in production.
 /// </para>
 /// </remarks>
@@ -85,7 +85,7 @@ public static class DecisionReadAdmissions
     /// <param name="assemblies">The assemblies to scan for commands.</param>
     /// <exception cref="DecisionReadsAreRefused">One or more decision reads are refused.</exception>
     public static void ShouldAdmitDecisionReadsIn(params Assembly[] assemblies) =>
-        ShouldAdmitDecisionReadsOf([.. assemblies.SelectMany(LoadableTypes).Where(ProtectedDecisionReadParameters.IsProtected)]);
+        ShouldAdmitDecisionReadsOf([.. assemblies.SelectMany(LoadableTypes).Where(_ => !_.IsAbstract && !_.ContainsGenericParameters && ProtectedDecisionReadParameters.IsProtected(_))]);
 
     static DecisionReadAdmission Admit(IDecisionReads decisionReads, Type readModel)
     {

@@ -42,6 +42,34 @@ public record DecideOnRefusedShapes(EventSourceId EventSourceId)
     public AdmissionDecided Handle(DecisionRead<AdmittedFlag> flag, DecisionRead<AdmissionShelf> shelf, AdmissionProvided provided) => new();
 }
 
+[ProtectedDecision]
+public abstract record InheritedAdmissionDecision(EventSourceId EventSourceId)
+{
+    public AdmissionDecided Handle(DecisionRead<AdmissionShelf> shelf) => new();
+}
+
+[Command]
+[ProtectedDecision]
+public record DecideThroughInheritedHandle(EventSourceId EventSourceId) : InheritedAdmissionDecision(EventSourceId);
+
+[Command]
+[ProtectedDecision]
+public record DecideOnEnumeratedRefusedShapes(EventSourceId EventSourceId)
+{
+    public AdmissionDecided Handle(IEnumerable<DecisionRead<AdmissionShelf>> shelves) => new();
+}
+
+[Command]
+[ProtectedDecision]
+public record DecideWithRefusedShapeInHelper(EventSourceId EventSourceId)
+{
+    public AdmissionDecided Handle(DecisionRead<AdmittedFlag> flag) => new();
+
+    public static AdmissionDecided Describe(DecisionRead<AdmissionShelf> shelf) => new();
+
+    internal AdmissionDecided Explain(DecisionRead<AdmissionShelf> shelf) => new();
+}
+
 [Command]
 [Unprotected]
 public record ReadRefusedShapeUnprotected(EventSourceId EventSourceId)

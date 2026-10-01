@@ -17,4 +17,12 @@ public class when_asserting_admission
         var error = Assert.Throws<DecisionReadsAreRefused>(() => DecisionReadAdmissions.ShouldAdmitDecisionReadsOf(typeof(DecideOnRefusedShapes)));
         Assert.Contains($"{typeof(DecideOnRefusedShapes).FullName}: DecisionRead<{typeof(AdmissionShelf).FullName}> is refused (Hierarchy)", error.Message);
     }
+
+    [Fact]
+    public void scanning_an_assembly_checks_inherited_reads_and_skips_abstract_commands()
+    {
+        var error = Assert.Throws<DecisionReadsAreRefused>(() => DecisionReadAdmissions.ShouldAdmitDecisionReadsIn(typeof(DecideOnRefusedShapes).Assembly));
+        error.Refusals.Any(_ => _.CommandType == typeof(DecideThroughInheritedHandle)).ShouldBeTrue();
+        error.Refusals.Any(_ => _.CommandType == typeof(InheritedAdmissionDecision)).ShouldBeFalse();
+    }
 }
