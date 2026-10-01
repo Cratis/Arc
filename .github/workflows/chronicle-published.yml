@@ -118,7 +118,7 @@ jobs:
 
       - name: Yarn install
         if: steps.bump.outputs.changed == 'true'
-        run: yarn
+        run: yarn install --immutable
 
       - name: Restore
         if: steps.bump.outputs.changed == 'true'

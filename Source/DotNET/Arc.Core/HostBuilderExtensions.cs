@@ -8,6 +8,7 @@ using Cratis.Arc.Identity;
 using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Tenancy;
+using Cratis.Arc.Validation;
 using Cratis.Conversion;
 using Cratis.DependencyInjection;
 using Cratis.Execution;
@@ -131,6 +132,7 @@ public static class HostBuilderExtensions
         Internals.Types = services.UseCurrentTypeUniverse();
         Internals.Types.RegisterTypeConvertersForConcepts();
         Internals.DerivedTypes = services.UseDerivedTypesFrom(Internals.Types);
+        services.ConstructDependencyFreeValidatorsThroughArc(Internals.Types);
 
         services.AddCratisCommands();
         services.AddCratisQueries();

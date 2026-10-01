@@ -80,8 +80,8 @@ public class when_protecting_validator_construction
             return validator;
         });
         var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()));
-        Assert.Contains("Discoverable validator", result.ExceptionMessages.Single());
-        Assert.Equal(0, factories);
+        Assert.Contains("instance Arc did not construct", result.ExceptionMessages.Single());
+        Assert.Equal(1, factories);
         Assert.Equal(0, OwnershipCommand.Handles);
         Assert.Empty(scenario.AppendedEvents);
     }
@@ -203,16 +203,39 @@ public class when_protecting_validator_construction
     }
 
     [Fact]
-    public async Task nested_concept_validator_is_refused_before_constructing_or_running_rules()
+    public async Task nested_concept_validator_runs_its_rules_and_rejects_invalid_input()
     {
         await using var scenario = new CommandScenario<NestedConceptCommand>().UseDecisionReads();
-        NestedConceptValidator.Constructions = 0;
-        var command = new NestedConceptCommand(EventSourceId.New(), new NestedConcept("value"));
-        Assert.Contains("Discoverable validator", (await scenario.Validate(command)).ExceptionMessages.Single());
-        Assert.Contains("Discoverable validator", (await scenario.Execute(command)).ExceptionMessages.Single());
-        Assert.Equal(0, NestedConceptValidator.Constructions);
+        NestedConceptCommand.Handles = 0;
+        var command = new NestedConceptCommand(EventSourceId.New(), new NestedConcept(string.Empty));
+        Assert.Contains((await scenario.Validate(command)).ValidationResults, _ => _.Message == "nested concept is required");
+        var result = await scenario.Execute(command);
+        Assert.Empty(result.ExceptionMessages);
+        Assert.Contains(result.ValidationResults, _ => _.Message == "nested concept is required");
         Assert.Equal(0, NestedConceptCommand.Handles);
         Assert.Empty(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task nested_concept_validator_lets_valid_input_through_to_the_decision()
+    {
+        await using var scenario = new CommandScenario<NestedConceptCommand>().UseDecisionReads();
+        NestedConceptCommand.Handles = 0;
+        var result = await scenario.Execute(new NestedConceptCommand(EventSourceId.New(), new NestedConcept("value")));
+        result.ShouldBeSuccessful();
+        Assert.Equal(1, NestedConceptCommand.Handles);
+        Assert.Single(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task convention_bound_parameterless_validator_is_resolved_through_arc_and_runs()
+    {
+        await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
+        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null));
+        Assert.DoesNotContain(scenario.Services, descriptor => !descriptor.IsKeyedService &&
+            descriptor.ServiceType == typeof(NullConceptValidator) && descriptor.ImplementationType == typeof(NullConceptValidator));
+        Assert.Contains(scenario.Services, descriptor => descriptor.ServiceType == typeof(NullConceptValidator) && descriptor.ImplementationFactory is not null);
+        Assert.Contains(result.ValidationResults, _ => _.Message == "name is required");
     }
 
     [Fact]
@@ -273,13 +296,35 @@ public class when_protecting_validator_construction
     }
 
     [Fact]
-    public async Task parameterless_validator_is_refused_before_running_its_rules()
+    public async Task parameterless_validator_rejects_invalid_input_before_the_decision()
     {
         await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
+        NullConceptCommand.Handles = 0;
         var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), null));
-        Assert.Contains("Discoverable validator", result.ExceptionMessages.Single());
-        Assert.Empty(result.ValidationResults);
+        Assert.Empty(result.ExceptionMessages);
+        Assert.Contains(result.ValidationResults, _ => _.Message == "name is required");
         Assert.Equal(0, NullConceptCommand.Handles);
+        Assert.Empty(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task parameterless_validator_lets_valid_input_through_to_the_decision()
+    {
+        await using var scenario = new CommandScenario<NullConceptCommand>().UseDecisionReads();
+        NullConceptCommand.Handles = 0;
+        var result = await scenario.Execute(new NullConceptCommand(EventSourceId.New(), new ConceptName("name")));
+        result.ShouldBeSuccessful();
+        Assert.Equal(1, NullConceptCommand.Handles);
+        Assert.Single(scenario.AppendedEvents);
+    }
+
+    [Fact]
+    public async Task parameterless_validator_with_an_explicit_instance_registration_is_refused()
+    {
+        await using var scenario = new CommandScenario<OwnershipCommand>().UseDecisionReads();
+        scenario.Services.AddSingleton(new OwnershipValidator());
+        var result = await scenario.Execute(new OwnershipCommand(EventSourceId.New()));
+        Assert.Contains("instance Arc did not construct", result.ExceptionMessages.Single());
         Assert.Empty(scenario.AppendedEvents);
     }
 
@@ -377,7 +422,7 @@ public class when_protecting_validator_construction
 
     public class NullConceptValidator : CommandValidator<NullConceptCommand>
     {
-        public NullConceptValidator() => RuleFor(_ => _.Name!.Value).NotEmpty();
+        public NullConceptValidator() => RuleFor(_ => _.Name!).NotNull().WithMessage("name is required");
     }
 
     [Command]
@@ -539,12 +584,7 @@ public class when_protecting_validator_construction
 
     public class NestedConceptValidator : AbstractValidator<NestedConcept>, IDiscoverableValidator<NestedConcept>
     {
-        public static int Constructions;
-        public NestedConceptValidator()
-        {
-            Constructions++;
-            RuleFor(_ => _.Value).Must(_ => throw new InvalidOperationException("Nested rule must not run."));
-        }
+        public NestedConceptValidator() => RuleFor(_ => _.Value).NotEmpty().WithMessage("nested concept is required");
     }
 
     public class DirectValidator : CommandValidator<DirectCommand>
