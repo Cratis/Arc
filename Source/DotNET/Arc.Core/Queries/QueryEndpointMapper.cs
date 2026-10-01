@@ -71,12 +71,12 @@ public static class QueryEndpointMapper
 
             foreach (var reader in readers)
             {
-                MapForReader(mapper, reader, performer, url, locationForTag);
+                MapForReader(mapper, reader, performer, url, locationForTag, serviceProvider);
             }
         }
     }
 
-    static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, string url, IEnumerable<string> locationForTag)
+    static void MapForReader(IEndpointMapper mapper, IQueryRequestReader reader, IQueryPerformer performer, string url, IEnumerable<string> locationForTag, IServiceProvider services)
     {
         var endpointName = $"{reader.EndpointNamePrefix}{performer.FullyQualifiedName}";
         if (mapper.EndpointExists(endpointName))
@@ -88,7 +88,7 @@ public static class QueryEndpointMapper
             endpointName,
             $"{reader.EndpointNamePrefix} {performer.Name} query",
             [string.Join('.', locationForTag)],
-            performer.AllowsAnonymousAccess,
+            performer.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForQuery(performer, services),
             RequestBodyType: reader.RequestBodyType,
             ResponseType: typeof(QueryResult),
             ExcludeFromApiDescription: !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery());

@@ -43,6 +43,8 @@ public static class CommandEndpointMapper
             var url = CommandRoute.CustomRoute(handler) ??
                 EndpointRouteHelper.BuildRouteUrl(options, handler.Location, options.SegmentsToSkipForRoute, handler.CommandType.Name, includeCommandName);
 
+            var allowAnonymous = handler.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForCommand(handler.CommandType, serviceProvider);
+
             MapCommandEndpoint(
                 mapper,
                 url,
@@ -50,7 +52,7 @@ public static class CommandEndpointMapper
                 $"Execute {handler.CommandType.Name} command in {handler.CommandType.Namespace}",
                 handler.CommandType,
                 location,
-                handler.AllowsAnonymousAccess,
+                allowAnonymous,
                 excludeFromApiDescription: handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true));
 
             MapCommandEndpoint(
@@ -60,7 +62,7 @@ public static class CommandEndpointMapper
                 $"Validate {handler.CommandType.Name} command without executing it",
                 handler.CommandType,
                 location,
-                handler.AllowsAnonymousAccess,
+                allowAnonymous,
                 validateOnly: true,
                 excludeFromApiDescription: handler.CommandType.IsDefined(typeof(ExcludeFromDiscoveryAttribute), true));
         }
