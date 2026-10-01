@@ -19,7 +19,7 @@ public class and_nothing_has_happened_yet
     readonly EventSourceId _approvalId = EventSourceId.New();
     CommandResult _result = null!;
 
-    async Task Because() => _result = await _scenario.Execute(new RequestApproval(_approvalId, "Jane Austen"));
+    async Task Because() => _result = await _scenario.Execute(new RequestApproval(_approvalId, "Jane Austen", []));
 
     [Fact] void should_be_successful() => _result.ShouldBeSuccessful();
     [Fact] async Task should_have_asked_for_the_approval() => await _scenario.ShouldHaveAppendedEvent<RequestApproval, ApprovalRequested>(_approvalId);

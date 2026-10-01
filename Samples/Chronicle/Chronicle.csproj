@@ -13,11 +13,15 @@
              file and a file named after its type are turned off for here. -->
         <NoWarn>$(NoWarn);SA0001;SA1600;SA1649;SA1402;MA0048</NoWarn>
         <IsPackable>false</IsPackable>
+        <CratisEmbeddedScreenplayEnabled Condition="'$(Configuration)' != 'Debug'">false</CratisEmbeddedScreenplayEnabled>
+        <CratisEmbeddedScreenplayTaskAssembly>$(MSBuildThisFileDirectory)../../Source/DotNET/Tools/Screenplay.Embedded.Build/bin/$(Configuration)/$(TargetFramework)/Cratis.Arc.Screenplay.Embedded.Build.dll</CratisEmbeddedScreenplayTaskAssembly>
         <!-- xunit.core imports IsTestProject=true, but these scenarios are source-analysis fixtures, not runnable tests. -->
         <IsTestProject>false</IsTestProject>
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../../Source/DotNET/Arc/Arc.csproj" />
+        <ProjectReference Include="../../Source/DotNET/Screenplay.Embedded/Screenplay.Embedded.csproj" />
+        <ProjectReference Include="../../Source/DotNET/Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" ReferenceOutputAssembly="false" />
         <ProjectReference Include="../../Source/DotNET/Cratis/Cratis.csproj" />
         <ProjectReference Include="../../Source/DotNET/Chronicle/Chronicle.csproj" />
         <!-- A slice is specified where it lives, so the scenarios sit in this project rather than beside it. That is
@@ -30,4 +34,5 @@
              test, so no runner and no test SDK come with it. -->
         <PackageReference Include="xunit" />
     </ItemGroup>
+    <Import Project="../../Source/DotNET/Screenplay.Embedded/build/Cratis.Arc.Screenplay.Embedded.targets" />
 </Project>

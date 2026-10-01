@@ -21,7 +21,7 @@ public class and_the_approval_was_already_asked_for
     void Establish() =>
         _scenario.Given.ForEventSource(_approvalId).Events(new ApprovalRequested("Jane Austen", []));
 
-    async Task Because() => _result = await _scenario.Execute(new RequestApproval(_approvalId, "Charlotte Bronte"));
+    async Task Because() => _result = await _scenario.Execute(new RequestApproval(_approvalId, "Charlotte Bronte", []));
 
     [Fact] void should_be_successful() => _result.ShouldBeSuccessful();
     [Fact] async Task should_have_asked_for_the_approval_again() => await _scenario.ShouldHaveAppendedEvent<RequestApproval, ApprovalRequested>(_approvalId);

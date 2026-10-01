@@ -54,10 +54,9 @@ public record ApprovalLabel(string Value) : ConceptAs<string>(Value)
 /// <param name="Requester">Who asked for the approval.</param>
 /// <param name="Tag">What the request is classified by.</param>
 /// <remarks>
-/// <see cref="Tag"/> carries the name it does on purpose. The body of an event declaration reads a line starting
-/// with <c>tag</c> as a tag of its own, so a property of that name is swallowed by it rather than declared. It
-/// holds several values so that the swallowed line would be one the language rejects outright - a property left in
-/// by mistake is then a document that does not compile rather than a document that silently means something else.
+/// <see cref="Tag"/> carries the name it does on purpose. The body of an event declaration reads an unescaped line
+/// starting with <c>tag</c> as a tag of its own, so generated Screenplay writes this property and its mapping with
+/// the <c>@</c> keyword escape.
 /// </remarks>
 [EventType]
 public record ApprovalRequested(string Requester, IEnumerable<ApprovalLabel> Tag);
@@ -75,14 +74,15 @@ public record ApprovalDecided(string Approver, ApprovalStatus Outcome);
 /// </summary>
 /// <param name="ApprovalId">The approval being asked for.</param>
 /// <param name="Requester">Who is asking.</param>
+/// <param name="Tag">What the request is classified by.</param>
 [Command]
-public record RequestApproval(EventSourceId ApprovalId, string Requester)
+public record RequestApproval(EventSourceId ApprovalId, string Requester, IEnumerable<ApprovalLabel> Tag)
 {
     /// <summary>
     /// Handles the command by stating that the approval was asked for.
     /// </summary>
     /// <returns>The <see cref="ApprovalRequested"/> event.</returns>
-    public ApprovalRequested Handle() => new(Requester, []);
+    public ApprovalRequested Handle() => new(Requester, Tag);
 }
 
 /// <summary>

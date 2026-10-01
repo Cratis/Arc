@@ -27,6 +27,11 @@ app.UseCratisArc();
 app.MapControllers();
 app.MapGet("/", () => "Hello World!");
 
+if (app.Environment.IsDevelopment())
+{
+    app.MapCratisEventModel(typeof(Program).Assembly, typeof(Samples.ModelBoundReadModel).Assembly);
+}
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
