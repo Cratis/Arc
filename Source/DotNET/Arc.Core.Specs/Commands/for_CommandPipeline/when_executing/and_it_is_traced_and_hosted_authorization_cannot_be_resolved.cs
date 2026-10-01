@@ -16,6 +16,7 @@ public class and_it_is_traced_and_hosted_authorization_cannot_be_resolved : give
 
     [Fact] void should_report_unauthorized() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_add_the_authorization_outcome() => CommandSpan.GetTagItem(WellKnownTelemetryNames.CommandOutcome).ShouldEqual(WellKnownOperationOutcomes.Authorization);
+    [Fact] void should_record_the_exception_type() => CommandSpan.Events.Single(_ => _.Name == WellKnownTelemetryNames.ExceptionEvent).Tags.Single().Value.ShouldEqual(typeof(InvalidAuthorizationConfiguration).FullName);
     [Fact] void should_add_the_command_type() => CommandSpan.GetTagItem(WellKnownTelemetryNames.CommandType).ShouldEqual(typeof(RegisterAuthor).FullName);
     [Fact] void should_record_one_duration() => Durations.Count().ShouldEqual(1);
     [Fact] void should_count_an_authorization_outcome() => Outcomes.Single().Tags[WellKnownTelemetryNames.CommandOutcome].ShouldEqual(WellKnownOperationOutcomes.Authorization);

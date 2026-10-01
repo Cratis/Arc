@@ -231,7 +231,7 @@ public class CommandPipeline(
 
     static string TypeNameOf(Type type) => type.FullName ?? type.Name;
 
-    static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services)
+    static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services, Activity? activity)
     {
         try
         {
@@ -241,6 +241,7 @@ public class CommandPipeline(
         }
         catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
+            OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return null;
         }
@@ -309,10 +310,11 @@ public class CommandPipeline(
         }
         catch (Exception exception)
         {
+            OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(GetCorrelationId(), exception);
         }
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices, activity);
         if (declaration is null)
         {
             return CommandResult.Unauthorized(GetCorrelationId());
@@ -323,7 +325,7 @@ public class CommandPipeline(
             return await ExecuteCore(command, requestServices, allowedSeverity, null, activity, cancellationToken);
         }
 
-        var (prepared, failure) = await PrepareHosted(command, requestServices, cancellationToken);
+        var (prepared, failure) = await PrepareHosted(command, requestServices, activity, cancellationToken);
         if (failure is not null)
         {
             return failure;
@@ -348,10 +350,11 @@ public class CommandPipeline(
         }
         catch (Exception exception)
         {
+            OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(GetCorrelationId(), exception);
         }
         using var receipt = OperationContextScope.BeginIfNotSet(requestServices);
-        var declaration = GetHostedDeclaration(command.GetType(), requestServices);
+        var declaration = GetHostedDeclaration(command.GetType(), requestServices, activity);
         if (declaration is null)
         {
             return CommandResult.Unauthorized(GetCorrelationId());
@@ -362,7 +365,7 @@ public class CommandPipeline(
             return await ValidateCore(command, requestServices, allowedSeverity, null, activity, cancellationToken);
         }
 
-        var (prepared, failure) = await PrepareHosted(command, requestServices, cancellationToken);
+        var (prepared, failure) = await PrepareHosted(command, requestServices, activity, cancellationToken);
         if (failure is not null)
         {
             return failure;
@@ -378,7 +381,7 @@ public class CommandPipeline(
         return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, activity, cancellationToken);
     }
 
-    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, CancellationToken token)
+    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, Activity? activity, CancellationToken token)
     {
         try
         {
@@ -392,11 +395,13 @@ public class CommandPipeline(
         }
         catch (InvalidAuthorizationConfiguration exception)
         {
+            OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return (null, CommandResult.Unauthorized(GetCorrelationId()));
         }
         catch (Exception exception)
         {
+            OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationPreparationFailed(exception);
             return (null, CommandResult.Error(GetCorrelationId(), "An error occurred while preparing authorization."));
         }
@@ -423,6 +428,7 @@ public class CommandPipeline(
         }
         catch (InvalidCommandOperation exception)
         {
+            OperationActivity.RecordException(activity, exception);
             return CommandResult.FromException(correlationId, exception);
         }
 
@@ -596,6 +602,7 @@ public class CommandPipeline(
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
+            OperationActivity.RecordException(activity, ex);
             serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
             result.MergeWith(CommandResult.Unauthorized(correlationId));
             operations?.CaptureFailure(result, failureSource);
@@ -669,25 +676,31 @@ public class CommandPipeline(
         }
     }
 
-    ValueTask<object?> Handle(ICommandHandler handler, CommandContext context)
-    {
-        var activity = OperationActivity.StartCommandChild(activitySource.ActualSource, WellKnownTelemetryNames.CommandHandleSpan, context.Type);
-        return activity is null ? handler.Handle(context) : HandleTraced(handler, context, activity);
-    }
+    /// <summary>
+    /// Runs the handler, in a handle span when anything listens.
+    /// </summary>
+    /// <param name="handler">The <see cref="ICommandHandler"/> to run.</param>
+    /// <param name="context">The <see cref="CommandContext"/> to run it with.</param>
+    /// <returns>The value the handler returned.</returns>
+    /// <remarks>
+    /// The span is started inside the async method, never here. A span started in a synchronous caller becomes
+    /// Activity.Current on the caller's execution context, and the async method stopping it only restores its own
+    /// context, so the stopped span would stay current for every span the pipeline starts afterwards.
+    /// </remarks>
+    ValueTask<object?> Handle(ICommandHandler handler, CommandContext context) =>
+        activitySource.ActualSource.HasListeners() ? HandleTraced(handler, context) : handler.Handle(context);
 
-    async ValueTask<object?> HandleTraced(ICommandHandler handler, CommandContext context, Activity activity)
+    async ValueTask<object?> HandleTraced(ICommandHandler handler, CommandContext context)
     {
-        using (activity)
+        using var activity = OperationActivity.StartCommandChild(activitySource.ActualSource, WellKnownTelemetryNames.CommandHandleSpan, context.Type);
+        try
         {
-            try
-            {
-                return await handler.Handle(context);
-            }
-            catch (Exception ex)
-            {
-                OperationActivity.RecordFailure(activity, ex, context.CancellationToken);
-                throw;
-            }
+            return await handler.Handle(context);
+        }
+        catch (Exception ex)
+        {
+            OperationActivity.RecordFailure(activity, ex, context.CancellationToken);
+            throw;
         }
     }
 
@@ -756,6 +769,7 @@ public class CommandPipeline(
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
+            OperationActivity.RecordException(activity, ex);
             serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
             result.MergeWith(CommandResult.Unauthorized(correlationId));
         }

@@ -94,7 +94,7 @@ still counted in the metrics.
 | `cratis.arc.validator.type` | `cratis.arc.validator.invoke` | the full name of the validator type |
 | `cratis.arc.validation.result_count` | `cratis.arc.validator.invoke` | how many results the validator produced |
 | `cratis.correlation_id` | `execute`, `validate`, `perform` | the correlation id of the operation |
-| `cratis.tenant` | `execute`, `validate`, `perform` | the tenant the operation runs for, when it is known |
+| `cratis.tenant` | `execute`, `validate`, `perform` | the tenant the operation runs for, when one was resolved while it ran; a query records it only when it was authorized for a principal |
 
 The `execute`, `validate`, `filter` and `perform` spans also keep the
 `command_type` and `query_name` attributes they carried in earlier versions.
@@ -111,8 +111,8 @@ with no handler, carries no tenant.
 ### Outcomes
 
 The outcome attribute says how an operation ended. Following OpenTelemetry, only
-an `error` outcome, an exception Arc did not expect, sets the span status to
-`Error`. A command rejected by validation, by authorization or by the event store
+an `error` outcome sets the span status to `Error`: a failure that is not a
+validation, authorization or event store rejection and not a cancellation. A command rejected by validation, by authorization or by the event store
 is the application working as intended, so its span status stays unset; filter
 on the outcome attribute to find those. `cancelled` means the operation's
 cancellation token was cancelled, normally because the caller went away, and it
@@ -124,13 +124,13 @@ status to `Error` only when it is an error: not when it is a validation failure
 (an exception implementing `IValidationFailure`, which Arc reports as a
 validation outcome) and not once the operation was cancelled.
 
-Every outcome other than `success` adds events that say why:
+Depending on how an operation ended, events on its span say why:
 
 | Event | Raised when | Attributes |
 |---|---|---|
 | `cratis.arc.validation.failed` | once for each validation result that blocked the operation, up to 16 | `cratis.arc.validation.severity`, `cratis.arc.validation.members`, `cratis.arc.validation.reason` and, when set, `cratis.arc.validation.reason_detail` |
 | `cratis.arc.authorization.denied` | authorization denied the operation, on the operation span and the `authorize` span | — |
-| `exception` | an exception was thrown, on the span it was thrown in | `exception.type` |
+| `exception` | an exception was thrown, on the span it was thrown in and on the command or query span that turned it into a result | `exception.type` |
 
 `append_rejected` is the outcome when the rejection came from the event store
 rather than from a rule: a constraint violation or a concurrency conflict. The
@@ -176,8 +176,7 @@ Arc records these on the `Cratis.Arc` meter:
 | `cratis.arc.command.outcomes` | counter | `{command}` | `cratis.arc.command.type`, `cratis.arc.command.outcome` |
 | `cratis.arc.query.duration` | histogram | `s` | `cratis.arc.query.name`, `cratis.arc.query.transport`, `cratis.arc.query.outcome` |
 
-Only commands that run are measured; validating a command without running it is
-traced but not counted. For an observable query the duration covers setting up
+A command validated without being run is traced but not counted. For an observable query the duration covers setting up
 the subscription, not how long it stays open.
 
 Each metric records at most 1,000 distinct command types or query names. The
@@ -188,8 +187,10 @@ right at the limit can a new name be recorded as `_other` once before it gets
 the last free place. A query name that matches no known query is always
 recorded as `_other`.
 
-When nothing listens to the meter or the activity source, Arc skips the work of
-recording: it builds no attributes and looks nothing up.
+When nothing listens to the meter or the activity source, Arc skips most of the
+work of recording: it starts no child spans, builds no attributes or events, and
+does not look up whether a query name is known. It still checks whether anything
+listens on every operation.
 
 The MongoDB integration records its client metrics on the same meter.
 

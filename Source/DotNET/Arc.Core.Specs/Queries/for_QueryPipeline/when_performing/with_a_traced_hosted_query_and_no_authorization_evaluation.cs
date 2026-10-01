@@ -26,6 +26,7 @@ public class with_a_traced_hosted_query_and_no_authorization_evaluation : given.
 
     [Fact] void should_report_unauthorized() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_add_the_authorization_outcome() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryOutcome).ShouldEqual(WellKnownOperationOutcomes.Authorization);
+    [Fact] void should_record_the_exception_type() => QuerySpan.Events.Single(_ => _.Name == WellKnownTelemetryNames.ExceptionEvent).Tags.Single().Value.ShouldEqual(typeof(InvalidAuthorizationConfiguration).FullName);
     [Fact] void should_add_the_query_name() => QuerySpan.GetTagItem(WellKnownTelemetryNames.QueryName).ShouldEqual(_queryName.Value);
     [Fact] void should_record_the_duration_as_an_authorization_outcome() => Duration.Tags[WellKnownTelemetryNames.QueryOutcome].ShouldEqual(WellKnownOperationOutcomes.Authorization);
 

@@ -134,11 +134,13 @@ public class QueryPipeline(
         }
         catch (Exception exception) when (exception is InvalidAuthorizationConfiguration or AmbiguousAuthorizationLevel)
         {
+            OperationActivity.RecordException(activity, exception);
             requestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationConfigurationFailed(exception);
             return QueryResult.Unauthorized(GetCorrelationId());
         }
         catch (Exception exception)
         {
+            OperationActivity.RecordException(activity, exception);
             requestServices.GetService<ILogger<QueryPipeline>>()?.AuthorizationPreparationFailed(exception);
             return QueryResult.Error(GetCorrelationId(), "An error occurred while preparing authorization.");
         }
@@ -457,12 +459,14 @@ public class QueryPipeline(
             OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.FromException(correlationId, ex));
         }
-        catch (AuthorizationIdentityChanged)
+        catch (AuthorizationIdentityChanged ex)
         {
+            OperationActivity.RecordException(activity, ex);
             return QueryResult.Unauthorized(correlationId);
         }
         catch (InvalidAuthorizationConfiguration ex)
         {
+            OperationActivity.RecordException(activity, ex);
             result.MergeWith(QueryResult.Unauthorized(correlationId));
             result.ExceptionMessages = [.. result.ExceptionMessages, ex.Message];
         }
