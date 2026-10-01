@@ -2,6 +2,8 @@
     "private": true,
     "workspaces": [
         "Source/**/*",
+        "!Source/DotNET/Screenplay.Embedded",
+        "!Source/DotNET/Screenplay.Embedded/**",
         "!**/dist",
         "!**/dist/**",
         "!**/bin/**",

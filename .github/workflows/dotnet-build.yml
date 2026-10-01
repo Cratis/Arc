@@ -134,6 +134,14 @@ jobs:
       - name: Yarn install
         run: yarn install --immutable
 
+      - name: Build and test embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run typecheck
+          npm test
+          npm run build
+
       - name: Build
         run: dotnet build --configuration Release
 

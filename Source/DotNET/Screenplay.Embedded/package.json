@@ -1,0 +1,36 @@
+{
+    "name": "@cratis/arc.screenplay.embedded",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Embedded event-model explorer served by Cratis.Arc.Screenplay.Embedded.",
+    "license": "MIT",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "@cratis/components": "^4.18.0",
+        "@cratis/event-models": "^0.108.0",
+        "@cratis/fundamentals": "^7.19.6",
+        "@cratis/scene": "^0.108.0",
+        "pixi.js": "^8.21.0",
+        "primeicons": "^8.0.0",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0"
+    },
+    "devDependencies": {
+        "@testing-library/dom": "^10.4.2",
+        "@testing-library/react": "^16.3.3",
+        "@types/react": "^19.3.0",
+        "@types/react-dom": "^19.3.0",
+        "@vitejs/plugin-react": "^6.1.1",
+        "jsdom": "^30.1.1",
+        "typescript": "^5.9.3",
+        "vite": "^8.3.1",
+        "vitest": "^5.0.3"
+    }
+}
