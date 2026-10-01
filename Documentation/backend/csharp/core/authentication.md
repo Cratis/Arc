@@ -121,7 +121,7 @@ public Task<AuthenticationResult> HandleAuthentication(IHttpRequestContext conte
 
 `context.AllowsAnonymous()` (from `HttpRequestContextEndpointExtensions`) is `true` only when the matched endpoint declared `AllowAnonymous = true`; a handler that never checks it keeps behaving exactly as before.
 
-Arc command/query authorization is a separate pipeline check. Read the current principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`, not the client-readable identity cookie. See [Authorization](authorization.md) for roles, result status, and direct-call boundaries.
+Arc command/query authorization is a separate pipeline check. Read the current principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`, not the identity details sent to the frontend. See [Authorization](authorization.md) for roles, result status, and direct-call boundaries.
 
 ## Testing authentication handlers
 
@@ -130,5 +130,5 @@ Before exposing the service, exercise missing credentials, malformed input, arbi
 ## Next steps
 
 - [Authorization](authorization.md) — apply authentication and role requirements.
-- [Identity](../identity/index.md) — supply frontend identity details without treating cookies as credentials.
+- [Identity](../identity/index.md) — supply frontend identity details without treating them as credentials.
 - [Endpoint mapping](endpoint-mapping.md) — understand manual endpoint responsibilities.

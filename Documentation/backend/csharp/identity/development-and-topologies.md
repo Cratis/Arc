@@ -112,4 +112,4 @@ In a microservices architecture, you have several implementation options:
 2. **Multiple services** — Let ingress or reverse proxy call multiple services and merge the results
 3. **Dedicated identity service** — Aggregate identity data in a specialized service
 
-Choose the topology that best fits your architecture and operational model. Cross-service aggregation is application-owned; do not forward the unsigned identity cookie as authorization evidence. Preserve trusted authentication and enforce permissions at each service boundary.
+Choose the topology that best fits your architecture and operational model. Cross-service aggregation is application-owned; do not forward identity details as authorization evidence. Preserve trusted authentication and enforce permissions at each service boundary.

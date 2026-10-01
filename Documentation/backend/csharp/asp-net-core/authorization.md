@@ -139,7 +139,7 @@ An ordinary call to `ServiceStatus.Internal()` bypasses the query pipeline and *
 
 A command filter denying permission returns `CommandResult.Unauthorized(context.CorrelationId)`; a query filter uses `QueryResult.Unauthorized(context.CorrelationId)`. `CommandResult.Error(...)` describes an exception result, not an authorization rejection. See [command filters](../commands/command-filters.md) for filter contracts.
 
-Read the trusted principal through `ICurrentPrincipalAccessor` (`Cratis.Arc.Authorization`), or `IHttpContextAccessor.HttpContext.User` when intentionally writing ASP.NET-specific code. `IProvideIdentityDetails` composes frontend details; returning roles or `IsUserAuthorized` in its payload does not add claims or authorize every command/query. The [identity cookie](../identity/identity-provider-service.md) is client-controlled and must not be used as authorization evidence.
+Read the trusted principal through `ICurrentPrincipalAccessor` (`Cratis.Arc.Authorization`), or `IHttpContextAccessor.HttpContext.User` when intentionally writing ASP.NET-specific code. `IProvideIdentityDetails` composes frontend details; returning roles or `IsUserAuthorized` in its payload does not add claims or authorize every command/query. The [identity details](../identity/identity-provider-service.md) are presentation data and must not be used as authorization evidence.
 
 ## Verification checklist
 

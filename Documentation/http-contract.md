@@ -336,12 +336,12 @@ rejects the caller, and 200 on success with:
 `details` is application-specific and its shape is the one described by
 `/.cratis/identity-details/schema`.
 
-A successful response also sets a `.cratis-identity` cookie holding the Base64-encoded
-response JSON. The cookie is deliberately client-readable (`HttpOnly=false`) so frontend
-code can read the current identity without a round trip; it is `SameSite=Lax` with
-`Path=/`. Its `Secure` attribute is set for an HTTPS request on both implementations; the
-JVM additionally exposes a policy that can force or suppress it, documented in the
-[JVM conformance notes](/arc/backend/kotlin/reference/http-contract/).
+The identity is always derived from the authenticated principal of the request. Clients
+read it from this response body; neither the C# nor the JVM implementation treats an identity cookie sent by the
+client as input. Whether a successful response also sets a `.cratis-identity` cookie
+differs between the implementations - see
+[the identity cookie](#the-identity-cookie-is-only-written-by-the-jvm). Arc's frontend
+packages do not read that cookie.
 
 ## Validation result
 
@@ -397,6 +397,18 @@ does and what the JVM implementation does. These comparisons do not claim TypeSc
 parity: for the source preview's verified behavior and deliberate differences, use its
 [HTTP contract reference](/arc/backend/typescript/reference/http-contract/) and
 [capability reference](/arc/backend/typescript/reference/capabilities/).
+
+### The identity cookie is only written by the JVM
+
+- **C#**: `/.cratis/me` does not set a cookie and ignores any `.cratis-identity` cookie the
+  client sends. Earlier versions wrote a client-readable cookie and trusted it ahead of the
+  principal; see
+  [upgrading from the identity cookie](/arc/backend/csharp/identity/identity-provider-service/#upgrading-from-the-identity-cookie).
+- **JVM**: a successful response sets a client-readable (`HttpOnly=false`) `.cratis-identity`
+  cookie holding the Base64-encoded response JSON, `SameSite=Lax` with `Path=/`, and a
+  `Secure` policy documented in the
+  [JVM conformance notes](/arc/backend/kotlin/reference/http-contract/). It is not used to
+  establish the principal.
 
 ### SSE connection ownership is compared on a different set of values
 
