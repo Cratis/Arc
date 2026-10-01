@@ -20,5 +20,5 @@ public class with_a_forged_identity_cookie_and_an_authenticated_principal : give
     [Fact] void should_report_the_roles_of_the_principal() => ResponseBody.ShouldContain("\"roles\":[\"Reader\"]");
     [Fact] void should_report_the_details_provided_for_the_principal() => ResponseBody.ShouldContain("Engineering");
     [Fact] void should_not_report_the_forged_identity() => ResponseBody.ShouldNotContain("Forged");
-    [Fact] void should_not_write_an_identity_cookie() => _httpContext.Response.Headers.SetCookie.ToString().ShouldNotContain(ForgedIdentityCookieName);
+    [Fact] void should_expire_the_identity_cookie() => _httpContext.Response.Headers.SetCookie.ToString().ShouldContain($"{ForgedIdentityCookieName}=; expires=Thu, 01 Jan 1970 00:00:00 GMT");
 }

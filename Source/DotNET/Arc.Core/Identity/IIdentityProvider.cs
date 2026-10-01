@@ -29,7 +29,8 @@ public interface IIdentityProvider
     /// Writes the <see cref="IdentityProviderResult"/> to the response body as JSON, with headers that keep it out of shared caches.
     /// </summary>
     /// <remarks>
-    /// Despite its name, this no longer writes an identity cookie. The name is kept for compatibility.
+    /// Despite its name, this no longer writes an identity cookie: it expires a <c>.cratis-identity</c> cookie written by
+    /// an earlier version, if the request carries one. The name is kept for compatibility.
     /// </remarks>
     /// <param name="result">The <see cref="IdentityProviderResult"/>.</param>
     /// <returns>Awaitable task.</returns>

@@ -32,7 +32,9 @@ public class IdentityProvider(
     /// frontends get it from the <c>/.cratis/me</c> endpoint.
     /// </remarks>
     [Obsolete("Arc no longer reads or writes the identity cookie. Get the identity from the /.cratis/me endpoint instead.")]
-    public const string IdentityCookieName = ".cratis-identity";
+    public const string IdentityCookieName = LegacyIdentityCookieName;
+
+    const string LegacyIdentityCookieName = ".cratis-identity";
 
     readonly JsonSerializerOptions _serializerOptions = IdentityJsonSerializerOptions.CreateFrom(options.Value.JsonSerializerOptions);
 
@@ -82,6 +84,14 @@ public class IdentityProvider(
 
         context.SetNoStoreResponseHeaders();
         context.ContentType = "application/json; charset=utf-8";
+
+        // A readable identity cookie written by an earlier version would otherwise linger in the browser, and a
+        // frontend that still reads it would keep showing it instead of asking for the identity again.
+        if (context.Cookies.ContainsKey(LegacyIdentityCookieName))
+        {
+            context.RemoveCookie(LegacyIdentityCookieName);
+        }
+
         var json = JsonSerializer.Serialize(result, TypeInfoFor<IdentityProviderResult>());
         await context.Write(json);
     }
