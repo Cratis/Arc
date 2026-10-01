@@ -1569,6 +1569,38 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@samples/arccore@workspace:Samples/ArcCore":
+  version: 0.0.0-use.local
+  resolution: "@samples/arccore@workspace:Samples/ArcCore"
+  dependencies:
+    "@cratis/arc": "npm:1.0.0"
+    "@cratis/arc.react": "npm:1.0.0"
+    "@types/react": "npm:^19.3.0"
+    "@types/react-dom": "npm:^19.3.0"
+    "@vitejs/plugin-react": "npm:^6.1.1"
+    react: "npm:^19.3.0"
+    react-dom: "npm:^19.3.0"
+    typescript: "npm:^7.0.2"
+    vite: "npm:^8.3.1"
+  languageName: unknown
+  linkType: soft
+
+"@samples/aspnetcore@workspace:Samples/AspNetCore":
+  version: 0.0.0-use.local
+  resolution: "@samples/aspnetcore@workspace:Samples/AspNetCore"
+  dependencies:
+    "@cratis/arc": "npm:1.0.0"
+    "@cratis/arc.react": "npm:1.0.0"
+    "@types/react": "npm:^19.3.0"
+    "@types/react-dom": "npm:^19.3.0"
+    "@vitejs/plugin-react": "npm:^6.1.1"
+    react: "npm:^19.3.0"
+    react-dom: "npm:^19.3.0"
+    typescript: "npm:^7.0.2"
+    vite: "npm:^8.3.1"
+  languageName: unknown
+  linkType: soft
+
 "@sinonjs/commons@npm:^3.0.1":
   version: 3.0.1
   resolution: "@sinonjs/commons@npm:3.0.1"
@@ -1864,38 +1896,6 @@ __metadata:
   checksum: 10/9cd2b13a640c36d28235a30567dc38330e01dc54ba0ca6ff4000fc56f0be27252b91c3df4989a9ef019b9df9eb722e73fb273913675f8b891428981fb9cc9a0f
   languageName: node
   linkType: hard
-
-"@testapps/arccore@workspace:TestApps/ArcCore":
-  version: 0.0.0-use.local
-  resolution: "@testapps/arccore@workspace:TestApps/ArcCore"
-  dependencies:
-    "@cratis/arc": "npm:1.0.0"
-    "@cratis/arc.react": "npm:1.0.0"
-    "@types/react": "npm:^19.3.0"
-    "@types/react-dom": "npm:^19.3.0"
-    "@vitejs/plugin-react": "npm:^6.1.1"
-    react: "npm:^19.3.0"
-    react-dom: "npm:^19.3.0"
-    typescript: "npm:^7.0.2"
-    vite: "npm:^8.3.1"
-  languageName: unknown
-  linkType: soft
-
-"@testapps/aspnetcore@workspace:TestApps/AspNetCore":
-  version: 0.0.0-use.local
-  resolution: "@testapps/aspnetcore@workspace:TestApps/AspNetCore"
-  dependencies:
-    "@cratis/arc": "npm:1.0.0"
-    "@cratis/arc.react": "npm:1.0.0"
-    "@types/react": "npm:^19.3.0"
-    "@types/react-dom": "npm:^19.3.0"
-    "@vitejs/plugin-react": "npm:^6.1.1"
-    react: "npm:^19.3.0"
-    react-dom: "npm:^19.3.0"
-    typescript: "npm:^7.0.2"
-    vite: "npm:^8.3.1"
-  languageName: unknown
-  linkType: soft
 
 "@testing-library/dom@npm:^10.4.1, @testing-library/dom@npm:^10.4.2":
   version: 10.4.2

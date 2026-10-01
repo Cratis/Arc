@@ -53,13 +53,13 @@
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\ReferencedConceptValidator\ReferencedConceptValidator.csproj" />
         <Project Path="Source\DotNET\Tools\ProxyGenerator.Specs\TestArtifacts\TransitiveConceptValidator\TransitiveConceptValidator.csproj" />
     </Folder>
-    <Folder Name="/TestApps/">
-        <Project Path="TestApps\AspNetCore\AspNetCore.csproj" />
-        <Project Path="TestApps\ArcCore\ArcCore.csproj" />
-        <Project Path="TestApps\Core\Core.csproj" />
-        <Project Path="TestApps\Chronicle\Chronicle.csproj" />
-        <Project Path="TestApps\Layered\Layered.csproj" />
-        <Project Path="TestApps\Layered.Contracts\Layered.Contracts.csproj" />
-        <Project Path="TestApps\Shared\Shared.csproj" />
+    <Folder Name="/Samples/">
+        <Project Path="Samples\AspNetCore\AspNetCore.csproj" />
+        <Project Path="Samples\ArcCore\ArcCore.csproj" />
+        <Project Path="Samples\Core\Core.csproj" />
+        <Project Path="Samples\Chronicle\Chronicle.csproj" />
+        <Project Path="Samples\Layered\Layered.csproj" />
+        <Project Path="Samples\Layered.Contracts\Layered.Contracts.csproj" />
+        <Project Path="Samples\Shared\Shared.csproj" />
     </Folder>
 </Solution>

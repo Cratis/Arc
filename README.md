@@ -110,7 +110,7 @@ Starting the host confirms the basic Arc setup. For workers, consoles, or servic
 | [`Source/DotNET`](https://github.com/Cratis/Arc/tree/main/Source/DotNET) | .NET framework source |
 | [`Source/JavaScript`](https://github.com/Cratis/Arc/tree/main/Source/JavaScript) | TypeScript and React package source |
 | [`Documentation`](https://github.com/Cratis/Arc/tree/main/Documentation) | Product-owned documentation rendered on cratis.io |
-| [`TestApps`](https://github.com/Cratis/Arc/tree/main/TestApps) | Sample and integration applications used by repository checks |
+| [`Samples`](https://github.com/Cratis/Arc/tree/main/Samples) | Sample and integration applications used by repository checks |
 
 Package existence does not imply compatibility with every frontend, runtime, persistence provider, or product version. Check the package manifests and documentation for the versions you use.
 
