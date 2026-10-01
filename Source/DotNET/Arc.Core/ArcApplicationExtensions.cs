@@ -9,6 +9,7 @@ using Cratis.Arc.Introspection;
 using Cratis.Arc.Queries;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc;
@@ -34,13 +35,13 @@ public static class ArcApplicationExtensions
         }
 
         var introspection = app.Services.GetRequiredService<IOptions<ArcOptions>>().Value.Introspection;
-        if (introspection.Enabled && introspection.RequireAuthentication && !app.Services.GetRequiredService<IAuthentication>().HasHandlers)
+        if (introspection.AuthenticationExplicitlyRequired && !app.Services.GetRequiredService<IAuthentication>().HasHandlers)
         {
-            throw new InvalidIntrospectionConfiguration("Introspection requires an Arc.Core authentication handler when RequireAuthentication is true.");
+            throw new InvalidIntrospectionConfiguration("Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler.");
         }
 
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
-        app.EndpointMapper.MapIntrospectionEndpoints(introspection);
+        app.EndpointMapper.MapIntrospectionEndpoints(introspection, app.Services.GetService<ILoggerFactory>()?.CreateLogger(typeof(IntrospectionEndpointMapper).FullName!));
         app.EndpointMapper.MapCommandEndpoints(app.Services);
         app.EndpointMapper.MapQueryEndpoints(app.Services);
         app.EndpointMapper.MapObservableQueryDemultiplexerEndpoints(app.Services);

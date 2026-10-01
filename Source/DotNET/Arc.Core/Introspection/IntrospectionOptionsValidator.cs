@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 namespace Cratis.Arc.Introspection;
 
 /// <summary>
-/// Validates the command and query catalog exposure configuration on host startup.
+/// Validates the discovery endpoint exposure configuration on host startup.
 /// </summary>
 public class IntrospectionOptionsValidator : IValidateOptions<ArcOptions>
 {
@@ -17,18 +17,18 @@ public class IntrospectionOptionsValidator : IValidateOptions<ArcOptions>
     }
 
     /// <summary>
-    /// Validates catalog exposure settings for both configured hosts and direct mapper calls.
+    /// Validates discovery exposure settings for both configured hosts and direct mapper calls.
     /// </summary>
-    /// <param name="introspection">The catalog exposure settings.</param>
+    /// <param name="introspection">The discovery exposure settings.</param>
     /// <returns>The validation result.</returns>
     internal static ValidateOptionsResult ValidateOptions(IntrospectionOptions introspection)
     {
         if (introspection.Roles is not null)
         {
             var roles = introspection.Roles.Split(',').Select(role => role.Trim()).ToArray();
-            if (!introspection.RequireAuthentication || roles.Any(string.IsNullOrWhiteSpace))
+            if (introspection.RequireAuthentication == false || roles.Any(string.IsNullOrWhiteSpace))
             {
-                return ValidateOptionsResult.Fail("Cratis:Arc:Introspection:Roles requires RequireAuthentication=true and a comma-separated list of nonempty roles.");
+                return ValidateOptionsResult.Fail("Cratis:Arc:Introspection:Roles cannot be combined with RequireAuthentication=false and must be a comma-separated list of nonempty roles.");
             }
             introspection.Roles = string.Join(',', roles);
         }

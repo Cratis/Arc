@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Introspection;
 
@@ -35,22 +36,28 @@ public static class IntrospectionEndpointMapper
     /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
     /// <param name="options">The exposure options.</param>
     /// <exception cref="InvalidIntrospectionConfiguration">The catalog configuration is invalid or the host cannot enforce it.</exception>
-    public static void MapIntrospectionEndpoints(this IEndpointMapper mapper, IntrospectionOptions options)
-    {
-        var validation = IntrospectionOptionsValidator.ValidateOptions(options);
-        if (validation.Failed)
-        {
-            throw new InvalidIntrospectionConfiguration(string.Join(' ', validation.Failures));
-        }
+    public static void MapIntrospectionEndpoints(this IEndpointMapper mapper, IntrospectionOptions options) =>
+        mapper.MapIntrospectionEndpoints(options, logger: null);
 
+    /// <summary>
+    /// Maps introspection endpoints using the configured exposure options, reporting exposure that needs attention.
+    /// </summary>
+    /// <param name="mapper">The <see cref="IEndpointMapper"/> to use.</param>
+    /// <param name="options">The exposure options.</param>
+    /// <param name="logger">Optional logger to report exposure that needs attention.</param>
+    /// <exception cref="InvalidIntrospectionConfiguration">The catalog configuration is invalid or the host cannot enforce it.</exception>
+    internal static void MapIntrospectionEndpoints(this IEndpointMapper mapper, IntrospectionOptions options, ILogger? logger)
+    {
         if (!options.Enabled)
         {
+            DiscoveryExposure.ThrowIfInvalid(options);
             return;
         }
 
-        if (options.RequireAuthentication && mapper is IIntrospectionExposureGuard guard)
+        var access = DiscoveryExposure.Resolve(mapper, options, logger);
+        if (access == DiscoveryAccess.Unavailable)
         {
-            guard.Validate(options);
+            return;
         }
 
         if (!mapper.EndpointExists(CommandsEndpointName))
@@ -62,16 +69,7 @@ public static class IntrospectionEndpointMapper
                     var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
                     await context.WriteResponseAsJson(introspectionService.Commands, typeof(List<CommandIntrospectionMetadata>), context.RequestAborted);
                 },
-                new EndpointMetadata(
-                    CommandsEndpointName,
-                    "Introspect available command endpoints",
-                    ["Cratis Introspection"],
-                    AllowAnonymous: !options.RequireAuthentication,
-                    ResponseType: typeof(List<CommandIntrospectionMetadata>))
-                {
-                    RequireAuthentication = options.RequireAuthentication,
-                    Roles = options.Roles
-                });
+                DiscoveryExposure.MetadataFor(access, options, CommandsEndpointName, "Introspect available command endpoints", "Cratis Introspection", typeof(List<CommandIntrospectionMetadata>)));
         }
 
         if (!mapper.EndpointExists(QueriesEndpointName))
@@ -83,16 +81,7 @@ public static class IntrospectionEndpointMapper
                     var introspectionService = context.RequestServices.GetRequiredService<IIntrospectionService>();
                     await context.WriteResponseAsJson(introspectionService.Queries, typeof(List<QueryIntrospectionMetadata>), context.RequestAborted);
                 },
-                new EndpointMetadata(
-                    QueriesEndpointName,
-                    "Introspect available query endpoints",
-                    ["Cratis Introspection"],
-                    AllowAnonymous: !options.RequireAuthentication,
-                    ResponseType: typeof(List<QueryIntrospectionMetadata>))
-                {
-                    RequireAuthentication = options.RequireAuthentication,
-                    Roles = options.Roles
-                });
+                DiscoveryExposure.MetadataFor(access, options, QueriesEndpointName, "Introspect available query endpoints", "Cratis Introspection", typeof(List<QueryIntrospectionMetadata>)));
         }
     }
 }

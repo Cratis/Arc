@@ -4,22 +4,38 @@
 namespace Cratis.Arc.Introspection;
 
 /// <summary>
-/// Controls exposure of the command and query catalog endpoints.
+/// Controls exposure of the discovery endpoints: the command and query catalogs (<c>/.cratis/commands</c> and
+/// <c>/.cratis/queries</c>) and identity discovery (<c>/.cratis/users</c>, <c>/.cratis/tenants</c> and
+/// <c>/.cratis/identity-details/schema</c>).
 /// </summary>
 public class IntrospectionOptions
 {
     /// <summary>
-    /// Gets or sets whether both catalog endpoints are mapped. Defaults to true.
+    /// Gets or sets whether both catalog endpoints are mapped. Defaults to true. Identity discovery is always mapped.
     /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets whether callers must be authenticated. Defaults to false.
+    /// Gets or sets whether callers of the discovery endpoints must be authenticated.
     /// </summary>
-    public bool RequireAuthentication { get; set; }
+    /// <remarks>
+    /// <para>
+    /// When not set, the default, the endpoints are anonymous in Development and require an authenticated caller
+    /// everywhere else. Set it to <see langword="false"/> to expose them anonymously in every environment, or to
+    /// <see langword="true"/> to require authentication in every environment, including Development.
+    /// </para>
+    /// <para>
+    /// When it is not set and the host has no way to authenticate callers, such as an ASP.NET Core host without a
+    /// default authentication scheme, the discovery endpoints are not mapped outside Development. When it is
+    /// <see langword="true"/>, the same host fails at startup instead.
+    /// </para>
+    /// </remarks>
+    public bool? RequireAuthentication { get; set; }
 
     /// <summary>
-    /// Gets or sets comma-separated roles, any one of which grants access. Roles are trimmed; empty roles are rejected. Requires authentication.
+    /// Gets or sets comma-separated roles, any one of which grants access. Roles are trimmed; empty roles are rejected.
+    /// Setting roles requires an authenticated caller in every environment, and cannot be combined with
+    /// <see cref="RequireAuthentication"/> set to <see langword="false"/>.
     /// </summary>
     public string? Roles { get; set; }
 
@@ -32,4 +48,16 @@ public class IntrospectionOptions
     /// </remarks>
     [Obsolete("Use ArcOptions.TrustForwardedIdentityHeaders (Cratis:Arc:TrustForwardedIdentityHeaders), which applies to every request. This setting turns it on and will be removed in a future major version.")]
     public bool TrustForwardedIdentityHeaders { get; set; }
+
+    /// <summary>
+    /// Gets whether authentication was asked for explicitly, rather than by the environment default.
+    /// </summary>
+    internal bool AuthenticationExplicitlyRequired => RequireAuthentication == true || Roles is not null;
+
+    /// <summary>
+    /// Decides whether callers of the discovery endpoints must be authenticated.
+    /// </summary>
+    /// <param name="isDevelopment">Whether the host runs in the Development environment.</param>
+    /// <returns>True if callers must be authenticated.</returns>
+    internal bool RequiresAuthentication(bool isDevelopment) => AuthenticationExplicitlyRequired || (RequireAuthentication ?? !isDevelopment);
 }
