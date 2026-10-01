@@ -36,6 +36,7 @@ public class from_source_carrying_the_specifications_of_a_slice : Specification
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Invoicing.Issuing;
         using Xunit;

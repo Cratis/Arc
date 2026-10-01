@@ -42,6 +42,7 @@ public class from_source_expecting_an_event_carrying_flags_no_member_declares : 
     const string Usings = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Accounts.Notifications;
         using Xunit;

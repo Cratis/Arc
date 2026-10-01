@@ -44,6 +44,7 @@ public class from_source_stating_members_of_enumerations_not_declared_as_int : S
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Contracts.Signing;
         using Xunit;

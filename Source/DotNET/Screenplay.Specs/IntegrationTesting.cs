@@ -11,6 +11,12 @@ namespace Cratis.Arc.Screenplay;
 /// what lets it read a specification without the testing packages being referenced. Declaring them here rather than
 /// referencing them keeps every specification about reading them hermetic, and asks the recognition the only
 /// question worth asking of it - whether the names alone are enough.
+/// <para>
+/// The shape follows the real packages: what Chronicle adds to a command scenario - <c>Given</c>, <c>EventSequence</c>
+/// and <c>EventScenario</c> - are extension properties declared in <c>Cratis.Arc.Chronicle.Testing.Commands</c>, so a
+/// specification reaches them only with that namespace imported, and the event scenario seeds through
+/// <c>Given.ForEventSource(...).Events(...)</c> exactly as a specification written against the packages does.
+/// </para>
 /// </remarks>
 public static class IntegrationTesting
 {
@@ -32,10 +38,6 @@ public static class IntegrationTesting
         {
             public class CommandScenario<TCommand>
             {
-                public Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioChronicleGivenBuilder<TCommand> Given => new();
-
-                public IEventSequence EventSequence => null!;
-
                 public Task<CommandResult> Execute(TCommand command) => Task.FromResult(new CommandResult());
 
                 public Task<Result> Validate(TCommand command) => Task.FromResult(new Result());
@@ -52,6 +54,18 @@ public static class IntegrationTesting
 
         namespace Cratis.Arc.Chronicle.Testing.Commands
         {
+            public static class CommandScenarioChronicleExtensions
+            {
+                extension<TCommand>(Cratis.Arc.Testing.Commands.CommandScenario<TCommand> scenario)
+                {
+                    public CommandScenarioChronicleGivenBuilder<TCommand> Given => new();
+
+                    public IEventSequence EventSequence => null!;
+
+                    public Cratis.Chronicle.Testing.EventSequences.EventScenario EventScenario => new();
+                }
+            }
+
             public static class CommandResultExtensions
             {
                 public static void ShouldBeSuccessful(this Cratis.Arc.Testing.Commands.CommandResult result)

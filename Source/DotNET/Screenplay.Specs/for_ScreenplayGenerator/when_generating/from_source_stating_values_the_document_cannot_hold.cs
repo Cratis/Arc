@@ -76,6 +76,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
     const string SideScenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Contracts.Signing;
         using Xunit;
@@ -136,6 +137,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
     const string PreferencesScenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Contracts.Signing;
         using Xunit;
@@ -156,6 +158,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
     const string SeededScenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Contracts.Signing;
         using Xunit;
@@ -178,6 +181,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
     const string OptionalScenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Contracts.Signing;
         using Xunit;

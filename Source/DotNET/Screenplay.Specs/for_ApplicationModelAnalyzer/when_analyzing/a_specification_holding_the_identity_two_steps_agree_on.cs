@@ -42,6 +42,7 @@ public class a_specification_holding_the_identity_two_steps_agree_on : Specifica
     const string Scenario = """
         using System.Threading.Tasks;
         using Cratis.Arc.Testing.Commands;
+        using Cratis.Arc.Chronicle.Testing.Commands;
         using Cratis.Chronicle.Testing.EventSequences;
         using Library.Authors.Registration;
         using Xunit;
