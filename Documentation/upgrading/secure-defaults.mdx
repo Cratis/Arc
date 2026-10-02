@@ -28,7 +28,7 @@ without the opt-in logs a warning that names the setting on every startup. The b
 handlers log a warning on the first request that carries the headers while they are not trusted.
 
 **What to do:** if every request reaches your application through an ingress that strips
-caller-supplied identity headers and sets its own, opt in. In code, add one line to the options
+caller-supplied identity headers and sets its own, opt in. In a C# host, add one line to the options
 you pass to `AddCratis` or `AddCratisArc`:
 
 <ArcBackendTabs snippet="upgrading/secure-defaults/trust-forwarded-identity-headers" variants="csharp" />
@@ -76,8 +76,8 @@ through `DOTNET_ENVIRONMENT`, command-line arguments or host options. Only when 
 environment is registered does Arc fall back to `ASPNETCORE_ENVIRONMENT`.
 
 **What to do:** nothing, if only signed-in users or local tooling read these endpoints. To
-expose them anonymously as before, add one line to the options you pass to `AddCratis` or
-`AddCratisArc`:
+expose them anonymously as before, add one line to the options in a C# host that you pass to
+`AddCratis` or `AddCratisArc`:
 
 <ArcBackendTabs snippet="upgrading/secure-defaults/anonymous-introspection" variants="csharp" />
 
