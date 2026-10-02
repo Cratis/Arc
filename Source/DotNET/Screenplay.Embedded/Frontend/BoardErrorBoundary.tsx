@@ -17,8 +17,7 @@ interface BoardErrorBoundaryState {
 
 /**
  * Keeps a failure while drawing the board from emptying the viewer, as the Screenplay board does: it says
- * what failed, the view options stay usable - choosing another tries the board again - and it offers to
- * show the board as it first appears.
+ * what failed and offers to show the board as it first appears.
  */
 export class BoardErrorBoundary extends Component<BoardErrorBoundaryProps, BoardErrorBoundaryState> {
     override state: BoardErrorBoundaryState = {};

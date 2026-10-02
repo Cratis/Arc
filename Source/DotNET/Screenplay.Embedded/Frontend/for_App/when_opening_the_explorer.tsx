@@ -31,7 +31,7 @@ describe('when opening the explorer', () => {
         expect(board.getAttribute('data-controls-placement')).toBe('bottom-right');
         expect(board.getAttribute('data-controls-glass-disabled')).toBe('true');
         expect(board.getAttribute('data-controls-follow-insets')).toBe('false');
-        expect(screen.getByRole('button', { name: 'View' }).closest('.board-view-options')).toBeTruthy();
+        expect(screen.getByRole('button', { name: 'View' }).closest('.event-model-board__toolbar')).toBeTruthy();
         const brand = screen.getByRole('link', { name: 'Visit Cratis (opens in a new tab)' });
         expect(brand.getAttribute('href')).toBe('https://cratis.io');
         expect(brand.getAttribute('target')).toBe('_blank');

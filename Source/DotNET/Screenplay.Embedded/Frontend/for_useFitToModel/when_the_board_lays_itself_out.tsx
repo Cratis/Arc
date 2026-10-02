@@ -19,7 +19,7 @@ const Board = ({ handle }: { handle: FitHandle }) => {
     useEffect(() => onHandleReady(handle), [handle, onHandleReady]);
     return (
         <div data-testid='canvas' ref={containerRef}>
-            <div className='board-view-options'><button type='button' data-testid='view'>View</button></div>
+            <div className='event-model-board__toolbar'><button type='button' data-testid='view'>View</button></div>
         </div>
     );
 };

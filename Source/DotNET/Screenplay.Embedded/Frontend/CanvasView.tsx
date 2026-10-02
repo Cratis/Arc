@@ -19,11 +19,10 @@ import { useFitToModel } from './useFitToModel';
 import { usePresentation } from './usePresentation';
 import { useRemote } from './useRemote';
 import { Status } from './Status';
-import { ViewOptions } from './ViewOptions';
 
 /**
- * The published board, read-only. Nothing here can be edited and nothing but the view options is
- * persisted: the document is generated from compiled source and the viewer only draws it. Opening a
+ * The published board, read-only, with the board's own view options in its upper right. Nothing here
+ * can be edited and nothing but the view options is persisted: the document is generated from compiled source and the viewer only draws it. Opening a
  * document frames the whole model; after that the camera belongs to the person looking at it.
  */
 export const CanvasView = ({ projectId, documentId }: DocumentSelection) => {
@@ -53,12 +52,13 @@ export const CanvasView = ({ projectId, documentId }: DocumentSelection) => {
             <EventModelMessagesProvider messages={defaultEventModelMessages}>
                 <SceneMessagesProvider messages={defaultSceneMessages}>
                     <MenuDropdownOpenProvider>
-                        <EventModelPresentationProvider presentation={presentation}>
+                        <EventModelPresentationProvider presentation={presentation} onChange={next => change(() => next)}>
                             <div className='canvas event-modeling-board' data-event-model-board ref={containerRef}>
                                 <BoardErrorBoundary resetWhenChanged={presentation} onReset={() => change(() => defaultPresentation)}>
                                     <EventModelBoard
                                         document={document}
                                         readOnly
+                                        showViewOptions
                                         canvas={{
                                             chrome: boardChrome,
                                             controlsPlacement: 'bottom-right',
@@ -67,7 +67,6 @@ export const CanvasView = ({ projectId, documentId }: DocumentSelection) => {
                                             onHandleReady
                                         }} />
                                 </BoardErrorBoundary>
-                                <ViewOptions presentation={presentation} onChange={change} />
                             </div>
                         </EventModelPresentationProvider>
                     </MenuDropdownOpenProvider>

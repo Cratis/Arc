@@ -186,17 +186,7 @@ body {
     --canvas-viewport-right: 0px;
 }
 
-/* The view options, in the upper right of the board as Cratis Studio has them. */
-.board-view-options {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    display: flex;
-    gap: 0.5rem;
-    z-index: 10;
-}
-
-/* What the canvas shows instead of a board that failed to draw; the view options above it stay usable. */
+/* What the canvas shows instead of a board that failed to draw. */
 .board-failure {
     padding: 1rem;
     color: var(--viewer-text);
