@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 using Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
 
 namespace Cratis.Arc.Screenplay.Embedded.Hosting;
@@ -24,21 +23,13 @@ namespace Cratis.Arc.Screenplay.Embedded.Hosting;
 /// </remarks>
 sealed class EventModelViewerSources
 {
-    static readonly EventModelCatalog _nothing = EventModelCatalog.For([]);
-
     readonly List<Assembly> _assemblies = [];
-    volatile EventModelCatalog _catalog = _nothing;
-    volatile CompiledEventModels _models = new(_nothing);
+    volatile EventModelExplorer _explorer = EventModelExplorer.Empty;
 
     /// <summary>
-    /// Gets the catalog of everything the explorer serves.
+    /// Gets the explorer answering for everything served.
     /// </summary>
-    internal EventModelCatalog Catalog => _catalog;
-
-    /// <summary>
-    /// Gets the compiled models of everything the explorer serves.
-    /// </summary>
-    internal CompiledEventModels Models => _models;
+    internal EventModelExplorer Explorer => _explorer;
 
     /// <summary>
     /// Adds assemblies to what the explorer serves.
@@ -65,7 +56,6 @@ sealed class EventModelViewerSources
 
         _assemblies.Clear();
         _assemblies.AddRange(candidates);
-        _catalog = catalog;
-        _models = new CompiledEventModels(catalog);
+        _explorer = new EventModelExplorer(catalog);
     }
 }

@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Cratis.Arc.Screenplay.Embedded.Build;
+namespace Cratis.Arc.Screenplay.Embedded.Generation;
 
 /// <summary>
 /// Builds the compilation the documents of a project are generated from.

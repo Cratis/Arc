@@ -24,6 +24,19 @@ public interface IEmbeddedDocumentGenerator
     EmbeddedDocumentGeneration Generate(Compilation compilation, EmbeddedDocumentOptions options);
 
     /// <summary>
+    /// Generates every document an application written as several compilations is embedded as.
+    /// </summary>
+    /// <param name="compilations">The compilations to generate from - a project and the projects it references.</param>
+    /// <param name="options">The options to generate with.</param>
+    /// <returns>The <see cref="EmbeddedDocumentGeneration"/>.</returns>
+    /// <remarks>
+    /// A host loading a project from the outside - with a workspace rather than from the inputs the build hands the
+    /// compiler - gets the project and the projects it references as separate compilations. They describe one
+    /// application, so they are analyzed together and the documents are scoped from the one model they recover.
+    /// </remarks>
+    EmbeddedDocumentGeneration Generate(IReadOnlyList<Compilation> compilations, EmbeddedDocumentOptions options);
+
+    /// <summary>
     /// Generates every document a recovered model is embedded as.
     /// </summary>
     /// <param name="model">The model of the whole application.</param>

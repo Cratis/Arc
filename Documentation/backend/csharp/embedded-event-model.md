@@ -152,3 +152,40 @@ All paths below are relative to `/.cratis/event-model/`:
 Use the IDs returned by `hierarchy` and URL-encode each path segment. Unknown projects, documents, and assets return HTTP 404. These queries read embedded resources only; they do not accept filesystem paths or fetch remote documents.
 
 The board is a visualization, not another inference engine. Where its card model cannot show everything a Screenplay document expresses, conversion warnings make that limitation visible. Use the source view for the full generated document. Generation errors fail the build instead of embedding a document that the Screenplay compiler rejects.
+
+## Serve the explorer from another host
+
+Everything the explorer answers comes from types you can use without mapping its routes. A tool that views an application from the outside — the Cratis CLI's `cratis view` does exactly this — serves the same viewer over documents it reads from a built assembly or generates in memory:
+
+| Type | Package | Role |
+| --- | --- | --- |
+| `EventModelCatalog` | `Cratis.Arc.Screenplay.Embedded` | Reads catalogs and document sources from assemblies or from any `IEventModelResources` |
+| `AssemblyEventModelResources` | `Cratis.Arc.Screenplay.Embedded` | The manifest resources of an assembly built with this package |
+| `InMemoryEventModelResources` | `Cratis.Arc.Screenplay.Embedded` | The same resources, held in memory under the names an assembly embeds them as |
+| `EventModelExplorer` | `Cratis.Arc.Screenplay.Embedded` | Answers the hierarchy, a document's source, and the board model it compiles to |
+| `EmbeddedViewerAssets.Viewer` | `Cratis.Arc.Screenplay.Embedded` | The viewer's own page and assets |
+| `EmbeddedDocumentGenerator` | `Cratis.Arc.Screenplay.Embedded.Generation` | Generates the documents the build would embed, from one or more Roslyn compilations |
+
+The following example generates the documents from compilations you have already loaded, without writing any files, and builds an explorer over them:
+
+```csharp
+using Cratis.Arc.Screenplay.Embedded.Generation;
+using Cratis.Arc.Screenplay.Embedded.Hosting;
+using Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
+using Microsoft.CodeAnalysis;
+
+public static class InMemoryExplorer
+{
+    public static EventModelExplorer For(IReadOnlyList<Compilation> compilations, string assemblyName, string rootNamespace)
+    {
+        var generation = new EmbeddedDocumentGenerator().Generate(compilations, new EmbeddedDocumentOptions(assemblyName, rootNamespace));
+        var catalog = EventModelCatalog.For([generation.ToResources(assemblyName)]);
+
+        return new EventModelExplorer(catalog);
+    }
+}
+```
+
+For documents an assembly already embeds, use `EventModelCatalog.For([assembly])` instead of generating them.
+
+To serve the viewer, answer `GET` requests relative to the page the viewer is served from: the page itself from `EmbeddedViewerAssets.Viewer.TryReadIndex`, `assets/{path}` from `TryRead`, and the three paths in [Query the documents](#query-the-documents) from `EventModelExplorer`. Serialize models with `EventModelJson.SerializerOptions` so the board can read them.

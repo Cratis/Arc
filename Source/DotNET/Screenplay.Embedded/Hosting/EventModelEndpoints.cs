@@ -5,7 +5,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Screenplay.Embedded.Hosting;
 using Cratis.Arc.Screenplay.Embedded.Hosting.Assets;
-using Cratis.Arc.Screenplay.Embedded.Hosting.Board;
 using Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -72,7 +71,7 @@ public static class EventModelEndpoints
 
     static RouteGroupBuilder MapRoutes(IEndpointRouteBuilder endpoints, EventModelViewerSources sources)
     {
-        var assets = EmbeddedViewerAssets.For(typeof(EventModelEndpoints).Assembly);
+        var assets = EmbeddedViewerAssets.Viewer;
 
         var group = endpoints.MapGroup(Prefix);
         group.AddEndpointFilter(async (context, next) =>
@@ -81,8 +80,10 @@ public static class EventModelEndpoints
             return await next(context);
         });
 
-        // The handlers read the catalog through the sources rather than closing over it, so assemblies added by
-        // a later call are served by the routes mapped here instead of by routes mapped a second time.
+        // The handlers read the explorer through the sources rather than closing over it, so assemblies added by
+        // a later call are served by the routes mapped here instead of by routes mapped a second time. Everything
+        // the routes answer comes from EventModelExplorer and EmbeddedViewerAssets - these are only the HTTP
+        // translation of them, which is what lets another host serve the same viewer over its own documents.
 
         // The explorer's assets are referenced relative to the document, so it has to be served from a path
         // that ends in a slash; asked for without one, it redirects to the one that does. The location keeps
@@ -91,26 +92,26 @@ public static class EventModelEndpoints
             context.Request.Path.Value?.EndsWith('/') == true
                 ? Index(assets)
                 : Results.Redirect($"{context.Request.PathBase}{context.Request.Path}/"));
-        group.MapGet("/hierarchy", () => Results.Json(sources.Catalog.Projects, EventModelJson.SerializerOptions));
-        group.MapGet("/documents/{projectId}/{documentId}/source", (string projectId, string documentId) => Source(sources.Catalog, projectId, documentId));
-        group.MapGet("/documents/{projectId}/{documentId}/model", (string projectId, string documentId) => Model(sources.Models, projectId, documentId));
+        group.MapGet("/hierarchy", () => Results.Json(sources.Explorer.Hierarchy, EventModelJson.SerializerOptions));
+        group.MapGet("/documents/{projectId}/{documentId}/source", (string projectId, string documentId) => Source(sources.Explorer, projectId, documentId));
+        group.MapGet("/documents/{projectId}/{documentId}/model", (string projectId, string documentId) => Model(sources.Explorer, projectId, documentId));
         group.MapGet("/assets/{**path}", (string? path) => Asset(assets, path));
 
         return group;
     }
 
     static IResult Index(EmbeddedViewerAssets assets) =>
-        assets.TryRead(EmbeddedViewerAssets.IndexPath, out var content, out var contentType)
+        assets.TryReadIndex(out var content, out var contentType)
             ? Results.File(content, contentType)
             : Results.NotFound();
 
-    static IResult Source(EventModelCatalog catalog, string projectId, string documentId) =>
-        catalog.TryGetSource(projectId, documentId, out var source)
+    static IResult Source(EventModelExplorer explorer, string projectId, string documentId) =>
+        explorer.TryGetSource(projectId, documentId, out var source)
             ? Results.Text(source, "text/plain")
             : Results.NotFound();
 
-    static IResult Model(CompiledEventModels models, string projectId, string documentId) =>
-        models.TryGet(projectId, documentId, out var model)
+    static IResult Model(EventModelExplorer explorer, string projectId, string documentId) =>
+        explorer.TryGetModel(projectId, documentId, out var model)
             ? Results.Json(model, EventModelJson.SerializerOptions)
             : Results.NotFound();
 

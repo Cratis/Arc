@@ -9,7 +9,7 @@ using System.Text.Json;
 namespace Cratis.Arc.Screenplay.Embedded.Hosting.Catalog;
 
 /// <summary>
-/// Represents the Screenplay documents embedded in a set of assemblies.
+/// Represents the Screenplay documents embedded in a set of assemblies, or held by any other <see cref="IEventModelResources"/>.
 /// </summary>
 /// <remarks>
 /// The catalog is read once, when the explorer is mapped, so a package whose catalog disagrees with what it
@@ -51,13 +51,37 @@ public sealed class EventModelCatalog
     {
         ArgumentNullException.ThrowIfNull(assemblies);
 
+        return For(assemblies.Distinct().Select(assembly => (IEventModelResources)new AssemblyEventModelResources(assembly)));
+    }
+
+    /// <summary>
+    /// Reads the catalog held by the given resources.
+    /// </summary>
+    /// <param name="resources">The resources to read catalogs from - one set per project.</param>
+    /// <returns>The resulting <see cref="EventModelCatalog"/>.</returns>
+    /// <exception cref="MalformedEventModelCatalog">Thrown when a set of resources holds a catalog that cannot be read as written.</exception>
+    /// <remarks>
+    /// This is what lets a host serve documents that were never embedded - generated in memory from the source of
+    /// an application - through the same catalog, with the same rules, as documents an assembly embeds. A set
+    /// without a catalog contributes nothing and is left out.
+    /// </remarks>
+    public static EventModelCatalog For(IEnumerable<IEventModelResources> resources)
+    {
+        ArgumentNullException.ThrowIfNull(resources);
+
         var projects = new List<CatalogProject>();
-        foreach (var assembly in assemblies.Distinct())
+        foreach (var project in resources.Distinct())
         {
-            if (Read(assembly) is { } project)
+            if (Read(project) is { } read)
             {
-                projects.Add(project);
+                projects.Add(read);
             }
+        }
+
+        var duplicate = projects.GroupBy(project => project.Project.Id, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+        {
+            throw new MalformedEventModelCatalog(duplicate.Key, "more than one project is named the same");
         }
 
         return new EventModelCatalog(projects);
@@ -79,14 +103,14 @@ public sealed class EventModelCatalog
             return false;
         }
 
-        source = ReadResource(project.Assembly, document.ResourceName);
+        source = ReadResource(project.Resources, document.ResourceName);
         return true;
     }
 
-    static CatalogProject? Read(Assembly assembly)
+    static CatalogProject? Read(IEventModelResources resources)
     {
-        var assemblyName = assembly.GetName().Name ?? assembly.FullName ?? assembly.ToString();
-        if (assembly.GetManifestResourceStream(ResourceName) is not { } stream)
+        var assemblyName = resources.Name;
+        if (resources.Open(ResourceName) is not { } stream)
         {
             return null;
         }
@@ -109,7 +133,7 @@ public sealed class EventModelCatalog
             throw new MalformedEventModelCatalog(assemblyName, "it does not hold a 'documents' collection");
         }
 
-        var resourceNames = assembly.GetManifestResourceNames().ToHashSet(StringComparer.Ordinal);
+        var resourceNames = resources.Names.ToHashSet(StringComparer.Ordinal);
         var documents = manifest.Documents.Select(document => ToDocument(assemblyName, document, resourceNames)).ToList();
         var duplicate = documents.GroupBy(document => document.Id, StringComparer.Ordinal).FirstOrDefault(group => group.Count() > 1);
         if (duplicate is not null)
@@ -125,7 +149,7 @@ public sealed class EventModelCatalog
         }
 
         return new CatalogProject(
-            assembly,
+            resources,
             new EventModelProject(assemblyName, assemblyName, documents),
             documents.ToFrozenDictionary(document => document.Id, StringComparer.Ordinal));
     }
@@ -161,15 +185,15 @@ public sealed class EventModelCatalog
             document.ResourceName);
     }
 
-    static string ReadResource(Assembly assembly, string resourceName)
+    static string ReadResource(IEventModelResources resources, string resourceName)
     {
-        using var stream = assembly.GetManifestResourceStream(resourceName) ??
+        using var stream = resources.Open(resourceName) ??
             throw new MalformedEventModelCatalog(
-                assembly.GetName().Name ?? assembly.ToString(),
+                resources.Name,
                 $"the resource '{resourceName}' it names is no longer embedded");
         using var reader = new StreamReader(stream, Encoding.UTF8);
         return reader.ReadToEnd();
     }
 
-    record CatalogProject(Assembly Assembly, EventModelProject Project, FrozenDictionary<string, EventModelDocument> Documents);
+    record CatalogProject(IEventModelResources Resources, EventModelProject Project, FrozenDictionary<string, EventModelDocument> Documents);
 }

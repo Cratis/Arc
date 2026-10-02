@@ -28,6 +28,7 @@ public sealed class EmbeddedViewerAssets
     public const string IndexPath = "index.html";
 
     static readonly FileExtensionContentTypeProvider _contentTypes = new();
+    static readonly Lazy<EmbeddedViewerAssets> _viewer = new(() => For(typeof(EmbeddedViewerAssets).Assembly));
 
     readonly FrozenDictionary<string, Lazy<byte[]?>> _assets;
 
@@ -35,6 +36,11 @@ public sealed class EmbeddedViewerAssets
     {
         _assets = paths.ToFrozenDictionary(_ => _, _ => new Lazy<byte[]?>(() => Read(assembly, _)), StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// Gets the assets of the viewer this package ships - the application the browser runs, whoever serves it.
+    /// </summary>
+    public static EmbeddedViewerAssets Viewer => _viewer.Value;
 
     /// <summary>
     /// Gets whether the viewer was built into the package at all.
@@ -55,6 +61,14 @@ public sealed class EmbeddedViewerAssets
                 .Where(name => name.StartsWith(ResourcePrefix, StringComparison.Ordinal))
                 .Select(name => name[ResourcePrefix.Length..]));
     }
+
+    /// <summary>
+    /// Tries to read the document the viewer is served from.
+    /// </summary>
+    /// <param name="content">When this method returns, holds the content of the document.</param>
+    /// <param name="contentType">When this method returns, holds the content type to serve the document as.</param>
+    /// <returns>True when the viewer was built into the package, false otherwise.</returns>
+    public bool TryReadIndex(out byte[] content, out string contentType) => TryRead(IndexPath, out content, out contentType);
 
     /// <summary>
     /// Tries to read an asset.
