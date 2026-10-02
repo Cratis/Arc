@@ -21,6 +21,12 @@ on:
       - "**"
     paths:
       - "Source/JavaScript/**"
+      - "run-task-on-workspaces.js"
+      - "scripts/workspace-publish-order.cjs"
+      - "scripts/workspace-version-is-published.cjs"
+      - "scripts/workspace-publish-retry.test.cjs"
+      - "scripts/run-task-on-workspaces.test.cjs"
+      - "scripts/fixtures/workspace-runner.cjs"
       - "scripts/check-declaration-imports.cjs"
       - "scripts/check-declaration-consumers.cjs"
       - "scripts/fixtures/declaration-consumer/**"
@@ -59,6 +65,9 @@ jobs:
   
       - name: Yarn install
         run: yarn install --immutable
+
+      - name: Verify workspace publishing
+        run: node --test scripts/run-task-on-workspaces.test.cjs
 
       - name: Build JS/TS
         run: |
