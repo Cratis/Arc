@@ -37,7 +37,8 @@ public static class PropertyExtensions
 
         var context = new NullabilityInfoContext();
         var nullabilityInfo = context.Create(property);
-        return nullabilityInfo.WriteState == NullabilityState.Nullable;
+        var state = property.SetMethod is null ? nullabilityInfo.ReadState : nullabilityInfo.WriteState;
+        return state == NullabilityState.Nullable;
     }
 
     /// <summary>

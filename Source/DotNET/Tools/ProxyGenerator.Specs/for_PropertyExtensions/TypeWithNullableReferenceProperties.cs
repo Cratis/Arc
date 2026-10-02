@@ -8,4 +8,6 @@ public class TypeWithNullableReferenceProperties
     public string? NullableString { get; set; }
     public string NonNullableString { get; set; } = string.Empty;
     public object? NullableObject { get; set; }
+    public string? DisplayName => NullableString;
+    public string NonNullableDisplayName => NonNullableString;
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 
@@ -67,10 +68,6 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules from query method parameters
-        // Try to find a FluentValidation validator by looking for a type whose properties match the query parameters
-        var validationRules = new List<PropertyValidationDescriptor>();
-
         // Look for a type in the assembly whose properties match the method parameters
         // Prefer types with "Query" in the name to avoid false matches
         var methodParams = method.GetParameters();
@@ -94,17 +91,36 @@ public static class QueryExtensions
 
         var matchingType = matchingTypes.FirstOrDefault();
 
-        if (matchingType != null)
+        // Matching CLR types need not agree on nullable-reference annotations. Only extract explicit rules
+        // from the DTO; the actual parameter's optionality governs inferred concept rules.
+        var explicitRules = matchingType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType.Assembly, matchingType, includeConceptRules: false, includeDataAnnotations: false).ToList()
+            : [];
+        var dataAnnotationsRules = matchingType is not null
+            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(matchingType).ToList()
+            : [];
+        var conceptRules = new List<PropertyValidationDescriptor>();
+
+        // Controller queries only infer concept rules when a matching argument DTO exists.
+        if (matchingType is not null)
         {
-            // Found a matching DTO type, extract FluentValidation rules from it
-            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType.Assembly, matchingType);
-            validationRules.AddRange(fluentValidationRules);
+            foreach (var param in methodParams)
+            {
+                var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType.Assembly, param.ParameterType, isOptional);
+                if (rulesFromConcept.Count > 0)
+                {
+                    conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));
+                }
+            }
         }
 
-        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
+        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
+
+        // Direct parameter annotations are a whole-DTO fallback, not a per-parameter addition.
         if (validationRules.Count == 0)
         {
-            foreach (var param in method.GetParameters())
+            foreach (var param in methodParams)
             {
                 var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
                 if (rules.Count > 0)

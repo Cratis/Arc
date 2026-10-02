@@ -106,7 +106,7 @@ export function RegistrationForm() {
 }
 ```
 
-Selecting Business mounts the extra fields; selecting Personal unmounts them. Unmounting a field does **not** clear its command property or remove command validation rules. Define conditional backend rules and decide whether to clear now-inapplicable values. Proxy extraction does **not** preserve FluentValidation conditions such as `When`/`Unless`: a supported validator under a condition can become an unconditional client rule and reject a hidden field. Inspect the generated rules; keep conditional rules [server-only](./validation.mdx#backend-validation) when their condition cannot be represented on the client.
+Selecting Business mounts the extra fields; selecting Personal unmounts them. Unmounting a field does **not** clear its command property or remove command validation rules. Define conditional backend rules and decide whether to clear now-inapplicable values. Proxy extraction omits rules guarded by FluentValidation `When`/`Unless` (including `WhenAsync`/`UnlessAsync`, block or chained); these rules are enforced [only on the server](./validation.mdx#backend-validation). Nullable concept members without a direct `[Required]` annotation omit inferred presence rules (`notEmpty` and `notNull`), while other inferred rules, explicit rules, and annotations still apply under the [validation extraction precedence](../../../backend/csharp/proxy-generation/validation.md#prerequisite-and-extraction-flow). Inspect the generated rules when deciding how hidden values should be validated.
 
 :::caution[A hidden field is not a security boundary]
 Hiding or unmounting a field does not remove its command value or replace server-side validation and authorization.

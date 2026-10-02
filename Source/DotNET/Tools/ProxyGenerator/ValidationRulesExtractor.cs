@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 
@@ -27,8 +28,10 @@ public static class ValidationRulesExtractor
     /// </summary>
     /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract validation rules for.</param>
+    /// <param name="includeConceptRules">Whether to infer rules from concept-typed properties.</param>
+    /// <param name="includeDataAnnotations">Whether to include DataAnnotations as fallback rules.</param>
     /// <returns>Collection of property validation descriptors.</returns>
-    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type)
+    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true, bool includeDataAnnotations = true)
     {
         // A FluentValidation rule only exists once its validator's constructor has run, which a metadata-only type
         // cannot do - see RuntimeValidatorAssemblies.
@@ -39,10 +42,10 @@ public static class ValidationRulesExtractor
         var fluentValidationRules = ExtractFluentValidationRules(runtimeAssembly, runtimeType).ToList();
 
         // Then the rules contributed by the validators of any concept-typed properties
-        var conceptRules = ExtractConceptRules(runtimeAssembly, runtimeType).ToList();
+        var conceptRules = includeConceptRules ? ExtractConceptRules(assembly, type).ToList() : [];
 
         // Then extract DataAnnotations
-        var dataAnnotationsRules = ExtractDataAnnotationsRules(type).ToList();
+        var dataAnnotationsRules = includeDataAnnotations ? ExtractDataAnnotationsRules(type).ToList() : [];
 
         // Merge the rules - FluentValidation takes precedence
         return MergeValidationRules(fluentValidationRules, conceptRules, dataAnnotationsRules);
@@ -58,7 +61,8 @@ public static class ValidationRulesExtractor
     /// <remarks>
     /// Whether a value is well formed is a property of its type, so a concept's validator already runs server-side
     /// wherever that concept appears. Projecting it here means declaring it once also validates in the browser,
-    /// rather than the client silently enforcing less than the server.
+    /// rather than the client silently enforcing less than the server. Nullable properties without a Required
+    /// annotation omit inferred presence rules only: other client rules accept null and undefined while validating supplied values.
     /// </remarks>
     public static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type)
     {
@@ -66,7 +70,8 @@ public static class ValidationRulesExtractor
 
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            var rules = ExtractRulesForConceptType(assembly, property.PropertyType);
+            var isOptional = property.IsOptional() && !property.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            var rules = ExtractRulesForConceptType(assembly, property.PropertyType, isOptional);
             if (rules.Count > 0)
             {
                 propertyValidations.Add(new PropertyValidationDescriptor(property.Name.ToCamelCase(), [.. rules]));
@@ -81,6 +86,7 @@ public static class ValidationRulesExtractor
     /// </summary>
     /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract rules for; anything that is not a concept yields nothing.</param>
+    /// <param name="isOptional">Whether the owning member is optional and must omit inferred presence rules.</param>
     /// <returns>Collection of validation rule descriptors.</returns>
     /// <remarks>
     /// A <c>ConceptValidator&lt;T&gt;</c> declares its rules against the concept's <c>Value</c> member. The generated
@@ -89,7 +95,7 @@ public static class ValidationRulesExtractor
     /// Only concepts sitting directly on a property or parameter are projected: the client-side rule builder resolves
     /// a single property name, so it cannot express a rule against a concept nested deeper in the graph.
     /// </remarks>
-    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type)
+    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type, bool isOptional = false)
     {
         var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
         var runtimeType = RuntimeValidatorAssemblies.For(type);
@@ -99,7 +105,10 @@ public static class ValidationRulesExtractor
             return [];
         }
 
-        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType).SelectMany(_ => _.Rules)];
+        // Only these two client rules reject null/undefined; all other supported rules validate supplied values.
+        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType)
+            .SelectMany(_ => _.Rules)
+            .Where(_ => !isOptional || _.RuleName is not ("notEmpty" or "notNull"))];
     }
 
     /// <summary>
@@ -403,7 +412,8 @@ public static class ValidationRulesExtractor
 
             // Call GetMembersWithValidators() using reflection
             var getMembersMethod = descriptor.GetType().GetMethod("GetMembersWithValidators");
-            if (getMembersMethod == null)
+            var getRulesMethod = descriptor.GetType().GetMethod("GetRulesForMember");
+            if (getMembersMethod == null || getRulesMethod == null)
             {
                 return [];
             }
@@ -418,7 +428,8 @@ public static class ValidationRulesExtractor
             foreach (var member in (System.Collections.IEnumerable)members)
             {
                 var keyProperty = member.GetType().GetProperty("Key");
-                var propertyName = keyProperty?.GetValue(member)?.ToString()?.ToCamelCase();
+                var memberName = keyProperty?.GetValue(member)?.ToString();
+                var propertyName = memberName?.ToCamelCase();
 
                 if (string.IsNullOrEmpty(propertyName))
                 {
@@ -427,11 +438,23 @@ public static class ValidationRulesExtractor
 
                 var rules = new List<ValidationRuleDescriptor>();
 
-                // Enumerate the validation rules for this member
-                foreach (var rule in (System.Collections.IEnumerable)member)
+                // Read the owning rules as well as their components: block-level When conditions live on the
+                // owning rule, while chained When conditions live on individual components. Neither can be
+                // represented by the client rule builder, so leave them for server-side validation.
+                if (getRulesMethod.Invoke(descriptor, [memberName]) is not System.Collections.IEnumerable memberRules)
                 {
-                    var ruleDescriptors = ExtractRulesFromPropertyRule(rule);
-                    rules.AddRange(ruleDescriptors);
+                    continue;
+                }
+
+                foreach (var rule in memberRules.Cast<object>().Where(_ => !HasCondition(_)))
+                {
+                    if (rule.GetType().GetProperty("Components")?.GetValue(rule) is System.Collections.IEnumerable components)
+                    {
+                        foreach (var component in components)
+                        {
+                            rules.AddRange(ExtractRulesFromComponent(component));
+                        }
+                    }
                 }
 
                 if (rules.Count > 0)
@@ -494,28 +517,20 @@ public static class ValidationRulesExtractor
         }
     }
 
-    static List<ValidationRuleDescriptor> ExtractRulesFromPropertyRule(object rule)
+    static bool HasCondition(object rule) =>
+        rule.GetType().GetProperty("HasCondition")?.GetValue(rule) is true ||
+        rule.GetType().GetProperty("HasAsyncCondition")?.GetValue(rule) is true;
+
+    static List<ValidationRuleDescriptor> ExtractRulesFromComponent(object component)
     {
-        // rule is a tuple (IPropertyValidator Validator, IRuleComponent Options)
-        // ValueTuple uses fields (Item1, Item2) not properties
-        var validatorField = rule.GetType().GetField("Item1");
-        var optionsField = rule.GetType().GetField("Item2");
-
-        if (validatorField == null || optionsField == null)
+        var validator = component.GetType().GetProperty("Validator")?.GetValue(component);
+        if (validator is null || HasCondition(component))
         {
             return [];
         }
 
-        var validator = validatorField.GetValue(rule);
-        var options = optionsField.GetValue(rule);
-
-        if (validator == null || options == null)
-        {
-            return [];
-        }
-
-        var ruleDescriptor = ExtractRuleFromValidator(validator, options);
-        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(options) }] : [];
+        var ruleDescriptor = ExtractRuleFromValidator(validator, component);
+        return ruleDescriptor is not null ? [ruleDescriptor with { Severity = GetSeverity(component) }] : [];
     }
 
     static ValidationRuleDescriptor? ExtractRuleFromValidator(object validator, object component)

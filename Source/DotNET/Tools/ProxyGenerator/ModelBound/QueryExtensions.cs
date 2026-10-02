@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 using Cratis.Arc.Queries;
@@ -146,17 +147,25 @@ public static class QueryExtensions
         // with the same precedence the command path uses: an explicit validator for a matching parameters class, the
         // validators of any concept-typed parameters, and DataAnnotations on the parameters as a per-parameter fallback.
         var parametersType = FindParametersTypeFor(readModelType, method);
+
+        // The convention matches CLR types, not nullable-reference annotations. Infer concept rules only from
+        // the actual parameters so a stricter argument-model annotation cannot reintroduce presence rules.
         var explicitRules = parametersType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType).ToList()
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false, includeDataAnnotations: false).ToList()
             : [];
 
         var conceptRules = new List<PropertyValidationDescriptor>();
-        var dataAnnotationsRules = new List<PropertyValidationDescriptor>();
+
+        // Keep argument-model annotations at fallback precedence, below rules inferred from the actual parameters.
+        var dataAnnotationsRules = parametersType is not null
+            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(parametersType).ToList()
+            : [];
         foreach (var param in method.GetParameters())
         {
             var parameterName = param.Name.ToCamelCase();
 
-            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType);
+            var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType, isOptional);
             if (rulesFromConcept.Count > 0)
             {
                 conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
@@ -279,7 +288,7 @@ public static class QueryExtensions
     /// is not itself an enum, so it is missed by the enum split in the generator and instead run through
     /// <see cref="TypeExtensions.ToTypeDescriptor"/> as if it were a plain class - reflecting <c>Nullable&lt;T&gt;</c>'s
     /// own <c>HasValue</c>/<c>Value</c> properties into a bogus emitted type that collides with the enum's real name.
-    /// Optionality already comes from <see cref="IsOptional(ParameterInfo)"/>/<see cref="ParameterInfo.HasDefaultValue"/>,
+    /// Optionality already comes from <see cref="IsOptional(ParameterInfo)"/>,
     /// not from the parameter's CLR type, so unwrapping here cannot change whether the parameter is treated as optional.
     /// </remarks>
     static RequestParameterDescriptor ToQueryRequestParameterDescriptor(this ParameterInfo parameterInfo)
@@ -299,7 +308,7 @@ public static class QueryExtensions
         }
 
         var type = paramType.GetTargetType();
-        var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
+        var optional = parameterInfo.IsOptional();
         var documentation = parameterInfo.GetDocumentation();
 
         // All query parameters are considered query string parameters
@@ -311,20 +320,5 @@ public static class QueryExtensions
     /// </summary>
     /// <param name="parameter">Parameter to check.</param>
     /// <returns>True if it is optional, false if not.</returns>
-    static bool IsOptional(this ParameterInfo parameter)
-    {
-        if (parameter.HasDefaultValue)
-        {
-            return true;
-        }
-
-        if (parameter.ParameterType.IsValueType)
-        {
-            return parameter.ParameterType.IsNullable();
-        }
-
-        var context = new NullabilityInfoContext();
-        var nullabilityInfo = context.Create(parameter);
-        return nullabilityInfo.WriteState == NullabilityState.Nullable;
-    }
+    static bool IsOptional(this ParameterInfo parameter) => ParameterNullability.IsOptional(parameter);
 }

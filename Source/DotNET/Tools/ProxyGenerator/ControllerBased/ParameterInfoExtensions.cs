@@ -20,7 +20,7 @@ public static class ParameterInfoExtensions
     /// <c>Nullable&lt;T&gt;</c> is unwrapped before anything else is derived from the type — see the model-bound
     /// twin, <see cref="Cratis.Arc.ProxyGenerator.ModelBound.QueryExtensions"/>, for why a nullable enum left
     /// wrapped ends up emitted as a bogus type reflecting <c>Nullable&lt;T&gt;</c>'s own properties. Optionality
-    /// already comes from <see cref="IsOptional(ParameterInfo)"/>/<see cref="ParameterInfo.HasDefaultValue"/>, not
+    /// already comes from <see cref="IsOptional(ParameterInfo)"/>, not
     /// from the parameter's CLR type, so unwrapping here cannot change whether the parameter is treated as optional.
     /// </remarks>
     public static RequestParameterDescriptor ToRequestParameterDescriptor(this ParameterInfo parameterInfo)
@@ -40,7 +40,7 @@ public static class ParameterInfoExtensions
         }
 
         var type = paramType.GetTargetType();
-        var optional = parameterInfo.IsOptional() || parameterInfo.HasDefaultValue;
+        var optional = parameterInfo.IsOptional();
         var documentation = parameterInfo.GetDocumentation();
         return new RequestParameterDescriptor(
             paramType,
@@ -72,11 +72,7 @@ public static class ParameterInfoExtensions
     /// </summary>
     /// <param name="parameter">Parameter to check.</param>
     /// <returns>True if it is, false if not.</returns>
-    public static bool IsOptional(this ParameterInfo parameter)
-    {
-        return parameter.CustomAttributes.Any(_ =>
-            _.AttributeType.FullName?.StartsWith("System.Runtime.CompilerServices.NullableAttribute") ?? false);
-    }
+    public static bool IsOptional(this ParameterInfo parameter) => ParameterNullability.IsOptional(parameter);
 
     /// <summary>
     /// Check if a parameter is a request argument which will make it part of the query string either as route variable or a query string parameter.
