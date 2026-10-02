@@ -10,4 +10,4 @@ previous behavior when you need it.
 
 | Change | What it means for you |
 | --- | --- |
-| [Secure defaults](secure-defaults.md) | Forwarded identity headers need an explicit opt-in before Arc trusts them, and discovery endpoints require authentication outside Development. |
+| [Secure defaults](secure-defaults.mdx) | Forwarded identity headers need an explicit opt-in before Arc trusts them, and discovery endpoints require authentication outside Development. |

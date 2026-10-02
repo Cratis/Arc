@@ -548,6 +548,16 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         usings=("using Microsoft.AspNetCore.Builder;",),
         prelude="string[] args = [];",
     ),
+    "upgrading/secure-defaults/trust-forwarded-identity-headers": SnippetContext(
+        kind="body",
+        usings=("using Cratis.Arc;", "using Microsoft.AspNetCore.Builder;"),
+        prelude="var builder = WebApplication.CreateBuilder();",
+    ),
+    "upgrading/secure-defaults/anonymous-introspection": SnippetContext(
+        kind="body",
+        usings=("using Cratis.Arc;", "using Microsoft.AspNetCore.Builder;"),
+        prelude="var builder = WebApplication.CreateBuilder();",
+    ),
     "tutorial/authorization/development-header-adapter": SnippetContext(
         kind="body",
         usings=(
