@@ -35,10 +35,16 @@ public class EmbeddedDocumentGenerator(
     }
 
     /// <inheritdoc/>
-    public EmbeddedDocumentGeneration Generate(Compilation compilation, EmbeddedDocumentOptions options)
+    public EmbeddedDocumentGeneration Generate(Compilation compilation, EmbeddedDocumentOptions options) =>
+        Generate([compilation], options);
+
+    /// <inheritdoc/>
+    public EmbeddedDocumentGeneration Generate(IReadOnlyList<Compilation> compilations, EmbeddedDocumentOptions options)
     {
+        ArgumentNullException.ThrowIfNull(compilations);
+
         var resolved = options.Resolve();
-        var analysis = analyzer.Analyze([compilation], ScreenplayOptionsFor(DocumentScopes.Root(resolved), resolved));
+        var analysis = analyzer.Analyze(compilations, ScreenplayOptionsFor(DocumentScopes.Root(resolved), resolved));
 
         return Generate(analysis.Model, resolved, analysis.Diagnostics);
     }

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Screenplay.Embedded.Generation</AssemblyName>
+        <RootNamespace>Cratis.Arc.Screenplay.Embedded.Generation</RootNamespace>
+        <Description>Generates the Screenplay documents a Cratis Arc application embeds - the same documents the embedded event model explorer serves - either for the build to embed or for a host to serve from memory.</Description>
+        <PackageTags>cratis;arc;screenplay;event-modeling;roslyn</PackageTags>
+    </PropertyGroup>
+    <ItemGroup>
+        <InternalsVisibleTo Include="Cratis.Arc.Screenplay.Embedded.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Screenplay.Embedded.Build" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../Screenplay/Screenplay.csproj" />
+        <ProjectReference Include="../Screenplay.Embedded/Screenplay.Embedded.csproj" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    </ItemGroup>
+</Project>

@@ -7,8 +7,7 @@
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="../../Screenplay.Embedded/Screenplay.Embedded.csproj" />
-        <ProjectReference Include="../../Screenplay/Screenplay.csproj" />
+        <ProjectReference Include="../../Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <PackageReference Include="Microsoft.Build.Framework" PrivateAssets="all" />
         <PackageReference Include="Microsoft.Build.Utilities.Core" PrivateAssets="all" />
         <PackageVersion Update="Microsoft.NET.StringTools" Version="17.14.28" Condition="'$(TargetFramework)' == 'net9.0'" />
@@ -17,6 +16,5 @@
         <PackageVersion Update="Microsoft.Build.Utilities.Core" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
         <PackageVersion Update="Microsoft.NET.StringTools" Version="17.11.48" Condition="'$(TargetFramework)' == 'net8.0'" />
         <Compile Include="../../Screenplay.Embedded/Build/**/*.cs" />
-        <Compile Include="../../Screenplay.Embedded/Generation/**/*.cs" Exclude="../../Screenplay.Embedded/Generation/EmbeddedDocument.cs;../../Screenplay.Embedded/Generation/EmbeddedDocumentCatalog.cs;../../Screenplay.Embedded/Generation/EmbeddedDocumentKind.cs;../../Screenplay.Embedded/Generation/EmbeddedResourceNames.cs" />
     </ItemGroup>
 </Project>

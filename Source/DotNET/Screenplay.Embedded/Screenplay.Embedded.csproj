@@ -12,8 +12,7 @@
     <ItemGroup>
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <PackageReference Include="Cratis.Screenplay" />
-        <Compile Remove="Build/**/*.cs;Generation/**/*.cs" />
-        <Compile Include="Generation/EmbeddedDocument.cs;Generation/EmbeddedDocumentCatalog.cs;Generation/EmbeddedDocumentKind.cs;Generation/EmbeddedResourceNames.cs" />
+        <Compile Remove="Build/**/*.cs" />
         <InternalsVisibleTo Include="Cratis.Arc.Screenplay.Embedded.Specs" />
         <!-- buildTransitive/ is what a package depending on this one imports - the Cratis meta-package - and build/
              is what a direct reference imports. Both are one folder below the package root, which is what the

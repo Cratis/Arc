@@ -10,6 +10,7 @@
         <Compile Remove="Fixtures/**/*.cs" />
         <FrameworkReference Include="Microsoft.AspNetCore.App" />
         <ProjectReference Include="../Screenplay.Embedded/Screenplay.Embedded.csproj" />
+        <ProjectReference Include="../Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <ProjectReference Include="../Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" />
         <ProjectReference Include="Fixtures/Consumer/Consumer.csproj" />
         <PackageReference Include="Cratis.Fundamentals" />
