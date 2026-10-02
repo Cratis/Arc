@@ -17,9 +17,9 @@ public static class EventModelViewerServiceCollectionExtensions
     /// <param name="configure">An optional callback for configuring <see cref="EventModelViewerOptions"/>.</param>
     /// <returns>The <see cref="IServiceCollection"/> for continuation.</returns>
     /// <remarks>
-    /// Calling this is not what exposes the explorer - the application's build is, unless
+    /// Calling this is not what exposes the explorer - a non-optimized build running in Development does, unless
     /// <see cref="EventModelViewerOptions.Enabled"/> says otherwise. This is where an application turns the
-    /// explorer off, turns it on for a Release build it owns, puts it behind authorization, or names an assembly
+    /// explorer off, opts in for another build or environment, puts it behind authorization, or names an assembly
     /// the automatic mapping would not find.
     /// </remarks>
     public static IServiceCollection AddCratisEventModelViewer(this IServiceCollection services, Action<EventModelViewerOptions>? configure = default)

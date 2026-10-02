@@ -5,19 +5,42 @@ description: Generate Screenplay documents during compilation and expose a read-
 
 To inspect the model behind a running application without keeping a separate diagram up to date, embed its generated Screenplay documents during the build. `Cratis.Arc.Screenplay.Embedded` adds a read-only explorer at `/.cratis/event-model` with project, module, and feature navigation.
 
+## Quickstart
+
+1. Add the package to your ASP.NET Core application (skip this if you already reference the `Cratis` metapackage):
+
+   ```bash
+   dotnet add package Cratis.Arc.Screenplay.Embedded
+   ```
+
+2. Map the viewer after `builder.Build()` and before `app.Run()`:
+
+   ```csharp
+   if (app.Environment.IsDevelopment())
+   {
+       app.MapCratisEventModel();
+   }
+   ```
+
+   With the `Cratis` metapackage, your existing `AddCratis` / `UseCratis` setup does this automatically for a Debug build running in Development; no explicit mapping is needed.
+
+3. Run in Development and open `http://localhost:<port>/.cratis/event-model/`, using the port printed by your application:
+
+   ```bash
+   dotnet run --configuration Debug -- --environment Development
+   ```
+
+See [Security](#security) before exposing the viewer beyond your local development machine.
+
 This is source-derived documentation, not a view of stored events or live application data. Use it to review a feature's command/event/read-model flow, orient yourself in an unfamiliar codebase, or compare a scoped feature with the whole application without maintaining a second diagram. It uses the same analysis as [Screenplay generation](generating-a-screenplay.md); its limitations and diagnostics still apply.
 
 Arc does not require event sourcing. An ordinary command that returns a response has no event card. Commands that produce recognized Chronicle events show those events, including events declared in another slice; state-view slices show the events they consume.
 
 ## Open the explorer in a Cratis application
 
-The `Cratis` metapackage includes the embedded-generation package. In an existing ASP.NET Core host configured with `AddCratis` and activated with `UseCratis`, build and run in Debug, then open `/.cratis/event-model/`. The build creates and embeds the documents automatically; `UseCratis` maps the viewer automatically for a debug-built application.
+The `Cratis` metapackage includes the embedded-generation package. In an existing ASP.NET Core host configured with `AddCratis` and activated with `UseCratis`, build and run in Debug with the hosting environment set to Development, then open `/.cratis/event-model/`. The build creates and embeds the documents automatically; `UseCratis` maps the viewer automatically only when both conditions hold.
 
-The automatic check uses the application's `DebuggableAttribute` and whether optimizations are disabled, not the ASP.NET environment name. Release-built applications do not expose the viewer automatically, even in the Development environment. Through the metapackage, Release builds also disable generation by default.
-
-:::caution[Debug detection is not authorization]
-A debug-built application can expose its structure even when its environment is named Production. Disable the viewer or require authorization if the application is reachable beyond your development machine.
-:::
+The build check uses the application's `DebuggableAttribute` and whether optimizations are disabled. Production, Staging, and other environments do not expose the viewer automatically, even for a Debug build. Release-built applications do not expose it automatically, even in Development. Through the metapackage, Release builds also disable generation by default.
 
 To opt out, configure services before building the host:
 
@@ -97,9 +120,15 @@ Screenplay's current grammar requires a module container around features. Rooted
 
 Slice identification comes from recognized application artifacts, not a fixed list of folder names. Shared supporting types do not turn an arbitrary namespace into a slice. Cross-scope event references remain explicit dependencies in scoped documents.
 
-## Protect the explorer
+## Security
 
-The documents expose your application's structure. Development-only mapping is the simplest default. If you expose the explorer elsewhere, apply your application's authorization policy to the returned route group:
+The viewer is development-only by default: the metapackage's automatic hosting requires both a non-optimized (Debug) build and `IHostEnvironment.IsDevelopment()` at runtime. A Debug build deployed to Production or Staging no longer exposes the viewer automatically.
+
+:::caution[The event model reveals application structure]
+The viewer is read-only, but its documents describe commands, events, read models, and feature boundaries. The default does not require authentication in Development. Do not expose it to untrusted callers, including on a shared development host.
+:::
+
+Explicit `app.MapCratisEventModel()` calls work in every environment and bypass the automatic exposure options. To opt in deliberately outside Development, apply your application's authorization policy to the returned route group:
 
 ```csharp
 app.MapCratisEventModel().RequireAuthorization("Developers");
@@ -107,17 +136,18 @@ app.MapCratisEventModel().RequireAuthorization("Developers");
 
 This assumes your host has already registered authentication and the `Developers` policy. The group protects the viewer, static assets, and every document query together. Explicit and automatic mapping reuse the same group, so adding authorization does not create a second unprotected copy.
 
-For automatic hosting, configure the same policy during service registration:
+To opt into automatic hosting outside Development, explicitly enable it and configure the same policy during service registration:
 
 ```csharp
 builder.Services.AddCratisEventModelViewer(options =>
 {
+    options.Enabled = true;
     options.RequireAuthorization = true;
     options.AuthorizationPolicy = "Developers";
 });
 ```
 
-`Enabled = true` explicitly opts into automatic hosting for an optimized build; that does not generate documents. Set `CratisEmbeddedScreenplayEnabled` to `true` as well if you want resources in Release. `Assemblies` lets you name additional application assemblies; automatic selection otherwise uses the entry assembly and its already-loaded, directly referenced application assemblies, not framework assemblies or arbitrary loaded libraries.
+`Enabled = true` explicitly opts into automatic hosting for any build and environment; it does not add authorization or generate documents. Set `CratisEmbeddedScreenplayEnabled` to `true` as well if you want resources in Release. `Assemblies` lets you name additional application assemblies; automatic selection otherwise uses the entry assembly and its already-loaded, directly referenced application assemblies, not framework assemblies or arbitrary loaded libraries.
 
 ## Explore the model
 

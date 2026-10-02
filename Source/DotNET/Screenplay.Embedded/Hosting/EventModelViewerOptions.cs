@@ -22,13 +22,14 @@ namespace Cratis.Arc.Screenplay.Embedded.Hosting;
 public class EventModelViewerOptions
 {
     /// <summary>
-    /// Gets or sets whether the explorer is exposed, or <see langword="null"/> to decide it from the build.
+    /// Gets or sets whether the explorer is exposed, or <see langword="null"/> to decide it from the build and hosting environment.
     /// </summary>
     /// <remarks>
     /// Left unset, the explorer is exposed only when the entry assembly was built without optimizations - a
-    /// Debug build, as said by its <see cref="System.Diagnostics.DebuggableAttribute"/>. A Release-built
-    /// application therefore exposes nothing unless it says so by setting this to <see langword="true"/>, and
-    /// setting it to <see langword="false"/> turns the explorer off in every build.
+    /// Debug build, as said by its <see cref="System.Diagnostics.DebuggableAttribute"/> - and the hosting
+    /// environment is Development. Setting this to <see langword="true"/> explicitly opts in for any build
+    /// and environment; setting it to <see langword="false"/> disables automatic mapping everywhere.
+    /// Explicit <c>MapCratisEventModel</c> calls are not affected.
     /// </remarks>
     public bool? Enabled { get; set; }
 

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -28,6 +29,8 @@ public abstract class an_automatically_hosted_application : Specification
 
     protected virtual bool? Exposure => true;
 
+    protected virtual string EnvironmentName => Environments.Production;
+
     protected virtual bool RequiresAuthorization => false;
 
     protected virtual bool MapsTheExplorerExplicitly => false;
@@ -38,7 +41,7 @@ public abstract class an_automatically_hosted_application : Specification
 
     async Task Establish()
     {
-        var builder = WebApplication.CreateBuilder();
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = EnvironmentName });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
         if (RequiresAuthorization)
