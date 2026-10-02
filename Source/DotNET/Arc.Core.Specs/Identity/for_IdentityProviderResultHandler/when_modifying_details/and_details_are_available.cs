@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Text;
-using System.Text.Json;
 using Cratis.Arc.Http;
 
 namespace Cratis.Arc.Identity.for_IdentityProvider.when_modifying_details;
@@ -33,27 +31,7 @@ public class and_details_are_available : given.an_identity_provider_result_handl
     [Fact] void should_call_write_with_modified_details() =>
         _httpRequestContext.Received(1).Write(Arg.Is<string>(json => json.Contains("Marketing") && json.Contains("Manager")));
 
-    [Fact] void should_append_cookie_with_correct_content()
-    {
-        var calls = _httpRequestContext.ReceivedCalls()
-            .Where(call => call.GetMethodInfo().Name == nameof(IHttpRequestContext.AppendCookie))
-            .ToList();
-
-        calls.Count.ShouldEqual(1);
-
-        var cookieValue = calls[0].GetArguments()[1] as string;
-        cookieValue.ShouldNotBeNull();
-
-        var decodedJson = Encoding.UTF8.GetString(Convert.FromBase64String(cookieValue));
-
-        var serializerOptions = new JsonSerializerOptions().ConfigureArcDefaults();
-
-        var result = JsonSerializer.Deserialize<IdentityProviderResult>(decodedJson, serializerOptions);
-        result.ShouldNotBeNull();
-
-        var actualDetails = JsonSerializer.Deserialize<TestDetails>(((JsonElement)result.Details).GetRawText(), serializerOptions);
-        actualDetails.ShouldEqual(_modifiedDetails);
-    }
+    [Fact] void should_not_write_an_identity_cookie() => _httpRequestContext.DidNotReceive().AppendCookie(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CookieOptions>());
 
     public record TestDetails(string Department, string Role);
 }

@@ -68,12 +68,14 @@ public static class IdentityEndpointMapper
 
                 if (!result.IsAuthenticated)
                 {
+                    IdentityProvider.ExpireLegacyCookie(context);
                     context.StatusCode = 401;
                     return;
                 }
 
                 if (!result.IsAuthorized)
                 {
+                    IdentityProvider.ExpireLegacyCookie(context);
                     context.StatusCode = 403;
                     return;
                 }

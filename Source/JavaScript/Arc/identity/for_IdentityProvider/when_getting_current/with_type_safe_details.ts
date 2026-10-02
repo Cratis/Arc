@@ -14,14 +14,13 @@ class TestDetails {
     role!: string;
 }
 
-describe('when getting current with type safe details', given(an_identity_provider, () => {
+describe('when getting current with type safe details', given(an_identity_provider, context => {
     let result: { id: string; name: string; details: TestDetails };
     let testGuid: Guid;
 
     beforeEach(async () => {
         testGuid = Guid.create();
 
-        // Mock document.cookie with base64-encoded identity data
         const identityData = {
             id: 'test-user-id',
             name: 'Test User',
@@ -30,8 +29,7 @@ describe('when getting current with type safe details', given(an_identity_provid
                 role: 'admin'
             }
         };
-        const encodedData = btoa(JSON.stringify(identityData));
-        (global as { document?: { cookie: string } }).document!.cookie = `.cratis-identity=${encodedData}`;
+        context.serverReports(identityData);
 
         const identity = await IdentityProvider.getCurrent(TestDetails);
         result = {

@@ -21,17 +21,17 @@ flowchart LR
     P --> Q{IsUserAuthorized?}
     Q -- no --> F["/.cratis/me returns 403"]
     Q -- yes --> D["IdentityDetails — your domain identity"]
-    D --> C[".cratis-identity cookie"]
+    D --> C["/.cratis/me response"]
     C --> UI["Frontend — typed identity"]
 ```
 
 Two things fall out of this design:
 
 - **Identity-details rejection.** `IsUserAuthorized: false` makes `/.cratis/me` return `403` for that result. It is **not a global operation gate**: the command/query authorization evaluator checks the principal and operation attributes independently. Protect actual operations against blocked users or expired subscriptions; hiding the UI or rejecting identity enrichment is insufficient.
-- **One identity, backend to browser.** The details you return are published as a `.cratis-identity` cookie and consumed, typed, on the React side — the same way commands and queries are. You enrich identity once and read it everywhere. (Details: [Identity](/arc/backend/csharp/identity/), [contracts](/arc/backend/csharp/identity/contracts/), and [on the frontend](/arc/frontend/react/identity/).)
+- **One identity, backend to browser.** The details you return are served from `/.cratis/me` and consumed, typed, on the React side — the same way commands and queries are. You enrich identity once and read it everywhere. (Details: [Identity](/arc/backend/csharp/identity/), [contracts](/arc/backend/csharp/identity/contracts/), and [on the frontend](/arc/frontend/react/identity/).)
 
 <Aside type="caution" title="Details are not authorization claims">
-A `LibraryIdentity.Role` property is display/domain data; it does not add `ClaimTypes.Role` or grant `[Roles("Librarian")]`. The `.cratis-identity` cookie supplies client context, not authoritative proof of permission. Establish roles in the authenticated principal using trusted authentication/claims configuration. Enforce blocked-user, subscription, and membership restrictions on the server's actual operations as well as reflecting them in the UI.
+A `LibraryIdentity.Role` property is display/domain data; it does not add `ClaimTypes.Role` or grant `[Roles("Librarian")]`. The identity the frontend reads supplies client context, not authoritative proof of permission. Establish roles in the authenticated principal using trusted authentication/claims configuration. Enforce blocked-user, subscription, and membership restrictions on the server's actual operations as well as reflecting them in the UI.
 </Aside>
 
 ## What can they do — authorize commands and queries

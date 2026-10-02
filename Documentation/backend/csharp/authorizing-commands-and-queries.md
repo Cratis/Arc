@@ -43,7 +43,7 @@ public record Author([property: Key] AuthorId Id, AuthorName Name)
 
 ## Who the user is
 
-Roles used by the evaluator come from the authenticated `ClaimsPrincipal`, not the identity cookie. Arc integrates with ASP.NET Core authentication; its lightweight host has its own handlers. `IProvideIdentityDetails` supplies application-specific presentation details but does not add trusted claims or authorize every operation. Read the principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`. See the [Identity](./identity/) section for setting that up, and for generating a principal during local development so you can exercise authorized endpoints without a full login.
+Roles used by the evaluator come from the authenticated `ClaimsPrincipal`, not the identity details. Arc integrates with ASP.NET Core authentication; its lightweight host has its own handlers. `IProvideIdentityDetails` supplies application-specific presentation details but does not add trusted claims or authorize every operation. Read the principal through `ICurrentPrincipalAccessor` from `Cratis.Arc.Authorization`. See the [Identity](./identity/) section for setting that up, and for generating a principal during local development so you can exercise authorized endpoints without a full login.
 
 ## Notes
 

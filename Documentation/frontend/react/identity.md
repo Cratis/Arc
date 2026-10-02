@@ -8,7 +8,7 @@ It provides an encapsulation that feels more natural to a React application.
 
 ## HTTP Headers
 
-Identity fetches include `httpHeadersCallback` headers configured through [Arc](./arc.md). Use this for Authorization or application headers, not a browser `Cookie` header. Cookies are browser-managed. Identity details are untrusted UI cache data; authorization belongs on the server.
+Identity fetches include `httpHeadersCallback` headers configured through [Arc](./arc.md). Use this for Authorization or application headers, not a browser `Cookie` header. Cookies are browser-managed. The identity comes from `/.cratis/me`, which derives it from the authenticated request. In the browser it is UI data that the user can change; authorization belongs on the server.
 
 ## Identity provider context
 
@@ -47,8 +47,8 @@ export const SomeComponent = () => {
 ### Refreshing
 
 Sometimes you need to refresh the identity due to backend changes. On the `IIdentityContext` that represents
-the context you find a method called `refresh()`. Calling this will invalidate the cookie and also just call
-the backend to get the current identity details.
+the context you find a method called `refresh()`. Calling this asks
+the backend for the current identity details and replaces the identity kept in memory.
 
 ```typescript
 import { IdentityProviderContext } from '@cratis/arc.react/identity';
@@ -260,9 +260,9 @@ and warns on the console for the ones that are configuration mistakes:
 ### RequireRole hides UI, it does not protect data
 
 > [!CAUTION]
-> `RequireRole` is a usability feature, not a security boundary. The identity it reads comes from a
-> cookie that is deliberately not `HttpOnly` - the frontend has to be able to read it - which means the
-> browser, and anyone driving it, can edit that cookie and render these children at will.
+> `RequireRole` is a usability feature, not a security boundary. The identity it reads comes from
+> `/.cratis/me` and is held in the page's memory, which means anyone with the browser's developer tools
+> can change it and render these children at will.
 >
 > Use the gate to keep people out of screens that would only frustrate them. Never use it as the thing
 > that keeps them out of the data. Every query and command behind the gate has to carry its own
@@ -376,7 +376,7 @@ You can also provide a default value for the `details` property in the identity 
 
 ### Clearing identity
 
-When a user logs out, you can clear the client-side identity state and remove the identity cookie using `clearIdentity()`. This is available on the object returned by `useIdentity()`:
+When a user logs out, you can clear the client-side identity state using `clearIdentity()`. This is available on the object returned by `useIdentity()`:
 
 ```typescript
 import { useIdentity } from '@cratis/arc.react/identity';
@@ -394,7 +394,7 @@ export const ClearIdentityCacheButton = () => {
 
 Calling `clearIdentity()` does two things:
 
-1. Removes the `.cratis-identity` cookie.
+1. Forgets the identity kept in memory by `IdentityProvider`, so the next request for it asks `/.cratis/me` again.
 2. Resets the identity context to its initial unset state (`isSet` becomes `false`, `details` is reset).
 
 > Clearing this cache is not logout: authentication cookies, tokens, and server sessions remain unchanged. Complete real sign-out through your authentication system first, then clear identity and [reconnect queries](./arc.md#reconnecting-queries). Reconnection uses current browser credentials and does not purge cached query data.

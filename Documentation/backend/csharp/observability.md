@@ -161,10 +161,9 @@ write and easy to forget, and it shows up here as time spent before the handler
 ever ran.
 
 `cratis.arc.identity.resolve` is the other common surprise. The span covers each
-identity lookup, such as the frontend's `/.cratis/me` request. When the identity
-cookie already holds a result, the lookup returns it without calling your
-identity-details provider; otherwise the provider runs, and one that queries a
-store puts that query on the critical path of every uncached lookup.
+identity lookup, such as the frontend's `/.cratis/me` request. Every lookup calls
+your identity-details provider, so one that queries a store puts that query on the
+critical path of every lookup.
 
 ## Metrics
 

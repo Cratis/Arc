@@ -8,7 +8,7 @@ using System.Text.Json.Serialization.Metadata;
 namespace Cratis.Arc.Identity;
 
 /// <summary>
-/// Creates the <see cref="JsonSerializerOptions"/> the identity cookie and the identity response serialize with.
+/// Creates the <see cref="JsonSerializerOptions"/> the identity response serializes with.
 /// </summary>
 internal static class IdentityJsonSerializerOptions
 {

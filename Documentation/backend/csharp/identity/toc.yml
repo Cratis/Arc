@@ -8,3 +8,5 @@
   href: identity-provider-service.md
 - name: Development and Topologies
   href: development-and-topologies.md
+- name: Migrating from the Identity Cookie
+  href: migrating-from-the-identity-cookie.md

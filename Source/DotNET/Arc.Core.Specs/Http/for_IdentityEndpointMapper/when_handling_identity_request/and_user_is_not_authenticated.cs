@@ -20,6 +20,7 @@ public class and_user_is_not_authenticated : given.an_identity_endpoint_handler
             string.Empty);
 
         _identityProviderResultHandler.Get().Returns(Task.FromResult(_result));
+        _httpRequestContext.Cookies.Returns(new Dictionary<string, string> { [".cratis-identity"] = "legacy-identity" });
     }
 
     async Task Because() => await _capturedHandler(_httpRequestContext);
@@ -28,5 +29,6 @@ public class and_user_is_not_authenticated : given.an_identity_endpoint_handler
     [Fact] void should_vary_on_cookie() => _httpRequestContext.Received(1).SetResponseHeader("Vary", "Cookie");
     [Fact] void should_call_generate_from_current_context() => _identityProviderResultHandler.Received(1).Get();
     [Fact] void should_not_call_write() => _identityProviderResultHandler.DidNotReceive().SetCookieForHttpResponse(Arg.Any<IdentityProviderResult>());
+    [Fact] void should_expire_the_legacy_identity_cookie() => _httpRequestContext.Received(1).RemoveCookie(".cratis-identity");
     [Fact] void should_set_status_code_to_unauthorized() => _httpRequestContext.Received().StatusCode = 401;
 }

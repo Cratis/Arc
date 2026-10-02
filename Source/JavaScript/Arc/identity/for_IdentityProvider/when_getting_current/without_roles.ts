@@ -5,7 +5,7 @@ import { IdentityProvider } from '../../IdentityProvider.js';
 import { an_identity_provider } from '../given/an_identity_provider.js';
 import { given } from '../../../given.js';
 
-describe('when getting current without roles', given(an_identity_provider, () => {
+describe('when getting current without roles', given(an_identity_provider, context => {
     let identity: { id: string; name: string; roles: string[]; isInRole: (role: string) => boolean };
 
     beforeEach(async () => {
@@ -14,8 +14,7 @@ describe('when getting current without roles', given(an_identity_provider, () =>
             name: 'Test User',
             details: {}
         };
-        const encodedData = btoa(JSON.stringify(identityData));
-        (global as { document?: { cookie: string } }).document!.cookie = `.cratis-identity=${encodedData}`;
+        context.serverReports(identityData);
 
         const result = await IdentityProvider.getCurrent();
         identity = {

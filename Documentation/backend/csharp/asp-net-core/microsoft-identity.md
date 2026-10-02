@@ -24,7 +24,7 @@ Internally, it is based on the following HTTP headers to be present.
 The token in the `x-ms-client-principal` should be a base64 encoded [Microsoft Client Principal Data definition](https://learn.microsoft.com/en-us/azure/static-web-apps/user-information?tabs=csharp#client-principal-data).
 
 > [!WARNING]
-> Use these headers only behind ingress that authenticates callers, strips caller-supplied identity headers, writes trusted replacements, and prevents direct backend access. Base64 is not a signature. Generated principals are local test fixtures, not credentials to accept on an internet-facing service. A cookie produced by identity enrichment is likewise not an authentication ticket.
+> Use these headers only behind ingress that authenticates callers, strips caller-supplied identity headers, writes trusted replacements, and prevents direct backend access. Base64 is not a signature. Generated principals are local test fixtures, not credentials to accept on an internet-facing service. The identity Arc returns from enrichment is likewise not an authentication ticket.
 
 ## Authentication / Authorization
 

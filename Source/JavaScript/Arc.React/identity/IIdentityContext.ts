@@ -21,7 +21,7 @@ export interface IIdentityContext<TDetails = object> extends IIdentity<TDetails>
     isLoading: boolean;
 
     /**
-     * Clears the identity cookie and resets the identity state to not-set.
+     * Forgets the identity kept in memory and resets the identity state to not-set.
      *
      * Call this when the user logs out to ensure subsequent requests and WebSocket
      * connections do not carry stale credentials. Typically followed by

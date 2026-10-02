@@ -1,30 +1,22 @@
 ---
 title: Identity
-description: How the frontend reads identity from the .cratis-identity cookie, falls back to /.cratis/me, and exposes it through the core identity API.
+description: How the frontend gets the current identity from the /.cratis/me endpoint, keeps it in memory, and exposes it through the core identity API.
 ---
 
-The frontend identity is based on information it gets from a cookie called `.cratis-identity`. The purpose of this is to be able to
-provide identity information to the client at the first render. This allows for a better developer and user experience, as there is no need
-to call the backend for details about the user.
-
-If this cookie does not exist, the client calls `/.cratis/me`. This fallback is not limited to development. Configure authentication on the host; identity lookup is not itself a login mechanism.
+The frontend gets the current identity from the `/.cratis/me` endpoint. The backend derives that identity from the authenticated request, so what the frontend sees is what the server knows about the caller, not anything the browser stored. Only when the server has no such endpoint does the frontend fall back to a cookie; see [upgrading from the identity cookie](#upgrading-from-the-identity-cookie). Configure authentication on the host; identity lookup is not itself a login mechanism.
 
 > Important note: Since local development is not configured with the identity provider, but you still need a way to test that both the backend and the frontend
 > deals with the identity in the correct way. This can be achieved by creating the correct token and injecting it as request headers using
 > a browser extension. Read more [about generating principals](../../backend/csharp/development/generating-principal.md).
 
-This information found in the cookie is a base64 encoded string containing the JSON structure that is expected.
-
 ## Identity provider
 
-Identity is intended for read-only UI consumption through `IdentityProvider`. Its JavaScript-readable cookie is **untrusted cache data**, not tamper-resistant proof of identity. A browser user can edit it. Every protected backend operation must authorize the actual credential independently.
-
-`IdentityProvider.clearIdentityCookie()` only attempts to remove `.cratis-identity`; it does not revoke sessions or remove authentication tokens/cookies. Real sign-out must complete through your authentication system before reconnecting anonymously. Cookie path/domain scoping must also match for deletion to take effect.
+Identity is intended for read-only UI consumption through `IdentityProvider`. The identity is held in the page's memory, where anyone with the browser's developer tools can change it, so it is not proof of anything. Every protected backend operation must authorize the actual credential independently.
 
 The `IdentityProvider` provides functionality for getting the current identity.
 
 ```typescript
-import { IdentityProvider } from '@cratis/arc/identity';
+import { IdentityProvider } from '@cratis/arc/identity';
 
 const identity = await IdentityProvider.getCurrent();
 
@@ -32,7 +24,15 @@ console.log(`Hello '${identity.name}'`);
 ```
 
 > Note that the `getCurrent()` method is an asynchronous operation that returns a promise.
-> The reason for this is that if the cookie is not found, it will call the `.cratis/me` endpoint to try to get the identity.
+> The first call asks `/.cratis/me` for the identity. The answer is kept in memory for the page, so later calls return it without asking the server again.
+
+When the server does not resolve an identity, for example because the caller is not signed in, `getCurrent()` returns an identity with `isSet` set to `false`, and that answer is not kept: the next call asks the server again.
+
+### Signing out
+
+`IdentityProvider.clearCache()` forgets the identity kept in memory, so the next `getCurrent()` asks the server again, and expires a `.cratis-identity` cookie left by an earlier version. It does not revoke sessions or remove authentication tokens or cookies. Real sign-out must complete through your authentication system before reconnecting anonymously.
+
+`IdentityProvider.clearIdentityCookie()` is deprecated and now does the same as `clearCache()`.
 
 ## Details
 
@@ -116,14 +116,12 @@ console.log(`User roles: ${identity.roles.join(', ')}`);
 ## Refresh
 
 In some scenarios you might need to refresh the identity. Typically if the user has been granted more access or details has been updated.
-Rather than having your user log out and back in again, you can issue a refresh. Refresh clears the UI cache cookie and calls `/.cratis/me` for the identity and details; it does not renew or revoke authentication credentials.
-This endpoint should also be responsible for updating the cookie so that any call to `getCurrent()` on the `IdentityProvider` gives you the correct
-identity and details.
+Rather than having your user log out and back in again, you can issue a refresh. Refresh always calls `/.cratis/me` for the identity and details, and replaces what is kept in memory, so later calls to `getCurrent()` return the refreshed identity. It does not renew or revoke authentication credentials.
 
 To refresh the identity you can call the `refresh()` method on the identity object itself.
 
 ```typescript
-import { IdentityProvider } from '@cratis/arc/identity';
+import { IdentityProvider } from '@cratis/arc/identity';
 
 let identity = await IdentityProvider.getCurrent();
 identity = await identity.refresh();
@@ -131,3 +129,13 @@ identity = await identity.refresh();
 
 The identity object is designed to be immutable, leading to the `refresh()` method having to return a new instance.
 This means that the original `identity` instance won't be updated and you would have to replace it if you have it as a variable.
+
+## Upgrading from the identity cookie
+
+Earlier versions of Arc wrote the identity to a JavaScript-readable `.cratis-identity` cookie, and `IdentityProvider` read it before asking `/.cratis/me`. Now `IdentityProvider` asks `/.cratis/me` first. It reads the cookie only when that endpoint answers 404, for example behind a proxy that does not route it to the application yet. When it does, it logs a warning in the browser console. That fallback will be removed in a future major version.
+
+- Code that read `.cratis-identity` from `document.cookie` must call `IdentityProvider.getCurrent()`, or `useIdentity()` in React, instead.
+- Replace `IdentityProvider.clearIdentityCookie()` with `IdentityProvider.clearCache()`.
+- Identity is no longer available before the first request completes: render a loading state until `getCurrent()` resolves. In React, `useIdentity()` reports `isLoading` for this.
+
+See [migrating from the identity cookie](../../backend/csharp/identity/migrating-from-the-identity-cookie.md) for the full picture, including mixed frontend and backend versions.

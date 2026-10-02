@@ -24,6 +24,6 @@ Identity providers work with two key contracts: `IdentityProviderContext` as inp
 | IsUserAuthorized | Whether the user is authorized to enter the application |
 | Details | Domain-specific details as an object payload |
 
-On `/.cratis/me`, a result marked unauthenticated yields HTTP 401; one marked authenticated but unauthorized yields 403; an authenticated and authorized result yields 200. These flags can come from a cached client-controlled cookie, not necessarily a fresh provider invocation. `IsUserAuthorized` does not add claims or authorize commands/queries; see [provider flow](provider-flow.md).
+On `/.cratis/me`, a result marked unauthenticated yields HTTP 401; one marked authenticated but unauthorized yields 403; an authenticated and authorized result yields 200. These flags come from the authenticated principal and a fresh provider invocation. `IsUserAuthorized` does not add claims or authorize commands/queries; see [provider flow](provider-flow.md).
 
 > Note: Providers can use constructor dependencies via dependency inversion.
