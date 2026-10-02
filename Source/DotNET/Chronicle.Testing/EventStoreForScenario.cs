@@ -30,13 +30,18 @@ namespace Cratis.Arc.Chronicle.Testing;
 /// </summary>
 /// <param name="eventScenario">The in-memory <see cref="EventScenario"/> to route operations through.</param>
 /// <param name="readModels">The read models to expose through the event store.</param>
+/// <remarks>
+/// Each instance has its own stable identity so caches keyed by event store and namespace remain isolated per scenario.
+/// </remarks>
 internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadModels readModels) : IEventStore
 {
-    /// <inheritdoc/>
-    public EventStoreName Name => "test-event-store";
+    readonly Guid _scenarioId = Guid.NewGuid();
 
     /// <inheritdoc/>
-    public EventStoreNamespaceName Namespace => "default";
+    public EventStoreName Name => $"test-event-store-{_scenarioId:N}";
+
+    /// <inheritdoc/>
+    public EventStoreNamespaceName Namespace => $"default-{_scenarioId:N}";
 
     /// <inheritdoc/>
     public IChronicleConnection Connection =>
