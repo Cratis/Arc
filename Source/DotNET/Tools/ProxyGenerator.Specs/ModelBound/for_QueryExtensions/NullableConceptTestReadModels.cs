@@ -30,7 +30,9 @@ public class ReadModelWithNullableConceptAndParameters
         LimitedName? explicitName,
         LimitedName? limited,
         OptionalName required,
-        OptionalName? annotated) => [];
+        OptionalName? annotated,
+        MaximumLengthName maxOnly,
+        MaximumLengthName? nullableMaxOnly) => [];
 }
 
 public record FindNullableConceptArgumentsParameters(
@@ -38,7 +40,9 @@ public record FindNullableConceptArgumentsParameters(
     LimitedName ExplicitName,
     LimitedName Limited,
     OptionalName? Required,
-    [property: Required] OptionalName? Annotated);
+    [property: Required] OptionalName? Annotated,
+    [property: Required] MaximumLengthName MaxOnly,
+    [property: Required] MaximumLengthName NullableMaxOnly);
 
 public class FindNullableConceptArgumentsParametersValidator : QueryValidator<FindNullableConceptArgumentsParameters>
 {

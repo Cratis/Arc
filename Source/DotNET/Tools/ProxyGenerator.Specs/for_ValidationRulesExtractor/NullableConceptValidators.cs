@@ -23,6 +23,13 @@ public class LimitedNameValidator : ConceptValidator<LimitedName>
     public LimitedNameValidator() => RuleFor(x => x.Value).NotEmpty().MaximumLength(10);
 }
 
+public record MaximumLengthName(string Value) : ConceptAs<string>(Value);
+
+public class MaximumLengthNameValidator : ConceptValidator<MaximumLengthName>
+{
+    public MaximumLengthNameValidator() => RuleFor(x => x.Value).MaximumLength(10);
+}
+
 public record TestCommandWithConstructorBoundConcepts(OptionalName? Optional, OptionalName Required, LimitedName? Limited)
 {
     public OptionalName? Optional { get; } = Optional;

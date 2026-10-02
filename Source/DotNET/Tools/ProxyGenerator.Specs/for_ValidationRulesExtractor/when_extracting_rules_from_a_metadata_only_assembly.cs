@@ -24,6 +24,7 @@ public class when_extracting_rules_from_a_metadata_only_assembly : Specification
     PropertyInfo _nullableGetterOnlyProperty;
     QueryDescriptor _fromNullableQuery;
     QueryDescriptor _fromNullableQueryWithArguments;
+    QueryDescriptor _fromNullableControllerQuery;
 
     void Establish()
     {
@@ -63,6 +64,9 @@ public class when_extracting_rules_from_a_metadata_only_assembly : Specification
         _fromNullableQuery = readModel.ToQueryDescriptors("/output", 5, true, "api", [readModel]).Single();
         var readModelWithArguments = assembly.GetType(typeof(ModelBound.for_QueryExtensions.ReadModelWithNullableConceptAndParameters).FullName!)!.GetTypeInfo();
         _fromNullableQueryWithArguments = readModelWithArguments.ToQueryDescriptors("/output", 5, true, "api", [readModelWithArguments]).Single();
+        var controller = assembly.GetType(typeof(ControllerBased.for_QueryExtensions.NullableConceptTestController).FullName!)!;
+        _fromNullableControllerQuery = ControllerBased.QueryExtensions.ToQueryDescriptor(
+            controller.GetMethod(nameof(ControllerBased.for_QueryExtensions.NullableConceptTestController.Find))!, "/output", 5);
     }
 
     void Destroy() => _context.Dispose();
@@ -87,4 +91,12 @@ public class when_extracting_rules_from_a_metadata_only_assembly : Specification
     [Fact] void should_preserve_null_tolerant_rules_despite_non_nullable_argument_model_properties() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
     [Fact] void should_preserve_presence_rules_for_required_parameters_despite_nullable_argument_model_properties() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "required").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
     [Fact] void should_preserve_argument_model_annotations() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "annotated").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
+    [Fact] void should_keep_argument_model_annotations_below_non_nullable_concept_rules() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "maxOnly").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_keep_argument_model_annotations_below_nullable_concept_rules() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "nullableMaxOnly").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_omit_presence_rules_for_nullable_controller_parameters_despite_non_nullable_dto_properties() => _fromNullableControllerQuery.ValidationRules.Select(_ => _.PropertyName).ShouldNotContain("controllerOptional");
+    [Fact] void should_keep_presence_rules_for_required_controller_parameters_despite_nullable_dto_properties() => _fromNullableControllerQuery.ValidationRules.Single(_ => _.PropertyName == "controllerRequired").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
+    [Fact] void should_keep_null_tolerant_rules_for_nullable_controller_parameters() => _fromNullableControllerQuery.ValidationRules.Single(_ => _.PropertyName == "controllerLimited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_preserve_explicit_controller_rules() => _fromNullableControllerQuery.ValidationRules.Single(_ => _.PropertyName == "controllerExplicit").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull", "notEmpty", "maxLength");
+    [Fact] void should_keep_controller_dto_annotations_below_non_nullable_concept_rules() => _fromNullableControllerQuery.ValidationRules.Single(_ => _.PropertyName == "controllerMaxOnly").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_keep_controller_dto_annotations_below_nullable_concept_rules() => _fromNullableControllerQuery.ValidationRules.Single(_ => _.PropertyName == "controllerNullableMaxOnly").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
 }

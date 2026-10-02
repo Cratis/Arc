@@ -67,10 +67,6 @@ public static class QueryExtensions
         var route = method.GetRoute(arguments, includeQueryStringParameters: false);
         var documentation = method.GetDocumentation();
 
-        // Extract validation rules from query method parameters
-        // Try to find a FluentValidation validator by looking for a type whose properties match the query parameters
-        var validationRules = new List<PropertyValidationDescriptor>();
-
         // Look for a type in the assembly whose properties match the method parameters
         // Prefer types with "Query" in the name to avoid false matches
         var methodParams = method.GetParameters();
@@ -94,25 +90,36 @@ public static class QueryExtensions
 
         var matchingType = matchingTypes.FirstOrDefault();
 
-        if (matchingType != null)
-        {
-            // Found a matching DTO type, extract FluentValidation rules from it
-            var fluentValidationRules = ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType.Assembly, matchingType);
-            validationRules.AddRange(fluentValidationRules);
-        }
+        // Matching CLR types need not agree on nullable-reference annotations. Only extract explicit rules
+        // from the DTO; the actual parameter's optionality governs inferred concept rules.
+        var explicitRules = matchingType is not null
+            ? ValidationRulesExtractor.ExtractValidationRules(method.DeclaringType.Assembly, matchingType, includeConceptRules: false, includeDataAnnotations: false).ToList()
+            : [];
+        var dataAnnotationsRules = matchingType is not null
+            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(matchingType).ToList()
+            : [];
+        var conceptRules = new List<PropertyValidationDescriptor>();
 
-        // If no FluentValidation rules found, fall back to DataAnnotations on method parameters
-        if (validationRules.Count == 0)
+        foreach (var param in methodParams)
         {
-            foreach (var param in method.GetParameters())
+            // Controller queries only infer concept rules when a matching argument DTO exists.
+            if (matchingType is not null)
             {
-                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
-                if (rules.Count > 0)
+                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType.Assembly, param.ParameterType, param.IsOptional() || param.HasDefaultValue);
+                if (rulesFromConcept.Count > 0)
                 {
-                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+                    conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));
                 }
             }
+
+            var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+            if (rulesFromDataAnnotations.Count > 0)
+            {
+                dataAnnotationsRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromDataAnnotations]));
+            }
         }
+
+        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
 
         // Check for TreatWarningsAsErrors attribute
         var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||

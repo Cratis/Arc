@@ -150,11 +150,15 @@ public static class QueryExtensions
         // The convention matches CLR types, not nullable-reference annotations. Infer concept rules only from
         // the actual parameters so a stricter argument-model annotation cannot reintroduce presence rules.
         var explicitRules = parametersType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false).ToList()
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false, includeDataAnnotations: false).ToList()
             : [];
 
         var conceptRules = new List<PropertyValidationDescriptor>();
-        var dataAnnotationsRules = new List<PropertyValidationDescriptor>();
+
+        // Keep argument-model annotations at fallback precedence, below rules inferred from the actual parameters.
+        var dataAnnotationsRules = parametersType is not null
+            ? ValidationRulesExtractor.ExtractDataAnnotationsRules(parametersType).ToList()
+            : [];
         foreach (var param in method.GetParameters())
         {
             var parameterName = param.Name.ToCamelCase();

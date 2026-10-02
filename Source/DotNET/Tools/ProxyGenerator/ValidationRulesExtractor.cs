@@ -28,8 +28,9 @@ public static class ValidationRulesExtractor
     /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract validation rules for.</param>
     /// <param name="includeConceptRules">Whether to infer rules from concept-typed properties.</param>
+    /// <param name="includeDataAnnotations">Whether to include DataAnnotations as fallback rules.</param>
     /// <returns>Collection of property validation descriptors.</returns>
-    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true)
+    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true, bool includeDataAnnotations = true)
     {
         // A FluentValidation rule only exists once its validator's constructor has run, which a metadata-only type
         // cannot do - see RuntimeValidatorAssemblies.
@@ -43,7 +44,7 @@ public static class ValidationRulesExtractor
         var conceptRules = includeConceptRules ? ExtractConceptRules(assembly, type).ToList() : [];
 
         // Then extract DataAnnotations
-        var dataAnnotationsRules = ExtractDataAnnotationsRules(type).ToList();
+        var dataAnnotationsRules = includeDataAnnotations ? ExtractDataAnnotationsRules(type).ToList() : [];
 
         // Merge the rules - FluentValidation takes precedence
         return MergeValidationRules(fluentValidationRules, conceptRules, dataAnnotationsRules);
