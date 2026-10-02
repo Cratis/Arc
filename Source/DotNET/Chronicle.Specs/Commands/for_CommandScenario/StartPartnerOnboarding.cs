@@ -127,3 +127,13 @@ public record PartnerAdminInvited(EventSourceId PartnerId);
 [EventType("2ac78ea4-76ad-4315-8128-b2f52c15c234")]
 [Unique("UniqueOnboardingCompletionPerPartner", "Onboarding can only be completed once per partner")]
 public record PartnerOnboardingCompleted;
+
+[EventType]
+public record PartnerOnboardingReserved(string OrganizationNumber);
+
+public class UniquePartnerOnboardingReservation : IConstraint
+{
+    public void Define(IConstraintBuilder builder) => builder.Unique(_ => _
+        .On<PartnerOnboardingReserved>(@event => @event.OrganizationNumber)
+        .WithName(nameof(UniquePartnerOnboardingReservation)));
+}
