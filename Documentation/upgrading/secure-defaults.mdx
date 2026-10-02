@@ -31,7 +31,7 @@ handlers log a warning on the first request that carries the headers while they 
 caller-supplied identity headers and sets its own, opt in. In code, add one line to the options
 you pass to `AddCratis` or `AddCratisArc`:
 
-<ArcBackendTabs snippet="upgrading/secure-defaults/trust-forwarded-identity-headers" />
+<ArcBackendTabs snippet="upgrading/secure-defaults/trust-forwarded-identity-headers" variants="csharp" />
 
 Or in configuration, for example as the environment variable
 `Cratis__Arc__TrustForwardedIdentityHeaders=true`:
@@ -79,7 +79,7 @@ environment is registered does Arc fall back to `ASPNETCORE_ENVIRONMENT`.
 expose them anonymously as before, add one line to the options you pass to `AddCratis` or
 `AddCratisArc`:
 
-<ArcBackendTabs snippet="upgrading/secure-defaults/anonymous-introspection" />
+<ArcBackendTabs snippet="upgrading/secure-defaults/anonymous-introspection" variants="csharp" />
 
 Or set `Cratis__Arc__Introspection__RequireAuthentication=false`. Outside Development the host
 then logs a warning on startup that the endpoints are anonymous.
