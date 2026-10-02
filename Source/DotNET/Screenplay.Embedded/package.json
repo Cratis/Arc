@@ -13,11 +13,11 @@
         "test:watch": "vitest"
     },
     "dependencies": {
-        "@cratis/components": "^4.18.0",
-        "@cratis/event-models": "^0.109.0",
+        "@cratis/components": "^4.25.0",
+        "@cratis/event-models": "^0.110.0",
         "@cratis/fundamentals": "^7.19.6",
-        "@cratis/scene": "^0.109.0",
-        "@cratis/screenplay-language": "^4.46.3",
+        "@cratis/scene": "^0.110.0",
+        "@cratis/screenplay-language": "^4.48.1",
         "dompurify": "^3.4.16",
         "monaco-editor": "^0.57.0",
         "pixi.js": "^8.21.0",
