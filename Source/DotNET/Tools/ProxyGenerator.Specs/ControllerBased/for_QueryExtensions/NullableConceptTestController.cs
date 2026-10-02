@@ -20,6 +20,7 @@ public class NullableConceptTestController
         [FromQuery] LimitedName controllerExplicit,
         [FromQuery] MaximumLengthName controllerMaxOnly,
         [FromQuery] MaximumLengthName? controllerNullableMaxOnly,
+        [FromQuery, Required] LimitedName? controllerAnnotatedLimited,
         [FromQuery] OptionalName controllerDefaulted = null!) => [];
 }
 
@@ -30,6 +31,7 @@ public record NullableConceptQuery(
     LimitedName ControllerExplicit,
     [property: Required] MaximumLengthName ControllerMaxOnly,
     [property: Required] MaximumLengthName ControllerNullableMaxOnly,
+    LimitedName? ControllerAnnotatedLimited,
     [property: Required] OptionalName ControllerDefaulted);
 
 public class NullableConceptQueryValidator : QueryValidator<NullableConceptQuery>

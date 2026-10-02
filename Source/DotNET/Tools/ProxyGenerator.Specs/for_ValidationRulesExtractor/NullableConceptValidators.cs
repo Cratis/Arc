@@ -42,7 +42,8 @@ public record TestCommandWithNullableConcepts(
     OptionalName Required,
     LimitedName? Limited,
     OptionalName? Explicit,
-    [property: Required] OptionalName? Annotated);
+    [property: Required] OptionalName? Annotated,
+    [property: Required] LimitedName? AnnotatedLimited);
 
 public class TestCommandWithNullableConceptsValidator : CommandValidator<TestCommandWithNullableConcepts>
 {

@@ -19,4 +19,5 @@ public class when_extracting_rules_for_nullable_concept_properties : Specificati
     [Fact] void should_project_rules_for_the_required_property() => _result.Single(_ => _.PropertyName == "required").Rules.Single().RuleName.ShouldEqual("notEmpty");
     [Fact] void should_keep_only_the_explicit_command_rule_for_the_nullable_property() => _result.Single(_ => _.PropertyName == "explicit").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull");
     [Fact] void should_keep_explicit_annotations_on_the_nullable_property() => _result.Single(_ => _.PropertyName == "annotated").Rules.Single().RuleName.ShouldEqual("notEmpty");
+    [Fact] void should_keep_presence_and_length_rules_on_the_explicitly_required_nullable_property() => _result.Single(_ => _.PropertyName == "annotatedLimited").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty", "maxLength");
 }

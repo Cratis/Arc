@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 
@@ -100,26 +101,34 @@ public static class QueryExtensions
             : [];
         var conceptRules = new List<PropertyValidationDescriptor>();
 
-        foreach (var param in methodParams)
+        // Controller queries only infer concept rules when a matching argument DTO exists.
+        if (matchingType is not null)
         {
-            // Controller queries only infer concept rules when a matching argument DTO exists.
-            if (matchingType is not null)
+            foreach (var param in methodParams)
             {
-                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType.Assembly, param.ParameterType, param.IsOptional() || param.HasDefaultValue);
+                var isOptional = param.IsOptional() && !param.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(method.DeclaringType.Assembly, param.ParameterType, isOptional);
                 if (rulesFromConcept.Count > 0)
                 {
                     conceptRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromConcept]));
                 }
             }
-
-            var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
-            if (rulesFromDataAnnotations.Count > 0)
-            {
-                dataAnnotationsRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rulesFromDataAnnotations]));
-            }
         }
 
-        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules);
+        var validationRules = ValidationRulesExtractor.MergeValidationRules(explicitRules, conceptRules, dataAnnotationsRules).ToList();
+
+        // Direct parameter annotations are a whole-DTO fallback, not a per-parameter addition.
+        if (validationRules.Count == 0)
+        {
+            foreach (var param in methodParams)
+            {
+                var rules = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
+                if (rules.Count > 0)
+                {
+                    validationRules.Add(new PropertyValidationDescriptor(param.Name.ToCamelCase(), [.. rules]));
+                }
+            }
+        }
 
         // Check for TreatWarningsAsErrors attribute
         var treatWarningsAsErrors = method.GetCustomAttributesData().Any(a => a.AttributeType.Name == "TreatWarningsAsErrorsAttribute") ||

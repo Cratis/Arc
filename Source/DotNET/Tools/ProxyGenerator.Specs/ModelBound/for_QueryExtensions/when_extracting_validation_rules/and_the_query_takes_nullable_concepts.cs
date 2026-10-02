@@ -23,5 +23,6 @@ public class and_the_query_takes_nullable_concepts : Specification
     [Fact] void should_keep_only_null_tolerant_inferred_rules_for_the_nullable_parameter() => _result.ValidationRules.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
     [Fact] void should_keep_rules_for_the_required_parameter() => _result.ValidationRules.Single(_ => _.PropertyName == "required").Rules.Single().RuleName.ShouldEqual("notEmpty");
     [Fact] void should_keep_explicit_annotations_for_the_nullable_parameter() => _result.ValidationRules.Single(_ => _.PropertyName == "annotated").Rules.Single().RuleName.ShouldEqual("notEmpty");
+    [Fact] void should_keep_presence_and_length_rules_on_the_explicitly_required_nullable_parameter() => _result.ValidationRules.Single(_ => _.PropertyName == "annotatedLimited").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty", "maxLength");
     [Fact] void should_omit_conditional_concept_rules() => _result.ValidationRules.Single(_ => _.PropertyName == "conditional").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength", "minLength");
 }

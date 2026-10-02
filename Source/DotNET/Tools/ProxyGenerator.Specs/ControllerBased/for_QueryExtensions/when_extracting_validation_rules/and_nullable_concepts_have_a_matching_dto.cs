@@ -19,5 +19,6 @@ public class and_nullable_concepts_have_a_matching_dto : Specification
     [Fact] void should_keep_explicit_rules_alongside_inferred_concept_rules() => _result.ValidationRules.Single(_ => _.PropertyName == "controllerExplicit").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull", "notEmpty", "maxLength");
     [Fact] void should_not_promote_dto_annotations_above_non_nullable_concept_rules() => _result.ValidationRules.Single(_ => _.PropertyName == "controllerMaxOnly").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
     [Fact] void should_not_promote_dto_annotations_above_nullable_concept_rules() => _result.ValidationRules.Single(_ => _.PropertyName == "controllerNullableMaxOnly").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_keep_presence_and_length_rules_on_the_explicitly_required_nullable_parameter() => _result.ValidationRules.Single(_ => _.PropertyName == "controllerAnnotatedLimited").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty", "maxLength");
     [Fact] void should_keep_dto_annotations_when_no_concept_rules_remain() => _result.ValidationRules.Single(_ => _.PropertyName == "controllerDefaulted").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
 }

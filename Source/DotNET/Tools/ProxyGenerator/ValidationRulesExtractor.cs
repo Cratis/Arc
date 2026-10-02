@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.ProxyGenerator.Templates;
 
@@ -60,8 +61,8 @@ public static class ValidationRulesExtractor
     /// <remarks>
     /// Whether a value is well formed is a property of its type, so a concept's validator already runs server-side
     /// wherever that concept appears. Projecting it here means declaring it once also validates in the browser,
-    /// rather than the client silently enforcing less than the server. Nullable properties omit inferred presence
-    /// rules only: the other client rules already accept null and undefined, while still validating supplied values.
+    /// rather than the client silently enforcing less than the server. Nullable properties without a Required
+    /// annotation omit inferred presence rules only: other client rules accept null and undefined while validating supplied values.
     /// </remarks>
     public static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type)
     {
@@ -69,7 +70,8 @@ public static class ValidationRulesExtractor
 
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            var rules = ExtractRulesForConceptType(assembly, property.PropertyType, property.IsOptional());
+            var isOptional = property.IsOptional() && !property.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == typeof(RequiredAttribute).FullName);
+            var rules = ExtractRulesForConceptType(assembly, property.PropertyType, isOptional);
             if (rules.Count > 0)
             {
                 propertyValidations.Add(new PropertyValidationDescriptor(property.Name.ToCamelCase(), [.. rules]));

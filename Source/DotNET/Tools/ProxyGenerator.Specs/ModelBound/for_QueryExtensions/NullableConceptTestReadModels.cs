@@ -16,6 +16,7 @@ public class ReadModelWithNullableConcept
         OptionalName? optional,
         OptionalName required,
         [Required] OptionalName? annotated,
+        [Required] LimitedName? annotatedLimited,
         ConditionalName conditional,
         LimitedName? limited,
         OptionalName defaulted = null!) => [];
