@@ -52,17 +52,24 @@ internal static class CommandTransactionAppender
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the event metadata.</param>
     /// <returns>A new event value carrying the command metadata.</returns>
     /// <remarks>
+    /// A routing value set on the wrapper (<see cref="EventForEventSourceId.EventSourceType"/>,
+    /// <see cref="EventForEventSourceId.EventStreamType"/>, <see cref="EventForEventSourceId.EventStreamId"/>,
+    /// <see cref="EventForEventSourceId.Subject"/>) wins over the command context. A value is set when it differs
+    /// from its sentinel (<c>Default</c>, <c>All</c>, <c>Default</c>, and not null); otherwise the command context
+    /// value is used.
+    /// <para>
     /// The wrapper's own <see cref="EventForEventSourceId.Occurred"/> and <see cref="EventForEventSourceId.Tags"/> are
     /// kept: they are values the command supplied for this particular event, and dropping them would silently record
     /// the append time and no tags instead.
+    /// </para>
     /// </remarks>
     internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext) =>
         new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
         {
-            EventStreamType = commandContext.GetEventStreamType() ?? EventStreamType.All,
-            EventStreamId = commandContext.GetEventStreamId() ?? EventStreamId.Default,
-            EventSourceType = commandContext.GetEventSourceType() ?? EventSourceType.Default,
-            Subject = commandContext.GetSubject(),
+            EventStreamType = @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType() ?? EventStreamType.All,
+            EventStreamId = @event.EventStreamId != EventStreamId.Default ? @event.EventStreamId : commandContext.GetEventStreamId() ?? EventStreamId.Default,
+            EventSourceType = @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType() ?? EventSourceType.Default,
+            Subject = @event.Subject ?? commandContext.GetSubject(),
             Occurred = @event.Occurred,
             Tags = @event.Tags
         };
