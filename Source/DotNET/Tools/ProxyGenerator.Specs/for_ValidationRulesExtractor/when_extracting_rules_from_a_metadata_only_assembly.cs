@@ -20,7 +20,10 @@ public class when_extracting_rules_from_a_metadata_only_assembly : Specification
     IEnumerable<PropertyValidationDescriptor> _fromCommandValidator;
     IEnumerable<PropertyValidationDescriptor> _fromConceptValidator;
     IEnumerable<PropertyValidationDescriptor> _fromNullableConcepts;
+    IEnumerable<PropertyValidationDescriptor> _fromConstructorBoundConcepts;
+    PropertyInfo _nullableGetterOnlyProperty;
     QueryDescriptor _fromNullableQuery;
+    QueryDescriptor _fromNullableQueryWithArguments;
 
     void Establish()
     {
@@ -53,8 +56,13 @@ public class when_extracting_rules_from_a_metadata_only_assembly : Specification
         _fromNullableConcepts = ValidationRulesExtractor.ExtractValidationRules(
             assembly,
             assembly.GetType(typeof(TestCommandWithNullableConcepts).FullName!)!);
+        var constructorBoundType = assembly.GetType(typeof(TestCommandWithConstructorBoundConcepts).FullName!)!;
+        _nullableGetterOnlyProperty = constructorBoundType.GetProperty(nameof(TestCommandWithConstructorBoundConcepts.Optional))!;
+        _fromConstructorBoundConcepts = ValidationRulesExtractor.ExtractValidationRules(assembly, constructorBoundType);
         var readModel = assembly.GetType(typeof(ModelBound.for_QueryExtensions.ReadModelWithNullableConcept).FullName!)!.GetTypeInfo();
         _fromNullableQuery = readModel.ToQueryDescriptors("/output", 5, true, "api", [readModel]).Single();
+        var readModelWithArguments = assembly.GetType(typeof(ModelBound.for_QueryExtensions.ReadModelWithNullableConceptAndParameters).FullName!)!.GetTypeInfo();
+        _fromNullableQueryWithArguments = readModelWithArguments.ToQueryDescriptors("/output", 5, true, "api", [readModelWithArguments]).Single();
     }
 
     void Destroy() => _context.Dispose();
@@ -63,7 +71,20 @@ public class when_extracting_rules_from_a_metadata_only_assembly : Specification
     [Fact] void should_extract_the_rules_contributed_by_a_concept_validator() => _fromConceptValidator.Select(_ => _.PropertyName).ShouldContain("email");
     [Fact] void should_skip_nullable_concept_properties() => _fromNullableConcepts.Select(_ => _.PropertyName).ShouldNotContain("optional");
     [Fact] void should_keep_explicit_rules_for_nullable_concept_properties() => _fromNullableConcepts.Single(_ => _.PropertyName == "explicit").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull");
+    [Fact] void should_keep_null_tolerant_rules_for_nullable_concept_properties() => _fromNullableConcepts.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_recognize_the_metadata_only_nullable_getter_only_property_as_optional() => _nullableGetterOnlyProperty.IsOptional().ShouldBeTrue();
+    [Fact] void should_skip_presence_rules_for_nullable_getter_only_properties() => _fromConstructorBoundConcepts.Select(_ => _.PropertyName).ShouldNotContain("optional");
+    [Fact] void should_keep_presence_rules_for_required_getter_only_properties() => _fromConstructorBoundConcepts.Single(_ => _.PropertyName == "required").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
+    [Fact] void should_keep_null_tolerant_rules_for_nullable_getter_only_properties() => _fromConstructorBoundConcepts.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_skip_presence_rules_for_query_parameters_with_defaults() => _fromNullableQuery.ValidationRules.Select(_ => _.PropertyName).ShouldNotContain("defaulted");
+    [Fact] void should_emit_query_parameters_with_defaults_as_optional() => _fromNullableQuery.Parameters.Single(_ => _.Name == "defaulted").IsOptional.ShouldBeTrue();
+    [Fact] void should_keep_null_tolerant_concept_query_rules() => _fromNullableQuery.ValidationRules.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
     [Fact] void should_skip_nullable_concept_query_parameters() => _fromNullableQuery.ValidationRules.Select(_ => _.PropertyName).ShouldNotContain("optional");
     [Fact] void should_keep_non_nullable_concept_query_parameters() => _fromNullableQuery.ValidationRules.Single(_ => _.PropertyName == "required").Rules.Single().RuleName.ShouldEqual("notEmpty");
     [Fact] void should_skip_conditional_concept_query_rules() => _fromNullableQuery.ValidationRules.Single(_ => _.PropertyName == "conditional").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength", "minLength");
+    [Fact] void should_omit_inferred_presence_rules_despite_non_nullable_argument_model_properties() => _fromNullableQueryWithArguments.ValidationRules.Select(_ => _.PropertyName).ShouldNotContain("optional");
+    [Fact] void should_preserve_explicit_argument_model_rules_alongside_null_tolerant_inferred_rules() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "explicitName").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull", "maxLength");
+    [Fact] void should_preserve_null_tolerant_rules_despite_non_nullable_argument_model_properties() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_preserve_presence_rules_for_required_parameters_despite_nullable_argument_model_properties() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "required").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
+    [Fact] void should_preserve_argument_model_annotations() => _fromNullableQueryWithArguments.ValidationRules.Single(_ => _.PropertyName == "annotated").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
 }

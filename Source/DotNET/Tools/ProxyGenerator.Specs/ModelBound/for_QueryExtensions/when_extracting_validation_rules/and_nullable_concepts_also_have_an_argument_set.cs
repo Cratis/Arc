@@ -18,5 +18,8 @@ public class and_nullable_concepts_also_have_an_argument_set : Specification
         [typeof(ReadModelWithNullableConceptAndParameters).GetTypeInfo()]).Single();
 
     [Fact] void should_skip_inferred_rules_from_both_the_parameter_and_argument_model() => _result.ValidationRules.Select(_ => _.PropertyName).ShouldNotContain("optional");
-    [Fact] void should_keep_only_the_explicit_query_rule() => _result.ValidationRules.Single(_ => _.PropertyName == "explicitName").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull");
+    [Fact] void should_keep_the_explicit_query_rule_and_null_tolerant_inferred_rule() => _result.ValidationRules.Single(_ => _.PropertyName == "explicitName").Rules.Select(_ => _.RuleName).ShouldContainOnly("notNull", "maxLength");
+    [Fact] void should_keep_only_null_tolerant_inferred_rules_despite_the_non_nullable_argument_model_property() => _result.ValidationRules.Single(_ => _.PropertyName == "limited").Rules.Select(_ => _.RuleName).ShouldContainOnly("maxLength");
+    [Fact] void should_keep_presence_rules_for_the_required_parameter_despite_the_nullable_argument_model_property() => _result.ValidationRules.Single(_ => _.PropertyName == "required").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
+    [Fact] void should_keep_argument_model_annotations() => _result.ValidationRules.Single(_ => _.PropertyName == "annotated").Rules.Select(_ => _.RuleName).ShouldContainOnly("notEmpty");
 }

@@ -27,8 +27,9 @@ public static class ValidationRulesExtractor
     /// </summary>
     /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract validation rules for.</param>
+    /// <param name="includeConceptRules">Whether to infer rules from concept-typed properties.</param>
     /// <returns>Collection of property validation descriptors.</returns>
-    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type)
+    public static IEnumerable<PropertyValidationDescriptor> ExtractValidationRules(Assembly assembly, Type type, bool includeConceptRules = true)
     {
         // A FluentValidation rule only exists once its validator's constructor has run, which a metadata-only type
         // cannot do - see RuntimeValidatorAssemblies.
@@ -39,7 +40,7 @@ public static class ValidationRulesExtractor
         var fluentValidationRules = ExtractFluentValidationRules(runtimeAssembly, runtimeType).ToList();
 
         // Then the rules contributed by the validators of any concept-typed properties
-        var conceptRules = ExtractConceptRules(runtimeAssembly, runtimeType).ToList();
+        var conceptRules = includeConceptRules ? ExtractConceptRules(assembly, type).ToList() : [];
 
         // Then extract DataAnnotations
         var dataAnnotationsRules = ExtractDataAnnotationsRules(type).ToList();
@@ -58,16 +59,16 @@ public static class ValidationRulesExtractor
     /// <remarks>
     /// Whether a value is well formed is a property of its type, so a concept's validator already runs server-side
     /// wherever that concept appears. Projecting it here means declaring it once also validates in the browser,
-    /// rather than the client silently enforcing less than the server. Nullable properties are excluded because an
-    /// absent concept is valid, and the client cannot condition these inferred rules on the presence of a value.
+    /// rather than the client silently enforcing less than the server. Nullable properties omit inferred presence
+    /// rules only: the other client rules already accept null and undefined, while still validating supplied values.
     /// </remarks>
     public static IEnumerable<PropertyValidationDescriptor> ExtractConceptRules(Assembly assembly, Type type)
     {
         var propertyValidations = new List<PropertyValidationDescriptor>();
 
-        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance).Where(_ => !_.IsOptional()))
+        foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
-            var rules = ExtractRulesForConceptType(assembly, property.PropertyType);
+            var rules = ExtractRulesForConceptType(assembly, property.PropertyType, property.IsOptional());
             if (rules.Count > 0)
             {
                 propertyValidations.Add(new PropertyValidationDescriptor(property.Name.ToCamelCase(), [.. rules]));
@@ -82,6 +83,7 @@ public static class ValidationRulesExtractor
     /// </summary>
     /// <param name="assembly">Assembly being generated; concept validators may also come from their declaring assembly.</param>
     /// <param name="type">The type to extract rules for; anything that is not a concept yields nothing.</param>
+    /// <param name="isOptional">Whether the owning member is optional and must omit inferred presence rules.</param>
     /// <returns>Collection of validation rule descriptors.</returns>
     /// <remarks>
     /// A <c>ConceptValidator&lt;T&gt;</c> declares its rules against the concept's <c>Value</c> member. The generated
@@ -90,7 +92,7 @@ public static class ValidationRulesExtractor
     /// Only concepts sitting directly on a property or parameter are projected: the client-side rule builder resolves
     /// a single property name, so it cannot express a rule against a concept nested deeper in the graph.
     /// </remarks>
-    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type)
+    public static IReadOnlyList<ValidationRuleDescriptor> ExtractRulesForConceptType(Assembly assembly, Type type, bool isOptional = false)
     {
         var runtimeAssembly = RuntimeValidatorAssemblies.For(assembly) ?? assembly;
         var runtimeType = RuntimeValidatorAssemblies.For(type);
@@ -100,7 +102,10 @@ public static class ValidationRulesExtractor
             return [];
         }
 
-        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType).SelectMany(_ => _.Rules)];
+        // Only these two client rules reject null/undefined; all other supported rules validate supplied values.
+        return [.. ExtractFluentValidationRules(runtimeAssembly, runtimeType)
+            .SelectMany(_ => _.Rules)
+            .Where(_ => !isOptional || _.RuleName is not ("notEmpty" or "notNull"))];
     }
 
     /// <summary>

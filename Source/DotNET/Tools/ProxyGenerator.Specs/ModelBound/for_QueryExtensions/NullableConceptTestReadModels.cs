@@ -16,19 +16,31 @@ public class ReadModelWithNullableConcept
         OptionalName? optional,
         OptionalName required,
         [Required] OptionalName? annotated,
-        ConditionalName conditional) => [];
+        ConditionalName conditional,
+        LimitedName? limited,
+        OptionalName defaulted = null!) => [];
 }
 
 public class ReadModelWithNullableConceptAndParameters
 {
     public string Name { get; set; } = string.Empty;
 
-    public static IEnumerable<ReadModelWithNullableConceptAndParameters> FindNullableConceptArguments(OptionalName? optional, OptionalName? explicitName) => [];
+    public static IEnumerable<ReadModelWithNullableConceptAndParameters> FindNullableConceptArguments(
+        OptionalName? optional,
+        LimitedName? explicitName,
+        LimitedName? limited,
+        OptionalName required,
+        OptionalName? annotated) => [];
 }
 
-public record FindNullableConceptArgumentsParameters(OptionalName? Optional, OptionalName? ExplicitName);
+public record FindNullableConceptArgumentsParameters(
+    OptionalName Optional,
+    LimitedName ExplicitName,
+    LimitedName Limited,
+    OptionalName? Required,
+    [property: Required] OptionalName? Annotated);
 
 public class FindNullableConceptArgumentsParametersValidator : QueryValidator<FindNullableConceptArgumentsParameters>
 {
-    public FindNullableConceptArgumentsParametersValidator() => RuleFor(x => x.ExplicitName!).NotNull();
+    public FindNullableConceptArgumentsParametersValidator() => RuleFor(x => x.ExplicitName).NotNull();
 }

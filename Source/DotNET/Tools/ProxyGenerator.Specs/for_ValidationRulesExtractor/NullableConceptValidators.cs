@@ -16,9 +16,24 @@ public class OptionalNameValidator : ConceptValidator<OptionalName>
     public OptionalNameValidator() => RuleFor(x => x.Value).NotEmpty();
 }
 
+public record LimitedName(string Value) : ConceptAs<string>(Value);
+
+public class LimitedNameValidator : ConceptValidator<LimitedName>
+{
+    public LimitedNameValidator() => RuleFor(x => x.Value).NotEmpty().MaximumLength(10);
+}
+
+public record TestCommandWithConstructorBoundConcepts(OptionalName? Optional, OptionalName Required, LimitedName? Limited)
+{
+    public OptionalName? Optional { get; } = Optional;
+    public OptionalName Required { get; } = Required;
+    public LimitedName? Limited { get; } = Limited;
+}
+
 public record TestCommandWithNullableConcepts(
     OptionalName? Optional,
     OptionalName Required,
+    LimitedName? Limited,
     OptionalName? Explicit,
     [property: Required] OptionalName? Annotated);
 

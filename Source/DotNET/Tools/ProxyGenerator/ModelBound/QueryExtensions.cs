@@ -146,25 +146,23 @@ public static class QueryExtensions
         // with the same precedence the command path uses: an explicit validator for a matching parameters class, the
         // validators of any concept-typed parameters, and DataAnnotations on the parameters as a per-parameter fallback.
         var parametersType = FindParametersTypeFor(readModelType, method);
+
+        // The convention matches CLR types, not nullable-reference annotations. Infer concept rules only from
+        // the actual parameters so a stricter argument-model annotation cannot reintroduce presence rules.
         var explicitRules = parametersType is not null
-            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType).ToList()
+            ? ValidationRulesExtractor.ExtractValidationRules(readModelType.Assembly, parametersType, includeConceptRules: false).ToList()
             : [];
 
         var conceptRules = new List<PropertyValidationDescriptor>();
         var dataAnnotationsRules = new List<PropertyValidationDescriptor>();
-        var nullabilityContext = new NullabilityInfoContext();
         foreach (var param in method.GetParameters())
         {
             var parameterName = param.Name.ToCamelCase();
 
-            // An absent nullable concept is valid; explicit rules and annotations still apply independently.
-            if (nullabilityContext.Create(param).WriteState != NullabilityState.Nullable)
+            var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType, param.IsOptional());
+            if (rulesFromConcept.Count > 0)
             {
-                var rulesFromConcept = ValidationRulesExtractor.ExtractRulesForConceptType(readModelType.Assembly, param.ParameterType);
-                if (rulesFromConcept.Count > 0)
-                {
-                    conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
-                }
+                conceptRules.Add(new PropertyValidationDescriptor(parameterName, [.. rulesFromConcept]));
             }
 
             var rulesFromDataAnnotations = ValidationRulesExtractor.ExtractDataAnnotationsFromParameter(param);
