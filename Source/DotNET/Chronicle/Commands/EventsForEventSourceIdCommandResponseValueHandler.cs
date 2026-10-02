@@ -84,9 +84,11 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         foreach (var item in items)
         {
             // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
-            var (eventSourceId, @event, tags, occurred) = item is EventForEventSourceId wrapped
-                ? (wrapped.EventSourceId, wrapped.Event, wrapped.SuppliedTags(), wrapped.Occurred)
+            var wrapper = item as EventForEventSourceId;
+            var (eventSourceId, @event, tags, occurred) = wrapper is not null
+                ? (wrapper.EventSourceId, wrapper.Event, wrapper.SuppliedTags(), wrapper.Occurred)
                 : (commandContext.GetEventSourceId(), item, null, null);
+            var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext);
 
             if (!concurrencyScopesByEventSourceId.TryGetValue(eventSourceId, out var concurrencyScope))
             {
@@ -94,7 +96,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 concurrencyScopesByEventSourceId[eventSourceId] = concurrencyScope;
             }
 
-            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred))
+            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred, routing))
             {
                 continue;
             }
@@ -102,14 +104,14 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             var result = await eventLog.Append(
                 eventSourceId,
                 @event,
-                commandContext.GetEventStreamType(),
-                commandContext.GetEventStreamId(),
-                commandContext.GetEventSourceType(),
+                routing.EventStreamType,
+                routing.EventStreamId,
+                routing.EventSourceType,
                 correlationId: default,
                 tags: tags,
                 concurrencyScope: concurrencyScope,
                 occurred: occurred,
-                subject: commandContext.GetSubject());
+                subject: routing.Subject);
 
             if (!result.IsSuccess)
             {

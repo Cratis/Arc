@@ -64,15 +64,20 @@ internal static class CommandTransactionAppender
     /// </para>
     /// </remarks>
     internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext) =>
-        new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
-        {
-            EventStreamType = @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType() ?? EventStreamType.All,
-            EventStreamId = @event.EventStreamId != EventStreamId.Default ? @event.EventStreamId : commandContext.GetEventStreamId() ?? EventStreamId.Default,
-            EventSourceType = @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType() ?? EventSourceType.Default,
-            Subject = @event.Subject ?? commandContext.GetSubject(),
-            Occurred = @event.Occurred,
-            Tags = @event.Tags
-        };
+        WithRouting(eventLog, @event, commandContext, ResolveRouting(@event, commandContext));
+
+    /// <summary>
+    /// Resolves the routing for an event: a value set on the wrapper wins, otherwise the command context value is used.
+    /// </summary>
+    /// <param name="event">The wrapper the command returned, or null for a plain event that has no routing of its own.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> carrying the fallback event metadata.</param>
+    /// <returns>The resolved <see cref="EventRouting"/>.</returns>
+    internal static EventRouting ResolveRouting(EventForEventSourceId? @event, CommandContext commandContext) =>
+        new(
+            @event is not null && @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType(),
+            @event is not null && @event.EventStreamId != EventStreamId.Default ? @event.EventStreamId : commandContext.GetEventStreamId(),
+            @event is not null && @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType(),
+            @event?.Subject ?? commandContext.GetSubject());
 
     /// <summary>
     /// Gets the tags the command supplied on an event wrapper, or null when it supplied none.
@@ -97,6 +102,7 @@ internal static class CommandTransactionAppender
     /// <param name="concurrencyScope">The optional <see cref="ConcurrencyScope"/> for the append.</param>
     /// <param name="tags">Optional tags the command supplied for this event.</param>
     /// <param name="occurred">Optional occurrence time the command supplied for this event.</param>
+    /// <param name="routing">Optional resolved routing; defaults to the command context.</param>
     /// <returns>True when the event was enrolled in the command's transaction; false when no transaction is active.</returns>
     internal static bool TryEnrollForCommand(
         this IEventLog eventLog,
@@ -105,8 +111,10 @@ internal static class CommandTransactionAppender
         CommandContext commandContext,
         ConcurrencyScope? concurrencyScope,
         IEnumerable<string>? tags = default,
-        DateTimeOffset? occurred = default)
+        DateTimeOffset? occurred = default,
+        EventRouting? routing = default)
     {
+        routing ??= ResolveRouting(null, commandContext);
         if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
             CommandTransaction.RefuseImmediateAppend();
@@ -118,14 +126,25 @@ internal static class CommandTransactionAppender
             eventSourceId,
             @event,
             eventLog.CreateCommandCausation(commandContext),
-            commandContext.GetEventStreamType(),
-            commandContext.GetEventStreamId(),
-            commandContext.GetEventSourceType(),
+            routing.EventStreamType,
+            routing.EventStreamId,
+            routing.EventSourceType,
             concurrencyScope,
             tags,
             occurred,
-            commandContext.GetSubject());
+            routing.Subject);
 
         return true;
     }
+
+    static EventForEventSourceId WithRouting(IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext, EventRouting routing) =>
+        new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
+        {
+            EventStreamType = routing.EventStreamType ?? EventStreamType.All,
+            EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+            EventSourceType = routing.EventSourceType ?? EventSourceType.Default,
+            Subject = routing.Subject,
+            Occurred = @event.Occurred,
+            Tags = @event.Tags
+        };
 }
