@@ -5,12 +5,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const getPublishPlan = require('../workspace-publish-order.cjs');
+const isVersionPublished = require('../workspace-version-is-published.cjs');
 
 const root = path.resolve(__dirname, '../..');
 const script = fs.readFileSync(path.join(root, 'run-task-on-workspaces.js'), 'utf8').replace(/^#!.*\n/, '');
 
 // Execute the actual CLI against in-memory manifests; no install or real npm call is needed.
-function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'], results = {} } = {}) {
+function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'], results = {}, viewResults = {} } = {}) {
     const files = new Map([[path.join(root, 'README.md'), 'Root README']]);
     const packagePaths = packages.map((manifest, index) => {
         const location = path.join('packages', String(index), 'package.json');
@@ -18,6 +19,7 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
         return location;
     });
     const calls = [];
+    const viewCalls = [];
     const output = [];
     const exitSignal = {};
     let status = 0;
@@ -32,6 +34,7 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
         glob: { sync: () => packagePaths },
         './package.json': { workspaces: ['packages/*'] },
         './scripts/workspace-publish-order.cjs': getPublishPlan,
+        './scripts/workspace-version-is-published.cjs': isVersionPublished,
         'edit-json-file': location => {
             const manifest = JSON.parse(read(location));
             return {
@@ -44,7 +47,15 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
         child_process: {
             spawnSync: (command, args, options) => {
                 const manifest = JSON.parse(read(path.join(options.cwd, 'package.json')));
-                calls.push({ command, args: Array.from(args), name: manifest.name, manifest });
+                const call = { command, args: Array.from(args), cwd: options.cwd, name: manifest.name, manifest };
+                if (command === 'npm' && args[0] === 'view') {
+                    const index = viewCalls.filter(previous => previous.name === manifest.name).length;
+                    viewCalls.push(call);
+                    const configured = viewResults[manifest.name];
+                    const result = Array.isArray(configured) ? configured[index] : configured;
+                    return { status: 1, stdout: Buffer.alloc(0), stderr: Buffer.from('npm error code E404'), ...result };
+                }
+                calls.push(call);
                 return { status: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), ...results[manifest.name] };
             }
         }
@@ -68,7 +79,7 @@ function runWorkspaces(packages, { task = 'publish-version', args = ['22.32.1'],
     } catch (error) {
         if (error !== exitSignal) throw error;
     }
-    return { status, calls, output: output.join('\n'), manifests: packagePaths.map(location => JSON.parse(read(location))), files };
+    return { status, calls, viewCalls, output: output.join('\n'), manifests: packagePaths.map(location => JSON.parse(read(location))), files };
 }
 
 module.exports = runWorkspaces;

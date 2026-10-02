@@ -23,6 +23,8 @@ on:
       - "Source/JavaScript/**"
       - "run-task-on-workspaces.js"
       - "scripts/workspace-publish-order.cjs"
+      - "scripts/workspace-version-is-published.cjs"
+      - "scripts/workspace-publish-retry.test.cjs"
       - "scripts/run-task-on-workspaces.test.cjs"
       - "scripts/fixtures/workspace-runner.cjs"
       - "scripts/check-declaration-imports.cjs"

@@ -4,6 +4,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const runWorkspaces = require('./fixtures/workspace-runner.cjs');
+require('./workspace-publish-retry.test.cjs');
 
 const publishedNames = result => result.calls.map(call => call.name);
 

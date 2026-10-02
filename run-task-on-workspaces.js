@@ -129,9 +129,15 @@ for (const workspaceName of workspaceNamesToRun) {
                 }
 
                 const version = args[0];
+                const isVersionPublished = require('./scripts/workspace-version-is-published.cjs');
                 file.set('version', version);
                 updateDependencyVersionsFromLocalWorkspaces(file, packageJson, version);
                 file.save();
+
+                if (isVersionPublished(spawn, workspaceName, version, packageJson, workspaceAbsoluteLocation)) {
+                    console.log(`Skipping publish of workspace '${workspaceName}' - version ${version} is already published`);
+                    continue;
+                }
 
                 const targetReadMe = path.join(workspaceAbsoluteLocation, 'README.md');
 
@@ -144,6 +150,10 @@ for (const workspaceName of workspaceNamesToRun) {
                 console.log(result.stdout?.toString() ?? '');
                 console.log(result.stderr?.toString() ?? '');
                 if (result.status !== 0) {
+                    if (isVersionPublished(spawn, workspaceName, version, packageJson, workspaceAbsoluteLocation)) {
+                        console.log(`Workspace '${workspaceName}' version ${version} is published despite the publish error`);
+                        continue;
+                    }
                     // Keep publishing independent packages, but never publish a dependent
                     // that would pin a version which failed to reach the registry.
                     if (result.error) console.log(result.error.message);
