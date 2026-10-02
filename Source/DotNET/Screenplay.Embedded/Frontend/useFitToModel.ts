@@ -66,8 +66,8 @@ export const useFitToModel = (modelKey: string, options?: FitOptions) => {
         resizes?.observe(container);
 
         const stop = (event: Event) => {
-            // The view options sit on top of the board; using them is not the person moving the camera.
-            if (event.target instanceof Element && event.target.closest('.board-view-options')) return;
+            // The board's toolbar sits on top of it; using the view options is not the person moving the camera.
+            if (event.target instanceof Element && event.target.closest('.event-model-board__toolbar')) return;
             doneRef.current = true;
             mutations?.disconnect();
             resizes?.disconnect();
