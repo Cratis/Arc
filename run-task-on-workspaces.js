@@ -17,6 +17,7 @@ const rootPackageJson = require('./package.json')
 const glob = require('glob').sync;
 
 const workspaces = {};
+const workspacePackages = new Map();
 
 const workspaceIgnorePatterns = rootPackageJson.workspaces
     .filter(_ => _.startsWith('!'))
@@ -50,6 +51,7 @@ for (const workspaceDef of rootPackageJson.workspaces) {
     packages.forEach(_ => {
         const package = JSON.parse(fs.readFileSync(_).toString());
         workspaces[package.name] = path.dirname(_);
+        workspacePackages.set(package.name, package);
 
         console.log(`Including workspace '${package.name}' at '${workspaces[package.name]}'`);
     });
@@ -69,6 +71,20 @@ if (args.length > 0) {
 console.log('');
 
 const workspaceNames = Object.keys(workspaces);
+let workspaceNamesToRun = workspaceNames;
+let publishDependencies = new Map();
+if (task === 'publish-version' && args.length === 1) {
+    try {
+        const getPublishPlan = require('./scripts/workspace-publish-order.cjs');
+        const plan = getPublishPlan(workspacePackages);
+        workspaceNamesToRun = plan.names;
+        publishDependencies = plan.dependencies;
+    } catch (error) {
+        console.error(error.message);
+        process.exit(1);
+        return;
+    }
+}
 
 function updateDependencyVersionsFromLocalWorkspaces(file, packageJson, version) {
     const dependencyFields = Object.keys(packageJson).filter(_ => _.endsWith('dependencies') || _.endsWith('Dependencies'));
@@ -88,8 +104,9 @@ function updateDependencyVersionsFromLocalWorkspaces(file, packageJson, version)
 }
 
 const publishFailures = [];
+const blockedPublishes = new Set();
 
-for (const workspaceName in workspaces) {
+for (const workspaceName of workspaceNamesToRun) {
     const workspaceRelativeLocation = workspaces[workspaceName];
     const workspaceAbsoluteLocation = path.join(process.cwd(), workspaceRelativeLocation);
     const packageJsonFile = path.join(workspaceAbsoluteLocation, 'package.json');
@@ -104,6 +121,13 @@ for (const workspaceName in workspaces) {
 
         if (task === 'publish-version') {
             if (args.length === 1) {
+                const failedDependencies = publishDependencies.get(workspaceName).filter(_ => blockedPublishes.has(_));
+                if (failedDependencies.length > 0) {
+                    console.log(`Skipping publish of workspace '${workspaceName}' - dependencies failed to publish: ${failedDependencies.join(', ')}`);
+                    blockedPublishes.add(workspaceName);
+                    continue;
+                }
+
                 const version = args[0];
                 file.set('version', version);
                 updateDependencyVersionsFromLocalWorkspaces(file, packageJson, version);
@@ -117,14 +141,15 @@ for (const workspaceName in workspaces) {
 
                 console.log(`Publishing workspace '${workspaceName}' at '${workspaceRelativeLocation}'`);
                 const result = spawn('npm', ['publish', '--provenance'], { cwd: workspaceAbsoluteLocation });
-                console.log(result.stdout.toString());
-                console.log(result.stderr.toString());
+                console.log(result.stdout?.toString() ?? '');
+                console.log(result.stderr?.toString() ?? '');
                 if (result.status !== 0) {
-                    // Don't abort the release: a single workspace failing (e.g. a brand-new
-                    // package whose npm trusted publisher isn't configured yet) must not
-                    // strand the other packages. Collect and fail at the end instead.
+                    // Keep publishing independent packages, but never publish a dependent
+                    // that would pin a version which failed to reach the registry.
+                    if (result.error) console.log(result.error.message);
                     console.log(`Error publishing workspace '${workspaceName}' - continuing with remaining workspaces`);
                     publishFailures.push(workspaceName);
+                    blockedPublishes.add(workspaceName);
                 }
             }
         } else {
