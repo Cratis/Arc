@@ -4,6 +4,7 @@
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -48,7 +49,19 @@ public static class ConcurrencyScopeBuilder
 
         if (!scopeByEventStreamId && !scopeByEventStreamType && !scopeByEventSourceType)
         {
-            return null;
+            var dimensions = commandContext.Values.TryGetValue(WellKnownCommandContextKeys.ConcurrencyDimensions, out var value) && value is ConcurrencyDimensions declared
+                ? declared
+                : ConcurrencyDimensions.None;
+            if (dimensions == ConcurrencyDimensions.None)
+            {
+                return null;
+            }
+
+            return await strategy.GetScope(
+                eventSourceId,
+                eventStreamType: dimensions.HasFlag(ConcurrencyDimensions.EventStreamType) ? commandContext.GetEventStreamType() : null,
+                eventStreamId: dimensions.HasFlag(ConcurrencyDimensions.EventStreamId) ? commandContext.GetEventStreamId() : null,
+                eventSourceType: dimensions.HasFlag(ConcurrencyDimensions.EventSourceType) ? commandContext.GetEventSourceType() : null);
         }
 
         return await strategy.GetScope(

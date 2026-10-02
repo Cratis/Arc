@@ -77,7 +77,9 @@ internal static class CommandTransactionAppender
             @event is not null && @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType(),
             @event is not null && @event.EventStreamId != EventStreamId.Default ? @event.EventStreamId : commandContext.GetEventStreamId(),
             @event is not null && @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType(),
-            @event?.Subject ?? commandContext.GetSubject());
+            @event?.Subject ?? commandContext.GetSubject(),
+            @event?.EventSource ?? commandContext.GetEventSource(),
+            @event?.EventStream ?? commandContext.GetEventStream());
 
     /// <summary>
     /// Gets the tags the command supplied on an event wrapper, or null when it supplied none.
@@ -121,21 +123,63 @@ internal static class CommandTransactionAppender
             return false;
         }
 
-        unitOfWork.AddEvent(
-            eventLog.Id,
-            eventSourceId,
-            @event,
-            eventLog.CreateCommandCausation(commandContext),
-            routing.EventStreamType,
-            routing.EventStreamId,
-            routing.EventSourceType,
-            concurrencyScope,
-            tags,
-            occurred,
-            routing.Subject);
+        if (routing.EventSource is not null)
+        {
+            var eventForEventSource = new EventForEventSourceId(eventSourceId, @event, eventLog.CreateCommandCausation(commandContext))
+            {
+                EventSource = routing.EventSource,
+                EventStream = routing.EventStream,
+                EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                Subject = routing.Subject,
+                Occurred = occurred,
+                Tags = tags ?? []
+            };
+            unitOfWork.AddEvents(
+                eventLog.Id,
+                [eventForEventSource],
+                [new(eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet)]);
+        }
+        else
+        {
+            unitOfWork.AddEvent(
+                eventLog.Id,
+                eventSourceId,
+                @event,
+                eventLog.CreateCommandCausation(commandContext),
+                routing.EventStreamType,
+                routing.EventStreamId,
+                routing.EventSourceType,
+                concurrencyScope,
+                tags,
+                occurred,
+                routing.Subject);
+        }
 
         return true;
     }
+
+    /// <summary>
+    /// Appends an event using definition routing when a command declares it, otherwise using legacy routing.
+    /// </summary>
+    /// <param name="eventLog">The event log to append to.</param>
+    /// <param name="eventSourceId">The event source instance id.</param>
+    /// <param name="event">The event to append.</param>
+    /// <param name="routing">The resolved routing metadata.</param>
+    /// <param name="concurrencyScope">The optional concurrency scope.</param>
+    /// <param name="tags">The optional tags.</param>
+    /// <param name="occurred">The optional occurrence time.</param>
+    /// <returns>The append result.</returns>
+    internal static Task<AppendResult> AppendForCommand(
+        this IEventLog eventLog,
+        EventSourceId eventSourceId,
+        object @event,
+        EventRouting routing,
+        ConcurrencyScope? concurrencyScope,
+        IEnumerable<string>? tags = default,
+        DateTimeOffset? occurred = default) =>
+        routing.EventSource is not null
+            ? eventLog.Append(routing.EventSource, eventSourceId, @event, routing.EventStream, routing.EventStreamId, correlationId: default, tags, concurrencyScope, occurred, routing.Subject)
+            : eventLog.Append(eventSourceId, @event, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, tags, concurrencyScope, occurred, routing.Subject);
 
     static EventForEventSourceId WithRouting(IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext, EventRouting routing) =>
         new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
@@ -144,6 +188,8 @@ internal static class CommandTransactionAppender
             EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
             EventSourceType = routing.EventSourceType ?? EventSourceType.Default,
             Subject = routing.Subject,
+            EventSource = routing.EventSource,
+            EventStream = routing.EventStream,
             Occurred = @event.Occurred,
             Tags = @event.Tags
         };

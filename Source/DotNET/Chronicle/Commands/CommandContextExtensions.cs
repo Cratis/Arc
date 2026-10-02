@@ -53,6 +53,26 @@ public static class CommandContextExtensions
             : null;
 
     /// <summary>
+    /// Gets the event source definition type from the command context values, if present.
+    /// </summary>
+    /// <param name="commandContext">The command context to get the event source definition type from.</param>
+    /// <returns>The event source definition type, or null if not present.</returns>
+    public static Type? GetEventSource(this CommandContext commandContext) =>
+        commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventSource, out var value) && value is Type eventSource
+            ? eventSource
+            : null;
+
+    /// <summary>
+    /// Gets the event stream declared by the event source definition from the command context values, if present.
+    /// </summary>
+    /// <param name="commandContext">The command context to get the declared event stream from.</param>
+    /// <returns>The declared event stream, or null if not present.</returns>
+    public static string? GetEventStream(this CommandContext commandContext) =>
+        commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventStream, out var value) && value is string eventStream
+            ? eventStream
+            : null;
+
+    /// <summary>
     /// Gets the event stream type from the command context values, if present.
     /// </summary>
     /// <param name="commandContext">The command context to get the event stream type from.</param>

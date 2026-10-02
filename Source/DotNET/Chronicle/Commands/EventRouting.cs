@@ -13,8 +13,12 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="EventStreamId">The optional <see cref="EventStreamId"/>.</param>
 /// <param name="EventSourceType">The optional <see cref="EventSourceType"/>.</param>
 /// <param name="Subject">The optional subject.</param>
+/// <param name="EventSource">The optional event source definition type.</param>
+/// <param name="EventStream">The optional stream declared by the event source definition.</param>
 internal record EventRouting(
     EventStreamType? EventStreamType,
     EventStreamId? EventStreamId,
     EventSourceType? EventSourceType,
-    Subject? Subject);
+    Subject? Subject,
+    Type? EventSource,
+    string? EventStream);
