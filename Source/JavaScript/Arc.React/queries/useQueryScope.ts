@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React from 'react';
-import { QueryScopeContext } from './QueryScope.js';
+import { QueryScopeContext } from './QueryScopeContext.js';
 
 /**
  * React hook for accessing the current {@link IQueryScope} from the context.

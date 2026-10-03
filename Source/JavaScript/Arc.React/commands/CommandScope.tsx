@@ -2,31 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import React, { useEffect, useState, useRef } from 'react';
-import { ICommand, CommandResult, CommandResults } from '@cratis/arc/commands';
+import { ICommand, CommandResult } from '@cratis/arc/commands';
 import { CommandScopeImplementation } from './CommandScopeImplementation.js';
 import { ICommandScope } from './ICommandScope.js';
 import { useCommandScope } from './useCommandScope.js';
 
-/* eslint-disable @typescript-eslint/no-empty-function */
-const defaultCommandScopeContext: ICommandScope = new class extends ICommandScope {
-    get parent() { return undefined; }
-    get hasChanges() { return false; }
-    get isPerforming() { return false; }
-    get hasValidationFailures() { return false; }
-    get hasExceptions() { return false; }
-    get validationFailures() { return new Map(); }
-    get aggregatedValidationFailures() { return []; }
-    get exceptions() { return new Map(); }
-    get aggregatedExceptions() { return []; }
-    addCommand() { }
-    addQuery() { }
-    addChildScope() { }
-    async execute() { return new CommandResults(new Map()); }
-    revertChanges() { }
-}();
-/* eslint-enable @typescript-eslint/no-empty-function */
+import { CommandScopeContext, defaultCommandScopeContext } from './CommandScopeContext.js';
 
-export const CommandScopeContext = React.createContext<ICommandScope>(defaultCommandScopeContext);
+export { CommandScopeContext } from './CommandScopeContext.js';
 
 export type CommandScopeChanged = (hasChanges: boolean) => void;
 export type CommandScopeExecute = () => Promise<Map<ICommand, CommandResult>>;
