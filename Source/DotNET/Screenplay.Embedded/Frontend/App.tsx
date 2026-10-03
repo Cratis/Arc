@@ -29,7 +29,7 @@ export const App = () => {
         if (selection) return;
         const project = projects.find(candidate => candidate.documents.length > 0);
         const root = project && rootDocumentOf(project);
-        if (project && root) setSelection({ projectId: project.id, documentId: root.id });
+        if (project && root) setSelection(current => current ?? { projectId: project.id, documentId: root.id });
     }, [projects, selection]);
 
     if (hierarchy.status === 'loading') return <Status kind='loading' message='Loading event model documents…' />;
