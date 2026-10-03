@@ -60,10 +60,13 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
     {
-        var eventScenario = new EventScenario();
+        var scenarioId = Guid.NewGuid();
+        var eventStoreName = new EventStoreName($"test-event-store-{scenarioId:N}");
+        var namespaceName = new EventStoreNamespaceName($"default-{scenarioId:N}");
+        var eventScenario = new EventScenario(EventSequenceId.Log, eventStoreName, namespaceName, new DiscoveredConstraintsForScenario(Defaults.Instance));
         var appendedEvents = new List<AppendedEventWithResult>();
         var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
-        var eventStore = new EventStoreForScenario(eventScenario, readModels);
+        var eventStore = new EventStoreForScenario(eventScenario, readModels, eventStoreName, namespaceName);
         var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
         eventScenario.EventLog.AppendOperations.Subscribe(appendedEvents.AddRange);
