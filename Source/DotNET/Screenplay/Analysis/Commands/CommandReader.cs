@@ -54,8 +54,9 @@ public class CommandReader(
             AuthorizationReader.Read(type),
             validators.For(type),
             produces.Read(type, handlers, location),
-            ConcurrencyReader.Read(type),
-            paths.Relative(type.SourceFilePath()));
+            ConcurrencyReader.Read(type) ?? EventSourceReader.ReadConcurrency(type),
+            paths.Relative(type.SourceFilePath()),
+            EventSourceReader.Read(type));
     }
 
     /// <summary>
