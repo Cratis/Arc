@@ -41,4 +41,29 @@ public record ProjectionModel(
         : this(identifier, readModel, eventSequenceId, autoMap, subscribesToAllEvents, scope, null)
     {
     }
+
+    /// <summary>
+    /// Deconstructs the projection into the members it had before it could be filtered to an event source, so existing deconstruction keeps compiling.
+    /// </summary>
+    /// <param name="identifier">The identifier of the projection.</param>
+    /// <param name="readModel">The name of the read model the projection builds.</param>
+    /// <param name="eventSequenceId">The identifier of the event sequence the projection observes.</param>
+    /// <param name="autoMap">How automatic property mapping applies at the root.</param>
+    /// <param name="subscribesToAllEvents">Whether the projection observes every event type in the system.</param>
+    /// <param name="scope">Everything the projection declares at its root.</param>
+    public void Deconstruct(
+        out string identifier,
+        out string readModel,
+        out string eventSequenceId,
+        out ProjectionAutoMapMode autoMap,
+        out bool subscribesToAllEvents,
+        out ProjectionScopeModel scope)
+    {
+        identifier = Identifier;
+        readModel = ReadModel;
+        eventSequenceId = EventSequenceId;
+        autoMap = AutoMap;
+        subscribesToAllEvents = SubscribesToAllEvents;
+        scope = Scope;
+    }
 }

@@ -29,4 +29,19 @@ public record ReactorModel(
         : this(name, observedEvents, isTranslating, sourceFilePath, null)
     {
     }
+
+    /// <summary>
+    /// Deconstructs the reactor into the members it had before it could be filtered to an event source, so existing deconstruction keeps compiling.
+    /// </summary>
+    /// <param name="name">The name of the reactor.</param>
+    /// <param name="observedEvents">The names of the events the reactor observes.</param>
+    /// <param name="isTranslating">Whether the reactor turns events into further events or commands.</param>
+    /// <param name="sourceFilePath">The path of the file implementing the reactor, if it is known.</param>
+    public void Deconstruct(out string name, out IEnumerable<string> observedEvents, out bool isTranslating, out string? sourceFilePath)
+    {
+        name = Name;
+        observedEvents = ObservedEvents;
+        isTranslating = IsTranslating;
+        sourceFilePath = SourceFilePath;
+    }
 }

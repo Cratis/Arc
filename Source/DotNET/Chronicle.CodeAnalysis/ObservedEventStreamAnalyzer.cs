@@ -42,7 +42,7 @@ public sealed class ObservedEventStreamAnalyzer : DiagnosticAnalyzer
         foreach (var attribute in type.GetAttributes())
         {
             if (attribute.AttributeClass is not { TypeArguments.Length: 1 } attributeClass ||
-                attributeClass.TypeArguments[0] is not INamedTypeSymbol definition ||
+                attributeClass.TypeArguments[0] is not INamedTypeSymbol { TypeKind: not TypeKind.Error } definition ||
                 FullName(attributeClass.OriginalDefinition) != FromEventSourceAttribute ||
                 attribute.ConstructorArguments.Length == 0 ||
                 attribute.ConstructorArguments[0].Value is not string stream ||
