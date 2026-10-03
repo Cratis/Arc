@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { Meta } from '@storybook/react';
 import { ObservableQueryFor, QueryResult, ObservableQuerySubscription } from '@cratis/arc/queries';

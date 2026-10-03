@@ -14,7 +14,6 @@ import { useObservableQuery } from '../../queries/useObservableQuery.js';
 import { useQuery } from '../../queries/useQuery.js';
 import { QueryReturnsMultipleInstances } from '../../queries/QueryReturnsMultipleInstances.js';
 
-/* eslint-disable @typescript-eslint/no-empty-object-type */
 class NoPopulationQuery extends QueryFor<Record<string, never>> {
     readonly route = '';
     readonly parameterDescriptors: ParameterDescriptor[] = [];
@@ -42,7 +41,6 @@ class NoPopulationObservableQuery extends ObservableQueryFor<Record<string, neve
         super(Object, false);
     }
 }
-/* eslint-enable @typescript-eslint/no-empty-object-type */
 
 function guardSingleInstance(query: Constructor<{ enumerable?: boolean }> | undefined) {
     if (!query) {

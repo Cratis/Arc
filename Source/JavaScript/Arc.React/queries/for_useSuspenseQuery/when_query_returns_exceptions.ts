@@ -10,7 +10,6 @@ import { FakeSuspenseQuery } from './FakeSuspenseQuery.js';
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when query returns exceptions', () => {
     let fetchStub: sinon.SinonStub;

@@ -12,7 +12,6 @@ import { FakeSuspenseObservableQuery } from './FakeSuspenseObservableQuery.js';
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryResult } from '@cratis/arc/queries';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when observable query returns exceptions', () => {
     let originalConsoleError: typeof console.error;

@@ -3,7 +3,6 @@
 
 import { QueryResult } from '../../QueryResult.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe("when asking has data and it is an array with items", () => {
     const queryResult = new QueryResult<object>({

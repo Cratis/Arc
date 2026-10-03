@@ -5,8 +5,6 @@ import sinon from 'sinon';
 import { CommandResult, ICommand } from '@cratis/arc/commands';
 import { PropertyDescriptor } from '@cratis/arc/reflection';
 
-/* eslint-disable */
-
 export class FakeCommand implements ICommand {
     route = '';
     roles: string[] = [];

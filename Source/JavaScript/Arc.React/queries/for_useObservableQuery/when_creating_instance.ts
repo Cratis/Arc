@@ -9,7 +9,6 @@ import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryInstanceCache, QueryResult } from '@cratis/arc/queries';
 import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when creating instance', () => {
     let capturedIsPerformingInitial: boolean | null = null;
