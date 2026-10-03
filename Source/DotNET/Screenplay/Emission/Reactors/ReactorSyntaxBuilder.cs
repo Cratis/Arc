@@ -28,6 +28,8 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// <returns>The <see cref="ReactionSyntax"/>, or <see langword="null"/> when it observes no events.</returns>
     public ReactionSyntax? Build(ReactorModel reactor, string @namespace)
     {
+        new ObservedEventSourceReport(diagnostics).Report("reactor", reactor.Name, reactor.EventSource, @namespace);
+
         var name = naming.ToDeclarationName(reactor.Name);
         var path = naming.ToFilePath(reactor.SourceFilePath) ?? SourceFilePaths.Conventional(@namespace, name);
         var file = new FileReferenceSyntax(path, SourceLocation.Start);

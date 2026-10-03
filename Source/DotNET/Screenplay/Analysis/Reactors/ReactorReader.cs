@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -60,7 +61,8 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             type.Name,
             [.. handlers.Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
             IsTranslating(type, handlers),
-            paths.Relative(type.SourceFilePath()));
+            paths.Relative(type.SourceFilePath()),
+            EventSourceReader.ReadObserved(type));
     }
 
     /// <summary>

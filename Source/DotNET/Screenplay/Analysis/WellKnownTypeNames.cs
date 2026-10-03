@@ -81,6 +81,9 @@ public static class WellKnownTypeNames
     /// <summary>The generic attribute declaring the event source definition and stream a command appends through.</summary>
     public const string ArcEventSourceAttributeOfT = "Cratis.Arc.Chronicle.Commands.EventSourceAttribute`1";
 
+    /// <summary>The generic attribute filtering a reactor or reducer to the events of an event source definition and stream.</summary>
+    public const string FromEventSourceAttributeOfT = "Cratis.Chronicle.EventSources.FromEventSourceAttribute`1";
+
     /// <summary>The attribute declaring a type as an event source definition.</summary>
     public const string EventSourceDefinitionAttribute = "Cratis.Chronicle.EventSources.EventSourceAttribute";
 

@@ -468,4 +468,20 @@ public static class ScreenplayDiagnosticCodes
     /// The stream id takes part in the concurrency scope an event source definition declares, which has no value to state.
     /// </summary>
     public const string EventStreamIdConcurrencyNotRepresentable = "SP0046";
+
+    /// <summary>
+    /// A reactor or reducer observes the events of an event source definition and stream, which the Screenplay language cannot declare yet.
+    /// </summary>
+    /// <remarks>
+    /// The latest published Screenplay syntax gives a reaction trigger a named event and nothing to narrow it to an
+    /// event source or stream, and the projection syntax has no such selector either. The observer is still emitted,
+    /// but for every event of its type, so this is reported so a document silent about the filter is not read as an
+    /// observer of the whole event log.
+    /// </remarks>
+    public const string ObserverEventSourceNotRepresentable = "SP0047";
+
+    /// <summary>
+    /// A reactor or reducer names a stream its event source definition does not declare.
+    /// </summary>
+    public const string ObserverEventStreamNotDeclared = "SP0048";
 }

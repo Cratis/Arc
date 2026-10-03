@@ -30,6 +30,8 @@ public partial class ProjectionSyntaxBuilder(IScreenplayNaming naming, Screenpla
     /// <returns>The <see cref="ProjectionSyntax"/>, or <see langword="null"/> when there is nothing to declare.</returns>
     public ProjectionSyntax? Build(ProjectionModel projection, string location)
     {
+        new ObservedEventSourceReport(diagnostics).Report("reducer", projection.Identifier, projection.EventSource, location);
+
         var readModel = naming.ToDeclarationName(projection.ReadModel);
         var blocks = new ProjectionBlockConverter(naming, readModel, diagnostics, location, names)
             .Convert(projection.Scope, projection.SubscribesToAllEvents)
