@@ -80,8 +80,15 @@ public class when_generating_lint_compliant_output : Specification
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        await process.StandardInput.WriteAsync(JsonSerializer.Serialize(_contents));
-        process.StandardInput.Close();
+        try
+        {
+            await process.StandardInput.WriteAsync(JsonSerializer.Serialize(_contents));
+            process.StandardInput.Close();
+        }
+        catch (IOException)
+        {
+            // Node exited before reading its input; its own diagnostics below explain why.
+        }
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(180));
         await process.WaitForExitAsync(deadline.Token);
         _output = await stdout + await stderr;
