@@ -39,9 +39,11 @@ public class with_a_declared_event_source_and_events_in_other_streams : Specific
             aggregateRoot,
             Substitute.For<IUnitOfWork>(),
             EventSequenceNumber.First,
-            EventSequenceNumber.BeforeFirst,
-            typeof(object),
-            "transactions");
+            EventSequenceNumber.BeforeFirst)
+        {
+            EventSource = typeof(object),
+            EventStream = "transactions"
+        };
 
         _handled = [];
         _eventHandlers = Substitute.For<IAggregateRootEventHandlers>();

@@ -43,15 +43,16 @@ public class with_a_declared_event_source : Specification
             });
 
         var unitOfWork = new UnitOfWork(CorrelationId.New(), _ => { }, eventStore);
-        var context = Substitute.For<IAggregateRootContext>();
+        var context = Substitute.For<IAggregateRootContext, IAggregateRootEventSourceContext>();
+        var declared = (IAggregateRootEventSourceContext)context;
         context.EventSourceId.Returns(_eventSourceId);
         context.AggregateRoot.Returns(new TestAggregateRoot());
         context.UnitOfWOrk.Returns(unitOfWork);
         context.EventStreamType.Returns(_eventStreamType);
         context.EventStreamId.Returns(_eventStreamId);
         context.EventSourceType.Returns(_eventSourceType);
-        context.EventSource.Returns(typeof(TestAggregateRoot));
-        context.EventStream.Returns("transactions");
+        declared.EventSource.Returns(typeof(TestAggregateRoot));
+        declared.EventStream.Returns("transactions");
 
         var mutation = new AggregateRootMutation(context, Substitute.For<IAggregateRootMutator>(), _eventSequence);
         await mutation.Apply(new DeclaredSourceEvent());

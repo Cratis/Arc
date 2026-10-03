@@ -35,16 +35,6 @@ public interface IAggregateRootContext
     EventStreamId EventStreamId { get; }
 
     /// <summary>
-    /// Gets the type of the event source definition the aggregate root declares, if any.
-    /// </summary>
-    Type? EventSource { get; }
-
-    /// <summary>
-    /// Gets the name of the stream the aggregate root declares on its event source, if any.
-    /// </summary>
-    string? EventStream { get; }
-
-    /// <summary>
     /// Gets the <see cref="EventSequenceId"/> for the context.
     /// </summary>
     IEventSequence EventSequence { get; }

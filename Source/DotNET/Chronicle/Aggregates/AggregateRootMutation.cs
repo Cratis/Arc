@@ -65,7 +65,8 @@ public class AggregateRootMutation(
             aggregateRootContext.EventStreamId,
             aggregateRootContext.EventSourceType);
 
-        if (aggregateRootContext.EventSource is null)
+        var declared = aggregateRootContext as IAggregateRootEventSourceContext;
+        if (declared?.EventSource is null)
         {
             aggregateRootContext.UnitOfWOrk.AddEvent(
                 eventSequence.Id,
@@ -85,8 +86,8 @@ public class AggregateRootMutation(
                 [
                     new EventForEventSourceId(EventSourceId, @event, causation)
                     {
-                        EventSource = aggregateRootContext.EventSource,
-                        EventStream = aggregateRootContext.EventStream,
+                        EventSource = declared.EventSource,
+                        EventStream = declared.EventStream,
                         EventStreamType = aggregateRootContext.EventStreamType,
                         EventStreamId = aggregateRootContext.EventStreamId,
                         EventSourceType = aggregateRootContext.EventSourceType

@@ -34,7 +34,7 @@ public class AggregateRootMutator(
             aggregateRootContext.EventStreamId);
 
         var events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
-        if (aggregateRootContext.EventSource is not null)
+        if (aggregateRootContext is IAggregateRootEventSourceContext { EventSource: not null })
         {
             // The Chronicle client has no stream-aware read, so an aggregate that declares its event source keeps only
             // the events its commit scope guards (#2796): the same source type, stream type and stream id.

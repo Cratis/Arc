@@ -23,8 +23,8 @@ public class when_getting_aggregate_root_with_a_declared_event_source : given.an
 
     [Fact] void should_use_the_event_source_type_of_the_definition() => _result._context.EventSourceType.ShouldEqual(new EventSourceType("LedgerSource"));
     [Fact] void should_use_the_declared_stream_as_stream_type() => _result._context.EventStreamType.ShouldEqual(new EventStreamType("transactions"));
-    [Fact] void should_keep_the_event_source_on_the_context() => _result._context.EventSource.ShouldEqual(typeof(LedgerSource));
-    [Fact] void should_keep_the_declared_stream_on_the_context() => _result._context.EventStream.ShouldEqual("transactions");
+    [Fact] void should_keep_the_event_source_on_the_context() => ((IAggregateRootEventSourceContext)_result._context).EventSource.ShouldEqual(typeof(LedgerSource));
+    [Fact] void should_keep_the_declared_stream_on_the_context() => ((IAggregateRootEventSourceContext)_result._context).EventStream.ShouldEqual("transactions");
 
     [EventSource<LedgerSource>("transactions")]
     public class AccountAggregate : AggregateRoot;

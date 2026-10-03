@@ -60,9 +60,11 @@ public class AggregateRootFactory(
             // A new aggregate has no event in its scope, so rehydration leaves this as it is. Expecting
             // BeforeFirst makes the commit mean "no event may exist in this scope yet", where expecting the first
             // sequence number would accept a concurrent writer's own first event, which sits at that very number.
-            EventSequenceNumber.BeforeFirst,
-            routing?.EventSource,
-            routing?.EventStream);
+            EventSequenceNumber.BeforeFirst)
+        {
+            EventSource = routing?.EventSource,
+            EventStream = routing?.EventStream
+        };
 
         var mutator = await mutatorFactory.Create<TAggregateRoot>(context);
         await mutator.Rehydrate();
