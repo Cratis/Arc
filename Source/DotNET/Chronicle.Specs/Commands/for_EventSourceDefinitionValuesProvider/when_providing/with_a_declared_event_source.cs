@@ -15,7 +15,9 @@ public class with_a_declared_event_source : Specification
     {
         var eventSources = Substitute.For<IEventSources>();
         eventSources.GetFor(typeof(Account)).Returns(new EventSourceDefinition(typeof(Account), "account", "", ConcurrencyDimensions.EventSourceId | ConcurrencyDimensions.EventStreamType, [new("transactions", "", ConcurrencyDimensions.None)]));
-        _provider = new(eventSources);
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IEventSources)).Returns(eventSources);
+        _provider = new(serviceProvider);
     }
 
     void Because() => _result = _provider.Provide(new RecordTransaction());

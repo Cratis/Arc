@@ -65,15 +65,36 @@ public class AggregateRootMutation(
             aggregateRootContext.EventStreamId,
             aggregateRootContext.EventSourceType);
 
-        aggregateRootContext.UnitOfWOrk.AddEvent(
-            eventSequence.Id,
-            EventSourceId,
-            @event,
-            causation,
-            aggregateRootContext.EventStreamType,
-            aggregateRootContext.EventStreamId,
-            aggregateRootContext.EventSourceType,
-            concurrencyScope);
+        if (aggregateRootContext.EventSource is null)
+        {
+            aggregateRootContext.UnitOfWOrk.AddEvent(
+                eventSequence.Id,
+                EventSourceId,
+                @event,
+                causation,
+                aggregateRootContext.EventStreamType,
+                aggregateRootContext.EventStreamId,
+                aggregateRootContext.EventSourceType,
+                concurrencyScope);
+        }
+        else
+        {
+            // A declared event source is recorded on the event, so it goes in as a self-describing event.
+            aggregateRootContext.UnitOfWOrk.AddEvents(
+                eventSequence.Id,
+                [
+                    new EventForEventSourceId(EventSourceId, @event, causation)
+                    {
+                        EventSource = aggregateRootContext.EventSource,
+                        EventStream = aggregateRootContext.EventStream,
+                        EventStreamType = aggregateRootContext.EventStreamType,
+                        EventStreamId = aggregateRootContext.EventStreamId,
+                        EventSourceType = aggregateRootContext.EventSourceType
+                    }
+                ],
+                [new(EventSourceId, concurrencyScope)]);
+        }
+
         UncommittedEvents = UncommittedEvents.Add(@event);
 
         await mutator.Mutate(@event);

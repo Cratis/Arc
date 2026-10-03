@@ -4,14 +4,15 @@
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSources;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
 /// <summary>
 /// Provides definition-based event routing values for commands declaring <see cref="EventSourceAttribute{TSource}"/>.
 /// </summary>
-/// <param name="eventSources">The discovered event source definitions.</param>
-public class EventSourceDefinitionValuesProvider(IEventSources eventSources) : ICommandContextValuesProvider
+/// <param name="serviceProvider">The <see cref="IServiceProvider"/> the discovered event source definitions are resolved from, only when a command declares one.</param>
+public class EventSourceDefinitionValuesProvider(IServiceProvider serviceProvider) : ICommandContextValuesProvider
 {
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
@@ -23,7 +24,7 @@ public class EventSourceDefinitionValuesProvider(IEventSources eventSources) : I
             return [];
         }
 
-        var definition = eventSources.GetFor(declaration.EventSource);
+        var definition = serviceProvider.GetRequiredService<IEventSources>().GetFor(declaration.EventSource);
         var stream = declaration.Stream is null ? null : definition.FindStream(declaration.Stream)
             ?? throw new EventRoutingContradictsEventSource(commandType, nameof(EventStreamType), "a stream declared by the event source", declaration.Stream);
         VerifyStringRouting(commandType, definition, stream);
