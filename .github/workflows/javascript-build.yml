@@ -26,6 +26,7 @@ on:
       - "scripts/workspace-version-is-published.cjs"
       - "scripts/workspace-publish-retry.test.cjs"
       - "scripts/run-task-on-workspaces.test.cjs"
+      - "scripts/rollup-node-externals.test.mjs"
       - "scripts/fixtures/workspace-runner.cjs"
       - "scripts/check-declaration-imports.cjs"
       - "scripts/check-declaration-consumers.cjs"
@@ -34,7 +35,8 @@ on:
       - "tsconfig.json"
       - "tsconfig.specs.json"
       - "rollup.config.mjs"
-      - "vite.base.ts"
+      - "vite.base.mts"
+      - "scripts/vite-config.test.mjs"
       - "package.json"
 
 jobs:
@@ -66,6 +68,9 @@ jobs:
       - name: Yarn install
         run: yarn install --immutable
 
+      - name: Verify Vite configuration and native aliases
+        run: node --test scripts/vite-config.test.mjs
+
       - name: Verify workspace publishing
         run: node --test scripts/run-task-on-workspaces.test.cjs
 
@@ -73,6 +78,7 @@ jobs:
         run: |
           export NODE_OPTIONS="--max-old-space-size=4096"
           yarn ci
+          node --test scripts/rollup-node-externals.test.mjs
           yarn node scripts/check-declaration-imports.cjs --self-test
           yarn node scripts/check-declaration-imports.cjs
           yarn node scripts/check-declaration-consumers.cjs

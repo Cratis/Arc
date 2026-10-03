@@ -33,7 +33,7 @@ public class with_properties : Specification
 
     void Because() => _result = TemplateTypes.Type(_descriptor);
 
-    [Fact] void should_contain_metadata_imports() => _result.ShouldContain("import { field, derivedType } from '@cratis/fundamentals';");
+    [Fact] void should_contain_metadata_imports() => _result.ShouldContain("import { derivedType, field } from '@cratis/fundamentals';");
     [Fact] void should_contain_field_decorator() => _result.ShouldContain("@field(String)");
     [Fact] void should_contain_derived_type_decorator() => _result.ShouldContain($"@derivedType('{DerivedTypeIdentifier}')");
     [Fact] void should_not_contain_imperative_field_registration() => _result.ShouldNotContain("field(String)(TypeWithProperties.prototype, 'name');");

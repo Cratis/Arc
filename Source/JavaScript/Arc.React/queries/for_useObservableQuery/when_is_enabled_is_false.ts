@@ -7,7 +7,6 @@ import { useObservableQuery } from '../useObservableQuery.js';
 import { FakeObservableQuery } from './FakeObservableQuery.js';
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when is_enabled is false', () => {
     beforeEach(() => {

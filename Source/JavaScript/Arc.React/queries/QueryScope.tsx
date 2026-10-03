@@ -6,17 +6,9 @@ import { QueryScopeImplementation } from './QueryScopeImplementation.js';
 import { IQueryScope } from './IQueryScope.js';
 import { useQueryScope } from './useQueryScope.js';
 
-/* eslint-disable @typescript-eslint/no-empty-function */
-const defaultQueryScopeContext: IQueryScope = new class extends IQueryScope {
-    get parent() { return undefined; }
-    get isPerforming() { return false; }
-    addChildScope() { }
-    notifyPerformingStarted() { }
-    notifyPerformingCompleted() { }
-}();
-/* eslint-enable @typescript-eslint/no-empty-function */
+import { QueryScopeContext, defaultQueryScopeContext } from './QueryScopeContext.js';
 
-export const QueryScopeContext = React.createContext<IQueryScope>(defaultQueryScopeContext);
+export { QueryScopeContext } from './QueryScopeContext.js';
 
 export interface IQueryScopeProps {
     children?: JSX.Element | JSX.Element[];

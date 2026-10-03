@@ -9,7 +9,6 @@ import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
 import { ChangeSet, QueryResult } from '@cratis/arc/queries';
 import { Globals, ObservableQueryTransferMode } from '@cratis/arc';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 class FakeChangeStreamQuery extends FakeChangeStreamQueryBase {
     readonly route = '/api/when-receiving-update-in-full-transfer-mode-and-first-update-arrives';

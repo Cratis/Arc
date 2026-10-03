@@ -8,7 +8,6 @@ import { FakeChangeStreamQueryBase, FakeItem } from './FakeChangeStreamQuery.js'
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { ChangeSet } from '@cratis/arc/queries';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 class FakeChangeStreamQuery extends FakeChangeStreamQueryBase {
     readonly route = '/api/when-hook-is-disabled';

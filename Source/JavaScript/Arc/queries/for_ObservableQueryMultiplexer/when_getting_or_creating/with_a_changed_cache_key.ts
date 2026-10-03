@@ -4,7 +4,6 @@
 import { IObservableQueryHubConnection } from '../../IObservableQueryHubConnection.js';
 import { getOrCreateMultiplexer, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when getting or creating with a changed cache key', () => {
     let factoryCallCount: number;

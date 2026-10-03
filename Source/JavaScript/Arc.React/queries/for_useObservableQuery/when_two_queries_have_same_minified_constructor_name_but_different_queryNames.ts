@@ -9,7 +9,6 @@ import { ParameterDescriptor } from '@cratis/arc/reflection';
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 interface Item {
     id: string;

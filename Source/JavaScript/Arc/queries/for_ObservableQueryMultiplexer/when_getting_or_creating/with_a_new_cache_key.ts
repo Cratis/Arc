@@ -4,7 +4,6 @@
 import { IObservableQueryHubConnection } from '../../IObservableQueryHubConnection.js';
 import { getOrCreateMultiplexer, ObservableQueryMultiplexer, resetSharedMultiplexer } from '../../ObservableQueryMultiplexer.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when getting or creating with a new cache key', () => {
     let multiplexer: ObservableQueryMultiplexer;
