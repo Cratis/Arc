@@ -70,6 +70,29 @@ The bound assumes valid replayed state between 0 and 100; subtracting the curren
 
 Aggregate `Apply()` does not forward the command-context compliance subject. Its events use Chronicle's event-level subject resolution and fallback, even when the command sets or returns a subject. See the [aggregate subject limitation](../compliance/subject.md#aggregate-apply-limitation) before choosing the encryption identity.
 
+## Declare the event source
+
+An aggregate root that always works within one registered event source definition declares it with `[EventSource<TSource>]`, the same attribute commands use. The definition supplies the event source type, the optional stream name becomes the aggregate's event stream type, and every event the aggregate appends records the definition in `EventContext.EventSource`.
+
+```csharp
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Chronicle.EventSources;
+
+[EventSource]
+[EventStream("transactions")]
+public class Account : IEventSource;
+
+[EventSource<Account>("transactions")]
+public class AccountAggregate : AggregateRoot
+{
+    // handlers and commands as usual
+}
+```
+
+Rehydration then reads only the events in the scope the commit guards: the declared event source type, stream type and the stream id the aggregate was loaded with. An event for the same event source id in another stream no longer changes the aggregate's state without the commit check protecting it. The Chronicle client has no stream-aware read yet, so Arc filters what it reads; an aggregate without the declaration reads as before.
+
+Arc rejects an aggregate that names a stream its definition does not declare, an `Get<T>` call asking for a different event source type, or an `[EventStreamType]` that contradicts the declared stream. The legacy attributes keep working for aggregates that do not declare a definition.
+
 ## Event handler signatures
 
 Method names are conventional, not the dispatch key. The first parameter identifies a registered event type. These are signature fragments, not method implementations:
