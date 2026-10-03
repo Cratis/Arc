@@ -20,7 +20,7 @@ public record GeneratedFileMetadata(string SourceTypeName, DateTime GeneratedTim
     /// <summary>
     /// Creates a comment line for the generated file.
     /// </summary>
-    /// <returns>The comment line to be added as the first line of the file.</returns>
+    /// <returns>The comment line identifying the generated file.</returns>
     public string ToCommentLine() =>
         $"{GeneratedMarker}. Source: {SourceTypeName}. Time: {GeneratedTime:O}. Hash: {ContentHash}";
 
@@ -125,7 +125,27 @@ public record GeneratedFileMetadata(string SourceTypeName, DateTime GeneratedTim
                 return false;
             }
 
-            return TryParse(firstLine, out metadata);
+            if (TryParse(firstLine, out metadata))
+            {
+                return true;
+            }
+
+            if (firstLine != "// Copyright (c) Cratis. All rights reserved.")
+            {
+                return false;
+            }
+
+            // New output keeps the license and its blank line ahead of the unchanged marker format.
+            var licenseLine = reader.ReadLine();
+            var blankLine = reader.ReadLine();
+            if (licenseLine != "// Licensed under the MIT license. See LICENSE file in the project root for full license information." ||
+                blankLine is null || !string.IsNullOrWhiteSpace(blankLine))
+            {
+                return false;
+            }
+            var markerLine = reader.ReadLine();
+
+            return markerLine is not null && TryParse(markerLine, out metadata);
         }
         catch
         {

@@ -67,7 +67,7 @@ For dependable isolation, keep handwritten source, assets, and public barrels **
 
 ## Troubleshooting
 
-- **A stale proxy remains:** confirm it has valid first-line generated metadata and lies under the configured output path. Unmarked files are not recognized as orphans.
+- **A stale proxy remains:** confirm it has valid generated metadata on the first line (legacy) or the fourth line after the exact standard Cratis copyright and license lines and a blank third line, and lies under the configured output path. Unmarked files are not recognized as orphans.
 - **Unexpected deletions:** inspect the build log, output path, full-deletion setting, and whether another assembly shares that tree. Restore handwritten files from version control before rebuilding with isolated output.
 - **Unexpected Git diffs:** full deletion recreates inline timestamps; configuration, grouping, or template changes can also change output.
 - **A barrel is missing or stale:** inspect index-generation settings and cleanup messages. Review the actual exports rather than assuming all index edits survive.

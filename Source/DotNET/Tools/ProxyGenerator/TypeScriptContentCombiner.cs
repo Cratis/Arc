@@ -98,7 +98,8 @@ public static partial class TypeScriptContentCombiner
         var importLines = new List<string>();
         foreach (var modulePath in moduleOrder)
         {
-            var names = namedImportsByModule[modulePath];
+            // Sort bindings, not modules: changing module order can change evaluation in an import cycle.
+            var names = namedImportsByModule[modulePath].Order(StringComparer.Ordinal);
             importLines.Add($"import {{ {string.Join(", ", names)} }} from '{modulePath}';");
         }
         importLines.AddRange(otherImportLines);
