@@ -272,6 +272,8 @@ public record CustomerOrderAccepted(EventSourceId OrderId);
 
 > `EventForEventSourceId` does not share one concurrency scope across targets — a scope carries a single stream's expected tail, so it cannot be reused for another stream. The command's concurrency declaration still applies: one scope is built per target event source, with that target's own expected tail. Each append also uses the stream metadata from the command (stream id, stream type, event source type) while targeting the event source id you supply explicitly.
 
+> When several wrappers target the same event source id, a guard that only follows from the event source definition is derived per event, from that event's own stream and definition, and is never reused for another event. Events written through a definition reach the event sequence without a scope, which derives and validates the guards itself. Wrappers that override the definition with legacy routing and would need different guards for one id are rejected with `IncompatibleConcurrencyScopesForEventSource` before anything is enrolled or appended. A guard you chose with `concurrency: true` keeps its existing behavior. Split the events into separate commands or return `EventsWithConcurrencyScopes` with an explicit scope when one id needs a different guard per event.
+
 ## Events with exact concurrency scopes
 
 The automatic strategy resolves a target's expected tail after `Handle()` returns: during response processing for attribute-selected scopes, or during commit for the fallback scope. That is right for ordinary optimistic concurrency. When a command makes its decision from an exact revision it already read, return `EventsWithConcurrencyScopes` to carry that revision with the events instead of resolving a newer tail later.
