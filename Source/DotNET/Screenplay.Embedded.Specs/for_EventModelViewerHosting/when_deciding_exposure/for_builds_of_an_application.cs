@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Embedded.for_EventModelViewerHosting.given;
 using Cratis.Arc.Screenplay.Embedded.Hosting;
+using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc.Screenplay.Embedded.for_EventModelViewerHosting.when_deciding_exposure;
 
@@ -16,10 +17,12 @@ public class for_builds_of_an_application : Specification
     void Because()
     {
         var options = new EventModelViewerOptions();
-        _debugBuild = EventModelViewerExposure.ShouldExpose(options, an_application_assembly.BuiltForDebugging());
-        _releaseBuild = EventModelViewerExposure.ShouldExpose(options, an_application_assembly.BuiltForRelease());
-        _undeclaredBuild = EventModelViewerExposure.ShouldExpose(options, an_application_assembly.WithoutADebuggableDeclaration());
-        _withoutAnEntryAssembly = EventModelViewerExposure.ShouldExpose(options, null);
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns(Environments.Development);
+        _debugBuild = EventModelViewerExposure.ShouldExpose(options, an_application_assembly.BuiltForDebugging(), environment);
+        _releaseBuild = EventModelViewerExposure.ShouldExpose(options, an_application_assembly.BuiltForRelease(), environment);
+        _undeclaredBuild = EventModelViewerExposure.ShouldExpose(options, an_application_assembly.WithoutADebuggableDeclaration(), environment);
+        _withoutAnEntryAssembly = EventModelViewerExposure.ShouldExpose(options, null, environment);
     }
 
     [Fact] void should_expose_the_explorer_for_a_debug_build() => _debugBuild.ShouldBeTrue();

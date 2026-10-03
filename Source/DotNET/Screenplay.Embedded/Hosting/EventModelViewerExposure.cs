@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Reflection;
+using Microsoft.Extensions.Hosting;
 
 namespace Cratis.Arc.Screenplay.Embedded.Hosting;
 
@@ -10,9 +11,8 @@ namespace Cratis.Arc.Screenplay.Embedded.Hosting;
 /// Decides whether the automatic mapping exposes the explorer.
 /// </summary>
 /// <remarks>
-/// The decision is deliberately about the build rather than the environment: an environment name is
-/// configuration a deployment can get wrong, while a Release-built assembly is what is published. An
-/// application that wants the explorer in a Release build says so, and is then the one that said it.
+/// Automatic exposure requires both a non-optimized build and the Development hosting environment unless
+/// the application explicitly enables or disables it.
 /// </remarks>
 static class EventModelViewerExposure
 {
@@ -21,9 +21,10 @@ static class EventModelViewerExposure
     /// </summary>
     /// <param name="options">The options the host configured.</param>
     /// <param name="entryAssembly">The entry assembly of the process, or null when the process has none.</param>
+    /// <param name="environment">The hosting environment, or null when none is registered.</param>
     /// <returns>True when the explorer is to be mapped, false otherwise.</returns>
-    internal static bool ShouldExpose(EventModelViewerOptions options, Assembly? entryAssembly) =>
-        options.Enabled ?? (entryAssembly is not null && IsDebugBuild(entryAssembly));
+    internal static bool ShouldExpose(EventModelViewerOptions options, Assembly? entryAssembly, IHostEnvironment? environment) =>
+        options.Enabled ?? (environment?.IsDevelopment() == true && entryAssembly is not null && IsDebugBuild(entryAssembly));
 
     /// <summary>
     /// Gets whether an assembly was built with optimizations disabled, as a Debug build is.
