@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -67,7 +68,8 @@ public class ReducerReader(ScreenplayDiagnostics diagnostics)
             EventLogSequence,
             ProjectionAutoMapMode.Enabled,
             false,
-            ProjectionScopeModel.Empty with { From = [.. observed.Select(_ => new ProjectionFromModel([_], null, null, EmptyMap()))] });
+            ProjectionScopeModel.Empty with { From = [.. observed.Select(_ => new ProjectionFromModel([_], null, null, EmptyMap()))] },
+            EventSourceReader.ReadObserved(type));
     }
 
     /// <summary>

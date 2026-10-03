@@ -167,5 +167,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A string naming an event source or stream type can drift from the definition. This advisory is only reported when a definition in the same compilation has exactly that name and, when the type names a stream, declares that stream. A string with no matching definition is left alone.");
 
+    /// <summary>
+    /// ARCCHR0014: A reactor or reducer is filtered to a stream its event source definition does not declare.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0014_ObservedEventStreamNotDeclared = new(
+        id: "ARCCHR0014",
+        title: "Observed event stream is not declared by the event source definition",
+        messageFormat: "'{0}' observes stream '{1}' of event source definition '{2}', which does not declare that stream. Declare it with [EventStream(\"{1}\")] on '{2}' or observe a stream it declares.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "[FromEventSource<TSource>(stream)] filters a reactor or reducer to a stream the definition declares with [EventStream]. A stream the definition does not declare cannot match, so the observer would never see an event. Only the definition's own attributes are read, so a definition in a referenced assembly is checked exactly like one in the compilation.");
+
     const string Category = "Arc.Chronicle";
 }
