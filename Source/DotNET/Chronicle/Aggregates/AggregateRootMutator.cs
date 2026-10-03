@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Execution;
@@ -33,6 +34,16 @@ public class AggregateRootMutator(
             aggregateRootContext.EventStreamId);
 
         var events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
+        if (aggregateRootContext is IAggregateRootEventSourceContext { EventSource: not null })
+        {
+            // The Chronicle client has no stream-aware read, so an aggregate that declares its event source keeps only
+            // the events its commit scope guards (#2796): the same source type, stream type and stream id.
+            events = events.Where(_ =>
+                _.Context.EventSourceType == aggregateRootContext.EventSourceType &&
+                _.Context.EventStreamType == aggregateRootContext.EventStreamType &&
+                _.Context.EventStreamId == aggregateRootContext.EventStreamId).ToImmutableList();
+        }
+
         if (eventHandlers.HasHandleMethods)
         {
             var deserializedEventsTasks = events.Select(async _ =>

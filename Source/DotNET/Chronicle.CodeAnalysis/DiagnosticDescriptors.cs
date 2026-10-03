@@ -155,5 +155,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A plain IEventLog.Append or AppendMany writes before decision scopes are checked at the owner's commit. This advisory does not track aliases, helpers or appends outside the command body.");
 
+    /// <summary>
+    /// ARCCHR0013: A legacy event source type attribute spells out a declared event source definition.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0013_UseEventSourceDefinition = new(
+        id: "ARCCHR0013",
+        title: "Use the event source definition instead of the event source type attribute",
+        messageFormat: "'{0}' names event source '{1}' with a string, and the compilation declares that event source. Declare it with {2} so the source, its stream and its concurrency dimensions come from the definition.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A string naming an event source or stream type can drift from the definition. This advisory is only reported when a definition in the same compilation has exactly that name and, when the type names a stream, declares that stream. A string with no matching definition is left alone.");
+
     const string Category = "Arc.Chronicle";
 }

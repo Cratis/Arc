@@ -447,4 +447,25 @@ public static class ScreenplayDiagnosticCodes
     /// </para>
     /// </remarks>
     public const string ScenarioWithoutCounterpart = "SP0043";
+
+    /// <summary>
+    /// A command appends through an event source definition, which the Screenplay language cannot declare yet.
+    /// </summary>
+    /// <remarks>
+    /// Only the concurrency dimensions the definition declares are emitted, in the command's <c>concurrency</c> block.
+    /// The event source and the stream themselves are not, since there is no <c>eventsource</c> declaration or command
+    /// binding to write them as, and writing them as plain strings would lose that they name a definition. This is
+    /// reported so a document silent about them is not read as a command that appends to the default stream.
+    /// </remarks>
+    public const string EventSourceNotRepresentable = "SP0044";
+
+    /// <summary>
+    /// A command names a stream its event source definition does not declare.
+    /// </summary>
+    public const string EventStreamNotDeclared = "SP0045";
+
+    /// <summary>
+    /// The stream id takes part in the concurrency scope an event source definition declares, which has no value to state.
+    /// </summary>
+    public const string EventStreamIdConcurrencyNotRepresentable = "SP0046";
 }

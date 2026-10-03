@@ -101,17 +101,13 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 continue;
             }
 
-            var result = await eventLog.Append(
+            var result = await eventLog.AppendForCommand(
                 eventSourceId,
                 @event,
-                routing.EventStreamType,
-                routing.EventStreamId,
-                routing.EventSourceType,
-                correlationId: default,
-                tags: tags,
-                concurrencyScope: concurrencyScope,
-                occurred: occurred,
-                subject: routing.Subject);
+                routing,
+                concurrencyScope,
+                tags,
+                occurred);
 
             if (!result.IsSuccess)
             {

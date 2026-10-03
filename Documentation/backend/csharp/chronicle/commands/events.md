@@ -138,6 +138,38 @@ public record RegisterCustomer(EventSourceId CustomerId, string Email);
 
 These metadata attributes categorize and identify the appended events. Because the append carries them, the concurrency strategy configured on the event sequence resolves its expected tail with the same narrowing — so a routing-only tag already bounds the concurrency check, without any attribute opting in. Setting `concurrency: true` chooses which dimensions bound it explicitly; see [concurrency scoping](./concurrency.md).
 
+### Event source definitions
+
+Use `[EventSource<TSource>]` when a command always appends through a registered Chronicle event source definition. The definition supplies the event source type, validates the optional stream name, records the definition in `EventContext.EventSource`, and supplies its concurrency dimensions unless a legacy `concurrency: true` attribute explicitly selects dimensions.
+
+```csharp
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.EventSources;
+
+[EventSource]
+[EventStream("transactions")]
+public class Account : IEventSource;
+
+[Command]
+[EventSource<Account>("transactions")]
+public record RecordTransaction(AccountId AccountId, decimal Amount)
+{
+    public TransactionRecorded Handle() => new(Amount);
+}
+```
+
+A returned `EventForEventSourceId` can route one event differently from the command. The definition and the stream are one routing decision:
+
+- An event that sets only `EventStream` uses the command's definition and that stream.
+- An event that sets `EventSource` uses that definition and its own `EventStream`; it inherits nothing from the command's stream.
+- An event that sets the legacy `EventSourceType` or `EventStreamType` is appended by those strings, not through the command's definition, because appending through the definition would silently discard them.
+- `EventStreamId` and `Subject` on the event are independent of this and win over the command when set.
+
+The concurrency dimensions the definition declares apply only when no legacy attribute opts into concurrency with `concurrency: true`. A legacy attribute that does not opt in carries metadata only, so it does not displace the definition's dimensions.
+
+Do not combine a definition declaration with contradictory `[EventSourceType]` or `[EventStreamType]` attributes. Arc rejects the command context rather than append an event whose string metadata disagrees with the definition. Existing string attributes remain supported for commands that do not use definitions.
+
 ## Events for Specific Event Sources
 
 Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.

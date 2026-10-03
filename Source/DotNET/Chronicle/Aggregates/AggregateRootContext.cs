@@ -28,8 +28,14 @@ public class AggregateRootContext(
     IAggregateRoot aggregateRoot,
     IUnitOfWork unitOfWork,
     EventSequenceNumber nextSequenceNumber,
-    EventSequenceNumber tailSequenceNumber) : IAggregateRootContext
+    EventSequenceNumber tailSequenceNumber) : IAggregateRootContext, IAggregateRootEventSourceContext
 {
+    /// <inheritdoc/>
+    public Type? EventSource { get; init; }
+
+    /// <inheritdoc/>
+    public string? EventStream { get; init; }
+
     /// <inheritdoc/>
     public EventSourceType EventSourceType { get; } = eventSourceType;
 

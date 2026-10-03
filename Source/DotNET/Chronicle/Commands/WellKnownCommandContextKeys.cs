@@ -19,6 +19,21 @@ public static class WellKnownCommandContextKeys
     public const string EventSourceType = "eventSourceType";
 
     /// <summary>
+    /// The key for the event source definition type in the command context values.
+    /// </summary>
+    public const string EventSource = "eventSource";
+
+    /// <summary>
+    /// The key for the event stream declared by the event source definition in the command context values.
+    /// </summary>
+    public const string EventStream = "eventStream";
+
+    /// <summary>
+    /// The key for the concurrency dimensions declared by the event source definition.
+    /// </summary>
+    public const string ConcurrencyDimensions = "concurrencyDimensions";
+
+    /// <summary>
     /// The key for the event stream type in the command context values.
     /// </summary>
     public const string EventStreamType = "eventStreamType";

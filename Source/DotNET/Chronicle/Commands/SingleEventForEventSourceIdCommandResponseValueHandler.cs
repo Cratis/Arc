@@ -44,17 +44,13 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
                 eventForEventSourceId.Occurred,
                 routing))
         {
-            var result = await eventLog.Append(
+            var result = await eventLog.AppendForCommand(
                 eventForEventSourceId.EventSourceId,
                 eventForEventSourceId.Event,
-                routing.EventStreamType,
-                routing.EventStreamId,
-                routing.EventSourceType,
-                correlationId: default,
-                tags: eventForEventSourceId.SuppliedTags(),
-                concurrencyScope: concurrencyScope,
-                occurred: eventForEventSourceId.Occurred,
-                subject: routing.Subject);
+                routing,
+                concurrencyScope,
+                eventForEventSourceId.SuppliedTags(),
+                eventForEventSourceId.Occurred);
 
             if (!result.IsSuccess)
             {
