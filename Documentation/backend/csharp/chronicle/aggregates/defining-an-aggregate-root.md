@@ -91,7 +91,7 @@ public class AccountAggregate : AggregateRoot
 
 Rehydration then reads only the events in the scope the commit guards: the declared event source type, stream type and the stream id the aggregate was loaded with. An event for the same event source id in another stream no longer changes the aggregate's state without the commit check protecting it. The Chronicle client has no stream-aware read yet, so Arc filters what it reads; an aggregate without the declaration reads as before.
 
-Arc rejects an aggregate that names a stream its definition does not declare, an `Get<T>` call asking for a different event source type, or an `[EventStreamType]` that contradicts the declared stream. The legacy attributes keep working for aggregates that do not declare a definition.
+Arc rejects an aggregate that names a stream its definition does not declare, a `Get<T>` call asking for a different event source type, or an `[EventStreamType]` that contradicts the declared stream. The legacy attributes keep working for aggregates that do not declare a definition.
 
 ## Event handler signatures
 

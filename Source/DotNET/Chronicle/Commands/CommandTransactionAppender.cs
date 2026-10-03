@@ -72,14 +72,45 @@ internal static class CommandTransactionAppender
     /// <param name="event">The wrapper the command returned, or null for a plain event that has no routing of its own.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the fallback event metadata.</param>
     /// <returns>The resolved <see cref="EventRouting"/>.</returns>
-    internal static EventRouting ResolveRouting(EventForEventSourceId? @event, CommandContext commandContext) =>
-        new(
+    internal static EventRouting ResolveRouting(EventForEventSourceId? @event, CommandContext commandContext)
+    {
+        var (eventSource, eventStream) = ResolveDefinition(@event, commandContext);
+
+        return new(
             @event is not null && @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType(),
             @event is not null && @event.EventStreamId != EventStreamId.Default ? @event.EventStreamId : commandContext.GetEventStreamId(),
             @event is not null && @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType(),
             @event?.Subject ?? commandContext.GetSubject(),
-            @event?.EventSource ?? commandContext.GetEventSource(),
-            @event?.EventStream ?? commandContext.GetEventStream());
+            eventSource,
+            eventStream);
+    }
+
+    /// <summary>
+    /// Resolves the event source definition and stream an event is appended through.
+    /// </summary>
+    /// <param name="event">The wrapper the command returned, or null for a plain event.</param>
+    /// <param name="commandContext">The <see cref="CommandContext"/> carrying the fallback definition.</param>
+    /// <returns>The definition type and stream name; the definition is null when the event is appended by string routing.</returns>
+    /// <remarks>
+    /// The definition and its stream are one routing decision, so the wrapper replaces them together. A wrapper naming
+    /// another definition brings its own stream and inherits none of the command's. A wrapper that only names a stream
+    /// uses the command's definition. A wrapper that routes with the legacy source or stream type strings leaves the
+    /// definition out entirely: appending through the command's definition would silently discard those strings.
+    /// </remarks>
+    internal static (Type? EventSource, string? EventStream) ResolveDefinition(EventForEventSourceId? @event, CommandContext commandContext)
+    {
+        if (@event?.EventSource is not null)
+        {
+            return (@event.EventSource, @event.EventStream);
+        }
+
+        if (@event is not null && (@event.EventSourceType != EventSourceType.Default || @event.EventStreamType != EventStreamType.All))
+        {
+            return (null, null);
+        }
+
+        return (commandContext.GetEventSource(), @event?.EventStream ?? commandContext.GetEventStream());
+    }
 
     /// <summary>
     /// Gets the tags the command supplied on an event wrapper, or null when it supplied none.
