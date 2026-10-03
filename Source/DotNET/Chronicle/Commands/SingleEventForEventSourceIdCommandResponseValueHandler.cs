@@ -31,10 +31,11 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
 
         // The scope belongs to the stream being written to, not to the command's own event source.
         var routing = CommandTransactionAppender.ResolveRouting(eventForEventSourceId, commandContext);
-        var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(
+        var concurrencyScope = (await ConcurrencyScopeBuilder.BuildFor(
             commandContext,
             concurrencyScopeStrategies.GetFor(eventLog),
-            eventForEventSourceId.EventSourceId);
+            eventForEventSourceId.EventSourceId,
+            routing)).Scope;
         if (!eventLog.TryEnrollForCommand(
                 eventForEventSourceId.EventSourceId,
                 eventForEventSourceId.Event,
