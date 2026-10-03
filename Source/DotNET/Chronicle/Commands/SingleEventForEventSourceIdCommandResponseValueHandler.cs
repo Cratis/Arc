@@ -30,6 +30,7 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
         var eventForEventSourceId = (EventForEventSourceId)value;
 
         // The scope belongs to the stream being written to, not to the command's own event source.
+        var routing = CommandTransactionAppender.ResolveRouting(eventForEventSourceId, commandContext);
         var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(
             commandContext,
             concurrencyScopeStrategies.GetFor(eventLog),
@@ -40,19 +41,20 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
                 commandContext,
                 concurrencyScope,
                 eventForEventSourceId.SuppliedTags(),
-                eventForEventSourceId.Occurred))
+                eventForEventSourceId.Occurred,
+                routing))
         {
             var result = await eventLog.Append(
                 eventForEventSourceId.EventSourceId,
                 eventForEventSourceId.Event,
-                commandContext.GetEventStreamType(),
-                commandContext.GetEventStreamId(),
-                commandContext.GetEventSourceType(),
+                routing.EventStreamType,
+                routing.EventStreamId,
+                routing.EventSourceType,
                 correlationId: default,
                 tags: eventForEventSourceId.SuppliedTags(),
                 concurrencyScope: concurrencyScope,
                 occurred: eventForEventSourceId.Occurred,
-                subject: commandContext.GetSubject());
+                subject: routing.Subject);
 
             if (!result.IsSuccess)
             {

@@ -42,37 +42,32 @@ echo "Checking links in Documentation..."
 echo "This may take a few minutes to check all links..."
 echo ""
 
-# GitHub occasionally returns 5xx responses for its own blob links. A one-off
-# server error says nothing about whether a link is valid; repeat the complete,
-# bounded scan so a persistent 4xx or 5xx still fails with its diagnostics.
-MAX_ATTEMPTS=3
-for ATTEMPT in $(seq 1 "$MAX_ATTEMPTS"); do
-    set +e
-    # One glob covering both extensions rather than one per extension: linkinator
-    # aborts on any glob that matches nothing, so a separate .mdx glob would fail a
-    # repository whose pages are all .md while every link in it is fine.
-    #
-    # NO_COLOR keeps the scan summary free of escape codes, so the link count below
-    # can be read out of it.
-    OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
-        "Documentation/**/*.{md,mdx}" \
-        --markdown \
-        --recurse \
-        --directory-listing \
-        --verbosity error \
-        --status-code "403:ok" \
-        --skip "$SITE_ABSOLUTE_LINKS" 2>&1)
-    LINKINATOR_EXIT_CODE=$?
-    set -e
-
-    if [ $LINKINATOR_EXIT_CODE -eq 0 ] || [ "$ATTEMPT" -eq "$MAX_ATTEMPTS" ]; then
-        break
-    fi
-
-    echo "$OUTPUT"
-    echo "Link verification attempt $ATTEMPT of $MAX_ATTEMPTS failed; retrying in 5 seconds."
-    sleep 5
-done
+set +e
+# One glob covering both extensions rather than one per extension: linkinator
+# aborts on any glob that matches nothing, so a separate .mdx glob would fail a
+# repository whose pages are all .md while every link in it is fine.
+#
+# Limit requests to 10 concurrent connections so shared hosts such as GitHub are
+# not hit in a burst. Retry transient 5xx and network failures three times;
+# linkinator's exponential backoff plus 1000ms of random jitter gives an
+# affected request up to four attempts without masking its final failure.
+#
+# NO_COLOR keeps the scan summary free of escape codes, so the link count below
+# can be read out of it.
+OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
+    "Documentation/**/*.{md,mdx}" \
+    --markdown \
+    --recurse \
+    --directory-listing \
+    --concurrency 10 \
+    --retry-errors \
+    --retry-errors-count 3 \
+    --retry-errors-jitter 1000 \
+    --verbosity error \
+    --status-code "403:ok" \
+    --skip "$SITE_ABSOLUTE_LINKS" 2>&1)
+LINKINATOR_EXIT_CODE=$?
+set -e
 
 echo "$OUTPUT"
 

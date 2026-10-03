@@ -209,7 +209,7 @@ public record ImportCredit(EventSourceId AccountId, decimal Amount, DateTimeOffs
 }
 ```
 
-Arc keeps both for a single wrapper, a collection, a mixed collection, and `EventsWithConcurrencyScopes`, whether the command appends immediately or through its transaction. Leave `Occurred` unset to use the append time. The wrapper's other metadata properties (`EventStreamType`, `EventStreamId`, `EventSourceType`, and `Subject`) are not used: those come from the command context, as described in [event stream metadata](#event-stream-metadata).
+Arc keeps both for a single wrapper, a collection, a mixed collection, and `EventsWithConcurrencyScopes`, whether the command appends immediately or through its transaction. Leave `Occurred` unset to use the append time. The wrapper's routing properties (`EventStreamType`, `EventStreamId`, `EventSourceType`, and `Subject`) win over the command context when set, as described in [per-event routing](#per-event-routing); otherwise those come from the command context, as described in [event stream metadata](#event-stream-metadata).
 
 You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
 
@@ -248,6 +248,10 @@ The response contains two values:
 
 - the `EventForEventSourceId` values, in append order; and
 - the exact concurrency scopes the decision depended on, keyed by labels you choose.
+
+### Per-event routing
+
+A routing value set on an `EventForEventSourceId` wins over the command context. This applies to every return that carries wrappers: a single wrapper, a collection, a mixed collection, a tuple such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. One event can override its event source type or stream while the others keep the command's metadata. A plain, unwrapped event always uses the command context. A value counts as set when it differs from its default: `EventSourceType.Default`, `EventStreamType.All`, `EventStreamId.Default`, or a non-null `Subject`. A value left at its default falls back to the command context.
 
 An empty response with **no events and no concurrency scopes** is a successful no-op: Arc neither appends an empty batch nor enrolls one in the active command transaction. This is useful when an equivalent declaration already exists. If scopes are supplied, Arc still forwards them through the normal append or transaction path; an empty event list never silently discards a required concurrency check.
 
