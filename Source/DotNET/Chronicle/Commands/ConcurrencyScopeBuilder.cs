@@ -70,4 +70,55 @@ public static class ConcurrencyScopeBuilder
             eventStreamId: scopeByEventStreamId ? commandContext.GetEventStreamId() : null,
             eventSourceType: scopeByEventSourceType ? commandContext.GetEventSourceType() : null);
     }
+
+    /// <summary>
+    /// Builds the guard for one event, from the routing that event is actually written with.
+    /// </summary>
+    /// <param name="commandContext">The command context containing the command.</param>
+    /// <param name="strategy">The <see cref="IConcurrencyScopeStrategy"/> that resolves the expected sequence number.</param>
+    /// <param name="eventSourceId">The <see cref="EventSourceId"/> the append targets.</param>
+    /// <param name="routing">The <see cref="EventRouting"/> the event is written with.</param>
+    /// <returns>The <see cref="DerivedConcurrencyScope"/> for the event.</returns>
+    /// <remarks>
+    /// A scope built from attributes that declare concurrency is the caller's explicit choice and is built as before.
+    /// A guard that only comes from the event source definition is implicit: it is a default, not a choice, so it is
+    /// never allowed to stand in for the guard another event of the same event source id needs. When the event is
+    /// written through a definition, nothing is built here at all and the event sequence derives the guard from that
+    /// event's own definition and stream, which also rejects incompatible guards for one event source id. When a
+    /// returned event overrides the definition with legacy routing, the guard is built from that event's routing, not
+    /// the command's.
+    /// </remarks>
+    internal static async Task<DerivedConcurrencyScope> BuildFor(
+        CommandContext commandContext,
+        IConcurrencyScopeStrategy strategy,
+        EventSourceId eventSourceId,
+        EventRouting routing)
+    {
+        var commandType = commandContext.Command.GetType();
+        var declaresConcurrency = commandType.GetCustomAttributes(false).Any(_ => _ is EventStreamIdAttribute { Concurrency: true } or EventStreamTypeAttribute { Concurrency: true } or EventSourceTypeAttribute { Concurrency: true });
+        if (declaresConcurrency)
+        {
+            return new(await BuildFor(commandContext, strategy, eventSourceId), DerivedConcurrencyScopeOrigin.Explicit);
+        }
+
+        var dimensions = commandContext.Values.TryGetValue(WellKnownCommandContextKeys.ConcurrencyDimensions, out var value) && value is ConcurrencyDimensions declared
+            ? declared
+            : ConcurrencyDimensions.None;
+        if (dimensions == ConcurrencyDimensions.None)
+        {
+            return new(null, DerivedConcurrencyScopeOrigin.None);
+        }
+
+        if (routing.EventSource is not null)
+        {
+            return new(null, DerivedConcurrencyScopeOrigin.DerivedByEventSequence);
+        }
+
+        var scope = await strategy.GetScope(
+            eventSourceId,
+            eventStreamType: dimensions.HasFlag(ConcurrencyDimensions.EventStreamType) ? routing.EventStreamType : null,
+            eventStreamId: dimensions.HasFlag(ConcurrencyDimensions.EventStreamId) ? routing.EventStreamId : null,
+            eventSourceType: dimensions.HasFlag(ConcurrencyDimensions.EventSourceType) ? routing.EventSourceType : null);
+        return new(scope, DerivedConcurrencyScopeOrigin.Implicit);
+    }
 }
