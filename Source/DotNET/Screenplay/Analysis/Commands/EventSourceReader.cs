@@ -42,6 +42,32 @@ public static class EventSourceReader
     }
 
     /// <summary>
+    /// Reads the event source a reactor or reducer is filtered to with <c>[FromEventSource&lt;TSource&gt;(stream)]</c>.
+    /// </summary>
+    /// <param name="observer">The type declaring the reactor or reducer.</param>
+    /// <returns>The <see cref="ObservedEventSourceModel"/>, or <see langword="null"/> when the observer is not filtered to an event source.</returns>
+    /// <remarks>
+    /// The attribute is not inherited, so only the type itself is asked. The definition is read through its own
+    /// attributes and nothing is resolved beyond them, so a definition that names itself or another definition
+    /// cannot send the reader round in a circle. A stream that is not a constant string cannot be a declared stream
+    /// and is carried as <see langword="null"/> and undeclared rather than dropped.
+    /// </remarks>
+    public static ObservedEventSourceModel? ReadObserved(INamedTypeSymbol observer)
+    {
+        var declaration = observer.GetAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT);
+        if (declaration?.AttributeClass is not { TypeArguments: [INamedTypeSymbol definition] })
+        {
+            return null;
+        }
+
+        var stream = declaration.GetArgument(0) as string;
+        var declared = stream is not null && definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
+            .Any(_ => string.Equals(_.GetArgument(0) as string, stream, StringComparison.Ordinal));
+
+        return new(SourceNameOf(definition), stream, declared);
+    }
+
+    /// <summary>
     /// Reads the concurrency scope the event source definition declares for what a command appends.
     /// </summary>
     /// <param name="command">The type declaring the command.</param>
