@@ -35,7 +35,8 @@ on:
       - "tsconfig.json"
       - "tsconfig.specs.json"
       - "rollup.config.mjs"
-      - "vite.base.ts"
+      - "vite.base.mts"
+      - "scripts/vite-config.test.mjs"
       - "package.json"
 
 jobs:
@@ -66,6 +67,9 @@ jobs:
   
       - name: Yarn install
         run: yarn install --immutable
+
+      - name: Verify Vite configuration and native aliases
+        run: node --test scripts/vite-config.test.mjs
 
       - name: Verify workspace publishing
         run: node --test scripts/run-task-on-workspaces.test.cjs

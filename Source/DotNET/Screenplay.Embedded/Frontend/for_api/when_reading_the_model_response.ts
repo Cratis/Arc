@@ -1,5 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
+// @vitest-environment node
 
 import { describe, expect, it } from 'vitest';
 import { toDocumentModel } from '../api';
