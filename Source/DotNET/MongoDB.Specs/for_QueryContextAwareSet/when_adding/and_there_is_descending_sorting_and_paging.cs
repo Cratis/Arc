@@ -23,8 +23,8 @@ public class and_there_is_descending_sorting_and_paging : Specification
             .Build());
         _firstItem = new(Guid.NewGuid(), 45);
         _secondItem = new(Guid.NewGuid(), 44);
-        _thirdItem = new(Guid.NewGuid(), 43);
-        _fourthItem = new(Guid.NewGuid(), 43);
+        _thirdItem = new(new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), 43);
+        _fourthItem = new(new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), 43);
         _fifthItem = new(Guid.NewGuid(), 42);
         _sixthItem = new(Guid.NewGuid(), 41);
     }

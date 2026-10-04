@@ -1169,6 +1169,7 @@ public class ObservableQueryDemultiplexer(
                 // Full mode: skip computation entirely (client always receives the full snapshot).
                 ChangeSet? changeSet = null;
                 var hasStableIdentity = false;
+                var sendSnapshot = false;
                 if (interceptedData is IEnumerable enumerable and not string)
                 {
                     var currentItems = enumerable.Cast<object>().ToArray();
@@ -1199,6 +1200,16 @@ public class ObservableQueryDemultiplexer(
                         changeSet = data is IHaveKnownChanges { Changes: { } knownChanges } && !isFirstEmission
                             ? _changeSetComputor.ComputeFromKnownChanges(knownChanges, currentItems, previousItems)
                             : _changeSetComputor.Compute(previousItems, currentItems);
+
+                        // A client appends added items and keeps the rest where they were, so a delta cannot say an
+                        // item moved. Where order is part of the answer and the delta would leave the client with a
+                        // different order, send the snapshot instead. Unordered queries keep the cheaper delta.
+                        sendSnapshot = isDeltaMode && !isFirstEmission && IsOrdered(subscriptionQueryContext) &&
+                            !ChangeSetOrder.IsReproducedBy(changeSet, previousItems!, currentItems, ChangeSetComputor.FindIdentityProperty(itemType!)!);
+                        if (sendSnapshot)
+                        {
+                            changeSet = null;
+                        }
                     }
 
                     previousItems = currentItems;
@@ -1210,7 +1221,7 @@ public class ObservableQueryDemultiplexer(
 
                     // Delta mode omits Data on subsequent identity-based emissions; without identity,
                     // every emission carries the full snapshot and no change set.
-                    Data = isDeltaMode && !isFirstEmission && hasStableIdentity ? null! : interceptedData!,
+                    Data = isDeltaMode && !isFirstEmission && hasStableIdentity && !sendSnapshot ? null! : interceptedData!,
                     IsAuthorized = true,
                     ValidationResults = [],
                     ExceptionMessages = [],
@@ -1664,6 +1675,11 @@ public class ObservableQueryDemultiplexer(
             // Already disposed as the connection ended — nothing to cancel.
         }
     }
+
+    static bool IsOrdered(QueryContext? queryContext) =>
+        queryContext is not null &&
+        queryContext != QueryContext.NotSet &&
+        (queryContext.Sorting != Sorting.None || queryContext.Paging.IsPaged);
 
     static bool IsFatal(Exception exception) =>
         exception is OutOfMemoryException or

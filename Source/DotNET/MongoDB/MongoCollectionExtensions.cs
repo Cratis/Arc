@@ -369,13 +369,27 @@ public static class MongoCollectionExtensions
                     {
                         try
                         {
+                            if (observationContext.Paging.IsPaged)
+                            {
+                                await HandlePagedChange(
+                                    collection,
+                                    findCall,
+                                    observationContext,
+                                    ignoreQueryContext,
+                                    onNext,
+                                    query,
+                                    documents,
+                                    subject,
+                                    cancellationToken);
+                                return;
+                            }
+
                             await HandleChange(
                                 collection,
                                 filter,
                                 observationContext,
                                 onNext,
                                 changeDocument,
-                                query,
                                 documents,
                                 subject,
                                 idProperty,
@@ -474,7 +488,6 @@ public static class MongoCollectionExtensions
         QueryContext queryContext,
         Action<IEnumerable<TDocument>, IReadOnlyList<CollectionChange>?, ISubject<TResult>> onNext,
         ChangeStreamDocument<TDocument> changeDocument,
-        IFindFluent<TDocument, TDocument> query,
         QueryContextAwareSet<TDocument> documents,
         ISubject<TResult> subject,
         PropertyInfo idProperty,
@@ -488,8 +501,14 @@ public static class MongoCollectionExtensions
             var fullDocument = changeDocument.FullDocument;
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
-                queryContext.TotalItems--;
-                hasChanges = await RemoveFromSet(queryContext, query, documents, id, changes);
+                // A delete cannot be narrowed by the filter - the document is gone - so it arrives for every
+                // document in the collection. Only one the observer holds was ever counted. The unpaged set holds
+                // every matching document, so membership in it is membership in the result.
+                hasChanges = RemoveFromSet(documents, id, changes);
+                if (hasChanges)
+                {
+                    queryContext.TotalItems--;
+                }
             }
             else if (changeDocument.OperationType == ChangeStreamOperationType.Insert)
             {
@@ -526,7 +545,7 @@ public static class MongoCollectionExtensions
                 else if (wasPresent)
                 {
                     queryContext.TotalItems--;
-                    hasChanges = await RemoveFromSet(queryContext, query, documents, id, changes);
+                    hasChanges = RemoveFromSet(documents, id, changes);
                 }
             }
         }
@@ -537,42 +556,72 @@ public static class MongoCollectionExtensions
     }
 
     /// <summary>
-    /// Takes a document out of the observed set, refilling the page behind it when the query is paged.
+    /// Re-reads a paged observation after any change and emits when the page or its total moved.
     /// </summary>
-    /// <param name="queryContext">The <see cref="QueryContext"/> carrying the paging state.</param>
-    /// <param name="query">The sorted and paged query the refill reads from.</param>
+    /// <param name="collection">The observed collection.</param>
+    /// <param name="findCall">Produces the unsorted, unpaged query the total is counted from.</param>
+    /// <param name="queryContext">The <see cref="QueryContext"/> carrying the paging state and the total.</param>
+    /// <param name="ignoreQueryContext">Whether the total is left alone.</param>
+    /// <param name="onNext">Emits the page.</param>
+    /// <param name="query">The sorted and paged query the page is read from.</param>
+    /// <param name="documents">The observed page.</param>
+    /// <param name="subject">The subject to emit on.</param>
+    /// <param name="cancellationToken">The <see cref="CancellationToken"/> ending the observation.</param>
+    /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
+    /// <typeparam name="TResult">Type of the emitted result.</typeparam>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
+    /// <remarks>
+    /// A paged set holds the current page only, so a single change event cannot say whether the document belongs
+    /// before, on or after the page, whether it was counted, or where it now sorts. One count and one page read per
+    /// change answers all of it, the same trade the Entity Framework Core provider makes.
+    /// </remarks>
+    static async Task HandlePagedChange<TDocument, TResult>(
+        IMongoCollection<TDocument> collection,
+        Func<IFindFluent<TDocument, TDocument>> findCall,
+        QueryContext queryContext,
+        bool ignoreQueryContext,
+        Action<IEnumerable<TDocument>, IReadOnlyList<CollectionChange>?, ISubject<TResult>> onNext,
+        IFindFluent<TDocument, TDocument> query,
+        QueryContextAwareSet<TDocument> documents,
+        ISubject<TResult> subject,
+        CancellationToken cancellationToken)
+    {
+        var totalItems = queryContext.TotalItems;
+        if (!ignoreQueryContext)
+        {
+            totalItems = (int)await findCall().CountDocumentsAsync(cancellationToken);
+        }
+
+        var page = await query.ToListAsync(cancellationToken);
+        var changes = documents.ReplaceWith(page, (previous, current) => HasSameContent(collection, previous, current));
+        var totalChanged = totalItems != queryContext.TotalItems;
+        queryContext.TotalItems = totalItems;
+        if (changes is not null || totalChanged)
+        {
+            onNext(documents, changes ?? [], subject);
+        }
+    }
+
+    static bool HasSameContent<TDocument>(IMongoCollection<TDocument> collection, TDocument previous, TDocument current) =>
+        previous.ToBsonDocument(collection.DocumentSerializer).Equals(current.ToBsonDocument(collection.DocumentSerializer));
+
+    /// <summary>
+    /// Takes a document out of an unpaged observed set.
+    /// </summary>
     /// <param name="documents">The observed set to remove from.</param>
     /// <param name="id">The identifier of the document to remove.</param>
-    /// <param name="changes">Collects the changes the removal made, including any refill a paged query pulled in.</param>
+    /// <param name="changes">Collects the removal.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>True when a document was removed.</returns>
-    static async Task<bool> RemoveFromSet<TDocument>(
-        QueryContext queryContext,
-        IFindFluent<TDocument, TDocument> query,
+    static bool RemoveFromSet<TDocument>(
         QueryContextAwareSet<TDocument> documents,
         object id,
         List<CollectionChange> changes)
     {
-        if (!queryContext.Paging.IsPaged)
-        {
-            var removedUnpaged = documents.Remove(id);
-            if (removedUnpaged)
-            {
-                changes.Add(new(CollectionChangeKind.Removed, id));
-            }
-
-            return removedUnpaged;
-        }
-
-        var (removed, addedId) = await documents.RemoveAndAddLastInQuery(id, query);
+        var removed = documents.Remove(id);
         if (removed)
         {
             changes.Add(new(CollectionChangeKind.Removed, id));
-        }
-
-        if (addedId is not null)
-        {
-            changes.Add(new(CollectionChangeKind.Added, addedId));
         }
 
         return removed;
@@ -603,6 +652,10 @@ public static class MongoCollectionExtensions
 
     static IFindFluent<TDocument, TDocument> AddSorting<TDocument>(QueryContext queryContext, IFindFluent<TDocument, TDocument> response)
     {
+        // Documents sharing a sort value - or every document, when nothing is sorted - come back in whatever order
+        // the server finds convenient, which may differ between two reads. A page boundary drawn through such a run
+        // then shows a document on two pages or on none, so ties are broken on _id, the one field always unique.
+        var byId = Builders<TDocument>.Sort.Ascending("_id");
         if (queryContext.Sorting != Sorting.None)
         {
             var classMap = BsonClassMap.LookupClassMap(typeof(TDocument));
@@ -615,11 +668,11 @@ public static class MongoCollectionExtensions
                 var sort = queryContext.Sorting.Direction == Cratis.Arc.Queries.SortDirection.Ascending ?
                     Builders<TDocument>.Sort.Ascending(memberMap.ElementName) :
                     Builders<TDocument>.Sort.Descending(memberMap.ElementName);
-                response = response.Sort(sort);
+                return response.Sort(memberMap.ElementName == "_id" ? sort : Builders<TDocument>.Sort.Combine(sort, byId));
             }
         }
 
-        return response;
+        return queryContext.Paging.IsPaged ? response.Sort(byId) : response;
     }
 
     static void PrefixKeys(BsonDocument document)

@@ -22,6 +22,7 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
     int? _maxSize;
     Func<TDocument, object?> _getSortingField = _ => null;
     IComparer _sortingFieldComparer = Comparer<object>.Default;
+    bool _hasSortingField;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QueryContextAwareSet{TDocument}"/> class.
@@ -98,6 +99,49 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
     public bool Contains(object id) => _items.Any(node => _idEqualityComparer.Equals(node.Id, id));
 
     /// <summary>
+    /// Replaces the content of the set with a freshly read page, reporting how the page changed.
+    /// </summary>
+    /// <param name="page">The documents now on the page, in the order the query returned them.</param>
+    /// <param name="hasSameContent">Decides whether two versions of a document with the same id carry the same content.</param>
+    /// <returns>
+    /// <see langword="null"/> when the page holds the same documents, in the same order, with the same content;
+    /// otherwise the documents added, removed and replaced by id. The list is empty when only the order changed.
+    /// </returns>
+    /// <remarks>
+    /// A paged observation cannot be maintained one change at a time: the set only holds the current page, so it
+    /// cannot tell whether a changed document belongs before, on or after it. Re-reading the page and comparing is
+    /// what keeps the page, its order and its total honest.
+    /// </remarks>
+    public IReadOnlyList<CollectionChange>? ReplaceWith(IEnumerable<TDocument> page, Func<TDocument, TDocument, bool> hasSameContent)
+    {
+        var previous = _items.ToList();
+        var current = page.Select(document => (Id: _getId(document), Document: document)).ToList();
+        var comparer = new IdEqualityComparer(_idEqualityComparer);
+        var previousById = previous.ToDictionary(item => item.Id, item => item.Document, comparer);
+        var currentIds = current.Select(item => item.Id).ToHashSet(comparer);
+
+        var changes = new List<CollectionChange>();
+        changes.AddRange(previous
+            .Where(item => !currentIds.Contains(item.Id))
+            .Select(item => new CollectionChange(CollectionChangeKind.Removed, item.Id)));
+        foreach (var (id, document) in current)
+        {
+            if (!previousById.TryGetValue(id, out var previousDocument))
+            {
+                changes.Add(new(CollectionChangeKind.Added, id));
+            }
+            else if (!hasSameContent(previousDocument, document))
+            {
+                changes.Add(new(CollectionChangeKind.Replaced, id));
+            }
+        }
+
+        var orderChanged = !previous.Select(item => item.Id).SequenceEqual(current.Select(item => item.Id), comparer);
+        _items = new(current);
+        return changes.Count > 0 || orderChanged ? changes : null;
+    }
+
+    /// <summary>
     /// Removes the document with the given id.
     /// </summary>
     /// <param name="id">The id.</param>
@@ -115,38 +159,6 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
             node = node.Next;
         }
         return false;
-    }
-
-    /// <summary>
-    /// Removes the document with the given id and adds the last document from the given query.
-    /// </summary>
-    /// <param name="id">The id.</param>
-    /// <param name="query">The query.</param>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    public async Task<(bool Removed, object? AddedId)> RemoveAndAddLastInQuery(object id, IFindFluent<TDocument, TDocument> query)
-    {
-        var removed = Remove(id);
-        if (_items.Count >= _maxSize || NotFilledUpPage())
-        {
-            return (removed, null);
-        }
-        var countInQuery = (int)await query.CountDocumentsAsync();
-        switch (countInQuery)
-        {
-            case 0:
-                return (removed, null);
-            case >1:
-                query = query.Skip(countInQuery - 1);
-                break;
-        }
-        var document = await query.SingleAsync();
-        var addedId = _getId(document);
-        _items.AddLast((addedId, document));
-
-        // The refill is reported so the emission can state it as an addition. A paged removal pulls the next document
-        // onto the page, and a delta that mentioned only the removal would leave a client one row short.
-        return (removed, addedId);
-        bool NotFilledUpPage() => _items.Count < _maxSize - 1;
     }
 
     /// <inheritdoc/>
@@ -178,6 +190,7 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
         }
 
         _sortingFieldComparer = Comparer<object>.Default;
+        _hasSortingField = false;
 
         if (SortingIsEnabled())
         {
@@ -186,6 +199,7 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
             var sortingFieldProperty = typeof(TDocument).GetProperty(_queryContext.Sorting.Field.Value.ToPascalCase(), BindingFlags.Instance | BindingFlags.Public);
             if (sortingFieldProperty is not null)
             {
+                _hasSortingField = true;
                 _sortingFieldComparer = (typeof(Comparer<>)
                     .MakeGenericType(sortingFieldProperty.PropertyType)
                     .GetProperty(nameof(Comparer<object>.Default), BindingFlags.Public | BindingFlags.Static)!
@@ -292,8 +306,23 @@ internal sealed class QueryContextAwareSet<TDocument> : IEnumerable<TDocument>
         var sortingFieldY = _getSortingField(node.Value.Doucment);
         var comparison = _sortingFieldComparer.Compare(sortingFieldX, sortingFieldY);
         comparison = _queryContext!.Sorting.Direction is Cratis.Arc.Queries.SortDirection.Descending ? comparison * -1 : comparison;
+
+        // Ties are broken on the id ascending, whatever the direction, which is the secondary sort the server applies.
+        // Without it two documents sharing a sort value land in arrival order here and in an arbitrary order there.
+        if (comparison == 0 && _hasSortingField)
+        {
+            comparison = DocumentIdComparer.Instance.Compare(value.Id, node.Value.Id);
+        }
+
         return comparison < 0;
     }
 
     bool SortingIsEnabled() => _queryContext?.Sorting != Sorting.None;
+
+    sealed class IdEqualityComparer(IEqualityComparer inner) : IEqualityComparer<object>
+    {
+        public new bool Equals(object? x, object? y) => inner.Equals(x, y);
+
+        public int GetHashCode(object obj) => inner.GetHashCode(obj);
+    }
 }
