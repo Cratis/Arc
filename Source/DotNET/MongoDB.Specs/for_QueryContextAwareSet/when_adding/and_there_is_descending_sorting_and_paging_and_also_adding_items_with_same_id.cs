@@ -26,8 +26,8 @@ public class and_there_is_descending_sorting_and_paging_and_also_adding_items_wi
         {
             Value = 41
         };
-        _thirdItem = new(Guid.NewGuid(), 42);
-        _fourthItem = new(Guid.NewGuid(), 42);
+        _thirdItem = new(new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1), 42);
+        _fourthItem = new(new Guid(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2), 42);
         _fifthItem = new(Guid.NewGuid(), 44);
         _sixthItem = new(Guid.NewGuid(), 45);
     }
