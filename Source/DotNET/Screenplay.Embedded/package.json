@@ -20,7 +20,7 @@
         "@cratis/screenplay-language": "^4.60.0",
         "dompurify": "^3.4.16",
         "monaco-editor": "^0.57.0",
-        "pixi.js": "^8.22.0",
+        "pixi.js": "8.21.0",
         "primeicons": "^8.0.2",
         "react": "^19.3.0",
         "react-dom": "^19.3.0"
