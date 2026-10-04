@@ -7,7 +7,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 /// <summary>
 /// Whether a value may be absent is written in two different ways in C# - a reference type annotated as nullable and
-/// a value type wrapped in <c>Nullable</c> - and in one way in Screenplay, a trailing question mark. Stripping the
+/// a value type wrapped in <c>Nullable</c> - and in one way in Screenplay, a trailing <c>optional</c> modifier. Stripping the
 /// wrapper without carrying what it said across leaves a document claiming every value is always there, which is a
 /// shape the application does not have; carrying it across but naming the wrapper leaves a type nothing declares.
 /// This asks the whole way through, from source to printed text, in every position a type reference is written in.
@@ -71,11 +71,11 @@ public class from_source_declaring_values_that_may_be_absent : Specification
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
     [Fact] void should_produce_a_document_the_compiler_says_nothing_about() => _compiled.Diagnostics.ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
-    [Fact] void should_mark_an_optional_concept_on_a_command() => Says("reference InvoiceGroupKey?").ShouldBeTrue();
-    [Fact] void should_mark_an_optional_concept_on_an_event() => Says("grouping InvoiceGroupKey?").ShouldBeTrue();
-    [Fact] void should_mark_an_optional_enumeration() => Says("standing InvoiceStanding?").ShouldBeTrue();
-    [Fact] void should_mark_a_collection_of_optional_values() => Says("numbers InvoiceNumber[]?").ShouldBeTrue();
-    [Fact] void should_mark_an_optional_parameter_of_a_query() => Says("by groupKey InvoiceGroupKey?").ShouldBeTrue();
+    [Fact] void should_mark_an_optional_concept_on_a_command() => Says("reference InvoiceGroupKey optional").ShouldBeTrue();
+    [Fact] void should_mark_an_optional_concept_on_an_event() => Says("grouping InvoiceGroupKey optional").ShouldBeTrue();
+    [Fact] void should_mark_an_optional_enumeration() => Says("standing InvoiceStanding optional").ShouldBeTrue();
+    [Fact] void should_mark_a_collection_of_optional_values() => Says("numbers InvoiceNumber[] optional").ShouldBeTrue();
+    [Fact] void should_mark_an_optional_parameter_of_a_query() => Says("by groupKey InvoiceGroupKey optional").ShouldBeTrue();
     [Fact] void should_never_name_the_wrapper_a_value_may_be_absent_behind() => Says("Nullable").ShouldBeFalse();
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }
