@@ -20,7 +20,8 @@ public class a_chronicle_web_host : Specification
     {
         // Keep transport and artifact discovery outside this DI composition specification.
         builder.Services.AddSingleton(Substitute.For<IChronicleConnection>());
-        builder.WithChronicle(
+        Microsoft.AspNetCore.Builder.ArcBuilderExtensions.WithChronicle(
+            builder,
             options =>
             {
                 options.EventStore = EventStore;

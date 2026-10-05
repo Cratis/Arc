@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Transactions;
 using Microsoft.AspNetCore.Builder;
@@ -20,22 +19,19 @@ public class and_an_explicit_manager_is_registered_in_the_chronicle_callback : g
     {
         _explicitManager = Substitute.For<IUnitOfWorkManager>();
         var builder = WebApplication.CreateBuilder();
-        builder.AddCratis(configureArcBuilder: arc =>
-        {
-            arc.Services.AddSingleton(Substitute.For<Cratis.Chronicle.Connections.IChronicleConnection>());
-            arc.WithChronicle(
-                options =>
-                {
-                    options.EventStore = EventStore;
-                    options.AutoDiscoverAndRegister = false;
-                },
-                chronicle =>
-                {
-                    chronicle.WithArtifactsProvider(Substitute.For<IClientArtifactsProvider>());
-                    chronicle.Services.AddSingleton(_explicitManager);
-                    _registration = chronicle.Services[^1];
-                });
-        });
+        builder.AddCratis(
+            configureArcBuilder: arc => arc.Services.AddSingleton(Substitute.For<Cratis.Chronicle.Connections.IChronicleConnection>()),
+            configureChronicleOptions: options =>
+            {
+                options.EventStore = EventStore;
+                options.AutoDiscoverAndRegister = false;
+            },
+            configureChronicleBuilder: chronicle =>
+            {
+                chronicle.WithArtifactsProvider(Substitute.For<IClientArtifactsProvider>());
+                chronicle.Services.AddSingleton(_explicitManager);
+                _registration = chronicle.Services[^1];
+            });
         _services = builder.Services;
         _host = builder.Build();
     }
