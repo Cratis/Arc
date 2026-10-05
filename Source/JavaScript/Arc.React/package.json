@@ -121,15 +121,15 @@
     },
     "dependencies": {
         "@cratis/arc": "1.0.0",
-        "@cratis/fundamentals": "^7.19.8",
+        "@cratis/fundamentals": "^7.22.4",
         "tsyringe": "^4.10.0"
     },
     "devDependencies": {
-        "@cratis/fundamentals": "7.19.8",
+        "@cratis/fundamentals": "7.22.4",
         "@storybook/addon-links": "^10.6.1",
         "@storybook/react": "^10.6.1",
         "@storybook/react-vite": "^10.6.1",
-        "@vitejs/plugin-react": "^6.1.1",
+        "@vitejs/plugin-react": "^6.1.2",
         "react": "^19.3.0",
         "react-dom": "^19.3.0",
         "storybook": "^10.6.1",
