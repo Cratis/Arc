@@ -58,7 +58,11 @@ public static class ArcBuilderExtensions
 
         // AddCratisChronicle adds the event store's manager unconditionally, which would replace an explicit
         // registration made before this call. Remember what is registered so that only Chronicle's addition is undone.
-        var existing = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet(ReferenceEqualityComparer.Instance);
+        var existing = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
+
+        // Chronicle adds its manager before invoking the builder callback, so what is registered when the callback
+        // starts is what Chronicle added. Anything the callback registers afterwards belongs to the caller.
+        HashSet<object>? atCallback = default;
 
         ((WebApplicationBuilder)builder.AppBuilder).AddCratisChronicle(
             configureOptions: options =>
@@ -68,13 +72,15 @@ public static class ArcBuilderExtensions
             },
             configure: chronicleBuilder =>
             {
+                atCallback = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
 
         // The event store owns the manager, including its lifecycle policy and namespace. Drop Chronicle's addition
         // and Arc's convention binding, then register the event store's manager unless the caller registered one.
-        foreach (var descriptor in builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager) && !existing.Contains(_)).ToArray())
+        var chronicleAdded = atCallback ?? builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
+        foreach (var descriptor in builder.Services.Where(_ => chronicleAdded.Contains(_) && !existing.Contains(_)).ToArray())
         {
             builder.Services.Remove(descriptor);
         }
