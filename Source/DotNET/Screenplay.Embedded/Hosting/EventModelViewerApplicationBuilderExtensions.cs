@@ -5,6 +5,7 @@ using System.Reflection;
 using Cratis.Arc.Screenplay.Embedded.Hosting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Microsoft.AspNetCore.Builder;
@@ -15,7 +16,7 @@ namespace Microsoft.AspNetCore.Builder;
 public static class EventModelViewerApplicationBuilderExtensions
 {
     /// <summary>
-    /// Exposes the embedded event model explorer when the application was built for development, serving the
+    /// Exposes the embedded event model explorer for a non-optimized build running in Development, serving the
     /// documents embedded in the application and the assemblies it references.
     /// </summary>
     /// <param name="app">The <see cref="IApplicationBuilder"/> to expose the explorer from.</param>
@@ -24,9 +25,9 @@ public static class EventModelViewerApplicationBuilderExtensions
     /// <remarks>
     /// <para>
     /// This is what <c>UseCratis</c> calls, so an application using the Cratis meta-package gets the explorer in
-    /// a Debug build without asking for it, and a Release build exposes nothing - the entry assembly's
-    /// <see cref="System.Diagnostics.DebuggableAttribute"/> decides, not an environment name a deployment can get
-    /// wrong. <c>EventModelViewerOptions.Enabled</c> overrides the decision either way, and
+    /// a Debug build running in the Development hosting environment without asking for it. Release builds and
+    /// other environments expose nothing by default. <c>EventModelViewerOptions.Enabled</c> overrides both
+    /// checks either way, and
     /// <c>EventModelViewerOptions.RequireAuthorization</c> puts the explorer behind the host's authorization.
     /// </para>
     /// <para>
@@ -46,7 +47,8 @@ public static class EventModelViewerApplicationBuilderExtensions
 
         var options = app.ApplicationServices.GetService<IOptions<EventModelViewerOptions>>()?.Value ?? new EventModelViewerOptions();
         var entryAssembly = Assembly.GetEntryAssembly();
-        if (!EventModelViewerExposure.ShouldExpose(options, entryAssembly))
+        var environment = app.ApplicationServices.GetService<IHostEnvironment>();
+        if (!EventModelViewerExposure.ShouldExpose(options, entryAssembly, environment))
         {
             return app;
         }

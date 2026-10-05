@@ -33,7 +33,8 @@ public static class EventModelEndpoints
     /// <exception cref="MalformedEventModelCatalog">Thrown when an assembly embeds a catalog that cannot be read as written.</exception>
     /// <remarks>
     /// Nothing is mapped until this is called, or until the Cratis meta-package's automatic mapping calls it for
-    /// a Debug-built application - a host that does not want the explorer never serves it. The returned group is
+    /// a Debug-built application running in Development (or one that explicitly enables automatic mapping).
+    /// Explicit mapping works in any environment. The returned group is
     /// the seam for host policy; <c>MapCratisEventModel().RequireAuthorization()</c> puts the whole explorer, its
     /// API and its assets behind the host's authorization. Asked for twice on the same application, the explorer
     /// is mapped once: the second call adds its assemblies to what is served and gets the same group back, so

@@ -21,7 +21,8 @@ public static class ApplicationBuilderExtensions
     /// </para>
     /// <para>
     /// It also exposes the embedded event model explorer for an application that was built without optimizations
-    /// — a Debug build. A Release build exposes nothing unless it says so with
+    /// — a Debug build — and is running in the Development hosting environment. Other builds or environments
+    /// expose nothing unless the application explicitly opts in with
     /// <c>AddCratisEventModelViewer(options =&gt; options.Enabled = true)</c>, which is also where the explorer is
     /// turned off or put behind the host's authorization.
     /// </para>
