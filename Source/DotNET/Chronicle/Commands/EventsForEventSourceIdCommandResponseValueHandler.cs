@@ -74,42 +74,48 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     /// <inheritdoc/>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
-        var items = ((IEnumerable)value).Cast<object>();
         var strategy = concurrencyScopeStrategies.GetFor(eventLog);
+
+        // Resolve every event's routing and guard first. Events for one event source id share one scope, so guards that
+        // cannot be shared are rejected here, before the first event is enrolled or appended.
+        var targets = new List<(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing)>();
+        var derivedGuards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
+        foreach (var item in ((IEnumerable)value).Cast<object>())
+        {
+            // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
+            var wrapper = item as EventForEventSourceId;
+            var (eventSourceId, @event, tags, occurred) = wrapper is not null
+                ? (wrapper.EventSourceId, wrapper.Event, wrapper.SuppliedTags(), wrapper.Occurred)
+                : (commandContext.GetEventSourceId(), item, null, null);
+            var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext);
+            targets.Add((eventSourceId, @event, tags, occurred, routing));
+
+            // The caller's own choice is resolved once per id, however many events it takes.
+            var derived = derivedGuards.Find(_ => _.EventSourceId == eventSourceId && _.Derived.Origin == DerivedConcurrencyScopeOrigin.Explicit).Derived
+                ?? await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, eventSourceId, routing);
+            derivedGuards.Add((eventSourceId, derived));
+        }
 
         // A scope carries the expected tail of one stream, so it cannot be shared across the streams a
         // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
-        var concurrencyScopesByEventSourceId = new Dictionary<EventSourceId, ConcurrencyScope?>();
+        var concurrencyScopesByEventSourceId = CommandConcurrencyScopes.Resolve(derivedGuards);
 
-        foreach (var item in items)
+        foreach (var (eventSourceId, @event, tags, occurred, routing) in targets)
         {
-            // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
-            var (eventSourceId, @event, tags, occurred) = item is EventForEventSourceId wrapped
-                ? (wrapped.EventSourceId, wrapped.Event, wrapped.SuppliedTags(), wrapped.Occurred)
-                : (commandContext.GetEventSourceId(), item, null, null);
+            var concurrencyScope = concurrencyScopesByEventSourceId[eventSourceId];
 
-            if (!concurrencyScopesByEventSourceId.TryGetValue(eventSourceId, out var concurrencyScope))
-            {
-                concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, eventSourceId);
-                concurrencyScopesByEventSourceId[eventSourceId] = concurrencyScope;
-            }
-
-            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred))
+            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred, routing))
             {
                 continue;
             }
 
-            var result = await eventLog.Append(
+            var result = await eventLog.AppendForCommand(
                 eventSourceId,
                 @event,
-                commandContext.GetEventStreamType(),
-                commandContext.GetEventStreamId(),
-                commandContext.GetEventSourceType(),
-                correlationId: default,
-                tags: tags,
-                concurrencyScope: concurrencyScope,
-                occurred: occurred,
-                subject: commandContext.GetSubject());
+                routing,
+                concurrencyScope,
+                tags,
+                occurred);
 
             if (!result.IsSuccess)
             {

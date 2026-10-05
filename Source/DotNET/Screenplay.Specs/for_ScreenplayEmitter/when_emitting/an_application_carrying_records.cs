@@ -49,7 +49,7 @@ public class an_application_carrying_records : given.an_emitter
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_declare_the_shape() => _emission.Source.Contains("type ShelfPosition", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_say_what_the_shape_carries() => _emission.Source.Contains("  aisle CopyCount", StringComparison.Ordinal).ShouldBeTrue();
-    [Fact] void should_say_a_value_may_be_absent() => _emission.Source.Contains("  note String?", StringComparison.Ordinal).ShouldBeTrue();
+    [Fact] void should_say_a_value_may_be_absent() => _emission.Source.Contains("  note String optional", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_leave_out_a_shape_a_concept_is_already_declared_as() => _emission.Source.Contains("type BookTitle", StringComparison.Ordinal).ShouldBeFalse();
     [Fact] void should_say_which_shape_it_left_out() => _emission.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UndeclarableShape).Message.Contains("BookTitle", StringComparison.Ordinal).ShouldBeTrue();
 }

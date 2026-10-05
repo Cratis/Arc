@@ -4,6 +4,7 @@
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.Transactions;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,13 @@ public class AggregateRootFactory(
         var eventSequence = eventStore.GetEventSequence(EventSequenceId.Log);
         var eventStreamType = aggregateRoot.GetEventStreamType();
         streamId ??= EventStreamId.Default;
+        var routing = AggregateRootEventSourceRouting.Resolve(typeof(TAggregateRoot), serviceProvider.GetRequiredService<IEventSources>, eventSourceType);
+        if (routing is not null)
+        {
+            eventSourceType = routing.EventSourceType;
+            eventStreamType = routing.EventStreamType;
+        }
+
         eventSourceType ??= EventSourceType.Default;
 
         var context = new AggregateRootContext(
@@ -52,7 +60,11 @@ public class AggregateRootFactory(
             // A new aggregate has no event in its scope, so rehydration leaves this as it is. Expecting
             // BeforeFirst makes the commit mean "no event may exist in this scope yet", where expecting the first
             // sequence number would accept a concurrent writer's own first event, which sits at that very number.
-            EventSequenceNumber.BeforeFirst);
+            EventSequenceNumber.BeforeFirst)
+        {
+            EventSource = routing?.EventSource,
+            EventStream = routing?.EventStream
+        };
 
         var mutator = await mutatorFactory.Create<TAggregateRoot>(context);
         await mutator.Rehydrate();

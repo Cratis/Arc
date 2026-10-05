@@ -31,7 +31,6 @@ export class FakeObservableQueryWithOptionalArguments extends ObservableQueryFor
         super(Object, true);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     subscribe(callback: SubscribeCallback, args?: object): ObservableQuerySubscription<FakeObservableQueryWithOptionalArgumentsResult[]> {
         FakeObservableQueryWithOptionalArguments.subscribedArgs.push(args);
         return {

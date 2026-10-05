@@ -21,6 +21,8 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0010](./ARCCHR0010.md) | Warning | A keyless command returns a raw Guid beside statically identifiable untargeted events. |
 | [ARCCHR0011](#arcchr0011-unguarded-legacy-decision-reads) | Info | Recognizable legacy read-model parameters or `IReadModels.GetInstanceById` calls in event-producing command/validator code. |
 | [ARCCHR0012](#arcchr0012-immediate-append-with-a-decision-read) | Info | Direct immediate `IEventLog.Append*` in a command taking a protected decision read. |
+| [ARCCHR0013](#arcchr0013-use-the-event-source-definition) | Info | A command or aggregate root names an event source with `[EventSourceType]` and a definition with that name exists in the compilation. |
+| [ARCCHR0014](#arcchr0014-observed-event-stream-is-not-declared) | Warning | A reactor or reducer is filtered with `[FromEventSource<T>(stream)]` to a stream the definition does not declare. |
 
 ## ARCCHR0002: ambiguous command identity
 
@@ -39,6 +41,14 @@ A plain Chronicle-backed read model in an event-producing command's `Handle`, `P
 ## ARCCHR0012: immediate append with a decision read
 
 A direct `IEventLog.Append*` (also via `IEventStore.EventLog`) in a command that takes `DecisionRead<T>` or `IDecisionReads` writes immediately and cannot be undone if owner commit later conflicts. Return events or use the explicit `Transactional` style. This Info diagnostic matches direct calls, not helper chains or aliases, and does not flag `Transactional.Append`. It is advisory, not a substitute for the runtime ownership checks that refuse direct completion of a protected unit of work.
+
+## ARCCHR0013: use the event source definition
+
+`[EventSourceType("Account")]` (and `[EventStreamType("Transactions")]`) name an event source with a string. When a type in the same compilation is declared as that event source with `[EventSource]` and, if you name a stream, declares that stream with `[EventStream]`, the diagnostic suggests `[EventSource<AccountEventSource>("Transactions")]`, so the source, its stream and its concurrency dimensions come from one definition. It only reports a command or aggregate root, and only when a definition has exactly that name. A string with no matching definition, a stream the definition does not declare, and a type that already declares `[EventSource<T>]` are left alone. The legacy attributes keep working, so this is a suggestion and never a requirement. There is no code fix, because the definition and the attributes can differ in the concurrency flags the attributes carry, and rewriting them would change which writers conflict.
+
+## ARCCHR0014: observed event stream is not declared
+
+`[FromEventSource<AccountEventSource>("Transactions")]` filters a reactor or reducer to one stream of an event source definition. When the definition does not declare that stream with `[EventStream("Transactions")]`, no event can match and the observer would never be called, so the diagnostic reports it as a warning on the attribute. Only the definition's own attributes are read, so a definition in a referenced assembly is checked the same way as one in your project. A stream argument that is not a constant string, and a definition that is not resolved yet, are left alone.
 
 ## Quick fixes
 

@@ -47,6 +47,11 @@ set +e
 # aborts on any glob that matches nothing, so a separate .mdx glob would fail a
 # repository whose pages are all .md while every link in it is fine.
 #
+# Limit requests to 10 concurrent connections so shared hosts such as GitHub are
+# not hit in a burst. Retry transient 5xx and network failures three times;
+# linkinator's exponential backoff plus 1000ms of random jitter gives an
+# affected request up to four attempts without masking its final failure.
+#
 # NO_COLOR keeps the scan summary free of escape codes, so the link count below
 # can be read out of it.
 OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
@@ -54,6 +59,10 @@ OUTPUT=$(NO_COLOR=1 npx --yes "linkinator@$LINKINATOR_VERSION" \
     --markdown \
     --recurse \
     --directory-listing \
+    --concurrency 10 \
+    --retry-errors \
+    --retry-errors-count 3 \
+    --retry-errors-jitter 1000 \
     --verbosity error \
     --status-code "403:ok" \
     --skip "$SITE_ABSOLUTE_LINKS" 2>&1)

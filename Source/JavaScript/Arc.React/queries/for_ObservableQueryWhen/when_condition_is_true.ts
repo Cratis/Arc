@@ -7,7 +7,6 @@ import { ObservableQueryWhen } from '../ObservableQueryWhen.js';
 import { FakeObservableQuery } from '../for_useObservableQuery/FakeObservableQuery.js';
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when observable condition is true', () => {
     beforeEach(() => {

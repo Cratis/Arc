@@ -60,6 +60,13 @@ describe('when reading remembered view options', () => {
 });
 
 describe('when remembering view options', () => {
+    it('round trips through browser storage even with Node experimental webstorage disabled', () => {
+        window.localStorage.clear();
+        writePresentation(window.localStorage, { ...defaultPresentation, detailLevel: 'overview' });
+        expect(readPresentation(window.localStorage).detailLevel).toBe('overview');
+        window.localStorage.clear();
+    });
+
     it('writes only what the person chose', () => {
         const entries: Record<string, string> = {};
 

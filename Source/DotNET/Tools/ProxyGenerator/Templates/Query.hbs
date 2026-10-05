@@ -1,19 +1,17 @@
-/*---------------------------------------------------------------------------------------------
- *  **DO NOT EDIT** - This file is an automatically generated file.
- *--------------------------------------------------------------------------------------------*/
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-/* eslint-disable sort-imports */
-// eslint-disable-next-line header/header
+// **DO NOT EDIT** - This file is an automatically generated file.
 {{#if IsEnumerable}}
 {{#if Properties.[0]}}
-import { QueryFor, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, SortingActions, SortingActionsForQuery, Paging{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
+import { Paging, QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, SortingActions, SortingActionsForQuery } from '@cratis/arc/queries';
 {{else}}
-import { QueryFor, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting, Paging{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
+import { Paging, QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}, Sorting } from '@cratis/arc/queries';
 {{/if}}
-import { useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging, PerformQuery, SetSorting, SetPage, SetPageSize, QueryWhen } from '@cratis/arc.react/queries';
+import { PerformQuery, QueryWhen, SetPage, SetPageSize, SetSorting, useQuery, useQueryWithPaging, useSuspenseQuery, useSuspenseQueryWithPaging } from '@cratis/arc.react/queries';
 {{else}}
-import { QueryFor, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}}{{#if HttpMethod}}, QueryHttpMethod{{/if}} } from '@cratis/arc/queries';
-import { useQuery, useSuspenseQuery, PerformQuery, SetSorting, QueryWhen } from '@cratis/arc.react/queries';
+import { QueryFor{{#if HttpMethod}}, QueryHttpMethod{{/if}}, QueryResultWithState{{#if HasValidationRules}}, QueryValidator{{/if}} } from '@cratis/arc/queries';
+import { PerformQuery, QueryWhen, SetSorting, useQuery, useSuspenseQuery } from '@cratis/arc.react/queries';
 {{/if}}
 import { ParameterDescriptor } from '@cratis/arc/reflection';
 {{#Imports}}

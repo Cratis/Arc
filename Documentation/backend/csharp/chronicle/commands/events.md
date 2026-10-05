@@ -138,6 +138,38 @@ public record RegisterCustomer(EventSourceId CustomerId, string Email);
 
 These metadata attributes categorize and identify the appended events. Because the append carries them, the concurrency strategy configured on the event sequence resolves its expected tail with the same narrowing — so a routing-only tag already bounds the concurrency check, without any attribute opting in. Setting `concurrency: true` chooses which dimensions bound it explicitly; see [concurrency scoping](./concurrency.md).
 
+### Event source definitions
+
+Use `[EventSource<TSource>]` when a command always appends through a registered Chronicle event source definition. The definition supplies the event source type, validates the optional stream name, records the definition in `EventContext.EventSource`, and supplies its concurrency dimensions unless a legacy `concurrency: true` attribute explicitly selects dimensions.
+
+```csharp
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.EventSources;
+
+[EventSource]
+[EventStream("transactions")]
+public class Account : IEventSource;
+
+[Command]
+[EventSource<Account>("transactions")]
+public record RecordTransaction(AccountId AccountId, decimal Amount)
+{
+    public TransactionRecorded Handle() => new(Amount);
+}
+```
+
+A returned `EventForEventSourceId` can route one event differently from the command. The definition and the stream are one routing decision:
+
+- An event that sets only `EventStream` uses the command's definition and that stream.
+- An event that sets `EventSource` uses that definition and its own `EventStream`; it inherits nothing from the command's stream.
+- An event that sets the legacy `EventSourceType` or `EventStreamType` is appended by those strings, not through the command's definition, because appending through the definition would silently discard them.
+- `EventStreamId` and `Subject` on the event are independent of this and win over the command when set.
+
+The concurrency dimensions the definition declares apply only when no legacy attribute opts into concurrency with `concurrency: true`. A legacy attribute that does not opt in carries metadata only, so it does not displace the definition's dimensions.
+
+Do not combine a definition declaration with contradictory `[EventSourceType]` or `[EventStreamType]` attributes. Arc rejects the command context rather than append an event whose string metadata disagrees with the definition. Existing string attributes remain supported for commands that do not use definitions.
+
 ## Events for Specific Event Sources
 
 Sometimes a single command needs to append events to multiple different event sources. The standard approach appends all events to the same event source resolved from the command context, which is fine for the common case. When you need finer control — for example, a fund transfer that debits one account and credits another — use `EventForEventSourceId`.
@@ -209,7 +241,7 @@ public record ImportCredit(EventSourceId AccountId, decimal Amount, DateTimeOffs
 }
 ```
 
-Arc keeps both for a single wrapper, a collection, a mixed collection, and `EventsWithConcurrencyScopes`, whether the command appends immediately or through its transaction. Leave `Occurred` unset to use the append time. The wrapper's other metadata properties (`EventStreamType`, `EventStreamId`, `EventSourceType`, and `Subject`) are not used: those come from the command context, as described in [event stream metadata](#event-stream-metadata).
+Arc keeps both for a single wrapper, a collection, a mixed collection, and `EventsWithConcurrencyScopes`, whether the command appends immediately or through its transaction. Leave `Occurred` unset to use the append time. The wrapper's routing properties (`EventStreamType`, `EventStreamId`, `EventSourceType`, and `Subject`) win over the command context when set, as described in [per-event routing](#per-event-routing); otherwise those come from the command context, as described in [event stream metadata](#event-stream-metadata).
 
 You can mix `EventForEventSourceId` values with regular events in a tuple return, letting some events use the command's own event source while others target specific event sources:
 
@@ -239,6 +271,8 @@ public record CustomerOrderAccepted(EventSourceId OrderId);
 ```
 
 > `EventForEventSourceId` does not share one concurrency scope across targets — a scope carries a single stream's expected tail, so it cannot be reused for another stream. The command's concurrency declaration still applies: one scope is built per target event source, with that target's own expected tail. Each append also uses the stream metadata from the command (stream id, stream type, event source type) while targeting the event source id you supply explicitly.
+>
+> When several wrappers target the same event source id, a guard that only follows from the event source definition is derived per event, from that event's own stream and definition, and is never reused for another event. Events written through a definition reach the event sequence without a scope, which derives and validates the guards itself. Wrappers that override the definition with legacy routing and would need different guards for one id are rejected with `IncompatibleConcurrencyScopesForEventSource` before anything is enrolled or appended. A guard you chose with `concurrency: true` keeps its existing behavior. Split the events into separate commands or return `EventsWithConcurrencyScopes` with an explicit scope when one id needs a different guard per event.
 
 ## Events with exact concurrency scopes
 
@@ -248,6 +282,10 @@ The response contains two values:
 
 - the `EventForEventSourceId` values, in append order; and
 - the exact concurrency scopes the decision depended on, keyed by labels you choose.
+
+### Per-event routing
+
+A routing value set on an `EventForEventSourceId` wins over the command context. This applies to every return that carries wrappers: a single wrapper, a collection, a mixed collection, a tuple such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. One event can override its event source type or stream while the others keep the command's metadata. A plain, unwrapped event always uses the command context. A value counts as set when it differs from its default: `EventSourceType.Default`, `EventStreamType.All`, `EventStreamId.Default`, or a non-null `Subject`. A value left at its default falls back to the command context.
 
 An empty response with **no events and no concurrency scopes** is a successful no-op: Arc neither appends an empty batch nor enrolls one in the active command transaction. This is useful when an equivalent declaration already exists. If scopes are supplied, Arc still forwards them through the normal append or transaction path; an empty event list never silently discards a required concurrency check.
 

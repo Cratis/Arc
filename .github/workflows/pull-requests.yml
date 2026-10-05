@@ -89,6 +89,13 @@ jobs:
       - name: Yarn install
         run: yarn install --immutable
 
+      # Screenplay.Embedded packs this generated viewer and deliberately refuses to pack without it.
+      - name: Build embedded event-model viewer
+        working-directory: Source/DotNET/Screenplay.Embedded
+        run: |
+          npm ci --workspaces=false
+          npm run build
+
       - name: Remove any existing artifacts
         run: rm -rf ${{ env.NUGET_OUTPUT }}
       - name: Build

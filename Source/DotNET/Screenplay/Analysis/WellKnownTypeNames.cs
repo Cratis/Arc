@@ -78,6 +78,18 @@ public static class WellKnownTypeNames
     /// <summary>The attribute narrowing a command to an event stream identifier.</summary>
     public const string EventStreamIdAttribute = "Cratis.Chronicle.Events.EventStreamIdAttribute";
 
+    /// <summary>The generic attribute declaring the event source definition and stream a command appends through.</summary>
+    public const string ArcEventSourceAttributeOfT = "Cratis.Arc.Chronicle.Commands.EventSourceAttribute`1";
+
+    /// <summary>The generic attribute filtering a reactor or reducer to the events of an event source definition and stream.</summary>
+    public const string FromEventSourceAttributeOfT = "Cratis.Chronicle.EventSources.FromEventSourceAttribute`1";
+
+    /// <summary>The attribute declaring a type as an event source definition.</summary>
+    public const string EventSourceDefinitionAttribute = "Cratis.Chronicle.EventSources.EventSourceAttribute";
+
+    /// <summary>The attribute declaring a stream of an event source definition.</summary>
+    public const string EventStreamDefinitionAttribute = "Cratis.Chronicle.EventSources.EventStreamAttribute";
+
     /// <summary>The attribute requiring a property of an event to be unique.</summary>
     public const string UniqueAttribute = "Cratis.Chronicle.Events.Constraints.UniqueAttribute";
 

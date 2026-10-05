@@ -55,6 +55,41 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     }
 
     /// <summary>
+    /// Reports what of the event source a command appends through the language cannot state.
+    /// </summary>
+    /// <param name="eventSource">The event source the command appends through, if it declares one.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    public void ReportEventSource(EventSourceBindingModel? eventSource, string location)
+    {
+        if (eventSource is null)
+        {
+            return;
+        }
+
+        var stream = eventSource.Stream is null ? string.Empty : $" stream '{eventSource.Stream}'";
+        if (!eventSource.StreamDeclared)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.EventStreamNotDeclared,
+                $"The command names{stream} of event source '{eventSource.Source}', which the event source does not declare",
+                location);
+        }
+
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
+            $"The command appends through event source '{eventSource.Source}'{stream}, which the language cannot declare yet; only the concurrency dimensions it declares are emitted",
+            location);
+
+        if (eventSource.ConcurrentByStreamId)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.EventStreamIdConcurrencyNotRepresentable,
+                $"The stream id takes part in the concurrency scope of event source '{eventSource.Source}', which has no value to state and was left out",
+                location);
+        }
+    }
+
+    /// <summary>
     /// Converts a dimension of the scope into the identifier it is written as.
     /// </summary>
     /// <param name="value">The value to convert.</param>

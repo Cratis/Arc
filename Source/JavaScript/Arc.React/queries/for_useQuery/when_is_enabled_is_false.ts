@@ -9,7 +9,6 @@ import { FakeQuery } from './FakeQuery.js';
 import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 describe('when is_enabled is false', () => {
     let fetchStub: sinon.SinonStub;

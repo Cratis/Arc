@@ -2,18 +2,15 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 import commonjs from 'vite-plugin-commonjs';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { fileURLToPath } from 'node:url';
 
 export function createConfig() {
     return {
         optimizeDeps: {
             exclude: ['tslib'],
         },
-        esbuild: {
-            supported: {
-                'top-level-await': true,
-            },
-        },
+        build: { target: 'esnext' },
+        resolve: { tsconfigPaths: true },
         test: {
             globals: true,
             environment: 'node',
@@ -38,11 +35,10 @@ export function createConfig() {
             },
             exclude: ['**/dist/**', '**/node_modules/**', 'node_modules/**', '**/wwwroot/**', 'wwwroot/**', '**/given/**'],
             include: ['**/for_*/when_*/**/*.ts', '**/for_*/**/when_*.ts'],
-            setupFiles: `${__dirname}/vitest.setup.ts`
+            setupFiles: fileURLToPath(new URL('./vitest.setup.ts', import.meta.url))
         },
         plugins: [
-            commonjs(),
-            tsconfigPaths()
+            commonjs()
         ]
     };
 }

@@ -39,6 +39,7 @@ public class CommandSyntaxBuilder(
     public CommandSyntax Build(CommandModel command, string location)
     {
         var produced = produces.Build(command.Produces, location).ToList();
+        concurrency.ReportEventSource(command.EventSource, location);
 
         return new(
             naming.ToDeclarationName(command.Name),

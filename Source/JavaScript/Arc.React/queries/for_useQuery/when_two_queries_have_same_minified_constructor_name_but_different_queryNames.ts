@@ -11,7 +11,6 @@ import { ArcContext, ArcConfiguration } from '../../ArcContext.js';
 import { QueryInstanceCacheContext } from '../QueryInstanceCacheContext.js';
 import { createFetchHelper } from '@cratis/arc/helpers/fetchHelper';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 
 interface Item {
     id: string;

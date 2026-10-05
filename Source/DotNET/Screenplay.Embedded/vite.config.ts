@@ -4,7 +4,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
-import { monacoAliases } from './monaco.aliases';
+import { monacoAliases } from './monaco.aliases.ts';
 
 // The viewer is served from inside the hosting assembly, under whatever PathBase the host happens to
 // run on, so every asset reference has to be relative - base './' - and the application resolves its
@@ -20,15 +20,28 @@ export default defineConfig({
         target: 'esnext',
         modulePreload: false,
         cssCodeSplit: false,
-        rollupOptions: {
+        rolldownOptions: {
             output: {
-                manualChunks(id: string) {
-                    if (!id.includes('node_modules')) return undefined;
-                    if (id.includes('pixi.js')) return 'pixi';
-                    if (id.includes('monaco-editor') || id.includes('@cratis/screenplay-language')) return 'monaco';
-                    if (id.includes('primereact') || id.includes('primeicons')) return 'primereact';
-                    if (id.includes('/react-dom') || id.includes('/react/') || id.includes('/scheduler')) return 'react-vendor';
-                    return undefined;
+                codeSplitting: {
+                    // Capture dependency closures before their consumers. Arbitrary size splits of
+                    // Monaco core or Pixi create cycles that fail during class initialization.
+                    // Only independent editor contributions use size-bounded subdivision.
+                    groups: [
+                        { name: 'react-vendor', test: /node_modules[/](react|react-dom|scheduler)[/]/ },
+                        { name: 'monaco-base-common', test: /monaco-editor\/esm\/vs\/base\/common\// },
+                        { name: 'monaco-base-browser', test: /monaco-editor\/esm\/vs\/base\/browser\// },
+                        { name: 'monaco-base', test: /monaco-editor\/esm\/vs\/base\// },
+                        { name: 'monaco-platform', test: /monaco-editor\/esm\/vs\/platform\// },
+                        { name: 'monaco-core', test: /monaco-editor\/esm\/vs\/editor\/common\/core\// },
+                        { name: 'monaco-model', test: /monaco-editor\/esm\/vs\/editor\/common\/model\// },
+                        { name: 'monaco-services', test: /monaco-editor\/esm\/vs\/editor\/common\/services\// },
+                        { name: 'monaco-common', test: /monaco-editor\/esm\/vs\/editor\/common\// },
+                        { name: 'monaco-view', test: /monaco-editor\/esm\/vs\/editor\/browser\/(view|viewParts)\// },
+                        { name: 'monaco-browser', test: /monaco-editor\/esm\/vs\/editor\/browser\// },
+                        { name: 'monaco-contrib', test: /monaco-editor\/esm\/vs\/editor\/contrib\//, maxSize: 450_000 },
+                        { name: 'monaco', test: /node_modules[/]monaco-editor[/]/ },
+                        { name: 'pixi', test: /node_modules[/]pixi.js[/]/ }
+                    ]
                 }
             }
         }

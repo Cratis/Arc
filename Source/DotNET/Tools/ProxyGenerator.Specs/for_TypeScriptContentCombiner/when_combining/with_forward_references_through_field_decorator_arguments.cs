@@ -100,7 +100,7 @@ public class with_forward_references_through_field_decorator_arguments : Specifi
     [Fact] void should_declare_the_first_derivative_before_the_parent() => IndexOfType(FirstDerivativeTypeName).ShouldBeLessThan(IndexOfType(ParentTypeName));
     [Fact] void should_declare_the_second_derivative_before_the_parent() => IndexOfType(SecondDerivativeTypeName).ShouldBeLessThan(IndexOfType(ParentTypeName));
     [Fact] void should_keep_the_derivative_constructor_array() => _result.ShouldContain("@field(Shape, true, [Circle, Rectangle])");
-    [Fact] void should_merge_the_fundamentals_imports() => _result.ShouldContain("import { field, derivedType } from '@cratis/fundamentals';");
+    [Fact] void should_merge_the_fundamentals_imports() => _result.ShouldContain("import { derivedType, field } from '@cratis/fundamentals';");
     [Fact] void should_only_emit_one_fundamentals_import() => _result.Split("from '@cratis/fundamentals';").Length.ShouldEqual(2);
     [Fact] void should_remove_the_internal_base_import() => _result.ShouldNotContain("import { Shape } from './Shape';");
     [Fact] void should_remove_the_internal_derivative_imports() => _result.ShouldNotContain("import { Circle } from './Circle';");

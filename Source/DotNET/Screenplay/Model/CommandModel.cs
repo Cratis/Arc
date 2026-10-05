@@ -14,6 +14,7 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Produces">The events the command produces.</param>
 /// <param name="Concurrency">The concurrency scope the command appends within, if it declares one.</param>
 /// <param name="SourceFilePath">The path of the file implementing the command, if it is known.</param>
+/// <param name="EventSource">The event source definition and stream the command appends through, if it declares one.</param>
 /// <remarks>
 /// A command declares either <paramref name="Produces"/> or a handler file, never both - the two together do not
 /// compile. The source file path is therefore only emitted as a handler when nothing is produced declaratively.
@@ -26,4 +27,5 @@ public record CommandModel(
     IEnumerable<ValidationRuleModel> Validations,
     IEnumerable<ProducesModel> Produces,
     ConcurrencyModel? Concurrency,
-    string? SourceFilePath);
+    string? SourceFilePath,
+    EventSourceBindingModel? EventSource = null);

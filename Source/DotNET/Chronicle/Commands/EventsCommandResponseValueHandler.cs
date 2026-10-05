@@ -38,13 +38,14 @@ public class EventsCommandResponseValueHandler(
         if (events.Any())
         {
             var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(commandContext, concurrencyScopeStrategies.GetFor(eventLog), eventSourceId);
-            var subject = commandContext.GetSubject();
+            var routing = CommandTransactionAppender.ResolveRouting(null, commandContext);
+            var subject = routing.Subject;
 
             if (CommandTransaction.TryGetActive(out _))
             {
                 foreach (var @event in events)
                 {
-                    eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope);
+                    eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, routing: routing);
                 }
             }
             else if (subject is not null)
@@ -52,15 +53,7 @@ public class EventsCommandResponseValueHandler(
                 CommandTransaction.RefuseImmediateAppend();
                 foreach (var @event in events)
                 {
-                    var appendResult = await eventLog.Append(
-                        eventSourceId,
-                        @event,
-                        commandContext.GetEventStreamType(),
-                        commandContext.GetEventStreamId(),
-                        commandContext.GetEventSourceType(),
-                        correlationId: default,
-                        concurrencyScope: concurrencyScope,
-                        subject: subject);
+                    var appendResult = await eventLog.AppendForCommand(eventSourceId, @event, routing, concurrencyScope);
 
                     if (!appendResult.IsSuccess)
                     {
@@ -71,14 +64,9 @@ public class EventsCommandResponseValueHandler(
             else
             {
                 CommandTransaction.RefuseImmediateAppend();
-                var result = await eventLog.AppendMany(
-                    eventSourceId,
-                    events,
-                    commandContext.GetEventStreamType(),
-                    commandContext.GetEventStreamId(),
-                    commandContext.GetEventSourceType(),
-                    correlationId: default,
-                    concurrencyScope: concurrencyScope);
+                var result = routing.EventSource is not null
+                    ? await eventLog.AppendMany(routing.EventSource, eventSourceId, events, routing.EventStream, routing.EventStreamId, correlationId: default, concurrencyScope: concurrencyScope)
+                    : await eventLog.AppendMany(eventSourceId, events, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
 
                 if (!result.IsSuccess)
                 {
