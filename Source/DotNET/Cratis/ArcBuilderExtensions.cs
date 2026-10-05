@@ -3,8 +3,11 @@
 
 using Cratis.Arc;
 using Cratis.Arc.Chronicle.Tenancy;
+using Cratis.Chronicle;
 using Cratis.Chronicle.AspNetCore;
+using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -53,6 +56,10 @@ public static class ArcBuilderExtensions
     {
         builder.Services.AddAggregateRoots(builder.Types);
 
+        // AddCratisChronicle adds the event store's manager unconditionally, which would replace an explicit
+        // registration made before this call. Remember what is registered so that only Chronicle's addition is undone.
+        var existing = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet(ReferenceEqualityComparer.Instance);
+
         ((WebApplicationBuilder)builder.AppBuilder).AddCratisChronicle(
             configureOptions: options =>
             {
@@ -64,6 +71,16 @@ public static class ArcBuilderExtensions
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
+
+        // The event store owns the manager, including its lifecycle policy and namespace. Drop Chronicle's addition
+        // and Arc's convention binding, then register the event store's manager unless the caller registered one.
+        foreach (var descriptor in builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager) && !existing.Contains(_)).ToArray())
+        {
+            builder.Services.Remove(descriptor);
+        }
+
+        builder.Services.RemoveArcServiceBindingsFor(typeof(IUnitOfWorkManager));
+        builder.Services.TryAddScoped(services => services.GetRequiredService<IEventStore>().UnitOfWorkManager);
 
         builder.Services.AddCommandAwareDecisionReads();
         return builder;
