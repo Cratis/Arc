@@ -10,9 +10,9 @@ namespace Cratis.Arc.Introspection;
 
 internal static partial class DiscoveryExposureLogMessages
 {
-    [LoggerMessage(LogLevel.Warning, "The discovery endpoints (/.cratis/commands, /.cratis/queries, /.cratis/users, /.cratis/tenants and /.cratis/identity-details/schema) are exposed anonymously outside Development because Cratis:Arc:Introspection:RequireAuthentication is false. Remove the setting to require authenticated callers.")]
-    internal static partial void DiscoveryExposedAnonymously(this ILogger logger);
+    [LoggerMessage(LogLevel.Warning, "The discovery endpoints ({Endpoints}) are exposed anonymously outside Development because Cratis:Arc:Introspection:RequireAuthentication is false. Remove the setting to require authenticated callers.")]
+    internal static partial void DiscoveryExposedAnonymously(this ILogger logger, string endpoints);
 
-    [LoggerMessage(LogLevel.Warning, "The discovery endpoints (/.cratis/commands, /.cratis/queries, /.cratis/users, /.cratis/tenants and /.cratis/identity-details/schema) are not mapped, because outside Development they require authenticated callers and the host cannot authenticate them: {Reason} Configure authentication, or set Cratis:Arc:Introspection:RequireAuthentication to false to expose them anonymously.")]
-    internal static partial void DiscoveryNotMapped(this ILogger logger, string reason);
+    [LoggerMessage(LogLevel.Warning, "The discovery endpoints ({Endpoints}) are not mapped, because outside Development they require authenticated callers and the host cannot authenticate them: {Reason} Configure authentication, or set Cratis:Arc:Introspection:RequireAuthentication to false to expose them anonymously.")]
+    internal static partial void DiscoveryNotMapped(this ILogger logger, string endpoints, string reason);
 }

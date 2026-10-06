@@ -40,6 +40,10 @@ public class IntrospectionOptions
     /// default authentication scheme, the discovery endpoints are not mapped outside Development. When it is
     /// <see langword="true"/>, the same host fails at startup instead.
     /// </para>
+    /// <para>
+    /// Authentication enforcement applies only when <see cref="Enabled"/> or <see cref="IdentityDiscovery"/> is true.
+    /// When both are false, access settings are unused, but role configuration is still validated.
+    /// </para>
     /// </remarks>
     public bool RequireAuthentication
     {
