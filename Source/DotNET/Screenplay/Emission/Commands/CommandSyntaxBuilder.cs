@@ -38,12 +38,20 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
-        var produced = produces.Build(command.Produces, location, command.Identifier).ToList();
+        var properties = ToProperties(command, location).ToList();
+        var identifier = properties.Exists(_ => _.IsIdentifier) ? command.Identifier : null;
+        var productions = command.Produces.ToList();
+        if (productions.Exists(_ => !_.UsesCommandContext))
+        {
+            properties = [.. properties.Select(_ => _ with { IsIdentifier = false })];
+        }
+
+        var produced = produces.Build(productions, location, identifier).ToList();
         concurrency.ReportEventSource(command.EventSource, location);
 
         return new(
             naming.ToDeclarationName(command.Name),
-            [.. ToProperties(command, location)],
+            properties,
             authorize.Build(command.Authorization),
             [.. validations.Build(command.Validations, location)],
             produced,

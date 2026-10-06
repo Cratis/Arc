@@ -65,6 +65,9 @@ reports SP0002 1
 # document holding them is a document generated from more than the project that was named.
 says concept CustomerId : Uuid
 once event OrderPlaced
+# The scenario constructs this contract too, so the application-wide census keeps it standalone.
+never produces event OrderPlaced
+once produces OrderPlaced
 once command PlaceOrder
 says customerId CustomerId identifier
 says for customerId

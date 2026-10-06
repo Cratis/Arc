@@ -28,6 +28,7 @@ public class from_a_command_copying_its_identifier_into_the_event : a_batch_a_do
         }
         """));
 
+    [Fact] void should_keep_the_persisted_contract_standalone() => Result.Source.ShouldNotContain("produces event AuthorRegistered");
     [Fact] void should_state_the_destination() => Result.Source.ShouldContain("for id");
     [Fact] void should_preserve_the_payload_copy() => Result.Source.ShouldContain("id = id");
     [Fact] void should_report_the_payload_copy_as_information() => RoundTrip.Diagnostics.Any(diagnostic => diagnostic.Code == "PLAY0469" && diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information).ShouldBeTrue();

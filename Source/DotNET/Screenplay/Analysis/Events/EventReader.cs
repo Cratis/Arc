@@ -55,8 +55,23 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
         {
             Description = Documentation.SummaryOf(type),
             Documentation = documentation,
-            Id = !string.IsNullOrWhiteSpace(id) && !string.Equals(id, type.Name, StringComparison.Ordinal) ? id : null
+            Id = !string.IsNullOrWhiteSpace(id) && !string.Equals(id, type.Name, StringComparison.Ordinal) ? id : null,
+            TypeIdentity = EventProducers.IdentityOf(type),
+            CanInline = type.DeclaringSyntaxReferences.Length > 0 &&
+                type.Namespace() == location &&
+                IsGenerationOne(type) &&
+                !type.HasAttribute(WellKnownTypeNames.TombstoneAttribute) &&
+                !type.HasAttribute(WellKnownTypeNames.CompensationForAttribute) &&
+                !type.GetAttributes().Any(_ => _.AttributeClass.Is(WellKnownTypeNames.CompensationForAttributeOfT))
         };
+    }
+
+    static bool IsGenerationOne(INamedTypeSymbol type)
+    {
+        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
+
+        return generation is null or 1u;
     }
 
     /// <summary>

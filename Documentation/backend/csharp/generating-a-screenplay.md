@@ -143,6 +143,14 @@ Paths stay readable because they are written relative to the directory all the p
 
 The order the projects arrive in never reaches the document. Nothing decides what order a host enumerates a solution in, so they are sorted by assembly name before anything is read and the same projects always print the same bytes. Where that order has to decide something it says so: two projects declaring the same artifact name into one slice keep the first and report `SP0037`.
 
+## Inline events and destinations
+
+An event used by exactly one production site can appear as `produces event <Name>` inside its command. The generator counts sites across every analyzed project, including reactors and other code. It only inlines a local generation-one event in the same slice when the command has a required scalar identifier, the production is unconditional, and every payload member has a supported mapping. Tombstones, compensations, unsupported shapes, and payload copies of the identifier stay standalone.
+
+Both forms preserve descriptions, documentation, rename pins, and the persisted payload shape. Inlining changes where the declaration appears, not its executable meaning. Scoped embedded documents still import an inline event declared outside their scope, and the board keeps its schema and flow links.
+
+The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A routed wrapper, tuple result, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination rather than retargeting it.
+
 ## The generator checks its own output
 
 Every diagnostic above names something about _your application_ — a construct the language cannot hold, source that did not compile, projects that share no directory. There is one that names a defect in the generator instead.

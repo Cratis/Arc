@@ -25,4 +25,14 @@ public record EventModel(string Name, IEnumerable<PropertyModel> Properties, IEn
     /// Gets the persisted name pinned by the event type attribute, when it differs from the type name.
     /// </summary>
     public string? Id { get; init; }
+
+    /// <summary>
+    /// Gets the assembly-qualified source type identity used by the producer census.
+    /// </summary>
+    public string? TypeIdentity { get; init; }
+
+    /// <summary>
+    /// Gets whether the analyzed declaration is local, generation one, and neither tombstone nor compensation.
+    /// </summary>
+    public bool CanInline { get; init; }
 }

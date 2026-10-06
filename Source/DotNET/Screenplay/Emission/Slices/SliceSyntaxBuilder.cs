@@ -46,16 +46,26 @@ public class SliceSyntaxBuilder(
     public const string DefaultSliceName = "Slice";
 
     /// <summary>
+    /// Gets the inline eligibility decisions shared with command emission.
+    /// </summary>
+    public InlineEvents? InlineEvents { get; init; }
+
+    /// <summary>
     /// Builds the slice declaration.
     /// </summary>
     /// <param name="slice">The slice to build for.</param>
     /// <returns>The <see cref="SliceSyntax"/>.</returns>
-    public SliceSyntax Build(SliceModel slice) =>
-        new(
+    public SliceSyntax Build(SliceModel slice)
+    {
+        var commandDeclarations = slice.Commands.Select(_ => commands.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal).ToList();
+        var inlineNames = commandDeclarations.SelectMany(_ => _.Produces).Select(_ => _.InlineEvent).OfType<EventSyntax>()
+            .Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
+
+        return new(
             SliceTypes.Convert(slice.Kind),
             GetName(slice),
-            [.. slice.Events.Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
-            [.. slice.Commands.Select(_ => commands.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            [.. slice.Events.Where(_ => InlineEvents?.Contains(_) != true || !inlineNames.Contains(naming.ToDeclarationName(_.Name))).Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            commandDeclarations,
             [.. slice.Queries.Select(queries.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             BuildProjections(slice),
             [],
@@ -79,6 +89,7 @@ public class SliceSyntaxBuilder(
             [.. specifications.Build(slice.Specifications)],
             SourceLocation.Start,
             naming.ToStringLiteral(slice.Description));
+    }
 
     /// <summary>
     /// Builds the projections a slice declares.

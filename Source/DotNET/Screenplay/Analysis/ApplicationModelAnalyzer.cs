@@ -97,7 +97,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 slices,
                 whole.Types.Types)
             {
-                Imports = imports
+                Imports = imports,
+                EventProducerCounts = EventProducers.Across(ordered, slices)
             },
             diagnostics.All);
     }

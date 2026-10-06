@@ -103,7 +103,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <returns>The modules.</returns>
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
     {
-        var sliceBuilder = CreateSliceBuilder();
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model));
         var placed = new List<PlacedSlice>();
         var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
@@ -134,8 +134,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <summary>
     /// Composes the builder that turns one slice into its declaration.
     /// </summary>
+    /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder() =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents) =>
         new(
             naming,
             new CommandSyntaxBuilder(
@@ -143,7 +144,12 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 _types,
                 _authorize,
                 _validations,
-                new ProducesSyntaxBuilder(naming, _names),
+                new ProducesSyntaxBuilder(naming, _names)
+                {
+                    InlineEvents = inlineEvents,
+                    Events = new EventSyntaxBuilder(naming, _types, _names),
+                    Diagnostics = diagnostics
+                },
                 new ConcurrencySyntaxBuilder(naming, diagnostics),
                 _names),
             new EventSyntaxBuilder(naming, _types, _names),
@@ -152,7 +158,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ReactorSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming));
+            new SpecificationSyntaxBuilder(naming))
+        {
+            InlineEvents = inlineEvents
+        };
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.

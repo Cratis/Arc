@@ -480,4 +480,9 @@ public static class ScreenplayDiagnosticCodes
     /// A command's identity cannot be read as a directly returned required scalar property.
     /// </summary>
     public const string UnreadableCommandIdentifier = "SP0050";
+
+    /// <summary>
+    /// Explicit or unprovable production routing prevents using the command identifier as a destination.
+    /// </summary>
+    public const string UnrepresentableProductionDestination = "SP0051";
 }

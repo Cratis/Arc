@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Events;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -20,6 +21,21 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     readonly ConditionConverter _conditions = new(naming);
 
     /// <summary>
+    /// Gets the declarations selected for inline production.
+    /// </summary>
+    public InlineEvents? InlineEvents { get; init; }
+
+    /// <summary>
+    /// Gets the event declaration builder shared with standalone emission.
+    /// </summary>
+    public EventSyntaxBuilder? Events { get; init; }
+
+    /// <summary>
+    /// Gets where omitted destinations are reported.
+    /// </summary>
+    public ScreenplayDiagnostics? Diagnostics { get; init; }
+
+    /// <summary>
     /// Builds the produces blocks of a command.
     /// </summary>
     /// <param name="produces">The events the command produces.</param>
@@ -34,8 +50,24 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="identifier">The command property supplying the destination, when it is known.</param>
     /// <returns>The produces blocks, in the order the command declares them.</returns>
-    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier) =>
-        [.. produces.Select(_ => Build(_, location, identifier))];
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier)
+    {
+        var productions = produces.ToList();
+        if (productions.Exists(_ => !_.UsesCommandContext))
+        {
+            if (identifier is not null)
+            {
+                Diagnostics?.Information(
+                    ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
+                    "A production is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and its event remains standalone",
+                    location);
+            }
+
+            identifier = null;
+        }
+
+        return [.. productions.Select(_ => Build(_, location, identifier))];
+    }
 
     /// <summary>
     /// Builds a single produces block.
@@ -58,7 +90,10 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
                     .Select(ToMapping)
             ],
             SourceLocation.Start,
-            For: identifier is null ? null : new PathExpressionSyntax(naming.ToPropertyPath(identifier), SourceLocation.Start));
+            For: identifier is null ? null : new PathExpressionSyntax(naming.ToPropertyPath(identifier), SourceLocation.Start))
+        {
+            InlineEvent = identifier is not null && InlineEvents?.For(produces) is { } declaration ? Events?.Build(declaration, location) : null
+        };
 
     /// <summary>
     /// Converts a single mapping onto an event property.

@@ -70,6 +70,13 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
                 [.. group.Select(rule => new CommandRule(rule.Message ?? string.Empty, RuleType(rule.Rule)))]))
     ];
 
+    static string TagText(TagSyntax tag) => tag.Value switch
+    {
+        LiteralExpressionSyntax literal => literal.Value?.ToString() ?? string.Empty,
+        PathExpressionSyntax path => path.Path,
+        _ => string.Empty
+    };
+
     static string RuleType(ValidationRuleKind kind)
     {
         var name = kind.ToString();
@@ -135,14 +142,14 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
 
     List<EventItem> Events(SliceSyntax syntax, string slicePath, SliceType sliceType)
     {
-        var declared = (syntax.Events ?? [])
+        var declared = EventDeclarations.In(syntax)
             .Where(@event => !string.IsNullOrWhiteSpace(@event.Name))
             .Select(@event => new EventItem(
                 owners.IdentityFor(@event.Name) ?? DeterministicId.From(documentId, slicePath, "event", @event.Name),
                 @event.Name,
                 @event.Properties.ToSchema(),
                 SourceEventId: null,
-                Tags: [.. (@event.Tags ?? []).Select(tag => tag.Value?.ToString() ?? string.Empty)],
+                Tags: [.. (@event.Tags ?? []).Select(TagText)],
                 Constraints: Constraints(syntax, @event.Name)))
             .ToList();
 
