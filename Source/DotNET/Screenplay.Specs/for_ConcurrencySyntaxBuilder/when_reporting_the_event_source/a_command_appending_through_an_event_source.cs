@@ -29,6 +29,15 @@ public class a_command_appending_through_an_event_source : Specification
         _builder.ReportEventSource(null, "Library.Accounts.Legacy");
     }
 
+    [Fact]
+    void should_not_suggest_enabling_authoring_when_it_is_already_enabled()
+    {
+        var diagnostics = new ScreenplayDiagnostics();
+        new ConcurrencySyntaxBuilder(new ScreenplayNaming(), diagnostics).ReportEventSource(new("Account", "Transactions", true, false), "Library.Accounts.Deposit", true);
+        diagnostics.All.Single().Message.ShouldContain("no unambiguous readable route");
+        diagnostics.All.Single().Message.Contains("enable", StringComparison.Ordinal).ShouldBeFalse();
+    }
+
     [Fact] void should_report_what_cannot_be_stated() => _diagnostics.All.Select(_ => _.Code).ShouldContainOnly(
         ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
         ScreenplayDiagnosticCodes.EventStreamIdConcurrencyNotRepresentable,

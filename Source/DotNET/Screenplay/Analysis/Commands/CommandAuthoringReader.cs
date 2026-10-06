@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
@@ -28,6 +29,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     /// <returns>The optional authoring model.</returns>
     public CommandAuthoringModel? Read(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, string? identifier, string location)
     {
+        location = $"{location}.{command.Name}";
         Sources = new();
         var reads = new CommandReadsReader(models, types, diagnostics, enabled).Read(command, identifier, Sources, location);
         var result = new CommandAuthoringModel { Reads = reads.Reads, Requirements = reads.Requirements };
@@ -139,7 +141,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var source = SourceOf(response, model, command);
         if (source?.Contains('.', StringComparison.Ordinal) == false && responseType is not null && SupportsResponse(responseType))
         {
-            var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType);
+            var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType) &&
+                !AggregateRootBehaviors.ReachedFrom(body, model).Any();
             return result with { Response = source, Identifier = generatedIdentifier ? source : null };
         }
 

@@ -156,6 +156,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs) =>
         new(
             naming,
+            _types,
             new CommandSyntaxBuilder(
                 naming,
                 _types,

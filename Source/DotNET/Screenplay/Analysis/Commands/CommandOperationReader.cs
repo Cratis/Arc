@@ -15,7 +15,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="diagnostics">The diagnostic sink.</param>
 public class CommandOperationReader(TypeRegistry types, SourcePaths paths, ScreenplayDiagnostics diagnostics)
 {
-    static readonly string[] _frameworkNamespaces = ["System", "Microsoft", "Cratis.Arc", "Cratis.Chronicle"];
+    static readonly string[] _frameworkNamespaces = ["System", "Microsoft", "Cratis"];
 
     /// <summary>Determines whether a type implements the command operation contract.</summary>
     /// <param name="type">The type to check.</param>
@@ -87,7 +87,12 @@ public class CommandOperationReader(TypeRegistry types, SourcePaths paths, Scree
         {
             var argument = arguments.Arguments[index];
             var parameter = argument.NameColon is { } named ? constructor.Parameters.FirstOrDefault(parameter => parameter.Name == named.Name.Identifier.ValueText) : constructor.Parameters.ElementAtOrDefault(index);
-            var source = MappingSourceReader.ReadPath(argument.Expression, model, command) ?? sources.ReadPath(argument.Expression, model);
+            var source = MappingSourceReader.ReadPath(argument.Expression, model, command);
+            if (source is null && sources.ReadPath(argument.Expression, model) is { } authoringPath &&
+                (authoringPath.Contains('.', StringComparison.Ordinal) || model.GetSymbolInfo(MappingSourceReader.Unwrap(argument.Expression)).Symbol is ILocalSymbol))
+            {
+                source = authoringPath;
+            }
             if (parameter is null || source is null || !SymbolEqualityComparer.Default.Equals(parameter.Type, model.GetTypeInfo(argument.Expression).Type))
             {
                 Report($"Operation '{type.Name}' has an input not readable from command properties or generated values", location);
@@ -127,7 +132,8 @@ public class CommandOperationReader(TypeRegistry types, SourcePaths paths, Scree
     static bool IsSystem(ITypeSymbol type)
     {
         var ns = type.ContainingNamespace.ToDisplayString();
-        return type.TypeKind == TypeKind.Interface && !Array.Exists(_frameworkNamespaces, prefix => ns == prefix || ns.StartsWith(prefix + ".", StringComparison.Ordinal));
+        return type.TypeKind == TypeKind.Interface && (type.DeclaringSyntaxReferences.Length > 0 ||
+            !Array.Exists(_frameworkNamespaces, prefix => ns == prefix || ns.StartsWith(prefix + ".", StringComparison.Ordinal)));
     }
 
     static bool Portable(string? path) => path is not null && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal) &&

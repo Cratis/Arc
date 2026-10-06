@@ -50,12 +50,12 @@ public class unreadable_shapes : an_authoring_document
         }
         """);
 
-    [Fact] void should_report_the_non_uuid_computation() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeTrue();
+    [Fact] void should_report_the_non_uuid_computation() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Location == "Library.Authors.Registration.WithAComputedResponse").Message.ShouldContain("not a direct command property");
     [Fact] void should_not_generate_a_string_slug() => Result.Source.Contains("generated", StringComparison.Ordinal).ShouldBeFalse();
-    [Fact] void should_report_multiple_operation_systems() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandOperation).ShouldBeTrue();
+    [Fact] void should_report_multiple_operation_systems() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandOperation && diagnostic.Location == "Library.Authors.Registration.WithSeveralSystems").Message.ShouldContain("uses 2 external systems");
     [Fact] void should_not_emit_an_operation_the_grammar_cannot_hold() => Result.Source.Contains("produces operation Notify", StringComparison.Ordinal).ShouldBeFalse();
-    [Fact] void should_report_the_computed_stream_id() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandRoute).ShouldBeTrue();
-    [Fact] void should_report_imperative_provisioning() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandProvisioning).ShouldBeTrue();
+    [Fact] void should_report_the_computed_stream_id() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandRoute && diagnostic.Location == "Library.Authors.Registration.WithAComputedRoute").Message.ShouldContain("stream id");
+    [Fact] void should_report_imperative_provisioning() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandProvisioning && diagnostic.Location == "Library.Authors.Registration.WithImperativeProvisioning").Message.ShouldContain("provisioning behavior");
     [Fact] void should_not_treat_an_arbitrary_provided_value_as_a_di_read() => Result.Source.Contains("reads AuthorState", StringComparison.Ordinal).ShouldBeFalse();
     [Fact] void should_not_emit_a_collection_response() => Result.Model.Slices.SelectMany(slice => slice.Commands).Single(command => command.Name == "WithACollectionResponse").Authoring!.ResponseFields.ShouldBeEmpty();
     [Fact] void should_compile_the_remaining_document() => Compiled.Success.ShouldBeTrue();

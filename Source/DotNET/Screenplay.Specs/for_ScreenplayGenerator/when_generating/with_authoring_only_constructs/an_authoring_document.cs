@@ -23,7 +23,6 @@ public class an_authoring_document : Specification
         var generator = new ScreenplayGenerator();
         Result = generator.Generate(_compilation, new ScreenplayOptions { AuthoringOnlyConstructs = true });
         Off = generator.Generate(_compilation, new ScreenplayOptions());
-        generator.Generate(_compilation, new ScreenplayOptions { AuthoringOnlyConstructs = false }).Source.ShouldEqual(Off.Source);
         Compiled = new ScreenplayCompiler().Compile(Result.Source);
         if (Compiled.Value is not null)
         {

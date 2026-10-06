@@ -117,7 +117,7 @@ public class ArtifactReaders
         var models = whole.Models;
         var diagnostics = whole.Diagnostics;
         var properties = new PropertyReader(types);
-        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics);
+        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics, whole.AuthoringOnlyConstructs);
         var validators = ValidatorCatalog.From(catalog, new(models, diagnostics, paths));
 
         return new(

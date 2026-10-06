@@ -27,5 +27,7 @@ public class a_command_route : an_authoring_document
     [Fact] void should_keep_the_grammar_supported_stream_flag() => Result.Source.ShouldContain("streamType Transactions");
     [Fact] void should_compile_and_reject_only_executable_admission() => AssertAuthoringDocument();
     [Fact] void should_omit_routing_when_disabled() => Off.Source.Contains("eventsource Account", StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_not_add_build_warnings_in_default_mode() => Off.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning).ShouldBeEmpty();
+    [Fact] void should_report_omitted_routing_as_information() => Off.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
     [Fact] void should_report_the_opt_in_when_disabled() => Off.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).Message.ShouldContain("AuthoringOnlyConstructs");
 }

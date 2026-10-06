@@ -95,7 +95,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 var errorOnFalse = ErrorMessage(conditional.WhenFalse, model);
                 var success = errorOnTrue is not null ? conditional.WhenFalse : conditional.WhenTrue;
                 if ((errorOnTrue ?? errorOnFalse) is { } message && sources.ReadPath(success, model) is not null &&
-                    Condition(conditional.Condition, model, command, sources, errorOnTrue is not null) is { } condition)
+                    Condition(conditional.Condition, model, command, sources, errorOnTrue is not null, location) is { } condition)
                 {
                     recovered.Add(new(condition, message));
                     provided = success;
@@ -112,7 +112,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                     var guard = statement as IfStatementSyntax;
                     var returned = guard?.Statement is BlockSyntax { Statements: [ReturnStatementSyntax error] } ? error : guard?.Statement as ReturnStatementSyntax;
                     if (guard is { Else: null } && returned?.Expression is { } expression && ErrorMessage(expression, model) is { } message &&
-                        Condition(guard.Condition, model, command, sources, true) is { } condition)
+                        Condition(guard.Condition, model, command, sources, true, location) is { } condition)
                     {
                         recovered.Add(new(condition, message));
                     }
@@ -157,7 +157,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
         model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
 
-    static ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert)
+    ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
     {
         if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax comparison)
         {
@@ -173,6 +173,13 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         }
 
         var constant = model.GetConstantValue(comparison.Right);
+        if (EnumConstants.EnumerationOf(comparison.Right, model) is { } enumeration &&
+            (!constant.HasValue || !EnumConstants.TryResolve(enumeration, constant.Value, out _)))
+        {
+            return null;
+        }
+
+        var operand = right is not null ? new PropertyPathSource(right) : new MappingSourceReader(diagnostics).Read(comparison.Right, model, command, location);
         var kind = comparison.Kind() switch
         {
             SyntaxKind.EqualsExpression => invert ? ComparisonKind.NotEqual : ComparisonKind.Equal,
@@ -184,8 +191,8 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             _ => (ComparisonKind?)null
         };
 
-        return left is not null && kind is { } op && (right is not null || constant.HasValue)
-            ? new(left, op, right is null ? new LiteralSource(constant.Value) : new PropertyPathSource(right))
+        return left is not null && kind is { } op && operand is not null
+            ? new(left, op, operand)
             : null;
     }
 

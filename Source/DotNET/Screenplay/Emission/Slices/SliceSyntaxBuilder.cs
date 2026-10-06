@@ -10,6 +10,7 @@ using Cratis.Arc.Screenplay.Emission.Queries;
 using Cratis.Arc.Screenplay.Emission.Reactors;
 using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Specifications;
+using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
@@ -21,6 +22,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// Builds the Screenplay <c>slice</c> declaration for a slice.
 /// </summary>
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
+/// <param name="types">The shared converter for property types.</param>
 /// <param name="commands">The <see cref="CommandSyntaxBuilder"/> for the commands of the slice.</param>
 /// <param name="events">The <see cref="EventSyntaxBuilder"/> for the events of the slice.</param>
 /// <param name="queries">The <see cref="QuerySyntaxBuilder"/> for the queries of the slice.</param>
@@ -31,6 +33,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// <param name="specifications">The <see cref="SpecificationSyntaxBuilder"/> for the scenarios the slice is specified by.</param>
 public class SliceSyntaxBuilder(
     IScreenplayNaming naming,
+    TypeReferenceConverter types,
     CommandSyntaxBuilder commands,
     EventSyntaxBuilder events,
     QuerySyntaxBuilder queries,
@@ -93,7 +96,7 @@ public class SliceSyntaxBuilder(
             SourceLocation.Start,
             naming.ToStringLiteral(slice.Description),
             ReadModels: AuthoringReadModels.Where(read => read.Namespace == slice.Namespace).DistinctBy(read => read.Name)
-                .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), read.Properties.Select(property => new PropertySyntax(naming.ToPropertyName(property.Name), new Types.TypeReferenceConverter(naming).Convert(property.Type), SourceLocation.Start)).ToList(), SourceLocation.Start)).ToList());
+                .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), read.Properties.Select(property => new PropertySyntax(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start)).ToList(), SourceLocation.Start)).ToList());
     }
 
     /// <summary>

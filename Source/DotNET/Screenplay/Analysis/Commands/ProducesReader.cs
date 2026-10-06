@@ -15,6 +15,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="aggregates">The <see cref="AggregateRootCatalog"/> recording which aggregate roots a command reaches.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="authoringOnlyConstructs">Whether authoring-only constructs are enabled.</param>
 /// <remarks>
 /// Every event the handler constructs is a production, wherever in the body it happens - returned directly, wrapped
 /// in a result, appended to a log or handed to a collection. Reading the construction is what gives the mappings
@@ -29,7 +30,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// asked rather than assumed.
 /// </para>
 /// </remarks>
-public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregates, ScreenplayDiagnostics diagnostics)
+public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregates, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs = false)
 {
     readonly ProducesMappingReader _mappings = new(diagnostics);
     readonly ProducesConditionResolver _conditions = new(diagnostics);
@@ -207,10 +208,10 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     {
         if (HandlerBodies.YieldsEventSourceId(handler.ReturnType))
         {
-            diagnostics.Information(
-                ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult,
-                "The handler yields an event source identifier or response alongside the event; readable generated identities and responses are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs",
-                location);
+            var message = authoringOnlyConstructs
+                ? "The handler yields an event source identifier or response alongside the event, but its destination could not be proven; no event source destination was inferred"
+                : "The handler yields an event source identifier or response alongside the event; readable generated identities and responses are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs";
+            diagnostics.Information(ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult, message, location);
         }
     }
 }

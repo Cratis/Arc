@@ -60,7 +60,7 @@ public class CommandSyntaxBuilder(
         var produced = produces.Build(productions, location, identifier).ToList();
         if (authoring?.Route is null)
         {
-            concurrency.ReportEventSource(command.EventSource, location);
+            concurrency.ReportEventSource(command.EventSource, location, AuthoringOnlyConstructs);
             if (!AuthoringOnlyConstructs && command.EventSource is null && command.HasAuthoringRoute)
             {
                 concurrency.ReportLegacyRoute(location);

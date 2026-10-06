@@ -64,7 +64,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
         if (occurrences.Select(state => state.For).Distinct().Count() != 1)
         {
-            Diagnostics?.Warning(
+            Diagnostics?.Information(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
                 $"The scenario '{specification.Name}' was left out because its distinct event sources cannot be stated as concrete for values of every producing command's unambiguous required scalar identifier type",
                 specification.Name);
@@ -84,12 +84,12 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         var producers = Application?.Slices.SelectMany(slice => slice.Commands)
             .Where(command => command.Produces.Any(produced => naming.ToDeclarationName(produced.EventName) == naming.ToDeclarationName(state.Name)))
             .ToList() ?? [];
-        if (producers.Count == 0 || producers.Exists(command => command.Identifier is null || command.Produces.Any(produced => !produced.UsesCommandContext)))
+        if (producers.Count == 0 || producers.Exists(command => (command.Authoring?.Identifier ?? command.Identifier) is null || command.Produces.Any(produced => !produced.UsesCommandContext)))
         {
             return false;
         }
 
-        var identifiers = producers.ConvertAll(command => command.Properties.SingleOrDefault(property => property.Name == command.Identifier)?.Type);
+        var identifiers = producers.ConvertAll(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type);
         if (identifiers.Exists(type => type is null or { IsOptional: true } or { IsCollection: true }) ||
             identifiers.Select(type => naming.ToDeclarationName(type!.Name)).Distinct(StringComparer.Ordinal).Count() != 1)
         {
