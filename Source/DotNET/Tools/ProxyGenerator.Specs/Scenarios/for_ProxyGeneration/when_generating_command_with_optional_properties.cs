@@ -46,17 +46,17 @@ public class when_generating_command_with_optional_properties : Specification, I
         _diagnostics = _runtime.GetSyntacticDiagnostics(_generatedCode);
     }
 
-    [Fact] void should_declare_the_optional_backing_field_as_optional() => _generatedCode.ShouldContain("private _description?: string;");
+    [Fact] void should_declare_the_optional_backing_field_as_optional() => _generatedCode.ShouldContain("#description?: string;");
     [Fact] void should_declare_the_optional_getter_as_optional() => _generatedCode.ShouldContain("get description(): string | undefined {");
     [Fact] void should_declare_the_optional_setter_as_optional() => _generatedCode.ShouldContain("set description(value: string | undefined) {");
     [Fact] void should_declare_the_optional_value_type_getter_as_optional() => _generatedCode.ShouldContain("get value(): number | undefined {");
-    [Fact] void should_declare_the_optional_enumerable_backing_field_as_optional() => _generatedCode.ShouldContain("private _labels?: string[];");
+    [Fact] void should_declare_the_optional_enumerable_backing_field_as_optional() => _generatedCode.ShouldContain("#labels?: string[];");
     [Fact] void should_declare_the_optional_enumerable_getter_as_optional() => _generatedCode.ShouldContain("get labels(): string[] | undefined {");
     [Fact] void should_declare_the_optional_enumerable_setter_as_optional() => _generatedCode.ShouldContain("set labels(value: string[] | undefined) {");
-    [Fact] void should_declare_the_required_backing_field_as_definite() => _generatedCode.ShouldContain("private _name!: string;");
+    [Fact] void should_declare_the_required_backing_field_as_definite() => _generatedCode.ShouldContain("#name!: string;");
     [Fact] void should_declare_the_required_getter_as_required() => _generatedCode.ShouldContain("get name(): string {");
     [Fact] void should_declare_the_required_setter_as_required() => _generatedCode.ShouldContain("set name(value: string) {");
-    [Fact] void should_declare_the_required_enumerable_backing_field_as_definite() => _generatedCode.ShouldContain("private _tags!: string[];");
+    [Fact] void should_declare_the_required_enumerable_backing_field_as_definite() => _generatedCode.ShouldContain("#tags!: string[];");
     [Fact] void should_declare_the_required_enumerable_getter_as_required() => _generatedCode.ShouldContain("get tags(): string[] {");
     [Fact] void should_declare_the_required_enumerable_setter_as_required() => _generatedCode.ShouldContain("set tags(value: string[]) {");
     [Fact] void should_declare_the_optional_property_descriptor_as_nullable() => _generatedCode.ShouldContain("new PropertyDescriptor('description', String, true)");

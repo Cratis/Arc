@@ -104,6 +104,7 @@ public class when_generating_lint_compliant_output : Specification
     [Fact] void should_not_emit_eslint_directives() => _contents.ShouldContainOnly(_contents.Where(content => !content.Contains("eslint-disable", StringComparison.Ordinal)));
     [Fact] void should_not_emit_typescript_suppressions() => _contents.ShouldContainOnly(_contents.Where(content => !content.Contains("@ts-ignore", StringComparison.Ordinal)));
     [Fact] void should_supply_the_command_response_generic() => _contents.ShouldContain(content => content.Contains("useCommand<Sample, ISample, number>", StringComparison.Ordinal));
+    [Fact] void should_use_ecmascript_private_fields_for_command_properties() => _contents.ShouldContain(content => content.Contains("#origin!: string;", StringComparison.Ordinal));
     [Fact] void should_preserve_empty_interfaces() => _contents.ShouldContain(content => content.Contains("export interface ISample {", StringComparison.Ordinal));
     [Fact] void should_preserve_metadata_recognition() => Directory.GetFiles(_directory).All(file => GeneratedFileMetadata.IsGeneratedFile(file, out _)).ShouldBeTrue();
 
@@ -138,6 +139,20 @@ public class when_generating_lint_compliant_output : Specification
                 TreatWarningsAsErrorsForPolicy = false
             }));
         }
+
+        // Compile properties named after every Command backing member against the actual base class.
+        contents.Add(TemplateTypes.Command(new
+        {
+            Name = "CommandWithInternalMemberNames",
+            Route = "api/internal-member-names",
+            HasResponse = false,
+            Properties = new[] { "Origin", "Microservice", "ApiBasePath", "HttpHeadersCallback", "InitialValues", "HasChanges", "Callbacks", "ResponseType", "IsResponseTypeEnumerable" }
+                .Select(name => new { Name = name, Type = name == "HasChanges" ? "boolean" : "string", Constructor = name == "HasChanges" ? "Boolean" : "String", IsNullable = false, IsEnumerable = false }).ToArray(),
+            Parameters = Array.Empty<object>(),
+            Imports = Array.Empty<object>(),
+            Roles = Array.Empty<string>(),
+            TreatWarningsAsErrorsForPolicy = false
+        }));
         contents.Add(string.Join<string>('\n',
         [
             "// Existing public empty interfaces remain augmentable and accept non-nullish primitives.",
@@ -150,7 +165,11 @@ public class when_generating_lint_compliant_output : Specification
             "export const customHook = CustomResponse.use();",
             "export const enumHook = EnumResponse.use();",
             "export const arrayHook = ArrayResponse.use();",
-            "export const voidHook = VoidResponse.use();"
+            "export const voidHook = VoidResponse.use();",
+            "export const collisionCommand = new CommandWithInternalMemberNames();",
+            "collisionCommand.origin = 'user-provided-origin';",
+            "collisionCommand.setOrigin('https://api.example.com');",
+            "export const originValue: string = collisionCommand.origin;"
         ]));
         return TypeScriptContentCombiner.Combine(contents);
     }

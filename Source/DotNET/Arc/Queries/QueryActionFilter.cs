@@ -198,7 +198,7 @@ public class QueryActionFilter(
     {
         if (data is IQueryable queryable)
         {
-            return await readModelInterceptors.Intercept(readModelType, queryable.Cast<object>(), serviceProvider);
+            return await readModelInterceptors.Intercept(readModelType, Enumerable.Cast<object>(queryable), serviceProvider);
         }
 
         if (data is IEnumerable<object> enumerable)
