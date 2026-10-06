@@ -51,7 +51,8 @@ export class UrlHelpers {
                 continue;
             }
 
-            const pattern = new RegExp(`\\{${key}\\}`, 'gi');
+            const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const pattern = new RegExp(`\\{${escapedKey}\\}`, 'gi');
             const newRoute = result.replace(pattern, encodeURIComponent(formatQueryValue(value)));
 
             if (newRoute !== result) {
