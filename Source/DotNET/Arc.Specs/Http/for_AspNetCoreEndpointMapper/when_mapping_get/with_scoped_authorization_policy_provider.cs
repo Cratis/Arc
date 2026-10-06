@@ -21,7 +21,7 @@ public class with_scoped_authorization_policy_provider : Specification
         var builder = WebApplication.CreateBuilder();
         builder.Host.UseDefaultServiceProvider(options => options.ValidateScopes = true);
         builder.Services.AddAuthorization();
-        builder.Services.AddScoped<IAuthorizationPolicyProvider>(services => new DefaultAuthorizationPolicyProvider(services.GetRequiredService<IOptions<AuthorizationOptions>>()));
+        builder.Services.AddScoped<IAuthorizationPolicyProvider>(services => new AsyncDisposablePolicyProvider(services.GetRequiredService<IOptions<AuthorizationOptions>>()));
         _app = builder.Build();
         _mapper = new AspNetCoreEndpointMapper(_app);
     }
@@ -35,4 +35,9 @@ public class with_scoped_authorization_policy_provider : Specification
     [Fact] void should_map_an_authenticated_endpoint() => _policy.ShouldNotBeNull();
 
     async Task Destroy() => await _app.DisposeAsync();
+
+    sealed class AsyncDisposablePolicyProvider(IOptions<AuthorizationOptions> options) : DefaultAuthorizationPolicyProvider(options), IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 }

@@ -124,8 +124,17 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         }
         else if (metadata.RequireAuthentication)
         {
-            using var scope = endpoints.ServiceProvider.CreateScope();
-            var defaultPolicy = scope.ServiceProvider.GetService<IAuthorizationPolicyProvider>()?.GetDefaultPolicyAsync().GetAwaiter().GetResult();
+            var scope = endpoints.ServiceProvider.CreateAsyncScope();
+            AuthorizationPolicy? defaultPolicy;
+            try
+            {
+                defaultPolicy = scope.ServiceProvider.GetService<IAuthorizationPolicyProvider>()?.GetDefaultPolicyAsync().GetAwaiter().GetResult();
+            }
+            finally
+            {
+                scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+
             var policy = defaultPolicy is null ? new AuthorizationPolicyBuilder() : new AuthorizationPolicyBuilder(defaultPolicy);
             policy.RequireAuthenticatedUser();
             if (metadata.Roles is not null)
