@@ -18,4 +18,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// naming that property and is written as the path rather than as text.
 /// </para>
 /// </remarks>
-public record ValidationRuleModel(string Property, ValidationRuleKind Kind, object? Value, string? Message);
+public record ValidationRuleModel(string Property, ValidationRuleKind Kind, object? Value, string? Message)
+{
+    /// <summary>
+    /// Gets the source file implementing a named predicate, when it is known.
+    /// </summary>
+    public string? SourceFilePath { get; init; }
+}

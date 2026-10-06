@@ -126,6 +126,21 @@ public static class SpecificationCalls
         (IsOn(method, WellKnownTypeNames.HttpClientExtensions) && Named(method, ExecuteCommandMethod));
 
     /// <summary>
+    /// Determines whether a call appends the event under test through an event scenario.
+    /// </summary>
+    /// <param name="invocation">The call to check.</param>
+    /// <param name="method">The method called.</param>
+    /// <param name="semanticModel">The semantic model resolving the receiver.</param>
+    /// <returns>True when the call is an event scenario action.</returns>
+    public static bool IsAppendAction(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel) =>
+        (IsOn(method, "Cratis.Chronicle.Testing.EventSequences.EventSourceWhenBuilder") && Named(method, EventsMethod)) ||
+        (IsGivenEvents(method) && (Named(method, AppendMethod) || Named(method, AppendManyMethod)) &&
+            invocation.Expression.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
+                (string.Equals(member.Name.Identifier.ValueText, "EventLog", StringComparison.Ordinal) ||
+                 string.Equals(member.Name.Identifier.ValueText, "EventSequence", StringComparison.Ordinal)) &&
+                semanticModel.GetTypeInfo(member.Expression).Type.Is(WellKnownTypeNames.EventScenario)));
+
+    /// <summary>
     /// Gets the name of the parameter carrying what a recognized call is given.
     /// </summary>
     /// <param name="method">The method being called.</param>
@@ -140,6 +155,11 @@ public static class SpecificationCalls
         if (IsSeedingTheEventLog(method))
         {
             return EventsParameter;
+        }
+
+        if (IsOn(method, "Cratis.Chronicle.Testing.EventSequences.EventSourceWhenBuilder") && Named(method, EventsMethod))
+        {
+            return EventParameter;
         }
 
         if (IsExecution(method))

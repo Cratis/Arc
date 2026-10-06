@@ -66,5 +66,10 @@ public enum ValidationRuleKind
     /// <summary>
     /// Every element of the collection has to be greater than or equal to the operand.
     /// </summary>
-    AllGreaterThanOrEqual = 11
+    AllGreaterThanOrEqual = 11,
+
+    /// <summary>
+    /// The value has to satisfy a named predicate implemented in a source file.
+    /// </summary>
+    Rule = 12
 }

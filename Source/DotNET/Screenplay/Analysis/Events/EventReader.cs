@@ -40,7 +40,23 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     {
         ReportWhatIsLost(type, location);
 
-        return new(type.Name, properties.Read(type), Tags.Of(type));
+        var id = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute)?.GetArgument(0) as string;
+        var documentation = Documentation.RemarksOf(type);
+        if (documentation?.Split('\n').Any(line => line.TrimStart().StartsWith("```", StringComparison.Ordinal)) == true)
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.EventFeatureWithoutCounterpart,
+                $"The remarks of '{type.Name}' contain a Markdown fence that cannot be nested in event documentation, so they were left out",
+                location);
+            documentation = null;
+        }
+
+        return new(type.Name, properties.Read(type), Tags.Of(type))
+        {
+            Description = Documentation.SummaryOf(type),
+            Documentation = documentation,
+            Id = !string.IsNullOrWhiteSpace(id) && !string.Equals(id, type.Name, StringComparison.Ordinal) ? id : null
+        };
     }
 
     /// <summary>

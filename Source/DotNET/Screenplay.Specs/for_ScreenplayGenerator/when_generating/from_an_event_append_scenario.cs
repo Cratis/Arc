@@ -1,0 +1,51 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
+
+namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
+
+/// <summary>
+/// An event scenario's fluent action is an append, not a command and not prior state.
+/// </summary>
+public class from_an_event_append_scenario : a_batch_a_document
+{
+    const string Scenario = """
+        using System.Threading.Tasks;
+        using Cratis.Chronicle.Events;
+        using Cratis.Chronicle.Testing.EventSequences;
+        using Library.Authors.Registration;
+        using Xunit;
+
+        namespace Library.Authors.Registration.when_appending;
+
+        public class and_it_succeeds
+        {
+            readonly EventScenario _scenario = new();
+
+            async Task Establish() => await _scenario.Given.ForEventSource(EventSourceId.New()).Events(new AuthorRegistered("Prior"));
+
+            async Task Because() => await _scenario.When.ForEventSource(EventSourceId.New()).Events(new AuthorRegistered("Jane Austen"));
+
+            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(EventSourceId.New(), e => e.Name == "Jane Austen");
+        }
+        """;
+
+    void Because() => Generate(
+        (Analyzed.SlicePath, IdentifierSources.With("""
+            [Command]
+            public record RegisterAuthor(string Name)
+            {
+                public AuthorRegistered Handle() => new(Name);
+            }
+            """)),
+        ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", Scenario),
+        (IntegrationTesting.Path, IntegrationTesting.Source));
+
+    [Fact] void should_state_the_append_action() => Result.Source.ShouldContain("when append AuthorRegistered");
+    [Fact] void should_state_its_payload() => Result.Source.ShouldContain("name = \"Jane Austen\"");
+    [Fact] void should_keep_prior_state() => Result.Source.ShouldContain("name = \"Prior\"");
+    [Fact] void should_not_report_the_scenario_as_unrepresentable() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart).ShouldBeFalse();
+    [Fact] void should_not_drop_the_scenario() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeFalse();
+    [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
+}

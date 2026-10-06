@@ -14,6 +14,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="produces">The <see cref="ProducesReader"/> reading what each command produces.</param>
 /// <param name="validators">The <see cref="ValidatorCatalog"/> holding the rules declared for each command.</param>
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of the file each command lives in.</param>
+/// <param name="identifiers">The reader resolving the command's event source identity.</param>
 /// <remarks>
 /// The input of a command is what the record itself declares. The parameters of its handler are infrastructure -
 /// injected services and current state - and are never part of what a caller sends, which is exactly the mistake a
@@ -23,12 +24,25 @@ public class CommandReader(
     PropertyReader properties,
     ProducesReader produces,
     ValidatorCatalog validators,
-    SourcePaths paths)
+    SourcePaths paths,
+    CommandIdentifierReader? identifiers)
 {
     /// <summary>
     /// The name of the method handling a command.
     /// </summary>
     public const string HandleMethod = "Handle";
+
+    /// <summary>
+    /// Initializes a reader without event source identity analysis.
+    /// </summary>
+    /// <param name="properties">The reader of command properties.</param>
+    /// <param name="produces">The reader of command productions.</param>
+    /// <param name="validators">The catalog of validators.</param>
+    /// <param name="paths">The source paths relative to the project root.</param>
+    public CommandReader(PropertyReader properties, ProducesReader produces, ValidatorCatalog validators, SourcePaths paths)
+        : this(properties, produces, validators, paths, null)
+    {
+    }
 
     /// <summary>
     /// Determines whether a type is a model-bound command.
@@ -56,7 +70,10 @@ public class CommandReader(
             produces.Read(type, handlers, location),
             ConcurrencyReader.Read(type) ?? EventSourceReader.ReadConcurrency(type),
             paths.Relative(type.SourceFilePath()),
-            EventSourceReader.Read(type));
+            EventSourceReader.Read(type))
+        {
+            Identifier = identifiers?.Read(type, location)
+        };
     }
 
     /// <summary>

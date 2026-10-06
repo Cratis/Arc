@@ -38,7 +38,7 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
-        var produced = produces.Build(command.Produces, location).ToList();
+        var produced = produces.Build(command.Produces, location, command.Identifier).ToList();
         concurrency.ReportEventSource(command.EventSource, location);
 
         return new(
@@ -62,15 +62,16 @@ public class CommandSyntaxBuilder(
     IEnumerable<PropertySyntax> ToProperties(CommandModel command, string location) =>
         command.Properties
             .Where(_ => names.Allows(_.Name, ReservedWords.InCommand, command.Name, location))
-            .Select(ToProperty);
+            .Select(property => ToProperty(property, command.Identifier));
 
     /// <summary>
     /// Converts a property of the command.
     /// </summary>
     /// <param name="property">The property to convert.</param>
+    /// <param name="identifier">The property supplying the command's event source identity.</param>
     /// <returns>The <see cref="PropertySyntax"/>.</returns>
-    PropertySyntax ToProperty(PropertyModel property) =>
-        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start);
+    PropertySyntax ToProperty(PropertyModel property, string? identifier) =>
+        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start, property.Name == identifier);
 
     /// <summary>
     /// Builds the handler reference for a command whose behavior is not expressed declaratively.

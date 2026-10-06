@@ -51,7 +51,8 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                 continue;
             }
 
-            if (seeding && !SpecificationCalls.IsReachedThroughACommandScenario(invocation, semanticModel))
+            if (seeding && (!SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps)) &&
+                !SpecificationCalls.IsReachedThroughACommandScenario(invocation, semanticModel))
             {
                 if (SpecificationMembers.HoldsAScenario(steps))
                 {
@@ -88,7 +89,8 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     {
         foreach (var (invocation, method, semanticModel, always) in CallsIn(steps, SpecificationMembers.BecauseMethod))
         {
-            if (!SpecificationCalls.IsExecution(method))
+            var append = SpecificationMembers.HoldsAnEventScenario(steps) && SpecificationCalls.IsAppendAction(invocation, method, semanticModel);
+            if (!append && !SpecificationCalls.IsExecution(method))
             {
                 continue;
             }
@@ -101,7 +103,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             if (draft.When is not null)
             {
-                draft.CannotRead("it issues more than one command, and a scenario is about one");
+                draft.CannotRead("it performs more than one action, and a scenario is about one");
                 return;
             }
 
@@ -114,15 +116,21 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                 return;
             }
 
-            if (!CommandReader.IsCommand(command))
+            if (append && CallArguments.For(invocation, method, "additionalEvents").Any())
             {
-                draft.CannotRead($"'{command.Name}' is not a command the document declares");
+                draft.CannotRead("it appends several events as its action, and a scenario holds one append");
+                return;
+            }
+
+            if (append ? !EventReader.IsEvent(command) : !CommandReader.IsCommand(command))
+            {
+                draft.CannotRead($"'{command.Name}' is not a {(append ? "event" : "command")} the document declares");
                 return;
             }
 
             var state = new SpecificationStateModel(
                 command.Name,
-                SpecificationStateKind.Command,
+                append ? SpecificationStateKind.Event : SpecificationStateKind.Command,
                 values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft));
             draft.SetWhen(state, command, invocation.GetLocation());
         }

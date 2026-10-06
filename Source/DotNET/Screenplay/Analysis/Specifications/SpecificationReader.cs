@@ -37,6 +37,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var steps = SpecificationMembers.StepsOf(type);
 
         return SpecificationMembers.HoldsAScenario(steps) ||
+            SpecificationMembers.HoldsAnEventScenario(steps) ||
             SpecificationMembers.ReadModelOf(steps) is not null ||
             DrivesASlice(steps);
     }
@@ -49,9 +50,8 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// <remarks>
     /// A specification holding one of these is specifying the slice as much as any other - what it does is real, and
     /// leaving it out without a word is the one thing the catalogue of codes exists to prevent. Two of the four
-    /// scenarios an application is written with have nowhere to go: a scenario appending an event states the append
-    /// itself as its action, and a <c>when</c> names a command and nothing else; a scenario driving a reactor says
-    /// what a collaborator was asked to do, which is a statement about the inside of the slice. Both are said rather
+    /// scenarios an application is written with are read as actions, including an event append. A scenario driving a
+    /// reactor says what a collaborator was asked to do, which is a statement about the inside of the slice. This is said rather
     /// than recovered, because a document quietly missing four specifications in ten reads exactly like an
     /// application that has none.
     /// </remarks>

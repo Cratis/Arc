@@ -25,20 +25,30 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     /// <param name="produces">The events the command produces.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <returns>The produces blocks, in the order the command declares them.</returns>
-    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location) =>
-        [.. produces.Select(_ => Build(_, location))];
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location) => Build(produces, location, null);
+
+    /// <summary>
+    /// Builds the produces blocks with an explicitly known command destination.
+    /// </summary>
+    /// <param name="produces">The events the command produces.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="identifier">The command property supplying the destination, when it is known.</param>
+    /// <returns>The produces blocks, in the order the command declares them.</returns>
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier) =>
+        [.. produces.Select(_ => Build(_, location, identifier))];
 
     /// <summary>
     /// Builds a single produces block.
     /// </summary>
     /// <param name="produces">The event production to build for.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="identifier">The command property supplying the destination, when it is known.</param>
     /// <returns>The <see cref="ProducesSyntax"/>.</returns>
     /// <remarks>
     /// A mapping is written onto the property of the event it fills in, so a mapping onto a property the block reads
     /// as a directive of its own is left out for the same reason the property itself is.
     /// </remarks>
-    ProducesSyntax Build(ProducesModel produces, string location) =>
+    ProducesSyntax Build(ProducesModel produces, string location, string? identifier) =>
         new(
             naming.ToDeclarationName(produces.EventName),
             _conditions.Convert(produces.When),
@@ -47,7 +57,8 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
                     .Where(_ => names.Allows(_.Property, ReservedWords.InProduces, produces.EventName, location))
                     .Select(ToMapping)
             ],
-            SourceLocation.Start);
+            SourceLocation.Start,
+            For: identifier is null ? null : new PathExpressionSyntax(naming.ToPropertyPath(identifier), SourceLocation.Start));
 
     /// <summary>
     /// Converts a single mapping onto an event property.

@@ -49,7 +49,12 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_) ?? string.Empty, SourceLocation.Start))],
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
-            [.. ReadModels(specification.Then)]);
+            [.. ReadModels(specification.Then)])
+        {
+            WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
+                ? new(naming.ToDeclarationName(appended.Name), [.. Values(appended)], SourceLocation.Start)
+                : null
+        };
 
     /// <summary>
     /// Builds the command a scenario issued.
@@ -61,9 +66,9 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// as a specification with no <c>when</c> rather than as one with an empty one.
     /// </remarks>
     SpecificationCommandSyntax? When(SpecificationStateModel? command) =>
-        command is null
-            ? null
-            : new(naming.ToDeclarationName(command.Name), [.. Values(command)], SourceLocation.Start);
+        command is { Kind: SpecificationStateKind.Command }
+            ? new(naming.ToDeclarationName(command.Name), [.. Values(command)], SourceLocation.Start)
+            : null;
 
     /// <summary>
     /// Builds the states of a step that name an event.

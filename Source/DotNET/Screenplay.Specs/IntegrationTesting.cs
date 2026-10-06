@@ -153,6 +153,8 @@ public static class IntegrationTesting
             {
                 public EventScenarioGivenBuilder Given => new();
 
+                public EventScenarioWhenBuilder When => new();
+
                 public IEventSequence EventSequence => null!;
             }
 
@@ -164,6 +166,16 @@ public static class IntegrationTesting
             public class EventSourceGivenBuilder
             {
                 public Task Events(params object[] events) => Task.CompletedTask;
+            }
+
+            public class EventScenarioWhenBuilder
+            {
+                public EventSourceWhenBuilder ForEventSource(EventSourceId eventSourceId) => new();
+            }
+
+            public class EventSourceWhenBuilder
+            {
+                public Task<AppendResult> Events(object @event, params object[] additionalEvents) => Task.FromResult(default(AppendResult)!);
             }
 
             public static class EventSequenceShouldExtensions

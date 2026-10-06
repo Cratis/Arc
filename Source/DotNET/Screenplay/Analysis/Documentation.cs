@@ -34,6 +34,33 @@ public static class Documentation
     }
 
     /// <summary>
+    /// Gets the remarks of a symbol, retaining line breaks for a Markdown documentation block.
+    /// </summary>
+    /// <param name="symbol">The symbol to read.</param>
+    /// <returns>The remarks, or null when the symbol carries none.</returns>
+    public static string? RemarksOf(ISymbol symbol)
+    {
+        var xml = symbol.GetDocumentationCommentXml(preferredCulture: null, expandIncludes: false);
+        var remarks = string.IsNullOrWhiteSpace(xml) ? null : TryParse(xml)?.Element("remarks");
+        if (remarks is null)
+        {
+            return null;
+        }
+
+        foreach (var paragraph in remarks.Descendants("para").ToArray())
+        {
+            paragraph.ReplaceWith(new XText($"\n\n{paragraph.Value.Trim()}\n\n"));
+        }
+
+        var lines = remarks.Value.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var indentation = lines.Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line.Length - line.TrimStart().Length).DefaultIfEmpty(0).Min();
+        var text = string.Join('\n', lines.Select(line => line.Length >= indentation ? line[indentation..].TrimEnd() : string.Empty)).Trim();
+
+        return text.Length == 0 ? null : text;
+    }
+
+    /// <summary>
     /// Parses a documentation comment, ignoring one that is not well formed.
     /// </summary>
     /// <param name="xml">The documentation comment.</param>

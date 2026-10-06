@@ -11,11 +11,12 @@ namespace Cratis.Arc.Screenplay.Analysis.Validation;
 /// Reads the rules one chain of a validator's constructor declares for one property.
 /// </summary>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="paths">The paths of predicate implementations relative to the source root.</param>
 /// <remarks>
 /// A chain names a property once and then declares rule after rule on it, with messages attaching to whichever rule
 /// they were written after. Counting what each call declared is what lets a message find the right rule.
 /// </remarks>
-public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
+public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePaths? paths)
 {
     /// <summary>
     /// The call carrying the message shown when a rule is broken.
@@ -38,6 +39,15 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
     public const string Unless = "Unless";
 
     readonly ValidationOperands _operands = new(diagnostics);
+
+    /// <summary>
+    /// Initializes a chain reader without implementation file paths for named predicates.
+    /// </summary>
+    /// <param name="diagnostics">Where unmappable rules are reported.</param>
+    public ValidationChainReader(ScreenplayDiagnostics diagnostics)
+        : this(diagnostics, null)
+    {
+    }
 
     /// <summary>
     /// Reads one rule chain.
@@ -70,9 +80,9 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
         foreach (var call in chain.Calls)
         {
             var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding);
-            if (added > 0)
+            if (added != 0)
             {
-                preceding = added;
+                preceding = Math.Max(0, added);
             }
         }
     }
@@ -121,6 +131,18 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
             return 2;
         }
 
+        if (!forEach && !property.Contains('.', StringComparison.Ordinal) && name == "Must" &&
+            call.ArgumentList.Arguments is [var argument] &&
+            argument.Expression is IdentifierNameSyntax or MemberAccessExpressionSyntax &&
+            semanticModel.GetSymbolInfo(argument.Expression).Symbol is IMethodSymbol predicate &&
+            predicate.SourceFilePath() is { } source && !GeneratedSource.Is(source) &&
+            paths?.Relative(source) is { } path)
+        {
+            rules.Add(new(property, ValidationRuleKind.Rule, predicate.Name, null) { SourceFilePath = path });
+
+            return 1;
+        }
+
         if (!ValidationRuleKinds.TryResolve(name, forEach, out var kind))
         {
             diagnostics.Warning(
@@ -128,7 +150,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics)
                 $"The '{name}' rule on '{property}' lives in code and has no declarative counterpart, so it was left out",
                 location);
 
-            return 0;
+            return -1;
         }
 
         rules.Add(new(property, kind, _operands.Read(call, name, semanticModel, location), null));
