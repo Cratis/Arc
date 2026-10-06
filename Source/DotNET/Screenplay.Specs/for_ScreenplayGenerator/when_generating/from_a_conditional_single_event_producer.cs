@@ -5,7 +5,7 @@ using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_a_conditional_single_event_producer : a_batch_a_document
+public class from_a_conditional_single_event_producer : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]

@@ -9,7 +9,7 @@ using Cratis.Screenplay.Semantics.Serialization;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_a_single_event_producer : a_batch_a_document
+public class from_a_single_event_producer : a_generated_document
 {
     CompilationResult<SemanticCompilation> _standalone;
 

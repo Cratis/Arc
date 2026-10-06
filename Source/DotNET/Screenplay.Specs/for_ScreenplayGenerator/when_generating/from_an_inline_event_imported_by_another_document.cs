@@ -7,7 +7,7 @@ using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_an_inline_event_imported_by_another_document : a_batch_a_document
+public class from_an_inline_event_imported_by_another_document : a_generated_document
 {
     const string Consumer = """
         import "producer.play"

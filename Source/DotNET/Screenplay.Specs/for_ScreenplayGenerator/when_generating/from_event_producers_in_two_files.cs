@@ -5,7 +5,7 @@ using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_event_producers_in_two_files : a_batch_a_document
+public class from_event_producers_in_two_files : a_generated_document
 {
     const string OtherSource = """
         using Cratis.Arc.Commands.ModelBound;

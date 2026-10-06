@@ -7,7 +7,7 @@ using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_an_inline_event_with_metadata : a_batch_a_document
+public class from_an_inline_event_with_metadata : a_generated_document
 {
     EventSyntax _event;
 

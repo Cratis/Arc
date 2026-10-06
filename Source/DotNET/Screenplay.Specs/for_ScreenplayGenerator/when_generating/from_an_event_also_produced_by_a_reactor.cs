@@ -5,7 +5,7 @@ using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_an_event_also_produced_by_a_reactor : a_batch_a_document
+public class from_an_event_also_produced_by_a_reactor : a_generated_document
 {
     const string ReactorSource = """
         using Library.Authors.Registration;
