@@ -48,12 +48,9 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// <param name="type">The type to check.</param>
     /// <returns>The name of the scenario, or <see langword="null"/> when there is nothing to report.</returns>
     /// <remarks>
-    /// A specification holding one of these is specifying the slice as much as any other - what it does is real, and
-    /// leaving it out without a word is the one thing the catalogue of codes exists to prevent. Two of the four
-    /// scenarios an application is written with are read as actions, including an event append. A scenario driving a
-    /// reactor says what a collaborator was asked to do, which is a statement about the inside of the slice. This is said rather
-    /// than recovered, because a document quietly missing four specifications in ten reads exactly like an
-    /// application that has none.
+    /// Command, event-append, and read-model scenarios have counterparts. Only reactor scenarios lack one: they
+    /// say what a collaborator was asked to do rather than asserting a portable outcome of the slice.
+    /// Their omission is reported so a document missing scenarios does not look like an application with none.
     /// </remarks>
     public string? ScenarioWithoutCounterpart(INamedTypeSymbol type)
     {
@@ -110,7 +107,9 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         }
         else if (draft.When is null)
         {
-            draft.CannotRead("the command it issues is put together somewhere this cannot read");
+            draft.CannotRead(SpecificationMembers.HoldsAnEventScenario(steps)
+                ? "the event it appends is put together somewhere this cannot read"
+                : "the command it issues is put together somewhere this cannot read");
         }
         else if (draft.Then.Count == 0 && draft.Errors.Count == 0)
         {

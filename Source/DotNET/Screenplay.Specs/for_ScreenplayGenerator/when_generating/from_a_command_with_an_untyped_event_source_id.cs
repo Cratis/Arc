@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// The non-generic Chronicle identity is recognized without an attribute.
 /// </summary>
-public class from_a_command_with_an_untyped_event_source_id : a_batch_a_document
+public class from_a_command_with_an_untyped_event_source_id : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]

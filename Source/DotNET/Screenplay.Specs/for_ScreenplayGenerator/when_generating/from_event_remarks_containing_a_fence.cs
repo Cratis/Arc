@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// Remarks that would close the documentation fence are reported instead of corrupting the document.
 /// </summary>
-public class from_event_remarks_containing_a_fence : a_batch_a_document
+public class from_event_remarks_containing_a_fence : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, """
         using Cratis.Chronicle.Events;

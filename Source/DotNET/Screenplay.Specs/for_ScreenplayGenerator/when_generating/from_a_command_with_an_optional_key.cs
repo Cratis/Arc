@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// An optional key is not admitted as an explicit command destination.
 /// </summary>
-public class from_a_command_with_an_optional_key : a_batch_a_document
+public class from_a_command_with_an_optional_key : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]

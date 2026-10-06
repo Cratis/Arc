@@ -89,10 +89,7 @@ public class CommandIdentifierReader(SemanticModels models, ScreenplayDiagnostic
     {
         for (var current = type; current is not null; current = current.BaseType)
         {
-            if (current.Is(EventSourceId) || current.Is(GenericEventSourceId) ||
-                current.GetMembers().OfType<IMethodSymbol>().Any(method =>
-                    method.MethodKind == MethodKind.Conversion && method.Name == "op_Implicit" &&
-                    (method.ReturnType.Is(EventSourceId) || method.ReturnType.FindBase(EventSourceId) is not null)))
+            if (current.Is(EventSourceId) || current.Is(GenericEventSourceId))
             {
                 return true;
             }

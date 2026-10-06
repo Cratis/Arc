@@ -162,6 +162,9 @@ public static class WellKnownTypeNames
     /// <summary>The builder a specification states the events one event source had seen into the event log of a scenario with.</summary>
     public const string EventSourceGivenBuilder = "Cratis.Chronicle.Testing.EventSequences.EventSourceGivenBuilder";
 
+    /// <summary>The builder a specification appends the event under test through.</summary>
+    public const string EventSourceWhenBuilder = "Cratis.Chronicle.Testing.EventSequences.EventSourceWhenBuilder";
+
     /// <summary>The scenario a specification appends events through in process, without a command pipeline.</summary>
     public const string EventScenario = "Cratis.Chronicle.Testing.EventSequences.EventScenario";
 

@@ -133,7 +133,7 @@ public static class SpecificationCalls
     /// <param name="semanticModel">The semantic model resolving the receiver.</param>
     /// <returns>True when the call is an event scenario action.</returns>
     public static bool IsAppendAction(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel) =>
-        (IsOn(method, "Cratis.Chronicle.Testing.EventSequences.EventSourceWhenBuilder") && Named(method, EventsMethod)) ||
+        (IsOn(method, WellKnownTypeNames.EventSourceWhenBuilder) && Named(method, EventsMethod)) ||
         (IsGivenEvents(method) && (Named(method, AppendMethod) || Named(method, AppendManyMethod)) &&
             invocation.Expression.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
                 (string.Equals(member.Name.Identifier.ValueText, "EventLog", StringComparison.Ordinal) ||
@@ -157,7 +157,7 @@ public static class SpecificationCalls
             return EventsParameter;
         }
 
-        if (IsOn(method, "Cratis.Chronicle.Testing.EventSequences.EventSourceWhenBuilder") && Named(method, EventsMethod))
+        if (IsOn(method, WellKnownTypeNames.EventSourceWhenBuilder) && Named(method, EventsMethod))
         {
             return EventParameter;
         }

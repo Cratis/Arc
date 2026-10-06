@@ -136,7 +136,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             argument.Expression is IdentifierNameSyntax or MemberAccessExpressionSyntax &&
             semanticModel.GetSymbolInfo(argument.Expression).Symbol is IMethodSymbol predicate &&
             predicate.SourceFilePath() is { } source && !GeneratedSource.Is(source) &&
-            paths?.Relative(source) is { } path)
+            paths?.Relative(source) is { } path && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal))
         {
             rules.Add(new(property, ValidationRuleKind.Rule, predicate.Name, null) { SourceFilePath = path });
 

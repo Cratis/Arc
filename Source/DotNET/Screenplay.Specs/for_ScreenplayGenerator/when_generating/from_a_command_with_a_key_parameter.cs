@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// Chronicle reads the key from the matching constructor parameter as well as from a property.
 /// </summary>
-public class from_a_command_with_a_key_parameter : a_batch_a_document
+public class from_a_command_with_a_key_parameter : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]

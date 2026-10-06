@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// An existing payload copy of the identity remains intact and is reported by the language as information.
 /// </summary>
-public class from_a_command_copying_its_identifier_into_the_event : a_batch_a_document
+public class from_a_command_copying_its_identifier_into_the_event : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, """
         using System;

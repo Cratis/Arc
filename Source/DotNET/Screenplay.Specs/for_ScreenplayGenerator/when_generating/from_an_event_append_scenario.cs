@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// An event scenario's fluent action is an append, not a command and not prior state.
 /// </summary>
-public class from_an_event_append_scenario : a_batch_a_document
+public class from_an_event_append_scenario : a_generated_document
 {
     const string Scenario = """
         using System.Threading.Tasks;
@@ -22,12 +22,13 @@ public class from_an_event_append_scenario : a_batch_a_document
         public class and_it_succeeds
         {
             readonly EventScenario _scenario = new();
+            readonly EventSourceId _source = EventSourceId.New();
 
-            async Task Establish() => await _scenario.Given.ForEventSource(EventSourceId.New()).Events(new AuthorRegistered("Prior"));
+            async Task Establish() => await _scenario.Given.ForEventSource(_source).Events(new AuthorRegistered("Prior"));
 
-            async Task Because() => await _scenario.When.ForEventSource(EventSourceId.New()).Events(new AuthorRegistered("Jane Austen"));
+            async Task Because() => await _scenario.When.ForEventSource(_source).Events(new AuthorRegistered("Jane Austen"));
 
-            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(EventSourceId.New(), e => e.Name == "Jane Austen");
+            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(_source, e => e.Name == "Jane Austen");
         }
         """;
 

@@ -40,7 +40,9 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     {
         ReportWhatIsLost(type, location);
 
-        var id = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute)?.GetArgument(0) as string;
+        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
+        var id = generation is null or 1u ? attribute?.GetArgument(0) as string : null;
         var documentation = Documentation.RemarksOf(type);
         if (documentation?.Split('\n').Any(line => line.TrimStart().StartsWith("```", StringComparison.Ordinal)) == true)
         {

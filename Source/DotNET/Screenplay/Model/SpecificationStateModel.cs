@@ -13,4 +13,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// A <c>given</c>, a <c>when</c> and a <c>then</c> are the same shape - a name and a list of values - so one model
 /// covers all three and the step it belongs to says which of them it is.
 /// </remarks>
-public record SpecificationStateModel(string Name, SpecificationStateKind Kind, IEnumerable<PropertyMappingModel> Values);
+public record SpecificationStateModel(string Name, SpecificationStateKind Kind, IEnumerable<PropertyMappingModel> Values)
+{
+    /// <summary>
+    /// Gets the concrete event occurrence source, separately from its payload.
+    /// </summary>
+    public LiteralSource? For { get; init; }
+}

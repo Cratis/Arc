@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// A directly returned property wins over the other key candidates on a self-providing command.
 /// </summary>
-public class from_a_command_providing_its_identifier : a_batch_a_document
+public class from_a_command_providing_its_identifier : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]

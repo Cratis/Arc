@@ -13,7 +13,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 /// <summary>
 /// Holds a generated document to the compiler, printer, and executable semantic binder.
 /// </summary>
-public class a_batch_a_document : Specification
+public class a_generated_document : Specification
 {
     protected ScreenplayGenerationResult Result;
     protected CompilationResult<SemanticCompilation> Bound;
