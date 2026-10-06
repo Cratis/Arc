@@ -90,6 +90,8 @@ These are **integrated domain fragments**, assuming an event-source `LedgerId` /
 
 <ArcBackendTabs snippet="scenarios/use-current-state-in-a-command/chronicle-commands" />
 
+In C#, the nullable parameter satisfies [ARC0006](../backend/csharp/code-analysis/ARC0006.md), and missing state rejects the command with a validation error. Do not return a nullable event to signal "nothing to do": the command then succeeds without recording anything, and the caller cannot tell that it never happened.
+
 The event-source identity is stated differently. TypeScript's experimental Chronicle integration uses the resolved command key as its default event-source ID; declare `@key()` or supply a resolver rather than relying on a property name. C# also accepts an `EventSourceId<T>`-derived property as the identity candidate, so `SettleLedger` needs no attribute; Arc.Kotlin reads `CommandContext.commandKey`, so the identifying property carries `@CommandKey` and a command returning events without a resolvable key is rejected rather than appended to the wrong stream.
 
 A `SettleLedgerValidator` can reject a nonpositive balance; an order validator can similarly gate on `ReadyForSubmission`. Those are state checks, not concurrency guarantees.
