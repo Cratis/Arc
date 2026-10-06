@@ -38,7 +38,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
         {
             var operand = ToOperand(rule);
             var path = rule.Kind == ModelRuleKind.Rule ? naming.ToFilePath(rule.SourceFilePath) : null;
-            if (rule.Kind == ModelRuleKind.Rule && path is null)
+            if (rule.Kind == ModelRuleKind.Rule && (path is null || Path.IsPathRooted(path) || path.Contains(':', StringComparison.Ordinal)))
             {
                 diagnostics.Warning(
                     ScreenplayDiagnosticCodes.UnmappableValidationRule,
@@ -113,7 +113,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
 
         if (rule.Kind == ModelRuleKind.Rule && rule.Value is string name)
         {
-            return new PathExpressionSyntax(naming.ToDeclarationName(name), SourceLocation.Start);
+            return new PathExpressionSyntax(ScreenplayIdentifier.IsBareIdentifier(name) ? name : naming.ToDeclarationName(name), SourceLocation.Start);
         }
 
         if (rule.Value is PropertyPathSource property)

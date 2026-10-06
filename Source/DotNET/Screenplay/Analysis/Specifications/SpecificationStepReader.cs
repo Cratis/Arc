@@ -70,10 +70,13 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             }
 
             var kind = SpecificationCalls.IsGivenReadModel(method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
+            var source = kind == SpecificationStateKind.Event && SpecificationMembers.HoldsAnEventScenario(steps) && !SpecificationMembers.HoldsAScenario(steps)
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
+                : null;
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
             {
-                Add(stated, kind, semanticModel, draft, name, location);
+                Add(stated, kind, semanticModel, draft, name, location, source);
             }
         }
     }
@@ -97,7 +100,9 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             if (!always)
             {
-                draft.CannotRead("the command it issues is only issued under a condition, and a scenario says what happened");
+                draft.CannotRead(append
+                    ? "the event it appends is only appended under a condition, and a scenario says what happened"
+                    : "the command it issues is only issued under a condition, and a scenario says what happened");
                 return;
             }
 
@@ -112,7 +117,9 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                 _held.ConstructionOf(issued, semanticModel) is not { } construction ||
                 construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol command)
             {
-                draft.CannotRead("the command it issues is put together somewhere this cannot read");
+                draft.CannotRead(append
+                    ? "the event it appends is put together somewhere this cannot read"
+                    : "the command it issues is put together somewhere this cannot read");
                 return;
             }
 
@@ -131,7 +138,10 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             var state = new SpecificationStateModel(
                 command.Name,
                 append ? SpecificationStateKind.Event : SpecificationStateKind.Command,
-                values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft));
+                values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft))
+            {
+                For = append ? draft.EventSources.Read(invocation, method, semanticModel, draft) : null
+            };
             draft.SetWhen(state, command, invocation.GetLocation());
         }
     }
@@ -171,13 +181,15 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     /// <param name="draft">The scenario collected so far.</param>
     /// <param name="name">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
+    /// <param name="source">The concrete occurrence source, when stated.</param>
     void Add(
         ExpressionSyntax stated,
         SpecificationStateKind kind,
         SemanticModel semanticModel,
         SpecificationDraft draft,
         string name,
-        string location)
+        string location,
+        LiteralSource? source)
     {
         if (_held.ConstructionOf(stated, semanticModel) is not { } construction ||
             construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol type)
@@ -195,7 +207,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
         var state = new SpecificationStateModel(
             type.Name,
             kind,
-            values.Read(construction.Creation, construction.SemanticModel, type, name, location, draft));
+            values.Read(construction.Creation, construction.SemanticModel, type, name, location, draft)) { For = source };
         draft.AddGiven(state, type, stated.GetLocation());
     }
 }

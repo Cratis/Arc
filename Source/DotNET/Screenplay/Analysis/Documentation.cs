@@ -47,6 +47,18 @@ public static class Documentation
             return null;
         }
 
+        foreach (var reference in remarks.Descendants().Where(element =>
+            string.Equals(element.Name.LocalName, "see", StringComparison.Ordinal) ||
+            string.Equals(element.Name.LocalName, "paramref", StringComparison.Ordinal) ||
+            string.Equals(element.Name.LocalName, "typeparamref", StringComparison.Ordinal)).ToArray())
+        {
+            var name = reference.Attribute("cref")?.Value.Split('.')[^1].Split(':')[^1] ?? reference.Attribute("name")?.Value;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                reference.ReplaceWith(new XText($"`{name}`"));
+            }
+        }
+
         foreach (var paragraph in remarks.Descendants("para").ToArray())
         {
             paragraph.ReplaceWith(new XText($"\n\n{paragraph.Value.Trim()}\n\n"));

@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// Appending directly to an event scenario's sequence states the same action as its fluent builder.
 /// </summary>
-public class from_an_event_sequence_append_scenario : a_batch_a_document
+public class from_an_event_sequence_append_scenario : a_generated_document
 {
     const string Scenario = """
         using System.Threading.Tasks;
@@ -22,10 +22,11 @@ public class from_an_event_sequence_append_scenario : a_batch_a_document
         public class and_it_succeeds
         {
             readonly EventScenario _scenario = new();
+            readonly EventSourceId _source = EventSourceId.New();
 
-            async Task Because() => await _scenario.EventSequence.Append(EventSourceId.New(), new AuthorRegistered("Jane Austen"));
+            async Task Because() => await _scenario.EventSequence.Append(_source, new AuthorRegistered("Jane Austen"));
 
-            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(EventSourceId.New(), e => e.Name == "Jane Austen");
+            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(_source, e => e.Name == "Jane Austen");
         }
         """;
 

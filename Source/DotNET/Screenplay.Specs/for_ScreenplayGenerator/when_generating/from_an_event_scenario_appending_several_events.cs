@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// A multi-event action must not be silently reduced to its first append.
 /// </summary>
-public class from_an_event_scenario_appending_several_events : a_batch_a_document
+public class from_an_event_scenario_appending_several_events : a_generated_document
 {
     const string Scenario = """
         using System.Threading.Tasks;

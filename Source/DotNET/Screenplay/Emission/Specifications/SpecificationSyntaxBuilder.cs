@@ -52,7 +52,7 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             [.. ReadModels(specification.Then)])
         {
             WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
-                ? new(naming.ToDeclarationName(appended.Name), [.. Values(appended)], SourceLocation.Start)
+                ? new(naming.ToDeclarationName(appended.Name), [.. Values(appended)], SourceLocation.Start) { For = SourceOf(appended) }
                 : null
         };
 
@@ -78,7 +78,7 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     IEnumerable<SpecificationEventSyntax> Events(IEnumerable<SpecificationStateModel> states) =>
         states
             .Where(_ => _.Kind == SpecificationStateKind.Event)
-            .Select(_ => new SpecificationEventSyntax(naming.ToDeclarationName(_.Name), [.. Values(_)], SourceLocation.Start));
+            .Select(_ => new SpecificationEventSyntax(naming.ToDeclarationName(_.Name), [.. Values(_)], SourceLocation.Start) { For = SourceOf(_) });
 
     /// <summary>
     /// Builds the states of a step that name a read model.
@@ -89,6 +89,13 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         states
             .Where(_ => _.Kind == SpecificationStateKind.ReadModel)
             .Select(_ => new SpecificationReadModelSyntax(naming.ToDeclarationName(_.Name), [.. Values(_)], SourceLocation.Start));
+
+    /// <summary>
+    /// Builds the concrete occurrence source, separately from payload values.
+    /// </summary>
+    /// <param name="state">The state to build from.</param>
+    /// <returns>The source expression, or null when none is stated.</returns>
+    ExpressionSyntax? SourceOf(SpecificationStateModel state) => state.For is { } source ? _sources.Convert(source) : null;
 
     /// <summary>
     /// Builds the values a step states.

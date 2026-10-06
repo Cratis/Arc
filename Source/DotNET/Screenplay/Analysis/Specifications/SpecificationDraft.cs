@@ -47,6 +47,11 @@ public class SpecificationDraft
     public string? Unreadable { get; private set; }
 
     /// <summary>
+    /// Gets the occurrence sources being compared while an event scenario is read.
+    /// </summary>
+    internal SpecificationEventSources EventSources { get; } = new();
+
+    /// <summary>
     /// Records why a scenario cannot be read.
     /// </summary>
     /// <param name="reason">What made it unreadable.</param>

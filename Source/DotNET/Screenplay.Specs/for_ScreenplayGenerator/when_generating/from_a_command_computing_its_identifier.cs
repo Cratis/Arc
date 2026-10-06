@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// A computed provider identity must not fall back to a different candidate property.
 /// </summary>
-public class from_a_command_computing_its_identifier : a_batch_a_document
+public class from_a_command_computing_its_identifier : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]

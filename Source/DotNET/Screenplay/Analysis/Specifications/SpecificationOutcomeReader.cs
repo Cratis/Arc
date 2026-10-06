@@ -115,7 +115,12 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             return;
         }
 
-        var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values);
+        var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values)
+        {
+            For = draft.When is { Kind: SpecificationStateKind.Event }
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
+                : null
+        };
         draft.AddThen(state, appended, invocation.GetLocation());
     }
 

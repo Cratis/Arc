@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// <summary>
 /// Several candidates never cause the generator to choose an arbitrary destination.
 /// </summary>
-public class from_a_command_with_ambiguous_identifiers : a_batch_a_document
+public class from_a_command_with_ambiguous_identifiers : a_generated_document
 {
     void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
         [Command]
