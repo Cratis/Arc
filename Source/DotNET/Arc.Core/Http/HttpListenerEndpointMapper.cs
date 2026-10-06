@@ -75,10 +75,22 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     /// <inheritdoc/>
     string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
     {
-        using var scope = (services ?? _services)?.CreateScope();
-        return scope?.ServiceProvider.GetService<IAuthentication>()?.HasHandlers != true
-            ? "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler."
-            : null;
+        const string problem = "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler.";
+        var scopeFactory = (services ?? _services)?.GetService<IServiceScopeFactory>();
+        if (scopeFactory is null)
+        {
+            return problem;
+        }
+
+        var scope = scopeFactory.CreateAsyncScope();
+        try
+        {
+            return scope.ServiceProvider.GetService<IAuthentication>()?.HasHandlers != true ? problem : null;
+        }
+        finally
+        {
+            scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     /// <inheritdoc/>

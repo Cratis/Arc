@@ -60,18 +60,25 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
     {
         services ??= endpoints.ServiceProvider;
-        using var scope = services.CreateScope();
-        if (scope.ServiceProvider.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() is null)
+        var scope = services.CreateAsyncScope();
+        try
         {
-            return "Requiring authentication on the discovery endpoints needs a default ASP.NET Core authentication scheme.";
+            if (scope.ServiceProvider.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() is null)
+            {
+                return "Requiring authentication on the discovery endpoints needs a default ASP.NET Core authentication scheme.";
+            }
+
+            var hasAuthorization = services.GetService<IServiceProviderIsService>()?.IsService(typeof(IAuthorizationService))
+                ?? (scope.ServiceProvider.GetService<IAuthorizationService>() is not null);
+
+            return !hasAuthorization
+                ? "Requiring authentication on the discovery endpoints needs ASP.NET Core authorization services (AddAuthorization)."
+                : null;
         }
-
-        var hasAuthorization = services.GetService<IServiceProviderIsService>()?.IsService(typeof(IAuthorizationService))
-            ?? (scope.ServiceProvider.GetService<IAuthorizationService>() is not null);
-
-        return !hasAuthorization
-            ? "Requiring authentication on the discovery endpoints needs ASP.NET Core authorization services (AddAuthorization)."
-            : null;
+        finally
+        {
+            scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
     }
 
     void Map(string httpMethod, string pattern, Func<IHttpRequestContext, Task> handler, EndpointMetadata? metadata)
