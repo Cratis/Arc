@@ -59,7 +59,8 @@ builder.AddCratisArc(options =>
 | `Tenancy.ClaimType` | `string` | `tenant_id` | The claim used when `ResolverType` is `Claim`. |
 | `Tenancy.FixedTenantId` | `string` | `development` | The tenant every request resolves to when `ResolverType` is `Fixed` or `Development`. |
 | `Tenancy.DevelopmentTenantId` | `string` | `development` | The same value under its original name — reading or writing either key sets both. Supply only one; if both are present the binder's property order decides. |
-| `Introspection.Enabled` | `bool` | `true` | Map both command and query catalog routes. Set to `false` to remove both routes. |
+| `Introspection.Enabled` | `bool` | `true` | Map both command and query catalog routes. Set to `false` to remove both routes without changing identity discovery. |
+| `Introspection.IdentityDiscovery` | `bool` | `true` | Map users, tenants and the identity-details schema. Set to `false` to remove these routes without changing catalogs or `/.cratis/me`. Set both switches to `false` to remove all discovery. |
 | `Introspection.RequireAuthentication` | `bool` | unset (getter returns `false`) | Access to the discovery routes (catalogs, `/.cratis/users`, `/.cratis/tenants`, `/.cratis/identity-details/schema`). Not set: anonymous in Development, authenticated elsewhere. `true`: authenticated everywhere; requires a default ASP.NET Core authentication scheme plus `AddAuthorization()`, or an Arc.Core authentication handler. `false`: anonymous everywhere. |
 | `Introspection.Roles` | `string?` | `null` | Comma-separated roles; any one grants access to the discovery routes. Implies authentication; cannot be combined with `RequireAuthentication: false`. No named policy option is provided. |
 | `Introspection.TrustForwardedIdentityHeaders` | `bool` | `false` | Obsolete. Setting it to `true` turns on `TrustForwardedIdentityHeaders` for the whole host. Use `TrustForwardedIdentityHeaders` instead. |
@@ -90,7 +91,7 @@ For example, the equivalent `appsettings.json` keys are:
 }
 ```
 
-`RequireAuthentication` and `Roles` govern all five discovery endpoints: the command and query catalogs, users, tenants, and the identity-details schema. Only `Enabled` is catalog-specific. Outside Development, hosts without authentication leave the discovery endpoints unmapped by default and warn once per host; explicitly requiring authentication on such a host fails startup. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
+`RequireAuthentication` and `Roles` govern mapped discovery endpoints: the command and query catalogs, users, tenants, and the identity-details schema. `Enabled` controls the catalogs; `IdentityDiscovery` controls users, tenants and the schema. Set both to `false` to skip discovery mapping, authentication enforcement checks and exposure warnings. Valid access settings then have no effect, but role configuration is still validated. Outside Development, hosts without authentication leave enabled discovery endpoints unmapped by default and warn once per host; explicitly requiring authentication on such a host fails startup. See [introspection production access](../introspection/index.md#production-access) for the security boundary and startup validation.
 
 Route generation (`GeneratedApis`) and JSON serialization have worked examples on the [ASP.NET Core configuration](../asp-net-core/configuration.md) page; `Query.KeepAliveInterval` is covered with the [observable query demultiplexer](../queries/observable-query-demultiplexer.md).
 

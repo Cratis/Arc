@@ -86,6 +86,19 @@ internal static class DiscoveryExposure
         };
     }
 
+    static string EndpointsFor(IntrospectionOptions options)
+    {
+        const string catalogs = "/.cratis/commands, /.cratis/queries";
+        const string identity = "/.cratis/users, /.cratis/tenants, /.cratis/identity-details/schema";
+        return (options.Enabled, options.IdentityDiscovery) switch
+        {
+            (true, true) => $"{catalogs}, {identity}",
+            (true, false) => catalogs,
+            (false, true) => identity,
+            _ => string.Empty
+        };
+    }
+
     static DiscoveryAccess Resolve(IEndpointMapper mapper, IntrospectionOptions options, bool isDevelopment, ILogger? logger, object host, IServiceProvider? services)
     {
         ThrowIfInvalid(options);
@@ -94,7 +107,7 @@ internal static class DiscoveryExposure
         {
             if (!isDevelopment && logger is not null && Interlocked.Exchange(ref _reportedAnonymous, 1) == 0)
             {
-                logger.DiscoveryExposedAnonymously();
+                logger.DiscoveryExposedAnonymously(EndpointsFor(options));
             }
 
             return DiscoveryAccess.Anonymous;
@@ -114,7 +127,7 @@ internal static class DiscoveryExposure
                 {
                     if (reported.Add(problem))
                     {
-                        logger.DiscoveryNotMapped(problem);
+                        logger.DiscoveryNotMapped(EndpointsFor(options), problem);
                     }
                 }
             }

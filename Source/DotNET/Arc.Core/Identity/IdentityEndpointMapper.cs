@@ -32,7 +32,8 @@ public static class IdentityEndpointMapper
     /// <remarks>
     /// The identity discovery endpoints - <c>/.cratis/users</c>, <c>/.cratis/tenants</c> and
     /// <c>/.cratis/identity-details/schema</c> - follow <see cref="IntrospectionOptions"/>: anonymous in Development and
-    /// authenticated elsewhere unless configured otherwise. <c>/.cratis/me</c> is always mapped anonymously and answers
+    /// authenticated elsewhere unless configured otherwise, and unmapped when <see cref="IntrospectionOptions.IdentityDiscovery"/>
+    /// is false. <c>/.cratis/me</c> is always mapped anonymously and answers
     /// for the caller itself.
     /// </remarks>
     /// <exception cref="InvalidIntrospectionConfiguration">The discovery exposure settings are invalid, or authentication is explicitly required and the host cannot enforce it.</exception>
@@ -89,6 +90,11 @@ public static class IdentityEndpointMapper
     {
         var discovery = serviceProvider.GetService<IOptions<ArcOptions>>()?.Value.Introspection ?? new IntrospectionOptions();
         DiscoveryExposure.ThrowIfInvalid(discovery);
+        if (!discovery.IdentityDiscovery)
+        {
+            return;
+        }
+
         if (mapper is IIntrospectionExposureGuard guard && guard.TryDeferMapping(services => MapDiscoveryEndpoints(mapper, services)))
         {
             return;
