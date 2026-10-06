@@ -12,4 +12,5 @@ Read every concern below before working in this repository. Together they are th
 
 - [What Arc owns](.cratis/ai/rules/project/what-arc-owns.md)
 - [Commands](.cratis/ai/rules/project/commands.md)
+- [Command handlers never return an optional event](.cratis/ai/rules/project/command-handler-results.md)
 - [AI-assisted development](.cratis/ai/rules/project/ai-assisted-development.md)
