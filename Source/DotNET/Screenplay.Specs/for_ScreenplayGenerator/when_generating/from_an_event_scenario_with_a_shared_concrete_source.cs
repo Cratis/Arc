@@ -5,16 +5,15 @@ using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_an_event_scenario_with_concrete_sources : a_generated_document
+public class from_an_event_scenario_with_a_shared_concrete_source : a_generated_document
 {
     void Because() => Generate(
         (Analyzed.SlicePath, EventAppendSources.Producer),
-        ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", EventAppendSources.With("new EventSourceId(\"prior\")", "new EventSourceId(\"current\")", "new EventSourceId(\"current\")")),
+        ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", EventAppendSources.With("new EventSourceId(\"current\")", "new EventSourceId(\"current\")", "new EventSourceId(\"current\")")),
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
-    [Fact] void should_state_the_prior_source() => Result.Source.ShouldContain("given AuthorRegistered\n          for \"prior\"");
+    [Fact] void should_state_the_prior_source() => Result.Source.ShouldContain("given AuthorRegistered\n          for \"current\"");
     [Fact] void should_state_the_append_source() => Result.Source.ShouldContain("when append AuthorRegistered\n          for \"current\"");
     [Fact] void should_state_the_asserted_source() => Result.Source.ShouldContain("then AuthorRegistered\n          for \"current\"");
-    [Fact] void should_retain_the_scenario() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeFalse();
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

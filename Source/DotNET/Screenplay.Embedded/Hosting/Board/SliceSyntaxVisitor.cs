@@ -74,6 +74,8 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
     {
         LiteralExpressionSyntax literal => literal.Value?.ToString() ?? string.Empty,
         PathExpressionSyntax path => path.Path,
+        ContextExpressionSyntax context => $"$context.{context.Path}",
+        EnvironmentExpressionSyntax environment => $"$env.{environment.Name}",
         _ => string.Empty
     };
 

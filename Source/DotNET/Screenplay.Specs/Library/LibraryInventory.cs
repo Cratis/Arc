@@ -40,7 +40,7 @@ public static class LibraryInventory
                                 Declare.From("Title", "Title"),
                                 Declare.From("AuthorId", "AuthorId"),
                                 Declare.From("Count", "Count")
-                            ])
+                            ]) { UsesCommandContext = true }
                     ],
                     new ConcurrencyModel(false, null, "Inventory", null, []),
                     "Inventory/Adding/Adding.cs")

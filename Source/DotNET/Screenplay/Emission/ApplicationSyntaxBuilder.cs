@@ -114,7 +114,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <returns>The modules.</returns>
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model), options.AuthoringOnlyConstructs);
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model), model, options.AuthoringOnlyConstructs);
         if (options.AuthoringOnlyConstructs)
         {
             sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
@@ -150,9 +150,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// Composes the builder that turns one slice into its declaration.
     /// </summary>
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
+    /// <param name="model">The full application used to type specification destinations.</param>
     /// <param name="authoringOnlyConstructs">Whether optional authoring constructs are emitted.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, bool authoringOnlyConstructs) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs) =>
         new(
             naming,
             new CommandSyntaxBuilder(
@@ -177,7 +178,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ReactorSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming))
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics })
         {
             InlineEvents = inlineEvents
         };

@@ -6,12 +6,12 @@ using ModelRuleKind = Cratis.Arc.Screenplay.Model.ValidationRuleKind;
 
 namespace Cratis.Arc.Screenplay.for_ValidationSyntaxBuilder.when_building;
 
-public class a_named_rule_with_a_rooted_path : given.a_validation_syntax_builder
+public class a_named_rule_with_a_windows_rooted_path : given.a_validation_syntax_builder
 {
     IEnumerable<ValidateSyntax> _blocks;
 
     void Because() => _blocks = _builder.Build(
-        [new("Name", ModelRuleKind.Rule, "IsKnown", null) { SourceFilePath = "/external/Predicates.cs" }],
+        [new("Name", ModelRuleKind.Rule, "IsKnown", null) { SourceFilePath = "C:/external/Predicates.cs" }],
         "Library.Authors.Registration").ToList();
 
     [Fact] void should_leave_the_rule_out() => _blocks.ShouldBeEmpty();

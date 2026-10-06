@@ -17,8 +17,8 @@ public static class InlineProductionShape
     /// <param name="body">The body to inspect, including an aggregate behavior's caller.</param>
     /// <returns>Whether unconditional production is provable from this body.</returns>
     public static bool IsUnconditional(SyntaxNode body) =>
-        !body.DescendantNodes().Any(node => node is
-            IfStatementSyntax or ConditionalExpressionSyntax or SwitchStatementSyntax or SwitchExpressionSyntax or
+        !body.DescendantNodesAndSelf().Any(node => node is
+            IfStatementSyntax or ConditionalExpressionSyntax or ConditionalAccessExpressionSyntax or SwitchStatementSyntax or SwitchExpressionSyntax or
             ForStatementSyntax or ForEachStatementSyntax or ForEachVariableStatementSyntax or WhileStatementSyntax or
             DoStatementSyntax or TryStatementSyntax or GotoStatementSyntax or AnonymousFunctionExpressionSyntax or
             LocalFunctionStatementSyntax or YieldStatementSyntax or BinaryExpressionSyntax or ThrowStatementSyntax or ThrowExpressionSyntax);

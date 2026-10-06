@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
+using System.Text.RegularExpressions;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -19,9 +21,19 @@ namespace Cratis.Arc.Screenplay.Emission.Specifications;
 /// word, so a property called after a directive collides with it; the values of a step are written one level deeper
 /// than the step itself and the step takes every line beneath it as a value, whatever its first word says.
 /// </remarks>
-public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
+public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 {
     readonly MappingSourceConverter _sources = new(naming);
+
+    /// <summary>
+    /// Gets the full application whose emitted command identifiers type occurrence sources.
+    /// </summary>
+    public ApplicationModel? Application { get; init; }
+
+    /// <summary>
+    /// Gets where scenarios with unrepresentable distinct sources are reported.
+    /// </summary>
+    public ScreenplayDiagnostics? Diagnostics { get; init; }
 
     /// <summary>
     /// Builds the specifications of a slice.
@@ -31,9 +43,77 @@ public class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications) =>
     [
         .. specifications
+            .Select(WithRepresentableSources)
+            .OfType<SpecificationModel>()
             .Select(Build)
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
     ];
+
+    [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$", RegexOptions.None, 1000)]
+    private static partial Regex IsoInstant();
+
+    SpecificationModel? WithRepresentableSources(SpecificationModel specification)
+    {
+        var occurrences = specification.Given.Concat(specification.Then)
+            .Concat(specification.When is { } action ? [action] : [])
+            .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
+        if (occurrences.TrueForAll(state => state.For is null || CanStateSource(state)))
+        {
+            return specification;
+        }
+
+        if (occurrences.Select(state => state.For).Distinct().Count() != 1)
+        {
+            Diagnostics?.Warning(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{specification.Name}' was left out because its distinct event sources cannot be stated as concrete for values of every producing command's unambiguous required scalar identifier type",
+                specification.Name);
+            return null;
+        }
+
+        return specification with
+        {
+            Given = specification.Given.Select(state => state with { For = null }).ToList(),
+            When = specification.When is { } when ? when with { For = null } : null,
+            Then = specification.Then.Select(state => state with { For = null }).ToList()
+        };
+    }
+
+    bool CanStateSource(SpecificationStateModel state)
+    {
+        var producers = Application?.Slices.SelectMany(slice => slice.Commands)
+            .Where(command => command.Produces.Any(produced => naming.ToDeclarationName(produced.EventName) == naming.ToDeclarationName(state.Name)))
+            .ToList() ?? [];
+        if (producers.Count == 0 || producers.Exists(command => command.Identifier is null || command.Produces.Any(produced => !produced.UsesCommandContext)))
+        {
+            return false;
+        }
+
+        var identifiers = producers.ConvertAll(command => command.Properties.SingleOrDefault(property => property.Name == command.Identifier)?.Type);
+        if (identifiers.Exists(type => type is null or { IsOptional: true } or { IsCollection: true }) ||
+            identifiers.Select(type => naming.ToDeclarationName(type!.Name)).Distinct(StringComparer.Ordinal).Count() != 1)
+        {
+            return false;
+        }
+
+        var name = naming.ToDeclarationName(identifiers[0]!.Name);
+        var concept = Application?.Concepts.SingleOrDefault(concept => naming.ToDeclarationName(concept.Name) == name);
+        var primitive = concept?.Primitive.ToString() ?? name;
+        var value = state.For!.Value;
+
+        return primitive switch
+        {
+            "Uuid" => value is string uuid && Guid.TryParse(uuid, out var parsed) && parsed.ToString("D", CultureInfo.InvariantCulture) == uuid,
+            "String" => value is string,
+            "Int" => value is int or long,
+            "Decimal" => value is int or long or float or double or decimal,
+            "Bool" => value is bool,
+            "Date" => value is string date && DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
+            "DateTime" => value is string instant && IsoInstant().IsMatch(instant) && DateTimeOffset.TryParse(instant, CultureInfo.InvariantCulture, DateTimeStyles.None, out _),
+            "Enum" => value is string member && concept!.EnumValues.Contains(member, StringComparer.Ordinal),
+            _ => false
+        };
+    }
 
     /// <summary>
     /// Builds one specification.

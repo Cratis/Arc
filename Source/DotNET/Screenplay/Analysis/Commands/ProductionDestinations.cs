@@ -58,7 +58,7 @@ public static class ProductionDestinations
 
             if (node is ReturnStatementSyntax || (ReferenceEquals(node, body) && body is ExpressionSyntax))
             {
-                return true;
+                return !aggregate;
             }
 
             if (ReferenceEquals(node, body))

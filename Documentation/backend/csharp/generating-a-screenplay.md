@@ -145,11 +145,11 @@ The order the projects arrive in never reaches the document. Nothing decides wha
 
 ## Inline events and destinations
 
-An event used by exactly one production site can appear as `produces event <Name>` inside its command. The generator counts sites across every analyzed project, including reactors and other code. It only inlines a local generation-one event in the same slice when the command has a required scalar identifier, the production is unconditional, and every payload member has a supported mapping. Tombstones, compensations, unsupported shapes, and payload copies of the identifier stay standalone.
+An event used by exactly one production site can appear as `produces event <Name>` inside its command. The generator counts production sites across every analyzed project, including reactors and other application code but excluding specification fixtures and `nameof` references. Runtime-typed appends and projects outside the analyzed set are not counted. It only inlines a local generation-one event in the same slice when the command has a required scalar identifier, the production is unconditional, and every payload member has a supported mapping. Tombstones, compensations, unsupported shapes, and payload copies of the identifier stay standalone.
 
 Both forms preserve descriptions, documentation, rename pins, and the persisted payload shape. Inlining changes where the declaration appears, not its executable meaning. Scoped embedded documents still import an inline event declared outside their scope, and the board keeps its schema and flow links.
 
-The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A routed wrapper, tuple result, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination rather than retargeting it.
+The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A routed wrapper, tuple result, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination once per command, even when the command has no identifier, rather than retargeting it.
 
 ## Including authoring-only constructs
 
@@ -241,7 +241,7 @@ slice StateChange Registration
 
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
-Concrete event-scenario source arguments are emitted as indented `for` values on `given`, `when append`, and event `then` blocks, separately from payload properties. A shared symbolic source can remain implicit. Sources that are neither provably the same symbol nor concrete values the document can state take the scenario out with `SP0039`; separate calls to `EventSourceId.New()` are not the same source.
+Concrete event-scenario source arguments are emitted as indented `for` values on `given`, `when append`, and event `then` blocks, separately from payload properties, only when every producing command retains the same required scalar identifier type and the values fit that type. A `Uuid` destination requires a canonical lowercase GUID string. When a source cannot be typed this way, a scenario sharing one source remains implicit; distinct sources take the scenario out with `SP0039`. A shared symbolic source can also remain implicit. Sources that are neither provably the same symbol nor concrete values the document can state take the scenario out with `SP0039`; separate calls to `EventSourceId.New()` are not the same source.
 
 A rejection the source asserts without naming a reason is written as bare `then error`. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
