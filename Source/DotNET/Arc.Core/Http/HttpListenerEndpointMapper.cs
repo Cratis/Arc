@@ -73,10 +73,13 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     public IEnumerable<RouteInfo> Routes => _registeredRoutes;
 
     /// <inheritdoc/>
-    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services) =>
-        (services ?? _services)?.GetService<IAuthentication>()?.HasHandlers != true
+    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
+    {
+        using var scope = (services ?? _services)?.CreateScope();
+        return scope?.ServiceProvider.GetService<IAuthentication>()?.HasHandlers != true
             ? "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler."
             : null;
+    }
 
     /// <inheritdoc/>
     bool IIntrospectionExposureGuard.TryDeferMapping(Action<IServiceProvider> mapping)

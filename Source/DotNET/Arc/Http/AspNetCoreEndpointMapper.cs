@@ -60,12 +60,16 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
     string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
     {
         services ??= endpoints.ServiceProvider;
-        if (services.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() is null)
+        using var scope = services.CreateScope();
+        if (scope.ServiceProvider.GetService<IAuthenticationSchemeProvider>()?.GetDefaultAuthenticateSchemeAsync().GetAwaiter().GetResult() is null)
         {
             return "Requiring authentication on the discovery endpoints needs a default ASP.NET Core authentication scheme.";
         }
 
-        return services.GetService<IAuthorizationService>() is null
+        var hasAuthorization = services.GetService<IServiceProviderIsService>()?.IsService(typeof(IAuthorizationService))
+            ?? (scope.ServiceProvider.GetService<IAuthorizationService>() is not null);
+
+        return !hasAuthorization
             ? "Requiring authentication on the discovery endpoints needs ASP.NET Core authorization services (AddAuthorization)."
             : null;
     }
@@ -113,7 +117,8 @@ public class AspNetCoreEndpointMapper(IEndpointRouteBuilder endpoints, string? g
         }
         else if (metadata.RequireAuthentication)
         {
-            var defaultPolicy = endpoints.ServiceProvider.GetService<IAuthorizationPolicyProvider>()?.GetDefaultPolicyAsync().GetAwaiter().GetResult();
+            using var scope = endpoints.ServiceProvider.CreateScope();
+            var defaultPolicy = scope.ServiceProvider.GetService<IAuthorizationPolicyProvider>()?.GetDefaultPolicyAsync().GetAwaiter().GetResult();
             var policy = defaultPolicy is null ? new AuthorizationPolicyBuilder() : new AuthorizationPolicyBuilder(defaultPolicy);
             policy.RequireAuthenticatedUser();
             if (metadata.Roles is not null)
