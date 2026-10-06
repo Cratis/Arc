@@ -52,6 +52,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
+        if (options.AuthoringOnlyConstructs)
+        {
+            model = AuthoringDeclarations.Resolve(model, diagnostics);
+        }
+
         var domain = ToName(model.Domain, options.Domain);
         var modules = BuildModules(model, options, domain);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
@@ -65,7 +70,13 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             [.. modules],
             SourceLocation.Start,
             new DomainSyntax(domain, SourceLocation.Start),
-            Types: [.. declaredTypes]);
+            Types: [.. declaredTypes])
+        {
+            Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
+                .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
+                .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
+            EventSources = options.AuthoringOnlyConstructs ? BuildEventSources(model) : []
+        };
     }
 
     /// <summary>
@@ -103,7 +114,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <returns>The modules.</returns>
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model));
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model), options.AuthoringOnlyConstructs);
+        if (options.AuthoringOnlyConstructs)
+        {
+            sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
+        }
         var placed = new List<PlacedSlice>();
         var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
@@ -135,8 +150,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// Composes the builder that turns one slice into its declaration.
     /// </summary>
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
+    /// <param name="authoringOnlyConstructs">Whether optional authoring constructs are emitted.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, bool authoringOnlyConstructs) =>
         new(
             naming,
             new CommandSyntaxBuilder(
@@ -151,7 +167,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                     Diagnostics = diagnostics
                 },
                 new ConcurrencySyntaxBuilder(naming, diagnostics),
-                _names),
+                _names)
+            {
+                AuthoringOnlyConstructs = authoringOnlyConstructs
+            },
             new EventSyntaxBuilder(naming, _types, _names),
             new QuerySyntaxBuilder(naming, _types, _authorize),
             new ConstraintSyntaxBuilder(naming),
@@ -162,6 +181,18 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         {
             InlineEvents = inlineEvents
         };
+
+    List<EventSourceSyntax> BuildEventSources(ApplicationModel model) => model.Slices.SelectMany(slice => slice.Commands)
+        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().GroupBy(route => route.Source, StringComparer.Ordinal)
+        .OrderBy(group => group.Key, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key, SourceLocation.Start)
+        {
+            Identifier = source.Select(route => route.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() is { } identifier ? _types.Convert(identifier) : null,
+            Streams = source.Where(route => route.Stream is not null).GroupBy(route => route.Stream!, StringComparer.Ordinal).OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(stream => new EventStreamSyntax(stream.Key, SourceLocation.Start)
+                {
+                    StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null
+                }).ToList()
+        }).ToList();
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.

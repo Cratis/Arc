@@ -19,8 +19,9 @@ public static class ProductionDestinations
     /// <param name="body">The handler or aggregate behavior body.</param>
     /// <param name="model">The semantic model of that body.</param>
     /// <param name="aggregate">Whether the body belongs to an aggregate of the command context.</param>
+    /// <param name="generatedIdentity">Whether analysis proved a directly returned generated tuple identity.</param>
     /// <returns>Whether command-context routing is established.</returns>
-    public static bool ThroughCommandContext(BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, bool aggregate)
+    public static bool ThroughCommandContext(BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, bool aggregate, bool generatedIdentity = false)
     {
         for (SyntaxNode? node = creation; node is not null; node = node.Parent)
         {
@@ -30,7 +31,13 @@ public static class ProductionDestinations
                 return false;
             }
 
-            if (node is TupleExpressionSyntax or AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
+            if (node is TupleExpressionSyntax tuple && (!generatedIdentity || !tuple.Arguments.Any(argument => argument.Expression == creation) ||
+                (tuple.Parent is not ReturnStatementSyntax && !ReferenceEquals(tuple, body))))
+            {
+                return false;
+            }
+
+            if (node is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)
             {
                 return false;
             }

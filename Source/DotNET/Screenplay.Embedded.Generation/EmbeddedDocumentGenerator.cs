@@ -109,7 +109,8 @@ public class EmbeddedDocumentGenerator(
         {
             Domain = options.AssemblyName,
             Module = scope.ModuleName,
-            SegmentsToSkip = scope.SegmentsToSkip
+            SegmentsToSkip = scope.SegmentsToSkip,
+            AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
         }.WithDefaults(options.AssemblyName);
 
     /// <summary>

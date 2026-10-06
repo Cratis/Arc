@@ -19,6 +19,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
 {
     readonly MappingSourceReader _sources = new(diagnostics);
+    AuthoringSources? _authoring;
 
     /// <summary>
     /// Reads the mappings of a single event construction.
@@ -29,6 +30,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     /// <param name="eventType">The type of the event being constructed.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="bindings">What the call site gave the parameters of the body being read, if it is not the handler's own.</param>
+    /// <param name="authoring">Proven generated values and read dependencies.</param>
     /// <returns>The mappings, in the order the source declares them.</returns>
     public IEnumerable<PropertyMappingModel> Read(
         BaseObjectCreationExpressionSyntax creation,
@@ -36,8 +38,10 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         ITypeSymbol owner,
         ITypeSymbol eventType,
         string location,
-        ParameterBindings? bindings = null)
+        ParameterBindings? bindings = null,
+        AuthoringSources? authoring = null)
     {
+        _authoring = authoring;
         var mappings = new List<PropertyMappingModel>();
         var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
 
@@ -167,6 +171,10 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         ParameterBindings? bindings)
     {
         var source = _sources.Read(expression, semanticModel, owner, location, bindings);
+        if (source is null && _authoring?.ReadPath(expression, semanticModel) is { } path)
+        {
+            source = new PropertyPathSource(path);
+        }
         if (source is null)
         {
             Report(eventType, property, location);

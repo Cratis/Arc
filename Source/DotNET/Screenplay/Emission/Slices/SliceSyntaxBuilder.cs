@@ -50,6 +50,9 @@ public class SliceSyntaxBuilder(
     /// </summary>
     public InlineEvents? InlineEvents { get; init; }
 
+    /// <summary>Gets or sets read-model declarations needed by authoring-only reads.</summary>
+    public IReadOnlyList<CommandReadModel> AuthoringReadModels { get; set; } = [];
+
     /// <summary>
     /// Builds the slice declaration.
     /// </summary>
@@ -88,7 +91,9 @@ public class SliceSyntaxBuilder(
             ],
             [.. specifications.Build(slice.Specifications)],
             SourceLocation.Start,
-            naming.ToStringLiteral(slice.Description));
+            naming.ToStringLiteral(slice.Description),
+            ReadModels: AuthoringReadModels.Where(read => read.Namespace == slice.Namespace).DistinctBy(read => read.Name)
+                .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), read.Properties.Select(property => new PropertySyntax(naming.ToPropertyName(property.Name), new Types.TypeReferenceConverter(naming).Convert(property.Type), SourceLocation.Start)).ToList(), SourceLocation.Start)).ToList());
     }
 
     /// <summary>

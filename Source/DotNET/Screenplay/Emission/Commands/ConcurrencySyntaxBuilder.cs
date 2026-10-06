@@ -77,7 +77,7 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
 
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
-            $"The command appends through event source '{eventSource.Source}'{stream}, which the language cannot declare yet; only the concurrency dimensions it declares are emitted",
+            $"The command appends through event source '{eventSource.Source}'{stream}; source and stream declarations are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs; only the existing concurrency dimensions are emitted",
             location);
 
         if (eventSource.ConcurrentByStreamId)
@@ -88,6 +88,17 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 location);
         }
     }
+
+    /// <summary>Reports legacy classification attributes omitted from executable-default output.</summary>
+    /// <param name="location">The diagnostic location.</param>
+    public void ReportLegacyRoute(string location) => diagnostics.Warning(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, "Event source and stream routing are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable routes", location);
+
+    /// <summary>Reports a dynamic concurrency flag that the current grammar cannot state without a value.</summary>
+    /// <param name="location">The diagnostic location.</param>
+    public void ReportStreamIdFlag(string location) => diagnostics.Warning(
+        ScreenplayDiagnosticCodes.EventStreamIdConcurrencyNotRepresentable,
+        "Dynamic stream-id concurrency has no valueless flag in the current grammar and was left out",
+        location);
 
     /// <summary>
     /// Converts a dimension of the scope into the identifier it is written as.

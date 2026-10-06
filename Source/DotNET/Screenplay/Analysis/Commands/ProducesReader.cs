@@ -40,15 +40,20 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <param name="command">The type declaring the command.</param>
     /// <param name="handlers">The handler methods to read.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="sources">Proven authoring-only mapping sources, when enabled.</param>
+    /// <param name="generatedIdentity">Whether a returned generated identity proves the tuple destination.</param>
     /// <returns>The productions, in the order the source declares them.</returns>
-    public IEnumerable<ProducesModel> Read(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, string location)
+    public IEnumerable<ProducesModel> Read(INamedTypeSymbol command, IReadOnlyList<IMethodSymbol> handlers, string location, AuthoringSources? sources = null, bool generatedIdentity = false)
     {
         var produces = new List<ProducesModel>();
         var identifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, location);
 
         foreach (var handler in handlers)
         {
-            ReportEventSourceIdResult(handler, location);
+            if (!generatedIdentity)
+            {
+                ReportEventSourceIdResult(handler, location);
+            }
 
             foreach (var body in HandlerBodies.Of(handler))
             {
@@ -57,8 +62,8 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                     continue;
                 }
 
-                var usesCommandContext = !HandlerBodies.YieldsEventSourceId(handler.ReturnType);
-                ReadBody(command, body, semanticModel, location, produces, null, usesCommandContext);
+                var usesCommandContext = generatedIdentity || !HandlerBodies.YieldsEventSourceId(handler.ReturnType);
+                ReadBody(command, body, semanticModel, location, produces, null, usesCommandContext, sources, generatedIdentity);
 
                 foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, semanticModel))
                 {
@@ -125,6 +130,8 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <param name="produces">The productions collected so far.</param>
     /// <param name="behavior">The behavior the body belongs to, when the handler reached it through an aggregate root.</param>
     /// <param name="usesCommandContext">Whether the handler or aggregate uses the command's event source context.</param>
+    /// <param name="sources">The proven authoring mapping sources.</param>
+    /// <param name="generatedIdentity">Whether the returned tuple supplies a proven generated identity.</param>
     void ReadBody(
         INamedTypeSymbol command,
         SyntaxNode body,
@@ -132,7 +139,9 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         string location,
         List<ProducesModel> produces,
         AggregateRootInvocation? behavior,
-        bool usesCommandContext)
+        bool usesCommandContext,
+        AuthoringSources? sources = null,
+        bool generatedIdentity = false)
     {
         var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot);
 
@@ -145,11 +154,11 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
 
             var before = diagnostics.All.Count;
             var when = _conditions.Resolve(creation, body, scope, type, location);
-            var mappings = _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings).ToList();
+            var mappings = _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings, sources).ToList();
             produces.Add(new(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
-                UsesCommandContext = usesCommandContext && ProductionDestinations.ThroughCommandContext(creation, body, semanticModel, behavior is not null),
+                UsesCommandContext = usesCommandContext && ProductionDestinations.ThroughCommandContext(creation, body, semanticModel, behavior is not null, generatedIdentity),
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
             });
@@ -200,7 +209,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult,
-                "The handler yields the identifier of the event source alongside the event, which Screenplay has no counterpart for",
+                "The handler yields an event source identifier or response alongside the event; readable generated identities and responses are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs",
                 location);
         }
     }

@@ -125,7 +125,10 @@ public class ArtifactReaders
             whole.AggregateRoots,
             validators,
             new EventReader(properties, diagnostics),
-            new CommandReader(properties, produces, validators, paths, new(models, diagnostics)),
+            new CommandReader(properties, produces, validators, paths, new(models, diagnostics))
+            {
+                Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
+            },
             new ControllerCommandReader(types, properties, produces, validators, paths),
             new QueryReader(types, diagnostics),
             new ModelBoundProjectionReader(diagnostics),

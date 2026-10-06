@@ -151,6 +151,16 @@ Both forms preserve descriptions, documentation, rename pins, and the persisted 
 
 The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A routed wrapper, tuple result, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination rather than retargeting it.
 
+## Including authoring-only constructs
+
+Set `ScreenplayOptions.AuthoringOnlyConstructs` to `true` when you want a fuller authoring document rather than an executable model. It defaults to `false`, preserving the existing generated text. Embedded generation exposes the same boolean on `EmbeddedDocumentOptions`; MSBuild projects can set `CratisEmbeddedScreenplayAuthoringOnlyConstructs` to `true`. The separately shipped CLI must expose the option before it can be selected there.
+
+The option adds readable generated UUID-backed concepts and responses, returned command operations with their external system and execute/compensate implementation files, and event-source/stream declarations with property-backed command routes. An operation must use exactly one external system in the current grammar. Existing, value-bearing concurrency dimensions remain unchanged; observer filters and dynamic concurrency flags without a value are still reported rather than invented.
+
+It also describes keyed read-model dependencies of `Provide()` and `Handle()`, simple provisioning rejection comparisons as acceptance requirements, and event mappings from read-model members. Reads use the command's proven event-source key, matching Arc's dependency resolution. Arbitrary provisioning stays in code and is reported; no `provide` block is generated.
+
+These documents still compile and round-trip, but **there is no executable model while `PLAY0268` constructs are present**. Binding legacy reads also reports `PLAY0271` because they cannot imply decision consistency. Enabling the option does not execute operations, generate implementation code, or weaken those admission checks. Unsupported types, ambiguous names and unreadable behavior retain diagnostics instead of guessed output.
+
 ## The generator checks its own output
 
 Every diagnostic above names something about _your application_ — a construct the language cannot hold, source that did not compile, projects that share no directory. There is one that names a defect in the generator instead.

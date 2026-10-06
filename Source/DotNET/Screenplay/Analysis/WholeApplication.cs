@@ -32,6 +32,9 @@ public record WholeApplication(IReadOnlyList<Compilation> Compilations, Screenpl
     /// </summary>
     public IUserInterfaceFiles Files { get; init; } = new UserInterfaceFiles();
 
+    /// <summary>Gets whether authoring-only command constructs are enabled.</summary>
+    public bool AuthoringOnlyConstructs { get; init; }
+
     /// <summary>
     /// Gets the models every syntax tree of the application is read through.
     /// </summary>

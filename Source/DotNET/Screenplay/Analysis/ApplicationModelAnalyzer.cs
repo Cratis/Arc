@@ -45,7 +45,11 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     {
         var ordered = AnalyzedCompilations.Ordered(compilations);
         var domain = options.Domain ?? AnalyzedCompilations.NameOf(ordered) ?? ScreenplayOptions.DefaultName;
-        var whole = new WholeApplication(ordered, new ScreenplayDiagnostics()) { Files = userInterfaceFiles };
+        var whole = new WholeApplication(ordered, new ScreenplayDiagnostics())
+        {
+            Files = userInterfaceFiles,
+            AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
+        };
         var diagnostics = whole.Diagnostics;
 
         var catalogs = ordered.Select(ArtifactCatalog.From).ToList();

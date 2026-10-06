@@ -485,4 +485,16 @@ public static class ScreenplayDiagnosticCodes
     /// Explicit or unprovable production routing prevents using the command identifier as a destination.
     /// </summary>
     public const string UnrepresentableProductionDestination = "SP0051";
+
+    /// <summary>A generated value or response is not a reliably readable authoring shape.</summary>
+    public const string UnreadableCommandResponse = "SP0052";
+
+    /// <summary>A returned operation cannot be represented reliably by the authoring grammar.</summary>
+    public const string UnreadableCommandOperation = "SP0053";
+
+    /// <summary>A source or stream route cannot be read without guessing.</summary>
+    public const string UnreadableCommandRoute = "SP0054";
+
+    /// <summary>Provisioning or a read dependency lives in code rather than a supported declarative shape.</summary>
+    public const string UnreadableCommandProvisioning = "SP0055";
 }

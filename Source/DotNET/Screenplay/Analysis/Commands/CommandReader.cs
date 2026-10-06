@@ -44,6 +44,9 @@ public class CommandReader(
     {
     }
 
+    /// <summary>Gets the optional reader of authoring-only constructs.</summary>
+    public CommandAuthoringReader? Authoring { get; init; }
+
     /// <summary>
     /// Determines whether a type is a model-bound command.
     /// </summary>
@@ -60,6 +63,8 @@ public class CommandReader(
     public CommandModel Read(INamedTypeSymbol type, string location)
     {
         var handlers = Handlers(type);
+        var identifier = identifiers?.Read(type, location);
+        var authoring = Authoring?.Read(type, handlers, identifier, location);
 
         return new(
             type.Name,
@@ -67,12 +72,14 @@ public class CommandReader(
             properties.Read(type),
             AuthorizationReader.Read(type),
             validators.For(type),
-            produces.Read(type, handlers, location),
+            produces.Read(type, handlers, location, authoring is null ? null : Authoring?.Sources, authoring?.Identifier is not null),
             ConcurrencyReader.Read(type) ?? EventSourceReader.ReadConcurrency(type),
             paths.Relative(type.SourceFilePath()),
             EventSourceReader.Read(type))
         {
-            Identifier = identifiers?.Read(type, location)
+            Identifier = identifier,
+            Authoring = authoring,
+            HasAuthoringRoute = type.HasAttribute(WellKnownTypeNames.EventSourceTypeAttribute) || type.HasAttribute(WellKnownTypeNames.EventStreamTypeAttribute)
         };
     }
 

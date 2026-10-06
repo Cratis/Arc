@@ -31,7 +31,7 @@ public class InlineEvents
                         declaration.TypeIdentity is not { } key ||
                         !model.EventProducerCounts.TryGetValue(key, out var count) || count != 1 ||
                         productions.Count(_ => _.EventTypeIdentity == key) != 1 ||
-                        !IsComplete(declaration, production) || CopiesIdentifier(production, command.Identifier!))
+                        !IsComplete(declaration, production) || CopiesIdentifier(production, command.Authoring?.Identifier ?? command.Identifier!))
                     {
                         continue;
                     }
@@ -58,8 +58,8 @@ public class InlineEvents
     public bool Contains(EventModel @event) => _events.Contains(@event);
 
     static bool HasIdentifier(CommandModel command) =>
-        command.Identifier is { } identifier &&
-        command.Properties.Any(_ => _.Name == identifier && !_.Type.IsOptional && !_.Type.IsCollection);
+        (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
+        command.Properties.Concat(command.Authoring?.Generated ?? []).Any(_ => _.Name == identifier && !_.Type.IsOptional && !_.Type.IsCollection);
 
     static bool IsComplete(EventModel declaration, ProducesModel production)
     {

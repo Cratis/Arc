@@ -57,6 +57,14 @@ public record ScreenplayOptions
     public bool ModulesFromNamespaceRoots { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether grammar-valid constructs not admitted by the executable model are emitted.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to false. Enabled constructs compile as authoring syntax but block executable binding with PLAY0268.
+    /// </remarks>
+    public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether every value has been filled in already.
     /// </summary>
     /// <remarks>

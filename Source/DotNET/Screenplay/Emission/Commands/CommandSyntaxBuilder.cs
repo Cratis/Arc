@@ -30,6 +30,9 @@ public class CommandSyntaxBuilder(
     ConcurrencySyntaxBuilder concurrency,
     NameAvailability names)
 {
+    /// <summary>Gets whether authoring-only constructs should be emitted.</summary>
+    public bool AuthoringOnlyConstructs { get; init; }
+
     /// <summary>
     /// Builds the command declaration.
     /// </summary>
@@ -38,8 +41,16 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
+        var authoring = AuthoringOnlyConstructs ? command.Authoring : null;
+        var selectedIdentifier = authoring?.Identifier ?? command.Identifier;
         var properties = ToProperties(command, location).ToList();
-        var identifier = properties.Exists(_ => _.IsIdentifier) ? command.Identifier : null;
+        if (authoring is not null)
+        {
+            properties = [.. properties.Select(property => property with { IsIdentifier = property.Name == naming.ToPropertyName(selectedIdentifier ?? string.Empty) }),
+                .. authoring.Generated.Select(property => ToProperty(property, selectedIdentifier) with { IsGenerated = true })];
+        }
+
+        var identifier = properties.Exists(_ => _.IsIdentifier) ? selectedIdentifier : null;
         var productions = command.Produces.ToList();
         if (productions.Exists(_ => !_.UsesCommandContext))
         {
@@ -47,9 +58,20 @@ public class CommandSyntaxBuilder(
         }
 
         var produced = produces.Build(productions, location, identifier).ToList();
-        concurrency.ReportEventSource(command.EventSource, location);
+        if (authoring?.Route is null)
+        {
+            concurrency.ReportEventSource(command.EventSource, location);
+            if (!AuthoringOnlyConstructs && command.EventSource is null && command.HasAuthoringRoute)
+            {
+                concurrency.ReportLegacyRoute(location);
+            }
+        }
+        else if (command.EventSource is { ConcurrentByStreamId: true })
+        {
+            concurrency.ReportStreamIdFlag(location);
+        }
 
-        return new(
+        var syntax = new CommandSyntax(
             naming.ToDeclarationName(command.Name),
             properties,
             authorize.Build(command.Authorization),
@@ -59,6 +81,8 @@ public class CommandSyntaxBuilder(
             SourceLocation.Start,
             concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));
+
+        return new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring);
     }
 
     /// <summary>
