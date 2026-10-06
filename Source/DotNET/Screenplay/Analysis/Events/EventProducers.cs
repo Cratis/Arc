@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Commands;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -33,13 +34,20 @@ public static class EventProducers
     /// </remarks>
     public static IReadOnlyDictionary<string, int> Across(IEnumerable<Compilation> compilations, IEnumerable<SliceModel> slices)
     {
+        var projects = compilations.ToList();
+        var specifications = new SpecificationReader(new(projects), new());
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var compilation in compilations)
+        foreach (var compilation in projects)
         {
             foreach (var tree in compilation.SyntaxTrees)
             {
                 var model = compilation.GetSemanticModel(tree);
-                foreach (var node in tree.GetRoot().DescendantNodes())
+                var root = tree.GetRoot();
+                var fixtures = root.DescendantNodes().OfType<TypeDeclarationSyntax>()
+                    .Where(declaration => model.GetDeclaredSymbol(declaration) is INamedTypeSymbol type &&
+                        (specifications.IsSpecification(type) || IsTestFixture(type)))
+                    .ToHashSet<SyntaxNode>();
+                foreach (var node in root.DescendantNodes(descendIntoChildren: node => !fixtures.Contains(node) && !IsNameOf(node)))
                 {
                     if (node is BaseObjectCreationExpressionSyntax or WithExpressionSyntax or InvocationExpressionSyntax)
                     {
@@ -60,7 +68,7 @@ public static class EventProducers
                         }
                     }
 
-                    if (node is InvocationExpressionSyntax invocation)
+                    if (node is InvocationExpressionSyntax invocation && !IsNameOf(invocation))
                     {
                         foreach (var argument in invocation.ArgumentList.Arguments.Where(_ => _.Expression is not BaseObjectCreationExpressionSyntax))
                         {
@@ -78,6 +86,24 @@ public static class EventProducers
         }
 
         return counts;
+    }
+
+    static bool IsNameOf(SyntaxNode node) =>
+        node is InvocationExpressionSyntax { Expression: IdentifierNameSyntax name } && name.Identifier.ValueText == "nameof";
+
+    static bool IsTestFixture(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.FullMetadataName() == "Cratis.Specifications.Specification" ||
+                current.GetMembers().OfType<IMethodSymbol>().Any(method => method.GetAttributes().Any(attribute =>
+                    attribute.AttributeClass?.ContainingNamespace.ToDisplayString() == "Xunit")))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     static void Add(ITypeSymbol? type, Dictionary<string, int> counts)

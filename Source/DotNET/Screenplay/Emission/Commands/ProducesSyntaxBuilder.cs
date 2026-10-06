@@ -55,13 +55,10 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
         var productions = produces.ToList();
         if (productions.Exists(_ => !_.UsesCommandContext))
         {
-            if (identifier is not null)
-            {
-                Diagnostics?.Information(
-                    ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
-                    "A production is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and its event remains standalone",
-                    location);
-            }
+            Diagnostics?.Information(
+                ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
+                "A production is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and its event remains standalone",
+                location);
 
             identifier = null;
         }

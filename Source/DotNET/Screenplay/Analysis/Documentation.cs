@@ -52,7 +52,7 @@ public static class Documentation
             string.Equals(element.Name.LocalName, "paramref", StringComparison.Ordinal) ||
             string.Equals(element.Name.LocalName, "typeparamref", StringComparison.Ordinal)).ToArray())
         {
-            var name = reference.Attribute("cref")?.Value.Split('.')[^1].Split(':')[^1] ?? reference.Attribute("name")?.Value;
+            var name = reference.Attribute("cref")?.Value.Split('(')[0].Split('.')[^1].Split(':')[^1].Split('`')[0] ?? reference.Attribute("name")?.Value;
             if (!string.IsNullOrWhiteSpace(name))
             {
                 reference.ReplaceWith(new XText($"`{name}`"));

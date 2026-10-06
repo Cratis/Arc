@@ -103,7 +103,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <returns>The modules.</returns>
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model));
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model), model);
         var placed = new List<PlacedSlice>();
         var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
@@ -135,8 +135,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// Composes the builder that turns one slice into its declaration.
     /// </summary>
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
+    /// <param name="model">The full application used to type specification destinations.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model) =>
         new(
             naming,
             new CommandSyntaxBuilder(
@@ -158,7 +159,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ReactorSyntaxBuilder(naming, diagnostics),
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming))
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics })
         {
             InlineEvents = inlineEvents
         };

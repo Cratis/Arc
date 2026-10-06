@@ -30,7 +30,7 @@ public static class LibraryAuthors
                         new("Name", ValidationRuleKind.NotEmpty, null, "An author must have a name"),
                         new("Name", ValidationRuleKind.Max, 100, null)
                     ],
-                    [new ProducesModel("AuthorRegistered", null, [Declare.From("Name", "Name")])],
+                    [new ProducesModel("AuthorRegistered", null, [Declare.From("Name", "Name")]) { UsesCommandContext = true }],
                     null,
                     "Authors/Registration/Registration.cs")
             ],
