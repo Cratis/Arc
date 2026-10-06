@@ -504,7 +504,7 @@ public class QueryPipeline(
 
         if (data is IQueryable queryable)
         {
-            var items = queryable.Cast<object>().ToList();
+            var items = Enumerable.Cast<object>(queryable).ToList();
             return await readModelInterceptors.Intercept(readModelType, items, serviceProvider);
         }
 
