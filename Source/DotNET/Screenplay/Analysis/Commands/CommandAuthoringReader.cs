@@ -21,6 +21,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     /// <summary>Gets the proven sources of the command most recently read.</summary>
     public AuthoringSources Sources { get; private set; } = new();
 
+    /// <summary>
+    /// Gets the types with concept validators, including unreadable rules.
+    /// </summary>
+    public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
+
     /// <summary>Reads one command's optional authoring intent.</summary>
     /// <param name="command">The command declaration.</param>
     /// <param name="handlers">The command handlers.</param>
@@ -42,13 +47,6 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             {
                 Report(ScreenplayDiagnosticCodes.UnreadableCommandOperation, "Returned operations are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable operations", location);
             }
-
-            if (handlers.Any(handler => IsEventSourceIdentity(handler.ReturnType)))
-            {
-                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "Command responses are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable responses", location);
-            }
-
-            return null;
         }
 
         if (handlers is not [var handler] || HandlerBodies.Of(handler).ToArray() is not [var body] || models.For(body.SyntaxTree) is not { } model)
@@ -72,6 +70,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         var generated = new List<PropertyModel>();
+        var validatedGenerated = new List<string>();
         foreach (var variable in body is BlockSyntax straightBody ? straightBody.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList() : [])
         {
             if (variable.Initializer?.Value is not { } value || model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
@@ -87,12 +86,21 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                     continue;
                 }
 
-                generated.Add(new(local.Name, types.Resolve(local.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated))));
+                // Roslyn annotates inferred reference locals as nullable even when their initializer is required.
+                // Keep explicit local annotations, but resolve var from the proven UUID creation instead.
+                var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
+                    ? model.GetTypeInfo(value).Type ?? local.Type
+                    : local.Type;
+                generated.Add(new(local.Name, types.Resolve(generatedType)));
+                if (ValidatedTypes.Contains(local.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
+                {
+                    validatedGenerated.Add(local.Name);
+                }
                 Sources.Add(local, local.Name);
             }
         }
 
-        result = result with { Generated = generated };
+        result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
         var parts = returned is TupleExpressionSyntax tuple ? tuple.Arguments.Select(argument => argument.Expression).ToArray() : [returned];
         var responses = new List<ExpressionSyntax>();
         var operations = new List<OperationModel>();
@@ -100,14 +108,17 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         foreach (var part in parts)
         {
             var type = model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType;
-            if (type is null || EventReader.IsEvent(type))
+            if (type is null || OnlyEvents(part, model))
             {
                 continue;
             }
 
             if (CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations"))
             {
-                operations.AddRange(operationReader.Read(part, model, command, Sources, location));
+                if (enabled)
+                {
+                    operations.AddRange(operationReader.Read(part, model, command, Sources, location));
+                }
                 continue;
             }
 
@@ -133,11 +144,16 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             if (!command.DeclaredProperties().Any(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)) &&
                 !generated.Exists(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)))
             {
-                generated.Add(new(name, types.Resolve(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated))));
+                generated.Add(new(name, types.Resolve(responseType)));
+                if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
+                {
+                    validatedGenerated.Add(name);
+                }
                 Sources.AddExpression(response, name);
             }
         }
 
+        result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
         var source = SourceOf(response, model, command);
         if (source?.Contains('.', StringComparison.Ordinal) == false && responseType is not null && SupportsResponse(responseType))
         {
@@ -161,6 +177,14 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     /// <returns>Whether the value has the Chronicle event source identity contract.</returns>
     public bool IsEventSourceIdentity(ITypeSymbol? type) => type is not null &&
         (type.Is("Cratis.Chronicle.Events.EventSourceId") || type.FindBase("Cratis.Chronicle.Events.EventSourceId`1") is not null);
+
+    static bool OnlyEvents(ExpressionSyntax expression, SemanticModel model)
+    {
+        var unwrapped = MappingSourceReader.Unwrap(expression);
+        var type = model.GetTypeInfo(unwrapped).Type ?? model.GetTypeInfo(unwrapped).ConvertedType;
+        return (type is not null && EventReader.IsEvent(type)) ||
+            (unwrapped is ConditionalExpressionSyntax conditional && OnlyEvents(conditional.WhenTrue, model) && OnlyEvents(conditional.WhenFalse, model));
+    }
 
     bool SupportsResponse(ITypeSymbol type)
     {

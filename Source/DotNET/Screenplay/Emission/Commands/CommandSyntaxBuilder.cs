@@ -41,7 +41,7 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
-        var authoring = AuthoringOnlyConstructs ? command.Authoring : null;
+        var authoring = command.Authoring;
         var selectedIdentifier = authoring?.Identifier ?? command.Identifier;
         var properties = ToProperties(command, location).ToList();
         if (authoring is not null)
@@ -77,12 +77,12 @@ public class CommandSyntaxBuilder(
             authorize.Build(command.Authorization),
             [.. validations.Build(command.Validations, location)],
             produced,
-            ToHandler(command, produced.Count),
+            AuthoringOnlyConstructs ? ToHandler(command, produced.Count) : null,
             SourceLocation.Start,
             concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));
 
-        return new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring);
+        return new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
     }
 
     /// <summary>

@@ -54,6 +54,25 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
     SpecificationModel? WithRepresentableSources(SpecificationModel specification)
     {
+        if (specification.When is { Kind: SpecificationStateKind.Command } issued &&
+            Application?.Slices.SelectMany(slice => slice.Commands).Any(command => command.Name == issued.Name) == false)
+        {
+            Diagnostics?.Information(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its command is not present in the emitted executable document", specification.Name);
+            return null;
+        }
+
+        var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
+            ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name && command.Authoring?.Generated.Count > 0)
+            : null;
+        if (!specification.Errors.Any() && command?.Authoring is { Generated.Count: > 0 })
+        {
+            Diagnostics?.Information(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{specification.Name}' was left out because generation needs deterministic when for / generated fixtures, and no faithful fixture was recovered from the Arc scenario; missing fixtures would execute as Unsupported(IdentityAllocation)",
+                specification.Name);
+            return null;
+        }
+
         var occurrences = specification.Given.Concat(specification.Then)
             .Concat(specification.When is { } action ? [action] : [])
             .Where(state => state.Kind == SpecificationStateKind.Event).ToList();

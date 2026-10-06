@@ -27,6 +27,7 @@ public class a_generated_factory : an_authoring_document
 
     [Fact] void should_generate_the_factory_result() => Result.Source.ShouldContain("authorId AuthorId generated identifier");
     [Fact] void should_return_the_generated_value() => Result.Source.ShouldContain("returns authorId");
-    [Fact] void should_compile_and_reject_only_executable_admission() => AssertAuthoringDocument();
-    [Fact] void should_keep_the_default_output_without_generated_values() => Off.Source.Contains("generated", StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_recover_the_inferred_local_as_required() => Result.Model.Slices.SelectMany(slice => slice.Commands).Single().Authoring!.Generated.Single().Type.IsOptional.ShouldBeFalse();
+    [Fact] void should_bind_both_modes_as_v7() => AssertExecutableDocument();
+    [Fact] void should_generate_values_by_default() => Off.Source.ShouldContain("authorId AuthorId generated identifier");
 }

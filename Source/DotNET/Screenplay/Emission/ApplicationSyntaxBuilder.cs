@@ -56,6 +56,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         {
             model = AuthoringDeclarations.Resolve(model, diagnostics);
         }
+        else
+        {
+            model = new ExecutableCommandValues(diagnostics).Apply(model);
+        }
 
         var domain = ToName(model.Domain, options.Domain);
         var modules = BuildModules(model, options, domain);

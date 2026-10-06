@@ -35,6 +35,20 @@ public class an_authoring_document : Specification
         Bound = new SemanticModelCompiler().Compile("Library", SemanticDocumentSet.Create([document], catalog));
     }
 
+    protected void AssertExecutableDocument()
+    {
+        Analyzed.ErrorsIn(_compilation).ShouldBeEmpty();
+        RoundTrip.Errors.ShouldBeEmpty();
+        RoundTrip.IsStable.ShouldBeTrue();
+        Assert.True(Bound.Success, string.Join(Environment.NewLine, Bound.Diagnostics.Select(diagnostic => diagnostic.Code + ": " + diagnostic.Message)));
+        Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V7);
+        var catalog = SemanticIdentityCatalog.Empty(ApplicationIdentity.Create("Library"));
+        var document = SemanticSourceDocument.Create(catalog.ResolveDocument("application"), "application", "application.play", Off.Source);
+        var bound = new SemanticModelCompiler().Compile("Library", SemanticDocumentSet.Create([document], catalog));
+        Assert.True(bound.Success, string.Join(Environment.NewLine, bound.Diagnostics.Select(diagnostic => diagnostic.Code + ": " + diagnostic.Message)));
+        bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V7);
+    }
+
     protected void AssertAuthoringDocument(bool legacyReads = false)
     {
         Analyzed.ErrorsIn(_compilation).ShouldBeEmpty();

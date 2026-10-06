@@ -35,7 +35,7 @@ public class a_generated_response_with_an_aggregate : an_authoring_document
         }
         """);
 
-    [Fact] void should_analyze_valid_source() => AssertAuthoringDocument();
+    [Fact] void should_bind_both_modes_as_v7() => AssertExecutableDocument();
     [Fact] void should_keep_the_generated_response() => Result.Source.ShouldContain("returns authorId");
     [Fact] void should_not_mark_the_response_as_the_aggregate_identifier() => Result.Model.Slices.SelectMany(slice => slice.Commands).Single().Authoring!.Identifier.ShouldBeNull();
     [Fact] void should_not_route_aggregate_events_to_the_generated_response() => Result.Source.Contains("for authorId", StringComparison.Ordinal).ShouldBeFalse();

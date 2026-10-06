@@ -128,6 +128,10 @@ public class ArtifactReaders
             new CommandReader(properties, produces, validators, paths, new(models, diagnostics))
             {
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
+                {
+                    ValidatedTypes = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
+                        .Select(ValidationReader.ValidatedTypeOf).OfType<ITypeSymbol>().Select(type => type.ToDisplayString()).ToHashSet(StringComparer.Ordinal)
+                }
             },
             new ControllerCommandReader(types, properties, produces, validators, paths),
             new QueryReader(types, diagnostics),

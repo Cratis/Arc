@@ -23,10 +23,11 @@ public class a_response_record : an_authoring_document
 
     [Fact] void should_generate_a_non_identifier_uuid_concept() => Result.Source.ShouldContain("lineId LineId generated");
     [Fact] void should_not_mark_the_line_identity_as_the_event_source() => Result.Source.Contains("generated identifier", StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_recover_the_inferred_local_as_required() => Result.Model.Slices.SelectMany(slice => slice.Commands).Single().Authoring!.Generated.Single().Type.IsOptional.ShouldBeFalse();
     [Fact] void should_return_the_readable_fields() => Result.Source.ShouldContain("lineId = lineId");
     [Fact] void should_return_command_input() => Result.Source.ShouldContain("name = name");
     [Fact] void should_emit_a_record_response() => Result.Model.Slices.SelectMany(slice => slice.Commands).Single().Authoring!.ResponseFields.Count.ShouldEqual(2);
-    [Fact] void should_compile_and_reject_only_executable_admission() => AssertAuthoringDocument();
-    [Fact] void should_omit_responses_when_disabled() => Off.Source.Contains("returns", StringComparison.Ordinal).ShouldBeFalse();
-    [Fact] void should_report_the_response_when_disabled() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldBeTrue();
+    [Fact] void should_bind_both_modes_as_v7() => AssertExecutableDocument();
+    [Fact] void should_emit_responses_by_default() => Off.Source.ShouldContain("returns");
+    [Fact] void should_generate_values_by_default() => Off.Source.ShouldContain("lineId LineId generated");
 }

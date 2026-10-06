@@ -52,11 +52,26 @@ public class a_generated_identifier : an_authoring_document
         defaultEmission.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
     }
 
+    [Fact]
+    void should_leave_out_success_scenarios_without_deterministic_generation_fixtures()
+    {
+        var model = Result.Model with
+        {
+            Slices = Result.Model.Slices.Select(slice => slice with
+            {
+                Specifications = [new("RegisteringAnAuthor", [], new("RegisterAuthor", SpecificationStateKind.Command, [new("Name", new LiteralSource("Apollo"))]), [new("AuthorRegistered", SpecificationStateKind.Event, [new("Name", new LiteralSource("Apollo"))])], [])]
+            }).ToList()
+        };
+        var emitted = new ScreenplayEmitter().Emit(model, new());
+        emitted.Source.ShouldNotContain("specification RegisteringAnAuthor");
+        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("Unsupported(IdentityAllocation)");
+    }
+
     [Fact] void should_emit_the_generated_identifier() => Result.Source.ShouldContain("authorId AuthorId generated identifier");
     [Fact] void should_return_the_generated_identifier() => Result.Source.ShouldContain("returns authorId");
     [Fact] void should_route_the_event_to_the_returned_identity() => Result.Source.ShouldContain("for authorId");
     [Fact] void should_retire_the_old_diagnostic_for_this_shape() => Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldBeEmpty();
-    [Fact] void should_compile_and_reject_only_executable_admission() => AssertAuthoringDocument();
-    [Fact] void should_not_generate_or_return_an_identity_by_default() => Off.Source.Contains("generated", StringComparison.Ordinal).ShouldBeFalse();
-    [Fact] void should_report_the_opt_in_when_disabled() => Off.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).Message.ShouldContain("AuthoringOnlyConstructs");
+    [Fact] void should_bind_both_modes_as_v7() => AssertExecutableDocument();
+    [Fact] void should_generate_and_return_an_identity_by_default() => Off.Source.ShouldContain("authorId AuthorId generated identifier");
+    [Fact] void should_not_suggest_opt_in_for_admitted_values() => Off.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult || diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeEmpty();
 }

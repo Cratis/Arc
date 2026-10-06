@@ -210,7 +210,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         {
             var message = authoringOnlyConstructs
                 ? "The handler yields an event source identifier or response alongside the event, but its destination could not be proven; no event source destination was inferred"
-                : "The handler yields an event source identifier or response alongside the event; readable generated identities and responses are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs";
+                : "The handler yields an event source identifier or response alongside the event, but its destination could not be proven as an admitted generated UUID concept; no event source destination was inferred";
             diagnostics.Information(ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult, message, location);
         }
     }

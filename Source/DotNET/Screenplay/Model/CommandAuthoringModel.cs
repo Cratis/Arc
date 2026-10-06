@@ -4,12 +4,17 @@
 namespace Cratis.Arc.Screenplay.Model;
 
 /// <summary>
-/// Represents command intent that is valid authoring syntax but not executable.
+/// Represents recovered command values, responses, and optional authoring intent.
 /// </summary>
 public record CommandAuthoringModel
 {
     /// <summary>Gets the generated UUID concepts.</summary>
     public IReadOnlyList<PropertyModel> Generated { get; init; } = [];
+
+    /// <summary>
+    /// Gets generated properties whose concepts have a validator, even when its rules could not be recovered.
+    /// </summary>
+    public IReadOnlyList<string> GeneratedWithValidators { get; init; } = [];
 
     /// <summary>Gets the generated event source identity, if it was returned.</summary>
     public string? Identifier { get; init; }

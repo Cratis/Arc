@@ -34,7 +34,8 @@ public class a_generated_document : Specification
 
     protected void AssertDocument()
     {
-        Analyzed.ErrorsIn(_compilation).ShouldBeEmpty();
+        var errors = Analyzed.ErrorsIn(_compilation).ToArray();
+        Assert.True(errors.Length == 0, string.Join(Environment.NewLine, errors));
         RoundTrip.Errors.ShouldBeEmpty();
         RoundTrip.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Warning).ShouldBeEmpty();
         RoundTrip.IsStable.ShouldBeTrue();

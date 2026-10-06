@@ -22,23 +22,32 @@ public class CommandAuthoringSyntaxBuilder(IScreenplayNaming naming, TypeReferen
     /// <param name="syntax">The command syntax.</param>
     /// <param name="authoring">The optional authoring intent.</param>
     /// <returns>The command carrying the authoring intent.</returns>
-    public CommandSyntax Apply(CommandSyntax syntax, CommandAuthoringModel? authoring)
+    public CommandSyntax Apply(CommandSyntax syntax, CommandAuthoringModel? authoring) => Apply(syntax, authoring, true);
+
+    /// <summary>
+    /// Adds admitted responses and, when enabled, syntax-only command intent.
+    /// </summary>
+    /// <param name="syntax">The command syntax.</param>
+    /// <param name="authoring">The recovered command intent.</param>
+    /// <param name="authoringOnlyConstructs">Whether syntax-only intent is enabled.</param>
+    /// <returns>The command carrying the selected intent.</returns>
+    public CommandSyntax Apply(CommandSyntax syntax, CommandAuthoringModel? authoring, bool authoringOnlyConstructs)
     {
         if (authoring is null)
         {
             return syntax;
         }
 
-        var productions = syntax.Produces.Concat(authoring.Operations.Select(Operation)).ToList();
-        var requirements = authoring.Requirements.Select(Requirement).ToList();
+        var productions = syntax.Produces.Concat(authoringOnlyConstructs ? authoring.Operations.Select(Operation) : []).ToList();
+        var requirements = authoringOnlyConstructs ? authoring.Requirements.Select(Requirement).ToList() : [];
         return syntax with
         {
             Produces = productions,
             Handler = productions.Count > 0 ? null : syntax.Handler,
             Response = Response(authoring),
-            Reads = authoring.Reads.Select(Read).ToList(),
+            Reads = authoringOnlyConstructs ? authoring.Reads.Select(Read).ToList() : syntax.Reads,
             Validations = requirements.Count == 0 ? syntax.Validations : syntax.Validations.Append(new DeclarativeValidateSyntax([], SourceLocation.Start, requirements)).ToList(),
-            Stream = authoring.Route is { Stream: not null } route ? Route(route) : null
+            Stream = authoringOnlyConstructs && authoring.Route is { Stream: not null } route ? Route(route) : syntax.Stream
         };
     }
 

@@ -72,12 +72,11 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableCommandProduction = "SP0012";
 
     /// <summary>
-    /// A command handler yields the identifier of the event source it appends to, which Screenplay cannot express.
+    /// A command handler's returned event source identity cannot be proven as an admitted destination.
     /// </summary>
     /// <remarks>
-    /// A <c>produces</c> line names the event and says nothing about where it lands, so a handler returning the event
-    /// source alongside it is stating exactly what that line cannot carry (Cratis/Screenplay#33). The production is
-    /// written as it stands, because what the handler produces is right even while where it produces it is unsaid.
+    /// Required scalar UUID concepts without validation can be generated and returned in ESM v7.
+    /// Other tuple destinations remain unstated rather than inferred from the returned event.
     /// </remarks>
     public const string UnmappableEventSourceIdResult = "SP0013";
 
@@ -486,7 +485,7 @@ public static class ScreenplayDiagnosticCodes
     /// </summary>
     public const string UnrepresentableProductionDestination = "SP0051";
 
-    /// <summary>A generated value or response is not a reliably readable authoring shape.</summary>
+    /// <summary>A generated value or response is unreadable or outside the admitted ESM v7 subset.</summary>
     public const string UnreadableCommandResponse = "SP0052";
 
     /// <summary>A returned operation cannot be represented reliably by the authoring grammar.</summary>
