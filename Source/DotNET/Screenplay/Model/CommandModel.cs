@@ -42,4 +42,7 @@ public record CommandModel(
 
     /// <summary>Gets whether legacy attributes declare authoring-only routing metadata.</summary>
     public bool HasAuthoringRoute { get; init; }
+
+    /// <summary>Gets whether the source proves the handler is empty or response-only.</summary>
+    public bool HasNoFactBehavior { get; init; }
 }

@@ -28,9 +28,13 @@ public static class Documentation
             return null;
         }
 
-        var summary = TryParse(xml)?.Element("summary")?.Value;
+        var summary = TryParse(xml)?.Element("summary");
+        if (summary is not null)
+        {
+            NormalizeReferences(summary);
+        }
 
-        return Flatten(summary);
+        return Flatten(summary?.Value);
     }
 
     /// <summary>
@@ -47,7 +51,24 @@ public static class Documentation
             return null;
         }
 
-        foreach (var reference in remarks.Descendants().Where(element =>
+        NormalizeReferences(remarks);
+
+        foreach (var paragraph in remarks.Descendants("para").ToArray())
+        {
+            paragraph.ReplaceWith(new XText($"\n\n{paragraph.Value.Trim()}\n\n"));
+        }
+
+        var lines = remarks.Value.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var indentation = lines.Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line.Length - line.TrimStart().Length).DefaultIfEmpty(0).Min();
+        var text = string.Join('\n', lines.Select(line => line.Length >= indentation ? line[indentation..].TrimEnd() : string.Empty)).Trim();
+
+        return text.Length == 0 ? null : text;
+    }
+
+    static void NormalizeReferences(XElement element)
+    {
+        foreach (var reference in element.Descendants().Where(element =>
             string.Equals(element.Name.LocalName, "see", StringComparison.Ordinal) ||
             string.Equals(element.Name.LocalName, "paramref", StringComparison.Ordinal) ||
             string.Equals(element.Name.LocalName, "typeparamref", StringComparison.Ordinal)).ToArray())
@@ -64,18 +85,6 @@ public static class Documentation
                 reference.ReplaceWith(new XText($"`{name}`"));
             }
         }
-
-        foreach (var paragraph in remarks.Descendants("para").ToArray())
-        {
-            paragraph.ReplaceWith(new XText($"\n\n{paragraph.Value.Trim()}\n\n"));
-        }
-
-        var lines = remarks.Value.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-        var indentation = lines.Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select(line => line.Length - line.TrimStart().Length).DefaultIfEmpty(0).Min();
-        var text = string.Join('\n', lines.Select(line => line.Length >= indentation ? line[indentation..].TrimEnd() : string.Empty)).Trim();
-
-        return text.Length == 0 ? null : text;
     }
 
     /// <summary>

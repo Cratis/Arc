@@ -44,7 +44,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
     {
         if (command.Authoring is not { } authoring)
         {
-            return command;
+            return WithoutCodeOnlyBehavior(command, location);
         }
 
         var blocked = authoring.Generated.Where(property => !CanGenerate(property, authoring, model)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
@@ -58,7 +58,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
 
         if (blocked.Count > 0)
         {
-            Report(command, location, $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' can be generated only as required scalar Uuid-backed concepts with no concept validators or validation rules (PLAY0268); those values and dependent responses or productions were left in code");
+            Report(command, location, $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' can be generated only as required scalar Uuid-backed concepts with no concept validators or validation rules (PLAY0268); those values, dependent responses, mappings, and production conditions were left in code");
         }
 
         var retained = authoring with
@@ -80,13 +80,57 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
                 location);
         }
 
-        return command with
+        var productions = new List<ProducesModel>();
+        foreach (var production in command.Produces)
         {
-            Authoring = retained,
-            Produces = command.Produces.Where(production => (production.When is null || !blocked.Any(name => Reads(production.When, name))) &&
-                !production.Mappings.Any(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name))))
-                .Select(production => authoring.Identifier is not null && retained.Identifier is null ? production with { UsesCommandContext = false } : production).ToList()
-        };
+            if (production.When is not null && blocked.Any(name => Reads(production.When, name)))
+            {
+                Report(command, location, $"Production '{production.EventName}' was omitted because its when condition reads an unadmitted generated value");
+                continue;
+            }
+
+            var omitted = production.Mappings.Where(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name))).ToList();
+            var declaration = model.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
+                ? @event.TypeIdentity == identity : @event.Name == production.EventName);
+            foreach (var mapping in omitted)
+            {
+                if (declaration?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true)
+                {
+                    var value = blocked.First(name => Reads((PropertyPathSource)mapping.Source, name));
+                    Report(command, location, $"The command was left out because its production '{production.EventName}' needs the generated value '{value}', which cannot be stated");
+                    return null;
+                }
+            }
+
+            var mappings = production.Mappings.Except(omitted).ToList();
+            if (mappings.Count != production.Mappings.Count())
+            {
+                Report(command, location, $"Mappings on production '{production.EventName}' reading unadmitted generated values were omitted; the production was retained as a standalone event");
+            }
+
+            productions.Add(production with
+            {
+                Mappings = mappings,
+                CanInline = production.CanInline && mappings.Count == production.Mappings.Count(),
+                UsesCommandContext = production.UsesCommandContext && !(authoring.Identifier is not null && retained.Identifier is null)
+            });
+        }
+
+        return WithoutCodeOnlyBehavior(command with { Authoring = retained, Produces = productions }, location);
+    }
+
+    CommandModel? WithoutCodeOnlyBehavior(CommandModel command, string location)
+    {
+        if (command.Produces.Any() || command.HasNoFactBehavior)
+        {
+            return command;
+        }
+
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.CommandBehaviorInCode,
+            "The command was left out because its behavior lives in code and no production was recovered; ScreenplayOptions.AuthoringOnlyConstructs keeps it with a handler reference",
+            $"{location}.{command.Name}");
+        return null;
     }
 
     void Report(CommandModel command, string location, string reason) => diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandResponse, reason, $"{location}.{command.Name}");

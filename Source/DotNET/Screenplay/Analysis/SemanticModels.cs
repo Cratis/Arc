@@ -22,6 +22,8 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// </remarks>
 public class SemanticModels(IReadOnlyList<Compilation> compilations)
 {
+    readonly Dictionary<SyntaxTree, SemanticModel?> _models = [];
+
     /// <summary>
     /// Resolves the semantic model a syntax tree is read through.
     /// </summary>
@@ -29,14 +31,19 @@ public class SemanticModels(IReadOnlyList<Compilation> compilations)
     /// <returns>The <see cref="SemanticModel"/>, or <see langword="null"/> when no project holds the tree.</returns>
     public SemanticModel? For(SyntaxTree tree)
     {
+        if (_models.TryGetValue(tree, out var cached))
+        {
+            return cached;
+        }
+
         foreach (var compilation in compilations)
         {
             if (compilation.ContainsSyntaxTree(tree))
             {
-                return compilation.GetSemanticModel(tree);
+                return _models[tree] = compilation.GetSemanticModel(tree);
             }
         }
 
-        return null;
+        return _models[tree] = null;
     }
 }

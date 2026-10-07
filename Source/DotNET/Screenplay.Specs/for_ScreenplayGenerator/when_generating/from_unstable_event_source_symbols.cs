@@ -28,6 +28,27 @@ public class from_unstable_event_source_symbols : a_generated_document
         AssertDocument();
     }
 
+    [Theory]
+    [InlineData("first.Id", "second.Id", false)]
+    [InlineData("first.Id", "first.Id", true)]
+    [InlineData("this._first", "_first", true)]
+    public void should_compare_the_receiver_of_an_instance_member(string given, string when, bool same)
+    {
+        const string Receivers = """
+            class Source { public readonly EventSourceId Id = EventSourceId.New(); }
+            readonly Source first = new();
+            readonly Source second = new();
+            readonly EventScenario _scenario
+            """;
+        var source = EventAppendSources.With(given, when, given).Replace("readonly EventScenario _scenario", Receivers, StringComparison.Ordinal);
+        Generate((Analyzed.SlicePath, EventAppendSources.Producer),
+            ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", source),
+            (IntegrationTesting.Path, IntegrationTesting.Source));
+        Result.Source.Contains("specification", StringComparison.Ordinal).ShouldEqual(same);
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldEqual(!same);
+        AssertDocument();
+    }
+
     [Fact]
     void should_reject_a_reassigned_local()
     {

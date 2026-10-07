@@ -6,6 +6,7 @@ using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
@@ -59,16 +60,6 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             : body as ExpressionSyntax;
         var straight = body is not BlockSyntax statements || (statements.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) &&
             statements.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
-        if (returned is null || !straight)
-        {
-            if (HandlerBodies.YieldsEventSourceId(handler.ReturnType))
-            {
-                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The returned response or operations depend on control flow and were left in code", location);
-            }
-
-            return result;
-        }
-
         var generated = new List<PropertyModel>();
         var validatedGenerated = new List<string>();
         foreach (var variable in body is BlockSyntax straightBody ? straightBody.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList() : [])
@@ -80,6 +71,17 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
             if (CreatesUuidConcept(value, local.Type, model))
             {
+                if (!WrittenOnlyByInitializer(local, body, model))
+                {
+                    Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' is written after its initializer or passed by reference; its generation and dependent claims were left in code", location);
+                    continue;
+                }
+
+                if (returned is null || !straight)
+                {
+                    continue;
+                }
+
                 if (command.DeclaredProperties().Any(property => string.Equals(property.Name, local.Name, StringComparison.OrdinalIgnoreCase)))
                 {
                     Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' collides with a command property and was left out", location);
@@ -98,6 +100,16 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 }
                 Sources.Add(local, local.Name);
             }
+        }
+
+        if (returned is null || !straight)
+        {
+            if (HandlerBodies.YieldsEventSourceId(handler.ReturnType))
+            {
+                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The returned response or operations depend on control flow and were left in code", location);
+            }
+
+            return result;
         }
 
         result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
@@ -183,6 +195,52 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     public bool IsEventSourceIdentity(ITypeSymbol? type) => type is not null &&
         (type.Is("Cratis.Chronicle.Events.EventSourceId") || type.FindBase("Cratis.Chronicle.Events.EventSourceId`1") is not null);
 
+    /// <summary>Proves that a handler has no fact-recording or external effects.</summary>
+    /// <param name="handlers">The handlers of the command.</param>
+    /// <param name="authoring">The recovered pure response.</param>
+    /// <returns>Whether every body is empty or consists only of the recovered response and generated values.</returns>
+    public bool HasNoFactBehavior(IReadOnlyList<IMethodSymbol> handlers, CommandAuthoringModel? authoring) => handlers.Count > 0 && handlers.All(handler =>
+    {
+        if (HandlerBodies.Of(handler).ToArray() is not [var body])
+        {
+            return false;
+        }
+
+        if (body is BlockSyntax { Statements.Count: 0 })
+        {
+            return true;
+        }
+
+        if (ContainsOperation(handler.ReturnType) || authoring is not { Response: not null } and not { ResponseFields.Count: > 0 })
+        {
+            return false;
+        }
+
+        if (body is ExpressionSyntax)
+        {
+            return true;
+        }
+
+        return body is BlockSyntax block && block.Statements.LastOrDefault() is ReturnStatementSyntax &&
+            block.Statements.All(statement => statement is ReturnStatementSyntax or LocalDeclarationStatementSyntax) &&
+            block.Statements.OfType<ReturnStatementSyntax>().Count() == 1 &&
+            block.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).All(variable =>
+                models.For(variable.SyntaxTree) is { } model && model.GetDeclaredSymbol(variable) is ILocalSymbol local &&
+                authoring.Generated.Any(property => property.Name == local.Name));
+    });
+
+    static bool WrittenOnlyByInitializer(ILocalSymbol local, SyntaxNode body, SemanticModel model) =>
+        !body.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>().Any(identifier => identifier.Identifier.ValueText == local.Name &&
+            SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(identifier).Symbol, local) &&
+            identifier.Ancestors().TakeWhile(ancestor => ancestor is not StatementSyntax).Any(ancestor => ancestor switch
+            {
+                AssignmentExpressionSyntax assignment => assignment.Left.Span.Contains(identifier.Span),
+                PrefixUnaryExpressionSyntax prefix => prefix.IsKind(SyntaxKind.PreIncrementExpression) || prefix.IsKind(SyntaxKind.PreDecrementExpression),
+                PostfixUnaryExpressionSyntax postfix => postfix.IsKind(SyntaxKind.PostIncrementExpression) || postfix.IsKind(SyntaxKind.PostDecrementExpression),
+                ArgumentSyntax { RefKindKeyword.RawKind: not 0 } => true,
+                _ => false
+            }));
+
     static bool OnlyEvents(ExpressionSyntax expression, SemanticModel model)
     {
         var unwrapped = MappingSourceReader.Unwrap(expression);
@@ -210,10 +268,50 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             type.AllInterfaces.Any(contract => contract.Is("Cratis.Chronicle.EventSequences.IAppendResult")) ? null : type;
     }
 
-    static bool CreatesFromNewGuid(ExpressionSyntax expression, SemanticModel model) =>
-        MappingSourceReader.Unwrap(expression) is BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } &&
+    bool CreatesFromNewGuid(ExpressionSyntax expression, SemanticModel model) =>
+        MappingSourceReader.Unwrap(expression) is BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation &&
         MappingSourceReader.Unwrap(argument.Expression) is InvocationExpressionSyntax invocation &&
-        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true, Parameters.Length: 0 } factory && factory.Name == "NewGuid" && factory.ContainingType.Is("System.Guid");
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true, Parameters.Length: 0 } factory && factory.Name == "NewGuid" && factory.ContainingType.Is("System.Guid") &&
+        model.GetSymbolInfo(creation).Symbol is IMethodSymbol constructor && ForwardsUuid(constructor, new(SymbolEqualityComparer.Default));
+
+    bool ForwardsUuid(IMethodSymbol constructor, HashSet<IMethodSymbol> visited)
+    {
+        if (!visited.Add(constructor) || constructor.Parameters is not [var parameter] || !parameter.Type.Is("System.Guid"))
+        {
+            return false;
+        }
+
+        if ((constructor.ContainingType.Is(WellKnownTypeNames.ConceptAs) || constructor.ContainingType.Is("Cratis.Chronicle.Events.EventSourceId`1")) &&
+            constructor.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        foreach (var reference in constructor.DeclaringSyntaxReferences)
+        {
+            var declaration = reference.GetSyntax();
+            var initializer = declaration switch
+            {
+                RecordDeclarationSyntax record => (SyntaxNode?)record.BaseList?.Types.OfType<PrimaryConstructorBaseTypeSyntax>().SingleOrDefault(),
+                ConstructorDeclarationSyntax { Body: null or { Statements.Count: 0 }, ExpressionBody: null } explicitConstructor => explicitConstructor.Initializer,
+                _ => null
+            };
+            var arguments = initializer switch
+            {
+                PrimaryConstructorBaseTypeSyntax primary => primary.ArgumentList,
+                ConstructorInitializerSyntax explicitInitializer => explicitInitializer.ArgumentList,
+                _ => null
+            };
+            if (arguments?.Arguments is [var argument] && models.For(initializer!.SyntaxTree) is { } model &&
+                model.GetSymbolInfo(MappingSourceReader.Unwrap(argument.Expression)).Symbol is IParameterSymbol forwarded &&
+                SymbolEqualityComparer.Default.Equals(forwarded, parameter) && model.GetSymbolInfo(initializer).Symbol is IMethodSymbol target && ForwardsUuid(target, visited))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     bool SupportsResponse(ITypeSymbol type)
     {
@@ -246,7 +344,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             var parameter = argument.NameColon is { } named ? constructor.Parameters.FirstOrDefault(parameter => parameter.Name == named.Name.Identifier.ValueText) : constructor.Parameters.ElementAtOrDefault(index);
             var property = record.DeclaredProperties().FirstOrDefault(property => property.Name == parameter?.Name);
             var source = SourceOf(argument.Expression, model, command);
-            if (property is null || !SupportsResponse(property.Type) || source?.Contains('.', StringComparison.Ordinal) != false ||
+            if (property?.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is ParameterSyntax) != true ||
+                property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is PropertyDeclarationSyntax) || !SupportsResponse(property.Type) || source?.Contains('.', StringComparison.Ordinal) != false ||
                 !SymbolEqualityComparer.Default.Equals(property.Type, model.GetTypeInfo(argument.Expression).Type))
             {
                 return null;

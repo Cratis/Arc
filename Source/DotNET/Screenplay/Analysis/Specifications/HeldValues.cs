@@ -33,6 +33,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </remarks>
 public class HeldValues(SemanticModels models)
 {
+    readonly Dictionary<ISymbol, bool> _stable = new(SymbolEqualityComparer.Default);
+
     /// <summary>
     /// Gets the construction an expression stands for.
     /// </summary>
@@ -63,33 +65,12 @@ public class HeldValues(SemanticModels models)
     /// <returns>Whether the value is assigned once without a computed getter.</returns>
     public bool IsStable(ISymbol symbol, Compilation compilation)
     {
-        if (symbol is IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true })
+        if (!_stable.TryGetValue(symbol, out var stable))
         {
-            return true;
+            _stable[symbol] = stable = ReadStability(symbol, compilation);
         }
 
-        if (symbol is IPropertySymbol && (symbol.DeclaringSyntaxReferences.Length == 0 ||
-            symbol.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is not PropertyDeclarationSyntax
-            { ExpressionBody: null, AccessorList: { } accessors } || accessors.Accessors.Any(accessor => accessor.Body is not null || accessor.ExpressionBody is not null))))
-        {
-            return false;
-        }
-
-        var declarations = compilation.SyntaxTrees.Select(tree => tree.GetRoot()).ToArray();
-        var values = symbol.DeclaringSyntaxReferences.Select(reference => DeclaredValueOf(reference.GetSyntax()))
-            .OfType<ExpressionSyntax>().Where(value => !StatesNothing(value)).Concat(AssignedValuesTo(symbol, declarations));
-        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol) || values.Take(2).ToList() is not [var given] || !Unconditional(given))
-        {
-            return false;
-        }
-
-        return !declarations.SelectMany(declaration => declaration.DescendantNodes()).OfType<ExpressionSyntax>().Any(expression =>
-                ((expression.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
-                    (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression) &&
-                    expression.ChildNodes().OfType<ExpressionSyntax>().Any(operand => models.For(operand.SyntaxTree) is { } model &&
-                        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(operand).Symbol, symbol))) ||
-                ((expression is IdentifierNameSyntax or MemberAccessExpressionSyntax) && expression.Parent is ArgumentSyntax { RefKindKeyword.RawKind: not 0 } &&
-                    models.For(expression.SyntaxTree) is { } argumentModel && SymbolEqualityComparer.Default.Equals(argumentModel.GetSymbolInfo(expression).Symbol, symbol)));
+        return stable;
     }
 
     /// <summary>
@@ -127,6 +108,44 @@ public class HeldValues(SemanticModels models)
     /// <returns>True when nothing between it and the member it is written in makes it conditional or repeated.</returns>
     static bool Unconditional(ExpressionSyntax given) =>
         given.FirstAncestorOrSelf<MemberDeclarationSyntax>() is not { } member || StepsTaken.Always(given, member);
+
+    static bool Names(ExpressionSyntax expression, ISymbol symbol) => expression switch
+    {
+        IdentifierNameSyntax identifier => identifier.Identifier.ValueText == symbol.Name,
+        MemberAccessExpressionSyntax member => member.Name.Identifier.ValueText == symbol.Name,
+        _ => false
+    };
+
+    bool ReadStability(ISymbol symbol, Compilation compilation)
+    {
+        if (symbol is IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true })
+        {
+            return true;
+        }
+
+        if (symbol is IPropertySymbol && (symbol.DeclaringSyntaxReferences.Length == 0 ||
+            symbol.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is not PropertyDeclarationSyntax
+            { ExpressionBody: null, AccessorList: { } accessors } || accessors.Accessors.Any(accessor => accessor.Body is not null || accessor.ExpressionBody is not null))))
+        {
+            return false;
+        }
+
+        var declarations = compilation.SyntaxTrees.Select(tree => tree.GetRoot()).ToArray();
+        var values = symbol.DeclaringSyntaxReferences.Select(reference => DeclaredValueOf(reference.GetSyntax()))
+            .OfType<ExpressionSyntax>().Where(value => !StatesNothing(value)).Concat(AssignedValuesTo(symbol, declarations));
+        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol) || values.Take(2).ToList() is not [var given] || !Unconditional(given))
+        {
+            return false;
+        }
+
+        return !declarations.SelectMany(declaration => declaration.DescendantNodes()).OfType<ExpressionSyntax>().Any(expression =>
+                ((expression.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
+                    (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression) &&
+                    expression.ChildNodes().OfType<ExpressionSyntax>().Any(operand => Names(operand, symbol) && models.For(operand.SyntaxTree) is { } model &&
+                        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(operand).Symbol, symbol))) ||
+                ((expression is IdentifierNameSyntax or MemberAccessExpressionSyntax) && Names(expression, symbol) && expression.Parent is ArgumentSyntax { RefKindKeyword.RawKind: not 0 } &&
+                    models.For(expression.SyntaxTree) is { } argumentModel && SymbolEqualityComparer.Default.Equals(argumentModel.GetSymbolInfo(expression).Symbol, symbol)));
+    }
 
     /// <summary>
     /// Gets the construction a value a specification holds was put together by.
@@ -186,6 +205,6 @@ public class HeldValues(SemanticModels models)
     /// <param name="symbol">The member or local it would write to.</param>
     /// <returns>True when it writes to it.</returns>
     bool Assigns(AssignmentExpressionSyntax assignment, ISymbol symbol) =>
-        models.For(assignment.SyntaxTree) is { } model &&
+        Names(assignment.Left, symbol) && models.For(assignment.SyntaxTree) is { } model &&
         SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(assignment.Left).Symbol, symbol);
 }

@@ -16,7 +16,7 @@ public class from_events_carrying_authoring_metadata : a_generated_document
 
         namespace Library.Authors.Registration;
 
-        /// <summary>An author acquired a name.</summary>
+        /// <summary>An author acquired a name. See <see cref="AuthorRemoved"/> and <see langword="null"/>.</summary>
         /// <remarks>
         /// The **name** is the author's display name.
         ///
@@ -42,7 +42,7 @@ public class from_events_carrying_authoring_metadata : a_generated_document
         }
         """));
 
-    [Fact] void should_emit_the_summary() => Result.Source.ShouldContain("description \"An author acquired a name.\"");
+    [Fact] void should_emit_the_summary() => Result.Source.ShouldContain("description \"An author acquired a name. See `AuthorRemoved` and `null`.\"");
     [Fact] void should_emit_a_markdown_documentation_fence() => Result.Source.ShouldContain("```markdown");
     [Fact] void should_keep_the_remarks() => Result.Source.ShouldContain("The **name** is the author's display name.");
     [Fact] void should_keep_the_second_paragraph() => Result.Source.ShouldContain("It is not the event source identity.");

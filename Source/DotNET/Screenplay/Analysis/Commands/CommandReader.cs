@@ -79,6 +79,7 @@ public class CommandReader(
         {
             Identifier = identifier,
             Authoring = authoring,
+            HasNoFactBehavior = Authoring?.HasNoFactBehavior(handlers, authoring) == true,
             HasAuthoringRoute = type.HasAttribute(WellKnownTypeNames.EventSourceTypeAttribute) || type.HasAttribute(WellKnownTypeNames.EventStreamTypeAttribute)
         };
     }

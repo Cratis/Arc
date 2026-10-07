@@ -13,7 +13,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 internal class SpecificationEventSources
 {
-    readonly List<(ISymbol? Symbol, LiteralSource? Literal)> _sources = [];
+    readonly List<(ISymbol? Symbol, ISymbol? Receiver, LiteralSource? Literal)> _sources = [];
+    readonly Dictionary<Compilation, HeldValues> _held = [];
 
     /// <summary>
     /// Reads a source from an append, assertion, or fluent event-source builder.
@@ -48,23 +49,42 @@ internal class SpecificationEventSources
         var symbol = expression is IdentifierNameSyntax or MemberAccessExpressionSyntax
             ? semanticModel.GetSymbolInfo(expression).Symbol
             : null;
+        if (!_held.TryGetValue(semanticModel.Compilation, out var held))
+        {
+            _held[semanticModel.Compilation] = held = new(new SemanticModels([semanticModel.Compilation]));
+        }
+
+        ISymbol? receiver = null;
+        if (symbol is { IsStatic: false } && expression is MemberAccessExpressionSyntax access &&
+            MappingSourceReader.Unwrap(access.Expression) is not ThisExpressionSyntax)
+        {
+            var target = MappingSourceReader.Unwrap(access.Expression);
+            receiver = target is IdentifierNameSyntax ? semanticModel.GetSymbolInfo(target).Symbol : null;
+            if (receiver is null || !held.IsStable(receiver, semanticModel.Compilation))
+            {
+                draft.CannotRead("its event source uses an instance receiver that is not provably stable");
+                symbol = null;
+            }
+        }
+
         if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol))
         {
             symbol = null;
         }
-        else if (!new HeldValues(new SemanticModels([semanticModel.Compilation])).IsStable(symbol, semanticModel.Compilation))
+        else if (!held.IsStable(symbol, semanticModel.Compilation))
         {
             draft.CannotRead($"its event source '{symbol.Name}' is reassigned or has a computed getter, so repeated references do not prove the same value");
             symbol = null;
         }
 
         if (_sources.Exists(source => !(literal is not null && source.Literal is not null) &&
-            !(symbol is not null && SymbolEqualityComparer.Default.Equals(symbol, source.Symbol))))
+            !(symbol is not null && SymbolEqualityComparer.Default.Equals(symbol, source.Symbol) &&
+                SymbolEqualityComparer.Default.Equals(receiver, source.Receiver))))
         {
             draft.CannotRead("its event sources are not provably the same and cannot be stated as concrete for values");
         }
 
-        _sources.Add((symbol, literal));
+        _sources.Add((symbol, receiver, literal));
 
         return literal;
     }
