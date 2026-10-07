@@ -13,7 +13,7 @@ public class from_code_only_commands : a_generated_document
     [Theory]
     [InlineData("public void Handle(IService service) => service.Do(Name);")]
     [InlineData("public void Handle(IService service, AuthorRegistered existing) => service.Append(existing);")]
-    public void should_omit_behavior_that_cannot_be_recovered(string handler)
+    public void should_keep_a_handler_reference_for_behavior_that_cannot_be_recovered(string handler)
     {
         Generate((Analyzed.SlicePath, IdentifierSources.With("""
             public interface IService
@@ -25,12 +25,15 @@ public class from_code_only_commands : a_generated_document
             {
             """ + handler + "}")));
 
-        Result.Source.ShouldNotContain("command RegisterAuthor");
-        Result.Source.ShouldNotContain("handler");
-        var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.CommandBehaviorInCode);
-        diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
-        diagnostic.Message.ShouldContain("AuthoringOnlyConstructs");
-        AssertDocument();
+        Result.Source.ShouldContain("command RegisterAuthor");
+        Result.Source.ShouldContain("handler");
+        Result.Source.ShouldContain("file");
+        Result.Source.ShouldNotContain("produces");
+        Result.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Error).ShouldBeEmpty();
+        RoundTrip.IsStable.ShouldBeTrue();
+        RoundTrip.Errors.ShouldBeEmpty();
+        Bound.Success.ShouldBeFalse();
+        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
 
         var authoring = new ScreenplayEmitter().Emit(Result.Model, new() { AuthoringOnlyConstructs = true });
         authoring.Source.ShouldContain("command RegisterAuthor");
@@ -45,10 +48,10 @@ public class from_code_only_commands : a_generated_document
                 Specifications = [new("CallingCode", [], new("RegisterAuthor", SpecificationStateKind.Command, [new("Name", new LiteralSource("Austen"))]), [], [])]
             }).ToList()
         };
-        var executable = new ScreenplayEmitter().Emit(withSpecification, new());
-        executable.Source.ShouldNotContain("specification CallingCode");
-        executable.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("command is not present");
-        new ScreenplayCompiler().Compile(executable.Source).Success.ShouldBeTrue();
+        var fallback = new ScreenplayEmitter().Emit(withSpecification, new());
+        fallback.Source.ShouldContain("specification CallingCode");
+        fallback.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
+        new ScreenplayCompiler().Compile(fallback.Source).Success.ShouldBeTrue();
     }
 
     [Fact]
@@ -61,7 +64,7 @@ public class from_code_only_commands : a_generated_document
             }
             """)));
         Result.Source.ShouldContain("command RegisterAuthor");
-        Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.CommandBehaviorInCode).ShouldBeEmpty();
+        Result.Source.ShouldNotContain("handler");
         AssertDocument();
     }
 }

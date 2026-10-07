@@ -20,7 +20,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
     {
         Slices = model.Slices.Select(slice => slice with
         {
-            Commands = slice.Commands.Select(command => Admit(command, model, slice.Namespace)).OfType<CommandModel>().ToList()
+            Commands = slice.Commands.Select(command => Admit(command, model, slice.Namespace)).ToList()
         }).ToList()
     };
 
@@ -40,33 +40,45 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         _ => false
     };
 
-    CommandModel? Admit(CommandModel command, ApplicationModel model, string location)
+    CommandModel Admit(CommandModel command, ApplicationModel model, string location)
     {
         if (command.Authoring is not { } authoring)
         {
-            return WithoutCodeOnlyBehavior(command, location);
+            return command;
         }
 
         var blocked = authoring.Generated.Where(property => !CanGenerate(property, authoring, model)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+        if (blocked.Count > 0)
+        {
+            Report(command, location, $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' can be generated only as required scalar Uuid-backed concepts with no concept validators or validation rules (PLAY0268); those values, dependent responses, mappings, and production conditions were left in code");
+        }
+
         var protectedValues = authoring.Generated.Where(property => command.Validations.Any(rule => Reads(rule.Property, property.Name) || Reads(rule.Value as PropertyPathSource, property.Name)) ||
             authoring.Requirements.Any(requirement => Reads(requirement.Condition, property.Name))).ToList();
         if (protectedValues.Count > 0)
         {
-            Report(command, location, "Generated values are referenced by pre-generation property rules or requirements (PLAY0273); the command was left in code rather than dropping its protection");
-            return null;
+            Report(command, location, "Generated values are referenced by pre-generation property rules or requirements (PLAY0273); generated values and responses were left in code and the command retains its legacy productions or handler reference");
         }
 
-        if (blocked.Count > 0)
+        var requiredMapping = command.Produces.Any(production => production.Mappings.Any(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name)) &&
+            model.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
+                ? @event.TypeIdentity == identity : @event.Name == production.EventName)?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true));
+        var legacy = protectedValues.Count > 0 || requiredMapping;
+        if (requiredMapping)
         {
-            Report(command, location, $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' can be generated only as required scalar Uuid-backed concepts with no concept validators or validation rules (PLAY0268); those values, dependent responses, mappings, and production conditions were left in code");
+            Report(command, location, "A required event payload mapping needs an unadmitted generated value; generated values and responses were left in code and the command retains its legacy productions without unreadable mappings");
+        }
+        if (legacy)
+        {
+            blocked.UnionWith(authoring.Generated.Select(property => property.Name));
         }
 
         var retained = authoring with
         {
             Generated = authoring.Generated.Where(property => !blocked.Contains(property.Name)).ToList(),
             Identifier = authoring.Identifier is { } identifier && blocked.Contains(identifier) ? null : authoring.Identifier,
-            Response = authoring.Response is { } response && blocked.Contains(response) ? null : authoring.Response,
-            ResponseFields = authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
+            Response = legacy || (authoring.Response is { } response && blocked.Contains(response)) ? null : authoring.Response,
+            ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
             Operations = [],
             Route = null,
             Reads = [],
@@ -90,47 +102,31 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             }
 
             var omitted = production.Mappings.Where(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name))).ToList();
-            var declaration = model.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
-                ? @event.TypeIdentity == identity : @event.Name == production.EventName);
             foreach (var mapping in omitted)
             {
-                if (declaration?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true)
-                {
-                    var value = blocked.First(name => Reads((PropertyPathSource)mapping.Source, name));
-                    Report(command, location, $"The command was left out because its production '{production.EventName}' needs the generated value '{value}', which cannot be stated");
-                    return null;
-                }
+                diagnostics.Warning(
+                    ScreenplayDiagnosticCodes.UnmappableCommandProduction,
+                    $"The value given to '{production.EventName}.{mapping.Property}' is an unadmitted generated value rather than command input or a constant, so the mapping was left out and the production was retained",
+                    $"{location}.{command.Name}");
             }
 
             var mappings = production.Mappings.Except(omitted).ToList();
-            if (mappings.Count != production.Mappings.Count())
-            {
-                Report(command, location, $"Mappings on production '{production.EventName}' reading unadmitted generated values were omitted; the production was retained as a standalone event");
-            }
 
             productions.Add(production with
             {
                 Mappings = mappings,
-                CanInline = production.CanInline && mappings.Count == production.Mappings.Count(),
+                CanInline = production.CanInline && !legacy && mappings.Count == production.Mappings.Count(),
                 UsesCommandContext = production.UsesCommandContext && !(authoring.Identifier is not null && retained.Identifier is null)
             });
         }
 
-        return WithoutCodeOnlyBehavior(command with { Authoring = retained, Produces = productions }, location);
-    }
-
-    CommandModel? WithoutCodeOnlyBehavior(CommandModel command, string location)
-    {
-        if (command.Produces.Any() || command.HasNoFactBehavior)
+        return command with
         {
-            return command;
-        }
-
-        diagnostics.Information(
-            ScreenplayDiagnosticCodes.CommandBehaviorInCode,
-            "The command was left out because its behavior lives in code and no production was recovered; ScreenplayOptions.AuthoringOnlyConstructs keeps it with a handler reference",
-            $"{location}.{command.Name}");
-        return null;
+            Authoring = retained,
+            Produces = productions,
+            Validations = command.Validations.Where(rule => !blocked.Any(name => Reads(rule.Property, name) || Reads(rule.Value as PropertyPathSource, name))).ToList(),
+            HasNoFactBehavior = command.HasNoFactBehavior && blocked.Count == 0
+        };
     }
 
     void Report(CommandModel command, string location, string reason) => diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandResponse, reason, $"{location}.{command.Name}");

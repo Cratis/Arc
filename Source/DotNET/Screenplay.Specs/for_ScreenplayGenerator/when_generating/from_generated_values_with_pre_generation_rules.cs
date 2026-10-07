@@ -21,22 +21,22 @@ public class from_generated_values_with_pre_generation_rules : a_generated_docum
         }
         """)));
 
-    [Fact] void should_leave_out_a_command_with_a_property_rule_on_generation() => AssertOmitted(command => command with
+    [Fact] void should_fall_back_for_a_property_rule_on_generation() => AssertFallback(command => command with
     {
         Validations = [new("authorId", ValidationRuleKind.NotEmpty, null, "Required")]
     });
 
-    [Fact] void should_leave_out_a_command_with_a_rule_operand_reading_generation() => AssertOmitted(command => command with
+    [Fact] void should_fall_back_for_a_rule_operand_reading_generation() => AssertFallback(command => command with
     {
         Validations = [new("Name", ValidationRuleKind.Equal, new PropertyPathSource("authorId"), "Required")]
     });
 
-    [Fact] void should_leave_out_a_command_with_a_requirement_reading_generation() => AssertOmitted(command => command with
+    [Fact] void should_fall_back_for_a_requirement_reading_generation() => AssertFallback(command => command with
     {
         Authoring = command.Authoring! with { Requirements = [new(new ComparisonCondition("authorId", ComparisonKind.Equal, new LiteralSource("id")), "Required")] }
     });
 
-    void AssertOmitted(Func<CommandModel, CommandModel> modify)
+    void AssertFallback(Func<CommandModel, CommandModel> modify)
     {
         var model = Result.Model with
         {
@@ -47,9 +47,17 @@ public class from_generated_values_with_pre_generation_rules : a_generated_docum
             }).ToList()
         };
         var emitted = new ScreenplayEmitter().Emit(model, new());
-        emitted.Source.ShouldNotContain("command RegisterAuthor");
-        emitted.Source.ShouldNotContain("specification RegisteringAnAuthor");
-        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("command is not present");
+        emitted.Source.ShouldContain("command RegisterAuthor");
+        emitted.Source.ShouldContain("produces AuthorRegistered");
+        emitted.Source.ShouldContain("name = name");
+        emitted.Source.ShouldContain("specification RegisteringAnAuthor");
+        emitted.Source.ShouldNotContain("generated");
+        emitted.Source.ShouldNotContain("returns");
+        emitted.Source.ShouldNotContain("handler");
+        emitted.Source.ShouldNotContain("authorId not empty");
+        emitted.Source.ShouldNotContain("name == authorId");
+        emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
+        emitted.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldBeTrue();
         emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).Message.ShouldContain("PLAY0273");
         var catalog = SemanticIdentityCatalog.Empty(ApplicationIdentity.Create("Library"));
         var source = SemanticSourceDocument.Create(catalog.ResolveDocument("application"), "application", "application.play", emitted.Source);

@@ -77,7 +77,7 @@ public class CommandSyntaxBuilder(
             authorize.Build(command.Authorization),
             [.. validations.Build(command.Validations, location)],
             produced,
-            AuthoringOnlyConstructs ? ToHandler(command, produced.Count) : null,
+            AuthoringOnlyConstructs || !command.HasNoFactBehavior ? ToHandler(command, produced.Count) : null,
             SourceLocation.Start,
             concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));

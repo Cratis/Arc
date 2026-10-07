@@ -27,7 +27,7 @@ public class from_a_generated_concept_with_a_validator : a_generated_document
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void should_omit_the_command_unless_the_blocked_payload_member_is_optional(bool optional)
+    public void should_keep_the_legacy_production_without_the_blocked_mapping(bool optional)
     {
         var source = IdentifierSources.With("""
             public class AuthorIdValidator : Cratis.Arc.Validation.ConceptValidator<AuthorId> { }
@@ -44,31 +44,54 @@ public class from_a_generated_concept_with_a_validator : a_generated_document
         Result.Source.ShouldContain("copy AuthorId");
         Result.Source.ShouldNotContain("copy = authorId");
         Result.Source.ShouldNotContain("produces event AuthorRegistered");
+        Result.Source.ShouldContain("command RegisterAuthor");
+        Result.Source.ShouldContain("produces AuthorRegistered");
+        Result.Source.ShouldContain("name = name");
+        Result.Source.ShouldNotContain("generated");
+        Result.Source.ShouldNotContain("returns");
+        Result.Source.ShouldNotContain("handler");
+        var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableCommandProduction);
+        diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
+        diagnostic.Message.ShouldContain("AuthorRegistered.Copy");
+        var legacyModel = Result.Model with
+        {
+            Slices = Result.Model.Slices.Select(slice => slice with
+            {
+                Commands = slice.Commands.Select(command => command with
+                {
+                    Authoring = null,
+                    Produces = command.Produces.Select(production => production with
+                    {
+                        Mappings = production.Mappings.Where(mapping => mapping.Property != "Copy").ToList(),
+                        CanInline = false,
+                        UsesCommandContext = false
+                    }).ToList()
+                }).ToList()
+            }).ToList()
+        };
+        new ScreenplayEmitter().Emit(legacyModel, new()).Source.ShouldEqual(Result.Source);
+        RoundTrip.IsStable.ShouldBeTrue();
+        RoundTrip.Errors.ShouldBeEmpty();
         if (optional)
         {
-            Result.Source.ShouldContain("produces AuthorRegistered");
-            Result.Source.ShouldContain("name = name");
-            Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("production was retained", StringComparison.Ordinal)).ShouldBeTrue();
+            AssertDocument();
         }
         else
         {
-            Result.Source.ShouldNotContain("command RegisterAuthor");
-            Result.Source.ShouldNotContain("produces AuthorRegistered");
-            var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("command was left out", StringComparison.Ordinal));
-            diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
-            diagnostic.Message.ShouldContain("production 'AuthorRegistered' needs the generated value 'authorId'");
-            var withScenario = Result.Model with
-            {
-                Slices = Result.Model.Slices.Select(slice => slice with
-                {
-                    Specifications = [new("Registering", [], new("RegisterAuthor", SpecificationStateKind.Command, [new("Name", new LiteralSource("Austen"))]), [], [])]
-                }).ToList()
-            };
-            var emitted = new ScreenplayEmitter().Emit(withScenario, new());
-            emitted.Source.ShouldNotContain("specification Registering");
-            emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("command is not present");
+            Bound.Success.ShouldBeFalse();
+            Bound.Diagnostics.Any(diagnostic => diagnostic.Message.Contains("must map every required event property", StringComparison.Ordinal)).ShouldBeTrue();
         }
-        AssertDocument();
+
+        var withScenario = Result.Model with
+        {
+            Slices = Result.Model.Slices.Select(slice => slice with
+            {
+                Specifications = [new("Registering", [], new("RegisterAuthor", SpecificationStateKind.Command, [new("Name", new LiteralSource("Austen"))]), [], [])]
+            }).ToList()
+        };
+        var emitted = new ScreenplayEmitter().Emit(withScenario, new());
+        emitted.Source.ShouldContain("specification Registering");
+        emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
     }
 
     [Fact] void should_not_generate_a_validated_concept() => Result.Source.ShouldNotContain("generated");

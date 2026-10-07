@@ -496,7 +496,4 @@ public static class ScreenplayDiagnosticCodes
 
     /// <summary>Provisioning or a read dependency lives in code rather than a supported declarative shape.</summary>
     public const string UnreadableCommandProvisioning = "SP0055";
-
-    /// <summary>A command with code-only behavior was omitted rather than described as recording no facts.</summary>
-    public const string CommandBehaviorInCode = "SP0056";
 }
