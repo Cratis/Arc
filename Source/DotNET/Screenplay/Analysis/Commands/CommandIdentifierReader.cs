@@ -58,7 +58,7 @@ public class CommandIdentifierReader(SemanticModels models, ScreenplayDiagnostic
             return null;
         }
 
-        var candidates = properties.Where(property => MemberAttributes.Has(property, Key) || IsEventSourceId(property.Type)).ToArray();
+        var candidates = properties.Where(property => HasKeyAttribute(property) || IsEventSourceId(property.Type)).ToArray();
         if (candidates.Length > 1)
         {
             diagnostics.Information(
@@ -84,6 +84,15 @@ public class CommandIdentifierReader(SemanticModels models, ScreenplayDiagnostic
             location);
         return null;
     }
+
+    static bool HasKeyAttribute(IPropertySymbol property) =>
+        property.GetAttributes().Any(attribute => attribute.AttributeClass.Is(Key)) ||
+        property.ContainingType.InstanceConstructors
+            .SelectMany(constructor => constructor.Parameters)
+            .Any(parameter =>
+                parameter.Name == property.Name &&
+                SymbolEqualityComparer.Default.Equals(parameter.Type, property.Type) &&
+                parameter.GetAttributes().Any(attribute => attribute.AttributeClass.Is(Key)));
 
     static bool IsEventSourceId(ITypeSymbol type)
     {
