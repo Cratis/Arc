@@ -23,6 +23,12 @@ public static class ProductionDestinations
     /// <returns>Whether command-context routing is established.</returns>
     public static bool ThroughCommandContext(BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, bool aggregate, bool generatedIdentity = false)
     {
+        if (creation.Ancestors().TakeWhile(ancestor => !ReferenceEquals(ancestor, body))
+            .Any(ancestor => ancestor is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
+        {
+            return false;
+        }
+
         for (SyntaxNode? node = creation; node is not null; node = node.Parent)
         {
             if (node is BaseObjectCreationExpressionSyntax wrapper && wrapper != creation &&

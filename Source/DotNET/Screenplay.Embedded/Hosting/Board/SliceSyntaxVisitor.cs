@@ -117,7 +117,7 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
         return new CommandItem(
             DeterministicId.From(documentId, slicePath, "command", command.Name),
             command.Name,
-            command.Properties.ToSchema(),
+            command.Properties.Where(property => !property.IsGenerated).ToSchema(),
             SchemaSynthesizer.EmptyObjectSchema(),
             command.Description ?? string.Empty,
             Rules(command));

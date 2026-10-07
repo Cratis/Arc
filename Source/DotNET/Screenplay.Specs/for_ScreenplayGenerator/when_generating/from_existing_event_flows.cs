@@ -10,6 +10,10 @@ public class from_existing_event_flows : a_generated_document
     [Theory]
     [InlineData("log.Append(target, (object)@event);")]
     [InlineData("object e = @event; log.Append(target, e);")]
+    [InlineData("object p; p = @event; log.Append(target, p);")]
+    [InlineData("AuthorRegistered local = @event;")]
+    [InlineData("object local = @event;")]
+    [InlineData("object local = (object)@event;")]
     [InlineData("object e = (object)@event; object forwarded = e; log.Append(target, forwarded);")]
     [InlineData("var payload = new { Event = @event }; System.Console.WriteLine(payload);")]
     [InlineData("var payload = new { Event = (object)@event }; System.Console.WriteLine(payload);")]
@@ -48,6 +52,9 @@ public class from_existing_event_flows : a_generated_document
     [InlineData("public (AuthorRegistered, string) Forward(AuthorRegistered e) => (e, e.Name);")]
     [InlineData("public void Forward((AuthorRegistered, string) value) { Accept(value); } static void Accept(object value) { }")]
     [InlineData("public void Forward(System.Collections.Generic.IEnumerable<AuthorRegistered> events) { Accept(events); } static void Accept(object value) { }")]
+    [InlineData("public void Forward(System.Threading.Tasks.Task<AuthorRegistered> events) { Accept(events); } static void Accept(object value) { }")]
+    [InlineData("public void Forward(System.Threading.Tasks.ValueTask<AuthorRegistered> events) { Accept(events); } static void Accept(object value) { }")]
+    [InlineData("public void Forward(Cratis.Monads.Result<AuthorRegistered, string> events) { Accept(events); } static void Accept(object value) { }")]
     [InlineData("public AuthorRegistered Stored; public void Forward(AuthorRegistered e) { Stored = e; }")]
     [InlineData("public AuthorRegistered[] Stored; public void Forward(AuthorRegistered[] events) { Stored = events; }")]
     [InlineData("public void Forward(AuthorRegistered e) { var wrapper = new Wrapper(e); } public record Wrapper(AuthorRegistered Event);")]
@@ -61,14 +68,16 @@ public class from_existing_event_flows : a_generated_document
 
     [Theory]
     [InlineData("var name = @event.Name; System.Console.WriteLine(name);")]
+    [InlineData("var name = @event?.Name; System.Console.WriteLine(name);")]
+    [InlineData("var name = this.Stored.Name; System.Console.WriteLine(name);")]
+    [InlineData("AuthorRegistered local; AuthorRegistered[] events;")]
     [InlineData("if (@event is { Name: var name }) System.Console.WriteLine(name);")]
     [InlineData("System.Console.WriteLine(nameof(AuthorRegistered));")]
-    [InlineData("AuthorRegistered local = @event;")]
-    [InlineData("object local = @event;")]
-    [InlineData("object local = (object)@event;")]
-    public void should_allow_inlining_when_the_reactor_only_consumes_fields_or_keeps_a_local(string body)
+    [InlineData("switch (@event) { case { Name: var name }: System.Console.WriteLine(name); break; }")]
+    [InlineData("var name = @event switch { { Name: var value } => value }; System.Console.WriteLine(name);")]
+    public void should_allow_inlining_when_the_reactor_only_consumes_fields(string body)
     {
-        GenerateWith("public void Handle(AuthorRegistered @event, EventContext context) { " + body + " }");
+        GenerateWith("public AuthorRegistered Stored { get; set; } public void Handle(AuthorRegistered @event, EventContext context) { " + body + " }");
         Result.Source.ShouldContain("produces event AuthorRegistered");
         Result.Model.EventProducerCounts.Values.Single().ShouldEqual(1);
         AssertDocument();
@@ -101,6 +110,7 @@ public class from_existing_event_flows : a_generated_document
             public class Notifications : IReactor
             {
             """ + members + "}";
+        Analyzed.ErrorsIn(Analyzed.Compile((Analyzed.SlicePath, command), ("Library/Authors/Notifications/Notify.cs", reactor))).ShouldBeEmpty();
         Generate((Analyzed.SlicePath, command), ("Library/Authors/Notifications/Notify.cs", reactor));
     }
 }

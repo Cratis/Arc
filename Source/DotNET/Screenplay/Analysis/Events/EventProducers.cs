@@ -1,12 +1,13 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
+using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Events;
 
@@ -30,7 +31,8 @@ public static class EventProducers
     /// <param name="slices">All recovered slices, including commands sharing one aggregate construction.</param>
     /// <returns>The counts keyed by event type identity.</returns>
     /// <remarks>
-    /// An opaque call or an existing event passed to a method is conservatively another site. Counting too many
+    /// Outside the producing command, any event-valued use other than a member read or pattern subject is another
+    /// site. Aggregate behavior calls must all belong to that command's recovered production. Counting too many
     /// retains standalone syntax; counting too few could incorrectly move a shared persisted contract into a command.
     /// </remarks>
     public static IReadOnlyDictionary<string, int> Across(IEnumerable<Compilation> compilations, IEnumerable<SliceModel> slices)
@@ -41,6 +43,7 @@ public static class EventProducers
             .Where(production => production.EventTypeIdentity is not null)
             .Select(production => (Type: $"{slice.Namespace}.{command.Name}", Event: production.EventTypeIdentity!))))
             .ToHashSet();
+        var behaviors = RecoveredBehaviors(projects, commands);
         var specifications = new SpecificationReader(new(projects), new());
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var compilation in projects)
@@ -74,27 +77,40 @@ public static class EventProducers
                         }
                     }
 
-                    foreach (var expression in EscapingValues(node, model))
+                    if (node is InvocationExpressionSyntax call && model.GetSymbolInfo(call).Symbol is IMethodSymbol called &&
+                        behaviors.TryGetValue(MethodIdentity(called), out var productions))
                     {
-                        var type = model.GetTypeInfo(expression);
+                        foreach (var production in productions.Where(production => !InCommandHandler(call, model, production.Type)))
+                        {
+                            counts[production.Event] = counts.GetValueOrDefault(production.Event) + 1;
+                        }
+                    }
 
-                        // Direct construction, clones and event-valued calls are already counted above.
+                    if (node is not ExpressionSyntax expression || IsReadOnlyUse(expression, model) ||
+                        (expression.Parent is MemberAccessExpressionSyntax member && member.Name == expression) ||
+                        (expression.Parent is MemberBindingExpressionSyntax binding && binding.Name == expression) ||
+                        model.GetSymbolInfo(expression).Symbol is INamespaceOrTypeSymbol)
+                    {
+                        continue;
+                    }
+
+                    foreach (var eventType in CarriedEvents(model.GetTypeInfo(expression).Type)
+                        .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
+                    {
+                        // Direct event construction, clones and calls are already counted above, even inside commands.
                         if (expression is BaseObjectCreationExpressionSyntax or WithExpressionSyntax or InvocationExpressionSyntax &&
-                            type.Type is { } direct && EventReader.IsEvent(direct))
+                            EventReader.IsEvent(model.GetTypeInfo(expression).Type!))
                         {
                             continue;
                         }
 
-                        foreach (var eventType in ValueEvents(expression, model, new HashSet<ILocalSymbol>(SymbolEqualityComparer.Default))
-                            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
+                        var key = IdentityOf(eventType);
+                        var enclosingDeclaration = expression.Ancestors().OfType<TypeDeclarationSyntax>().FirstOrDefault();
+                        var inProducingCommand = enclosingDeclaration is not null &&
+                            model.GetDeclaredSymbol(enclosingDeclaration) is INamedTypeSymbol enclosing && commands.Contains((enclosing.ToDisplayString(), key));
+                        if (!inProducingCommand)
                         {
-                            var key = IdentityOf(eventType);
-                            var inProducingCommand = node.Ancestors().OfType<TypeDeclarationSyntax>().Any(declaration =>
-                                model.GetDeclaredSymbol(declaration) is INamedTypeSymbol enclosing && commands.Contains((enclosing.ToDisplayString(), key)));
-                            if (!inProducingCommand)
-                            {
-                                Add(eventType, counts);
-                            }
+                            Add(eventType, counts);
                         }
                     }
                 }
@@ -110,63 +126,111 @@ public static class EventProducers
         return counts;
     }
 
-    static IEnumerable<ExpressionSyntax> EscapingValues(SyntaxNode node, SemanticModel model) => node switch
+    static Dictionary<string, HashSet<(string Type, string Event)>> RecoveredBehaviors(
+        IEnumerable<Compilation> projects, HashSet<(string Type, string Event)> commands)
     {
-        InvocationExpressionSyntax invocation when !IsNameOf(invocation) => invocation.ArgumentList.Arguments.Select(argument => argument.Expression),
-        BaseObjectCreationExpressionSyntax { ArgumentList: { } arguments } => arguments.Arguments.Select(argument => argument.Expression),
-        ConstructorInitializerSyntax initializer => initializer.ArgumentList.Arguments.Select(argument => argument.Expression),
-        AnonymousObjectCreationExpressionSyntax anonymous => anonymous.Initializers.Select(member => member.Expression),
-        InitializerExpressionSyntax initializer when initializer.IsKind(SyntaxKind.ArrayInitializerExpression) ||
-            initializer.IsKind(SyntaxKind.CollectionInitializerExpression) || initializer.IsKind(SyntaxKind.ComplexElementInitializerExpression) => initializer.Expressions,
-        CollectionExpressionSyntax collection => collection.Elements.Select(element => element switch
+        var recovered = new Dictionary<string, HashSet<(string Type, string Event)>>(StringComparer.Ordinal);
+        foreach (var compilation in projects)
         {
-            ExpressionElementSyntax value => value.Expression,
-            SpreadElementSyntax spread => spread.Expression,
-            _ => null
-        }).OfType<ExpressionSyntax>(),
-        ReturnStatementSyntax { Expression: { } expression } => [expression],
-        YieldStatementSyntax { Expression: { } expression } => [expression],
-        ArrowExpressionClauseSyntax arrow => [arrow.Expression],
-        LambdaExpressionSyntax { Body: ExpressionSyntax expression } => [expression],
-        AssignmentExpressionSyntax assignment when IsNonLocalTarget(model.GetOperation(assignment.Left)) => [assignment.Right],
-        EqualsValueClauseSyntax value when value.Parent is PropertyDeclarationSyntax ||
-            value.Parent is VariableDeclaratorSyntax { Parent.Parent: FieldDeclarationSyntax } => [value.Value],
-        _ => []
-    };
-
-    static bool IsNonLocalTarget(IOperation? target) => target is IFieldReferenceOperation or IPropertyReferenceOperation or IArrayElementReferenceOperation ||
-        (target is IParameterReferenceOperation parameter && parameter.Parameter.RefKind is RefKind.Out or RefKind.Ref) ||
-        (target is ITupleOperation tuple && tuple.Elements.Any(IsNonLocalTarget));
-
-    static IEnumerable<INamedTypeSymbol> ValueEvents(ExpressionSyntax expression, SemanticModel model, HashSet<ILocalSymbol> visited)
-    {
-        var operation = model.GetOperation(expression);
-        while (operation is IConversionOperation conversion)
-        {
-            operation = conversion.Operand;
-        }
-
-        var type = operation?.Type ?? model.GetTypeInfo(expression).Type ?? model.GetTypeInfo(expression).ConvertedType;
-        foreach (var eventType in CarriedEvents(type))
-        {
-            yield return eventType;
-        }
-
-        // A local can erase the event's static type without erasing the value it forwards.
-        // Follow only source initializers; values supplied solely at runtime remain unknown.
-        if (operation is ILocalReferenceOperation local && visited.Add(local.Local))
-        {
-            foreach (var reference in local.Local.DeclaringSyntaxReferences)
+            foreach (var tree in compilation.SyntaxTrees)
             {
-                if (reference.GetSyntax() is VariableDeclaratorSyntax { Initializer.Value: { } initializer } && initializer.SyntaxTree == model.SyntaxTree)
+                var model = compilation.GetSemanticModel(tree);
+                foreach (var declaration in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
                 {
-                    foreach (var eventType in ValueEvents(initializer, model, visited))
+                    if (model.GetDeclaredSymbol(declaration) is not { } handler || handler.Name != CommandReader.HandleMethod)
                     {
-                        yield return eventType;
+                        continue;
+                    }
+
+                    var productions = commands.Where(command => command.Type == handler.ContainingType.ToDisplayString()).ToList();
+                    if (productions.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    foreach (var body in HandlerBodies.Of(handler))
+                    {
+                        foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, model))
+                        {
+                            var behaviorModel = projects.FirstOrDefault(project => project.SyntaxTrees.Contains(behavior.Body.SyntaxTree))?
+                                .GetSemanticModel(behavior.Body.SyntaxTree);
+                            if (behaviorModel?.GetEnclosingSymbol(behavior.Body.SpanStart) is not IMethodSymbol method)
+                            {
+                                continue;
+                            }
+
+                            var events = behavior.Body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>()
+                                .Select(creation => behaviorModel.GetTypeInfo(creation).Type).OfType<INamedTypeSymbol>()
+                                .Where(EventReader.IsEvent).Select(IdentityOf).ToHashSet(StringComparer.Ordinal);
+                            var key = MethodIdentity(method);
+                            if (!recovered.TryGetValue(key, out var owners))
+                            {
+                                owners = [];
+                                recovered[key] = owners;
+                            }
+
+                            owners.UnionWith(productions.Where(production => events.Contains(production.Event)));
+                        }
                     }
                 }
             }
         }
+
+        return recovered;
+    }
+
+    static string MethodIdentity(IMethodSymbol method) =>
+        $"{IdentityOf(method.ContainingType)}:{method.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}";
+
+    static bool InCommandHandler(SyntaxNode node, SemanticModel model, string command)
+    {
+        var declaration = node.Ancestors().FirstOrDefault(ancestor => ancestor is MethodDeclarationSyntax or
+            AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax);
+
+        return declaration is MethodDeclarationSyntax method && model.GetDeclaredSymbol(method) is { } handler && handler.Name == CommandReader.HandleMethod &&
+            handler.ContainingType.ToDisplayString() == command && HandlerBodies.Of(handler).Any(body => body.Span.Contains(node.Span));
+    }
+
+    static bool IsReadOnlyUse(ExpressionSyntax expression, SemanticModel model)
+    {
+        SyntaxNode subject = expression;
+        while (subject.Parent is ParenthesizedExpressionSyntax)
+        {
+            subject = subject.Parent;
+        }
+
+        return subject.Parent switch
+        {
+            MemberAccessExpressionSyntax member when member.Expression == subject &&
+                model.GetSymbolInfo(member).Symbol is IPropertySymbol or IFieldSymbol =>
+                !IsWriteTarget(member),
+            ConditionalAccessExpressionSyntax access when access.Expression == subject &&
+                access.WhenNotNull is MemberBindingExpressionSyntax binding =>
+                model.GetSymbolInfo(binding).Symbol is IPropertySymbol or IFieldSymbol && !IsWriteTarget(access),
+            IsPatternExpressionSyntax pattern => pattern.Expression == subject,
+            BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.IsExpression) => binary.Left == subject,
+            SwitchExpressionSyntax @switch => @switch.GoverningExpression == subject,
+            SwitchStatementSyntax @switch => @switch.Expression == subject,
+            _ => false
+        };
+    }
+
+    static bool IsWriteTarget(SyntaxNode node)
+    {
+        while (node.Parent is ParenthesizedExpressionSyntax)
+        {
+            node = node.Parent;
+        }
+
+        return node.Parent switch
+        {
+            AssignmentExpressionSyntax assignment => assignment.Left == node,
+            PrefixUnaryExpressionSyntax prefix => prefix.IsKind(SyntaxKind.PreIncrementExpression) || prefix.IsKind(SyntaxKind.PreDecrementExpression),
+            PostfixUnaryExpressionSyntax postfix => postfix.IsKind(SyntaxKind.PostIncrementExpression) || postfix.IsKind(SyntaxKind.PostDecrementExpression),
+            ArgumentSyntax argument => argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword) || argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword),
+            RefExpressionSyntax => true,
+            _ => false
+        };
     }
 
     static IEnumerable<INamedTypeSymbol> CarriedEvents(ITypeSymbol? type, bool includeReturnWrappers = false) =>
@@ -194,12 +258,14 @@ public static class EventProducers
                 yield break;
             }
 
-            // Return signatures also promise events through wrappers such as Task and Result, but a
-            // delegate mentioning an event describes consumption, not a returned event instance.
+            // A Task or Result carries a value; arbitrary generic consumers (such as projection builders)
+            // and delegates naming an event do not. Return signatures remain conservatively broader.
+            var valueWrapper = named.Is("System.Threading.Tasks.Task`1") || named.Is("System.Threading.Tasks.ValueTask`1") ||
+                named.Is("Cratis.Monads.Result`2");
             var components = named.IsAnonymousType ? named.GetMembers().OfType<IPropertySymbol>().Select(property => property.Type) :
                 named.IsTupleType ? named.TupleElements.Select(element => element.Type) :
                 named.AllInterfaces.Prepend(named).Where(candidate => candidate.Is("System.Collections.Generic.IEnumerable`1"))
-                    .SelectMany(candidate => candidate.TypeArguments).Concat(includeReturnWrappers ? named.TypeArguments : []);
+                    .SelectMany(candidate => candidate.TypeArguments).Concat(includeReturnWrappers || valueWrapper ? named.TypeArguments : []);
             foreach (var component in components)
             {
                 foreach (var eventType in CarriedEvents(component, visited, includeReturnWrappers))

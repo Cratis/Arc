@@ -63,7 +63,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         if (!enabled)
         {
-            if (command.GetMembers("Provide").OfType<IMethodSymbol>().Any())
+            if (HasProvide(command))
             {
                 Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The provisioning behavior of command '{command.Name}' is not represented in default output; generated values and responses were left in code", location);
                 return result;
@@ -229,7 +229,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     /// <returns>Whether the command has no provisioning method and every body is empty or consists only of the recovered response and generated values.</returns>
     public bool HasNoFactBehavior(IReadOnlyList<IMethodSymbol> handlers, CommandAuthoringModel? authoring) => handlers.Count > 0 && handlers.All(handler =>
     {
-        if (handler.ContainingType.GetMembers("Provide").OfType<IMethodSymbol>().Any() ||
+        if (HasProvide(handler.ContainingType) ||
             HandlerBodies.Of(handler).ToArray() is not [var body])
         {
             return false;
@@ -257,6 +257,21 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 models.For(variable.SyntaxTree) is { } model && model.GetDeclaredSymbol(variable) is ILocalSymbol local &&
                 authoring.Generated.Any(property => property.Name == local.Name));
     });
+
+    static bool HasProvide(INamedTypeSymbol command)
+    {
+        for (var current = command; current is not null; current = current.BaseType)
+        {
+            // Runtime discovery includes instance methods, but not private methods inherited from a base type.
+            if (current.GetMembers("Provide").OfType<IMethodSymbol>().Any(method => !method.IsStatic &&
+                (SymbolEqualityComparer.Default.Equals(current, command) || method.DeclaredAccessibility != Accessibility.Private)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     static bool IsDirectResponse(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
     {
