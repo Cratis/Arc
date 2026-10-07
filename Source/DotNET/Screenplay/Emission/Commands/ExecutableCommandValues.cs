@@ -63,7 +63,15 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var requiredMapping = command.Produces.Any(production => production.Mappings.Any(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name)) &&
             model.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
                 ? @event.TypeIdentity == identity : @event.Name == production.EventName)?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true));
-        var legacy = protectedValues.Count > 0 || requiredMapping;
+        var successfulScenarios = model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
+            specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name && !specification.Errors.Any());
+        var preserveScenarios = successfulScenarios && (authoring.Generated.Count > 0 || authoring.Response is not null || authoring.ResponseFields.Count > 0);
+        if (preserveScenarios)
+        {
+            Report(command, location, "Generation and responses were withheld to keep successful scenarios; deterministic generation fixtures and response expectations are not yet recovered, so the command retains its legacy productions or handler reference");
+        }
+
+        var legacy = protectedValues.Count > 0 || requiredMapping || preserveScenarios;
         if (requiredMapping)
         {
             Report(command, location, "A required event payload mapping needs an unadmitted generated value; generated values and responses were left in code and the command retains its legacy productions without unreadable mappings");
@@ -76,7 +84,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var retained = authoring with
         {
             Generated = authoring.Generated.Where(property => !blocked.Contains(property.Name)).ToList(),
-            Identifier = authoring.Identifier is { } identifier && blocked.Contains(identifier) ? null : authoring.Identifier,
+            Identifier = legacy || (authoring.Identifier is { } identifier && blocked.Contains(identifier)) ? null : authoring.Identifier,
             Response = legacy || (authoring.Response is { } response && blocked.Contains(response)) ? null : authoring.Response,
             ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
             Operations = [],

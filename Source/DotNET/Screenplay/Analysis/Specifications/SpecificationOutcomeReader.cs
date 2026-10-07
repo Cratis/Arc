@@ -46,13 +46,9 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             .ToList();
 
         var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
-        if (bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
+        draft.AssertsResponse = bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
             item.Model!.GetSymbolInfo(member).Symbol is IPropertySymbol property && string.Equals(property.Name, "Response", StringComparison.Ordinal) &&
-            (property.ContainingType.Is("Cratis.Arc.Commands.CommandResult") || property.ContainingType.FindBase("Cratis.Arc.Commands.CommandResult") is not null))))
-        {
-            draft.CannotRead("it asserts CommandResult.Response, but response expectations and deterministic generated fixtures are not yet recovered; no partial scenario was emitted");
-            return;
-        }
+            (property.ContainingType.Is("Cratis.Arc.Commands.CommandResult") || property.ContainingType.FindBase("Cratis.Arc.Commands.CommandResult") is not null)));
 
         foreach (var (body, semanticModel) in bodies)
         {

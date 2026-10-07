@@ -62,8 +62,14 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
-            ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name && command.Authoring?.Generated.Count > 0)
+            ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name)
             : null;
+        if (specification.AssertsResponse && command?.Authoring is { Response: not null } or { ResponseFields.Count: > 0 })
+        {
+            Diagnostics?.Information(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but then returns expectations are not yet recovered", specification.Name);
+            return null;
+        }
+
         if (!specification.Errors.Any() && command?.Authoring is { Generated.Count: > 0 })
         {
             Diagnostics?.Information(

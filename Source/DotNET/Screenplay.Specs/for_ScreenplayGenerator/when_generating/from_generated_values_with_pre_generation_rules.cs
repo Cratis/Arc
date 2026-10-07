@@ -58,7 +58,7 @@ public class from_generated_values_with_pre_generation_rules : a_generated_docum
         emitted.Source.ShouldNotContain("name == authorId");
         emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         emitted.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldBeTrue();
-        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).Message.ShouldContain("PLAY0273");
+        emitted.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("PLAY0273", StringComparison.Ordinal)).ShouldBeTrue();
         var catalog = SemanticIdentityCatalog.Empty(ApplicationIdentity.Create("Library"));
         var source = SemanticSourceDocument.Create(catalog.ResolveDocument("application"), "application", "application.play", emitted.Source);
         var bound = new SemanticModelCompiler().Compile("Library", SemanticDocumentSet.Create([source], catalog));

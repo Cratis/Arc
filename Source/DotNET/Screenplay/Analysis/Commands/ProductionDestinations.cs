@@ -96,13 +96,12 @@ public static class ProductionDestinations
         if (model.GetSymbolInfo(receiver).Symbol is IParameterSymbol parameter && AggregateRoots.Is(parameter.Type))
         {
             return parameter.ContainingSymbol is IMethodSymbol handler && handler.Name == CommandReader.HandleMethod &&
-                SymbolEqualityComparer.Default.Equals(handler.ContainingType, command);
+                SymbolEqualityComparer.Default.Equals(handler.ContainingType, command) && CommandAuthoringReader.IsUnchanged(parameter, body, model);
         }
 
         if (model.GetSymbolInfo(receiver).Symbol is ILocalSymbol local)
         {
-            if (body.DescendantNodes().OfType<AssignmentExpressionSyntax>().Any(assignment =>
-                SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(assignment.Left).Symbol, local)))
+            if (!CommandAuthoringReader.IsUnchanged(local, body, model))
             {
                 return false;
             }

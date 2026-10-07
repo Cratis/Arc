@@ -85,6 +85,71 @@ public class from_unproven_generated_values : a_generated_document
     }
 
     [Fact]
+    public void should_not_return_a_scalar_property_through_a_value_changing_cast()
+    {
+        Generate((Analyzed.SlicePath, IdentifierSources.With("""
+            [Command] public record TruncateAmount(decimal Amount)
+            {
+                public int Handle() => (int)Amount;
+            }
+            """)));
+        Result.Source.ShouldNotContain("returns");
+        Result.Source.ShouldContain("handler");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeTrue();
+        AssertHandlerFallback();
+    }
+
+    [Theory]
+    [InlineData("new TemporaryId(Guid.NewGuid())", "implicit")]
+    [InlineData("(AuthorId)new TemporaryId(Guid.NewGuid())", "explicit")]
+    public void should_not_claim_freshness_through_a_concept_conversion(string creation, string conversion)
+    {
+        var source = IdentifierSources.With($$"""
+            public record TemporaryId(Guid Value) : EventSourceId<Guid>(Value)
+            {
+                public static {{conversion}} operator AuthorId(TemporaryId id) => new(Guid.Empty);
+            }
+            [Command] public record RegisterAuthor(string Name)
+            {
+                public (AuthorId, AuthorRegistered) Handle()
+                {
+                    AuthorId authorId = {{creation}};
+                    return (authorId, new AuthorRegistered(Name));
+                }
+            }
+            """);
+        Generate((Analyzed.SlicePath, source));
+        Result.Source.ShouldNotContain("generated");
+        Result.Source.ShouldNotContain("returns");
+        Result.Source.ShouldNotContain("for authorId");
+        Result.Source.ShouldContain("produces AuthorRegistered");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeTrue();
+        AssertDocument();
+    }
+
+    [Theory]
+    [InlineData("new TemporaryId(Guid.NewGuid())", "implicit")]
+    [InlineData("(AuthorId)new TemporaryId(Guid.NewGuid())", "explicit")]
+    public void should_not_claim_a_direct_generated_response_through_a_concept_conversion(string creation, string conversion)
+    {
+        Generate((Analyzed.SlicePath, IdentifierSources.With($$"""
+            public record TemporaryId(Guid Value) : EventSourceId<Guid>(Value)
+            {
+                public static {{conversion}} operator AuthorId(TemporaryId id) => new(Guid.Empty);
+            }
+            [Command] public record RegisterAuthor(string Name)
+            {
+                public AuthorId Handle() => {{creation}};
+            }
+            """)));
+        Result.Source.ShouldNotContain("generated");
+        Result.Source.ShouldNotContain("returns");
+        Result.Source.ShouldContain("handler");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeTrue();
+        AssertHandlerFallback();
+    }
+
+    [Fact]
     public void should_not_copy_a_response_property_that_transforms_its_parameter()
     {
         Generate((Analyzed.SlicePath, IdentifierSources.With("""
@@ -100,5 +165,14 @@ public class from_unproven_generated_values : a_generated_document
         Result.Source.ShouldNotContain("returns");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeTrue();
         AssertDocument();
+    }
+
+    void AssertHandlerFallback()
+    {
+        Result.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Error).ShouldBeEmpty();
+        RoundTrip.Errors.ShouldBeEmpty();
+        RoundTrip.IsStable.ShouldBeTrue();
+        Bound.Success.ShouldBeFalse();
+        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
     }
 }

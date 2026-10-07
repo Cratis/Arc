@@ -26,4 +26,10 @@ public record SpecificationModel(
     IEnumerable<SpecificationStateModel> Given,
     SpecificationStateModel? When,
     IEnumerable<SpecificationStateModel> Then,
-    IEnumerable<string> Errors);
+    IEnumerable<string> Errors)
+{
+    /// <summary>
+    /// Gets whether the source asserts a command response that is not yet represented.
+    /// </summary>
+    public bool AssertsResponse { get; init; }
+}

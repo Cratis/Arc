@@ -35,6 +35,6 @@ public class a_handler_yielding_the_event_source_id : Specification
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_still_produce_the_event() => _analysis.Slice().Commands.First().Produces.Single().EventName.ShouldEqual("AuthorRegistered");
     [Fact] void should_still_map_its_properties() => _analysis.Slice().Commands.First().Produces.Single().Mappings.ShouldNotBeEmpty();
-    [Fact] void should_report_what_it_cannot_say() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult]);
-    [Fact] void should_report_it_as_information_only() => _analysis.Diagnostics.Single().Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+    [Fact] void should_report_what_it_cannot_say() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult, ScreenplayDiagnosticCodes.UnreadableCommandResponse]);
+    [Fact] void should_report_it_as_information_only() => _analysis.Diagnostics.Select(_ => _.Severity).Distinct().ShouldContainOnly([ScreenplayDiagnosticSeverity.Information]);
 }

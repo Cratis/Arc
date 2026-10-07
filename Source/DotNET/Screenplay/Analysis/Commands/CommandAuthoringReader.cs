@@ -27,6 +27,25 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     /// </summary>
     public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
 
+    /// <summary>
+    /// Determines whether a local or parameter is never reassigned or passed by reference.
+    /// </summary>
+    /// <param name="symbol">The local or parameter to check.</param>
+    /// <param name="body">The body, including captured assignments.</param>
+    /// <param name="model">The semantic model of the body.</param>
+    /// <returns>Whether every reference leaves the value unchanged.</returns>
+    public static bool IsUnchanged(ISymbol symbol, SyntaxNode body, SemanticModel model) =>
+        !body.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>().Any(identifier => identifier.Identifier.ValueText == symbol.Name &&
+            SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(identifier).Symbol, symbol) &&
+            identifier.Ancestors().TakeWhile(ancestor => ancestor is not StatementSyntax).Any(ancestor => ancestor switch
+            {
+                AssignmentExpressionSyntax assignment => assignment.Left.Span.Contains(identifier.Span),
+                PrefixUnaryExpressionSyntax prefix => prefix.IsKind(SyntaxKind.PreIncrementExpression) || prefix.IsKind(SyntaxKind.PreDecrementExpression),
+                PostfixUnaryExpressionSyntax postfix => postfix.IsKind(SyntaxKind.PostIncrementExpression) || postfix.IsKind(SyntaxKind.PostDecrementExpression),
+                ArgumentSyntax { RefKindKeyword.RawKind: not 0 } or RefExpressionSyntax => true,
+                _ => false
+            }));
+
     /// <summary>Reads one command's optional authoring intent.</summary>
     /// <param name="command">The command declaration.</param>
     /// <param name="handlers">The command handlers.</param>
@@ -71,7 +90,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
             if (CreatesUuidConcept(value, local.Type, model))
             {
-                if (!WrittenOnlyByInitializer(local, body, model))
+                if (!IsUnchanged(local, body, model))
                 {
                     Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' is written after its initializer or passed by reference; its generation and dependent claims were left in code", location);
                     continue;
@@ -172,7 +191,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
         var source = SourceOf(response, model, command);
-        if (source?.Contains('.', StringComparison.Ordinal) == false && responseType is not null && SupportsResponse(responseType))
+        if (source?.Contains('.', StringComparison.Ordinal) == false && responseType is not null && SupportsResponse(responseType) &&
+            IsDirectResponse(response, responseType, model))
         {
             var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType) &&
                 !AggregateRootBehaviors.ReachedFrom(body, model).Any();
@@ -229,17 +249,36 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 authoring.Generated.Any(property => property.Name == local.Name));
     });
 
-    static bool WrittenOnlyByInitializer(ILocalSymbol local, SyntaxNode body, SemanticModel model) =>
-        !body.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>().Any(identifier => identifier.Identifier.ValueText == local.Name &&
-            SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(identifier).Symbol, local) &&
-            identifier.Ancestors().TakeWhile(ancestor => ancestor is not StatementSyntax).Any(ancestor => ancestor switch
-            {
-                AssignmentExpressionSyntax assignment => assignment.Left.Span.Contains(identifier.Span),
-                PrefixUnaryExpressionSyntax prefix => prefix.IsKind(SyntaxKind.PreIncrementExpression) || prefix.IsKind(SyntaxKind.PreDecrementExpression),
-                PostfixUnaryExpressionSyntax postfix => postfix.IsKind(SyntaxKind.PostIncrementExpression) || postfix.IsKind(SyntaxKind.PostDecrementExpression),
-                ArgumentSyntax { RefKindKeyword.RawKind: not 0 } => true,
-                _ => false
-            }));
+    static bool IsDirectResponse(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
+    {
+        if (expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) ||
+            !HasIdentityType(expression, type, model))
+        {
+            return false;
+        }
+
+        var sourceType = model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol switch
+        {
+            IPropertySymbol property => property.Type,
+            ILocalSymbol local => local.Type,
+            _ => model.GetTypeInfo(expression).Type
+        };
+
+        return SymbolEqualityComparer.Default.Equals(sourceType, type);
+    }
+
+    static bool HasIdentityType(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
+    {
+        var info = model.GetTypeInfo(expression);
+
+        // Target-typed new has no natural Type and uses Roslyn's object-creation conversion,
+        // not an identity conversion. Its bound constructor still proves the constructed type.
+        var actual = expression is ImplicitObjectCreationExpressionSyntax && model.GetSymbolInfo(expression).Symbol is IMethodSymbol constructor
+            ? constructor.ContainingType : info.Type;
+
+        return SymbolEqualityComparer.Default.Equals(actual, type) &&
+            (info.ConvertedType is null || SymbolEqualityComparer.Default.Equals(info.ConvertedType, type));
+    }
 
     static bool OnlyEvents(ExpressionSyntax expression, SemanticModel model)
     {
@@ -304,6 +343,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             };
             if (arguments?.Arguments is [var argument] && models.For(initializer!.SyntaxTree) is { } model &&
                 model.GetSymbolInfo(MappingSourceReader.Unwrap(argument.Expression)).Symbol is IParameterSymbol forwarded &&
+                !argument.Expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) &&
+                model.GetConversion(argument.Expression).IsIdentity &&
                 SymbolEqualityComparer.Default.Equals(forwarded, parameter) && model.GetSymbolInfo(initializer).Symbol is IMethodSymbol target && ForwardsUuid(target, visited))
             {
                 return true;
@@ -359,7 +400,9 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
     bool CreatesUuidConcept(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
     {
-        if (type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is not [var backing] || !backing.Is("System.Guid"))
+        if (type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is not [var backing] || !backing.Is("System.Guid") ||
+            expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) ||
+            !HasIdentityType(expression, type, model))
         {
             return false;
         }
@@ -388,7 +431,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 (declaration.Body?.Statements is [ReturnStatementSyntax statement] ? statement.Expression : null);
 
             return returned is not null && models.For(declaration.SyntaxTree) is { } factoryModel &&
-                SymbolEqualityComparer.Default.Equals(factoryModel.GetTypeInfo(returned).Type, type) && CreatesFromNewGuid(returned, factoryModel);
+                !returned.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) &&
+                HasIdentityType(returned, type, factoryModel) && CreatesFromNewGuid(returned, factoryModel);
         });
     }
 

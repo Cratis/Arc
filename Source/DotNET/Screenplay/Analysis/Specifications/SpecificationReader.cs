@@ -113,7 +113,9 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         }
         else if (draft.Then.Count == 0 && draft.Errors.Count == 0)
         {
-            draft.CannotRead("it expects no event and no rejection, and those are the outcomes the language holds");
+            draft.CannotRead(draft.AssertsResponse
+                ? "it asserts only CommandResult.Response, but response expectations are not yet recovered"
+                : "it expects no event and no rejection, and those are the outcomes the language holds");
         }
 
         if (draft.Unreadable is not null)
@@ -128,7 +130,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse };
         SpecificationEvidence.Register(
             specification,
             new(

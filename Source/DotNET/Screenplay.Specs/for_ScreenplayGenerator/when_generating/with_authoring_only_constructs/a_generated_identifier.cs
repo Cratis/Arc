@@ -53,7 +53,7 @@ public class a_generated_identifier : an_authoring_document
     }
 
     [Fact]
-    void should_leave_out_success_scenarios_without_deterministic_generation_fixtures()
+    void should_withhold_generation_to_keep_success_scenarios_without_fixtures()
     {
         var model = Result.Model with
         {
@@ -63,8 +63,12 @@ public class a_generated_identifier : an_authoring_document
             }).ToList()
         };
         var emitted = new ScreenplayEmitter().Emit(model, new());
-        emitted.Source.ShouldNotContain("specification RegisteringAnAuthor");
-        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("Unsupported(IdentityAllocation)");
+        emitted.Source.ShouldContain("specification RegisteringAnAuthor");
+        emitted.Source.ShouldNotContain("generated");
+        emitted.Source.ShouldNotContain("returns");
+        emitted.Source.ShouldContain("produces AuthorRegistered");
+        emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
+        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).Message.ShouldContain("withheld to keep successful scenarios");
     }
 
     [Fact] void should_emit_the_generated_identifier() => Result.Source.ShouldContain("authorId AuthorId generated identifier");
