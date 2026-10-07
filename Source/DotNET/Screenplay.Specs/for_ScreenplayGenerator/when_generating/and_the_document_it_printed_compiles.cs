@@ -8,9 +8,8 @@ using Cratis.Screenplay;
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 /// <summary>
-/// Reading every generated document back is only worth doing if it stays quiet about the documents that are fine.
-/// A check that cries wolf on a real application is a check people learn to ignore, so this generates the whole
-/// library - every slice kind, every construct the language holds - and expects nothing said about it.
+/// The whole library remains valid authoring syntax even where executable binding is not supported.
+/// Syntax verification stays quiet while semantic verification reports those limitations separately.
 /// </summary>
 public class and_the_document_it_printed_compiles : given.a_compilation
 {
@@ -29,6 +28,7 @@ public class and_the_document_it_printed_compiles : given.a_compilation
     [Fact] void should_be_generating_a_document_that_really_does_compile() => _compiled.Success.ShouldBeTrue();
     [Fact] void should_be_generating_the_whole_application() => _result.Source.Contains("slice StateChange Registration", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_not_report_that_the_document_did_not_compile() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotCompile);
-    [Fact] void should_report_nothing_at_all() => _result.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_only_binding_defects() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
+    [Fact] void should_report_each_binding_defect() => _result.Diagnostics.Count.ShouldEqual(7);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

@@ -501,4 +501,9 @@ public static class ScreenplayDiagnosticCodes
 
     /// <summary>Provisioning or a read dependency lives in code rather than a supported declarative shape.</summary>
     public const string UnreadableCommandProvisioning = "SP0055";
+
+    /// <summary>
+    /// The generated document compiled but contains an unexpected semantic binding error.
+    /// </summary>
+    public const string DocumentDidNotBind = "SP0056";
 }

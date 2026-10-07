@@ -75,6 +75,6 @@ public class from_source_declaring_children_and_nested_objects : Specification
     [Fact] void should_map_what_the_type_of_the_child_declares() => Says("title = title").ShouldBeTrue();
     [Fact] void should_write_out_the_nested_block() => Says("nested location").ShouldBeTrue();
     [Fact] void should_map_what_the_type_of_the_nested_object_declares() => Says("aisle = aisle").ShouldBeTrue();
-    [Fact] void should_report_nothing_as_unmappable() => _result.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_only_the_unresolved_projection_binding() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldEqual([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

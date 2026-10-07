@@ -14,7 +14,7 @@ namespace Cratis.Arc.Screenplay.Verification;
 public interface IScreenplayVerifier
 {
     /// <summary>
-    /// Compiles a printed Screenplay document.
+    /// Compiles a printed Screenplay document and binds it to an executable semantic model.
     /// </summary>
     /// <param name="source">The printed <c>.play</c> text to compile.</param>
     /// <returns>The <see cref="ScreenplayVerification"/>.</returns>

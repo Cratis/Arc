@@ -81,7 +81,7 @@ public class EmbeddedDocumentGenerator(
 
             if (verify)
             {
-                ReportDocumentThatDoesNotCompile(emission.Source, scope, diagnostics);
+                ReportDocumentThatDoesNotCompile(emission.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
             }
 
             if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
@@ -89,7 +89,7 @@ public class EmbeddedDocumentGenerator(
                 var arranged = AssemblyDocumentArrangement.Apply(emission, scopes);
                 if (verify && !string.Equals(emission.Source, arranged.Source, StringComparison.Ordinal))
                 {
-                    ReportDocumentThatDoesNotCompile(arranged.Source, scope, diagnostics);
+                    ReportDocumentThatDoesNotCompile(arranged.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
                 }
 
                 emission = arranged;
@@ -132,23 +132,32 @@ public class EmbeddedDocumentGenerator(
             _.Severity == ScreenplayDiagnosticSeverity.Error);
 
     /// <summary>
-    /// Reads a printed document back and reports one the Screenplay compiler rejects.
+    /// Reads a printed document back and reports syntax and unexpected semantic binding errors.
     /// </summary>
     /// <param name="source">The printed document.</param>
     /// <param name="scope">The scope the document describes.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were emitted.</param>
     /// <remarks>
     /// Embedding a document nobody can open is worse than failing the build, because the failure then surfaces in
     /// an application rather than in the build that produced it. Every document is read back, including the ones
     /// scoping narrows - a reference that resolved while the whole application was in one document is exactly the
     /// kind of thing narrowing breaks.
     /// </remarks>
-    void ReportDocumentThatDoesNotCompile(string source, DocumentScope scope, ScreenplayDiagnostics diagnostics)
+    void ReportDocumentThatDoesNotCompile(string source, DocumentScope scope, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs)
     {
         var verification = verifier.Verify(source);
 
         if (verification.Compiles)
         {
+            foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
+            {
+                diagnostics.Warning(
+                    ScreenplayDiagnosticCodes.DocumentDidNotBind,
+                    $"The generated document for '{scope.Id}' did not bind - {error.Code}: '{error.Message}' on line {error.Location.Line}, column {error.Location.Column}. That is the generator being wrong rather than anything the source declared, and the document is returned as it stands so the line can be read",
+                    scope.Namespace);
+            }
+
             return;
         }
 

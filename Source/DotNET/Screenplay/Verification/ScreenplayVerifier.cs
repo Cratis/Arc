@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Screenplay;
+using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.Verification;
 
@@ -29,6 +30,20 @@ public class ScreenplayVerifier(IScreenplayCompiler compiler) : IScreenplayVerif
     {
         var compilation = compiler.Compile(source);
 
-        return new(source, compilation.Value, [.. compilation.Diagnostics]);
+        if (!compilation.Success)
+        {
+            return new(source, compilation.Value, [.. compilation.Diagnostics]);
+        }
+
+        const string ApplicationName = "Generated";
+        const string Key = "application";
+        var catalog = SemanticIdentityCatalog.Empty(ApplicationIdentity.Create(ApplicationName));
+        var document = SemanticSourceDocument.Create(catalog.ResolveDocument(Key), Key, "application.play", source);
+        var bound = new SemanticModelCompiler().Compile(ApplicationName, SemanticDocumentSet.Create([document], catalog));
+
+        return new(source, compilation.Value, [.. compilation.Diagnostics])
+        {
+            BindingDiagnostics = [.. bound.Diagnostics]
+        };
     }
 }

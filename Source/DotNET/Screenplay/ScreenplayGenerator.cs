@@ -62,7 +62,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
-        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain);
+        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain, resolved.AuthoringOnlyConstructs);
 
         return new(emission.Source, analysis.Model, diagnostics.All);
     }
@@ -72,12 +72,13 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         Generate([.. projects.Select(_ => _.Compilation)], options);
 
     /// <summary>
-    /// Reads the printed document back and reports one the Screenplay compiler rejects.
+    /// Reads the printed document back and reports syntax and unexpected semantic binding errors.
     /// </summary>
     /// <param name="source">The printed document.</param>
     /// <param name="analyzed">What analysis reported, which says whether the source it read compiled.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
     /// <param name="location">Where to report against.</param>
+    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were emitted.</param>
     /// <remarks>
     /// Everything else reported names something the application declared that the language cannot hold. This names
     /// the generator being wrong, which is why it runs on every generation rather than on request - the only way a
@@ -100,7 +101,8 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         string source,
         IEnumerable<ScreenplayDiagnostic> analyzed,
         ScreenplayDiagnostics diagnostics,
-        string? location)
+        string? location,
+        bool authoringOnlyConstructs)
     {
         if (analyzed.Any(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile && _.Severity == ScreenplayDiagnosticSeverity.Error))
         {
@@ -110,6 +112,14 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var verification = _verifier.Verify(source);
         if (verification.Compiles)
         {
+            foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
+            {
+                diagnostics.Warning(
+                    ScreenplayDiagnosticCodes.DocumentDidNotBind,
+                    $"The generated document did not bind - {error.Code}: '{error.Message}' on line {error.Location.Line}, column {error.Location.Column}. That is the generator being wrong rather than anything the source declared, and the document is returned as it stands so the line can be read",
+                    location);
+            }
+
             return;
         }
 

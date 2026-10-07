@@ -25,7 +25,7 @@ public class for_an_application : Specification
 
     [Fact] void should_succeed() => _generation.IsSuccess.ShouldBeTrue();
 
-    [Fact] void should_report_nothing_at_all() => _generation.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_only_binding_defects() => _generation.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
 
     [Fact] void should_generate_documents_the_screenplay_compiler_accepts() =>
         _generation.Documents.All(_ => new ScreenplayCompiler().Compile(_.Source).Success).ShouldBeTrue();
