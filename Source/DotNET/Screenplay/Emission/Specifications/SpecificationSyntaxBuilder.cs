@@ -70,11 +70,14 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
             ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name)
             : null;
+        var sourceIndependentRejection = evidence is { HasUnresolvedCommandSources: true, HasOnlySourceIndependentRejections: true } &&
+            specification.Errors.Any() && !specification.Then.Any() && !specification.AssertsResponse;
         if (evidence is { HasExplicitCommandSources: true } &&
             command is not null && (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
             command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier) &&
             command.Produces.All(production => production.UsesCommandContext) &&
-            (evidence.HasUnresolvedCommandSources || evidence.CommandIdentifier != identifier))
+            (evidence.HasUnresolvedCommandSources || evidence.CommandIdentifier != identifier) &&
+            !sourceIndependentRejection)
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -96,6 +99,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                 $"The scenario '{specification.Name}' was left out because generation needs deterministic when for / generated fixtures, and no faithful fixture was recovered from the Arc scenario; missing fixtures would execute as Unsupported(IdentityAllocation)",
                 location);
             return null;
+        }
+
+        if (sourceIndependentRejection)
+        {
+            specification = specification with { Given = specification.Given.Select(state => state with { For = null }).ToList() };
         }
 
         var occurrences = specification.Given.Concat(specification.Then)

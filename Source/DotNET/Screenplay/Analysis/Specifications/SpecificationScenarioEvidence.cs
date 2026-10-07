@@ -37,4 +37,9 @@ internal sealed record SpecificationScenarioEvidence(
     /// Gets whether an explicit occurrence source was not provably the issued command's own source.
     /// </summary>
     public bool HasUnresolvedCommandSources { get; init; }
+
+    /// <summary>
+    /// Gets whether every rejection assertion names validation or authorization rather than a destination-dependent outcome.
+    /// </summary>
+    public bool HasOnlySourceIndependentRejections { get; init; }
 }

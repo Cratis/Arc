@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
+using Cratis.Screenplay.Semantics.Execution;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
@@ -127,6 +128,91 @@ public class from_a_command_scenario_with_another_sources_given : a_generated_do
         string.Join('\n', Result.Source.Split('\n').Select(line => line.Trim())).ShouldContain("then AuthorRegistered\nfor \"current\"");
         AssertDocument();
     }
+
+    [Theory]
+    [InlineData("new AuthorId(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"))")]
+    [InlineData("new AuthorId(new System.Guid(\"6f3c8b4719384d4c8f26817e306a10e2\"))")]
+    [InlineData("(AuthorId)\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\"")]
+    [InlineData("\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"")]
+    public void should_keep_a_literal_given_matching_a_constructed_concept(string identity)
+    {
+        var slice = Slice.Replace("[Key] string Id", "[Key] AuthorId Id", StringComparison.Ordinal) + """
+
+            public record AuthorId(System.Guid Value) : Cratis.Concepts.ConceptAs<System.Guid>(Value)
+            {
+                public static implicit operator AuthorId(string value) => new(System.Guid.Parse(value));
+            }
+            """;
+        GenerateScenario(slice, Scenario
+            .Replace("ForEventSource(\"other\")", "ForEventSource(\"{6F3C8B47-1938-4D4C-8F26-817E306A10E2}\")", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", $"RegisterAuthor({identity},", StringComparison.Ordinal));
+        AssertImplicitSource(runtimeIdentity: true);
+    }
+
+    [Fact] void should_keep_a_literal_given_matching_a_constructed_event_source()
+    {
+        GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), Scenario
+            .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(new EventSourceId(\"other\"),", StringComparison.Ordinal));
+        AssertImplicitSource(runtimeIdentity: true);
+    }
+
+    [Fact] void should_keep_an_undecidable_computed_source_for_a_validation_rejection()
+    {
+        GenerateValidationScenario();
+        AssertImplicitSource();
+        Result.Source.ShouldContain("then error");
+        var plan = SemanticExecutionPlan.Compile(Bound.Value!.Model).Plan!;
+        var run = new SemanticSpecificationRunner().Run(plan, plan.Specifications.Values.Single().Id);
+        Assert.True(run.Passed, string.Join(Environment.NewLine, run.Failures));
+    }
+
+    [Fact] void should_omit_an_undecidable_computed_source_for_a_constraint_rejection()
+    {
+        GenerateScenario(Slice, ComputedSourceScenario());
+        AssertOmitted();
+    }
+
+    [Fact] void should_omit_an_undecidable_source_with_both_validation_and_constraint_rejections()
+    {
+        GenerateValidationScenario("[Fact] void should_reject_the_constraint() => _result.ShouldHaveConstraintViolationFor(\"unique-author-name\");");
+        AssertOmitted();
+    }
+
+    [Fact] void should_omit_an_undecidable_computed_source_for_a_successful_command()
+    {
+        GenerateScenario(Slice, ComputedSourceScenario()
+            .Replace("_result.ShouldHaveConstraintViolationFor(\"unique-author-name\")", "_scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(\"current\", @event => @event.Name == \"Claimed\")", StringComparison.Ordinal));
+        AssertOmitted();
+    }
+
+    void GenerateValidationScenario(string additionalAssertion = "")
+    {
+        const string slice = "using FluentValidation;\n" + Slice + """
+
+            public class RegisterAuthorValidator : Cratis.Arc.Commands.CommandValidator<RegisterAuthor>
+            {
+                public RegisterAuthorValidator()
+                {
+                    RuleFor(command => command.Name).NotEmpty().WithMessage("Name is required");
+                }
+            }
+            """;
+        var scenario = ComputedSourceScenario()
+            .Replace("RegisterAuthor(\"current\", \"Claimed\")", "RegisterAuthor(\"current\", \"\")", StringComparison.Ordinal)
+            .Replace("_result.ShouldHaveConstraintViolationFor(\"unique-author-name\")", "_result.ShouldHaveValidationErrorBecauseOf(\"Name is required\")", StringComparison.Ordinal)
+            .Replace("[Fact] void should_reject_the_duplicate()", additionalAssertion + "[Fact] void should_reject_the_duplicate()", StringComparison.Ordinal) + """
+
+            public static class ValidationAssertions
+            {
+                public static void ShouldHaveValidationErrorBecauseOf(this Result result, string reason) { }
+            }
+            """;
+        GenerateScenario(slice, scenario);
+    }
+
+    static string ComputedSourceScenario() => Scenario
+        .Replace("readonly EventSourceId _otherId = EventSourceId.New();", "EventSourceId _otherId => EventSourceId.New();", StringComparison.Ordinal)
+        .Replace("ForEventSource(\"other\")", "ForEventSource(_otherId)", StringComparison.Ordinal);
 
     static string SameSourceScenario() => Scenario
         .Replace("ForEventSource(\"other\")", "ForEventSource(_otherId)", StringComparison.Ordinal)

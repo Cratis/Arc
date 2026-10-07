@@ -119,16 +119,39 @@ internal class SpecificationEventSources
     }
 
     static bool Same(Source left, Source right) =>
-        (left.Literal is not null && right.Literal is not null && Equals(left.Literal, right.Literal)) ||
+        (left.Literal is not null && right.Literal is not null && SameLiteral(left.Literal, right.Literal)) ||
         (left.Symbol is not null && SymbolEqualityComparer.Default.Equals(left.Symbol, right.Symbol) &&
             SymbolEqualityComparer.Default.Equals(left.Receiver, right.Receiver));
 
+    static bool SameLiteral(LiteralSource left, LiteralSource right) =>
+        Equals(left, right) ||
+        (left.Value is string leftText && right.Value is string rightText &&
+            Guid.TryParse(leftText, out var leftId) && Guid.TryParse(rightText, out var rightId) && leftId == rightId);
+
     static LiteralSource? LiteralOf(ExpressionSyntax expression, SemanticModel semanticModel)
     {
-        if (expression is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var argument] } &&
-            semanticModel.GetTypeInfo(expression).Type.Is(WellKnownTypeNames.EventSourceId))
+        expression = MappingSourceReader.Unwrap(expression);
+        if (expression is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var argument], Initializer: null } &&
+            (semanticModel.GetTypeInfo(expression).Type.Is(WellKnownTypeNames.EventSourceId) ||
+             semanticModel.GetTypeInfo(expression).Type?.FindBase(WellKnownTypeNames.ConceptAs) is not null))
         {
-            expression = MappingSourceReader.Unwrap(argument.Expression);
+            return LiteralOf(argument.Expression, semanticModel);
+        }
+
+        var guidText = expression switch
+        {
+            BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var text], Initializer: null }
+                when semanticModel.GetSymbolInfo(expression).Symbol is IMethodSymbol { Parameters: [var parameter] } constructor &&
+                     constructor.ContainingType.Is("System.Guid") && parameter.Type.SpecialType == SpecialType.System_String => text.Expression,
+            InvocationExpressionSyntax { ArgumentList.Arguments: [var text] }
+                when semanticModel.GetSymbolInfo(expression).Symbol is IMethodSymbol { IsStatic: true, Parameters: [var parameter] } method &&
+                     string.Equals(method.Name, "Parse", StringComparison.Ordinal) && method.ContainingType.Is("System.Guid") && parameter.Type.SpecialType == SpecialType.System_String => text.Expression,
+            _ => null
+        };
+        if (guidText is not null && semanticModel.GetConstantValue(guidText) is { HasValue: true, Value: string value } &&
+            Guid.TryParse(value, out var guid))
+        {
+            return new(guid.ToString("D"));
         }
 
         var constant = semanticModel.GetConstantValue(expression);

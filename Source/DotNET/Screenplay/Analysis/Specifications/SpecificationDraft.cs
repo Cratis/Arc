@@ -57,6 +57,11 @@ public class SpecificationDraft
     internal SpecificationEventSources EventSources { get; } = new();
 
     /// <summary>
+    /// Gets or sets whether every rejection assertion names validation or authorization rather than a destination-dependent outcome.
+    /// </summary>
+    internal bool HasOnlySourceIndependentRejections { get; set; }
+
+    /// <summary>
     /// Records why a scenario cannot be read.
     /// </summary>
     /// <param name="reason">What made it unreadable.</param>

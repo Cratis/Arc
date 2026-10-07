@@ -143,7 +143,8 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
             {
                 CommandIdentifier = draft.EventSources.CommandIdentifier,
                 HasExplicitCommandSources = draft.EventSources.HasExplicitCommandSources,
-                HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources
+                HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources,
+                HasOnlySourceIndependentRejections = draft.HasOnlySourceIndependentRejections
             });
         return specification;
     }

@@ -46,6 +46,15 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             .ToList();
 
         var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
+        var rejections = bodies.SelectMany(item => item.Body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()
+            .Select(invocation => (Invocation: invocation, Method: item.Model!.GetSymbolInfo(invocation).Symbol as IMethodSymbol)))
+            .Where(item => item.Method is not null && SpecificationAssertions.IsRejection(item.Invocation, item.Method))
+            .ToList();
+        var sourceIndependent = new[] { "ShouldHaveValidationErrors", "ShouldHaveValidationErrorBecauseOf", "ShouldHaveValidationErrorFor", "ShouldNotBeAuthorized" };
+        draft.HasOnlySourceIndependentRejections = rejections.Exists(item => sourceIndependent.Contains(item.Method!.Name, StringComparer.Ordinal)) &&
+            rejections.TrueForAll(item => sourceIndependent.Contains(item.Method!.Name, StringComparer.Ordinal) ||
+                string.Equals(item.Method.Name, "ShouldNotBeSuccessful", StringComparison.Ordinal) ||
+                string.Equals(item.Method.Name, "ShouldBeFalse", StringComparison.Ordinal));
         draft.AssertsResponse = bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
             item.Model!.GetSymbolInfo(member).Symbol is IPropertySymbol property && string.Equals(property.Name, "Response", StringComparison.Ordinal) &&
             (property.ContainingType.Is("Cratis.Arc.Commands.CommandResult") || property.ContainingType.FindBase("Cratis.Arc.Commands.CommandResult") is not null)));
