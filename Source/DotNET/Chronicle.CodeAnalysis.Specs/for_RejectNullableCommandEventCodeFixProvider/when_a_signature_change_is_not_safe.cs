@@ -18,6 +18,19 @@ public class when_a_signature_change_is_not_safe
     public async Task should_not_offer_a_non_compiling_or_contract_changing_fix(string signature, string body) =>
         await VerifyCS.VerifyNoCodeFixAsync(Command(signature, body), Warning());
 
+    [Theory]
+    [InlineData("Result<E?, ValidationResult>", "=> Result<E?, ValidationResult>.Success(null);", "")]
+    [InlineData("Result<E?, ValidationResult>", "{ var result = Result<E?, ValidationResult>.Success(null); return result; }", "")]
+    [InlineData("Result<E?, ValidationResult>", "=> Decide();", "private Result<E?, ValidationResult> Decide() => Result<E?, ValidationResult>.Success(null);")]
+    [InlineData("Result<E?, ValidationResult>", "{ return Decide(); }", "private Result<E?, ValidationResult> Decide() => Result<E?, ValidationResult>.Success(null);")]
+    [InlineData("OneOf<E?, ValidationResult>", "=> OneOf<E?, ValidationResult>.FromT0(null);", "")]
+    public async Task should_not_leave_a_nullable_event_inside_a_non_null_union(string signature, string body, string factory)
+    {
+        var source = Command(signature, body);
+        source = source.Insert(source.LastIndexOf('}'), factory);
+        await VerifyCS.VerifyNoCodeFixAsync(source, Warning());
+    }
+
     [Fact]
     public async Task should_not_change_an_inherited_handler() =>
         await VerifyCS.VerifyNoCodeFixAsync(

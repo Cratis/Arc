@@ -189,7 +189,7 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A null event result currently succeeds without appending anything and without explaining why. Declare a non-nullable event success branch and reject explicitly with ValidationResult.Error, a validator, or Provide. This rule checks direct events, Task/ValueTask results, and Result/OneOf event branches. Optional ICommandOperation results and non-event responses are not reported.");
+        description: "A direct or awaited null event result currently succeeds without appending anything. A null event branch inside Result or OneOf instead produces a NullReferenceException failure. Neither gives the caller a rejection reason. Declare a non-nullable event success branch and reject explicitly with ValidationResult.Error, a validator, or Provide. This rule checks direct events, Task/ValueTask results, and Result/OneOf event branches. Optional ICommandOperation results and non-event responses are not reported.");
 
     const string Category = "Arc.Chronicle";
 }

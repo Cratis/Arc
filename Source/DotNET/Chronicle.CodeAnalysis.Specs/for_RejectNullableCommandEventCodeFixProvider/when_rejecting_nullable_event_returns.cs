@@ -9,8 +9,8 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.for_RejectNullableCommandEventCodeFi
 
 public class when_rejecting_nullable_event_returns
 {
-    const string Result = "global::Cratis.Monads.Result<global::E, global::Cratis.Arc.Validation.ValidationResult>";
-    const string Error = "global::Cratis.Arc.Validation.ValidationResult.Error(\"TODO: explain why\")";
+    const string Result = "Result<E, ValidationResult>";
+    const string Error = "ValidationResult.Error(\"TODO: explain why\")";
 
     [Theory]
     [InlineData("=> null;")]
@@ -34,7 +34,7 @@ public class when_rejecting_nullable_event_returns
     [Theory]
     [InlineData("Task<E?>", "Task<")]
     [InlineData("ValueTask<E?>", "ValueTask<")]
-    [InlineData("System.Threading.Tasks.Task<E?>", "System.Threading.Tasks.Task<")]
+    [InlineData("System.Threading.Tasks.Task<E?>", "Task<")]
     public async Task should_keep_the_async_wrapper(string signature, string wrapper)
     {
         const string body = "{ await Task.Yield(); return true ? new E() : null; }";
@@ -48,6 +48,26 @@ public class when_rejecting_nullable_event_returns
     [InlineData("OneOf<ValidationResult, E?>")]
     public async Task should_preserve_the_event_or_validation_contract(string signature) =>
         await VerifyCS.VerifyCodeFixAsync(Command(signature, "=> true ? new E() : null;"), SourceMarker.Parse(Command(Result, "=> true ? new E() : " + Error + ";")).Source, Warning());
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task should_add_missing_imports_and_simplify_the_new_names(bool omitMonads, bool omitValidation)
+    {
+        var source = Command("E?", "=> null;");
+        if (omitMonads)
+        {
+            source = source.Replace("        using Cratis.Monads;\n", "", StringComparison.Ordinal);
+        }
+
+        if (omitValidation)
+        {
+            source = source.Replace("        using Cratis.Arc.Validation;\n", "", StringComparison.Ordinal);
+        }
+
+        await VerifyCS.VerifyCodeFixAsync(source, SourceMarker.Parse(Command(Result, "=> " + Error + ";")).Source, Warning());
+    }
 
     [Fact]
     public async Task should_leave_an_unrelated_command_warning_in_place()

@@ -7,6 +7,8 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
+using Microsoft.CodeAnalysis.Simplification;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes;
@@ -53,7 +55,8 @@ public class RejectNullableCommandEventCodeFixProvider : CodeFixProvider
             return;
         }
 
-        var resultType = ParseTypeName($"global::Cratis.Monads.Result<{events[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}, {ValidationResult}>");
+        var resultType = ParseTypeName($"global::Cratis.Monads.Result<{events[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}, {ValidationResult}>")
+            .WithAdditionalAnnotations(Simplifier.Annotation);
         var returnType = ReplaceReturnType(method.ReturnType, response, symbol.ReturnType, resultType);
         if (returnType is null)
         {
@@ -69,6 +72,9 @@ public class RejectNullableCommandEventCodeFixProvider : CodeFixProvider
 
         replacement = replacement.WithReturnType(returnType.WithTriviaFrom(method.ReturnType));
         var changedDocument = context.Document.WithSyntaxRoot(root.ReplaceNode(method, replacement));
+        changedDocument = await ImportAdder.AddImportsAsync(changedDocument, Simplifier.Annotation, cancellationToken: cancellationToken).ConfigureAwait(false);
+        changedDocument = await SimplifyRejectionTypes(changedDocument, cancellationToken).ConfigureAwait(false);
+        changedDocument = await Simplifier.ReduceAsync(changedDocument, Simplifier.Annotation, cancellationToken: cancellationToken).ConfigureAwait(false);
         var changedCompilation = await changedDocument.Project.GetCompilationAsync(cancellationToken).ConfigureAwait(false);
         if (changedCompilation?.GetDiagnostics(cancellationToken).Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error) != false)
         {
@@ -76,6 +82,26 @@ public class RejectNullableCommandEventCodeFixProvider : CodeFixProvider
         }
 
         context.RegisterCodeFix(CodeAction.Create(Title, _ => Task.FromResult(changedDocument), Title), diagnostic);
+    }
+
+    static async Task<Document> SimplifyRejectionTypes(Document document, CancellationToken cancellationToken)
+    {
+        var root = await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false);
+        var model = await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false);
+        var validationType = model?.Compilation.GetTypeByMetadataName("Cratis.Arc.Validation.ValidationResult");
+        if (root is null || model is null || validationType is null)
+        {
+            return document;
+        }
+
+        // Roslyn can retain qualification in target-typed conditionals. Generate the imported name
+        // in its actual scope, shortening only the validation type nodes this fix introduced.
+        var names = root.GetAnnotatedNodes(NullableEventReturnRewriter.RejectionTypeAnnotation);
+        var replacement = root.ReplaceNodes(names, (original, _) =>
+            ParseName(validationType.ToMinimalDisplayString(model, original.SpanStart))
+                .WithTriviaFrom(original).WithAdditionalAnnotations(Simplifier.Annotation));
+
+        return document.WithSyntaxRoot(replacement);
     }
 
     static bool CanReplaceResponse(ITypeSymbol response, ITypeSymbol eventType, Compilation compilation)

@@ -4,6 +4,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Simplification;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes;
@@ -16,6 +17,11 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.CodeFixes;
 /// <param name="cancellationToken">The cancellation token.</param>
 sealed class NullableEventReturnRewriter(string rejection, SemanticModel model, CancellationToken cancellationToken) : CSharpSyntaxRewriter
 {
+    /// <summary>
+    /// Identifies only the validation type names generated for null return branches.
+    /// </summary>
+    internal static readonly SyntaxAnnotation RejectionTypeAnnotation = new();
+
     /// <summary>
     /// Gets whether every unmodified return expression is known not to be null.
     /// </summary>
@@ -42,17 +48,32 @@ sealed class NullableEventReturnRewriter(string rejection, SemanticModel model, 
 
     ExpressionSyntax Rewrite(ExpressionSyntax expression) => expression switch
     {
-        LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.NullLiteralExpression) => ParseExpression(rejection).WithTriviaFrom(literal),
+        LiteralExpressionSyntax literal when literal.IsKind(SyntaxKind.NullLiteralExpression) => RewriteNull(literal),
         ConditionalExpressionSyntax conditional => conditional.WithWhenTrue(Rewrite(conditional.WhenTrue)).WithWhenFalse(Rewrite(conditional.WhenFalse)),
         ParenthesizedExpressionSyntax parenthesized => parenthesized.WithExpression(Rewrite(parenthesized.Expression)),
         _ => CheckNullability(expression)
     };
 
+    InvocationExpressionSyntax RewriteNull(LiteralExpressionSyntax literal)
+    {
+        var invocation = (InvocationExpressionSyntax)ParseExpression(rejection);
+        var member = (MemberAccessExpressionSyntax)invocation.Expression;
+        var type = ParseName(member.Expression.ToString()).WithAdditionalAnnotations(Simplifier.Annotation, RejectionTypeAnnotation);
+
+        return invocation.WithExpression(member.WithExpression(type)).WithTriviaFrom(literal);
+    }
+
     ExpressionSyntax CheckNullability(ExpressionSyntax expression)
     {
         // An implicit Result conversion can accept a nullable event without a compiler error.
         // Compilation alone therefore cannot prove that a remaining event branch is non-null.
-        if (model.GetTypeInfo(expression, cancellationToken).Nullability.FlowState == NullableFlowState.MaybeNull)
+        var typeInfo = model.GetTypeInfo(expression, cancellationToken);
+
+        // Prefer the expression's own type: a non-null event can be converted to the handler's
+        // old Result<E?, ValidationResult> target without carrying a nullable branch itself.
+        var type = typeInfo.Type ?? typeInfo.ConvertedType;
+        if (typeInfo.Nullability.FlowState == NullableFlowState.MaybeNull ||
+            (type is not null && NullableCommandEventReturnAnalyzer.NullableEvents(type, model.Compilation).Any()))
         {
             IsSafe = false;
         }

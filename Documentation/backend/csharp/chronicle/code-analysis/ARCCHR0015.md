@@ -57,7 +57,9 @@ Custom lookalike wrappers, erased `object` results, tuple elements, and collecti
 
 ## Why this rule exists
 
-The command pipeline currently treats a null event result as success without appending anything. The caller receives no rejection reason. This warning makes that declared shape visible at build time; it does not change runtime behavior.
+A direct or awaited null event result currently succeeds without appending anything because the command pipeline skips response processing for null. A null event branch inside `Result` or `OneOf` takes a different path: the pipeline unwraps the branch and attempts to inspect the null response's type, producing a `NullReferenceException` failure. Neither outcome gives the caller a meaningful rejection reason.
+
+This warning makes the declared shape visible at build time; it does not change runtime behavior.
 
 ## See also
 
