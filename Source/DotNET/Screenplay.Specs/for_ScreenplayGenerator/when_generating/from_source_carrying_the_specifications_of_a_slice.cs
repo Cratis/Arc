@@ -17,6 +17,7 @@ public class from_source_carrying_the_specifications_of_a_slice : Specification
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Arc.Queries.ModelBound;
         using Cratis.Chronicle.Events;
+        using Cratis.Chronicle.Keys;
 
         namespace Library.Invoicing.Issuing;
 
@@ -27,7 +28,7 @@ public class from_source_carrying_the_specifications_of_a_slice : Specification
         public record Invoice(string Id, string Number);
 
         [Command]
-        public record IssueInvoice(string Number, int Lines)
+        public record IssueInvoice([Key] string Id, string Number, int Lines)
         {
             public InvoiceIssued Handle() => new(Number, Lines);
         }
@@ -56,7 +57,7 @@ public class from_source_carrying_the_specifications_of_a_slice : Specification
                 _scenario.Given.ForEventSource("invoice").ReadModel(new Invoice("invoice", "2026-1"));
             }
 
-            async Task Because() => _result = await _scenario.Execute(new IssueInvoice("2026-2", 0));
+            async Task Because() => _result = await _scenario.Execute(new IssueInvoice("invoice", "2026-2", 0));
 
             [Fact] void should_not_issue_the_invoice() => _result.ShouldHaveConstraintViolationFor(OneInvoicePerNumber);
         }

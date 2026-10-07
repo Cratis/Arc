@@ -23,8 +23,9 @@ internal class SpecificationEventSources
     /// <param name="method">The resolved method.</param>
     /// <param name="semanticModel">The model resolving the source expression.</param>
     /// <param name="draft">The scenario collecting the occurrences.</param>
+    /// <param name="requireConcrete">Whether an explicit source must be stated rather than shared symbolically.</param>
     /// <returns>The concrete source, or null for a shared symbolic source.</returns>
-    public LiteralSource? Read(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel, SpecificationDraft draft)
+    public LiteralSource? Read(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel, SpecificationDraft draft, bool requireConcrete = false)
     {
         var expression = CallArguments.For(invocation, method, "eventSourceId").SingleOrDefault();
         if (expression is null)
@@ -32,6 +33,7 @@ internal class SpecificationEventSources
             var builder = invocation.Expression.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()
                 .FirstOrDefault(call => semanticModel.GetSymbolInfo(call).Symbol is IMethodSymbol candidate &&
                     (candidate.ReturnType.Is(WellKnownTypeNames.EventSourceGivenBuilder) ||
+                     candidate.ReturnType.Is(WellKnownTypeNames.CommandScenarioSourceGivenBuilder) ||
                      candidate.ReturnType.Is(WellKnownTypeNames.EventSourceWhenBuilder)));
             if (builder is not null && semanticModel.GetSymbolInfo(builder).Symbol is IMethodSymbol builderMethod)
             {
@@ -85,6 +87,10 @@ internal class SpecificationEventSources
         }
 
         _sources.Add((symbol, receiver, literal));
+        if (requireConcrete && literal is null)
+        {
+            draft.CannotRead("its explicit given event source cannot be stated as a concrete for value beside the command's destination");
+        }
 
         return literal;
     }

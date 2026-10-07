@@ -70,8 +70,8 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             }
 
             var kind = SpecificationCalls.IsGivenReadModel(method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
-            var source = kind == SpecificationStateKind.Event && SpecificationMembers.HoldsAnEventScenario(steps) && !SpecificationMembers.HoldsAScenario(steps)
-                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
+            var source = kind == SpecificationStateKind.Event && (SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps))
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft, SpecificationMembers.HoldsAScenario(steps))
                 : null;
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))

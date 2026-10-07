@@ -16,6 +16,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
     const string Slice = """
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Chronicle.Events;
+        using Cratis.Chronicle.Keys;
 
         namespace Library.Customers.Onboarding;
 
@@ -23,7 +24,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
         public record CustomerRegistered(string Name);
 
         [Command]
-        public record StartOnboarding(string OrgName)
+        public record StartOnboarding([Key] string Id, string OrgName)
         {
             public CustomerRegistered Handle() => new(OrgName);
         }
@@ -42,7 +43,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
 
         public class and_a_duplicate_onboarding_races
         {
-            readonly EventSourceId _orgNumber = "918164529";
+            const string _orgNumber = "918164529";
             CommandScenario<StartOnboarding> _scenario = null!;
             Result _result = null!;
 
@@ -54,7 +55,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
                     .Events(new CustomerRegistered("Existing Customer AS"));
             }
 
-            async Task Because() => _result = await _scenario.Execute(new StartOnboarding("Racing Customer AS"));
+            async Task Because() => _result = await _scenario.Execute(new StartOnboarding(_orgNumber, "Racing Customer AS"));
 
             [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
             [Fact] async Task should_only_hold_the_seeded_registration() =>
@@ -76,7 +77,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
 
         public class and_another_customer_registered_earlier
         {
-            readonly EventSourceId _orgNumber = "918164529";
+            const string _orgNumber = "918164529";
             CommandScenario<StartOnboarding> _scenario = null!;
             Result _result = null!;
 
@@ -88,7 +89,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
                     .Events(new CustomerRegistered("Earlier Customer AS"));
             }
 
-            async Task Because() => _result = await _scenario.Execute(new StartOnboarding("Later Customer AS"));
+            async Task Because() => _result = await _scenario.Execute(new StartOnboarding(_orgNumber, "Later Customer AS"));
 
             [Fact] async Task should_register_the_customer() =>
                 await _scenario.EventScenario.EventSequence.ShouldHaveAppendedEvent<CustomerRegistered>(

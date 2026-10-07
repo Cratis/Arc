@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -19,6 +20,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="enabled">Whether authoring-only constructs are enabled.</param>
 public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, SourcePaths paths, ScreenplayDiagnostics diagnostics, bool enabled)
 {
+    readonly ScreenplayNaming _naming = new();
+
     /// <summary>Gets the proven sources of the command most recently read.</summary>
     public AuthoringSources Sources { get; private set; } = new();
 
@@ -107,10 +110,12 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                     continue;
                 }
 
-                if (command.DeclaredProperties().Any(property => string.Equals(property.Name, local.Name, StringComparison.OrdinalIgnoreCase)))
+                if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
+                    .Any(name => _naming.ToPropertyName(name) == _naming.ToPropertyName(local.Name)))
                 {
-                    Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' collides with a command property and was left out", location);
-                    continue;
+                    Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated local '{local.Name}' collides with an emitted command property; generation and dependent claims were left in code", location);
+                    Sources = new();
+                    return result;
                 }
 
                 // Roslyn annotates inferred reference locals as nullable even when their initializer is required.
@@ -183,16 +188,20 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         if (responseType is not null && CreatesUuidConcept(response, responseType, model))
         {
             var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
-            if (!command.DeclaredProperties().Any(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)) &&
-                !generated.Exists(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase)))
+            if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
+                .Any(property => _naming.ToPropertyName(property) == _naming.ToPropertyName(name)))
             {
-                generated.Add(new(name, types.Resolve(responseType)));
-                if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
-                {
-                    validatedGenerated.Add(name);
-                }
-                Sources.AddExpression(response, name);
+                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated response '{name}' collides with an emitted command property; generation and dependent claims were left in code", location);
+                Sources = new();
+                return result with { Generated = [], GeneratedWithValidators = [], Operations = [] };
             }
+
+            generated.Add(new(name, types.Resolve(responseType)));
+            if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
+            {
+                validatedGenerated.Add(name);
+            }
+            Sources.AddExpression(response, name);
         }
 
         result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };

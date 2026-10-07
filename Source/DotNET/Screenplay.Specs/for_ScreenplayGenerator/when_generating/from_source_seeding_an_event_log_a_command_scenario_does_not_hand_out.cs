@@ -16,6 +16,7 @@ public class from_source_seeding_an_event_log_a_command_scenario_does_not_hand_o
     const string Slice = """
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Chronicle.Events;
+        using Cratis.Chronicle.Keys;
 
         namespace Library.Customers.Onboarding;
 
@@ -23,7 +24,7 @@ public class from_source_seeding_an_event_log_a_command_scenario_does_not_hand_o
         public record CustomerRegistered(string Name);
 
         [Command]
-        public record StartOnboarding(string OrgName)
+        public record StartOnboarding([Key] string Id, string OrgName)
         {
             public CustomerRegistered Handle() => new(OrgName);
         }
@@ -57,9 +58,9 @@ public class from_source_seeding_an_event_log_a_command_scenario_does_not_hand_o
         public class and_the_scenario_comes_from_a_base_context : a_started_onboarding
         {
             async Task Establish() =>
-                await Scenario.EventScenario.Given.ForEventSource(EventSourceId.New()).Events(new CustomerRegistered("Existing Customer AS"));
+                await Scenario.EventScenario.Given.ForEventSource("customer").Events(new CustomerRegistered("Existing Customer AS"));
 
-            async Task Because() => Result = await Scenario.Execute(new StartOnboarding("Racing Customer AS"));
+            async Task Because() => Result = await Scenario.Execute(new StartOnboarding("customer", "Racing Customer AS"));
 
             [Fact] void should_not_succeed() => Result.ShouldNotBeSuccessful();
             [Fact] async Task should_only_hold_the_seeded_registration() =>
@@ -88,7 +89,7 @@ public class from_source_seeding_an_event_log_a_command_scenario_does_not_hand_o
             async Task Establish() =>
                 await _log.Given.ForEventSource(EventSourceId.New()).Events(new CustomerRegistered("Existing Customer AS"));
 
-            async Task Because() => _result = await _scenario.Execute(new StartOnboarding("Racing Customer AS"));
+            async Task Because() => _result = await _scenario.Execute(new StartOnboarding("customer", "Racing Customer AS"));
 
             [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
         }

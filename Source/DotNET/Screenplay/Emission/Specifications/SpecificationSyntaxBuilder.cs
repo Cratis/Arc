@@ -92,7 +92,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return specification;
         }
 
-        if (occurrences.Select(state => state.For).Distinct().Count() != 1)
+        if (specification.When is { Kind: SpecificationStateKind.Command } ||
+            occurrences.Select(state => state.For).Distinct().Count() != 1)
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
