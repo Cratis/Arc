@@ -23,7 +23,7 @@ public static class ScopedApplicationModel
     /// <param name="scope">The scope of the document.</param>
     /// <returns>The scoped <see cref="ApplicationModel"/>.</returns>
     /// <remarks>
-    /// A slice outside the scope that declares an event a slice inside it refers to becomes an import. The
+    /// A slice outside the scope that declares an event or a read model a slice inside it refers to becomes an import. The
     /// reference is real and the document has to compile on its own, so it states the dependency outright in
     /// exactly the way the language already has for an event declared elsewhere.
     /// </remarks>
@@ -75,9 +75,42 @@ public static class ScopedApplicationModel
                 .SelectMany(ExternalEvents.ReferredToBy)
                 .Where(elsewhere.ContainsKey)
                 .Select(_ => elsewhere[_])
+                .Concat(ReadModelsDeclaredElsewhere(model, slices, within))
                 .Concat(model.Imports)
                 .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal)
         ];
+    }
+
+    /// <summary>
+    /// Gets the fully qualified name of every read model the scoped document refers to that a slice outside it declares.
+    /// </summary>
+    /// <param name="model">The model of the whole application.</param>
+    /// <param name="slices">The slices within the scope.</param>
+    /// <param name="within">The namespaces of the slices within the scope.</param>
+    /// <returns>The imports.</returns>
+    /// <remarks>
+    /// A read model is declared once, in the slice that owns it, so a projection or a query in one part of the
+    /// application can name a read model another part declares. Once the parts are separate documents that is a
+    /// dependency on a declaration elsewhere, and it is stated the same way an event declared elsewhere is.
+    /// </remarks>
+    static IEnumerable<string> ReadModelsDeclaredElsewhere(ApplicationModel model, IReadOnlyList<SliceModel> slices, HashSet<string> within)
+    {
+        var declared = slices.SelectMany(_ => _.ReadModels).Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
+        var elsewhere = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var slice in model.Slices.Where(_ => !within.Contains(_.Namespace)))
+        {
+            foreach (var readModel in slice.ReadModels.Where(_ => !declared.Contains(_.Name)))
+            {
+                elsewhere.TryAdd(readModel.Name, $"{slice.Namespace}{Namespaces.Separator}{readModel.Name}");
+            }
+        }
+
+        return slices
+            .SelectMany(slice => slice.Projections.Select(_ => _.ReadModel)
+                .Concat(slice.Queries.Select(_ => _.ReturnType.Name))
+                .Concat(slice.Commands.SelectMany(_ => _.Authoring?.Reads ?? []).Select(_ => _.Name)))
+            .Where(elsewhere.ContainsKey)
+            .Select(_ => elsewhere[_]);
     }
 }
