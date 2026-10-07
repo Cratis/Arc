@@ -101,13 +101,18 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
+        if (ResponseValueType(handler.ReturnType) is null)
+        {
+            return result;
+        }
+
         var parts = returned is TupleExpressionSyntax tuple ? tuple.Arguments.Select(argument => argument.Expression).ToArray() : [returned];
         var responses = new List<ExpressionSyntax>();
         var operations = new List<OperationModel>();
         var operationReader = new CommandOperationReader(types, paths, diagnostics);
         foreach (var part in parts)
         {
-            var type = model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType;
+            var type = ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType);
             if (type is null || OnlyEvents(part, model))
             {
                 continue;
@@ -137,7 +142,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             return result;
         }
 
-        var responseType = model.GetTypeInfo(response).Type;
+        var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
         if (responseType is not null && CreatesUuidConcept(response, responseType, model))
         {
             var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
@@ -181,10 +186,34 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     static bool OnlyEvents(ExpressionSyntax expression, SemanticModel model)
     {
         var unwrapped = MappingSourceReader.Unwrap(expression);
-        var type = model.GetTypeInfo(unwrapped).Type ?? model.GetTypeInfo(unwrapped).ConvertedType;
-        return (type is not null && EventReader.IsEvent(type)) ||
-            (unwrapped is ConditionalExpressionSyntax conditional && OnlyEvents(conditional.WhenTrue, model) && OnlyEvents(conditional.WhenFalse, model));
+        var type = ResponseValueType(model.GetTypeInfo(unwrapped).Type ?? model.GetTypeInfo(unwrapped).ConvertedType);
+        var optional = false;
+        var collectionType = false;
+        var underlying = type is null ? null : UnderlyingTypes.Of(type, ref optional, ref collectionType);
+        return (underlying is not null && EventReader.IsEvent(underlying)) ||
+            (unwrapped is ConditionalExpressionSyntax conditional && OnlyEvents(conditional.WhenTrue, model) && OnlyEvents(conditional.WhenFalse, model)) ||
+            (unwrapped is CollectionExpressionSyntax collection && collection.Elements.All(element => element is ExpressionElementSyntax item && OnlyEvents(item.Expression, model))) ||
+            (unwrapped is ArrayCreationExpressionSyntax { Initializer: { } initializer } && initializer.Expressions.All(item => OnlyEvents(item, model))) ||
+            (unwrapped is ImplicitArrayCreationExpressionSyntax array && array.Initializer.Expressions.All(item => OnlyEvents(item, model)));
     }
+
+    static ITypeSymbol? ResponseValueType(ITypeSymbol? type)
+    {
+        while (type is INamedTypeSymbol named && (named.Is("System.Threading.Tasks.Task`1") || named.Is("System.Threading.Tasks.ValueTask`1")))
+        {
+            type = named.TypeArguments[0];
+        }
+
+        return type is null || type.SpecialType == SpecialType.System_Void ||
+            type.Is("System.Threading.Tasks.Task") || type.Is("System.Threading.Tasks.ValueTask") ||
+            type.Is("Cratis.Chronicle.EventSequences.IAppendResult") || type.Is("Cratis.Chronicle.EventSequences.AppendResult") ||
+            type.AllInterfaces.Any(contract => contract.Is("Cratis.Chronicle.EventSequences.IAppendResult")) ? null : type;
+    }
+
+    static bool CreatesFromNewGuid(ExpressionSyntax expression, SemanticModel model) =>
+        MappingSourceReader.Unwrap(expression) is BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } &&
+        MappingSourceReader.Unwrap(argument.Expression) is InvocationExpressionSyntax invocation &&
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true, Parameters.Length: 0 } factory && factory.Name == "NewGuid" && factory.ContainingType.Is("System.Guid");
 
     bool SupportsResponse(ITypeSymbol type)
     {
@@ -236,15 +265,32 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             return false;
         }
 
-        return expression switch
+        expression = MappingSourceReader.Unwrap(expression);
+        if (CreatesFromNewGuid(expression, model))
         {
-            InvocationExpressionSyntax invocation => model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true, Parameters.Length: 0 } factory && factory.Name == "New" &&
-                SymbolEqualityComparer.Default.Equals(factory.ReturnType, type),
-            BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } =>
-                argument.Expression is InvocationExpressionSyntax invocation && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol
-                { IsStatic: true, Parameters.Length: 0 } factory && factory.Name == "NewGuid" && factory.ContainingType.Is("System.Guid"),
-            _ => false
-        };
+            return true;
+        }
+
+        if (expression is not InvocationExpressionSyntax invocation ||
+            model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { IsStatic: true, Parameters.Length: 0, Name: "New" } factory ||
+            !SymbolEqualityComparer.Default.Equals(factory.ReturnType, type) ||
+            !(SymbolEqualityComparer.Default.Equals(factory.ContainingType, type) ||
+                ((factory.ContainingType.Is("Cratis.Chronicle.Events.EventSourceId`1") || factory.ContainingType.Is(WellKnownTypeNames.ConceptAs)) &&
+                    factory.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal) &&
+                    SymbolEqualityComparer.Default.Equals(type.FindBase(factory.ContainingType.FullMetadataName()), factory.ContainingType))))
+        {
+            return false;
+        }
+
+        // A name is not a generation contract. Only a source body proving fresh UUID creation is admitted.
+        return factory.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()).OfType<MethodDeclarationSyntax>().Any(declaration =>
+        {
+            var returned = declaration.ExpressionBody?.Expression ??
+                (declaration.Body?.Statements is [ReturnStatementSyntax statement] ? statement.Expression : null);
+
+            return returned is not null && models.For(declaration.SyntaxTree) is { } factoryModel &&
+                SymbolEqualityComparer.Default.Equals(factoryModel.GetTypeInfo(returned).Type, type) && CreatesFromNewGuid(returned, factoryModel);
+        });
     }
 
     void Report(string code, string message, string location) => diagnostics.Information(code, message, location);

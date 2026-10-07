@@ -79,7 +79,14 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var message = authoringOnlyConstructs
             ? $"The command appends through event source '{eventSource.Source}'{stream}, but no unambiguous readable route could be stated; only the existing concurrency dimensions are emitted"
             : $"The command appends through event source '{eventSource.Source}'{stream}; source and stream declarations are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs; only the existing concurrency dimensions are emitted";
-        diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, message, location);
+        if (authoringOnlyConstructs)
+        {
+            diagnostics.Warning(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, message, location);
+        }
+        else
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, message, location);
+        }
 
         if (eventSource.ConcurrentByStreamId)
         {

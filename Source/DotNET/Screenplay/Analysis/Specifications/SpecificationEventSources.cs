@@ -48,8 +48,13 @@ internal class SpecificationEventSources
         var symbol = expression is IdentifierNameSyntax or MemberAccessExpressionSyntax
             ? semanticModel.GetSymbolInfo(expression).Symbol
             : null;
-        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol or IParameterSymbol))
+        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol))
         {
+            symbol = null;
+        }
+        else if (!new HeldValues(new SemanticModels([semanticModel.Compilation])).IsStable(symbol, semanticModel.Compilation))
+        {
+            draft.CannotRead($"its event source '{symbol.Name}' is reassigned or has a computed getter, so repeated references do not prove the same value");
             symbol = null;
         }
 

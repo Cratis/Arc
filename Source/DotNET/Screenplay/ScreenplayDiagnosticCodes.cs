@@ -434,13 +434,13 @@ public static class ScreenplayDiagnosticCodes
     public const string ScenarioWithoutCounterpart = "SP0043";
 
     /// <summary>
-    /// A command appends through an event source definition, which the Screenplay language cannot declare yet.
+    /// A command's event source or stream route was omitted.
     /// </summary>
     /// <remarks>
-    /// Only the concurrency dimensions the definition declares are emitted, in the command's <c>concurrency</c> block.
-    /// The event source and the stream themselves are not, since there is no <c>eventsource</c> declaration or command
-    /// binding to write them as, and writing them as plain strings would lose that they name a definition. This is
-    /// reported so a document silent about them is not read as a command that appends to the default stream.
+    /// Event source and stream syntax exists as authoring-only constructs. With the option disabled, an Information
+    /// diagnostic explains how to enable it. With the option enabled, an unreadable route remains a Warning.
+    /// Only the readable concurrency dimensions are emitted when the route is omitted, so a document silent about
+    /// it is not read as a command that appends to the default stream.
     /// </remarks>
     public const string EventSourceNotRepresentable = "SP0044";
 

@@ -56,6 +56,43 @@ public class HeldValues(SemanticModels models)
     }
 
     /// <summary>
+    /// Determines whether repeated references name a stable held value.
+    /// </summary>
+    /// <param name="symbol">The member or local to check.</param>
+    /// <param name="compilation">The specification compilation containing possible reassignments.</param>
+    /// <returns>Whether the value is assigned once without a computed getter.</returns>
+    public bool IsStable(ISymbol symbol, Compilation compilation)
+    {
+        if (symbol is IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true })
+        {
+            return true;
+        }
+
+        if (symbol is IPropertySymbol && (symbol.DeclaringSyntaxReferences.Length == 0 ||
+            symbol.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is not PropertyDeclarationSyntax
+            { ExpressionBody: null, AccessorList: { } accessors } || accessors.Accessors.Any(accessor => accessor.Body is not null || accessor.ExpressionBody is not null))))
+        {
+            return false;
+        }
+
+        var declarations = compilation.SyntaxTrees.Select(tree => tree.GetRoot()).ToArray();
+        var values = symbol.DeclaringSyntaxReferences.Select(reference => DeclaredValueOf(reference.GetSyntax()))
+            .OfType<ExpressionSyntax>().Where(value => !StatesNothing(value)).Concat(AssignedValuesTo(symbol, declarations));
+        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol) || values.Take(2).ToList() is not [var given] || !Unconditional(given))
+        {
+            return false;
+        }
+
+        return !declarations.SelectMany(declaration => declaration.DescendantNodes()).OfType<ExpressionSyntax>().Any(expression =>
+                ((expression.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
+                    (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression) &&
+                    expression.ChildNodes().OfType<ExpressionSyntax>().Any(operand => models.For(operand.SyntaxTree) is { } model &&
+                        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(operand).Symbol, symbol))) ||
+                ((expression is IdentifierNameSyntax or MemberAccessExpressionSyntax) && expression.Parent is ArgumentSyntax { RefKindKeyword.RawKind: not 0 } &&
+                    models.For(expression.SyntaxTree) is { } argumentModel && SymbolEqualityComparer.Default.Equals(argumentModel.GetSymbolInfo(expression).Symbol, symbol)));
+    }
+
+    /// <summary>
     /// Gets the expression a declaration gives a value from.
     /// </summary>
     /// <param name="declaration">The declaration to read.</param>
@@ -134,10 +171,10 @@ public class HeldValues(SemanticModels models)
     /// Gets the expression of every assignment to a value, wherever the type declaring it writes one.
     /// </summary>
     /// <param name="symbol">The member or local to follow.</param>
+    /// <param name="declarations">The declarations to search, or null for the containing type.</param>
     /// <returns>The expressions assigned.</returns>
-    IEnumerable<ExpressionSyntax> AssignedValuesTo(ISymbol symbol) =>
-        (symbol.ContainingType?.DeclaringSyntaxReferences ?? [])
-            .Select(_ => _.GetSyntax())
+    IEnumerable<ExpressionSyntax> AssignedValuesTo(ISymbol symbol, IEnumerable<SyntaxNode>? declarations = null) =>
+        (declarations ?? (symbol.ContainingType?.DeclaringSyntaxReferences ?? []).Select(_ => _.GetSyntax()))
             .SelectMany(declaration => declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>())
             .Where(assignment => Assigns(assignment, symbol))
             .Select(assignment => assignment.Right);
