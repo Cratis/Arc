@@ -34,6 +34,26 @@ public class a_read_model_document : a_generated_document
         RoundTrip.Diagnostics.Where(_ => _.Severity is DiagnosticSeverity.Warning or DiagnosticSeverity.Error).Select(_ => $"{_.Code}: {_.Message}");
 
     /// <summary>
+    /// Gets the message of every read model the generator reported leaving out.
+    /// </summary>
+    protected IEnumerable<string> LeftOut =>
+        Result.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.UndeclarableReadModel).Select(_ => _.Message);
+
+    /// <summary>
+    /// Gets every warning and error the generator reported.
+    /// </summary>
+    protected IEnumerable<string> GenerationWarnings =>
+        Result.Diagnostics.Where(_ => _.Severity != ScreenplayDiagnosticSeverity.Information).Select(_ => $"{_.Code}: {_.Message}");
+
+    /// <summary>
+    /// Gets how many lines of the document are a line, indentation ignored.
+    /// </summary>
+    /// <param name="line">The line.</param>
+    /// <returns>The count.</returns>
+    protected int Count(string line) =>
+        Result.Source.Split('\n').Count(_ => _.Trim() == line);
+
+    /// <summary>
     /// Gets whether the document carries a line, indentation ignored.
     /// </summary>
     /// <param name="line">The line.</param>

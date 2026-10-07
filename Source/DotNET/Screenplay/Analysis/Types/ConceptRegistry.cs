@@ -70,22 +70,28 @@ public class ConceptRegistry
     /// </remarks>
     public bool TryRegister(ITypeSymbol type)
     {
-        if (type.TypeKind == TypeKind.Enum)
+        if (ModelOf(type) is not { } concept)
         {
-            Register(type, new(type.Name, ScreenplayPrimitive.Enum, false, ValuesOf(type), []));
-
-            return true;
+            return false;
         }
 
-        if (type.FindBase(WellKnownTypeNames.ConceptAs) is { } concept)
-        {
-            Register(type, ToConcept(type, concept.TypeArguments[0]));
+        Register(type, concept);
 
-            return true;
-        }
-
-        return false;
+        return true;
     }
+
+    /// <summary>
+    /// Determines whether registering a type would declare it as the concept it is.
+    /// </summary>
+    /// <param name="type">The type to ask about.</param>
+    /// <returns>True when it is a concept whose simple name is free or already declared with the same meaning.</returns>
+    /// <remarks>
+    /// Two concepts sharing a simple name are declared once, so the later one is only faithfully named when the
+    /// declaration already written says the same about it - the same primitive and the same values.
+    /// </remarks>
+    public bool WouldResolveTo(ITypeSymbol type) =>
+        ModelOf(type) is { } concept &&
+        (!_concepts.TryGetValue(concept.Name, out var existing) || IsSameAs(existing, concept));
 
     /// <summary>
     /// Records that a value of a concept carries personally identifiable information.
@@ -114,6 +120,15 @@ public class ConceptRegistry
 
         declared.AddRange(rules);
     }
+
+    /// <summary>
+    /// Determines whether two concepts sharing a name are declared the same way.
+    /// </summary>
+    /// <param name="existing">The concept already declared.</param>
+    /// <param name="concept">The concept arriving under the same name.</param>
+    /// <returns>True when one declaration says what both are.</returns>
+    static bool IsSameAs(ConceptModel existing, ConceptModel concept) =>
+        existing.Primitive == concept.Primitive && existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the values of an enumeration, in declaration order.
@@ -146,6 +161,21 @@ public class ConceptRegistry
     }
 
     /// <summary>
+    /// Gets the concept a type is declared as.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The <see cref="ConceptModel"/>, or <see langword="null"/> when the type is not a concept.</returns>
+    ConceptModel? ModelOf(ITypeSymbol type)
+    {
+        if (type.TypeKind == TypeKind.Enum)
+        {
+            return new(type.Name, ScreenplayPrimitive.Enum, false, ValuesOf(type), []);
+        }
+
+        return type.FindBase(WellKnownTypeNames.ConceptAs) is { } concept ? ToConcept(type, concept.TypeArguments[0]) : null;
+    }
+
+    /// <summary>
     /// Registers a concept, keeping the first declaration of a given name.
     /// </summary>
     /// <param name="type">The type the concept was read from.</param>
@@ -164,7 +194,7 @@ public class ConceptRegistry
             return;
         }
 
-        if (existing.Primitive != concept.Primitive || !existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal))
+        if (!IsSameAs(existing, concept))
         {
             _ambiguous.Add(type.ToDisplayString());
         }

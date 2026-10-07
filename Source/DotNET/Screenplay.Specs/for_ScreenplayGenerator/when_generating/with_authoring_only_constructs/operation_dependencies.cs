@@ -61,6 +61,7 @@ public class operation_dependencies : an_authoring_document
     [Fact] void should_keep_the_literal_member_of_a_batch_with_a_spread() => Result.Source.ShouldContain("produces operation BatchItem");
     [Fact] void should_report_the_batch_spread_for_its_command() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandOperation && diagnostic.Location == "Library.Authors.Registration.Batch").Message.ShouldContain("spread whose contents cannot be read");
     [Fact] void should_register_the_read_concept_during_analysis() => Result.Model.Concepts.Select(concept => concept.Name).ShouldContain("AuthorName");
-    [Fact] void should_not_leave_an_orphan_concept_after_dropping_the_read() => Result.Source.Contains("concept AuthorName", StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_keep_the_read_concept_for_the_read_model_holding_it_after_dropping_the_read() => Result.Source.Split('\n').Select(line => line.Trim()).ShouldContain("readmodel AuthorState");
+    [Fact] void should_type_the_read_model_by_the_concept_it_keeps() => Result.Source.Split('\n').Select(line => line.Trim()).ShouldContain("name AuthorName");
     [Fact] void should_analyze_valid_source() => Compiled.Success.ShouldBeTrue();
 }

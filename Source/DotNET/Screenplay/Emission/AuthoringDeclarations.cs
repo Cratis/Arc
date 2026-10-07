@@ -86,7 +86,8 @@ public static class AuthoringDeclarations
         .Concat(model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Properties).Select(property => property.Type.Name))
         .Concat(model.Slices.SelectMany(slice => slice.Queries).SelectMany(query => query.Filters.Concat(query.By is { } by ? [by] : [])
             .Select(property => property.Type.Name).Prepend(query.ReturnType.Name)))
-        .Concat(model.Slices.SelectMany(slice => slice.Screens).SelectMany(screen => screen.Data).Select(data => data.Type.Name));
+        .Concat(model.Slices.SelectMany(slice => slice.Screens).SelectMany(screen => screen.Data).Select(data => data.Type.Name))
+        .Concat(model.Slices.SelectMany(slice => slice.ReadModels).SelectMany(readModel => readModel.Properties).Select(property => property.Type.Name));
 
     static bool ReferencesRead(string path, HashSet<string> aliases) => aliases.Contains(path.Split('.')[0]);
 

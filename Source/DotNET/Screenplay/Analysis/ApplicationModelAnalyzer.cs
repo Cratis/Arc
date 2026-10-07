@@ -8,6 +8,7 @@ using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -71,7 +72,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var slices = ReadModelPlacement.Place(
             Specified(projects, joined, diagnostics, new HeldValues(whole.Models)),
             whole.ReadModels,
-            new PropertyReader(whole.Types),
+            whole.Types,
+            new ScreenplayNaming(),
             diagnostics);
 
         // Placing a read model reads what it holds, which can reach a type the document cannot name, so what cannot

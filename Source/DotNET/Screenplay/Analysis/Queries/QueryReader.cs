@@ -122,7 +122,22 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             required is null ? null : ToParameter(required),
             [.. parameters.Where(_ => !SymbolEqualityComparer.Default.Equals(_, required)).Select(ToParameter)],
             AuthorizationReader.Read(method, declaring),
-            QueryReturnTypes.IsObservable(method.ReturnType));
+            QueryReturnTypes.IsObservable(method.ReturnType))
+        {
+            ReturnTypeFullName = FullNameOfWhatItReturns(method)
+        };
+    }
+
+    /// <summary>
+    /// Gets the full name of the type a query returns, every wrapper saying how it arrives stripped.
+    /// </summary>
+    /// <param name="method">The method exposing the query.</param>
+    /// <returns>The full name.</returns>
+    static string FullNameOfWhatItReturns(IMethodSymbol method)
+    {
+        var collection = false;
+
+        return UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection)).ToDisplayString();
     }
 
     /// <summary>

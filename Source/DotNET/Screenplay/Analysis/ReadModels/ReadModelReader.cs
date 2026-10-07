@@ -37,6 +37,7 @@ public class ReadModelReader(SourcePaths paths, ReadModelCatalog catalog)
         catalog.Declare(fullName, new(named, new(named.Name, [])
         {
             Namespace = named.Namespace(),
+            FullName = fullName,
             Description = Documentation.SummaryOf(named),
             File = PortablePathOf(named)
         }));

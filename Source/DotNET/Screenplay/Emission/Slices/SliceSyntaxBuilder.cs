@@ -57,26 +57,14 @@ public class SliceSyntaxBuilder(
     public IReadOnlyList<CommandReadModel> AuthoringReadModels { get; set; } = [];
 
     /// <summary>
-    /// Gets the name of every read model a slice of the document declares, which an authoring-only read does not
-    /// declare a second time.
+    /// Gets every read model the document declares, decided once for the whole document by
+    /// <see cref="ReadModelDeclarations"/>.
     /// </summary>
-    public IReadOnlySet<string> PlacedReadModels { get; init; } = new HashSet<string>(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Gets the name of every type a property of a read model can be typed by - the primitives, the concepts and the
-    /// types the document declares.
-    /// </summary>
-    public IReadOnlySet<string> KnownTypes { get; init; } = new HashSet<string>(ConceptSyntax.PrimitiveTypes, StringComparer.Ordinal);
-
-    /// <summary>
-    /// Gets the names the document's concepts and types already use, which a read model cannot be declared under.
-    /// </summary>
-    public IReadOnlySet<string> TakenNames { get; init; } = new HashSet<string>(StringComparer.Ordinal);
-
-    /// <summary>
-    /// Gets the diagnostics a read model that cannot be declared is reported to.
-    /// </summary>
-    public ScreenplayDiagnostics? Diagnostics { get; init; }
+    /// <remarks>
+    /// A read model placed in a slice is declared only when it is among these, and an authoring-only <c>reads</c>
+    /// declares a read model a second time only when it is not.
+    /// </remarks>
+    public IReadOnlySet<ReadModelModel> DeclaredReadModels { get; init; } = new HashSet<ReadModelModel>();
 
     /// <summary>
     /// Builds the slice declaration.
@@ -126,16 +114,15 @@ public class SliceSyntaxBuilder(
     /// <param name="slice">The slice to build for.</param>
     /// <returns>The read models, ordered by name.</returns>
     /// <remarks>
-    /// A read model placed in the slice is declared only when the document can say what it holds: its name must not be
-    /// one a concept or a type already declares, and every property has to be typed by something the document
-    /// declares. Anything else would name a shape that is not the application's, so the read model is left out and
-    /// whatever builds or reads it keeps naming it exactly as it did before read models were declared. A read model an
-    /// authoring-only <c>reads</c> needs, that no slice declares, is declared in the slice its type is written in.
+    /// A read model placed in the slice is declared when the document declares it at all (see
+    /// <see cref="DeclaredReadModels"/>). One the document leaves out is named by whatever builds or reads it exactly
+    /// as it was before read models were declared. A read model an authoring-only <c>reads</c> needs, that the
+    /// document declares nowhere, is declared in the slice of the projection building it.
     /// </remarks>
     IEnumerable<ReadModelSyntax> BuildReadModels(SliceModel slice)
     {
         var placed = slice.ReadModels
-            .Where(readModel => IsDeclarable(readModel, slice.Namespace))
+            .Where(DeclaredReadModels.Contains)
             .Select(readModel => new ReadModelSyntax(
                 naming.ToDeclarationName(readModel.Name),
                 [.. readModel.Properties.Select(ToProperty)],
@@ -144,45 +131,13 @@ public class SliceSyntaxBuilder(
             {
                 File = naming.ToFilePath(readModel.File) is { } path ? new FileReferenceSyntax(path, SourceLocation.Start) : null
             });
+        var declared = DeclaredReadModels.Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
         var authoring = AuthoringReadModels
-            .Where(read => read.Namespace == slice.Namespace && !PlacedReadModels.Contains(read.Name))
+            .Where(read => read.Namespace == slice.Namespace && !declared.Contains(read.Name))
             .DistinctBy(read => read.Name)
             .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), [.. read.Properties.Select(ToProperty)], SourceLocation.Start));
 
         return [.. placed.Concat(authoring).OrderBy(_ => _.Name, StringComparer.Ordinal)];
-    }
-
-    /// <summary>
-    /// Determines whether a placed read model can be declared, reporting it when it cannot.
-    /// </summary>
-    /// <param name="readModel">The read model to check.</param>
-    /// <param name="location">Where the read model is placed, for use in diagnostics.</param>
-    /// <returns>True when every name the declaration writes resolves.</returns>
-    bool IsDeclarable(ReadModelModel readModel, string location)
-    {
-        var name = naming.ToDeclarationName(readModel.Name);
-        if (name.Length <= 1 || TakenNames.Contains(name))
-        {
-            Diagnostics?.Information(
-                ScreenplayDiagnosticCodes.UndeclarableReadModel,
-                $"The read model '{readModel.Name}' is not declared, because '{name}' is a name the document already uses for a concept or a type",
-                location);
-
-            return false;
-        }
-
-        var unknown = readModel.Properties.FirstOrDefault(property => !KnownTypes.Contains(types.Convert(property.Type).Name));
-        if (unknown is not null)
-        {
-            Diagnostics?.Information(
-                ScreenplayDiagnosticCodes.UndeclarableReadModel,
-                $"The read model '{readModel.Name}' is not declared, because '{unknown.Name}' is typed by '{unknown.Type.Name}', which the document does not declare",
-                location);
-
-            return false;
-        }
-
-        return true;
     }
 
     /// <summary>

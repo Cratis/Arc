@@ -96,21 +96,41 @@ public static class ScopedApplicationModel
     /// </remarks>
     static IEnumerable<string> ReadModelsDeclaredElsewhere(ApplicationModel model, IReadOnlyList<SliceModel> slices, HashSet<string> within)
     {
-        var declared = slices.SelectMany(_ => _.ReadModels).Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
-        var elsewhere = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var slice in model.Slices.Where(_ => !within.Contains(_.Namespace)))
-        {
-            foreach (var readModel in slice.ReadModels.Where(_ => !declared.Contains(_.Name)))
-            {
-                elsewhere.TryAdd(readModel.Name, $"{slice.Namespace}{Namespaces.Separator}{readModel.Name}");
-            }
-        }
+        var reads = slices.SelectMany(_ => _.Commands).SelectMany(_ => _.Authoring?.Reads ?? []).ToList();
 
-        return slices
-            .SelectMany(slice => slice.Projections.Select(_ => _.ReadModel)
-                .Concat(slice.Queries.Select(_ => _.ReturnType.Name))
-                .Concat(slice.Commands.SelectMany(_ => _.Authoring?.Reads ?? []).Select(_ => _.Name)))
-            .Where(elsewhere.ContainsKey)
-            .Select(_ => elsewhere[_]);
+        // An authoring-only read is declared by the document itself, beside the one projection building it, whenever no
+        // slice of the document declares the read model - so importing it as well would name it twice.
+        var built = slices.SelectMany(_ => _.Projections).GroupBy(_ => _.ReadModel, StringComparer.Ordinal)
+            .Where(_ => _.Count() == 1)
+            .Select(_ => _.Key);
+        var declared = slices.SelectMany(_ => _.ReadModels).Select(_ => _.Name)
+            .Concat(reads.Select(_ => _.Name).Intersect(built, StringComparer.Ordinal))
+            .ToHashSet(StringComparer.Ordinal);
+        var elsewhere = model.Slices
+            .Where(_ => !within.Contains(_.Namespace))
+            .OrderBy(_ => _.Namespace, StringComparer.Ordinal)
+            .ThenBy(_ => _.Name, StringComparer.Ordinal)
+            .SelectMany(slice => slice.ReadModels
+                .Where(_ => !declared.Contains(_.Name))
+                .Select(readModel => (ReadModel: readModel, Import: $"{slice.Namespace}{Namespaces.Separator}{readModel.Name}")))
+            .ToList();
+        var references = slices
+            .SelectMany(slice => slice.Projections.Select(_ => (Name: _.ReadModel, FullName: (string?)null))
+                .Concat(slice.Queries.Select(_ => (_.ReturnType.Name, _.ReturnTypeFullName))))
+            .Concat(reads.Select(_ => (_.Name, _.FullName)));
+
+        return references
+            .SelectMany(reference => elsewhere.Where(_ => Refers(reference, _.ReadModel)).Select(_ => _.Import));
     }
+
+    /// <summary>
+    /// Determines whether a reference names a read model, by full name when both are known.
+    /// </summary>
+    /// <param name="reference">The simple and, when known, full name the reference is written with.</param>
+    /// <param name="readModel">The read model.</param>
+    /// <returns>True when it does.</returns>
+    static bool Refers((string Name, string? FullName) reference, ReadModelModel readModel) =>
+        reference.FullName is not null && readModel.FullName is not null
+            ? reference.FullName == readModel.FullName
+            : reference.Name == readModel.Name;
 }

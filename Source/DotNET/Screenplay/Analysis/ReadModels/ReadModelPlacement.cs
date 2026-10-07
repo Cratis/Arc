@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Analysis.ReadModels;
@@ -21,8 +23,12 @@ namespace Cratis.Arc.Screenplay.Analysis.ReadModels;
 /// <item><description>The slice declaring any other query onto it.</description></item>
 /// <item><description>The slice declaring a command that reads it.</description></item>
 /// </list>
-/// A read model nothing in any slice refers to, and none of whose namespaces is a slice, is left out and said so - as
-/// is one holding a value the document has no type for, since declaring it would name a type nothing introduces.
+/// A read model is left out, and said so, whenever no declaration could be written that says what the application
+/// holds: when its declaration name is shared with another read model, or with another type a query or a command
+/// reads; when nothing in any slice refers to it and none of the slices is its namespace; when its name is one a concept
+/// or a type is declared under; and when a value it holds cannot be typed faithfully (see
+/// <see cref="DeclarableShapes"/>). Whatever builds or reads such a read model names it exactly as it did before read
+/// models were declared at all.
 /// </remarks>
 public static class ReadModelPlacement
 {
@@ -31,31 +37,54 @@ public static class ReadModelPlacement
     /// </summary>
     /// <param name="slices">The slices of the application, joined across every project.</param>
     /// <param name="catalog">The read models the application declares.</param>
-    /// <param name="properties">The <see cref="PropertyReader"/> reading what a placed read model holds.</param>
+    /// <param name="types">The <see cref="TypeRegistry"/> a placed read model registers what it holds with.</param>
+    /// <param name="naming">The <see cref="IScreenplayNaming"/> turning a simple name into the declaration name.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
     /// <returns>The slices, each carrying the read models it declares.</returns>
     public static IReadOnlyList<SliceModel> Place(
         IReadOnlyList<SliceModel> slices,
         ReadModelCatalog catalog,
-        PropertyReader properties,
+        TypeRegistry types,
+        IScreenplayNaming naming,
         ScreenplayDiagnostics diagnostics)
     {
-        foreach (var ambiguous in catalog.Ambiguous)
-        {
-            diagnostics.Information(
-                ScreenplayDiagnosticCodes.UndeclarableReadModel,
-                $"The read model '{ambiguous}' shares its simple name with another read model, and a document refers to a read model by its simple name only, so neither is declared",
-                ambiguous);
-        }
-
         var ordered = slices
             .OrderBy(_ => _.Namespace, StringComparer.Ordinal)
             .ThenBy(_ => _.Name, StringComparer.Ordinal)
             .ToList();
+        var candidates = catalog.All.ToList();
+        var byName = candidates
+            .GroupBy(_ => naming.ToDeclarationName(_.Shape.Name), StringComparer.Ordinal)
+            .ToDictionary(_ => _.Key, _ => _.ToList(), StringComparer.Ordinal);
+        var readElsewhere = ReadTypes(ordered).ToList();
+        var shapes = new DeclarableShapes(types, byName.Keys.ToHashSet(StringComparer.Ordinal), naming);
+        var properties = new PropertyReader(types);
         var placed = new Dictionary<SliceModel, List<ReadModelModel>>(ReferenceEqualityComparer.Instance);
 
-        foreach (var (type, shape) in catalog.Unambiguous)
+        foreach (var (type, shape) in candidates)
         {
+            var name = naming.ToDeclarationName(shape.Name);
+            var location = shape.FullName ?? shape.Name;
+            if (byName[name] is { Count: > 1 } sharing)
+            {
+                diagnostics.Information(
+                    ScreenplayDiagnosticCodes.UndeclarableReadModel,
+                    $"The read model '{location}' is declared as '{name}', as are {string.Join(", ", sharing.Where(_ => _.Shape != shape).Select(_ => $"'{_.Shape.FullName}'"))}, and a document refers to a read model by that name only, so none of them is declared",
+                    location);
+
+                continue;
+            }
+
+            if (readElsewhere.Find(_ => naming.ToDeclarationName(_.Name) == name && !string.Equals(_.FullName, shape.FullName, StringComparison.Ordinal)) is { FullName: { } other })
+            {
+                diagnostics.Information(
+                    ScreenplayDiagnosticCodes.UndeclarableReadModel,
+                    $"The read model '{location}' is declared as '{name}', and '{other}' is read under the same name by a query or a command, so the read model is not declared",
+                    location);
+
+                continue;
+            }
+
             var slice = SliceOf(shape, ordered);
             if (slice is null)
             {
@@ -67,11 +96,21 @@ public static class ReadModelPlacement
                 continue;
             }
 
-            if (DeclarableShapes.FirstUndeclarable(type) is { } undeclarable)
+            if (types.Names.Any(_ => naming.ToDeclarationName(_) == name))
             {
                 diagnostics.Information(
                     ScreenplayDiagnosticCodes.UndeclarableReadModel,
-                    $"The read model '{shape.Name}' holds '{undeclarable.Property}' as '{undeclarable.Type}', which the document has no type for, so the read model is not declared",
+                    $"The read model '{shape.Name}' is not declared, because '{name}' is a name the document already uses for a concept or a type",
+                    slice.Namespace);
+
+                continue;
+            }
+
+            if (shapes.FirstUndeclarable(type) is { } undeclarable)
+            {
+                diagnostics.Information(
+                    ScreenplayDiagnosticCodes.UndeclarableReadModel,
+                    $"The read model '{shape.Name}' holds '{undeclarable.Property}' {undeclarable.Reason}, so the read model is not declared",
                     slice.Namespace);
 
                 continue;
@@ -90,6 +129,20 @@ public static class ReadModelPlacement
     }
 
     /// <summary>
+    /// Gets every type a query answers with or a command reads, whose full name is known.
+    /// </summary>
+    /// <param name="slices">The slices.</param>
+    /// <returns>The simple and full name of each type.</returns>
+    static IEnumerable<(string Name, string FullName)> ReadTypes(IEnumerable<SliceModel> slices) =>
+        slices.SelectMany(slice => slice.Queries
+            .Where(_ => _.ReturnTypeFullName is not null)
+            .Select(_ => (_.ReturnType.Name, _.ReturnTypeFullName!))
+            .Concat(slice.Commands
+                .SelectMany(_ => _.Authoring?.Reads ?? [])
+                .Where(_ => _.FullName is not null)
+                .Select(_ => (_.Name, _.FullName!))));
+
+    /// <summary>
     /// Finds the slice that declares a read model.
     /// </summary>
     /// <param name="readModel">The read model to place.</param>
@@ -100,7 +153,27 @@ public static class ReadModelPlacement
         slices.Find(slice => slice.Projections.Any(projection => projection.ReadModel == readModel.Name)) ??
         slices.Find(slice => slice.Namespace == readModel.Namespace) ??
         slices.Find(slice => slice.Queries.Any(query => Answers(query, readModel))) ??
-        slices.Find(slice => slice.Commands.Any(command => command.Authoring?.Reads.Any(read => read.Name == readModel.Name) == true));
+        slices.Find(slice => slice.Commands.Any(command => command.Authoring?.Reads.Any(read => Reads(read, readModel)) == true));
 
-    static bool Answers(QueryModel query, ReadModelModel readModel) => query.ReturnType.Name == readModel.Name;
+    /// <summary>
+    /// Determines whether a query answers with a read model, by full name when both are known.
+    /// </summary>
+    /// <param name="query">The query.</param>
+    /// <param name="readModel">The read model.</param>
+    /// <returns>True when it does.</returns>
+    static bool Answers(QueryModel query, ReadModelModel readModel) =>
+        query.ReturnTypeFullName is not null && readModel.FullName is not null
+            ? query.ReturnTypeFullName == readModel.FullName
+            : query.ReturnType.Name == readModel.Name;
+
+    /// <summary>
+    /// Determines whether a command reads a read model, by full name when both are known.
+    /// </summary>
+    /// <param name="read">The read.</param>
+    /// <param name="readModel">The read model.</param>
+    /// <returns>True when it does.</returns>
+    static bool Reads(CommandReadModel read, ReadModelModel readModel) =>
+        read.FullName is not null && readModel.FullName is not null
+            ? read.FullName == readModel.FullName
+            : read.Name == readModel.Name;
 }

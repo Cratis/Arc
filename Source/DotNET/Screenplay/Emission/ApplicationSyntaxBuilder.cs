@@ -190,10 +190,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics })
         {
             InlineEvents = inlineEvents,
-            PlacedReadModels = model.Slices.SelectMany(slice => slice.ReadModels).Select(readModel => readModel.Name).ToHashSet(StringComparer.Ordinal),
-            KnownTypes = ConceptSyntax.PrimitiveTypes.Concat(declared).ToHashSet(StringComparer.Ordinal),
-            TakenNames = declared.ToHashSet(StringComparer.Ordinal),
-            Diagnostics = diagnostics
+            DeclaredReadModels = new ReadModelDeclarations(naming, _types, declared, diagnostics).Of(model.Slices)
         };
 
     List<EventSourceSyntax> BuildEventSources(ApplicationModel model) => model.Slices.SelectMany(slice => slice.Commands)

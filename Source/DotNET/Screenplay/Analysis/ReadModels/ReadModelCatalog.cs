@@ -9,8 +9,9 @@ namespace Cratis.Arc.Screenplay.Analysis.ReadModels;
 /// <remarks>
 /// A read model is reached from more than one place - the <c>[ReadModel]</c> type itself, the projection building it
 /// and the reducer folding into it - and from more than one project, so the same type arrives several times and is
-/// kept once. Two different types sharing a simple name are a different matter: the document refers to a read model
-/// by its simple name only, so neither can be declared without the other's references resolving to it.
+/// kept once. Two different types sharing a declaration name are a different matter, decided by
+/// <see cref="ReadModelPlacement"/>: the document refers to a read model by that name only, so neither can be declared
+/// without the other's references resolving to it.
 /// <para>
 /// What a read model holds is not read here. Reading a property commits the document to declaring the concepts and
 /// shapes it reaches, and that is only true of a read model the document goes on to declare - which is decided once
@@ -22,27 +23,14 @@ public class ReadModelCatalog
     readonly Dictionary<string, ReadModelCandidate> _byFullName = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// Gets every read model whose simple name no other read model shares, ordered by name.
+    /// Gets every read model, ordered by name and then by full name.
     /// </summary>
-    public IEnumerable<ReadModelCandidate> Unambiguous =>
-    [
-        .. _byFullName.Values
-            .GroupBy(_ => _.Shape.Name, StringComparer.Ordinal)
-            .Where(_ => _.Count() == 1)
-            .Select(_ => _.Single())
-            .OrderBy(_ => _.Shape.Name, StringComparer.Ordinal)
-    ];
-
-    /// <summary>
-    /// Gets the full names of every read model sharing its simple name with another one, ordered.
-    /// </summary>
-    public IEnumerable<string> Ambiguous =>
+    public IEnumerable<ReadModelCandidate> All =>
     [
         .. _byFullName
-            .GroupBy(_ => _.Value.Shape.Name, StringComparer.Ordinal)
-            .Where(_ => _.Count() > 1)
-            .SelectMany(_ => _.Select(entry => entry.Key))
-            .Order(StringComparer.Ordinal)
+            .OrderBy(_ => _.Value.Shape.Name, StringComparer.Ordinal)
+            .ThenBy(_ => _.Key, StringComparer.Ordinal)
+            .Select(_ => _.Value)
     ];
 
     /// <summary>
