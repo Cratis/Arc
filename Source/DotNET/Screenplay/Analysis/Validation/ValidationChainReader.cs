@@ -38,6 +38,14 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
     /// </summary>
     public const string Unless = "Unless";
 
+    static readonly HashSet<string> _modifiers = new(StringComparer.Ordinal)
+    {
+        "WithErrorCode", "WithSeverity", "WithName", "OverridePropertyName", "WithState",
+        "Configure", "DependentRules", "Cascade", "OnFailure", "OnAnyFailure", "WhenAsync", "UnlessAsync"
+    };
+    static readonly HashSet<string> _conditions = new(StringComparer.Ordinal) { When, Unless, "WhenAsync", "UnlessAsync" };
+    static readonly HashSet<string> _conditionalBlocks = new(StringComparer.Ordinal) { When, Unless, "WhenAsync", "UnlessAsync", "Otherwise", "DependentRules" };
+
     readonly ValidationOperands _operands = new(diagnostics);
 
     /// <summary>
@@ -76,16 +84,26 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
 
         var preceding = 0;
+        var conditional = IsConditional(chain);
 
         foreach (var call in chain.Calls)
         {
-            var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding);
+            var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding, conditional);
             if (added != 0)
             {
                 preceding = Math.Max(0, added);
             }
         }
     }
+
+    static bool IsConditional(InvocationChain chain) =>
+        chain.Calls.Any(call => _conditions.Contains(InvocationChain.NameOf(call))) ||
+        chain.Root.Ancestors().Any(node => node is IfStatementSyntax or SwitchStatementSyntax or ConditionalExpressionSyntax or
+            ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax || IsConditionalBlock(node));
+
+    static bool IsConditionalBlock(SyntaxNode node) => node is InvocationExpressionSyntax invocation &&
+        _conditionalBlocks.Contains(invocation.Expression is IdentifierNameSyntax identifier
+            ? identifier.Identifier.ValueText : InvocationChain.NameOf(invocation));
 
     /// <summary>
     /// Reads one call of a rule chain.
@@ -97,7 +115,8 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
     /// <param name="location">Where the validator lives, for use in diagnostics.</param>
     /// <param name="rules">The rules collected so far.</param>
     /// <param name="preceding">The number of rules the call before this one declared.</param>
-    /// <returns>The number of rules the call added.</returns>
+    /// <param name="conditional">Whether the chain executes conditionally.</param>
+    /// <returns>The number of rules the call added, or minus one for an omitted validator.</returns>
     int ReadCall(
         InvocationExpressionSyntax call,
         string property,
@@ -105,7 +124,8 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         SemanticModel semanticModel,
         string location,
         IList<ValidationRuleModel> rules,
-        int preceding)
+        int preceding,
+        bool conditional)
     {
         var name = InvocationChain.NameOf(call);
 
@@ -138,9 +158,29 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             predicate.SourceFilePath() is { } source && !GeneratedSource.Is(source) &&
             paths?.Relative(source) is { } path && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal))
         {
+            if (conditional)
+            {
+                diagnostics.Warning(
+                    ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                    $"The named rule '{predicate.Name}' on '{property}' executes conditionally, but a named rule carries no condition, so it was left out",
+                    location);
+
+                return -1;
+            }
+
             rules.Add(new(property, ValidationRuleKind.Rule, predicate.Name, null) { SourceFilePath = path });
 
             return 1;
+        }
+
+        if (_modifiers.Contains(name))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                $"The '{name}' modifier on '{property}' has no declarative counterpart; it adds no validator to this chain, so it does not change which rule a following message belongs to",
+                location);
+
+            return 0;
         }
 
         if (!ValidationRuleKinds.TryResolve(name, forEach, out var kind))
@@ -175,7 +215,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
     void ReportCondition(InvocationExpressionSyntax call, string name, string property, string location) =>
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.UnmappableValidationRule,
-            $"The rules on '{property}' are held to '{name}{call.ArgumentList}', and a rule carries no condition, so they are stated as though nothing held them",
+            $"The rules on '{property}' are held to '{name}{call.ArgumentList}', and a rule carries no condition; retained declarative rules are stated as though nothing held them, while conditional named predicates are left out",
             location);
 
     /// <summary>

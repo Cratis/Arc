@@ -219,7 +219,11 @@ Several candidates produce `SP0049`; an unreadable or optional identity produces
 
 An event's XML `<summary>` becomes its `description`; `<remarks>` becomes a Markdown documentation block. References such as `<see cref="AuthorId"/>` retain their names in backticks. Remarks containing a Markdown fence are left out with `SP0014`, because the fence cannot be nested. A generation-1 `[EventType("PreviousName")]` whose persisted name differs from the current type name emits `id "PreviousName"`. Later generations still report `SP0014` and do not emit a rename pin.
 
-A top-level property rule written as `.Must(IsKnownName)` becomes a named `rule IsKnownName` with a repository-relative `file` referencing the predicate's source. Its method name is preserved. Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes remain omitted with `SP0016`; a message following an omitted rule does not attach to the rule before it.
+An unconditional top-level property rule written as `.Must(IsKnownName)` can become a named `rule IsKnownName` with a repository-relative `file` referencing the predicate's source. Its method name is preserved. A predicate held to `When`, `Unless`, or an enclosing conditional rule block stays omitted with `SP0016`: emitting it without its condition would state a different rule.
+
+Named rules are opaque to reference execution. The generator withholds them when a successful scenario exercises the affected command, preserving the scenario's legacy declarative behavior instead of changing it to `SemanticUnsupported`. For a concept rule, this includes every command carrying that concept, directly or through nested composite properties and collections. `SP0016` names the command or concept and the successful scenario commands that caused the omission. This safeguard applies in both default and authoring-only mode; rejection scenarios alone do not prevent a named rule from being emitted.
+
+Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
 
 ## The scenarios a slice is specified by
 

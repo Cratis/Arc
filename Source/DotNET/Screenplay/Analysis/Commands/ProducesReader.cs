@@ -88,7 +88,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     }
 
     /// <summary>
-    /// Removes productions the source declared more than once, keeping the first.
+    /// Removes productions the source declared more than once, conservatively merging their eligibility flags.
     /// </summary>
     /// <param name="produces">The productions to reduce.</param>
     /// <returns>The distinct productions.</returns>
@@ -98,9 +98,18 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
 
         foreach (var production in produces)
         {
-            if (!kept.Exists(existing => IsSame(existing, production)))
+            var index = kept.FindIndex(existing => IsSame(existing, production));
+            if (index < 0)
             {
                 kept.Add(production);
+            }
+            else
+            {
+                kept[index] = kept[index] with
+                {
+                    CanInline = kept[index].CanInline && production.CanInline,
+                    UsesCommandContext = kept[index].UsesCommandContext && production.UsesCommandContext
+                };
             }
         }
 
@@ -117,9 +126,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         string.Equals(left.EventName, right.EventName, StringComparison.Ordinal) &&
         Equals(left.When, right.When) &&
         left.Mappings.SequenceEqual(right.Mappings) &&
-        left.EventTypeIdentity == right.EventTypeIdentity &&
-        left.CanInline == right.CanInline &&
-        left.UsesCommandContext == right.UsesCommandContext;
+        left.EventTypeIdentity == right.EventTypeIdentity;
 
     /// <summary>
     /// Reads every event constructed within one handler body.

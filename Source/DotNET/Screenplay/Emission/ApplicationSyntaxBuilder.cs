@@ -61,6 +61,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model));
         }
 
+        model = new ExecutableValidationRules(diagnostics).Apply(model);
+
         var domain = ToName(model.Domain, options.Domain);
         var modules = BuildModules(model, options, domain);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
