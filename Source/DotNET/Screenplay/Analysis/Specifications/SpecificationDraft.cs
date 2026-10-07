@@ -54,12 +54,7 @@ public class SpecificationDraft
     /// <summary>
     /// Gets the occurrence sources being compared while an event scenario is read.
     /// </summary>
-    internal SpecificationEventSources EventSources { get; } = new();
-
-    /// <summary>
-    /// Gets or sets whether every rejection assertion names validation or authorization rather than a destination-dependent outcome.
-    /// </summary>
-    internal bool HasOnlySourceIndependentRejections { get; set; }
+    internal SpecificationEventSources EventSources { get; init; } = new();
 
     /// <summary>
     /// Records why a scenario cannot be read.

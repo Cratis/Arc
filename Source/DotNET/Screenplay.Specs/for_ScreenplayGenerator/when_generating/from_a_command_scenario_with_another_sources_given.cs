@@ -2,11 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
-using Cratis.Screenplay.Semantics.Execution;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_a_command_scenario_with_another_sources_given : a_generated_document
+public partial class from_a_command_scenario_with_another_sources_given : a_generated_document
 {
     const string Slice = """
         using Cratis.Arc.Commands.ModelBound;
@@ -74,12 +73,12 @@ public class from_a_command_scenario_with_another_sources_given : a_generated_do
         AssertOmitted();
     }
 
-    [Fact] void should_keep_an_undecidable_source_without_an_emitted_identifier()
+    [Fact] void should_omit_an_undecidable_source_without_an_emitted_identifier()
     {
         GenerateScenario(Slice.Replace("[Key] string Id, ", string.Empty, StringComparison.Ordinal), Scenario
             .Replace("RegisterAuthor(\"current\", ", "RegisterAuthor(", StringComparison.Ordinal)
             .Replace("ForEventSource(\"other\")", "ForEventSource(EventSourceId.New())", StringComparison.Ordinal));
-        AssertImplicitSource();
+        AssertOmitted();
     }
 
     [Fact] void should_keep_equal_literals_as_the_implicit_own_source()
@@ -156,14 +155,10 @@ public class from_a_command_scenario_with_another_sources_given : a_generated_do
         AssertImplicitSource(runtimeIdentity: true);
     }
 
-    [Fact] void should_keep_an_undecidable_computed_source_for_a_validation_rejection()
+    [Fact] void should_omit_an_undecidable_computed_source_for_a_validation_rejection()
     {
         GenerateValidationScenario();
-        AssertImplicitSource();
-        Result.Source.ShouldContain("then error");
-        var plan = SemanticExecutionPlan.Compile(Bound.Value!.Model).Plan!;
-        var run = new SemanticSpecificationRunner().Run(plan, plan.Specifications.Values.Single().Id);
-        Assert.True(run.Passed, string.Join(Environment.NewLine, run.Failures));
+        AssertOmitted();
     }
 
     [Fact] void should_omit_an_undecidable_computed_source_for_a_constraint_rejection()
@@ -239,7 +234,9 @@ public class from_a_command_scenario_with_another_sources_given : a_generated_do
     void AssertOmitted()
     {
         Result.Source.ShouldNotContain("specification");
-        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeTrue();
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification &&
+            diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning &&
+            diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldBeTrue();
         AssertDocument();
     }
 }

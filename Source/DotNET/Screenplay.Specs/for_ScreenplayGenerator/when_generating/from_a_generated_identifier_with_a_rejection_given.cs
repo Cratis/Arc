@@ -46,15 +46,14 @@ public class from_a_generated_identifier_with_a_rejection_given : a_generated_do
             ("Library/Authors/Registration/when_registering/and_the_name_is_claimed.cs", Scenario));
     }
 
-    [Fact] void should_keep_the_rejection_scenario() => Result.Source.ShouldContain("specification WhenRegisteringAndTheNameIsClaimed");
-    [Fact] void should_keep_the_given() => Result.Source.ShouldContain("given AuthorRegistered");
-    [Fact] void should_keep_the_given_name() => Result.Source.ShouldContain("name = \"Claimed\"");
-    [Fact] void should_keep_the_rejection() => Result.Source.ShouldContain("then error \"unique-author-name\"");
+    [Fact] void should_omit_the_scenario_whose_given_is_not_on_the_commands_allocated_source() => Result.Source.ShouldNotContain("specification WhenRegisteringAndTheNameIsClaimed");
     [Fact] void should_keep_the_legacy_production() => Result.Source.ShouldContain("produces AuthorRegistered");
     [Fact] void should_withhold_generation() => Result.Source.ShouldNotContain("generated");
     [Fact] void should_withhold_the_identifier() => Result.Source.ShouldNotContain("identifier");
     [Fact] void should_withhold_the_response() => Result.Source.ShouldNotContain("returns");
-    [Fact] void should_not_drop_the_scenario() => Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
+    [Fact] void should_explain_why_the_sources_cannot_be_stated_faithfully() => Result.Diagnostics.Any(diagnostic =>
+        diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification && diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning &&
+        diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_explain_why_generation_was_withheld() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("RegisterAuthor", StringComparison.Ordinal) && diagnostic.Message.Contains("explicit given event sources", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_bind_and_round_trip() => AssertDocument();
 }

@@ -17,7 +17,7 @@ public class from_success_scenarios_with_named_rules : a_generated_document
             using FluentValidation;
             namespace Library.Authors.Registration;
             [EventType] public record AuthorRegistered(string Name);
-            [Command] public record RegisterAuthor(string Name)
+            [Command] public record RegisterAuthor([Cratis.Chronicle.Keys.Key] string Id, string Name)
             {
                 public AuthorRegistered Handle() => new(Name);
             }
@@ -41,7 +41,7 @@ public class from_success_scenarios_with_named_rules : a_generated_document
             public class and_a_name_is_supplied
             {
                 readonly CommandScenario<RegisterAuthor> _scenario = new();
-                async Task Because() => await _scenario.Execute(new RegisterAuthor("Apollo"));
+                async Task Because() => await _scenario.Execute(new RegisterAuthor("author", "Apollo"));
                 [Fact] void should_register_the_author() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == "Apollo");
             }
             """;

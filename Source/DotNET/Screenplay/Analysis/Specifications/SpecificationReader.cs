@@ -78,7 +78,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
         var readModel = SpecificationMembers.ReadModelOf(steps);
-        var draft = new SpecificationDraft();
+        var draft = new SpecificationDraft { EventSources = new(models) };
         var stated = new ScreenplayDiagnostics();
 
         var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)));
@@ -143,8 +143,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
             {
                 CommandIdentifier = draft.EventSources.CommandIdentifier,
                 HasExplicitCommandSources = draft.EventSources.HasExplicitCommandSources,
-                HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources,
-                HasOnlySourceIndependentRejections = draft.HasOnlySourceIndependentRejections
+                HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources
             });
         return specification;
     }

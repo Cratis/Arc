@@ -13,16 +13,17 @@ public class from_a_success_scenario_with_command_values : a_generated_document
     [InlineData("public (AuthorId, AuthorRegistered) Handle() { var authorId = new AuthorId(Guid.NewGuid()); return (authorId, new(Name)); }", true)]
     [InlineData("public (AuthorRegistered, string) Handle() => (new(Name), Name);", true)]
     [InlineData("public (AuthorRegistered, string) Handle() => (new(Name), Name.ToUpperInvariant());", true)]
-    public void should_keep_legacy_productions_and_success_scenarios(string handler, bool responseAssertion)
+    public void should_keep_legacy_productions_but_omit_unrepresentable_scenario_sources(string handler, bool responseAssertion)
     {
         GenerateScenario(handler, responseAssertion);
-        Result.Source.ShouldContain("specification WhenRegisteringAndANameIsSupplied");
-        Result.Source.ShouldContain("then AuthorRegistered");
+        Result.Source.ShouldNotContain("specification WhenRegisteringAndANameIsSupplied");
         Result.Source.ShouldContain("produces AuthorRegistered");
         Result.Source.ShouldNotContain("generated");
         Result.Source.ShouldNotContain("returns");
         Result.Source.ShouldNotContain("for authorId");
-        Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification &&
+            diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning &&
+            diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldBeTrue();
         if (!handler.Contains("ToUpperInvariant", StringComparison.Ordinal))
         {
             Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("withheld to keep successful scenarios", StringComparison.Ordinal)).ShouldBeTrue();

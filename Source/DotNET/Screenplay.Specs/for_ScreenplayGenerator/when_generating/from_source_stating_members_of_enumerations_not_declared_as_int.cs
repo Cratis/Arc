@@ -35,7 +35,7 @@ public class from_source_stating_members_of_enumerations_not_declared_as_int : S
         public record SigningPrioritized(Urgency Urgency, Weight Weight);
 
         [Command]
-        public record PrioritizeSigning(Urgency Urgency, Weight Weight)
+        public record PrioritizeSigning([Cratis.Chronicle.Keys.Key] string Id, Urgency Urgency, Weight Weight)
         {
             public SigningPrioritized Handle() => new(Urgency, Weight);
         }
@@ -55,7 +55,7 @@ public class from_source_stating_members_of_enumerations_not_declared_as_int : S
         {
             readonly CommandScenario<PrioritizeSigning> _scenario = new();
 
-            async Task Because() => await _scenario.Execute(new PrioritizeSigning((Urgency)1, (Weight)2));
+            async Task Because() => await _scenario.Execute(new PrioritizeSigning("signing", (Urgency)1, (Weight)2));
 
             [Fact] Task should_prioritize_the_signing() => _scenario.EventSequence.ShouldHaveAppendedEvent<SigningPrioritized>(
                 "signing",
@@ -66,7 +66,7 @@ public class from_source_stating_members_of_enumerations_not_declared_as_int : S
         {
             readonly CommandScenario<PrioritizeSigning> _scenario = new();
 
-            async Task Because() => await _scenario.Execute(new PrioritizeSigning(0, 0));
+            async Task Because() => await _scenario.Execute(new PrioritizeSigning("signing", 0, 0));
 
             [Fact] Task should_prioritize_the_signing() => _scenario.EventSequence.ShouldHaveAppendedEvent<SigningPrioritized>(
                 "signing",

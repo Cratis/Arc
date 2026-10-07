@@ -70,18 +70,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
             ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name)
             : null;
-        var sourceIndependentRejection = evidence is { HasUnresolvedCommandSources: true, HasOnlySourceIndependentRejections: true } &&
-            specification.Errors.Any() && !specification.Then.Any() && !specification.AssertsResponse;
         if (evidence is { HasExplicitCommandSources: true } &&
-            command is not null && (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
-            command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier) &&
-            command.Produces.All(production => production.UsesCommandContext) &&
-            (evidence.HasUnresolvedCommandSources || evidence.CommandIdentifier != identifier) &&
-            !sourceIndependentRejection)
+            (evidence.HasUnresolvedCommandSources ||
+             (command is not null && (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
+              command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier) &&
+              command.Produces.All(production => production.UsesCommandContext) && evidence.CommandIdentifier != identifier)))
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because its explicit event sources are not provably the command's own source and cannot be stated as concrete for values beside its emitted identifier",
+                $"The scenario '{specification.Name}' was left out because its event sources cannot be stated faithfully: an explicit source is not provably the command's own source and cannot be stated as a concrete for value",
                 location);
             return null;
         }
@@ -101,11 +98,6 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
 
-        if (sourceIndependentRejection)
-        {
-            specification = specification with { Given = specification.Given.Select(state => state with { For = null }).ToList() };
-        }
-
         var occurrences = specification.Given.Concat(specification.Then)
             .Concat(specification.When is { } action ? [action] : [])
             .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
@@ -119,7 +111,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because its distinct event sources cannot be stated as concrete for values of every producing command's unambiguous required scalar identifier type",
+                $"The scenario '{specification.Name}' was left out because its event sources cannot be stated faithfully as concrete for values of every producing command's unambiguous required scalar identifier type",
                 location);
             return null;
         }

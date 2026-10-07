@@ -47,7 +47,7 @@ public class from_unstable_event_source_symbols : a_generated_document
         Result.Model.Slices.SelectMany(slice => slice.Specifications).Any().ShouldEqual(same);
         Result.Source.ShouldNotContain("specification");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification &&
-            diagnostic.Message.Contains("event sources are not provably the same", StringComparison.Ordinal)).ShouldEqual(!same);
+            diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldEqual(!same);
         AssertDocument();
     }
 

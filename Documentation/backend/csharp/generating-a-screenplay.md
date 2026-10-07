@@ -233,8 +233,10 @@ A `.play` says what a slice does. The Chronicle integration specs in the folder 
 slice StateChange Registration
 
   command RegisterAuthor
+    id String identifier
     name String
     produces AuthorRegistered
+      for id
       name = name
 
   event AuthorRegistered
@@ -247,6 +249,7 @@ slice StateChange Registration
       id = "author"
       name = "Jane Austen"
     when RegisterAuthor
+      id = "author"
       name = "Jane Austen"
     then error "unique-author-name"
 ```
@@ -257,11 +260,15 @@ slice StateChange Registration
 
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
-Concrete event-scenario source arguments are emitted as indented `for` values on `given`, `when append`, and event `then` blocks, separately from payload properties, only when every producing command retains the same required scalar identifier type and the values fit that type. A `Uuid` destination requires a canonical lowercase GUID string. When a source cannot be typed this way, a scenario sharing one source remains implicit; distinct sources take the scenario out with `SP0039`. A shared symbolic source can also remain implicit. Sources that are neither provably the same symbol nor concrete values the document can state take the scenario out with `SP0039`; separate calls to `EventSourceId.New()` are not the same source.
+A generated scenario must say the same thing as the code. Screenplay assumes a source-less command scenario's `given` events belong to the command's own source. An event seeded or asserted on another source must state that source as an indented `for <value>` on its `given`, event `then`, or `when append` block. If the generator cannot state it faithfully, it omits the whole scenario with `SP0039` (Warning), including validation-only and authorization rejections. A command without an emitted identifier is not an exception: explicit sources cannot be collapsed into one implicit source unless they are provably the same as the command's source.
+
+Concrete sources can be stated only when every producing command retains the same required scalar identifier type and the values fit that type. A `Uuid` destination requires a canonical lowercase GUID string. Stable fields and properties with a single constant initializer are followed one hop; equal values, including constant-wrapped identities, remain implicit when they match the command's source. An event scenario sharing one source can also remain implicit when that source cannot be typed. Distinct or undecidable sources that cannot be stated take the scenario out with `SP0039`; separate calls to `EventSourceId.New()` are not the same source.
+
+Screenplay cannot yet state event stream type and stream id in scenario occurrences. That language gap is tracked in [Cratis/Screenplay#457](https://github.com/Cratis/Screenplay/issues/457); an event-source `for` value does not state stream metadata.
 
 A rejection the source asserts without naming a reason is written as bare `then error`. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
-The generator does not yet recover `then returns` expectations. When a command does not emit `returns`, assertions against `CommandResult.Response` are ignored while the scenario's other outcomes are retained, as in the legacy document. Response-only scenarios remain omitted with `SP0039`. If the emitted command has `returns`, a scenario asserting its response is omitted rather than emitting a partial expectation. In default mode, successful scenarios cause the command's generated values and responses to be withheld with `SP0052`, preserving its legacy productions and scenarios until fixtures are supported. Screenplay requires indented `for <value>` for a generated identifier and `generated <property> = <value>` for other generated values beneath `when`; missing fixtures would execute as `Unsupported(IdentityAllocation)`, not a passing example. Validation and authorization rejection scenarios need no generation fixture because those checks precede generation. When any scenario issuing a command states explicit given event sources, generation and responses are withheld with `SP0052`, including for constraint rejections, so the command and its scenarios keep their legacy form.
+The generator does not yet recover `then returns` expectations. When a command does not emit `returns`, assertions against `CommandResult.Response` are ignored while the scenario's other outcomes are retained, as in the legacy document. Response-only scenarios remain omitted with `SP0039`. If the emitted command has `returns`, a scenario asserting its response is omitted rather than emitting a partial expectation. In default mode, successful scenarios cause the command's generated values and responses to be withheld with `SP0052`, preserving its legacy productions and scenarios until fixtures are supported. Screenplay requires indented `for <value>` for a generated identifier and `generated <property> = <value>` for other generated values beneath `when`; missing fixtures would execute as `Unsupported(IdentityAllocation)`, not a passing example. Validation and authorization rejection scenarios need no generation fixture because those checks precede generation. When any scenario issuing a command states explicit given event sources, generation and responses are withheld with `SP0052`, including for constraint rejections, so the command keeps its legacy form. This does not retain a scenario whose event sources cannot be stated faithfully.
 
 Expect the document to grow. On a real application this roughly doubled it, at about seven lines per scenario.
 

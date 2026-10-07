@@ -11,7 +11,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <summary>
 /// Retains concrete occurrence sources and prevents unrelated computed sources from collapsing into one.
 /// </summary>
-internal class SpecificationEventSources
+/// <param name="sourceModels">The models resolving initializers across specification projects.</param>
+internal class SpecificationEventSources(SemanticModels? sourceModels = null)
 {
     readonly List<Source> _sources = [];
     readonly Dictionary<Compilation, HeldValues> _held = [];
@@ -83,34 +84,25 @@ internal class SpecificationEventSources
         if (_commandScenario)
         {
             HasExplicitCommandSources = true;
+            _sources.Add(source);
             if (_commandSource is { } destination && Same(source, destination))
             {
                 return null;
             }
 
-            if (_commandSource is { } known &&
-                ((source.Literal is not null && known.Literal is not null) || (source.Symbol is not null && known.Symbol is not null)))
-            {
-                if (source.Literal is null)
-                {
-                    draft.CannotRead("its distinct command event source cannot be stated as a concrete for value");
-                }
+            HasUnresolvedCommandSources |= source.Literal is null;
 
-                return source.Literal;
-            }
-
-            HasUnresolvedCommandSources = true;
-            return null;
+            return source.Literal;
         }
 
         if (source.Unreadable is { } reason)
         {
-            draft.CannotRead(reason);
+            draft.CannotRead($"its event sources cannot be stated faithfully: {reason}");
         }
 
         if (_sources.Exists(previous => !(source.Literal is not null && previous.Literal is not null) && !Same(source, previous)))
         {
-            draft.CannotRead("its event sources are not provably the same and cannot be stated as concrete for values");
+            draft.CannotRead("its event sources cannot be stated faithfully: they are not provably the same and cannot be stated as concrete for values");
         }
 
         _sources.Add(source);
@@ -170,7 +162,7 @@ internal class SpecificationEventSources
             : null;
         if (!_held.TryGetValue(semanticModel.Compilation, out var held))
         {
-            _held[semanticModel.Compilation] = held = new(new SemanticModels([semanticModel.Compilation]));
+            _held[semanticModel.Compilation] = held = new(sourceModels ?? new SemanticModels([semanticModel.Compilation]));
         }
 
         ISymbol? receiver = null;
@@ -195,6 +187,13 @@ internal class SpecificationEventSources
         {
             unreadable = $"its event source '{symbol.Name}' is reassigned or has a computed getter, so repeated references do not prove the same value";
             symbol = null;
+        }
+
+        if (literal is null && symbol is not null && unreadable is null &&
+            held.InitializerOf(symbol, semanticModel.Compilation) is { } initializer &&
+            (sourceModels ?? new SemanticModels([semanticModel.Compilation])).For(initializer.SyntaxTree) is { } initializerModel)
+        {
+            literal = LiteralOf(initializer, initializerModel);
         }
 
         return new(symbol, receiver, literal, unreadable);

@@ -75,6 +75,24 @@ public class HeldValues(SemanticModels models)
     }
 
     /// <summary>
+    /// Gets the single initializer of a stable member, without following another held value.
+    /// </summary>
+    /// <param name="symbol">The member to read.</param>
+    /// <param name="compilation">The compilation containing possible reassignments.</param>
+    /// <returns>The initializer, or null when another write or a computed getter prevents reading it.</returns>
+    internal ExpressionSyntax? InitializerOf(ISymbol symbol, Compilation compilation)
+    {
+        if (symbol is not (IFieldSymbol or IPropertySymbol) || !IsStable(symbol, compilation) ||
+            GivenTo(symbol).Take(2).ToList() is not [var value] || !Unconditional(value))
+        {
+            return null;
+        }
+
+        return symbol.DeclaringSyntaxReferences.Select(reference => DeclaredValueOf(reference.GetSyntax()))
+            .FirstOrDefault(initializer => initializer is not null && initializer.SyntaxTree == value.SyntaxTree && initializer.Span == value.Span);
+    }
+
+    /// <summary>
     /// Gets the expression a declaration gives a value from.
     /// </summary>
     /// <param name="declaration">The declaration to read.</param>
