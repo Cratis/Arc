@@ -90,4 +90,10 @@ assigning `false` opts into anonymous discovery in every environment.
 `Introspection.Roles` now implies authentication on its own instead of needing
 `RequireAuthentication: true`.
 
+If you do not need discovery on deployed hosts, set both `Cratis:Arc:Introspection:Enabled`
+and `Cratis:Arc:Introspection:IdentityDiscovery` to `false`. No discovery routes, enforcement
+checks or exposure warnings remain; `/.cratis/me` is unchanged. See
+[turning off all discovery](../backend/csharp/introspection/index.md#turn-off-all-discovery-in-deployed-environments)
+for appsettings and environment-variable examples.
+
 See [Introspection](../backend/csharp/introspection/index.md#production-access).

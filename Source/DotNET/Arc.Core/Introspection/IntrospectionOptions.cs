@@ -11,9 +11,19 @@ namespace Cratis.Arc.Introspection;
 public class IntrospectionOptions
 {
     /// <summary>
-    /// Gets or sets whether both catalog endpoints are mapped. Defaults to true. Identity discovery is always mapped.
+    /// Gets or sets whether both catalog endpoints are mapped. Defaults to true. Does not control identity discovery.
     /// </summary>
     public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether users, tenants and the identity details schema discovery endpoints are mapped. Defaults to true.
+    /// </summary>
+    /// <remarks>
+    /// Set this and <see cref="Enabled"/> to false to remove every discovery endpoint without evaluating authentication
+    /// enforcement. This does not affect <c>/.cratis/me</c>. Access settings apply only to mapped discovery endpoints;
+    /// role configuration is still validated when discovery is disabled.
+    /// </remarks>
+    public bool IdentityDiscovery { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether callers of the discovery endpoints must be authenticated.
@@ -29,6 +39,10 @@ public class IntrospectionOptions
     /// When it is not set and the host has no way to authenticate callers, such as an ASP.NET Core host without a
     /// default authentication scheme, the discovery endpoints are not mapped outside Development. When it is
     /// <see langword="true"/>, the same host fails at startup instead.
+    /// </para>
+    /// <para>
+    /// Authentication enforcement applies only when <see cref="Enabled"/> or <see cref="IdentityDiscovery"/> is true.
+    /// When both are false, access settings are unused, but role configuration is still validated.
     /// </para>
     /// </remarks>
     public bool RequireAuthentication

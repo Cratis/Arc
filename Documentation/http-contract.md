@@ -579,7 +579,10 @@ are validated - and therefore which configuration governs them - is not.
 - **C#**: `Cratis:Arc:Introspection` controls the discovery routes: `/.cratis/commands`,
   `/.cratis/queries`, `/.cratis/users`, `/.cratis/tenants` and
   `/.cratis/identity-details/schema`. `Enabled` (default `true`) maps or unmaps the two
-  catalog routes. `RequireAuthentication`, when not set, serves the discovery routes
+  catalog routes. `IdentityDiscovery` (default `true`) maps or unmaps users, tenants and
+  the identity-details schema. Set both switches to `false` to remove all discovery routes
+  without discovery authentication enforcement checks or exposure warnings; `/.cratis/me`
+  is unchanged. `RequireAuthentication`, when not set, serves the mapped discovery routes
   anonymously in Development and requires an authenticated caller elsewhere; outside
   Development a host that cannot authenticate callers leaves them unmapped (404). `true`
   requires authentication everywhere and `false` exposes them anonymously everywhere. An

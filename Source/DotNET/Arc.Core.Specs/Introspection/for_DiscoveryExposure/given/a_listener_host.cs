@@ -18,7 +18,7 @@ public class a_listener_host : Specification
     protected HttpStatusCode[] _statuses;
     protected ConcurrentQueue<string> _warnings = new();
 
-    protected async Task RequestDiscovery(string[] args)
+    protected async Task RequestDiscovery(string[] args, Action<ArcOptions>? configureOptions = null)
     {
         using var probe = new TcpListener(IPAddress.Loopback, 0);
         probe.Start();
@@ -30,6 +30,7 @@ public class a_listener_host : Specification
         {
             options.Hosting.ApplicationUrl = address;
             options.IdentityDetailsProvider = typeof(DefaultIdentityDetailsProvider);
+            configureOptions?.Invoke(options);
         });
         var authentication = Substitute.For<IAuthentication>();
         authentication.HasHandlers.Returns(false);

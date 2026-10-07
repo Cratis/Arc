@@ -481,6 +481,7 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "scenarios/use-current-state-in-a-command/chronicle-commands": SnippetContext(
         kind="declaration",
         fixtures=("ledger",),
+        usings=(USING_ARC_VALIDATION, USING_MONADS),
     ),
     "scenarios/use-current-state-in-a-command/pin-read-model": SnippetContext(
         # The Chronicle testing surface lives in Cratis.Arc.Chronicle.Testing; the generated

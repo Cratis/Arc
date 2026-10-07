@@ -11,10 +11,12 @@ The primary consumer of these endpoints is [Lens](/tools/lens/), the Cratis brow
 
 ### Available Endpoints
 
-Normal Arc activation maps these endpoints unless replacements with the same endpoint names already exist, even when no development providers are registered:
+Normal Arc activation maps these endpoints unless `Cratis:Arc:Introspection:IdentityDiscovery` is `false` or replacements with the same endpoint names already exist, even when no development providers are registered:
 
 - `/.cratis/users` — Returns all available development users
 - `/.cratis/tenants` — Returns all available development tenants
+
+Setting `IdentityDiscovery` to `false` also removes the identity-details schema, without changing catalogs or `/.cratis/me`. To remove all discovery endpoints, [turn off both discovery switches](../introspection/index.md#turn-off-all-discovery-in-deployed-environments).
 
 Without providers they return empty arrays. With providers they combine their results. They follow the [discovery access settings](../introspection/index.md#production-access): anonymous in Development, and requiring an authenticated caller everywhere else unless `Cratis:Arc:Introspection:RequireAuthentication` is `false`. Exclude development-only provider implementations from production discovery anyway; an authenticated caller should not see a fixture user list either. A user/tenant list is not proof of authentication or membership.
 

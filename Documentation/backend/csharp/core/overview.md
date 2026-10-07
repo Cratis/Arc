@@ -55,7 +55,7 @@ app.UseCratisArc();
 await app.RunAsync();
 ```
 
-The default listener binds `http://+:5001/`; the [getting-started checkpoint](getting-started.md) uses an explicit loopback URL. Review [anonymous discovery defaults](../introspection/index.md) before exposing the host.
+The default listener binds `http://+:5001/`; the [getting-started checkpoint](getting-started.md) uses an explicit loopback URL. Review [discovery access defaults](../introspection/index.md) before exposing the host.
 
 ## Next steps
 

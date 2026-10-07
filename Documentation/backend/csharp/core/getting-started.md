@@ -106,7 +106,7 @@ Choose integrations only when you need them:
 
 If no endpoints respond, verify `AddCratisArc()`, `UseCratisArc()`, and `RunAsync()` are all present. For listener failures, check the port, OS URL-binding permissions, and `Hosting.ApplicationUrl`. For deployed configuration files, ensure they are copied to the output directory.
 
-Normal activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. Review their anonymous Production defaults before publishing the service. `GET /.cratis/queries` describes discovered performers, not the final route table: this example's `Get` entry reports `/greeting`, matching its `[Path]`. Introspection does not apply all final mapping/deduplication decisions.
+Normal activation also maps [introspection](../introspection/index.md) and [identity discovery](../identity/development-and-topologies.md) endpoints. They are anonymous only in Development by default and require authentication elsewhere; review the [production access settings](../introspection/index.md#production-access) before publishing the service. `GET /.cratis/queries` describes discovered performers, not the final route table: this example's `Get` entry reports `/greeting`, matching its `[Path]`. Introspection does not apply all final mapping/deduplication decisions.
 
 ## Next steps
 

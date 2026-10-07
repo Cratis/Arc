@@ -73,10 +73,25 @@ public class HttpListenerEndpointMapper : IEndpointMapper, IIntrospectionExposur
     public IEnumerable<RouteInfo> Routes => _registeredRoutes;
 
     /// <inheritdoc/>
-    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services) =>
-        (services ?? _services)?.GetService<IAuthentication>()?.HasHandlers != true
-            ? "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler."
-            : null;
+    string? IIntrospectionExposureGuard.FindEnforcementProblem(IServiceProvider? services)
+    {
+        const string problem = "Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler.";
+        var scopeFactory = (services ?? _services)?.GetService<IServiceScopeFactory>();
+        if (scopeFactory is null)
+        {
+            return problem;
+        }
+
+        var scope = scopeFactory.CreateAsyncScope();
+        try
+        {
+            return scope.ServiceProvider.GetService<IAuthentication>()?.HasHandlers != true ? problem : null;
+        }
+        finally
+        {
+            scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
 
     /// <inheritdoc/>
     bool IIntrospectionExposureGuard.TryDeferMapping(Action<IServiceProvider> mapping)

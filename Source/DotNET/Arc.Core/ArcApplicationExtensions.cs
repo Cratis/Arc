@@ -26,7 +26,7 @@ public static class ArcApplicationExtensions
     /// </summary>
     /// <param name="app">The <see cref="ArcApplication"/>.</param>
     /// <returns>The <see cref="ArcApplication"/> for continuation.</returns>
-    /// <exception cref="InvalidIntrospectionConfiguration">Authentication is required but no handler is configured.</exception>
+    /// <exception cref="InvalidIntrospectionConfiguration">Discovery is enabled and authentication is explicitly required, but no handler is configured.</exception>
     public static ArcApplication UseCratisArc(this ArcApplication app)
     {
         if (app.IsCratisArcConfigured)
@@ -35,9 +35,20 @@ public static class ArcApplicationExtensions
         }
 
         var introspection = app.Services.GetRequiredService<IOptions<ArcOptions>>().Value.Introspection;
-        if (introspection.AuthenticationExplicitlyRequired && !app.Services.GetRequiredService<IAuthentication>().HasHandlers)
+        if ((introspection.Enabled || introspection.IdentityDiscovery) && introspection.AuthenticationExplicitlyRequired)
         {
-            throw new InvalidIntrospectionConfiguration("Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler.");
+            var scope = app.Services.CreateAsyncScope();
+            try
+            {
+                if (!scope.ServiceProvider.GetRequiredService<IAuthentication>().HasHandlers)
+                {
+                    throw new InvalidIntrospectionConfiguration("Requiring authentication on the discovery endpoints needs an Arc.Core authentication handler.");
+                }
+            }
+            finally
+            {
+                scope.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
         }
 
         app.EndpointMapper.MapIdentityProviderEndpoint(app.Services);
