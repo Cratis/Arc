@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Emission.Commands;
@@ -71,7 +72,15 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Report(command, location, "Generation and responses were withheld to keep successful scenarios; deterministic generation fixtures and response expectations are not yet recovered, so the command retains its legacy productions or handler reference");
         }
 
-        var legacy = protectedValues.Count > 0 || requiredMapping || preserveScenarios;
+        var preserveExplicitSources = authoring.Generated.Count > 0 && model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
+            specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
+            SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true });
+        if (preserveExplicitSources)
+        {
+            Report(command, location, $"Generation and responses for command '{command.Name}' were withheld to keep scenarios with explicit given event sources; generated identity fixtures are not yet recovered, so the command retains its legacy productions or handler reference");
+        }
+
+        var legacy = protectedValues.Count > 0 || requiredMapping || preserveScenarios || preserveExplicitSources;
         if (requiredMapping)
         {
             Report(command, location, "A required event payload mapping needs an unadmitted generated value; generated values and responses were left in code and the command retains its legacy productions without unreadable mappings");
