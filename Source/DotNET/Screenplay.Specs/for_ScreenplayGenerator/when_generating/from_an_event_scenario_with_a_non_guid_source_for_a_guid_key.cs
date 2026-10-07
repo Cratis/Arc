@@ -13,6 +13,6 @@ public class from_an_event_scenario_with_a_non_guid_source_for_a_guid_key : a_ge
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
     [Fact] void should_keep_the_shared_source_implicit() => Result.Source.ShouldNotContain("for \"current\"");
-    [Fact] void should_keep_the_scenario() => Result.Source.ShouldContain("specification");
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("specification");
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

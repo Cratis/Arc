@@ -41,7 +41,7 @@ public class from_an_event_sequence_append_scenario : a_generated_document
         ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", Scenario),
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
-    [Fact] void should_state_the_append_action() => Result.Source.ShouldContain("when append AuthorRegistered");
-    [Fact] void should_not_drop_the_scenario() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeFalse();
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("when append AuthorRegistered");
+    [Fact] void should_warn_that_no_assertion_remains() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("assertions only restate the appended fact");
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

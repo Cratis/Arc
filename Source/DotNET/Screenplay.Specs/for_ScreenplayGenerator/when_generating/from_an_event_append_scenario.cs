@@ -43,10 +43,10 @@ public class from_an_event_append_scenario : a_generated_document
         ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", Scenario),
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
-    [Fact] void should_state_the_append_action() => Result.Source.ShouldContain("when append AuthorRegistered");
-    [Fact] void should_state_its_payload() => Result.Source.ShouldContain("name = \"Jane Austen\"");
-    [Fact] void should_keep_prior_state() => Result.Source.ShouldContain("name = \"Prior\"");
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("when append AuthorRegistered");
+    [Fact] void should_not_assert_that_the_appended_fact_follows_itself() => Result.Source.ShouldNotContain("then AuthorRegistered");
     [Fact] void should_not_report_the_scenario_as_unrepresentable() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart).ShouldBeFalse();
-    [Fact] void should_not_drop_the_scenario() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeFalse();
+    [Fact] void should_warn_that_no_assertion_remains() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("assertions only restate the appended fact");
+    [Fact] void should_report_a_warning() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

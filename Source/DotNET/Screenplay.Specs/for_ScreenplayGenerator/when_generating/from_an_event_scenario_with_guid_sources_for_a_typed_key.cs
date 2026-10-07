@@ -12,8 +12,8 @@ public class from_an_event_scenario_with_guid_sources_for_a_typed_key : a_genera
         ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", EventAppendSources.With("new EventSourceId(\"11111111-1111-1111-1111-111111111111\")", "new EventSourceId(\"22222222-2222-2222-2222-222222222222\")", "new EventSourceId(\"22222222-2222-2222-2222-222222222222\")")),
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
-    [Fact] void should_state_the_prior_source() => Result.Source.ShouldContain("given AuthorRegistered\n          for \"11111111-1111-1111-1111-111111111111\"");
-    [Fact] void should_state_the_append_source() => Result.Source.ShouldContain("when append AuthorRegistered\n          for \"22222222-2222-2222-2222-222222222222\"");
-    [Fact] void should_state_the_asserted_source() => Result.Source.ShouldContain("then AuthorRegistered\n          for \"22222222-2222-2222-2222-222222222222\"");
+    [Fact] void should_recover_the_prior_source() => Result.Model.Slices.SelectMany(slice => slice.Specifications).Single().Given.Single().For!.Value.ShouldEqual("11111111-1111-1111-1111-111111111111");
+    [Fact] void should_recover_the_append_source() => Result.Model.Slices.SelectMany(slice => slice.Specifications).Single().When!.For!.Value.ShouldEqual("22222222-2222-2222-2222-222222222222");
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("specification");
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

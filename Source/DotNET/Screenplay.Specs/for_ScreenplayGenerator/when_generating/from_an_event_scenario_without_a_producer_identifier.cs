@@ -13,6 +13,6 @@ public class from_an_event_scenario_without_a_producer_identifier : a_generated_
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
     [Fact] void should_keep_the_shared_source_implicit() => Result.Source.ShouldNotContain("for \"current\"");
-    [Fact] void should_keep_the_scenario() => Result.Source.ShouldContain("specification");
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("specification");
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

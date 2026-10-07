@@ -46,6 +46,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         .. specifications
             .Select(WithRepresentableSources)
             .OfType<SpecificationModel>()
+            .Select(WithFollowingAssertions)
+            .OfType<SpecificationModel>()
             .Select(Build)
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
     ];
@@ -105,6 +107,28 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             When = specification.When is { } when ? when with { For = null } : null,
             Then = specification.Then.Select(state => state with { For = null }).ToList()
         };
+    }
+
+    SpecificationModel? WithFollowingAssertions(SpecificationModel specification)
+    {
+        if (specification.When is not { Kind: SpecificationStateKind.Event })
+        {
+            return specification;
+        }
+
+        var remaining = specification.Then.Where(state => !SpecificationOutcomeReader.RestatesAppend(state, specification.When)).ToList();
+        if (remaining.Count == 0 && !specification.Errors.Any())
+        {
+            var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
+                Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
+            Diagnostics?.Warning(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{specification.Name}' was left out because its assertions only restate the appended fact; then events describe facts following the append, and no read-model, query, or error assertion remains",
+                location);
+            return null;
+        }
+
+        return specification with { Then = remaining };
     }
 
     bool CanStateSource(SpecificationStateModel state)

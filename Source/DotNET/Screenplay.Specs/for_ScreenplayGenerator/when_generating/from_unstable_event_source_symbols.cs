@@ -44,8 +44,10 @@ public class from_unstable_event_source_symbols : a_generated_document
         Generate((Analyzed.SlicePath, EventAppendSources.Producer),
             ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", source),
             (IntegrationTesting.Path, IntegrationTesting.Source));
-        Result.Source.Contains("specification", StringComparison.Ordinal).ShouldEqual(same);
-        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldEqual(!same);
+        Result.Model.Slices.SelectMany(slice => slice.Specifications).Any().ShouldEqual(same);
+        Result.Source.ShouldNotContain("specification");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification &&
+            diagnostic.Message.Contains("event sources are not provably the same", StringComparison.Ordinal)).ShouldEqual(!same);
         AssertDocument();
     }
 
@@ -78,7 +80,8 @@ public class from_unstable_event_source_symbols : a_generated_document
             ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", source),
             (IntegrationTesting.Path, IntegrationTesting.Source));
 
-        Result.Source.ShouldContain("specification");
+        Result.Model.Slices.SelectMany(slice => slice.Specifications).ShouldNotBeEmpty();
+        Result.Source.ShouldNotContain("specification");
         AssertDocument();
     }
 }

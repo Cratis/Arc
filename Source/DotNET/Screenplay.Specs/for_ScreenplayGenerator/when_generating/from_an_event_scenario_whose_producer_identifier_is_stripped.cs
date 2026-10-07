@@ -14,7 +14,7 @@ public class from_an_event_scenario_whose_producer_identifier_is_stripped : a_ge
 
     [Fact] void should_strip_the_identifier() => Result.Source.ShouldNotContain("identifier");
     [Fact] void should_keep_the_shared_source_implicit() => Result.Source.ShouldNotContain("for \"current\"");
-    [Fact] void should_keep_the_scenario() => Result.Source.ShouldContain("specification");
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("specification");
     [Fact] void should_report_the_unrepresented_destination() => Result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnrepresentableProductionDestination).ShouldEqual(1);
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }

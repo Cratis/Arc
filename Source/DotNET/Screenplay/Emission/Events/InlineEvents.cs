@@ -10,6 +10,7 @@ namespace Cratis.Arc.Screenplay.Emission.Events;
 /// </summary>
 public class InlineEvents
 {
+    readonly Dictionary<string, EventModel> _declarations;
     readonly Dictionary<ProducesModel, EventModel> _productions = new(ReferenceEqualityComparer.Instance);
     readonly HashSet<EventModel> _events = new(ReferenceEqualityComparer.Instance);
 
@@ -19,6 +20,9 @@ public class InlineEvents
     /// <param name="model">The application, carrying its full producer census even in a scoped document.</param>
     public InlineEvents(ApplicationModel model)
     {
+        _declarations = model.Slices.SelectMany(slice => slice.Events).Where(declaration => declaration.TypeIdentity is not null)
+            .GroupBy(declaration => declaration.TypeIdentity!, StringComparer.Ordinal)
+            .Where(group => group.Count() == 1).ToDictionary(group => group.Key, group => group.Single(), StringComparer.Ordinal);
         var productions = model.Slices.SelectMany(_ => _.Commands).SelectMany(_ => _.Produces).ToList();
         foreach (var slice in model.Slices)
         {
@@ -56,6 +60,14 @@ public class InlineEvents
     /// <param name="event">The event declaration.</param>
     /// <returns>Whether the command declares this event inline.</returns>
     public bool Contains(EventModel @event) => _events.Contains(@event);
+
+    /// <summary>
+    /// Gets the standalone declaration whose property order also governs production mappings.
+    /// </summary>
+    /// <param name="production">The production.</param>
+    /// <returns>The unambiguous event declaration, if known.</returns>
+    internal EventModel? DeclarationFor(ProducesModel production) =>
+        production.EventTypeIdentity is { } identity ? _declarations.GetValueOrDefault(identity) : null;
 
     static bool HasIdentifier(CommandModel command) =>
         (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&

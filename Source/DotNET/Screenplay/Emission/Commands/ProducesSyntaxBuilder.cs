@@ -87,20 +87,30 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     /// A mapping is written onto the property of the event it fills in, so a mapping onto a property the block reads
     /// as a directive of its own is left out for the same reason the property itself is.
     /// </remarks>
-    ProducesSyntax Build(ProducesModel produces, string location, string? identifier) =>
-        new(
+    ProducesSyntax Build(ProducesModel produces, string location, string? identifier)
+    {
+        var inline = identifier is not null && InlineEvents?.For(produces) is { } declaration ? Events?.Build(declaration, location) : null;
+        var mappings = produces.Mappings
+            .Where(_ => names.Allows(_.Property, ReservedWords.InProduces, produces.EventName, location))
+            .Select(ToMapping).ToList();
+
+        if (inline is null && InlineEvents?.DeclarationFor(produces) is { } standalone)
+        {
+            var properties = standalone.Properties.Select(property => naming.ToPropertyName(property.Name)).ToList();
+            mappings = [.. mappings.OrderBy(mapping => properties.IndexOf(mapping.Property) is var index && index >= 0 ? index : int.MaxValue)];
+        }
+
+        // The printer zips inline properties and mappings; constructor argument order is not property order.
+        return new(
             naming.ToDeclarationName(produces.EventName),
             _conditions.Convert(produces.When),
-            [
-                .. produces.Mappings
-                    .Where(_ => names.Allows(_.Property, ReservedWords.InProduces, produces.EventName, location))
-                    .Select(ToMapping)
-            ],
+            inline is null ? mappings : [.. inline.Properties.Select(property => mappings.Single(mapping => mapping.Property == property.Name))],
             SourceLocation.Start,
             For: identifier is null ? null : new PathExpressionSyntax(naming.ToPropertyPath(identifier), SourceLocation.Start))
         {
-            InlineEvent = identifier is not null && InlineEvents?.For(produces) is { } declaration ? Events?.Build(declaration, location) : null
+            InlineEvent = inline
         };
+    }
 
     /// <summary>
     /// Converts a single mapping onto an event property.

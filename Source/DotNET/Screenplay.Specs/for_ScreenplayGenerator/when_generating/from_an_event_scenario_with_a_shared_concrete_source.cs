@@ -12,8 +12,8 @@ public class from_an_event_scenario_with_a_shared_concrete_source : a_generated_
         ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", EventAppendSources.With("new EventSourceId(\"current\")", "new EventSourceId(\"current\")", "new EventSourceId(\"current\")")),
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
-    [Fact] void should_state_the_prior_source() => Result.Source.ShouldContain("given AuthorRegistered\n          for \"current\"");
-    [Fact] void should_state_the_append_source() => Result.Source.ShouldContain("when append AuthorRegistered\n          for \"current\"");
-    [Fact] void should_state_the_asserted_source() => Result.Source.ShouldContain("then AuthorRegistered\n          for \"current\"");
+    [Fact] void should_recover_the_prior_source() => Result.Model.Slices.SelectMany(slice => slice.Specifications).Single().Given.Single().For!.Value.ShouldEqual("current");
+    [Fact] void should_recover_the_append_source() => Result.Model.Slices.SelectMany(slice => slice.Specifications).Single().When!.For!.Value.ShouldEqual("current");
+    [Fact] void should_omit_the_append_only_scenario() => Result.Source.ShouldNotContain("specification");
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }
