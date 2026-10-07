@@ -53,7 +53,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         {
             if (!generatedIdentity)
             {
-                ReportEventSourceIdResult(handler, location);
+                ReportEventSourceIdResult(command, handler, location);
             }
 
             foreach (var body in HandlerBodies.Of(handler))
@@ -202,16 +202,17 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <summary>
     /// Reports a handler yielding the identifier of the event source it appends to.
     /// </summary>
+    /// <param name="command">The command declaring the handler.</param>
     /// <param name="handler">The handler to check.</param>
     /// <param name="location">Where the command lives.</param>
-    void ReportEventSourceIdResult(IMethodSymbol handler, string location)
+    void ReportEventSourceIdResult(INamedTypeSymbol command, IMethodSymbol handler, string location)
     {
         if (HandlerBodies.YieldsEventSourceId(handler.ReturnType))
         {
             var message = authoringOnlyConstructs
-                ? "The handler yields an event source identifier or response alongside the event, but its destination could not be proven; no event source destination was inferred"
-                : "The handler yields an event source identifier or response alongside the event, but its destination could not be proven as an admitted generated UUID concept; no event source destination was inferred";
-            diagnostics.Information(ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult, message, location);
+                ? $"The handler of command '{command.Name}' yields an event source identifier or response alongside the event, but its destination could not be proven; no event source destination was inferred"
+                : $"The handler of command '{command.Name}' yields an event source identifier or response alongside the event, but its destination could not be proven as an admitted generated UUID concept; no event source destination was inferred";
+            diagnostics.Information(ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult, message, $"{location}.{command.Name}");
         }
     }
 }

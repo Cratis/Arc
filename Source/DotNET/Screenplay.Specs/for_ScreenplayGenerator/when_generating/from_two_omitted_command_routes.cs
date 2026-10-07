@@ -29,6 +29,45 @@ public class from_two_omitted_command_routes : a_generated_document
     }
 
     [Fact]
+    public void should_identify_each_event_source_definition_route()
+    {
+        Generate((Analyzed.SlicePath, IdentifierSources.With("""
+            [Cratis.Chronicle.EventSources.EventSource]
+            [Cratis.Chronicle.EventSources.EventStream("Registration")]
+            public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;
+            [Command, Cratis.Arc.Chronicle.Commands.EventSource<AuthorEventSource>("Registration")]
+            public record RegisterAuthor(AuthorId Id, string Name)
+            {
+                public AuthorRegistered Handle() => new(Name);
+            }
+            [Command, Cratis.Arc.Chronicle.Commands.EventSource<AuthorEventSource>("Registration")]
+            public record RenameAuthor(AuthorId Id, string Name)
+            {
+                public AuthorRegistered Handle() => new(Name);
+            }
+            """)));
+        AssertRoutes(Result.Diagnostics, ScreenplayDiagnosticCodes.EventSourceNotRepresentable);
+        AssertDocument();
+    }
+
+    [Fact]
+    public void should_identify_each_unproven_returned_destination()
+    {
+        Generate((Analyzed.SlicePath, IdentifierSources.With("""
+            [Command] public record RegisterAuthor(AuthorId Id, string Name)
+            {
+                public (AuthorId, AuthorRegistered) Handle() => (Id, new AuthorRegistered(Name));
+            }
+            [Command] public record RenameAuthor(AuthorId Id, string Name)
+            {
+                public (AuthorId, AuthorRegistered) Handle() => (Id, new AuthorRegistered(Name));
+            }
+            """)));
+        AssertRoutes(Result.Diagnostics, ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult);
+        AssertDocument();
+    }
+
+    [Fact]
     public void should_identify_each_unadmitted_generated_destination()
     {
         Generate((Analyzed.SlicePath, IdentifierSources.With("""

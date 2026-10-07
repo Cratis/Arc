@@ -63,6 +63,12 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         if (!enabled)
         {
+            if (command.GetMembers("Provide").OfType<IMethodSymbol>().Any())
+            {
+                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The provisioning behavior of command '{command.Name}' is not represented in default output; generated values and responses were left in code", location);
+                return result;
+            }
+
             if (handlers.Any(handler => ContainsOperation(handler.ReturnType)))
             {
                 Report(ScreenplayDiagnosticCodes.UnreadableCommandOperation, "Returned operations are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable operations", location);
@@ -200,7 +206,9 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         if (response is BaseObjectCreationExpressionSyntax creation && model.GetTypeInfo(creation).Type is INamedTypeSymbol { IsRecord: true } record &&
-            record.FindBase(WellKnownTypeNames.ConceptAs) is null && ReadRecord(creation, record, model, command) is { } fields)
+            record.FindBase(WellKnownTypeNames.ConceptAs) is null && HasIdentityType(creation, record, model) &&
+            (response != returned || SymbolEqualityComparer.Default.Equals(record, ResponseValueType(handler.ReturnType))) &&
+            ReadRecord(creation, record, model, command) is { } fields)
         {
             return result with { ResponseFields = fields };
         }
@@ -218,10 +226,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     /// <summary>Proves that a handler has no fact-recording or external effects.</summary>
     /// <param name="handlers">The handlers of the command.</param>
     /// <param name="authoring">The recovered pure response.</param>
-    /// <returns>Whether every body is empty or consists only of the recovered response and generated values.</returns>
+    /// <returns>Whether the command has no provisioning method and every body is empty or consists only of the recovered response and generated values.</returns>
     public bool HasNoFactBehavior(IReadOnlyList<IMethodSymbol> handlers, CommandAuthoringModel? authoring) => handlers.Count > 0 && handlers.All(handler =>
     {
-        if (HandlerBodies.Of(handler).ToArray() is not [var body])
+        if (handler.ContainingType.GetMembers("Provide").OfType<IMethodSymbol>().Any() ||
+            HandlerBodies.Of(handler).ToArray() is not [var body])
         {
             return false;
         }

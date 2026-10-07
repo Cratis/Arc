@@ -8,6 +8,11 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 public class from_existing_event_flows : a_generated_document
 {
     [Theory]
+    [InlineData("log.Append(target, (object)@event);")]
+    [InlineData("object e = @event; log.Append(target, e);")]
+    [InlineData("object e = (object)@event; object forwarded = e; log.Append(target, forwarded);")]
+    [InlineData("var payload = new { Event = @event }; System.Console.WriteLine(payload);")]
+    [InlineData("var payload = new { Event = (object)@event }; System.Console.WriteLine(payload);")]
     [InlineData("log.AppendMany(target, new[] { @event });")]
     [InlineData("log.AppendMany(target, [@event]);")]
     [InlineData("log.AppendMany(target, new System.Collections.Generic.List<AuthorRegistered> { @event });")]
@@ -35,6 +40,8 @@ public class from_existing_event_flows : a_generated_document
     }
 
     [Theory]
+    [InlineData("public void Forward(AuthorRegistered e, out object stored) { stored = e; }")]
+    [InlineData("public void Forward(AuthorRegistered e, ref object stored) { stored = (object)e; }")]
     [InlineData("public System.Collections.Generic.IEnumerable<AuthorRegistered> Forward(AuthorRegistered e) => new[] { e };")]
     [InlineData("public System.Collections.Generic.IEnumerable<AuthorRegistered> Forward(AuthorRegistered e) { yield return e; }")]
     [InlineData("public System.Collections.Generic.IEnumerable<AuthorRegistered> Forward(System.Collections.Generic.IEnumerable<AuthorRegistered> events) => events;")]
@@ -57,6 +64,8 @@ public class from_existing_event_flows : a_generated_document
     [InlineData("if (@event is { Name: var name }) System.Console.WriteLine(name);")]
     [InlineData("System.Console.WriteLine(nameof(AuthorRegistered));")]
     [InlineData("AuthorRegistered local = @event;")]
+    [InlineData("object local = @event;")]
+    [InlineData("object local = (object)@event;")]
     public void should_allow_inlining_when_the_reactor_only_consumes_fields_or_keeps_a_local(string body)
     {
         GenerateWith("public void Handle(AuthorRegistered @event, EventContext context) { " + body + " }");

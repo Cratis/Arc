@@ -85,7 +85,8 @@ public static class EventProducers
                             continue;
                         }
 
-                        foreach (var eventType in CarriedEvents(type.Type ?? type.ConvertedType))
+                        foreach (var eventType in ValueEvents(expression, model, new HashSet<ILocalSymbol>(SymbolEqualityComparer.Default))
+                            .Distinct<INamedTypeSymbol>(SymbolEqualityComparer.Default))
                         {
                             var key = IdentityOf(eventType);
                             var inProducingCommand = node.Ancestors().OfType<TypeDeclarationSyntax>().Any(declaration =>
@@ -114,6 +115,7 @@ public static class EventProducers
         InvocationExpressionSyntax invocation when !IsNameOf(invocation) => invocation.ArgumentList.Arguments.Select(argument => argument.Expression),
         BaseObjectCreationExpressionSyntax { ArgumentList: { } arguments } => arguments.Arguments.Select(argument => argument.Expression),
         ConstructorInitializerSyntax initializer => initializer.ArgumentList.Arguments.Select(argument => argument.Expression),
+        AnonymousObjectCreationExpressionSyntax anonymous => anonymous.Initializers.Select(member => member.Expression),
         InitializerExpressionSyntax initializer when initializer.IsKind(SyntaxKind.ArrayInitializerExpression) ||
             initializer.IsKind(SyntaxKind.CollectionInitializerExpression) || initializer.IsKind(SyntaxKind.ComplexElementInitializerExpression) => initializer.Expressions,
         CollectionExpressionSyntax collection => collection.Elements.Select(element => element switch
@@ -133,7 +135,39 @@ public static class EventProducers
     };
 
     static bool IsNonLocalTarget(IOperation? target) => target is IFieldReferenceOperation or IPropertyReferenceOperation or IArrayElementReferenceOperation ||
+        (target is IParameterReferenceOperation parameter && parameter.Parameter.RefKind is RefKind.Out or RefKind.Ref) ||
         (target is ITupleOperation tuple && tuple.Elements.Any(IsNonLocalTarget));
+
+    static IEnumerable<INamedTypeSymbol> ValueEvents(ExpressionSyntax expression, SemanticModel model, HashSet<ILocalSymbol> visited)
+    {
+        var operation = model.GetOperation(expression);
+        while (operation is IConversionOperation conversion)
+        {
+            operation = conversion.Operand;
+        }
+
+        var type = operation?.Type ?? model.GetTypeInfo(expression).Type ?? model.GetTypeInfo(expression).ConvertedType;
+        foreach (var eventType in CarriedEvents(type))
+        {
+            yield return eventType;
+        }
+
+        // A local can erase the event's static type without erasing the value it forwards.
+        // Follow only source initializers; values supplied solely at runtime remain unknown.
+        if (operation is ILocalReferenceOperation local && visited.Add(local.Local))
+        {
+            foreach (var reference in local.Local.DeclaringSyntaxReferences)
+            {
+                if (reference.GetSyntax() is VariableDeclaratorSyntax { Initializer.Value: { } initializer } && initializer.SyntaxTree == model.SyntaxTree)
+                {
+                    foreach (var eventType in ValueEvents(initializer, model, visited))
+                    {
+                        yield return eventType;
+                    }
+                }
+            }
+        }
+    }
 
     static IEnumerable<INamedTypeSymbol> CarriedEvents(ITypeSymbol? type, bool includeReturnWrappers = false) =>
         CarriedEvents(type, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), includeReturnWrappers);
@@ -162,7 +196,8 @@ public static class EventProducers
 
             // Return signatures also promise events through wrappers such as Task and Result, but a
             // delegate mentioning an event describes consumption, not a returned event instance.
-            var components = named.IsTupleType ? named.TupleElements.Select(element => element.Type) :
+            var components = named.IsAnonymousType ? named.GetMembers().OfType<IPropertySymbol>().Select(property => property.Type) :
+                named.IsTupleType ? named.TupleElements.Select(element => element.Type) :
                 named.AllInterfaces.Prepend(named).Where(candidate => candidate.Is("System.Collections.Generic.IEnumerable`1"))
                     .SelectMany(candidate => candidate.TypeArguments).Concat(includeReturnWrappers ? named.TypeArguments : []);
             foreach (var component in components)
