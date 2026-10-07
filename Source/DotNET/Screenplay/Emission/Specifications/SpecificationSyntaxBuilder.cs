@@ -117,10 +117,19 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         var remaining = specification.Then.Where(state => !SpecificationOutcomeReader.RestatesAppend(state, specification.When)).ToList();
+        var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
+            Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
+        if (remaining.Exists(state => state.Kind == SpecificationStateKind.Event))
+        {
+            Diagnostics?.Warning(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{specification.Name}' was left out because it expects another event type after the append, but no modeled reaction can produce it",
+                location);
+            return null;
+        }
+
         if (remaining.Count == 0 && !specification.Errors.Any())
         {
-            var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
-                Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
                 $"The scenario '{specification.Name}' was left out because its assertions only restate the appended fact; then events describe facts following the append, and no read-model, query, or error assertion remains",

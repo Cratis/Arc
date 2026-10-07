@@ -120,7 +120,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <returns>The modules.</returns>
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model), model, options.AuthoringOnlyConstructs);
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options.AuthoringOnlyConstructs);
         if (options.AuthoringOnlyConstructs)
         {
             sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();

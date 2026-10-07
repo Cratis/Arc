@@ -49,4 +49,33 @@ public class from_an_event_append_scenario : a_generated_document
     [Fact] void should_warn_that_no_assertion_remains() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("assertions only restate the appended fact");
     [Fact] void should_report_a_warning() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void should_bind_when_the_append_assertion_is_incomplete(bool partialPredicate)
+    {
+        var scenario = Scenario.Replace("new AuthorRegistered(\"Prior\")", "new AuthorRegistered(\"Prior\", \"Existing\")", StringComparison.Ordinal)
+            .Replace("new AuthorRegistered(\"Jane Austen\")", "new AuthorRegistered(\"Jane Austen\", \"New\")", StringComparison.Ordinal);
+        if (!partialPredicate)
+        {
+            scenario = scenario.Replace(", e => e.Name == \"Jane Austen\"", string.Empty, StringComparison.Ordinal)
+                .Replace("[Fact] Task should_append()", "[Fact] void should_append()", StringComparison.Ordinal);
+        }
+
+        Generate(
+            (Analyzed.SlicePath, IdentifierSources.With("""
+                [Command] public record RegisterAuthor(string Name)
+                {
+                    public AuthorRegistered Handle() => new(Name, "New");
+                }
+                """).Replace("AuthorRegistered(string Name)", "AuthorRegistered(string Name, string Status)", StringComparison.Ordinal)),
+            ("Library/Feature/Slice/when_appending/and_it_succeeds.cs", scenario),
+            (IntegrationTesting.Path, IntegrationTesting.Source));
+
+        Result.Source.ShouldNotContain("when append AuthorRegistered");
+        Result.Source.ShouldNotContain("then AuthorRegistered");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("assertions only restate the appended fact");
+        AssertDocument();
+    }
 }

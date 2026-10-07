@@ -39,6 +39,29 @@ public class from_reordered_named_inline_event_arguments : a_generated_document
     [Fact] void should_bind_the_standalone_form() => _standalone.Success.ShouldBeTrue();
     [Fact] void should_preserve_canonical_esm() => SemanticModelSerializer.Serialize(Bound.Value!.Model).SequenceEqual(SemanticModelSerializer.Serialize(_standalone.Value!.Model)).ShouldBeTrue();
 
+    [Fact]
+    public void should_keep_colliding_emitted_property_names_standalone()
+    {
+        var slice = Result.Model.Slices.Single();
+        var command = slice.Commands.Single();
+        var production = command.Produces.Single();
+        var declaration = slice.Events.Single();
+        var names = new Dictionary<string, string> { ["GivenName"] = "URL", ["FamilyName"] = "Url" };
+        var model = Result.Model with
+        {
+            Slices = [slice with
+            {
+                Events = [declaration with { Properties = declaration.Properties.Select(property => property with { Name = names[property.Name] }).ToList() }],
+                Commands = [command with { Produces = [production with { Mappings = production.Mappings.Select(mapping => mapping with { Property = names[mapping.Property] }).ToList() }] }]
+            }]
+        };
+
+        var source = new ScreenplayEmitter().Emit(model, new ScreenplayOptions()).Source;
+        source.ShouldNotContain("produces event AuthorRegistered");
+        source.ShouldContain("event AuthorRegistered");
+        source.ShouldContain("produces AuthorRegistered");
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

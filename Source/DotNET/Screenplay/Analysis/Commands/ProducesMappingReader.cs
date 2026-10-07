@@ -183,7 +183,10 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     {
         var source = _sources.Read(expression, semanticModel, owner, location, bindings);
         if (source is null && _authoring?.ReadPath(expression, semanticModel) is { } path &&
-            (!path.Contains('.', StringComparison.Ordinal) || IsReadDependency(expression, semanticModel)))
+            ((!path.Contains('.', StringComparison.Ordinal) && SymbolEqualityComparer.Default.Equals(
+                semanticModel.GetTypeInfo(MappingSourceReader.Unwrap(expression)).Type,
+                eventType.DeclaredProperties().FirstOrDefault(target => target.Name == property)?.Type)) ||
+                IsReadDependency(expression, semanticModel)))
         {
             source = new PropertyPathSource(path);
         }

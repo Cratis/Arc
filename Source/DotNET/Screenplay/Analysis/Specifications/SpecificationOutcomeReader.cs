@@ -61,12 +61,10 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// </summary>
     /// <param name="state">The expected fact.</param>
     /// <param name="action">The scenario action.</param>
-    /// <returns>Whether the event type, values, and source are identical.</returns>
+    /// <returns>Whether the expectation names the appended event type.</returns>
     internal static bool RestatesAppend(SpecificationStateModel state, SpecificationStateModel? action) =>
         action is { Kind: SpecificationStateKind.Event } && state.Kind == SpecificationStateKind.Event &&
-        string.Equals(state.Name, action.Name, StringComparison.Ordinal) && state.For == action.For &&
-        state.Values.OrderBy(value => value.Property, StringComparer.Ordinal)
-            .SequenceEqual(action.Values.OrderBy(value => value.Property, StringComparer.Ordinal));
+        string.Equals(state.Name, action.Name, StringComparison.Ordinal);
 
     /// <summary>
     /// Determines whether an event is one the scenario started with.

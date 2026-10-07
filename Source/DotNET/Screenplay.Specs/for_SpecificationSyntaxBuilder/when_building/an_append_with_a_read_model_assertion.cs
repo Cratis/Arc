@@ -61,7 +61,7 @@ public class an_append_with_a_read_model_assertion : Specification
     [InlineData("OtherEvent", "Jane Austen", "current")]
     [InlineData("AuthorRegistered", "Other", "current")]
     [InlineData("AuthorRegistered", "Jane Austen", "other")]
-    public void should_not_drop_a_different_fact(string name, string value, string source)
+    public void should_omit_an_append_without_a_following_assertion(string name, string value, string source)
     {
         var action = new SpecificationStateModel("AuthorRegistered", SpecificationStateKind.Event, [new("Name", new LiteralSource("Jane Austen"))]) { For = new("current") };
         var expected = new SpecificationStateModel(name, SpecificationStateKind.Event, [new("Name", new LiteralSource(value))]) { For = new(source) };
@@ -69,7 +69,10 @@ public class an_append_with_a_read_model_assertion : Specification
         var command = new CommandModel("RegisterAuthor", null, [new("Id", new("String", false, false))], null, [], [new("AuthorRegistered", null, []) { UsesCommandContext = true }], null, null) { Identifier = "Id" };
         var slice = SliceModel.Empty("Library.Authors.Registration", "Registration", SliceKind.StateChange) with { Commands = [command] };
         var application = new ApplicationModel("Library", "Library", [], [], [slice], []);
-        var syntax = new SpecificationSyntaxBuilder(new ScreenplayNaming()) { Application = application }.Build([specification]).Single();
-        new ScreenplayPrinter().Print(syntax).ShouldContain($"then {name}");
+        var diagnostics = new ScreenplayDiagnostics();
+        var syntax = new SpecificationSyntaxBuilder(new ScreenplayNaming()) { Application = application, Diagnostics = diagnostics }.Build([specification]);
+        syntax.ShouldBeEmpty();
+        diagnostics.All.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message
+            .ShouldContain(name == "OtherEvent" ? "no modeled reaction can produce it" : "assertions only restate the appended fact");
     }
 }

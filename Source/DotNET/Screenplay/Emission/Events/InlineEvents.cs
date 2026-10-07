@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Emission.Events;
@@ -18,7 +19,16 @@ public class InlineEvents
     /// Initializes a new instance of the <see cref="InlineEvents"/> class.
     /// </summary>
     /// <param name="model">The application, carrying its full producer census even in a scoped document.</param>
-    public InlineEvents(ApplicationModel model)
+    public InlineEvents(ApplicationModel model) : this(model, new ScreenplayNaming())
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InlineEvents"/> class with the emitted naming.
+    /// </summary>
+    /// <param name="model">The application, carrying its full producer census even in a scoped document.</param>
+    /// <param name="naming">The naming used to check emitted property names.</param>
+    public InlineEvents(ApplicationModel model, IScreenplayNaming naming)
     {
         _declarations = model.Slices.SelectMany(slice => slice.Events).Where(declaration => declaration.TypeIdentity is not null)
             .GroupBy(declaration => declaration.TypeIdentity!, StringComparer.Ordinal)
@@ -35,7 +45,7 @@ public class InlineEvents
                         declaration.TypeIdentity is not { } key ||
                         !model.EventProducerCounts.TryGetValue(key, out var count) || count != 1 ||
                         productions.Count(_ => _.EventTypeIdentity == key) != 1 ||
-                        !IsComplete(declaration, production) || CopiesIdentifier(production, command.Authoring?.Identifier ?? command.Identifier!))
+                        !IsComplete(declaration, production, naming) || CopiesIdentifier(production, command.Authoring?.Identifier ?? command.Identifier!))
                     {
                         continue;
                     }
@@ -73,12 +83,13 @@ public class InlineEvents
         (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
         command.Properties.Concat(command.Authoring?.Generated ?? []).Any(_ => _.Name == identifier && !_.Type.IsOptional && !_.Type.IsCollection);
 
-    static bool IsComplete(EventModel declaration, ProducesModel production)
+    static bool IsComplete(EventModel declaration, ProducesModel production, IScreenplayNaming naming)
     {
-        var properties = declaration.Properties.Select(_ => _.Name).ToList();
-        var mappings = production.Mappings.Select(_ => _.Property).ToList();
+        var properties = declaration.Properties.Select(_ => naming.ToPropertyName(_.Name)).ToList();
+        var mappings = production.Mappings.Select(_ => naming.ToPropertyName(_.Property)).ToList();
 
-        return properties.Count == mappings.Count && mappings.Distinct(StringComparer.Ordinal).Count() == mappings.Count &&
+        return properties.Count == mappings.Count && properties.Distinct(StringComparer.Ordinal).Count() == properties.Count &&
+            mappings.Distinct(StringComparer.Ordinal).Count() == mappings.Count &&
             properties.ToHashSet(StringComparer.Ordinal).SetEquals(mappings);
     }
 
