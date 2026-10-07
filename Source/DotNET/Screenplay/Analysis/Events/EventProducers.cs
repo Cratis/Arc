@@ -212,7 +212,8 @@ public static class EventProducers
     static bool IsCandidate(SyntaxNode node) => node switch
     {
         MethodDeclarationSyntax => true,
-        LiteralExpressionSyntax or PredefinedTypeSyntax => false,
+        LiteralExpressionSyntax literal => literal.IsKind(SyntaxKind.DefaultLiteralExpression),
+        PredefinedTypeSyntax => false,
         ExpressionSyntax => true,
         _ => false
     };
