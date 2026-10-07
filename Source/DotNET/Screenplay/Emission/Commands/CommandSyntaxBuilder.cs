@@ -46,7 +46,7 @@ public class CommandSyntaxBuilder(
         var properties = ToProperties(command, location).ToList();
         if (authoring is not null)
         {
-            properties = [.. properties.Select(property => property with { IsIdentifier = property.Name == naming.ToPropertyName(selectedIdentifier ?? string.Empty) }),
+            properties = [.. properties.Select(property => property with { IsIdentifier = selectedIdentifier is not null && property.Name == naming.ToPropertyName(selectedIdentifier) }),
                 .. authoring.Generated.Select(property => ToProperty(property, selectedIdentifier) with { IsGenerated = true })];
         }
 
