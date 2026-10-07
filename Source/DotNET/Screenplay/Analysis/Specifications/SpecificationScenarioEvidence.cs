@@ -21,4 +21,20 @@ internal sealed record SpecificationScenarioEvidence(
     IReadOnlyDictionary<SpecificationStateModel, SpecificationStateEvidence> States,
     IReadOnlyDictionary<PropertyMappingModel, Location> Values,
     IReadOnlyList<Location> Errors,
-    IReadOnlyList<ScreenplayDiagnostic> Blockers);
+    IReadOnlyList<ScreenplayDiagnostic> Blockers)
+{
+    /// <summary>
+    /// Gets the input identifier used to compare the command's occurrences.
+    /// </summary>
+    public string? CommandIdentifier { get; init; }
+
+    /// <summary>
+    /// Gets whether the command scenario stated an explicit occurrence source.
+    /// </summary>
+    public bool HasExplicitCommandSources { get; init; }
+
+    /// <summary>
+    /// Gets whether an explicit occurrence source was not provably the issued command's own source.
+    /// </summary>
+    public bool HasUnresolvedCommandSources { get; init; }
+}

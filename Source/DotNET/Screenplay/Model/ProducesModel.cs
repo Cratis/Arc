@@ -12,4 +12,21 @@ namespace Cratis.Arc.Screenplay.Model;
 public record ProducesModel(
     string EventName,
     ConditionModel? When,
-    IEnumerable<PropertyMappingModel> Mappings);
+    IEnumerable<PropertyMappingModel> Mappings)
+{
+    /// <summary>
+    /// Gets the source event type identity, when the construction was analyzed.
+    /// </summary>
+    public string? EventTypeIdentity { get; init; }
+
+    /// <summary>
+    /// Gets whether the construction was recovered without unsupported control flow or mappings.
+    /// </summary>
+    public bool CanInline { get; init; }
+
+    /// <summary>
+    /// Gets whether the event is returned through command context or applied to an aggregate of that context.
+    /// Explicit and unprovable routing is never replaced with the command identifier.
+    /// </summary>
+    public bool UsesCommandContext { get; init; }
+}

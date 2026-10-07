@@ -90,6 +90,13 @@ public static class SpecificationMembers
     public static bool HoldsAScenario(INamedTypeSymbol type) => Holds(type, WellKnownTypeNames.CommandScenario) is not null;
 
     /// <summary>
+    /// Determines whether a type holds an event append scenario.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>True when the type or a base holds an event scenario.</returns>
+    public static bool HoldsAnEventScenario(INamedTypeSymbol type) => Holds(type, WellKnownTypeNames.EventScenario) is not null;
+
+    /// <summary>
     /// Gets the command a type is written as a scenario of.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -126,7 +133,6 @@ public static class SpecificationMembers
     /// one gap, and a reader cannot act on being told only that something was left out.
     /// </remarks>
     public static string? ScenarioWithoutCounterpart(INamedTypeSymbol type) =>
-        Holds(type, WellKnownTypeNames.EventScenario)?.Name ??
         Holds(type, WellKnownTypeNames.ReactorScenario)?.Name;
 
     /// <summary>

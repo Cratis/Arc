@@ -33,7 +33,7 @@ public class from_source_expecting_an_event_carrying_flags_no_member_declares : 
         public record NotificationPreferencesUpdated(NotificationChannels Timesheets);
 
         [Command]
-        public record UpdateNotificationPreferences(NotificationChannels Timesheets)
+        public record UpdateNotificationPreferences([Cratis.Chronicle.Keys.Key] string Id, NotificationChannels Timesheets)
         {
             public NotificationPreferencesUpdated Handle() => new(Timesheets);
         }
@@ -121,11 +121,11 @@ public class from_source_expecting_an_event_carrying_flags_no_member_declares : 
     static readonly (string Path, string Text)[] _sources =
     [
         ("Library/Accounts/Notifications/Notifications.cs", Slice),
-        ("Library/Accounts/Notifications/when_updating_preferences/and_every_channel_is_expected.cs", ExpectedScenario),
-        ("Library/Accounts/Notifications/when_updating_preferences/and_every_channel_is_chosen.cs", IssuedScenario),
-        ("Library/Accounts/Notifications/when_updating_preferences/and_every_channel_was_chosen_before.cs", SeededScenario),
-        ("Library/Accounts/Notifications/when_updating_preferences/and_a_channel_nobody_declared_is_chosen.cs", UndeclaredBitScenario),
-        ("Library/Accounts/Notifications/when_updating_preferences/and_one_channel_is_chosen.cs", DeclaredScenario),
+        ("Library/Accounts/Notifications/when_updating_preferences/and_every_channel_is_expected.cs", WithIdentity(ExpectedScenario)),
+        ("Library/Accounts/Notifications/when_updating_preferences/and_every_channel_is_chosen.cs", WithIdentity(IssuedScenario)),
+        ("Library/Accounts/Notifications/when_updating_preferences/and_every_channel_was_chosen_before.cs", WithIdentity(SeededScenario)),
+        ("Library/Accounts/Notifications/when_updating_preferences/and_a_channel_nobody_declared_is_chosen.cs", WithIdentity(UndeclaredBitScenario)),
+        ("Library/Accounts/Notifications/when_updating_preferences/and_one_channel_is_chosen.cs", WithIdentity(DeclaredScenario)),
         (IntegrationTesting.Path, IntegrationTesting.Source)
     ];
 
@@ -137,6 +137,8 @@ public class from_source_expecting_an_event_carrying_flags_no_member_declares : 
         _result = new ScreenplayGenerator().Generate(Analyzed.Compile(_sources), new ScreenplayOptions());
         _compiled = new ScreenplayCompiler().Compile(_result.Source);
     }
+
+    static string WithIdentity(string scenario) => scenario.Replace("new UpdateNotificationPreferences(", "new UpdateNotificationPreferences(\"preferences\", ", StringComparison.Ordinal);
 
     IEnumerable<string> Lines() =>
         _result.Source.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(_ => _.Trim());

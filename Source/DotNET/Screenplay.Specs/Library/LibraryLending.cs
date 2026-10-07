@@ -104,11 +104,11 @@ public static class LibraryLending
                         Declare.From("Isbn", "Isbn"),
                         Declare.From("MemberId", "MemberId"),
                         Declare.From("Tier", "Tier")
-                    ]),
+                    ]) { UsesCommandContext = true },
                 new ProducesModel(
                     "PremiumReservationGranted",
                     new ComparisonCondition("Tier", ComparisonKind.Equal, new LiteralSource("premium")),
-                    [Declare.From("MemberId", "MemberId")])
+                    [Declare.From("MemberId", "MemberId")]) { UsesCommandContext = true }
             ],
             null,
             "Lending/Reserving/Reserving.cs");

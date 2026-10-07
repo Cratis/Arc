@@ -33,4 +33,9 @@ public record ApplicationModel(
     /// dependency outright rather than referring to a name it never introduces.
     /// </remarks>
     public IEnumerable<string> Imports { get; init; } = [];
+
+    /// <summary>
+    /// Gets the application-wide producer census, retained when the model is scoped to one document.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> EventProducerCounts { get; init; } = new Dictionary<string, int>();
 }

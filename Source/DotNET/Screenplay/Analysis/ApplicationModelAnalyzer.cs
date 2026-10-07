@@ -5,6 +5,7 @@ using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -45,7 +46,11 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     {
         var ordered = AnalyzedCompilations.Ordered(compilations);
         var domain = options.Domain ?? AnalyzedCompilations.NameOf(ordered) ?? ScreenplayOptions.DefaultName;
-        var whole = new WholeApplication(ordered, new ScreenplayDiagnostics()) { Files = userInterfaceFiles };
+        var whole = new WholeApplication(ordered, new ScreenplayDiagnostics())
+        {
+            Files = userInterfaceFiles,
+            AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
+        };
         var diagnostics = whole.Diagnostics;
 
         var catalogs = ordered.Select(ArtifactCatalog.From).ToList();
@@ -64,7 +69,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         TypesTheDocumentCannotName.Report(whole.Types, diagnostics, domain);
 
         var joined = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
-        var slices = Specified(projects, joined, diagnostics);
+        var slices = Specified(projects, joined, diagnostics, new HeldValues(whole.Models));
         var imports = ExternalEvents.Resolve(ordered, slices, diagnostics);
         NamespacesWithoutStructure.Report(slices, diagnostics, options.SegmentsToSkip ?? 0);
 
@@ -97,7 +102,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 slices,
                 whole.Types.Types)
             {
-                Imports = imports
+                Imports = imports,
+                EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
             },
             diagnostics.All);
     }
@@ -108,6 +114,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     /// <param name="projects">The projects the application is written as, in the order they were read.</param>
     /// <param name="slices">The slices of the application, joined across every project.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="heldValues">The held values cached for the analysis.</param>
     /// <returns>The slices, each carrying the scenarios it is specified by.</returns>
     /// <remarks>
     /// A scenario is written in one project and reads the symbols of that project's compilation, so it is recovered
@@ -121,10 +128,11 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
     static IReadOnlyList<SliceModel> Specified(
         IReadOnlyList<CompilationAnalysis> projects,
         IReadOnlyList<SliceModel> slices,
-        ScreenplayDiagnostics diagnostics)
+        ScreenplayDiagnostics diagnostics,
+        HeldValues heldValues)
     {
         var namespaces = slices.Select(_ => _.Namespace).ToList();
-        var catalogs = projects.Select(_ => _.Specifications(namespaces, diagnostics)).ToList();
+        var catalogs = projects.Select(_ => _.Specifications(namespaces, diagnostics, heldValues)).ToList();
 
         return
         [

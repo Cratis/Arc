@@ -33,7 +33,7 @@ public class from_source_expecting_an_event_carrying_members_of_an_enumeration :
         public record NotificationPreferencesUpdated(NotificationChannels Deadlines, NotificationChannels Timesheets);
 
         [Command]
-        public record UpdateNotificationPreferences(NotificationChannels Deadlines, NotificationChannels Timesheets)
+        public record UpdateNotificationPreferences([Cratis.Chronicle.Keys.Key] string Id, NotificationChannels Deadlines, NotificationChannels Timesheets)
         {
             public NotificationPreferencesUpdated Handle() => new(Deadlines, Timesheets);
         }
@@ -54,7 +54,7 @@ public class from_source_expecting_an_event_carrying_members_of_an_enumeration :
             readonly CommandScenario<UpdateNotificationPreferences> _scenario = new();
 
             async Task Because() => await _scenario.Execute(
-                new UpdateNotificationPreferences(NotificationChannels.None, NotificationChannels.EmailAndInApp));
+                new UpdateNotificationPreferences("preferences", NotificationChannels.None, NotificationChannels.EmailAndInApp));
 
             [Fact] Task should_update_the_preferences() => _scenario.EventSequence.ShouldHaveAppendedEvent<NotificationPreferencesUpdated>(
                 "preferences",

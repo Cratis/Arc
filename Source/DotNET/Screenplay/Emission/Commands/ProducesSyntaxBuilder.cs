@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Events;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -20,34 +21,96 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     readonly ConditionConverter _conditions = new(naming);
 
     /// <summary>
+    /// Gets the declarations selected for inline production.
+    /// </summary>
+    public InlineEvents? InlineEvents { get; init; }
+
+    /// <summary>
+    /// Gets the event declaration builder shared with standalone emission.
+    /// </summary>
+    public EventSyntaxBuilder? Events { get; init; }
+
+    /// <summary>
+    /// Gets where omitted destinations are reported.
+    /// </summary>
+    public ScreenplayDiagnostics? Diagnostics { get; init; }
+
+    /// <summary>
     /// Builds the produces blocks of a command.
     /// </summary>
     /// <param name="produces">The events the command produces.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <returns>The produces blocks, in the order the command declares them.</returns>
-    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location) =>
-        [.. produces.Select(_ => Build(_, location))];
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location) => Build(produces, location, null);
+
+    /// <summary>
+    /// Builds the produces blocks with an explicitly known command destination.
+    /// </summary>
+    /// <param name="produces">The events the command produces.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="identifier">The command property supplying the destination, when it is known.</param>
+    /// <returns>The produces blocks, in the order the command declares them.</returns>
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier) => Build(produces, location, identifier, null);
+
+    /// <summary>
+    /// Builds the produces blocks with a known command for omission diagnostics.
+    /// </summary>
+    /// <param name="produces">The events the command produces.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="identifier">The command property supplying the destination, when it is known.</param>
+    /// <param name="commandName">The command owning the productions, when it is known.</param>
+    /// <returns>The produces blocks, in the order the command declares them.</returns>
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier, string? commandName)
+    {
+        var productions = produces.ToList();
+        if (productions.Exists(_ => !_.UsesCommandContext))
+        {
+            Diagnostics?.Information(
+                ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
+                $"A production{(commandName is null ? string.Empty : $" of command '{commandName}'")} is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and its event remains standalone",
+                commandName is null ? location : $"{location}.{commandName}");
+
+            identifier = null;
+        }
+
+        return [.. productions.Select(_ => Build(_, location, identifier))];
+    }
 
     /// <summary>
     /// Builds a single produces block.
     /// </summary>
     /// <param name="produces">The event production to build for.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="identifier">The command property supplying the destination, when it is known.</param>
     /// <returns>The <see cref="ProducesSyntax"/>.</returns>
     /// <remarks>
     /// A mapping is written onto the property of the event it fills in, so a mapping onto a property the block reads
     /// as a directive of its own is left out for the same reason the property itself is.
     /// </remarks>
-    ProducesSyntax Build(ProducesModel produces, string location) =>
-        new(
+    ProducesSyntax Build(ProducesModel produces, string location, string? identifier)
+    {
+        var inline = identifier is not null && InlineEvents?.For(produces) is { } declaration ? Events?.Build(declaration, location) : null;
+        var mappings = produces.Mappings
+            .Where(_ => names.Allows(_.Property, ReservedWords.InProduces, produces.EventName, location))
+            .Select(ToMapping).ToList();
+
+        if (inline is null && InlineEvents?.DeclarationFor(produces) is { } standalone)
+        {
+            var properties = standalone.Properties.Select(property => naming.ToPropertyName(property.Name)).ToList();
+            mappings = [.. mappings.OrderBy(mapping => properties.IndexOf(mapping.Property) is var index && index >= 0 ? index : int.MaxValue)];
+        }
+
+        // The printer zips inline properties and mappings; constructor argument order is not property order.
+        return new(
             naming.ToDeclarationName(produces.EventName),
             _conditions.Convert(produces.When),
-            [
-                .. produces.Mappings
-                    .Where(_ => names.Allows(_.Property, ReservedWords.InProduces, produces.EventName, location))
-                    .Select(ToMapping)
-            ],
-            SourceLocation.Start);
+            inline is null ? mappings : [.. inline.Properties.Select(property => mappings.Single(mapping => mapping.Property == property.Name))],
+            SourceLocation.Start,
+            For: identifier is null ? null : new PathExpressionSyntax(naming.ToPropertyPath(identifier), SourceLocation.Start))
+        {
+            InlineEvent = inline
+        };
+    }
 
     /// <summary>
     /// Converts a single mapping onto an event property.

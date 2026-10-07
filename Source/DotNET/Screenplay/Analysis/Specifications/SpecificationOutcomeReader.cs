@@ -46,12 +46,25 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             .ToList();
 
         var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
+        draft.AssertsResponse = bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
+            item.Model!.GetSymbolInfo(member).Symbol is IPropertySymbol property && string.Equals(property.Name, "Response", StringComparison.Ordinal) &&
+            (property.ContainingType.Is("Cratis.Arc.Commands.CommandResult") || property.ContainingType.FindBase("Cratis.Arc.Commands.CommandResult") is not null)));
 
         foreach (var (body, semanticModel) in bodies)
         {
             ReadBody(body, semanticModel!, draft, name, location, rejected);
         }
     }
+
+    /// <summary>
+    /// Determines whether an expectation restates the append action rather than a fact following it.
+    /// </summary>
+    /// <param name="state">The expected fact.</param>
+    /// <param name="action">The scenario action.</param>
+    /// <returns>Whether the expectation names the appended event type.</returns>
+    internal static bool RestatesAppend(SpecificationStateModel state, SpecificationStateModel? action) =>
+        action is { Kind: SpecificationStateKind.Event } && state.Kind == SpecificationStateKind.Event &&
+        string.Equals(state.Name, action.Name, StringComparison.Ordinal);
 
     /// <summary>
     /// Determines whether an event is one the scenario started with.
@@ -115,7 +128,12 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             return;
         }
 
-        var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values);
+        var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values)
+        {
+            For = draft.When is not null
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
+                : null
+        };
         draft.AddThen(state, appended, invocation.GetLocation());
     }
 

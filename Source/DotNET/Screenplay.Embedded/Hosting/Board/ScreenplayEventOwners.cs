@@ -57,7 +57,7 @@ public sealed class ScreenplayEventOwners
         var featurePath = $"{path}/{feature.Name}";
 
         return (feature.Slices ?? [])
-            .SelectMany(slice => (slice.Events ?? [])
+            .SelectMany(slice => EventDeclarations.In(slice)
                 .Where(@event => !string.IsNullOrWhiteSpace(@event.Name))
                 .Select(@event => new KeyValuePair<string, Owner>(
                     @event.Name,

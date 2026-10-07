@@ -6,11 +6,8 @@ using Cratis.Arc.Screenplay.Analysis;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// An application specifies its slices through four scenarios, and the language holds two of them. A scenario
-/// appending an event states the append as its action, and a when names a command and nothing else; a scenario
-/// driving a reactor says what a collaborator was asked to do. Neither can be written down - but both hold a
-/// scenario, which is what says a specification is about the behavior of the slice rather than the inside of it, so
-/// a document silent about them reads exactly like a slice nobody specified.
+/// An event scenario without a readable action is unreadable rather than unrepresentable. A reactor scenario
+/// asserting what a collaborator was asked to do still has no portable counterpart.
 /// </summary>
 public class a_specification_holding_a_scenario_with_no_counterpart : Specification
 {
@@ -98,9 +95,9 @@ public class a_specification_holding_a_scenario_with_no_counterpart : Specificat
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
     [Fact] void should_specify_the_slice_by_nothing() => _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.ShouldBeEmpty();
-    [Fact] void should_report_every_scenario_it_left_out() => Reported.Count().ShouldEqual(2);
+    [Fact] void should_report_every_scenario_it_left_out() => Reported.Count().ShouldEqual(1);
     [Fact] void should_report_it_as_a_warning() => Reported.All(_ => _.Severity == ScreenplayDiagnosticSeverity.Warning).ShouldBeTrue();
-    [Fact] void should_name_the_scenario_that_appends() => Reported.Any(_ => _.Message.Contains("'and_the_name_was_already_claimed' is written as a EventScenario", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_report_the_event_scenario_as_unreadable_rather_than_unrepresentable() => _analysis.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification && _.Message.Contains("and_the_name_was_already_claimed", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_name_the_scenario_that_reacts() => Reported.Any(_ => _.Message.Contains("'and_the_librarian_is_notified' is written as a ReactorScenario", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_say_where_each_one_lives() => Reported.All(_ => _.Location!.StartsWith("Library.Authors.Registration", StringComparison.Ordinal)).ShouldBeTrue();
 }

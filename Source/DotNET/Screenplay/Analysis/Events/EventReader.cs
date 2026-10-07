@@ -40,7 +40,40 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     {
         ReportWhatIsLost(type, location);
 
-        return new(type.Name, properties.Read(type), Tags.Of(type));
+        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
+        var id = generation is null or 1u ? attribute?.GetArgument(0) as string : null;
+        var documentation = Documentation.RemarksOf(type);
+        if (documentation?.Split('\n').Any(line => line.TrimStart().StartsWith("```", StringComparison.Ordinal)) == true)
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.EventFeatureWithoutCounterpart,
+                $"The remarks of '{type.Name}' contain a Markdown fence that cannot be nested in event documentation, so they were left out",
+                location);
+            documentation = null;
+        }
+
+        return new(type.Name, properties.Read(type), Tags.Of(type))
+        {
+            Description = Documentation.SummaryOf(type),
+            Documentation = documentation,
+            Id = !string.IsNullOrWhiteSpace(id) && !string.Equals(id, type.Name, StringComparison.Ordinal) ? id : null,
+            TypeIdentity = EventProducers.IdentityOf(type),
+            CanInline = type.DeclaringSyntaxReferences.Length > 0 &&
+                type.Namespace() == location &&
+                IsGenerationOne(type) &&
+                !type.HasAttribute(WellKnownTypeNames.TombstoneAttribute) &&
+                !type.HasAttribute(WellKnownTypeNames.CompensationForAttribute) &&
+                !type.GetAttributes().Any(_ => _.AttributeClass.Is(WellKnownTypeNames.CompensationForAttributeOfT))
+        };
+    }
+
+    static bool IsGenerationOne(INamedTypeSymbol type)
+    {
+        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
+
+        return generation is null or 1u;
     }
 
     /// <summary>

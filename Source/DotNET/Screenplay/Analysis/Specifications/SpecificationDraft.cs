@@ -42,9 +42,19 @@ public class SpecificationDraft
     public SpecificationStateModel? When { get; set; }
 
     /// <summary>
+    /// Gets or sets whether an assertion reads the command response.
+    /// </summary>
+    public bool AssertsResponse { get; set; }
+
+    /// <summary>
     /// Gets why the scenario could not be read, or <see langword="null"/> while all of it still can be.
     /// </summary>
     public string? Unreadable { get; private set; }
+
+    /// <summary>
+    /// Gets the occurrence sources being compared while an event scenario is read.
+    /// </summary>
+    internal SpecificationEventSources EventSources { get; init; } = new();
 
     /// <summary>
     /// Records why a scenario cannot be read.

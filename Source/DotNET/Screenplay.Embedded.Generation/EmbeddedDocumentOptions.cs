@@ -16,6 +16,11 @@ namespace Cratis.Arc.Screenplay.Embedded.Generation;
 public record EmbeddedDocumentOptions(string? AssemblyName, string? RootNamespace = null)
 {
     /// <summary>
+    /// Gets a value indicating whether authoring-only constructs are included in embedded documents.
+    /// </summary>
+    public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
     /// Gets the options with every value filled in.
     /// </summary>
     /// <returns>The resolved options.</returns>

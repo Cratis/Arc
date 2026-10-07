@@ -10,6 +10,7 @@ using Cratis.Arc.Screenplay.Emission.Queries;
 using Cratis.Arc.Screenplay.Emission.Reactors;
 using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Arc.Screenplay.Emission.Specifications;
+using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
@@ -21,6 +22,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// Builds the Screenplay <c>slice</c> declaration for a slice.
 /// </summary>
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
+/// <param name="types">The shared converter for property types.</param>
 /// <param name="commands">The <see cref="CommandSyntaxBuilder"/> for the commands of the slice.</param>
 /// <param name="events">The <see cref="EventSyntaxBuilder"/> for the events of the slice.</param>
 /// <param name="queries">The <see cref="QuerySyntaxBuilder"/> for the queries of the slice.</param>
@@ -31,6 +33,7 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 /// <param name="specifications">The <see cref="SpecificationSyntaxBuilder"/> for the scenarios the slice is specified by.</param>
 public class SliceSyntaxBuilder(
     IScreenplayNaming naming,
+    TypeReferenceConverter types,
     CommandSyntaxBuilder commands,
     EventSyntaxBuilder events,
     QuerySyntaxBuilder queries,
@@ -46,16 +49,29 @@ public class SliceSyntaxBuilder(
     public const string DefaultSliceName = "Slice";
 
     /// <summary>
+    /// Gets the inline eligibility decisions shared with command emission.
+    /// </summary>
+    public InlineEvents? InlineEvents { get; init; }
+
+    /// <summary>Gets or sets read-model declarations needed by authoring-only reads.</summary>
+    public IReadOnlyList<CommandReadModel> AuthoringReadModels { get; set; } = [];
+
+    /// <summary>
     /// Builds the slice declaration.
     /// </summary>
     /// <param name="slice">The slice to build for.</param>
     /// <returns>The <see cref="SliceSyntax"/>.</returns>
-    public SliceSyntax Build(SliceModel slice) =>
-        new(
+    public SliceSyntax Build(SliceModel slice)
+    {
+        var commandDeclarations = slice.Commands.Select(_ => commands.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal).ToList();
+        var inlineNames = commandDeclarations.SelectMany(_ => _.Produces).Select(_ => _.InlineEvent).OfType<EventSyntax>()
+            .Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
+
+        return new(
             SliceTypes.Convert(slice.Kind),
             GetName(slice),
-            [.. slice.Events.Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
-            [.. slice.Commands.Select(_ => commands.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            [.. slice.Events.Where(_ => InlineEvents?.Contains(_) != true || !inlineNames.Contains(naming.ToDeclarationName(_.Name))).Select(_ => events.Build(_, slice.Namespace)).OrderBy(_ => _.Name, StringComparer.Ordinal)],
+            commandDeclarations,
             [.. slice.Queries.Select(queries.Build).OrderBy(_ => _.Name, StringComparer.Ordinal)],
             BuildProjections(slice),
             [],
@@ -78,7 +94,10 @@ public class SliceSyntaxBuilder(
             ],
             [.. specifications.Build(slice.Specifications)],
             SourceLocation.Start,
-            naming.ToStringLiteral(slice.Description));
+            naming.ToStringLiteral(slice.Description),
+            ReadModels: AuthoringReadModels.Where(read => read.Namespace == slice.Namespace).DistinctBy(read => read.Name)
+                .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), read.Properties.Select(property => new PropertySyntax(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start)).ToList(), SourceLocation.Start)).ToList());
+    }
 
     /// <summary>
     /// Builds the projections a slice declares.

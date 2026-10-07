@@ -150,7 +150,7 @@ public static class an_application
     /// <param name="event">The name of the event it produces.</param>
     /// <returns>The <see cref="CommandModel"/>.</returns>
     static CommandModel Command(string name, string @event) =>
-        new(name, null, [Property("Reference")], null, [], [new(@event, null, [])], null, null);
+        new(name, null, [Property("Reference")], null, [], [new(@event, null, []) { UsesCommandContext = true }], null, null);
 
     /// <summary>
     /// Declares an event carrying one property.

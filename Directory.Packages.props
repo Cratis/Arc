@@ -22,7 +22,7 @@
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.31.2" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.22.0" />
     <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.19.4" />
-    <PackageVersion Include="Cratis.Screenplay" Version="4.60.0" />
+    <PackageVersion Include="Cratis.Screenplay" Version="4.68.2" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.DotNet" Version="0.18.0" />

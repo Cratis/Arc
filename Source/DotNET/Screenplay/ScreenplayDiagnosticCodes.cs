@@ -72,12 +72,11 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableCommandProduction = "SP0012";
 
     /// <summary>
-    /// A command handler yields the identifier of the event source it appends to, which Screenplay cannot express.
+    /// A command handler's returned event source identity cannot be proven as an admitted destination.
     /// </summary>
     /// <remarks>
-    /// A <c>produces</c> line names the event and says nothing about where it lands, so a handler returning the event
-    /// source alongside it is stating exactly what that line cannot carry (Cratis/Screenplay#33). The production is
-    /// written as it stands, because what the handler produces is right even while where it produces it is unsaid.
+    /// Required scalar UUID concepts without validation can be generated and returned in ESM v7.
+    /// Other tuple destinations remain unstated rather than inferred from the returned event.
     /// </remarks>
     public const string UnmappableEventSourceIdResult = "SP0013";
 
@@ -367,6 +366,11 @@ public static class ScreenplayDiagnosticCodes
     /// different command whose rejection has lost its cause, so the scenario is left out and this is what says which
     /// property, which value and why.
     /// </para>
+    /// <para>
+    /// Reported as a warning during both analysis and emission, at the declaring specification type (or its slice
+    /// when no source declaration is available). Emission can also withhold a scenario whose command or concrete
+    /// event sources cannot be represented, or whose generated fixtures or response expectations were not recovered.
+    /// </para>
     /// </remarks>
     public const string UnreadableSpecification = "SP0039";
 
@@ -428,34 +432,20 @@ public static class ScreenplayDiagnosticCodes
     /// A slice is specified by a scenario of a kind the language has nowhere to put, so the whole of it is left out.
     /// </summary>
     /// <remarks>
-    /// An application specifies its slices through four scenarios, and a <c>specification</c> holds two of them. One
-    /// issuing a command is a <c>when</c>; one driving a read model is <c>given</c> the events and then the
-    /// <c>readmodel</c> they built. The other two have nowhere to go, for reasons of their own rather than one
-    /// shared reason.
-    /// <para>
-    /// A scenario appending an event states the append as its action, and a <c>when</c> names a command and nothing
-    /// else - so writing the appended event as something that followed would state the action as an outcome, and
-    /// writing only the rejection would say a scenario was rejected without saying what was. A scenario driving a
-    /// reactor says what a collaborator was asked to do, which is a statement about the inside of a slice in the same
-    /// way a unit level specification is, and is left out for the same reason.
-    /// </para>
-    /// <para>
-    /// This is reported rather than passed over precisely because those two are not unit level specifications. They
-    /// hold a scenario, which is what says a specification is about the behavior of the slice - so a document silent
-    /// about them reads exactly like a slice specified by nothing, and on a real application that is a large fraction
-    /// of everything the slice is specified by.
-    /// </para>
+    /// Command, read-model, and event-append scenarios have counterparts in the language. A reactor scenario
+    /// asserting what a collaborator was asked to do still describes the inside of a slice, not a portable outcome.
+    /// It is reported rather than silently passed over because it holds a scenario and specifies real slice behavior.
     /// </remarks>
     public const string ScenarioWithoutCounterpart = "SP0043";
 
     /// <summary>
-    /// A command appends through an event source definition, which the Screenplay language cannot declare yet.
+    /// A command's event source or stream route was omitted.
     /// </summary>
     /// <remarks>
-    /// Only the concurrency dimensions the definition declares are emitted, in the command's <c>concurrency</c> block.
-    /// The event source and the stream themselves are not, since there is no <c>eventsource</c> declaration or command
-    /// binding to write them as, and writing them as plain strings would lose that they name a definition. This is
-    /// reported so a document silent about them is not read as a command that appends to the default stream.
+    /// Event source and stream syntax exists as authoring-only constructs. With the option disabled, an Information
+    /// diagnostic explains how to enable it. With the option enabled, an unreadable route remains a Warning.
+    /// Only the readable concurrency dimensions are emitted when the route is omitted, so a document silent about
+    /// it is not read as a command that appends to the default stream.
     /// </remarks>
     public const string EventSourceNotRepresentable = "SP0044";
 
@@ -484,4 +474,31 @@ public static class ScreenplayDiagnosticCodes
     /// A reactor or reducer names a stream its event source definition does not declare.
     /// </summary>
     public const string ObserverEventStreamNotDeclared = "SP0048";
+
+    /// <summary>
+    /// A command has several identity candidates, so no identifier was selected.
+    /// </summary>
+    public const string AmbiguousCommandIdentifier = "SP0049";
+
+    /// <summary>
+    /// A command's identity cannot be read as a directly returned required scalar property.
+    /// </summary>
+    public const string UnreadableCommandIdentifier = "SP0050";
+
+    /// <summary>
+    /// Explicit or unprovable production routing prevents using the command identifier as a destination.
+    /// </summary>
+    public const string UnrepresentableProductionDestination = "SP0051";
+
+    /// <summary>A generated value or response is unreadable or outside the admitted ESM v7 subset.</summary>
+    public const string UnreadableCommandResponse = "SP0052";
+
+    /// <summary>A returned operation cannot be represented reliably by the authoring grammar.</summary>
+    public const string UnreadableCommandOperation = "SP0053";
+
+    /// <summary>A source or stream route cannot be read without guessing.</summary>
+    public const string UnreadableCommandRoute = "SP0054";
+
+    /// <summary>Provisioning or a read dependency lives in code rather than a supported declarative shape.</summary>
+    public const string UnreadableCommandProvisioning = "SP0055";
 }

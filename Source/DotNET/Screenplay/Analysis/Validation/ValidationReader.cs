@@ -12,6 +12,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Validation;
 /// </summary>
 /// <param name="models">The <see cref="SemanticModels"/> every constructor is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
+/// <param name="paths">The paths of predicate implementations relative to the source root.</param>
 /// <remarks>
 /// Reading the constructor recovers what the runtime rule descriptor loses - which rules were declared for each
 /// element of a collection, and which comparisons were made against something other than a number.
@@ -20,7 +21,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Validation;
 /// reads its constructor is asked rather than assumed.
 /// </para>
 /// </remarks>
-public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
+public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagnostics, SourcePaths? paths)
 {
     /// <summary>
     /// The call declaring a rule for a property.
@@ -32,7 +33,17 @@ public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagn
     /// </summary>
     public const string RuleForEach = "RuleForEach";
 
-    readonly ValidationChainReader _chains = new(diagnostics);
+    readonly ValidationChainReader _chains = new(diagnostics, paths);
+
+    /// <summary>
+    /// Initializes a reader without implementation file paths for named predicates.
+    /// </summary>
+    /// <param name="models">The semantic models resolving validator source.</param>
+    /// <param name="diagnostics">Where unmappable rules are reported.</param>
+    public ValidationReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
+        : this(models, diagnostics, null)
+    {
+    }
 
     /// <summary>
     /// Determines whether a type is a validator, and of what.

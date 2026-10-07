@@ -64,9 +64,14 @@ reports SP0002 1
 # The concept and the event are declared by the contracts project and reached through the project above it, so a
 # document holding them is a document generated from more than the project that was named.
 says concept CustomerId : Uuid
-once event OrderPlaced
+never event OrderPlaced
+# Specification fixture constructions do not count as application production sites.
+once produces event OrderPlaced
+never produces OrderPlaced
 once command PlaceOrder
-says customerId CustomerId
+says customerId CustomerId identifier
+says for customerId
+says description "The event that occurs when an order has been placed."
 
 # The application is named after the project that was asked for, not the neutral default.
 once domain Layered

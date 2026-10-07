@@ -29,11 +29,22 @@ public class a_command_appending_through_an_event_source : Specification
         _builder.ReportEventSource(null, "Library.Accounts.Legacy");
     }
 
+    [Fact]
+    void should_not_suggest_enabling_authoring_when_it_is_already_enabled()
+    {
+        var diagnostics = new ScreenplayDiagnostics();
+        new ConcurrencySyntaxBuilder(new ScreenplayNaming(), diagnostics).ReportEventSource(new("Account", "Transactions", true, false), "Library.Accounts.Deposit", true);
+        diagnostics.All.Single().Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
+        diagnostics.All.Single().Message.ShouldContain("no unambiguous readable route");
+        diagnostics.All.Single().Message.Contains("enable", StringComparison.Ordinal).ShouldBeFalse();
+    }
+
     [Fact] void should_report_what_cannot_be_stated() => _diagnostics.All.Select(_ => _.Code).ShouldContainOnly(
         ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
         ScreenplayDiagnosticCodes.EventStreamIdConcurrencyNotRepresentable,
         ScreenplayDiagnosticCodes.EventStreamNotDeclared,
         ScreenplayDiagnosticCodes.EventSourceNotRepresentable);
+    [Fact] void should_report_disabled_authoring_as_information() => _diagnostics.All.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).All(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Information).ShouldBeTrue();
     [Fact] void should_name_the_event_source_and_stream() => _diagnostics.All.First(_ => _.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).Message.ShouldContain("event source 'Account' stream 'Transactions'");
     [Fact] void should_report_nothing_for_a_command_without_an_event_source() => _diagnostics.All.Count(_ => _.Location == "Library.Accounts.Legacy").ShouldEqual(0);
 }

@@ -37,6 +37,16 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
         foreach (var rule in rules)
         {
             var operand = ToOperand(rule);
+            var path = rule.Kind == ModelRuleKind.Rule ? naming.ToFilePath(rule.SourceFilePath) : null;
+            if (rule.Kind == ModelRuleKind.Rule && (path is null || Path.IsPathRooted(path) || path.Contains(':', StringComparison.Ordinal)))
+            {
+                diagnostics.Warning(
+                    ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                    $"The named rule on '{rule.Property}' has no portable implementation file and was left out",
+                    location);
+                continue;
+            }
+
             if (operand is null && rule.Kind != ModelRuleKind.NotEmpty)
             {
                 diagnostics.Warning(
@@ -51,7 +61,8 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
                 ToKind(rule.Kind),
                 rule.Kind == ModelRuleKind.NotEmpty ? null : operand,
                 ToMessage(rule.Message),
-                SourceLocation.Start));
+                SourceLocation.Start,
+                path is null ? null : new FileReferenceSyntax(path, SourceLocation.Start)));
         }
 
         return converted.Count == 0 ? [] : [new DeclarativeValidateSyntax(converted, SourceLocation.Start)];
@@ -64,6 +75,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
     /// <returns>The Screenplay rule kind.</returns>
     static SyntaxRuleKind ToKind(ModelRuleKind kind) => kind switch
     {
+        ModelRuleKind.Rule => SyntaxRuleKind.Rule,
         ModelRuleKind.Max => SyntaxRuleKind.Max,
         ModelRuleKind.Min => SyntaxRuleKind.Min,
         ModelRuleKind.GreaterThan => SyntaxRuleKind.GreaterThan,
@@ -97,6 +109,11 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
         if (rule.Value is null)
         {
             return null;
+        }
+
+        if (rule.Kind == ModelRuleKind.Rule && rule.Value is string name)
+        {
+            return new PathExpressionSyntax(ScreenplayIdentifier.IsBareIdentifier(name) ? name : naming.ToDeclarationName(name), SourceLocation.Start);
         }
 
         if (rule.Value is PropertyPathSource property)

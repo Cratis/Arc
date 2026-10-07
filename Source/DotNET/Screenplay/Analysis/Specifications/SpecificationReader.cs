@@ -13,6 +13,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
+/// <param name="heldValues">The held values cached for the analysis.</param>
 /// <remarks>
 /// Only a specification driving a command through the real pipeline is read. A unit level one stands a collaborator
 /// up behind a substitute and says what that collaborator was asked to do, which is a statement about the inside of
@@ -20,8 +21,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// the other is decided by what it touches: holding a scenario the pipeline runs in, or reaching the event log, is
 /// what an integration specification does and nothing else does.
 /// </remarks>
-public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
+public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics diagnostics, HeldValues? heldValues = null)
 {
+    readonly HeldValues _held = heldValues ?? new(models);
+
     /// <summary>
     /// Determines whether a type specifies a slice by driving a command through the pipeline.
     /// </summary>
@@ -37,6 +40,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var steps = SpecificationMembers.StepsOf(type);
 
         return SpecificationMembers.HoldsAScenario(steps) ||
+            SpecificationMembers.HoldsAnEventScenario(steps) ||
             SpecificationMembers.ReadModelOf(steps) is not null ||
             DrivesASlice(steps);
     }
@@ -47,13 +51,9 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// <param name="type">The type to check.</param>
     /// <returns>The name of the scenario, or <see langword="null"/> when there is nothing to report.</returns>
     /// <remarks>
-    /// A specification holding one of these is specifying the slice as much as any other - what it does is real, and
-    /// leaving it out without a word is the one thing the catalogue of codes exists to prevent. Two of the four
-    /// scenarios an application is written with have nowhere to go: a scenario appending an event states the append
-    /// itself as its action, and a <c>when</c> names a command and nothing else; a scenario driving a reactor says
-    /// what a collaborator was asked to do, which is a statement about the inside of the slice. Both are said rather
-    /// than recovered, because a document quietly missing four specifications in ten reads exactly like an
-    /// application that has none.
+    /// Command, event-append, and read-model scenarios have counterparts. Only reactor scenarios lack one: they
+    /// say what a collaborator was asked to do rather than asserting a portable outcome of the slice.
+    /// Their omission is reported so a document missing scenarios does not look like an application with none.
     /// </remarks>
     public string? ScenarioWithoutCounterpart(INamedTypeSymbol type)
     {
@@ -81,12 +81,12 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
         var readModel = SpecificationMembers.ReadModelOf(steps);
-        var draft = new SpecificationDraft();
+        var draft = new SpecificationDraft { EventSources = new(models, _held) };
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)));
-        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
+        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)), _held);
         reader.ReadWhen(steps, draft, name, location);
+        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
 
         if (readModel is INamedTypeSymbol namedReadModel && draft.When is null)
@@ -110,11 +110,15 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         }
         else if (draft.When is null)
         {
-            draft.CannotRead("the command it issues is put together somewhere this cannot read");
+            draft.CannotRead(SpecificationMembers.HoldsAnEventScenario(steps)
+                ? "the event it appends is put together somewhere this cannot read"
+                : "the command it issues is put together somewhere this cannot read");
         }
         else if (draft.Then.Count == 0 && draft.Errors.Count == 0)
         {
-            draft.CannotRead("it expects no event and no rejection, and those are the outcomes the language holds");
+            draft.CannotRead(draft.AssertsResponse
+                ? "it asserts only CommandResult.Response, but response expectations are not yet recovered"
+                : "it expects no event and no rejection, and those are the outcomes the language holds");
         }
 
         if (draft.Unreadable is not null)
@@ -129,7 +133,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]);
+        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse };
         SpecificationEvidence.Register(
             specification,
             new(
@@ -138,7 +142,12 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
                 draft.GetStateEvidence(),
                 draft.GetValueEvidence(),
                 draft.GetErrorEvidence(),
-                [.. stated.All]));
+                [.. stated.All])
+            {
+                CommandIdentifier = draft.EventSources.CommandIdentifier,
+                HasExplicitCommandSources = draft.EventSources.HasExplicitCommandSources,
+                HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources
+            });
         return specification;
     }
 

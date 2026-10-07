@@ -59,7 +59,16 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </summary>
     /// <param name="eventSource">The event source the command appends through, if it declares one.</param>
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
-    public void ReportEventSource(EventSourceBindingModel? eventSource, string location)
+    /// <param name="authoringOnlyConstructs">Whether authoring-only constructs are enabled.</param>
+    public void ReportEventSource(EventSourceBindingModel? eventSource, string location, bool authoringOnlyConstructs = false) =>
+        ReportEventSource(eventSource, location, authoringOnlyConstructs, null);
+
+    /// <summary>Reports unrepresented event source routing for a named command.</summary>
+    /// <param name="eventSource">The event source the command appends through, if it declares one.</param>
+    /// <param name="location">The command's diagnostic location.</param>
+    /// <param name="authoringOnlyConstructs">Whether authoring-only constructs are enabled.</param>
+    /// <param name="commandName">The command appending through the event source.</param>
+    public void ReportEventSource(EventSourceBindingModel? eventSource, string location, bool authoringOnlyConstructs, string? commandName)
     {
         if (eventSource is null)
         {
@@ -75,10 +84,18 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 location);
         }
 
-        diagnostics.Warning(
-            ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
-            $"The command appends through event source '{eventSource.Source}'{stream}, which the language cannot declare yet; only the concurrency dimensions it declares are emitted",
-            location);
+        var command = commandName is null ? "The command" : $"The command '{commandName}'";
+        var message = authoringOnlyConstructs
+            ? $"{command} appends through event source '{eventSource.Source}'{stream}, but no unambiguous readable route could be stated; only the existing concurrency dimensions are emitted"
+            : $"{command} appends through event source '{eventSource.Source}'{stream}; source and stream declarations are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs; only the existing concurrency dimensions are emitted";
+        if (authoringOnlyConstructs)
+        {
+            diagnostics.Warning(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, message, location);
+        }
+        else
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, message, location);
+        }
 
         if (eventSource.ConcurrentByStreamId)
         {
@@ -88,6 +105,22 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 location);
         }
     }
+
+    /// <summary>Reports legacy classification attributes omitted from executable-default output.</summary>
+    /// <param name="location">The diagnostic location.</param>
+    public void ReportLegacyRoute(string location) => ReportLegacyRoute(location, null);
+
+    /// <summary>Reports legacy classification attributes omitted for a named command.</summary>
+    /// <param name="location">The diagnostic location.</param>
+    /// <param name="commandName">The routed command, when it is known.</param>
+    public void ReportLegacyRoute(string location, string? commandName) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, $"Event source and stream routing{(commandName is null ? string.Empty : $" for command '{commandName}'")} are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable routes", location);
+
+    /// <summary>Reports a dynamic concurrency flag that the current grammar cannot state without a value.</summary>
+    /// <param name="location">The diagnostic location.</param>
+    public void ReportStreamIdFlag(string location) => diagnostics.Warning(
+        ScreenplayDiagnosticCodes.EventStreamIdConcurrencyNotRepresentable,
+        "Dynamic stream-id concurrency has no valueless flag in the current grammar and was left out",
+        location);
 
     /// <summary>
     /// Converts a dimension of the scope into the identifier it is written as.

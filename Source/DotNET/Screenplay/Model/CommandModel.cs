@@ -28,4 +28,21 @@ public record CommandModel(
     IEnumerable<ProducesModel> Produces,
     ConcurrencyModel? Concurrency,
     string? SourceFilePath,
-    EventSourceBindingModel? EventSource = null);
+    EventSourceBindingModel? EventSource = null)
+{
+    /// <summary>
+    /// Gets the required scalar property supplying the command's event source identity, when it is known.
+    /// </summary>
+    public string? Identifier { get; init; }
+
+    /// <summary>
+    /// Gets the optional authoring-only description of generated values, responses, operations and reads.
+    /// </summary>
+    public CommandAuthoringModel? Authoring { get; init; }
+
+    /// <summary>Gets whether legacy attributes declare authoring-only routing metadata.</summary>
+    public bool HasAuthoringRoute { get; init; }
+
+    /// <summary>Gets whether the source proves the handler is empty or response-only.</summary>
+    public bool HasNoFactBehavior { get; init; }
+}

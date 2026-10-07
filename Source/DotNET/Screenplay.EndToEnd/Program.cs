@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay;
 using Cratis.Arc.Screenplay.EndToEnd;
 using Cratis.Screenplay;
+using Cratis.Screenplay.Diagnostics;
 
 if (args.Length < 2)
 {
@@ -59,15 +60,16 @@ foreach (var error in errors)
 }
 
 var compiled = new ScreenplayCompiler().Compile(generated.Source);
-var rejected = compiled.Diagnostics.ToList();
-foreach (var diagnostic in rejected)
+var rejected = compiled.Diagnostics.Where(_ => _.Severity is DiagnosticSeverity.Warning or DiagnosticSeverity.Error).ToList();
+foreach (var diagnostic in compiled.Diagnostics)
 {
     Console.WriteLine($"  document {diagnostic.Severity} on line {diagnostic.Location.Line}: {diagnostic.Message}");
 }
 
 // The document has to compile clean, warnings included. A warning the language reports is the generator writing a
 // document that refers to something it never introduces, which is a defect here rather than in the application - and
-// it is precisely the class of defect no specification built from source strings can reach.
+// it is precisely the class of defect no specification built from source strings can reach. Information, such as
+// PLAY0469 describing an existing payload copy of the command's identity, is printed without rejecting valid output.
 if (rejected.Count > 0)
 {
     Console.WriteLine($"The generated document did not read back clean - {rejected.Count} diagnostic(s)");

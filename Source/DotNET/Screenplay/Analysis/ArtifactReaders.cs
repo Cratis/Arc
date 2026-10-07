@@ -117,15 +117,22 @@ public class ArtifactReaders
         var models = whole.Models;
         var diagnostics = whole.Diagnostics;
         var properties = new PropertyReader(types);
-        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics);
-        var validators = ValidatorCatalog.From(catalog, new(models, diagnostics));
+        var produces = new ProducesReader(models, whole.AggregateRoots, diagnostics, whole.AuthoringOnlyConstructs);
+        var validators = ValidatorCatalog.From(catalog, new(models, diagnostics, paths));
 
         return new(
             types,
             whole.AggregateRoots,
             validators,
             new EventReader(properties, diagnostics),
-            new CommandReader(properties, produces, validators, paths),
+            new CommandReader(properties, produces, validators, paths, new(models, diagnostics))
+            {
+                Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
+                {
+                    ValidatedTypes = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
+                        .Select(ValidationReader.ValidatedTypeOf).OfType<ITypeSymbol>().Select(type => type.ToDisplayString()).ToHashSet(StringComparer.Ordinal)
+                }
+            },
             new ControllerCommandReader(types, properties, produces, validators, paths),
             new QueryReader(types, diagnostics),
             new ModelBoundProjectionReader(diagnostics),

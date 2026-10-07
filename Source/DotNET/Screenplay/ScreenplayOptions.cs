@@ -57,6 +57,15 @@ public record ScreenplayOptions
     public bool ModulesFromNamespaceRoots { get; init; }
 
     /// <summary>
+    /// Gets a value indicating whether additional authoring-only constructs are emitted.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to false. Legacy handler references remain available in either mode. Additional enabled constructs
+    /// compile as authoring syntax but block executable binding with PLAY0268.
+    /// </remarks>
+    public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
     /// Gets a value indicating whether every value has been filled in already.
     /// </summary>
     /// <remarks>

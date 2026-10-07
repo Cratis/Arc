@@ -13,6 +13,7 @@
              project itself sets still wins over both. -->
         <CratisEmbeddedScreenplayEnabled Condition="'$(CratisEmbeddedScreenplayEnabled)' == ''">$(CratisEmbeddedScreenplayEnabledByDefault)</CratisEmbeddedScreenplayEnabled>
         <CratisEmbeddedScreenplayEnabled Condition="'$(CratisEmbeddedScreenplayEnabled)' == ''">true</CratisEmbeddedScreenplayEnabled>
+        <CratisEmbeddedScreenplayAuthoringOnlyConstructs Condition="'$(CratisEmbeddedScreenplayAuthoringOnlyConstructs)' == ''">false</CratisEmbeddedScreenplayAuthoringOnlyConstructs>
 
         <!-- The task is loaded by MSBuild rather than by the application, so it is taken from tools/ alongside its
              own dependencies. tools/ sits beside the folder this file is imported from, and that holds whether
@@ -73,6 +74,7 @@
             OutputType="$(OutputType)"
             AssemblyName="$(AssemblyName)"
             RootNamespace="$(RootNamespace)"
+            AuthoringOnlyConstructs="$(CratisEmbeddedScreenplayAuthoringOnlyConstructs)"
             OutputPath="$(CratisEmbeddedScreenplayOutputPath)">
             <Output TaskParameter="Documents" ItemName="CratisEmbeddedScreenplayDocument" />
         </GenerateEmbeddedScreenplayDocuments>

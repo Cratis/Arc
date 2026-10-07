@@ -86,6 +86,11 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     public string? RootNamespace { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether authoring-only constructs are emitted.
+    /// </summary>
+    public bool AuthoringOnlyConstructs { get; set; }
+
+    /// <summary>
     /// Gets or sets the directory the generated files are written to.
     /// </summary>
     [Required]
@@ -158,7 +163,10 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
             return false;
         }
 
-        var generation = new EmbeddedDocumentGenerator().Generate(generated.Compilation, new(AssemblyName, RootNamespace));
+        var generation = new EmbeddedDocumentGenerator().Generate(generated.Compilation, new(AssemblyName, RootNamespace)
+        {
+            AuthoringOnlyConstructs = AuthoringOnlyConstructs
+        });
         foreach (var diagnostic in generation.Diagnostics)
         {
             reporter.Report(diagnostic);

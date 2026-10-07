@@ -28,9 +28,63 @@ public static class Documentation
             return null;
         }
 
-        var summary = TryParse(xml)?.Element("summary")?.Value;
+        var summary = TryParse(xml)?.Element("summary");
+        if (summary is not null)
+        {
+            NormalizeReferences(summary);
+        }
 
-        return Flatten(summary);
+        return Flatten(summary?.Value);
+    }
+
+    /// <summary>
+    /// Gets the remarks of a symbol, retaining line breaks for a Markdown documentation block.
+    /// </summary>
+    /// <param name="symbol">The symbol to read.</param>
+    /// <returns>The remarks, or null when the symbol carries none.</returns>
+    public static string? RemarksOf(ISymbol symbol)
+    {
+        var xml = symbol.GetDocumentationCommentXml(preferredCulture: null, expandIncludes: false);
+        var remarks = string.IsNullOrWhiteSpace(xml) ? null : TryParse(xml)?.Element("remarks");
+        if (remarks is null)
+        {
+            return null;
+        }
+
+        NormalizeReferences(remarks);
+
+        foreach (var paragraph in remarks.Descendants("para").ToArray())
+        {
+            paragraph.ReplaceWith(new XText($"\n\n{paragraph.Value.Trim()}\n\n"));
+        }
+
+        var lines = remarks.Value.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var indentation = lines.Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line => line.Length - line.TrimStart().Length).DefaultIfEmpty(0).Min();
+        var text = string.Join('\n', lines.Select(line => line.Length >= indentation ? line[indentation..].TrimEnd() : string.Empty)).Trim();
+
+        return text.Length == 0 ? null : text;
+    }
+
+    static void NormalizeReferences(XElement element)
+    {
+        foreach (var reference in element.Descendants().Where(element =>
+            string.Equals(element.Name.LocalName, "see", StringComparison.Ordinal) ||
+            string.Equals(element.Name.LocalName, "paramref", StringComparison.Ordinal) ||
+            string.Equals(element.Name.LocalName, "typeparamref", StringComparison.Ordinal)).ToArray())
+        {
+            if (reference.Attribute("href") is { } href)
+            {
+                reference.ReplaceWith(new XText(string.IsNullOrWhiteSpace(reference.Value) ? href.Value : reference.Value));
+                continue;
+            }
+
+            var name = reference.Attribute("langword")?.Value ?? reference.Attribute("cref")?.Value.Split('(')[0].Split('.')[^1].Split(':')[^1].Split('`')[0] ?? reference.Attribute("name")?.Value;
+            if (!string.IsNullOrWhiteSpace(name))
+            {
+                reference.ReplaceWith(new XText($"`{name}`"));
+            }
+        }
     }
 
     /// <summary>

@@ -28,7 +28,12 @@ public class EventSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverter
             naming.ToDeclarationName(@event.Name),
             [.. ToProperties(@event, location)],
             SourceLocation.Start,
-            BuildTags(@event));
+            BuildTags(@event))
+        {
+            Description = naming.ToStringLiteral(@event.Description),
+            Documentation = @event.Documentation,
+            Id = @event.Id
+        };
 
     /// <summary>
     /// Converts the properties of the event, leaving out every name the event body reads as a directive.

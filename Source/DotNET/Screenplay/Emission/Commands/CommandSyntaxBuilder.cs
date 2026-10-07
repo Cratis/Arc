@@ -30,6 +30,9 @@ public class CommandSyntaxBuilder(
     ConcurrencySyntaxBuilder concurrency,
     NameAvailability names)
 {
+    /// <summary>Gets whether authoring-only constructs should be emitted.</summary>
+    public bool AuthoringOnlyConstructs { get; init; }
+
     /// <summary>
     /// Builds the command declaration.
     /// </summary>
@@ -38,19 +41,48 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
-        var produced = produces.Build(command.Produces, location).ToList();
-        concurrency.ReportEventSource(command.EventSource, location);
+        var authoring = command.Authoring;
+        var selectedIdentifier = authoring?.Identifier ?? command.Identifier;
+        var properties = ToProperties(command, location).ToList();
+        if (authoring is not null)
+        {
+            properties = [.. properties.Select(property => property with { IsIdentifier = selectedIdentifier is not null && property.Name == naming.ToPropertyName(selectedIdentifier) }),
+                .. authoring.Generated.Select(property => ToProperty(property, selectedIdentifier) with { IsGenerated = true })];
+        }
 
-        return new(
+        var identifier = properties.Exists(_ => _.IsIdentifier) ? selectedIdentifier : null;
+        var productions = command.Produces.ToList();
+        if (productions.Exists(_ => !_.UsesCommandContext))
+        {
+            properties = [.. properties.Select(_ => _ with { IsIdentifier = false })];
+        }
+
+        var produced = produces.Build(productions, location, identifier, command.Name).ToList();
+        if (authoring?.Route is null)
+        {
+            concurrency.ReportEventSource(command.EventSource, $"{location}.{command.Name}", AuthoringOnlyConstructs, command.Name);
+            if (!AuthoringOnlyConstructs && command.EventSource is null && command.HasAuthoringRoute)
+            {
+                concurrency.ReportLegacyRoute($"{location}.{command.Name}", command.Name);
+            }
+        }
+        else if (command.EventSource is { ConcurrentByStreamId: true })
+        {
+            concurrency.ReportStreamIdFlag(location);
+        }
+
+        var syntax = new CommandSyntax(
             naming.ToDeclarationName(command.Name),
-            [.. ToProperties(command, location)],
+            properties,
             authorize.Build(command.Authorization),
             [.. validations.Build(command.Validations, location)],
             produced,
-            ToHandler(command, produced.Count),
+            AuthoringOnlyConstructs || !command.HasNoFactBehavior ? ToHandler(command, produced.Count) : null,
             SourceLocation.Start,
             concurrency.Build(command.Concurrency, location),
             naming.ToStringLiteral(command.Description));
+
+        return new CommandAuthoringSyntaxBuilder(naming, types).Apply(syntax, authoring, AuthoringOnlyConstructs);
     }
 
     /// <summary>
@@ -62,15 +94,16 @@ public class CommandSyntaxBuilder(
     IEnumerable<PropertySyntax> ToProperties(CommandModel command, string location) =>
         command.Properties
             .Where(_ => names.Allows(_.Name, ReservedWords.InCommand, command.Name, location))
-            .Select(ToProperty);
+            .Select(property => ToProperty(property, command.Identifier));
 
     /// <summary>
     /// Converts a property of the command.
     /// </summary>
     /// <param name="property">The property to convert.</param>
+    /// <param name="identifier">The property supplying the command's event source identity.</param>
     /// <returns>The <see cref="PropertySyntax"/>.</returns>
-    PropertySyntax ToProperty(PropertyModel property) =>
-        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start);
+    PropertySyntax ToProperty(PropertyModel property, string? identifier) =>
+        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start, property.Name == identifier);
 
     /// <summary>
     /// Builds the handler reference for a command whose behavior is not expressed declaratively.
