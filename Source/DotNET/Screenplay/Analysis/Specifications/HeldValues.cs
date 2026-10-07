@@ -34,6 +34,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 public class HeldValues(SemanticModels models)
 {
     readonly Dictionary<ISymbol, bool> _stable = new(SymbolEqualityComparer.Default);
+    readonly Dictionary<Compilation, Writes> _writes = [];
 
     /// <summary>
     /// Gets the construction an expression stands for.
@@ -130,21 +131,16 @@ public class HeldValues(SemanticModels models)
             return false;
         }
 
-        var declarations = compilation.SyntaxTrees.Select(tree => tree.GetRoot()).ToArray();
+        var writes = WritesIn(compilation);
         var values = symbol.DeclaringSyntaxReferences.Select(reference => DeclaredValueOf(reference.GetSyntax()))
-            .OfType<ExpressionSyntax>().Where(value => !StatesNothing(value)).Concat(AssignedValuesTo(symbol, declarations));
+            .OfType<ExpressionSyntax>().Where(value => !StatesNothing(value))
+            .Concat(writes.Assignments.GetValueOrDefault(symbol, []).Select(assignment => assignment.Right));
         if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol) || values.Take(2).ToList() is not [var given] || !Unconditional(given))
         {
             return false;
         }
 
-        return !declarations.SelectMany(declaration => declaration.DescendantNodes()).OfType<ExpressionSyntax>().Any(expression =>
-                ((expression.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
-                    (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression) &&
-                    expression.ChildNodes().OfType<ExpressionSyntax>().Any(operand => Names(operand, symbol) && models.For(operand.SyntaxTree) is { } model &&
-                        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(operand).Symbol, symbol))) ||
-                ((expression is IdentifierNameSyntax or MemberAccessExpressionSyntax) && Names(expression, symbol) && expression.Parent is ArgumentSyntax { RefKindKeyword.RawKind: not 0 } &&
-                    models.For(expression.SyntaxTree) is { } argumentModel && SymbolEqualityComparer.Default.Equals(argumentModel.GetSymbolInfo(expression).Symbol, symbol)));
+        return !writes.Mutations.Contains(symbol);
     }
 
     /// <summary>
@@ -190,21 +186,80 @@ public class HeldValues(SemanticModels models)
     /// Gets the expression of every assignment to a value, wherever the type declaring it writes one.
     /// </summary>
     /// <param name="symbol">The member or local to follow.</param>
-    /// <param name="declarations">The declarations to search, or null for the containing type.</param>
     /// <returns>The expressions assigned.</returns>
-    IEnumerable<ExpressionSyntax> AssignedValuesTo(ISymbol symbol, IEnumerable<SyntaxNode>? declarations = null) =>
-        (declarations ?? (symbol.ContainingType?.DeclaringSyntaxReferences ?? []).Select(_ => _.GetSyntax()))
-            .SelectMany(declaration => declaration.DescendantNodes().OfType<AssignmentExpressionSyntax>())
-            .Where(assignment => Assigns(assignment, symbol))
-            .Select(assignment => assignment.Right);
+    IEnumerable<ExpressionSyntax> AssignedValuesTo(ISymbol symbol)
+    {
+        foreach (var reference in symbol.ContainingType?.DeclaringSyntaxReferences ?? [])
+        {
+            if (models.For(reference.SyntaxTree) is not { } model)
+            {
+                continue;
+            }
 
-    /// <summary>
-    /// Determines whether an assignment writes to a value.
-    /// </summary>
-    /// <param name="assignment">The assignment to check.</param>
-    /// <param name="symbol">The member or local it would write to.</param>
-    /// <returns>True when it writes to it.</returns>
-    bool Assigns(AssignmentExpressionSyntax assignment, ISymbol symbol) =>
-        Names(assignment.Left, symbol) && models.For(assignment.SyntaxTree) is { } model &&
-        SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(assignment.Left).Symbol, symbol);
+            var declaration = reference.GetSyntax();
+            foreach (var assignment in WritesIn(model.Compilation).Assignments.GetValueOrDefault(symbol, [])
+                .Where(assignment => assignment.SyntaxTree == reference.SyntaxTree && declaration.Span.Contains(assignment.Span)))
+            {
+                yield return assignment.Right;
+            }
+        }
+    }
+
+    Writes WritesIn(Compilation compilation)
+    {
+        if (_writes.TryGetValue(compilation, out var cached))
+        {
+            return cached;
+        }
+
+        var writes = new Writes();
+        foreach (var tree in compilation.SyntaxTrees)
+        {
+            var candidates = tree.GetRoot().DescendantNodes().Where(node => node is AssignmentExpressionSyntax ||
+                node.RawKind is (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PostIncrementExpression or
+                    (int)SyntaxKind.PreDecrementExpression or (int)SyntaxKind.PostDecrementExpression ||
+                node is ArgumentSyntax { RefKindKeyword.RawKind: not 0 }).ToList();
+            if (candidates.Count == 0 || models.For(tree) is not { } model)
+            {
+                continue;
+            }
+
+            foreach (var candidate in candidates)
+            {
+                var target = candidate switch
+                {
+                    AssignmentExpressionSyntax assignment => assignment.Left,
+                    ArgumentSyntax argument => argument.Expression,
+                    _ => candidate.ChildNodes().OfType<ExpressionSyntax>().FirstOrDefault()
+                };
+                if (target is not (IdentifierNameSyntax or MemberAccessExpressionSyntax) ||
+                    model.GetSymbolInfo(target).Symbol is not { } symbol || !Names(target, symbol))
+                {
+                    continue;
+                }
+
+                if (candidate is AssignmentExpressionSyntax assigned)
+                {
+                    if (!writes.Assignments.TryGetValue(symbol, out var assignments))
+                    {
+                        writes.Assignments[symbol] = assignments = [];
+                    }
+
+                    assignments.Add(assigned);
+                }
+                else
+                {
+                    writes.Mutations.Add(symbol);
+                }
+            }
+        }
+
+        return _writes[compilation] = writes;
+    }
+
+    sealed class Writes
+    {
+        public Dictionary<ISymbol, List<AssignmentExpressionSyntax>> Assignments { get; } = new(SymbolEqualityComparer.Default);
+        public HashSet<ISymbol> Mutations { get; } = new(SymbolEqualityComparer.Default);
+    }
 }

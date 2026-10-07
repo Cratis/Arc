@@ -102,7 +102,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 whole.Types.Types)
             {
                 Imports = imports,
-                EventProducerCounts = EventProducers.Across(ordered, slices)
+                EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
             },
             diagnostics.All);
     }

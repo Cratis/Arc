@@ -38,25 +38,44 @@ public static class EventProducers
     public static IReadOnlyDictionary<string, int> Across(IEnumerable<Compilation> compilations, IEnumerable<SliceModel> slices)
     {
         var projects = compilations.ToList();
+
+        return Across(projects, slices, new(projects));
+    }
+
+    /// <summary>
+    /// Counts production sites through the application's shared semantic models.
+    /// </summary>
+    /// <param name="compilations">All projects analyzed for the application.</param>
+    /// <param name="slices">All recovered slices.</param>
+    /// <param name="models">The shared cached semantic models.</param>
+    /// <returns>The counts keyed by event type identity.</returns>
+    internal static IReadOnlyDictionary<string, int> Across(IEnumerable<Compilation> compilations, IEnumerable<SliceModel> slices, SemanticModels models)
+    {
+        var projects = compilations.ToList();
         var recoveredSlices = slices.ToList();
         var commands = recoveredSlices.SelectMany(slice => slice.Commands.SelectMany(command => command.Produces
             .Where(production => production.EventTypeIdentity is not null)
             .Select(production => (Type: $"{slice.Namespace}.{command.Name}", Event: production.EventTypeIdentity!))))
             .ToHashSet();
-        var behaviors = RecoveredBehaviors(projects, commands);
-        var specifications = new SpecificationReader(new(projects), new());
+        var behaviors = RecoveredBehaviors(projects, commands, models);
+        var specifications = new SpecificationReader(models, new());
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var compilation in projects)
         {
             foreach (var tree in compilation.SyntaxTrees)
             {
-                var model = compilation.GetSemanticModel(tree);
                 var root = tree.GetRoot();
+                if (!root.DescendantNodes().Any(IsCandidate))
+                {
+                    continue;
+                }
+
+                var model = models.For(tree)!;
                 var fixtures = root.DescendantNodes().OfType<TypeDeclarationSyntax>()
                     .Where(declaration => model.GetDeclaredSymbol(declaration) is INamedTypeSymbol type &&
                         (specifications.IsSpecification(type) || IsTestFixture(type)))
                     .ToHashSet<SyntaxNode>();
-                foreach (var node in root.DescendantNodes(descendIntoChildren: node => !fixtures.Contains(node) && !IsNameOf(node)))
+                foreach (var node in root.DescendantNodes(descendIntoChildren: node => !fixtures.Contains(node) && !IsNameOf(node)).Where(IsCandidate))
                 {
                     if (node is BaseObjectCreationExpressionSyntax or WithExpressionSyntax or InvocationExpressionSyntax)
                     {
@@ -127,15 +146,22 @@ public static class EventProducers
     }
 
     static Dictionary<string, HashSet<(string Type, string Event)>> RecoveredBehaviors(
-        IEnumerable<Compilation> projects, HashSet<(string Type, string Event)> commands)
+        IEnumerable<Compilation> projects, HashSet<(string Type, string Event)> commands, SemanticModels models)
     {
         var recovered = new Dictionary<string, HashSet<(string Type, string Event)>>(StringComparer.Ordinal);
         foreach (var compilation in projects)
         {
             foreach (var tree in compilation.SyntaxTrees)
             {
-                var model = compilation.GetSemanticModel(tree);
-                foreach (var declaration in tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>())
+                var declarations = tree.GetRoot().DescendantNodes().OfType<MethodDeclarationSyntax>()
+                    .Where(declaration => declaration.Identifier.ValueText == CommandReader.HandleMethod).ToList();
+                if (declarations.Count == 0)
+                {
+                    continue;
+                }
+
+                var model = models.For(tree)!;
+                foreach (var declaration in declarations)
                 {
                     if (model.GetDeclaredSymbol(declaration) is not { } handler || handler.Name != CommandReader.HandleMethod)
                     {
@@ -152,8 +178,7 @@ public static class EventProducers
                     {
                         foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, model))
                         {
-                            var behaviorModel = projects.FirstOrDefault(project => project.SyntaxTrees.Contains(behavior.Body.SyntaxTree))?
-                                .GetSemanticModel(behavior.Body.SyntaxTree);
+                            var behaviorModel = models.For(behavior.Body.SyntaxTree);
                             if (behaviorModel?.GetEnclosingSymbol(behavior.Body.SpanStart) is not IMethodSymbol method)
                             {
                                 continue;
@@ -178,6 +203,19 @@ public static class EventProducers
 
         return recovered;
     }
+
+    /// <summary>
+    /// Skips syntax that cannot carry an event, retaining inferred values even when their tree never names its type.
+    /// </summary>
+    /// <param name="node">The syntax to inspect before acquiring its semantic model.</param>
+    /// <returns>Whether the syntax may contribute a production site.</returns>
+    static bool IsCandidate(SyntaxNode node) => node switch
+    {
+        MethodDeclarationSyntax => true,
+        LiteralExpressionSyntax or PredefinedTypeSyntax => false,
+        ExpressionSyntax => true,
+        _ => false
+    };
 
     static string MethodIdentity(IMethodSymbol method) =>
         $"{IdentityOf(method.ContainingType)}:{method.OriginalDefinition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}";

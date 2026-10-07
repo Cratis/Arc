@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Emission;
+using Cratis.Arc.Screenplay.Emission.Validation;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Arc.Screenplay.Verification;
 using Microsoft.CodeAnalysis;
@@ -70,6 +71,8 @@ public class EmbeddedDocumentGenerator(
         var documents = new List<GeneratedDocument>();
         var verify = !SourceDidNotCompile(reported);
 
+        // Concepts belong to the whole application, even in documents without their exercised carrier commands.
+        model = new ExecutableValidationRules(diagnostics).Apply(model);
         var scopes = DocumentScopes.Of(model, resolved);
         foreach (var scope in scopes)
         {
