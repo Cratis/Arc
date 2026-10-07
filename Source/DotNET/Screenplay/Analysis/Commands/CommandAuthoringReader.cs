@@ -387,7 +387,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             var source = SourceOf(argument.Expression, model, command);
             if (property?.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is ParameterSyntax) != true ||
                 property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is PropertyDeclarationSyntax) || !SupportsResponse(property.Type) || source?.Contains('.', StringComparison.Ordinal) != false ||
-                !SymbolEqualityComparer.Default.Equals(property.Type, model.GetTypeInfo(argument.Expression).Type))
+                !IsDirectResponse(argument.Expression, property.Type, model))
             {
                 return null;
             }

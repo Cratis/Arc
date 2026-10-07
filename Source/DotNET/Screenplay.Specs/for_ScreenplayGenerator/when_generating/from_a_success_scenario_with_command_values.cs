@@ -37,7 +37,10 @@ public class from_a_success_scenario_with_command_values : a_generated_document
         var emitted = new ScreenplayEmitter().Emit(Result.Model, new() { AuthoringOnlyConstructs = true });
         emitted.Source.ShouldContain("returns name");
         emitted.Source.ShouldNotContain("specification WhenRegisteringAndANameIsSupplied");
-        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("CommandResult.Response");
+        var diagnostic = emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification);
+        diagnostic.Message.ShouldContain("CommandResult.Response");
+        diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
+        diagnostic.Location.ShouldEqual("Library.Authors.Registration.when_registering.and_a_name_is_supplied");
     }
 
     void GenerateScenario(string handler, bool responseAssertion)

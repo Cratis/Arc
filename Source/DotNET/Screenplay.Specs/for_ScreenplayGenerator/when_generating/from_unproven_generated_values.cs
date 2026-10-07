@@ -167,6 +167,25 @@ public class from_unproven_generated_values : a_generated_document
         AssertDocument();
     }
 
+    [Theory]
+    [InlineData("decimal", "int", "(int)Amount")]
+    [InlineData("int", "long", "Amount")]
+    [InlineData("decimal", "decimal", "(decimal)(int)Amount")]
+    public void should_not_copy_a_response_record_argument_through_a_conversion(string inputType, string fieldType, string expression)
+    {
+        Generate((Analyzed.SlicePath, IdentifierSources.With($$"""
+            public record Receipt({{fieldType}} Count);
+            [Command] public record TruncateAmount({{inputType}} Amount)
+            {
+                public Receipt Handle() => new({{expression}});
+            }
+            """)));
+        Result.Source.ShouldNotContain("returns");
+        Result.Source.ShouldContain("handler");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeTrue();
+        AssertHandlerFallback();
+    }
+
     void AssertHandlerFallback()
     {
         Result.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Error).ShouldBeEmpty();

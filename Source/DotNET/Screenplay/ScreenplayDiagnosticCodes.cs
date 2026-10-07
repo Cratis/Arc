@@ -366,6 +366,11 @@ public static class ScreenplayDiagnosticCodes
     /// different command whose rejection has lost its cause, so the scenario is left out and this is what says which
     /// property, which value and why.
     /// </para>
+    /// <para>
+    /// Reported as a warning during both analysis and emission, at the declaring specification type (or its slice
+    /// when no source declaration is available). Emission can also withhold a scenario whose command or concrete
+    /// event sources cannot be represented, or whose generated fixtures or response expectations were not recovered.
+    /// </para>
     /// </remarks>
     public const string UnreadableSpecification = "SP0039";
 

@@ -58,7 +58,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         }
         else
         {
-            model = new ExecutableCommandValues(diagnostics).Apply(model);
+            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model));
         }
 
         var domain = ToName(model.Domain, options.Domain);

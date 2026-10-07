@@ -73,7 +73,10 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 });
             }
 
-            sources.Add(parameter, alias, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
+            if (IsUnchanged(parameter, location))
+            {
+                sources.Add(parameter, alias, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
+            }
         }
 
         var requirements = new List<CommandRequirementModel>();
@@ -135,7 +138,10 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 foreach (var parameter in methods.Where(method => method.Name == "Handle").SelectMany(method => method.Parameters)
                     .Where(parameter => SymbolEqualityComparer.Default.Equals(parameter.Type, model.GetTypeInfo(provided).Type)))
                 {
-                    sources.Add(parameter, providedPath);
+                    if (IsUnchanged(parameter, location))
+                    {
+                        sources.Add(parameter, providedPath);
+                    }
                 }
             }
         }
@@ -156,6 +162,23 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
     static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => expression is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
         model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
         model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+
+    bool IsUnchanged(IParameterSymbol parameter, string location)
+    {
+        if (HandlerBodies.Of((IMethodSymbol)parameter.ContainingSymbol).ToArray() is not [var body] || models.For(body.SyntaxTree) is not { } model)
+        {
+            Report($"The body using read parameter '{parameter.Name}' is unavailable; dependent mappings and requirements were left in code", location);
+            return false;
+        }
+
+        if (!CommandAuthoringReader.IsUnchanged(parameter, body, model))
+        {
+            Report($"Read parameter '{parameter.Name}' is reassigned or passed by reference; dependent mappings and requirements were left in code", location);
+            return false;
+        }
+
+        return true;
+    }
 
     ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
     {

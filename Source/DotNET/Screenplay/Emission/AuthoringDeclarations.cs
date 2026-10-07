@@ -38,7 +38,11 @@ public static class AuthoringDeclarations
         return RemoveOrphans(model, resolved);
     }
 
-    static ApplicationModel RemoveOrphans(ApplicationModel original, ApplicationModel resolved)
+    /// <summary>Removes declarations used only by authoring intent that was withheld.</summary>
+    /// <param name="original">The model before authoring admission.</param>
+    /// <param name="resolved">The model after authoring admission.</param>
+    /// <returns>The admitted model without orphan declarations.</returns>
+    public static ApplicationModel RemoveOrphans(ApplicationModel original, ApplicationModel resolved)
     {
         var candidates = ReachableTypes(AuthoringTypes(original), original);
         var retained = ReachableTypes(RootTypes(resolved).Concat(resolved.Types.Where(type => !candidates.Contains(type.Name)).Select(type => type.Name)), resolved);

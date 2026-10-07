@@ -49,7 +49,9 @@ public class a_generated_identifier : an_authoring_document
         };
         var defaultEmission = new ScreenplayEmitter().Emit(defaultModel, new());
         defaultEmission.Source.Contains("specification TwoAuthors", StringComparison.Ordinal).ShouldBeFalse();
-        defaultEmission.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+        var diagnostic = defaultEmission.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification);
+        diagnostic.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
+        diagnostic.Location.ShouldEqual(Result.Model.Slices.Single().Namespace);
     }
 
     [Fact]
@@ -67,6 +69,16 @@ public class a_generated_identifier : an_authoring_document
         emitted.Source.ShouldNotContain("generated");
         emitted.Source.ShouldNotContain("returns");
         emitted.Source.ShouldContain("produces AuthorRegistered");
+        emitted.Source.ShouldNotContain("concept AuthorId");
+        var legacy = model with
+        {
+            Concepts = model.Concepts.Where(concept => concept.Name != "AuthorId").ToList(),
+            Slices = model.Slices.Select(slice => slice with
+            {
+                Commands = slice.Commands.Select(command => command with { Authoring = null }).ToList()
+            }).ToList()
+        };
+        emitted.Source.ShouldEqual(new ScreenplayEmitter().Emit(legacy, new()).Source);
         emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).Message.ShouldContain("withheld to keep successful scenarios");
     }

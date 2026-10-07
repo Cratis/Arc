@@ -52,6 +52,10 @@ public class from_unadmitted_generated_shapes : a_generated_document
         var source = SemanticSourceDocument.Create(catalog.ResolveDocument("application"), "application", "application.play", emitted.Source);
         var bound = new SemanticModelCompiler().Compile("Library", SemanticDocumentSet.Create([source], catalog));
         Assert.True(bound.Success, string.Join(Environment.NewLine, bound.Diagnostics.Select(diagnostic => diagnostic.Message)));
-        bound.Value!.Model.SemanticVersion.ShouldEqual(withRule ? SemanticVersion.V3 : SemanticVersion.V1);
+        bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V1);
+        if (type.Name == "AuthorId")
+        {
+            emitted.Source.ShouldNotContain("concept AuthorId");
+        }
     }
 }

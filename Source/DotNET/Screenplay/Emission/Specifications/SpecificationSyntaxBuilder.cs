@@ -3,6 +3,7 @@
 
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -54,10 +55,12 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
     SpecificationModel? WithRepresentableSources(SpecificationModel specification)
     {
+        var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
+            Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         if (specification.When is { Kind: SpecificationStateKind.Command } issued &&
             Application?.Slices.SelectMany(slice => slice.Commands).Any(command => command.Name == issued.Name) == false)
         {
-            Diagnostics?.Information(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its command is not present in the emitted executable document", specification.Name);
+            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its command is not present in the emitted executable document", location);
             return null;
         }
 
@@ -66,16 +69,16 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             : null;
         if (specification.AssertsResponse && command?.Authoring is { Response: not null } or { ResponseFields.Count: > 0 })
         {
-            Diagnostics?.Information(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but then returns expectations are not yet recovered", specification.Name);
+            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but then returns expectations are not yet recovered", location);
             return null;
         }
 
         if (!specification.Errors.Any() && command?.Authoring is { Generated.Count: > 0 })
         {
-            Diagnostics?.Information(
+            Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
                 $"The scenario '{specification.Name}' was left out because generation needs deterministic when for / generated fixtures, and no faithful fixture was recovered from the Arc scenario; missing fixtures would execute as Unsupported(IdentityAllocation)",
-                specification.Name);
+                location);
             return null;
         }
 
@@ -89,10 +92,10 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
         if (occurrences.Select(state => state.For).Distinct().Count() != 1)
         {
-            Diagnostics?.Information(
+            Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
                 $"The scenario '{specification.Name}' was left out because its distinct event sources cannot be stated as concrete for values of every producing command's unambiguous required scalar identifier type",
-                specification.Name);
+                location);
             return null;
         }
 
