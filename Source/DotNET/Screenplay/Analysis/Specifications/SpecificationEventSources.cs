@@ -13,8 +13,42 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 internal class SpecificationEventSources
 {
-    readonly List<(ISymbol? Symbol, ISymbol? Receiver, LiteralSource? Literal)> _sources = [];
+    readonly List<Source> _sources = [];
     readonly Dictionary<Compilation, HeldValues> _held = [];
+    bool _commandScenario;
+    Source? _commandSource;
+
+    /// <summary>
+    /// Gets the input identifier used to compare the issued command's occurrences.
+    /// </summary>
+    public string? CommandIdentifier { get; private set; }
+
+    /// <summary>
+    /// Gets whether the command scenario stated an explicit occurrence source.
+    /// </summary>
+    public bool HasExplicitCommandSources { get; private set; }
+
+    /// <summary>
+    /// Gets whether an explicit occurrence source could not be compared with the issued command's identity.
+    /// </summary>
+    public bool HasUnresolvedCommandSources { get; private set; }
+
+    /// <summary>
+    /// Reads the identity argument of the issued command before comparing its occurrences.
+    /// </summary>
+    /// <param name="command">The issued command type.</param>
+    /// <param name="creation">The command construction.</param>
+    /// <param name="model">The model resolving the construction.</param>
+    /// <param name="models">The models resolving the command's identity contract.</param>
+    public void ReadCommand(INamedTypeSymbol command, BaseObjectCreationExpressionSyntax creation, SemanticModel model, SemanticModels models)
+    {
+        _commandScenario = true;
+        CommandIdentifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, command.Name);
+        var constructor = model.GetSymbolInfo(creation).Symbol as IMethodSymbol;
+        var stated = SpecificationValues.Stated(creation, constructor)
+            .Where(value => string.Equals(value.Name, CommandIdentifier, StringComparison.OrdinalIgnoreCase)).ToList();
+        _commandSource = stated is [var value] ? SourceOf(value.Expression, model) : null;
+    }
 
     /// <summary>
     /// Reads a source from an append, assertion, or fluent event-source builder.
@@ -23,9 +57,8 @@ internal class SpecificationEventSources
     /// <param name="method">The resolved method.</param>
     /// <param name="semanticModel">The model resolving the source expression.</param>
     /// <param name="draft">The scenario collecting the occurrences.</param>
-    /// <param name="requireConcrete">Whether an explicit source must be stated rather than shared symbolically.</param>
     /// <returns>The concrete source, or null for a shared symbolic source.</returns>
-    public LiteralSource? Read(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel, SpecificationDraft draft, bool requireConcrete = false)
+    public LiteralSource? Read(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel, SpecificationDraft draft)
     {
         var expression = CallArguments.For(invocation, method, "eventSourceId").SingleOrDefault();
         if (expression is null)
@@ -46,54 +79,49 @@ internal class SpecificationEventSources
             return null;
         }
 
-        expression = MappingSourceReader.Unwrap(expression);
-        var literal = LiteralOf(expression, semanticModel);
-        var symbol = expression is IdentifierNameSyntax or MemberAccessExpressionSyntax
-            ? semanticModel.GetSymbolInfo(expression).Symbol
-            : null;
-        if (!_held.TryGetValue(semanticModel.Compilation, out var held))
+        var source = SourceOf(expression, semanticModel);
+        if (_commandScenario)
         {
-            _held[semanticModel.Compilation] = held = new(new SemanticModels([semanticModel.Compilation]));
-        }
-
-        ISymbol? receiver = null;
-        if (symbol is { IsStatic: false } && expression is MemberAccessExpressionSyntax access &&
-            MappingSourceReader.Unwrap(access.Expression) is not ThisExpressionSyntax)
-        {
-            var target = MappingSourceReader.Unwrap(access.Expression);
-            receiver = target is IdentifierNameSyntax ? semanticModel.GetSymbolInfo(target).Symbol : null;
-            if (receiver is null || !held.IsStable(receiver, semanticModel.Compilation))
+            HasExplicitCommandSources = true;
+            if (_commandSource is { } destination && Same(source, destination))
             {
-                draft.CannotRead("its event source uses an instance receiver that is not provably stable");
-                symbol = null;
+                return null;
             }
+
+            if (_commandSource is { } known &&
+                ((source.Literal is not null && known.Literal is not null) || (source.Symbol is not null && known.Symbol is not null)))
+            {
+                if (source.Literal is null)
+                {
+                    draft.CannotRead("its distinct command event source cannot be stated as a concrete for value");
+                }
+
+                return source.Literal;
+            }
+
+            HasUnresolvedCommandSources = true;
+            return null;
         }
 
-        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol))
+        if (source.Unreadable is { } reason)
         {
-            symbol = null;
-        }
-        else if (!held.IsStable(symbol, semanticModel.Compilation))
-        {
-            draft.CannotRead($"its event source '{symbol.Name}' is reassigned or has a computed getter, so repeated references do not prove the same value");
-            symbol = null;
+            draft.CannotRead(reason);
         }
 
-        if (_sources.Exists(source => !(literal is not null && source.Literal is not null) &&
-            !(symbol is not null && SymbolEqualityComparer.Default.Equals(symbol, source.Symbol) &&
-                SymbolEqualityComparer.Default.Equals(receiver, source.Receiver))))
+        if (_sources.Exists(previous => !(source.Literal is not null && previous.Literal is not null) && !Same(source, previous)))
         {
             draft.CannotRead("its event sources are not provably the same and cannot be stated as concrete for values");
         }
 
-        _sources.Add((symbol, receiver, literal));
-        if (requireConcrete && literal is null)
-        {
-            draft.CannotRead("its explicit given event source cannot be stated as a concrete for value beside the command's destination");
-        }
+        _sources.Add(source);
 
-        return literal;
+        return source.Literal;
     }
+
+    static bool Same(Source left, Source right) =>
+        (left.Literal is not null && right.Literal is not null && Equals(left.Literal, right.Literal)) ||
+        (left.Symbol is not null && SymbolEqualityComparer.Default.Equals(left.Symbol, right.Symbol) &&
+            SymbolEqualityComparer.Default.Equals(left.Receiver, right.Receiver));
 
     static LiteralSource? LiteralOf(ExpressionSyntax expression, SemanticModel semanticModel)
     {
@@ -109,4 +137,45 @@ internal class SpecificationEventSources
             ? new(constant.Value)
             : null;
     }
+
+    Source SourceOf(ExpressionSyntax expression, SemanticModel semanticModel)
+    {
+        expression = MappingSourceReader.Unwrap(expression);
+        var literal = LiteralOf(expression, semanticModel);
+        var symbol = expression is IdentifierNameSyntax or MemberAccessExpressionSyntax
+            ? semanticModel.GetSymbolInfo(expression).Symbol
+            : null;
+        if (!_held.TryGetValue(semanticModel.Compilation, out var held))
+        {
+            _held[semanticModel.Compilation] = held = new(new SemanticModels([semanticModel.Compilation]));
+        }
+
+        ISymbol? receiver = null;
+        string? unreadable = null;
+        if (symbol is { IsStatic: false } && expression is MemberAccessExpressionSyntax access &&
+            MappingSourceReader.Unwrap(access.Expression) is not ThisExpressionSyntax)
+        {
+            var target = MappingSourceReader.Unwrap(access.Expression);
+            receiver = target is IdentifierNameSyntax ? semanticModel.GetSymbolInfo(target).Symbol : null;
+            if (receiver is null || !held.IsStable(receiver, semanticModel.Compilation))
+            {
+                unreadable = "its event source uses an instance receiver that is not provably stable";
+                symbol = null;
+            }
+        }
+
+        if (symbol is not (IFieldSymbol or ILocalSymbol or IPropertySymbol))
+        {
+            symbol = null;
+        }
+        else if (!held.IsStable(symbol, semanticModel.Compilation))
+        {
+            unreadable = $"its event source '{symbol.Name}' is reassigned or has a computed getter, so repeated references do not prove the same value";
+            symbol = null;
+        }
+
+        return new(symbol, receiver, literal, unreadable);
+    }
+
+    sealed record Source(ISymbol? Symbol, ISymbol? Receiver, LiteralSource? Literal, string? Unreadable);
 }

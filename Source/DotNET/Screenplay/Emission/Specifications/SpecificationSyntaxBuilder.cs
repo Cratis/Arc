@@ -57,7 +57,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
     SpecificationModel? WithRepresentableSources(SpecificationModel specification)
     {
-        var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
+        var evidence = SpecificationEvidence.For(specification);
+        var location = evidence?.SourceType.ToDisplayString() ??
             Application?.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         if (specification.When is { Kind: SpecificationStateKind.Command } issued &&
             Application?.Slices.SelectMany(slice => slice.Commands).Any(command => command.Name == issued.Name) == false)
@@ -69,6 +70,19 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
             ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name)
             : null;
+        if (evidence is { HasExplicitCommandSources: true } &&
+            command is not null && (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
+            command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier) &&
+            command.Produces.All(production => production.UsesCommandContext) &&
+            (evidence.HasUnresolvedCommandSources || evidence.CommandIdentifier != identifier))
+        {
+            Diagnostics?.Warning(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{specification.Name}' was left out because its explicit event sources are not provably the command's own source and cannot be stated as concrete for values beside its emitted identifier",
+                location);
+            return null;
+        }
+
         if (specification.AssertsResponse && command?.Authoring is { Response: not null } or { ResponseFields.Count: > 0 })
         {
             Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but then returns expectations are not yet recovered", location);

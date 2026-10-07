@@ -130,7 +130,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
         var state = new SpecificationStateModel(appended.Name, SpecificationStateKind.Event, values)
         {
-            For = draft.When is { Kind: SpecificationStateKind.Event }
+            For = draft.When is not null
                 ? draft.EventSources.Read(invocation, method, semanticModel, draft)
                 : null
         };

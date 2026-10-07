@@ -71,7 +71,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             var kind = SpecificationCalls.IsGivenReadModel(method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
             var source = kind == SpecificationStateKind.Event && (SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps))
-                ? draft.EventSources.Read(invocation, method, semanticModel, draft, SpecificationMembers.HoldsAScenario(steps))
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
                 : null;
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
@@ -133,6 +133,11 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             {
                 draft.CannotRead($"'{command.Name}' is not a {(append ? "event" : "command")} the document declares");
                 return;
+            }
+
+            if (!append)
+            {
+                draft.EventSources.ReadCommand(command, construction.Creation, construction.SemanticModel, models);
             }
 
             var state = new SpecificationStateModel(

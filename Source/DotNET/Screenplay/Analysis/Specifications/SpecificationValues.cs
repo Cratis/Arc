@@ -73,7 +73,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="creation">The construction to read.</param>
     /// <param name="constructor">The constructor being called.</param>
     /// <returns>The values, each with the name it fills in, in the order the source declares them.</returns>
-    static IEnumerable<(string Name, ExpressionSyntax Expression)> Stated(
+    internal static IEnumerable<(string Name, ExpressionSyntax Expression)> Stated(
         BaseObjectCreationExpressionSyntax creation,
         IMethodSymbol? constructor)
     {

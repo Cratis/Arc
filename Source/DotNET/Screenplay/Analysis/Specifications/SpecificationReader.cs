@@ -82,8 +82,8 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var stated = new ScreenplayDiagnostics();
 
         var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)));
-        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         reader.ReadWhen(steps, draft, name, location);
+        reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);
 
         if (readModel is INamedTypeSymbol namedReadModel && draft.When is null)
@@ -139,7 +139,12 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
                 draft.GetStateEvidence(),
                 draft.GetValueEvidence(),
                 draft.GetErrorEvidence(),
-                [.. stated.All]));
+                [.. stated.All])
+            {
+                CommandIdentifier = draft.EventSources.CommandIdentifier,
+                HasExplicitCommandSources = draft.EventSources.HasExplicitCommandSources,
+                HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources
+            });
         return specification;
     }
 
