@@ -64,9 +64,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         model = new ExecutableValidationRules(diagnostics).Apply(model);
 
         var domain = ToName(model.Domain, options.Domain);
-        var modules = BuildModules(model, options, domain);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
-        var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain);
+        var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
+        var modules = BuildModules(model, options, domain, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)]);
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
@@ -117,10 +117,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <param name="model">The model to build from.</param>
     /// <param name="options">The options to build with, already resolved.</param>
     /// <param name="domain">The name of the domain, which a slice with no namespace left is gathered under.</param>
+    /// <param name="declared">The names of the concepts and types the document declares.</param>
     /// <returns>The modules.</returns>
-    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain)
+    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlyList<string> declared)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options.AuthoringOnlyConstructs);
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options.AuthoringOnlyConstructs, declared);
         if (options.AuthoringOnlyConstructs)
         {
             sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
@@ -158,8 +159,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
     /// <param name="model">The full application used to type specification destinations.</param>
     /// <param name="authoringOnlyConstructs">Whether optional authoring constructs are emitted.</param>
+    /// <param name="declared">The names of the concepts and types the document declares.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs, IReadOnlyList<string> declared) =>
         new(
             naming,
             _types,
@@ -187,7 +189,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ScreenSyntaxBuilder(naming, _types),
             new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics })
         {
-            InlineEvents = inlineEvents
+            InlineEvents = inlineEvents,
+            PlacedReadModels = model.Slices.SelectMany(slice => slice.ReadModels).Select(readModel => readModel.Name).ToHashSet(StringComparer.Ordinal),
+            KnownTypes = ConceptSyntax.PrimitiveTypes.Concat(declared).ToHashSet(StringComparer.Ordinal),
+            TakenNames = declared.ToHashSet(StringComparer.Ordinal),
+            Diagnostics = diagnostics
         };
 
     List<EventSourceSyntax> BuildEventSources(ApplicationModel model) => model.Slices.SelectMany(slice => slice.Commands)
