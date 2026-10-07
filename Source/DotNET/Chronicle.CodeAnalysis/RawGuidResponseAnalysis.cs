@@ -58,12 +58,7 @@ static class RawGuidResponseAnalysis
     /// <returns>The statically identifiable event types that use the fallback target.</returns>
     internal static IEnumerable<ITypeSymbol> UntargetedEventsBesideGuid(ITypeSymbol returnType, Compilation compilation)
     {
-        // ModelBoundCommandHandler awaits Task/ValueTask once. The pipeline then unwraps IOneOf branches.
-        if (returnType is INamedTypeSymbol awaitable &&
-            (IsType(awaitable, "System.Threading.Tasks.Task`1", compilation) || IsType(awaitable, "System.Threading.Tasks.ValueTask`1", compilation)))
-        {
-            returnType = awaitable.TypeArguments[0];
-        }
+        returnType = UnwrapAwaitable(returnType, compilation);
 
         foreach (var branch in UnionBranches(returnType, compilation))
         {
@@ -81,6 +76,69 @@ static class RawGuidResponseAnalysis
             }
         }
     }
+
+    /// <summary>
+    /// Unwraps the single Task or ValueTask awaited by the model-bound handler.
+    /// </summary>
+    /// <param name="type">The declared return type.</param>
+    /// <param name="compilation">The compilation containing framework identities.</param>
+    /// <returns>The awaited type, or the original type.</returns>
+    internal static ITypeSymbol UnwrapAwaitable(ITypeSymbol type, Compilation compilation) =>
+        type is INamedTypeSymbol awaitable &&
+        (IsType(awaitable, "System.Threading.Tasks.Task`1", compilation) || IsType(awaitable, "System.Threading.Tasks.ValueTask`1", compilation))
+            ? awaitable.TypeArguments[0]
+            : type;
+
+    /// <summary>
+    /// Checks the event metadata recognized by Chronicle, including inherited attributes.
+    /// </summary>
+    /// <param name="type">The candidate event type.</param>
+    /// <param name="compilation">The compilation containing framework identities.</param>
+    /// <returns>Whether the type has event metadata.</returns>
+    internal static bool HasEventTypeAttribute(ITypeSymbol type, Compilation compilation)
+    {
+        // EventTypeAttribute is inherited; Chronicle recognizes its metadata through the event's base types.
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (HasAttribute(current, "Cratis.Chronicle.Events.EventTypeAttribute", compilation))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Finds branches of the known Result and OneOf wrappers consumed by the pipeline.
+    /// </summary>
+    /// <param name="type">The response type.</param>
+    /// <param name="compilation">The compilation containing framework identities.</param>
+    /// <returns>The unwrapped branch types.</returns>
+    internal static IEnumerable<ITypeSymbol> UnionBranches(ITypeSymbol type, Compilation compilation)
+    {
+        // Result derives from OneOfBase and the pipeline consumes IOneOf.Value. Restrict to known wrapper definitions;
+        // a similarly named generic type (or arbitrary IOneOf implementation) need not expose its type arguments as branches.
+        if (type is INamedTypeSymbol named &&
+            (IsType(named, $"OneOf.OneOf`{named.Arity}", compilation) ||
+             IsType(named, "Cratis.Monads.Result`2", compilation)) &&
+            named.AllInterfaces.Any(@interface => IsType(@interface, "OneOf.IOneOf", compilation)))
+        {
+            return named.TypeArguments.SelectMany(argument => UnionBranches(argument, compilation));
+        }
+
+        return [type];
+    }
+
+    /// <summary>
+    /// Checks an attribute by its framework identity, not its short name.
+    /// </summary>
+    /// <param name="symbol">The attributed symbol.</param>
+    /// <param name="metadataName">The attribute's metadata name.</param>
+    /// <param name="compilation">The compilation containing framework identities.</param>
+    /// <returns>Whether the attribute is present.</returns>
+    internal static bool HasAttribute(ISymbol symbol, string metadataName, Compilation compilation) =>
+        symbol.GetAttributes().Any(attribute => IsType(attribute.AttributeClass, metadataName, compilation));
 
     static bool IsGuid(ITypeSymbol? type, Compilation compilation) => IsType(type, "System.Guid", compilation);
 
@@ -168,35 +226,6 @@ static class RawGuidResponseAnalysis
         }
     }
 
-    static bool HasEventTypeAttribute(ITypeSymbol type, Compilation compilation)
-    {
-        // EventTypeAttribute is inherited; Chronicle recognizes its metadata through the event's base types.
-        for (var current = type; current is not null; current = current.BaseType)
-        {
-            if (HasAttribute(current, "Cratis.Chronicle.Events.EventTypeAttribute", compilation))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    static IEnumerable<ITypeSymbol> UnionBranches(ITypeSymbol type, Compilation compilation)
-    {
-        // Result derives from OneOfBase and the pipeline consumes IOneOf.Value. Restrict to known wrapper definitions;
-        // a similarly named generic type (or arbitrary IOneOf implementation) need not expose its type arguments as branches.
-        if (type is INamedTypeSymbol named &&
-            (IsType(named, $"OneOf.OneOf`{named.Arity}", compilation) ||
-             IsType(named, "Cratis.Monads.Result`2", compilation)) &&
-            named.AllInterfaces.Any(@interface => IsType(@interface, "OneOf.IOneOf", compilation)))
-        {
-            return named.TypeArguments.SelectMany(argument => UnionBranches(argument, compilation));
-        }
-
-        return [type];
-    }
-
     static bool IsEventSourceId(ITypeSymbol type, Compilation compilation)
     {
         for (var current = type; current is not null; current = current.BaseType)
@@ -213,7 +242,4 @@ static class RawGuidResponseAnalysis
 
     static bool IsType(ITypeSymbol? type, string metadataName, Compilation compilation) =>
         type is not null && SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, compilation.GetTypeByMetadataName(metadataName));
-
-    static bool HasAttribute(ISymbol symbol, string metadataName, Compilation compilation) =>
-        symbol.GetAttributes().Any(attribute => IsType(attribute.AttributeClass, metadataName, compilation));
 }

@@ -179,5 +179,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "[FromEventSource<TSource>(stream)] filters a reactor or reducer to a stream the definition declares with [EventStream]. A stream the definition does not declare cannot match, so the observer would never see an event. Only the definition's own attributes are read, so a definition in a referenced assembly is checked exactly like one in the compilation.");
 
+    /// <summary>
+    /// ARCCHR0015: A command handler declares a nullable event return type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0015_NullableCommandEventReturn = new(
+        id: "ARCCHR0015",
+        title: "Command handler must not return a nullable event",
+        messageFormat: "Command '{0}' declares nullable event '{1}' in its Handle return type. Return Result<TEvent, ValidationResult> with ValidationResult.Error(...) instead, or reject in a validator or Provide().",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A null event result currently succeeds without appending anything and without explaining why. Declare a non-nullable event success branch and reject explicitly with ValidationResult.Error, a validator, or Provide. This rule checks direct events, Task/ValueTask results, and Result/OneOf event branches. Optional ICommandOperation results and non-event responses are not reported.");
+
     const string Category = "Arc.Chronicle";
 }

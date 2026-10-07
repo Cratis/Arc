@@ -23,6 +23,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0012](#arcchr0012-immediate-append-with-a-decision-read) | Info | Direct immediate `IEventLog.Append*` in a command taking a protected decision read. |
 | [ARCCHR0013](#arcchr0013-use-the-event-source-definition) | Info | A command or aggregate root names an event source with `[EventSourceType]` and a definition with that name exists in the compilation. |
 | [ARCCHR0014](#arcchr0014-observed-event-stream-is-not-declared) | Warning | A reactor or reducer is filtered with `[FromEventSource<T>(stream)]` to a stream the definition does not declare. |
+| [ARCCHR0015](./ARCCHR0015.md) | Warning | A model-bound command handler declares a nullable event, directly or in a supported awaitable/union branch. |
 
 ## ARCCHR0002: ambiguous command identity
 
@@ -56,6 +57,7 @@ A direct `IEventLog.Append*` (also via `IEventStore.EventLog`) in a command that
 | --- | --- |
 | [ARCCHR0008](./ARCCHR0008.md) | Rewrite to the fully qualified Chronicle Key attribute. |
 | [ARCCHR0010](./ARCCHR0010.md#quick-fix) | Compiler-checked local replacement with `EventSourceId<Guid>` for supported direct tuple syntax. |
+| [ARCCHR0015](./ARCCHR0015.md#quick-fix) | Compiler-checked replacement of a nullable event with an explicit event-or-validation result and rejection placeholders. |
 
 The other rules have no automatic fix. A fix can change behavior: in particular ARCCHR0010 changes the persistence target when the Guid was an ordinary response.
 
