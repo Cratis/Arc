@@ -12,12 +12,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// Retains concrete occurrence sources and prevents unrelated computed sources from collapsing into one.
 /// </summary>
 /// <param name="sourceModels">The models resolving initializers across specification projects.</param>
-internal class SpecificationEventSources(SemanticModels? sourceModels = null)
+/// <param name="heldValues">The held values cached for the analysis.</param>
+internal class SpecificationEventSources(SemanticModels? sourceModels = null, HeldValues? heldValues = null)
 {
     readonly List<Source> _sources = [];
     readonly Dictionary<Compilation, HeldValues> _held = [];
     bool _commandScenario;
     Source? _commandSource;
+    Source? _commandMemberSource;
 
     /// <summary>
     /// Gets the input identifier used to compare the issued command's occurrences.
@@ -41,14 +43,22 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null)
     /// <param name="creation">The command construction.</param>
     /// <param name="model">The model resolving the construction.</param>
     /// <param name="models">The models resolving the command's identity contract.</param>
-    public void ReadCommand(INamedTypeSymbol command, BaseObjectCreationExpressionSyntax creation, SemanticModel model, SemanticModels models)
+    /// <param name="receiver">The stable held command issued by the step, if any.</param>
+    /// <param name="compilation">The compilation containing possible writes to the held command.</param>
+    public void ReadCommand(INamedTypeSymbol command, BaseObjectCreationExpressionSyntax creation, SemanticModel model, SemanticModels models, ISymbol? receiver = null, Compilation? compilation = null)
     {
         _commandScenario = true;
         CommandIdentifier = new CommandIdentifierReader(models, new ScreenplayDiagnostics()).Read(command, command.Name);
         var constructor = model.GetSymbolInfo(creation).Symbol as IMethodSymbol;
         var stated = SpecificationValues.Stated(creation, constructor)
             .Where(value => string.Equals(value.Name, CommandIdentifier, StringComparison.OrdinalIgnoreCase)).ToList();
-        _commandSource = stated is [var value] ? SourceOf(value.Expression, model) : null;
+        var identifier = command.GetMembers().OfType<IPropertySymbol>().SingleOrDefault(property => property.Name == CommandIdentifier);
+        _commandSource = stated is [var value] ? SourceOf(value.Expression, model, identifier?.Type) : null;
+        if (receiver is not null && compilation is not null && identifier is not null &&
+            heldValues?.IsStable(receiver, compilation) == true && heldValues.IsStable(identifier, compilation))
+        {
+            _commandMemberSource = new(identifier, receiver, null, null);
+        }
     }
 
     /// <summary>
@@ -85,7 +95,8 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null)
         {
             HasExplicitCommandSources = true;
             _sources.Add(source);
-            if (_commandSource is { } destination && Same(source, destination))
+            if ((_commandSource is { } destination && Same(source, destination)) ||
+                (_commandMemberSource is { } member && Same(source, member)))
             {
                 return null;
             }
@@ -111,14 +122,10 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null)
     }
 
     static bool Same(Source left, Source right) =>
-        (left.Literal is not null && right.Literal is not null && SameLiteral(left.Literal, right.Literal)) ||
-        (left.Symbol is not null && SymbolEqualityComparer.Default.Equals(left.Symbol, right.Symbol) &&
-            SymbolEqualityComparer.Default.Equals(left.Receiver, right.Receiver));
-
-    static bool SameLiteral(LiteralSource left, LiteralSource right) =>
-        Equals(left, right) ||
-        (left.Value is string leftText && right.Value is string rightText &&
-            Guid.TryParse(leftText, out var leftId) && Guid.TryParse(rightText, out var rightId) && leftId == rightId);
+        left.Literal is not null && right.Literal is not null
+            ? Equals(left.Literal, right.Literal)
+            : left.Symbol is not null && SymbolEqualityComparer.Default.Equals(left.Symbol, right.Symbol) &&
+                SymbolEqualityComparer.Default.Equals(left.Receiver, right.Receiver);
 
     static LiteralSource? LiteralOf(ExpressionSyntax expression, SemanticModel semanticModel)
     {
@@ -153,14 +160,16 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null)
             : null;
     }
 
-    Source SourceOf(ExpressionSyntax expression, SemanticModel semanticModel)
+    Source SourceOf(ExpressionSyntax expression, SemanticModel semanticModel, ITypeSymbol? expectedType = null)
     {
+        var type = expectedType ?? semanticModel.GetTypeInfo(expression).Type ?? semanticModel.GetTypeInfo(expression).ConvertedType;
         expression = MappingSourceReader.Unwrap(expression);
         var literal = LiteralOf(expression, semanticModel);
         var symbol = expression is IdentifierNameSyntax or MemberAccessExpressionSyntax
             ? semanticModel.GetSymbolInfo(expression).Symbol
             : null;
-        if (!_held.TryGetValue(semanticModel.Compilation, out var held))
+        var held = heldValues;
+        if (held is null && !_held.TryGetValue(semanticModel.Compilation, out held))
         {
             _held[semanticModel.Compilation] = held = new(sourceModels ?? new SemanticModels([semanticModel.Compilation]));
         }
@@ -194,6 +203,20 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null)
             (sourceModels ?? new SemanticModels([semanticModel.Compilation])).For(initializer.SyntaxTree) is { } initializerModel)
         {
             literal = LiteralOf(initializer, initializerModel);
+        }
+
+        if (type.Is("System.Guid") || type?.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments.SingleOrDefault().Is("System.Guid") == true)
+        {
+            if (literal is { Value: string text } && Guid.TryParse(text, out var guid))
+            {
+                literal = new(guid.ToString("D"));
+            }
+
+            // Converting held text to a GUID does not preserve the string event-source identity.
+            if (semanticModel.GetTypeInfo(expression).Type?.SpecialType == SpecialType.System_String)
+            {
+                symbol = null;
+            }
         }
 
         return new(symbol, receiver, literal, unreadable);

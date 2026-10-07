@@ -13,6 +13,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
+/// <param name="heldValues">The held values cached for the analysis.</param>
 /// <remarks>
 /// Only a specification driving a command through the real pipeline is read. A unit level one stands a collaborator
 /// up behind a substitute and says what that collaborator was asked to do, which is a statement about the inside of
@@ -20,8 +21,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// the other is decided by what it touches: holding a scenario the pipeline runs in, or reaching the event log, is
 /// what an integration specification does and nothing else does.
 /// </remarks>
-public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics diagnostics)
+public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics diagnostics, HeldValues? heldValues = null)
 {
+    readonly HeldValues _held = heldValues ?? new(models);
+
     /// <summary>
     /// Determines whether a type specifies a slice by driving a command through the pipeline.
     /// </summary>
@@ -78,10 +81,10 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
         var readModel = SpecificationMembers.ReadModelOf(steps);
-        var draft = new SpecificationDraft { EventSources = new(models) };
+        var draft = new SpecificationDraft { EventSources = new(models, _held) };
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)));
+        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)), _held);
         reader.ReadWhen(steps, draft, name, location);
         reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);

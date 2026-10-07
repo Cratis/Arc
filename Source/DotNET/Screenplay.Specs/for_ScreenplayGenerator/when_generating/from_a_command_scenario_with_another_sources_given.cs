@@ -143,9 +143,63 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
             }
             """;
         GenerateScenario(slice, Scenario
-            .Replace("ForEventSource(\"other\")", "ForEventSource(\"{6F3C8B47-1938-4D4C-8F26-817E306A10E2}\")", StringComparison.Ordinal)
+            .Replace("ForEventSource(\"other\")", "ForEventSource(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\")", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", $"RegisterAuthor({identity},", StringComparison.Ordinal));
         AssertImplicitSource(runtimeIdentity: true);
+    }
+
+    [Theory]
+    [InlineData("{6F3C8B47-1938-4D4C-8F26-817E306A10E2}")]
+    [InlineData("6F3C8B47-1938-4D4C-8F26-817E306A10E2")]
+    public void should_state_a_guid_shaped_string_source_without_normalizing_it(string source)
+    {
+        GenerateScenario(Slice, Scenario
+            .Replace("ForEventSource(\"other\")", $"ForEventSource(\"{source}\")", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\",", StringComparison.Ordinal));
+        Result.Source.ShouldContain($"for \"{source}\"");
+        AssertDocument();
+    }
+
+    [Theory]
+    [InlineData("{6F3C8B47-1938-4D4C-8F26-817E306A10E2}")]
+    [InlineData("6F3C8B47-1938-4D4C-8F26-817E306A10E2")]
+    public void should_omit_a_noncanonical_string_source_beside_a_guid_destination(string source)
+    {
+        GenerateScenario(Slice.Replace("[Key] string Id", "[Key] System.Guid Id", StringComparison.Ordinal), Scenario
+            .Replace("ForEventSource(\"other\")", $"ForEventSource(\"{source}\")", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"),", StringComparison.Ordinal));
+        AssertOmitted();
+    }
+
+    [Theory]
+    [InlineData("System.Guid.Parse(\"{6F3C8B47-1938-4D4C-8F26-817E306A10E2}\")")]
+    [InlineData("new System.Guid(\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\")")]
+    public void should_keep_a_runtime_guid_source_matching_the_command(string source)
+    {
+        GenerateScenario(Slice.Replace("[Key] string Id", "[Key] System.Guid Id", StringComparison.Ordinal), Scenario
+            .Replace("ForEventSource(\"other\")", $"ForEventSource({source})", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"),", StringComparison.Ordinal));
+        AssertImplicitSource(runtimeIdentity: true);
+    }
+
+    [Theory]
+    [InlineData("\"{6F3C8B47-1938-4D4C-8F26-817E306A10E2}\"")]
+    [InlineData("\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\"")]
+    [InlineData("System.Guid.NewGuid().ToString()")]
+    public void should_not_equate_held_text_with_the_guid_it_is_converted_to(string initializer)
+    {
+        var slice = Slice.Replace("[Key] string Id", "[Key] AuthorId Id", StringComparison.Ordinal) + """
+
+            public record AuthorId(System.Guid Value) : Cratis.Concepts.ConceptAs<System.Guid>(Value)
+            {
+                public static implicit operator AuthorId(string value) => new(System.Guid.Parse(value));
+            }
+            """;
+        GenerateScenario(slice, Scenario
+            .Replace("readonly EventSourceId _otherId = EventSourceId.New();", $"readonly string _otherId = {initializer};", StringComparison.Ordinal)
+            .Replace("ForEventSource(\"other\")", "ForEventSource(_otherId)", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(_otherId,", StringComparison.Ordinal));
+        AssertOmitted();
     }
 
     [Fact] void should_keep_a_literal_given_matching_a_constructed_event_source()

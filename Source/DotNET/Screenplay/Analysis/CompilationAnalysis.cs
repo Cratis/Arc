@@ -91,13 +91,14 @@ public class CompilationAnalysis
     /// </summary>
     /// <param name="slices">The namespaces a slice was recovered from, across every project.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="heldValues">The held values cached for the analysis.</param>
     /// <returns>The scenarios, arranged under the slice each belongs to.</returns>
     /// <remarks>
     /// This waits until every project has been read, because a scenario is placed by the nearest namespace above it
     /// that declares a slice - and the project declaring that slice need not be the one the scenario is written in.
     /// </remarks>
-    public SpecificationCatalog Specifications(IEnumerable<string> slices, ScreenplayDiagnostics diagnostics) =>
-        SpecificationCatalog.Read(_models, _catalog, slices, diagnostics);
+    public SpecificationCatalog Specifications(IEnumerable<string> slices, ScreenplayDiagnostics diagnostics, HeldValues? heldValues = null) =>
+        SpecificationCatalog.Read(_models, _catalog, slices, diagnostics, heldValues);
 
     /// <summary>
     /// Attaches the rules the validators of this project declare to the concepts they validate.

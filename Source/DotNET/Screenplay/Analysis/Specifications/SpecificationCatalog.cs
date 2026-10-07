@@ -27,6 +27,7 @@ public class SpecificationCatalog
     /// <param name="catalog">The catalogue of everything the compilation declares.</param>
     /// <param name="slices">The namespaces a slice was recovered from.</param>
     /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
+    /// <param name="heldValues">The held values cached for the analysis.</param>
     /// <returns>The <see cref="SpecificationCatalog"/>.</returns>
     /// <remarks>
     /// Which scenarios are read is decided by the catalogue of one project, because a scenario is declared where it is
@@ -37,9 +38,10 @@ public class SpecificationCatalog
         SemanticModels models,
         ArtifactCatalog catalog,
         IEnumerable<string> slices,
-        ScreenplayDiagnostics diagnostics)
+        ScreenplayDiagnostics diagnostics,
+        HeldValues? heldValues = null)
     {
-        var reader = new SpecificationReader(models, diagnostics);
+        var reader = new SpecificationReader(models, diagnostics, heldValues);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 

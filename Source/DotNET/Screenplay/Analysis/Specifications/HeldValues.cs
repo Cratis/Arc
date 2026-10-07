@@ -33,7 +33,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </remarks>
 public class HeldValues(SemanticModels models)
 {
-    readonly Dictionary<ISymbol, bool> _stable = new(SymbolEqualityComparer.Default);
+    readonly Dictionary<Compilation, Dictionary<ISymbol, bool>> _stable = [];
     readonly Dictionary<Compilation, Writes> _writes = [];
 
     /// <summary>
@@ -66,9 +66,14 @@ public class HeldValues(SemanticModels models)
     /// <returns>Whether the value is assigned once without a computed getter.</returns>
     public bool IsStable(ISymbol symbol, Compilation compilation)
     {
-        if (!_stable.TryGetValue(symbol, out var stable))
+        if (!_stable.TryGetValue(compilation, out var symbols))
         {
-            _stable[symbol] = stable = ReadStability(symbol, compilation);
+            _stable[compilation] = symbols = new(SymbolEqualityComparer.Default);
+        }
+
+        if (!symbols.TryGetValue(symbol, out var stable))
+        {
+            symbols[symbol] = stable = ReadStability(symbol, compilation);
         }
 
         return stable;
@@ -140,6 +145,14 @@ public class HeldValues(SemanticModels models)
         if (symbol is IFieldSymbol { IsReadOnly: true } or IFieldSymbol { IsConst: true })
         {
             return true;
+        }
+
+        if (symbol is IPropertySymbol { ContainingType.IsRecord: true, DeclaringSyntaxReferences.Length: > 0 } &&
+            symbol.DeclaringSyntaxReferences.All(reference => reference.GetSyntax() is ParameterSyntax { Parent.Parent: RecordDeclarationSyntax }))
+        {
+            var recordWrites = WritesIn(compilation);
+
+            return !recordWrites.Assignments.ContainsKey(symbol) && !recordWrites.Mutations.Contains(symbol);
         }
 
         if (symbol is IPropertySymbol && (symbol.DeclaringSyntaxReferences.Length == 0 ||

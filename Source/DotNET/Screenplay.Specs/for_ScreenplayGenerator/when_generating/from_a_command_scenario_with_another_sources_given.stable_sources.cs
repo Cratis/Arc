@@ -95,6 +95,36 @@ public partial class from_a_command_scenario_with_another_sources_given
         AssertOmitted();
     }
 
+    [Fact] void should_keep_a_stable_held_commands_positional_identifier_implicit()
+    {
+        GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), HeldCommandScenario());
+        AssertImplicitSource(runtimeIdentity: true);
+    }
+
+    [Fact] void should_omit_a_reassigned_held_commands_identifier()
+    {
+        GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), HeldCommandScenario()
+            .Replace("readonly RegisterAuthor _command = new(EventSourceId.New(), \"Claimed\");", "RegisterAuthor _command = new(EventSourceId.New(), \"Claimed\");", StringComparison.Ordinal)
+            .Replace("void Establish() =>", "void Establish() { _command = new(EventSourceId.New(), \"Claimed\");", StringComparison.Ordinal)
+            .Replace("Events(new AuthorRegistered(\"Claimed\"));", "Events(new AuthorRegistered(\"Claimed\")); }", StringComparison.Ordinal));
+        Result.Source.ShouldNotContain("specification");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeTrue();
+        AssertDocument();
+    }
+
+    [Fact] void should_omit_another_held_commands_positional_identifier()
+    {
+        GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), HeldCommandScenario()
+            .Replace("readonly RegisterAuthor _command =", "readonly RegisterAuthor _otherCommand = new(EventSourceId.New(), \"Claimed\"); readonly RegisterAuthor _command =", StringComparison.Ordinal)
+            .Replace("ForEventSource(_command.Id)", "ForEventSource(_otherCommand.Id)", StringComparison.Ordinal));
+        AssertOmitted();
+    }
+
+    static string HeldCommandScenario() => Scenario
+        .Replace("readonly EventSourceId _otherId = EventSourceId.New();", "readonly RegisterAuthor _command = new(EventSourceId.New(), \"Claimed\");", StringComparison.Ordinal)
+        .Replace("ForEventSource(\"other\")", "ForEventSource(_command.Id)", StringComparison.Ordinal)
+        .Replace("Execute(new RegisterAuthor(\"current\", \"Claimed\"))", "Execute(_command)", StringComparison.Ordinal);
+
     static string TwoSourcesScenario(string declarations = "readonly EventSourceId _otherId = new(\"other\"); readonly EventSourceId _secondId = new(\"second\");")
     {
         const string establish = """

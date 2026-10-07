@@ -14,13 +14,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 /// <param name="models">The <see cref="SemanticModels"/> every body is read through.</param>
 /// <param name="values">The <see cref="SpecificationValues"/> reading the values each step states.</param>
+/// <param name="heldValues">The held values cached for the analysis.</param>
 /// <remarks>
 /// The steps are walked from the base of the chain down, and a base context is routinely written in a project below
 /// the scenario inheriting it - so which model reads a body is asked rather than assumed.
 /// </remarks>
-public class SpecificationStepReader(SemanticModels models, SpecificationValues values)
+public class SpecificationStepReader(SemanticModels models, SpecificationValues values, HeldValues? heldValues = null)
 {
-    readonly HeldValues _held = new(models);
+    readonly HeldValues _held = heldValues ?? new(models);
 
     /// <summary>
     /// Reads what a specification had already seen when it issued its command.
@@ -70,7 +71,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             }
 
             var kind = SpecificationCalls.IsGivenReadModel(method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
-            var source = kind == SpecificationStateKind.Event && (SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps))
+            var source = kind == SpecificationStateKind.Event && (draft.When is not null || SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps))
                 ? draft.EventSources.Read(invocation, method, semanticModel, draft)
                 : null;
 
@@ -137,7 +138,13 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             if (!append)
             {
-                draft.EventSources.ReadCommand(command, construction.Creation, construction.SemanticModel, models);
+                draft.EventSources.ReadCommand(
+                    command,
+                    construction.Creation,
+                    construction.SemanticModel,
+                    models,
+                    semanticModel.GetSymbolInfo(MappingSourceReader.Unwrap(issued)).Symbol,
+                    semanticModel.Compilation);
             }
 
             var state = new SpecificationStateModel(
