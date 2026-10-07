@@ -12,6 +12,11 @@ public class from_a_conditional_named_predicate : a_generated_document
     [InlineData("RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).Unless(c => c.CheckName).WithMessage(\"m\");")]
     [InlineData("When(c => c.CheckName, () => { RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\"); });")]
     [InlineData("Unless(c => c.CheckName, () => { RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\"); });")]
+    [InlineData("if (System.Environment.GetEnvironmentVariable(\"X\") != \"1\") return; RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\");")]
+    [InlineData("if (System.Environment.GetEnvironmentVariable(\"X\") != \"1\") return; { RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\"); }")]
+    [InlineData("if (System.Environment.GetEnvironmentVariable(\"X\") != \"1\") throw new NameCheckDisabled(); RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\");")]
+    [InlineData("if (System.Environment.GetEnvironmentVariable(\"X\") != \"1\") goto Done; RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\"); Done: return;")]
+    [InlineData("if (System.Environment.GetEnvironmentVariable(\"X\") != \"1\") return; RuleSet(\"default\", () => { RuleFor(c => c.Name).NotEmpty().Must(IsKnownName).WithMessage(\"m\"); });")]
     public void should_omit_the_predicate_rather_than_state_it_unconditionally(string declaration)
     {
         Generate((Analyzed.SlicePath, $$"""
@@ -20,6 +25,7 @@ public class from_a_conditional_named_predicate : a_generated_document
             using Cratis.Chronicle.Events;
             using FluentValidation;
             namespace Library.Authors.Registration;
+            public class NameCheckDisabled : System.Exception { }
             [EventType] public record AuthorRegistered(string Name);
             [Command] public record RegisterAuthor(string Name, bool CheckName)
             {

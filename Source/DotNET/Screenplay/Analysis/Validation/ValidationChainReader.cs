@@ -97,9 +97,26 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
     }
 
     static bool IsConditional(InvocationChain chain, SemanticModel semanticModel) =>
+        HasPrecedingExit(chain.Root) ||
         chain.Calls.Any(call => _conditions.Contains(InvocationChain.NameOf(call))) ||
         chain.Root.Ancestors().Any(node => node is IfStatementSyntax or SwitchStatementSyntax or ConditionalExpressionSyntax or
             ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax || IsConditionalBlock(node, semanticModel));
+
+    static bool HasPrecedingExit(SyntaxNode root)
+    {
+        for (var node = root; node is not (null or BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax); node = node.Parent)
+        {
+            if (node.Parent is BlockSyntax block && block.Statements.TakeWhile(statement => statement != node)
+                .SelectMany(statement => statement.DescendantNodesAndSelf(descendIntoChildren: child =>
+                    child is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)))
+                .Any(statement => statement is ReturnStatementSyntax or ThrowStatementSyntax or ThrowExpressionSyntax or GotoStatementSyntax))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     static bool IsConditionalBlock(SyntaxNode node, SemanticModel semanticModel)
     {
