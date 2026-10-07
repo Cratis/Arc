@@ -99,7 +99,12 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
 
     /// <summary>Reports legacy classification attributes omitted from executable-default output.</summary>
     /// <param name="location">The diagnostic location.</param>
-    public void ReportLegacyRoute(string location) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, "Event source and stream routing are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable routes", location);
+    public void ReportLegacyRoute(string location) => ReportLegacyRoute(location, null);
+
+    /// <summary>Reports legacy classification attributes omitted for a named command.</summary>
+    /// <param name="location">The diagnostic location.</param>
+    /// <param name="commandName">The routed command, when it is known.</param>
+    public void ReportLegacyRoute(string location, string? commandName) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, $"Event source and stream routing{(commandName is null ? string.Empty : $" for command '{commandName}'")} are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable routes", location);
 
     /// <summary>Reports a dynamic concurrency flag that the current grammar cannot state without a value.</summary>
     /// <param name="location">The diagnostic location.</param>

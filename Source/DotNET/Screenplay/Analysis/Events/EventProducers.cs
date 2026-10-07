@@ -1,11 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Events;
 
@@ -35,6 +36,11 @@ public static class EventProducers
     public static IReadOnlyDictionary<string, int> Across(IEnumerable<Compilation> compilations, IEnumerable<SliceModel> slices)
     {
         var projects = compilations.ToList();
+        var recoveredSlices = slices.ToList();
+        var commands = recoveredSlices.SelectMany(slice => slice.Commands.SelectMany(command => command.Produces
+            .Where(production => production.EventTypeIdentity is not null)
+            .Select(production => (Type: $"{slice.Namespace}.{command.Name}", Event: production.EventTypeIdentity!))))
+            .ToHashSet();
         var specifications = new SpecificationReader(new(projects), new());
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var compilation in projects)
@@ -56,7 +62,7 @@ public static class EventProducers
 
                     if (node is MethodDeclarationSyntax method && model.GetDeclaredSymbol(method) is IMethodSymbol symbol)
                     {
-                        foreach (var eventType in HandlerBodies.EventTypesIn(symbol.ReturnType))
+                        foreach (var eventType in CarriedEvents(symbol.ReturnType, includeReturnWrappers: true))
                         {
                             var key = IdentityOf(eventType);
                             var constructs = method.DescendantNodes().OfType<BaseObjectCreationExpressionSyntax>()
@@ -68,24 +74,105 @@ public static class EventProducers
                         }
                     }
 
-                    if (node is InvocationExpressionSyntax invocation && !IsNameOf(invocation))
+                    foreach (var expression in EscapingValues(node, model))
                     {
-                        foreach (var argument in invocation.ArgumentList.Arguments.Where(_ => _.Expression is not BaseObjectCreationExpressionSyntax))
+                        var type = model.GetTypeInfo(expression);
+
+                        // Direct construction, clones and event-valued calls are already counted above.
+                        if (expression is BaseObjectCreationExpressionSyntax or WithExpressionSyntax or InvocationExpressionSyntax &&
+                            type.Type is { } direct && EventReader.IsEvent(direct))
                         {
-                            Add(model.GetTypeInfo(argument.Expression).Type, counts);
+                            continue;
+                        }
+
+                        foreach (var eventType in CarriedEvents(type.Type ?? type.ConvertedType))
+                        {
+                            var key = IdentityOf(eventType);
+                            var inProducingCommand = node.Ancestors().OfType<TypeDeclarationSyntax>().Any(declaration =>
+                                model.GetDeclaredSymbol(declaration) is INamedTypeSymbol enclosing && commands.Contains((enclosing.ToDisplayString(), key)));
+                            if (!inProducingCommand)
+                            {
+                                Add(eventType, counts);
+                            }
                         }
                     }
                 }
             }
         }
 
-        foreach (var group in slices.SelectMany(_ => _.Commands).SelectMany(_ => _.Produces)
+        foreach (var group in recoveredSlices.SelectMany(_ => _.Commands).SelectMany(_ => _.Produces)
             .Where(_ => _.EventTypeIdentity is not null).GroupBy(_ => _.EventTypeIdentity!, StringComparer.Ordinal))
         {
             counts[group.Key] = Math.Max(counts.GetValueOrDefault(group.Key), group.Count());
         }
 
         return counts;
+    }
+
+    static IEnumerable<ExpressionSyntax> EscapingValues(SyntaxNode node, SemanticModel model) => node switch
+    {
+        InvocationExpressionSyntax invocation when !IsNameOf(invocation) => invocation.ArgumentList.Arguments.Select(argument => argument.Expression),
+        BaseObjectCreationExpressionSyntax { ArgumentList: { } arguments } => arguments.Arguments.Select(argument => argument.Expression),
+        ConstructorInitializerSyntax initializer => initializer.ArgumentList.Arguments.Select(argument => argument.Expression),
+        InitializerExpressionSyntax initializer when initializer.IsKind(SyntaxKind.ArrayInitializerExpression) ||
+            initializer.IsKind(SyntaxKind.CollectionInitializerExpression) || initializer.IsKind(SyntaxKind.ComplexElementInitializerExpression) => initializer.Expressions,
+        CollectionExpressionSyntax collection => collection.Elements.Select(element => element switch
+        {
+            ExpressionElementSyntax value => value.Expression,
+            SpreadElementSyntax spread => spread.Expression,
+            _ => null
+        }).OfType<ExpressionSyntax>(),
+        ReturnStatementSyntax { Expression: { } expression } => [expression],
+        YieldStatementSyntax { Expression: { } expression } => [expression],
+        ArrowExpressionClauseSyntax arrow => [arrow.Expression],
+        LambdaExpressionSyntax { Body: ExpressionSyntax expression } => [expression],
+        AssignmentExpressionSyntax assignment when IsNonLocalTarget(model.GetOperation(assignment.Left)) => [assignment.Right],
+        EqualsValueClauseSyntax value when value.Parent is PropertyDeclarationSyntax ||
+            value.Parent is VariableDeclaratorSyntax { Parent.Parent: FieldDeclarationSyntax } => [value.Value],
+        _ => []
+    };
+
+    static bool IsNonLocalTarget(IOperation? target) => target is IFieldReferenceOperation or IPropertyReferenceOperation or IArrayElementReferenceOperation ||
+        (target is ITupleOperation tuple && tuple.Elements.Any(IsNonLocalTarget));
+
+    static IEnumerable<INamedTypeSymbol> CarriedEvents(ITypeSymbol? type, bool includeReturnWrappers = false) =>
+        CarriedEvents(type, new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default), includeReturnWrappers);
+
+    static IEnumerable<INamedTypeSymbol> CarriedEvents(ITypeSymbol? type, HashSet<ITypeSymbol> visited, bool includeReturnWrappers)
+    {
+        if (type is null || !visited.Add(type))
+        {
+            yield break;
+        }
+
+        if (type is IArrayTypeSymbol array)
+        {
+            foreach (var eventType in CarriedEvents(array.ElementType, visited, includeReturnWrappers))
+            {
+                yield return eventType;
+            }
+        }
+        else if (type is INamedTypeSymbol named && named.TypeKind != TypeKind.Delegate)
+        {
+            if (EventReader.IsEvent(named))
+            {
+                yield return named;
+                yield break;
+            }
+
+            // Return signatures also promise events through wrappers such as Task and Result, but a
+            // delegate mentioning an event describes consumption, not a returned event instance.
+            var components = named.IsTupleType ? named.TupleElements.Select(element => element.Type) :
+                named.AllInterfaces.Prepend(named).Where(candidate => candidate.Is("System.Collections.Generic.IEnumerable`1"))
+                    .SelectMany(candidate => candidate.TypeArguments).Concat(includeReturnWrappers ? named.TypeArguments : []);
+            foreach (var component in components)
+            {
+                foreach (var eventType in CarriedEvents(component, visited, includeReturnWrappers))
+                {
+                    yield return eventType;
+                }
+            }
+        }
     }
 
     static bool IsNameOf(SyntaxNode node) =>

@@ -96,8 +96,8 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult,
-                "The handler yields an event source identifier or response alongside the event, but its generated identity is not admitted by ESM v7; no event source destination was inferred",
-                location);
+                $"The handler of command '{command.Name}' yields an event source identifier or response alongside the event, but its generated identity is not admitted by ESM v7; no event source destination was inferred",
+                $"{location}.{command.Name}");
         }
 
         var productions = new List<ProducesModel>();

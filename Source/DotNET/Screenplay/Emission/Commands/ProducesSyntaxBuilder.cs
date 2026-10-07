@@ -50,15 +50,25 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="identifier">The command property supplying the destination, when it is known.</param>
     /// <returns>The produces blocks, in the order the command declares them.</returns>
-    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier)
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier) => Build(produces, location, identifier, null);
+
+    /// <summary>
+    /// Builds the produces blocks with a known command for omission diagnostics.
+    /// </summary>
+    /// <param name="produces">The events the command produces.</param>
+    /// <param name="location">Where the command lives, for use in diagnostics.</param>
+    /// <param name="identifier">The command property supplying the destination, when it is known.</param>
+    /// <param name="commandName">The command owning the productions, when it is known.</param>
+    /// <returns>The produces blocks, in the order the command declares them.</returns>
+    public IEnumerable<ProducesSyntax> Build(IEnumerable<ProducesModel> produces, string location, string? identifier, string? commandName)
     {
         var productions = produces.ToList();
         if (productions.Exists(_ => !_.UsesCommandContext))
         {
             Diagnostics?.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableProductionDestination,
-                "A production is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and its event remains standalone",
-                location);
+                $"A production{(commandName is null ? string.Empty : $" of command '{commandName}'")} is explicitly routed or does not demonstrably use command context, so no identifier or for destination was stated and its event remains standalone",
+                commandName is null ? location : $"{location}.{commandName}");
 
             identifier = null;
         }

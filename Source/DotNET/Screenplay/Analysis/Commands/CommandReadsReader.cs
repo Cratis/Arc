@@ -6,6 +6,7 @@ using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
@@ -182,7 +183,10 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
 
     ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
     {
-        if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax comparison)
+        if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax comparison ||
+            model.GetOperation(comparison) is not IBinaryOperation { OperatorMethod: null } operation ||
+            operation.LeftOperand is IConversionOperation || operation.RightOperand is IConversionOperation ||
+            !SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(comparison.Left).Type, model.GetTypeInfo(comparison.Right).Type))
         {
             return null;
         }

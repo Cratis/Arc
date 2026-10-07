@@ -57,13 +57,13 @@ public class CommandSyntaxBuilder(
             properties = [.. properties.Select(_ => _ with { IsIdentifier = false })];
         }
 
-        var produced = produces.Build(productions, location, identifier).ToList();
+        var produced = produces.Build(productions, location, identifier, command.Name).ToList();
         if (authoring?.Route is null)
         {
             concurrency.ReportEventSource(command.EventSource, location, AuthoringOnlyConstructs);
             if (!AuthoringOnlyConstructs && command.EventSource is null && command.HasAuthoringRoute)
             {
-                concurrency.ReportLegacyRoute(location);
+                concurrency.ReportLegacyRoute($"{location}.{command.Name}", command.Name);
             }
         }
         else if (command.EventSource is { ConcurrentByStreamId: true })
