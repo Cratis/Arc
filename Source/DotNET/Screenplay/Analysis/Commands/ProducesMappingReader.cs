@@ -77,6 +77,17 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
     static string PropertyOf(ITypeSymbol eventType, string name) =>
         eventType.DeclaredProperties().FirstOrDefault(_ => string.Equals(_.Name, name, StringComparison.OrdinalIgnoreCase))?.Name ?? name;
 
+    static bool IsReadDependency(ExpressionSyntax expression, SemanticModel semanticModel)
+    {
+        var current = MappingSourceReader.Unwrap(expression);
+        while (current is MemberAccessExpressionSyntax member)
+        {
+            current = MappingSourceReader.Unwrap(member.Expression);
+        }
+
+        return semanticModel.GetSymbolInfo(current).Symbol is IParameterSymbol;
+    }
+
     /// <summary>
     /// Reads the mappings the constructor arguments declare.
     /// </summary>
@@ -171,7 +182,8 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         ParameterBindings? bindings)
     {
         var source = _sources.Read(expression, semanticModel, owner, location, bindings);
-        if (source is null && _authoring?.ReadPath(expression, semanticModel) is { } path)
+        if (source is null && _authoring?.ReadPath(expression, semanticModel) is { } path &&
+            (!path.Contains('.', StringComparison.Ordinal) || IsReadDependency(expression, semanticModel)))
         {
             source = new PropertyPathSource(path);
         }

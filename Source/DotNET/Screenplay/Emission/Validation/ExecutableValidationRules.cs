@@ -6,22 +6,22 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.Emission.Validation;
 
 /// <summary>
-/// Withholds opaque named rules that would prevent successful scenarios from executing declaratively.
+/// Withholds opaque named rules that would prevent scenarios from executing declaratively.
 /// </summary>
 /// <param name="diagnostics">Where withheld rules are reported.</param>
 public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
-    /// Preserves successful scenarios by omitting named rules on their commands and carried concepts.
+    /// Preserves scenarios by omitting named rules on their commands and carried concepts.
     /// </summary>
     /// <param name="model">The application, including scenarios and composite types.</param>
     /// <returns>The model with only admitted named rules.</returns>
     public ApplicationModel Apply(ApplicationModel model)
     {
-        var successful = model.Slices.SelectMany(slice => slice.Specifications)
-            .Where(specification => specification.When is { Kind: SpecificationStateKind.Command } && !specification.Errors.Any())
+        var exercised = model.Slices.SelectMany(slice => slice.Specifications)
+            .Where(specification => specification.When is { Kind: SpecificationStateKind.Command })
             .Select(specification => specification.When!.Name).ToHashSet(StringComparer.Ordinal);
-        var commands = model.Slices.SelectMany(slice => slice.Commands).Where(command => successful.Contains(command.Name)).ToList();
+        var commands = model.Slices.SelectMany(slice => slice.Commands).Where(command => exercised.Contains(command.Name)).ToList();
 
         return model with
         {
@@ -33,7 +33,7 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
             {
                 Commands = slice.Commands.Select(command => command with
                 {
-                    Validations = Retain(command.Validations, $"command '{command.Name}'", $"{slice.Namespace}.{command.Name}", successful.Contains(command.Name) ? [command.Name] : [])
+                    Validations = Retain(command.Validations, $"command '{command.Name}'", $"{slice.Namespace}.{command.Name}", exercised.Contains(command.Name) ? [command.Name] : [])
                 }).ToList()
             }).ToList()
         };
@@ -71,7 +71,7 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
             {
                 diagnostics.Warning(
                     ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                    $"The named rule '{rule.Value}' on {owner} was withheld to keep successful scenarios for command(s) '{string.Join(", ", commands.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}'; opaque rules cannot be evaluated by reference execution",
+                    $"The named rule '{rule.Value}' on {owner} was withheld to keep scenarios for command(s) '{string.Join(", ", commands.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))}'; opaque rules cannot be evaluated by reference execution",
                     location);
             }
             else

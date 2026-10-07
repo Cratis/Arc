@@ -9,14 +9,19 @@ namespace Cratis.Arc.Screenplay.for_ExecutableValidationRules.when_applying;
 public class with_concepts_carried_by_commands : Specification
 {
     [Theory]
-    [InlineData("AuthorName", false)]
-    [InlineData("AuthorName", true)]
-    [InlineData("Envelope", false)]
-    [InlineData("Envelope", true)]
-    [InlineData("Names", false)]
-    public void should_withhold_concept_rules_for_every_successfully_exercised_carrier(string type, bool collection)
+    [InlineData("AuthorName", false, false)]
+    [InlineData("AuthorName", true, false)]
+    [InlineData("Envelope", false, false)]
+    [InlineData("Envelope", true, false)]
+    [InlineData("Names", false, false)]
+    [InlineData("AuthorName", false, true)]
+    [InlineData("AuthorName", true, true)]
+    [InlineData("Envelope", false, true)]
+    [InlineData("Envelope", true, true)]
+    [InlineData("Names", false, true)]
+    public void should_withhold_concept_rules_for_every_exercised_carrier(string type, bool collection, bool rejection)
     {
-        var model = Application(type, collection, "RegisterOtherAuthor", false);
+        var model = Application(type, collection, "RegisterOtherAuthor", rejection);
         var diagnostics = new ScreenplayDiagnostics();
         var result = new ExecutableValidationRules(diagnostics).Apply(model);
         result.Concepts.Single().Validations.Select(rule => rule.Kind).ShouldContainOnly(ValidationRuleKind.NotEmpty);
@@ -28,9 +33,9 @@ public class with_concepts_carried_by_commands : Specification
     }
 
     [Theory]
-    [InlineData("RegisterOtherAuthor", true)]
+    [InlineData("UnrelatedCommand", true)]
     [InlineData("UnrelatedCommand", false)]
-    public void should_keep_concept_rules_without_a_successful_scenario_for_a_carrier(string command, bool rejection)
+    public void should_keep_concept_rules_without_a_scenario_for_a_carrier(string command, bool rejection)
     {
         var diagnostics = new ScreenplayDiagnostics();
         var result = new ExecutableValidationRules(diagnostics).Apply(Application("Envelope", true, command, rejection));

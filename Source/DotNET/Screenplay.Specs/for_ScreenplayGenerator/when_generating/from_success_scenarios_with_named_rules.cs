@@ -54,7 +54,7 @@ public class from_success_scenarios_with_named_rules : a_generated_document
     [Fact] void should_preserve_the_successful_scenario() => Result.Source.ShouldContain("specification WhenRegisteringAndANameIsSupplied");
     [Fact] void should_not_add_opaque_validation() => Result.Source.ShouldNotContain("rule IsKnownName");
     [Fact] void should_retain_declarative_validation() => Result.Source.ShouldContain("name not empty");
-    [Fact] void should_report_the_command_and_reason() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableValidationRule && diagnostic.Message.Contains("withheld to keep successful scenarios", StringComparison.Ordinal)).Message.ShouldContain("command 'RegisterAuthor'");
+    [Fact] void should_report_the_command_and_reason() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableValidationRule && diagnostic.Message.Contains("withheld to keep scenarios", StringComparison.Ordinal)).Message.ShouldContain("command 'RegisterAuthor'");
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 
     [Fact]

@@ -84,7 +84,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
 
         var preceding = 0;
-        var conditional = IsConditional(chain);
+        var conditional = IsConditional(chain, semanticModel);
 
         foreach (var call in chain.Calls)
         {
@@ -96,14 +96,31 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
     }
 
-    static bool IsConditional(InvocationChain chain) =>
+    static bool IsConditional(InvocationChain chain, SemanticModel semanticModel) =>
         chain.Calls.Any(call => _conditions.Contains(InvocationChain.NameOf(call))) ||
         chain.Root.Ancestors().Any(node => node is IfStatementSyntax or SwitchStatementSyntax or ConditionalExpressionSyntax or
-            ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax || IsConditionalBlock(node));
+            ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax || IsConditionalBlock(node, semanticModel));
 
-    static bool IsConditionalBlock(SyntaxNode node) => node is InvocationExpressionSyntax invocation &&
-        _conditionalBlocks.Contains(invocation.Expression is IdentifierNameSyntax identifier
-            ? identifier.Identifier.ValueText : InvocationChain.NameOf(invocation));
+    static bool IsConditionalBlock(SyntaxNode node, SemanticModel semanticModel)
+    {
+        if (node is not InvocationExpressionSyntax invocation)
+        {
+            return false;
+        }
+
+        var name = invocation.Expression is IdentifierNameSyntax identifier
+            ? identifier.Identifier.ValueText : InvocationChain.NameOf(invocation);
+        if (name == "RuleSet")
+        {
+            var argument = invocation.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon?.Name.Identifier.ValueText == "ruleSetName") ??
+                invocation.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon is null);
+
+            return argument is null || semanticModel.GetConstantValue(argument.Expression) is not { HasValue: true, Value: string ruleSet } ||
+                !string.Equals(ruleSet, "default", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return _conditionalBlocks.Contains(name);
+    }
 
     /// <summary>
     /// Reads one call of a rule chain.
