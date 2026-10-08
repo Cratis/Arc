@@ -81,7 +81,7 @@ public class EmbeddedDocumentGenerator(
 
             if (verify)
             {
-                ReportDocumentThatDoesNotCompile(emission.Source, scope, diagnostics);
+                ReportDocumentThatDoesNotCompile(emission.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
             }
 
             if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
@@ -89,7 +89,7 @@ public class EmbeddedDocumentGenerator(
                 var arranged = AssemblyDocumentArrangement.Apply(emission, scopes);
                 if (verify && !string.Equals(emission.Source, arranged.Source, StringComparison.Ordinal))
                 {
-                    ReportDocumentThatDoesNotCompile(arranged.Source, scope, diagnostics);
+                    ReportDocumentThatDoesNotCompile(arranged.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
                 }
 
                 emission = arranged;
@@ -137,6 +137,7 @@ public class EmbeddedDocumentGenerator(
     /// <param name="source">The printed document.</param>
     /// <param name="scope">The scope the document describes.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
     /// <remarks>
     /// Embedding a document nobody can open is worse than failing the build, because the failure then surfaces in
     /// an application rather than in the build that produced it. Every document is read back, including the ones
@@ -144,13 +145,13 @@ public class EmbeddedDocumentGenerator(
     /// kind of thing narrowing breaks. Binding defects are Information here so a generator limitation cannot break
     /// a consumer's build; the end-to-end gate rejects SP0056 regardless of severity.
     /// </remarks>
-    void ReportDocumentThatDoesNotCompile(string source, DocumentScope scope, ScreenplayDiagnostics diagnostics)
+    void ReportDocumentThatDoesNotCompile(string source, DocumentScope scope, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs)
     {
         var verification = verifier.Verify(source);
 
         if (verification.Compiles)
         {
-            foreach (var error in verification.UnexpectedBindingErrors())
+            foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
             {
                 diagnostics.Information(
                     ScreenplayDiagnosticCodes.DocumentDidNotBind,

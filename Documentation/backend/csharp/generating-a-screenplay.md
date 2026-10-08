@@ -229,7 +229,13 @@ on line 6. That is the generator being wrong rather than anything the source dec
 and the document is returned as it stands so the line can be read (Library)
 ```
 
-A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` is expected in **both** modes: it marks syntax the language parses but no supported executable model admits yet, including legacy handlers, read models without keyed queries, and list, observable, filtered, or authoring-only constructs. Documented legacy-consistency diagnostics (`PLAY0271`) and informational diagnostics also do not produce `SP0056`.
+A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` alone does **not** mean an expected limitation: Screenplay also uses it for malformed bindings, including incompatible condition operands. The generator accepts only the pinned binder's known admission messages:
+
+- In both modes: legacy handler attachments; read models without one unambiguous keyed query; queries outside the optional, caller-keyed snapshot subset (list, required, observable, filtered, scoped, or performer-backed queries); concept compliance attributes whose execution needs portable data-subject semantics.
+- With authoring-only constructs enabled: the explicit refusal of operations and systems, or event sources, streams, and routes.
+- Documented legacy read and concurrency messages (`PLAY0271`) remain accepted. Informational diagnostics do not produce `SP0056`.
+
+The classifier matches the complete reason after a declaration name, or the complete authoring-feature refusal message. Unknown or changed messages fail closed. Operand/type mismatches, undeclared operands, ambiguous references across slices, and invalid parent keys produce `SP0056` even when Screenplay reports them as `PLAY0268`.
 
 Standalone generation reports `SP0056` as **Warning**. Embedded generation applies the same checks to each scoped document but reports it as **Information**, so MSBuild warnings-as-errors cannot break a consumer build because of a generator limitation. Arc's end-to-end CI gate takes the stricter responsibility: it fails on **any `SP0056`, regardless of severity**, or any unexpected binding error, and runs all three sample applications with authoring-only constructs both disabled and enabled. Accepting an admission limitation never exempts unresolved references, type mismatches, or other binding defects.
 

@@ -82,7 +82,7 @@ if (rejected.Count > 0)
     return 1;
 }
 
-var bindingErrors = compiled.UnexpectedBindingErrors();
+var bindingErrors = compiled.UnexpectedBindingErrors(authoringOnlyConstructs);
 foreach (var diagnostic in compiled.BindingDiagnostics)
 {
     Console.WriteLine($"  binding {diagnostic.Severity} {diagnostic.Code} in '{output}' on line {diagnostic.Location.Line}, column {diagnostic.Location.Column}: {diagnostic.Message}");

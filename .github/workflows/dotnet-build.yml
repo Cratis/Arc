@@ -210,8 +210,10 @@ jobs:
   # intermediate folder, no source generator output on disk and no referenced package declaring an event, so a
   # generator that mis-attributes one of those produces a wrong document that every specification still passes. Two
   # shipped that way. This reads a real project through MSBuild and compiles and binds its document with the language
-  # compiler and semantic binder. Both modes accept expected admission (PLAY0268) and legacy read-consistency
-  # diagnostics, but reject SP0056 at any severity and every other binding error. Syntax warnings are rejected too.
+  # compiler and semantic binder. Both modes accept only known admission and legacy-consistency message shapes,
+  # not every PLAY0268. SP0056 at any severity and all unexpected binding errors fail. Syntax warnings fail too.
+  # The samples can currently emit identical bytes in both modes; these runs exercise the option on real MSBuild compilations,
+  # while Screenplay.Specs' authoring fixtures exercise the additional operations, routes, reads and provisioning.
   screenplay-end-to-end:
     needs: [dotnet-build]
     runs-on: ubuntu-latest

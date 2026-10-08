@@ -35,10 +35,10 @@ public record ScreenplayVerification(
     /// <summary>
     /// Gets unexpected semantic binding errors in either generation mode.
     /// </summary>
-    /// <returns>Every binding error except expected admission and legacy read-consistency diagnostics.</returns>
-    public IReadOnlyList<Diagnostic> UnexpectedBindingErrors() =>
+    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
+    /// <returns>Every binding error except the known admission and legacy read-consistency messages.</returns>
+    public IReadOnlyList<Diagnostic> UnexpectedBindingErrors(bool authoringOnlyConstructs = false) =>
         [.. BindingDiagnostics.Where(diagnostic =>
             diagnostic.Severity == DiagnosticSeverity.Error &&
-            diagnostic.Code != "PLAY0271" &&
-            diagnostic.Code != "PLAY0268")];
+            !ExpectedBindingDiagnostics.IsExpected(diagnostic, authoringOnlyConstructs))];
 }

@@ -27,6 +27,8 @@ public class for_an_application : Specification
 
     [Fact] void should_report_only_binding_defects() => _generation.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
 
+    [Fact] void should_report_the_known_binding_defects_without_accepting_new_ones() => _generation.Diagnostics.Count.ShouldEqual(10);
+
     [Fact] void should_generate_documents_the_screenplay_compiler_accepts() =>
         _generation.Documents.All(_ => new ScreenplayCompiler().Compile(_.Source).Success).ShouldBeTrue();
 
