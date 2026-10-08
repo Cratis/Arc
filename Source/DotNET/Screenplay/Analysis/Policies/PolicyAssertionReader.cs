@@ -7,6 +7,7 @@ using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Policies;
 
@@ -76,6 +77,19 @@ public class PolicyAssertionReader(IReadOnlyList<Compilation> compilations)
         property.ContainingType.Is("Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext") &&
         SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(access.Expression).Symbol, model.GetDeclaredSymbol(context));
 
+    /// <summary>
+    /// Gets an explicitly supplied argument by its bound parameter, regardless of source ordering.
+    /// </summary>
+    /// <param name="invocation">The invocation to read.</param>
+    /// <param name="ordinal">The parameter's position in the method signature.</param>
+    /// <param name="model">The source semantic model.</param>
+    /// <returns>The argument expression, or null when it is not explicitly bound.</returns>
+    internal static ExpressionSyntax? ArgumentOf(InvocationExpressionSyntax invocation, int ordinal, SemanticModel model) =>
+        model.GetOperation(invocation) is IInvocationOperation operation &&
+        operation.Arguments.SingleOrDefault(argument => argument.Parameter?.Ordinal == ordinal) is { IsImplicit: false, Syntax: ArgumentSyntax syntax }
+            ? syntax.Expression
+            : null;
+
     static IEnumerable<ExpressionSyntax> Conjuncts(ExpressionSyntax? expression) => expression switch
     {
         BinaryExpressionSyntax binary when binary.IsKind(SyntaxKind.LogicalAndExpression) => Conjuncts(Unwrap(binary.Left)).Concat(Conjuncts(Unwrap(binary.Right))),
@@ -109,13 +123,13 @@ public class PolicyAssertionReader(IReadOnlyList<Compilation> compilations)
             call.Expression is not MemberAccessExpressionSyntax user || !IsContextMember(user, context, "User", model) ||
             model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { Name: "HasClaim", Parameters.Length: 2 } method ||
             !method.ContainingType.Is("System.Security.Claims.ClaimsPrincipal") || method.Parameters.Any(parameter => parameter.Type.SpecialType != SpecialType.System_String) ||
-            invocation.ArgumentList.Arguments is not [var claimArgument, var targetArgument] ||
-            model.GetConstantValue(claimArgument.Expression).Value is not string claim || string.IsNullOrWhiteSpace(claim))
+            ArgumentOf(invocation, 0, model) is not { } claimArgument || ArgumentOf(invocation, 1, model) is not { } targetArgument ||
+            model.GetConstantValue(claimArgument).Value is not string claim || string.IsNullOrWhiteSpace(claim))
         {
             return null;
         }
 
-        var path = PropertyPath(targetArgument.Expression, variable, model);
+        var path = PropertyPath(targetArgument, variable, model);
         if (path is null)
         {
             return null;
@@ -125,7 +139,7 @@ public class PolicyAssertionReader(IReadOnlyList<Compilation> compilations)
         var emptyHandler = command.GetMembers("Handle").OfType<IMethodSymbol>().All(handler => handler.ReturnsVoid &&
             handler.DeclaringSyntaxReferences.All(reference => reference.GetSyntax() is MethodDeclarationSyntax { Body.Statements.Count: 0 }));
 
-        return new ClaimTargetRequirement(claim, path, emptyHandler && path == _naming.ToPropertyName(identifier ?? string.Empty));
+        return new ClaimTargetRequirement(claim, path, emptyHandler && identifier is not null && path == _naming.ToPropertyName(identifier));
     }
 
     string? PropertyPath(ExpressionSyntax expression, SingleVariableDesignationSyntax variable, SemanticModel model)
@@ -135,7 +149,8 @@ public class PolicyAssertionReader(IReadOnlyList<Compilation> compilations)
         while (expression is MemberAccessExpressionSyntax access)
         {
             if (model.GetSymbolInfo(access).Symbol is not IPropertySymbol property || property.NullableAnnotation == NullableAnnotation.Annotated ||
-                property.ContainingType is not { IsRecord: true } || property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is not ParameterSyntax))
+                property.ContainingType is not { IsRecord: true } || property.DeclaringSyntaxReferences.IsEmpty ||
+                property.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is not ParameterSyntax))
             {
                 return null;
             }

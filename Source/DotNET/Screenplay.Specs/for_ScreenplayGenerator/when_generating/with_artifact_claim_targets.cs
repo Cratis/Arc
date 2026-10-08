@@ -107,6 +107,74 @@ public class with_artifact_claim_targets : Specification
     }
 
     [Fact]
+    void should_match_value_without_inventing_a_subject()
+    {
+        const string WithoutIdentifier = """
+            using Cratis.Arc.Authorization;
+            using Cratis.Arc.Commands.ModelBound;
+            namespace Library.Departments.Updating;
+            [Command, Authorize(Policy = "CanUpdate")]
+            public record UpdateDepartment(string Value)
+            {
+                public void Handle() { }
+            }
+            """;
+        var result = Generate("context.User.HasClaim(\"owner\", command.Value)", WithoutIdentifier);
+        result.Source.ShouldContain("require claim \"owner\" matches value");
+        result.Source.ShouldNotContain("matches subject");
+        ShouldBind(result);
+    }
+
+    [Theory]
+    [InlineData("type: \"department\", value: command.Department")]
+    [InlineData("value: command.Department, type: \"department\"")]
+    [InlineData("\"department\", value: command.Department")]
+    void should_bind_claim_arguments_to_their_parameters(string arguments)
+    {
+        var result = Generate($"context.User.HasClaim({arguments})");
+        result.Source.ShouldContain("require claim \"department\" matches department");
+        ShouldBind(result);
+    }
+
+    [Fact]
+    void should_not_swap_a_dynamic_claim_type_with_a_constant_value()
+    {
+        var result = Generate("context.User.HasClaim(value: \"department\", type: command.Department)");
+        result.Source.ShouldContain("require authenticated");
+        result.Source.ShouldNotContain("matches");
+        result.Diagnostics.Count(d => d.Code == "SP0026").ShouldEqual(1);
+    }
+
+    [Theory]
+    [InlineData("public record Address(string Region);")]
+    [InlineData("public record Address(string Input) { public string Region => Input.ToUpperInvariant(); }")]
+    void should_not_state_a_property_path_through_a_compiled_record(string declaration)
+    {
+        var package = Analyzed.Package("Addresses", $"namespace Addresses; {declaration}");
+        var sources = Sources("context.User.HasClaim(\"region\", command.Address.Region)",
+            Command.Replace("public record Address(string Region);", "", StringComparison.Ordinal).Replace("Address Address", "Addresses.Address Address", StringComparison.Ordinal));
+        var compilation = Analyzed.Compile([package], sources);
+        Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
+        var result = new ScreenplayGenerator().Generate(compilation, new());
+        result.Source.ShouldContain("require authenticated");
+        result.Source.ShouldNotContain("matches");
+        result.Diagnostics.Count(d => d.Code == "SP0026").ShouldEqual(1);
+        result.Diagnostics.Where(d => d.Code == "SP0056").ShouldBeEmpty();
+    }
+
+    [Fact]
+    void should_not_state_the_metadata_value_of_a_concept_as_a_property_path()
+    {
+        var command = Command.Replace("public record Address(string Region);", "public record Department(string Value) : Cratis.Concepts.ConceptAs<string>(Value);", StringComparison.Ordinal)
+            .Replace("string Department, Address Address", "Department Department", StringComparison.Ordinal);
+        var result = Generate("context.User.HasClaim(\"department\", command.Department.Value)", command);
+        result.Source.ShouldContain("require authenticated");
+        result.Source.ShouldNotContain("matches");
+        result.Diagnostics.Count(d => d.Code == "SP0026").ShouldEqual(1);
+        result.Diagnostics.Where(d => d.Code == "SP0056").ShouldBeEmpty();
+    }
+
+    [Fact]
     void should_preserve_logical_grouping()
     {
         var result = Generate("context.User.HasClaim(\"department\", command.Department) && (context.User.HasClaim(\"owner\", command.Id) || context.User.HasClaim(\"region\", command.Address.Region))");

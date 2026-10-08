@@ -34,9 +34,9 @@ public class QueryPolicyAssertionReader(IReadOnlyList<Compilation> compilations)
             lookup.Expression is not MemberAccessExpressionSyntax lookupMember || !SameVariable(lookupMember.Expression, arguments, model) ||
             model.GetSymbolInfo(lookup).Symbol is not IMethodSymbol { Name: "TryGetValue" } lookupMethod ||
             !lookupMethod.ContainingType.Is("System.Collections.Generic.Dictionary`2") ||
-            lookup.ArgumentList.Arguments is not [var keyArgument, var valueArgument] ||
-            model.GetConstantValue(keyArgument.Expression).Value is not string key ||
-            valueArgument.Expression is not DeclarationExpressionSyntax { Designation: SingleVariableDesignationSyntax value } ||
+            PolicyAssertionReader.ArgumentOf(lookup, 0, model) is not { } keyArgument ||
+            model.GetConstantValue(keyArgument).Value is not string key ||
+            PolicyAssertionReader.ArgumentOf(lookup, 1, model) is not DeclarationExpressionSyntax { Designation: SingleVariableDesignationSyntax value } ||
             !SameVariable(valueCheck.Expression, value, model) ||
             valueCheck.Pattern is not DeclarationPatternSyntax { Designation: SingleVariableDesignationSyntax identifier } valuePattern ||
             model.GetTypeInfo(valuePattern.Type).Type?.SpecialType != SpecialType.System_String ||
@@ -44,9 +44,11 @@ public class QueryPolicyAssertionReader(IReadOnlyList<Compilation> compilations)
             !PolicyAssertionReader.IsContextMember(user, context, "User", model) ||
             model.GetSymbolInfo(claimCheck).Symbol is not IMethodSymbol { Name: "HasClaim", Parameters.Length: 2 } claimMethod ||
             !claimMethod.ContainingType.Is("System.Security.Claims.ClaimsPrincipal") ||
-            claimCheck.ArgumentList.Arguments is not [var claimArgument, var targetArgument] ||
-            model.GetConstantValue(claimArgument.Expression).Value is not string claim || string.IsNullOrWhiteSpace(claim) ||
-            !SameVariable(targetArgument.Expression, identifier, model) || !OnlyUsedWithKey(registration.Name, key))
+            claimMethod.Parameters.Any(parameter => parameter.Type.SpecialType != SpecialType.System_String) ||
+            PolicyAssertionReader.ArgumentOf(claimCheck, 0, model) is not { } claimArgument ||
+            PolicyAssertionReader.ArgumentOf(claimCheck, 1, model) is not { } targetArgument ||
+            model.GetConstantValue(claimArgument).Value is not string claim || string.IsNullOrWhiteSpace(claim) ||
+            !SameVariable(targetArgument, identifier, model) || !OnlyUsedWithKey(registration.Name, key))
         {
             return null;
         }

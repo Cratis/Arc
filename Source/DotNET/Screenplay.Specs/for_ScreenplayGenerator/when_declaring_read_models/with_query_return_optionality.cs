@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Queries;
+using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Verification;
 using Cratis.Screenplay;
 
@@ -11,6 +13,32 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_declaring_read_mode
 /// </summary>
 public class with_query_return_optionality : Specification
 {
+    [Theory]
+    [InlineData("Author?")]
+    [InlineData("Task<Author?>")]
+    [InlineData("ValueTask<Author?>")]
+    void should_preserve_nullable_value_type_results(string returnType)
+    {
+        var source = $$"""
+            using System;
+            using System.Threading.Tasks;
+            namespace Library.Authors.Listing;
+            public readonly record struct Author(Guid Id, string Name)
+            {
+                public static {{returnType}} ById(Guid id) => default;
+            }
+            """;
+        Analyzed.ErrorsIn((Analyzed.SlicePath, source)).ShouldBeEmpty();
+        var compilation = Analyzed.Compile((Analyzed.SlicePath, source));
+        var author = compilation.GetTypeByMetadataName("Library.Authors.Listing.Author")!;
+        var method = QueryReader.MethodsOf(author).Single();
+        var result = new QueryReader(new TypeRegistry(), new ScreenplayDiagnostics()).Read(method, author, Analyzed.SlicePath)!;
+        result.ReturnType.Name.ShouldEqual("Author");
+        result.ReturnType.IsOptional.ShouldBeTrue();
+        result.ReturnType.IsCollection.ShouldBeFalse();
+        result.ReturnTypeFullName.ShouldEqual("Library.Authors.Listing.Author");
+    }
+
     [Theory]
     [InlineData("Author?", "Author optional", false)]
     [InlineData("Task<Author?>", "Author optional", false)]

@@ -62,6 +62,35 @@ public class with_query_claim_targets : Specification
     }
 
     [Theory]
+    [InlineData("type: \"owner\", value: id")]
+    [InlineData("value: id, type: \"owner\"")]
+    [InlineData("\"owner\", value: id")]
+    void should_bind_claim_arguments_to_their_parameters(string arguments)
+    {
+        var result = Generate(Condition.Replace("\"owner\", id", arguments, StringComparison.Ordinal));
+        result.Source.ShouldContain("require claim \"owner\" matches subject");
+        result.Diagnostics.Where(d => d.Code != "SP0019").ShouldBeEmpty();
+        new ScreenplayCompiler().Compile(result.Source).Diagnostics.ShouldBeEmpty();
+    }
+
+    [Fact]
+    void should_not_swap_a_dynamic_claim_type_with_a_constant_value()
+    {
+        var result = Generate(Condition.Replace("\"owner\", id", "value: \"owner\", type: id", StringComparison.Ordinal));
+        result.Source.ShouldContain("require authenticated");
+        result.Source.ShouldNotContain("matches");
+        result.Diagnostics.Count(d => d.Code == "SP0026").ShouldEqual(1);
+    }
+
+    [Fact]
+    void should_bind_reordered_dictionary_lookup_arguments()
+    {
+        var result = Generate(Condition.Replace("\"id\", out var value", "value: out var value, key: \"id\"", StringComparison.Ordinal));
+        result.Source.ShouldContain("require claim \"owner\" matches subject");
+        result.Diagnostics.Where(d => d.Code != "SP0019").ShouldBeEmpty();
+    }
+
+    [Theory]
     [InlineData("arguments.TryGetValue(\"missing\", out var value) && value is string id")]
     [InlineData("arguments.TryGetValue(\"id\", out var value) && value is string id && id.Length > 0")]
     void should_not_invent_a_query_key_or_discard_additional_guards(string lookup)
