@@ -75,7 +75,7 @@ public class from_an_event_append_scenario : a_generated_document
 
         Result.Source.ShouldNotContain("when append AuthorRegistered");
         Result.Source.ShouldNotContain("then AuthorRegistered");
-        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("assertions only restate the appended fact");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("does not state every value of 'AuthorRegistered'");
         AssertDocument();
     }
 }

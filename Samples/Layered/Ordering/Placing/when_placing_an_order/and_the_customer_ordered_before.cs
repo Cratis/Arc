@@ -34,5 +34,5 @@ public class and_the_customer_ordered_before
     async Task Because() => _result = await _scenario.Execute(new PlaceOrder(KnownCustomers.House, "COFFEE-1KG"));
 
     [Fact] void should_be_successful() => _result.ShouldBeSuccessful();
-    [Fact] async Task should_have_placed_the_order() => await _scenario.ShouldHaveAppendedEvent<PlaceOrder, OrderPlaced>(KnownCustomers.House);
+    [Fact] async Task should_have_placed_the_order() => await _scenario.ShouldHaveAppendedEvent<PlaceOrder, OrderPlaced>(KnownCustomers.House, e => e.Sku == "COFFEE-1KG");
 }

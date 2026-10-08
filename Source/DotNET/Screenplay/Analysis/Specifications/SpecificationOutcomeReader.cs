@@ -147,6 +147,11 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
                 ? draft.EventSources.Read(invocation, method, semanticModel, draft)
                 : null
         };
+        if (!SpecificationEventCompleteness.StatesEveryValue(state, appended, draft))
+        {
+            return;
+        }
+
         draft.AddThen(state, appended, invocation.GetLocation());
     }
 
