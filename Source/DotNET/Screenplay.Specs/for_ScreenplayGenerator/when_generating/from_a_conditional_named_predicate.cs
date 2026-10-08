@@ -41,7 +41,7 @@ public class from_a_conditional_named_predicate : a_generated_document
             }
             """));
         Result.Source.ShouldNotContain("rule IsKnownName");
-        Result.Source.ShouldContain("name not empty");
+        Result.Source.ShouldNotContain("name not empty");
         Result.Source.ShouldNotContain("message \"m\"");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableValidationRule &&
             diagnostic.Message.Contains("IsKnownName", StringComparison.Ordinal) && diagnostic.Message.Contains("conditionally", StringComparison.Ordinal)).ShouldBeTrue();

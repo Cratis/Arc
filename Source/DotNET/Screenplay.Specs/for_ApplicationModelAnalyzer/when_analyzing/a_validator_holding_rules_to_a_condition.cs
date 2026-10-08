@@ -6,10 +6,8 @@ using Cratis.Arc.Screenplay.Analysis;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// A rule carries no condition of its own, so a rule held to one is stated as though it always holds. That is a real
-/// difference between the document and the application rather than a rule that could not be read, and a report saying
-/// only that a call had no counterpart leaves a reader unable to tell which. Writing the condition into it is what
-/// makes the difference something they can weigh.
+/// A conditional rule cannot become an unconditional constraint. Omission diagnostics preserve the condition
+/// so a reader knows what the document could not state.
 /// </summary>
 public class a_validator_holding_rules_to_a_condition : Specification
 {
@@ -43,7 +41,7 @@ public class a_validator_holding_rules_to_a_condition : Specification
     void Establish() => _analysis = Analyzed.Source(Source);
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_still_state_the_rules_the_condition_held() => _analysis.Slice().Commands.First().Validations.Select(_ => _.Property).ShouldContainOnly(["Isbn", "Note"]);
+    [Fact] void should_omit_the_rules_rather_than_state_them_unconditionally() => _analysis.Slice().Commands.First().Validations.ShouldBeEmpty();
     [Fact] void should_report_one_condition_for_each_chain() => _analysis.Diagnostics.Count.ShouldEqual(2);
     [Fact] void should_report_them_as_rules_it_could_not_express() => _analysis.Diagnostics.Select(_ => _.Code).Distinct(StringComparer.Ordinal).ShouldContainOnly([ScreenplayDiagnosticCodes.UnmappableValidationRule]);
     [Fact] void should_say_what_the_rules_were_held_to() => _analysis.Diagnostics.Any(_ => _.Message.Contains("When(command => command.IsRush)", StringComparison.Ordinal)).ShouldBeTrue();
