@@ -42,11 +42,18 @@ public class SpecificationCatalog
         HeldValues? heldValues = null)
     {
         var reader = new SpecificationReader(models, diagnostics, heldValues);
+        var reactors = new ReactorSpecificationReader(models, diagnostics, heldValues);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 
         foreach (var type in catalog.Types)
         {
+            if (!reader.IsSpecification(type) && ReactorSpecificationReader.ReactorOf(type) is { } reactor)
+            {
+                ReadReactorScenario(type, reactor, reactors, placement, bySlice, diagnostics);
+                continue;
+            }
+
             if (!reader.IsSpecification(type))
             {
                 Report(reader.ScenarioWithoutCounterpart(type), type, diagnostics);
@@ -104,6 +111,49 @@ public class SpecificationCatalog
             ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart,
             $"The scenario '{type.Name}' is written as a {scenario}, which specifies the slice through something the language has nowhere to hold, so the whole of it was left out",
             type.ToDisplayString());
+    }
+
+    /// <summary>
+    /// Reads a reactor scenario, reporting it when it has no counterpart.
+    /// </summary>
+    /// <param name="type">The type declaring the scenario.</param>
+    /// <param name="reactor">The reactor it is a scenario of.</param>
+    /// <param name="reader">The reader of reactor scenarios.</param>
+    /// <param name="placement">The placement of scenarios under slices.</param>
+    /// <param name="bySlice">The specifications collected so far.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
+    static void ReadReactorScenario(
+        INamedTypeSymbol type,
+        INamedTypeSymbol reactor,
+        ReactorSpecificationReader reader,
+        SpecificationPlacement placement,
+        Dictionary<string, List<SpecificationModel>> bySlice,
+        ScreenplayDiagnostics diagnostics)
+    {
+        if (reader.WithoutCounterpart(type, reactor) is { } reason)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart,
+                $"The scenario '{type.Name}' is written as a ReactorScenario {reason}, which the language has nowhere to hold, so the whole of it was left out",
+                type.ToDisplayString());
+
+            return;
+        }
+
+        if (placement.SliceOf(type) is not { } slice)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{type.Name}' was left out because no namespace above it declares a slice for it to specify",
+                type.ToDisplayString());
+
+            return;
+        }
+
+        if (reader.Read(type, reactor, SpecificationPlacement.NameOf(type, slice)) is { } specification)
+        {
+            Add(bySlice, slice, specification);
+        }
     }
 
     /// <summary>

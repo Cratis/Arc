@@ -29,6 +29,15 @@ public record SpecificationModel(
     IEnumerable<string> Errors)
 {
     /// <summary>
+    /// Gets the name of the reactor the scenario delivers its appended event to, when it is a reactor scenario.
+    /// </summary>
+    /// <remarks>
+    /// What follows the append of such a scenario is what that reactor's declarative reaction appends, and the
+    /// document only keeps the scenario while that reaction is the one thing reacting to it.
+    /// </remarks>
+    public string? Reactor { get; init; }
+
+    /// <summary>
     /// Gets whether the source asserts the command response.
     /// </summary>
     /// <remarks>

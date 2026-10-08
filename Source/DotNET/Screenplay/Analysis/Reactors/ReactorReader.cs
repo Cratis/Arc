@@ -49,6 +49,31 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
         type is { IsAbstract: false, TypeKind: TypeKind.Class } && type.FindInterface(WellKnownTypeNames.Reactor) is not null;
 
     /// <summary>
+    /// Determines whether a reactor observes the event log, which is what a reaction to an event is set off by.
+    /// </summary>
+    /// <param name="type">The type declaring the reactor.</param>
+    /// <returns>True when the reactor names no sequence or names the event log.</returns>
+    public static bool ObservesTheEventLog(INamedTypeSymbol type) =>
+        SequenceOf(type) is not { Length: > 0 } sequence || string.Equals(sequence, EventLogSequence, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets the declarative reactions of a reactor.
+    /// </summary>
+    /// <param name="type">The type declaring the reactor.</param>
+    /// <param name="models">The <see cref="SemanticModels"/> every handler is read through.</param>
+    /// <returns>The reactions, empty when the type is not a reactor or none of its handlers can be stated.</returns>
+    public static IEnumerable<ReactionModel> ReactionsOf(INamedTypeSymbol type, SemanticModels models) =>
+        IsReactor(type) ? ReactionsOf(type, [.. Handlers(type)], EventSourceReader.ReadObserved(type), models) : [];
+
+    /// <summary>
+    /// Gets the names of the events a reactor observes.
+    /// </summary>
+    /// <param name="type">The type declaring the reactor.</param>
+    /// <returns>The names of the observed events.</returns>
+    public static IEnumerable<string> ObservedBy(INamedTypeSymbol type) =>
+        Handlers(type).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal);
+
+    /// <summary>
     /// Reads a reactor.
     /// </summary>
     /// <param name="type">The type declaring the reactor.</param>
@@ -56,14 +81,33 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     public ReactorModel Read(INamedTypeSymbol type)
     {
         var handlers = Handlers(type).ToList();
+        var eventSource = EventSourceReader.ReadObserved(type);
 
         return new(
             type.Name,
             [.. handlers.Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
             IsTranslating(type, handlers),
             paths.Relative(type.SourceFilePath()),
-            EventSourceReader.ReadObserved(type));
+            eventSource)
+        {
+            Reactions = ReactionsOf(type, handlers, eventSource, models)
+        };
     }
+
+    /// <summary>
+    /// Gets the declarative reactions of a reactor whose handlers are known.
+    /// </summary>
+    /// <param name="type">The type declaring the reactor.</param>
+    /// <param name="handlers">The handlers of the reactor.</param>
+    /// <param name="eventSource">The event source the reactor is filtered to, if any.</param>
+    /// <param name="models">The <see cref="SemanticModels"/> every handler is read through.</param>
+    /// <returns>The reactions.</returns>
+    static IEnumerable<ReactionModel> ReactionsOf(
+        INamedTypeSymbol type,
+        IReadOnlyList<IMethodSymbol> handlers,
+        ObservedEventSourceModel? eventSource,
+        SemanticModels models) =>
+        eventSource is null && ObservesTheEventLog(type) ? new ReactionReader(models).Read(type, handlers) : [];
 
     /// <summary>
     /// Gets the methods dispatched to by event type.

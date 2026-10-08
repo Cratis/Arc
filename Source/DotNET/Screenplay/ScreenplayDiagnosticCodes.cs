@@ -432,9 +432,12 @@ public static class ScreenplayDiagnosticCodes
     /// A slice is specified by a scenario of a kind the language has nowhere to put, so the whole of it is left out.
     /// </summary>
     /// <remarks>
-    /// Command, read-model, and event-append scenarios have counterparts in the language. A reactor scenario
-    /// asserting what a collaborator was asked to do still describes the inside of a slice, not a portable outcome.
-    /// It is reported rather than silently passed over because it holds a scenario and specifies real slice behavior.
+    /// Command, read-model, and event-append scenarios have counterparts in the language, and so does a reactor
+    /// scenario of a reactor stated as a declarative reaction, asserting only the events it returned. A reactor
+    /// scenario asserting what a collaborator was asked to do, asserting a command the reactor invokes rather than the
+    /// facts it records, or written against a reactor whose handlers are code still describes the inside of a slice,
+    /// not a portable outcome. It is reported rather than silently passed over because it holds a scenario and
+    /// specifies real slice behavior.
     /// </remarks>
     public const string ScenarioWithoutCounterpart = "SP0043";
 

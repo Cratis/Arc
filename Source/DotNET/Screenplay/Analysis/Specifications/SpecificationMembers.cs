@@ -122,6 +122,16 @@ public static class SpecificationMembers
             : null;
 
     /// <summary>
+    /// Gets the reactor a type is written as a scenario of.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <returns>The reactor, or <see langword="null"/> when the type holds no reactor scenario.</returns>
+    public static INamedTypeSymbol? ReactorOf(INamedTypeSymbol type) =>
+        Holds(type, WellKnownTypeNames.ReactorScenario) is INamedTypeSymbol { TypeArguments: [INamedTypeSymbol reactor] }
+            ? reactor
+            : null;
+
+    /// <summary>
     /// Gets the scenario a type holds of a kind Screenplay has no way to read.
     /// </summary>
     /// <param name="type">The type to check.</param>
