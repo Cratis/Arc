@@ -370,7 +370,7 @@ Concrete sources can be stated only when every producing command retains the sam
 
 Screenplay cannot yet state event stream type and stream id in scenario occurrences. That language gap is tracked in [Cratis/Screenplay#457](https://github.com/Cratis/Screenplay/issues/457); an event-source `for` value does not state stream metadata.
 
-A rejection the source asserts without naming a reason is written as bare `then error`. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
+A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()`, `IsSuccess.ShouldBeFalse()`, and `ShouldNotBeSuccessful()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
 A scenario that compares the command response with concrete values becomes `then returns`:
 

@@ -33,6 +33,9 @@ public static class SpecificationAssertions
     /// <summary>The value of a result saying whether the command was carried out.</summary>
     public const string SuccessProperty = "IsSuccess";
 
+    /// <summary>The value of a result saying whether validation accepted the command.</summary>
+    public const string ValidProperty = "IsValid";
+
     /// <summary>The assertions saying the command was rejected, without naming why.</summary>
     public static readonly string[] Rejections =
     [
@@ -132,13 +135,14 @@ public static class SpecificationAssertions
         result.SpecialType == SpecialType.System_Boolean;
 
     /// <summary>
-    /// Determines whether an assertion says the result of the command was not a success.
+    /// Determines whether an assertion says the command was unsuccessful or invalid.
     /// </summary>
     /// <param name="invocation">The assertion to read.</param>
     /// <param name="method">The method being called.</param>
-    /// <returns>True when the assertion is about the success of a result.</returns>
+    /// <returns>True when the assertion rejects the success or validity of a result.</returns>
     static bool IsUnsuccessful(InvocationExpressionSyntax invocation, IMethodSymbol method) =>
         string.Equals(method.Name, FalseAssertion, StringComparison.Ordinal) &&
         invocation.Expression is MemberAccessExpressionSyntax { Expression: MemberAccessExpressionSyntax subject } &&
-        string.Equals(subject.Name.Identifier.ValueText, SuccessProperty, StringComparison.Ordinal);
+        (string.Equals(subject.Name.Identifier.ValueText, SuccessProperty, StringComparison.Ordinal) ||
+         string.Equals(subject.Name.Identifier.ValueText, ValidProperty, StringComparison.Ordinal));
 }

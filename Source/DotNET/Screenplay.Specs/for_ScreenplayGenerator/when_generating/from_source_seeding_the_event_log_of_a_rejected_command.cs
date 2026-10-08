@@ -129,5 +129,5 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
     [Fact] void should_state_the_rejection() => Block("WhenStartingOnboardingAndADuplicateOnboardingRaces").Any(_ => _.StartsWith("then error", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_not_state_the_seeded_event_as_an_outcome() => Block("WhenStartingOnboardingAndADuplicateOnboardingRaces").ShouldNotContain("then CustomerRegistered");
     [Fact] void should_state_the_event_a_successful_command_appends() => Block("WhenStartingOnboardingAndAnotherCustomerRegisteredEarlier").ShouldContain("then CustomerRegistered");
-    [Fact] void should_report_only_the_unadmitted_code_only_rejection() => _result.Diagnostics.Where(diagnostic => diagnostic.Severity != ScreenplayDiagnosticSeverity.Information).Select(diagnostic => diagnostic.Code).ShouldEqual([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
+    [Fact] void should_not_report_binding_errors_for_the_bare_rejection() => _result.Diagnostics.Where(diagnostic => diagnostic.Severity != ScreenplayDiagnosticSeverity.Information).ShouldBeEmpty();
 }
