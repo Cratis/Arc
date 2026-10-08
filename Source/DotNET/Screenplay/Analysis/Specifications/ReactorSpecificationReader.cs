@@ -139,29 +139,6 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
     }
 
     /// <summary>
-    /// Determines whether a state gives every property of its event a value.
-    /// </summary>
-    /// <param name="state">The state.</param>
-    /// <param name="event">The event it is of.</param>
-    /// <param name="draft">The scenario collected so far.</param>
-    /// <returns>True when it does.</returns>
-    /// <remarks>
-    /// A specification states an event whole - every value it carries, exactly once - so an event a scenario only
-    /// partly states, whether it delivers it or expects it, cannot be written.
-    /// </remarks>
-    static bool StatesEveryValue(SpecificationStateModel state, ITypeSymbol @event, SpecificationDraft draft)
-    {
-        var stated = state.Values.Select(_ => _.Property).ToHashSet(StringComparer.Ordinal);
-        if (@event.DeclaredProperties().All(_ => stated.Contains(_.Name)))
-        {
-            return true;
-        }
-
-        draft.CannotRead($"it does not state every value of '{@event.Name}', and a specification states an event whole");
-        return false;
-    }
-
-    /// <summary>
     /// Determines whether a method is an assertion on what a reactor scenario recorded.
     /// </summary>
     /// <param name="method">The method being called.</param>
@@ -314,7 +291,7 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
                 @event.Name,
                 SpecificationStateKind.Event,
                 [.. values.Read(construction.Creation, construction.SemanticModel, @event, name, location, draft)]) { For = source };
-            if (!StatesEveryValue(state, @event, draft))
+            if (!SpecificationEventCompleteness.StatesEveryValue(state, @event, draft))
             {
                 return null;
             }
@@ -382,7 +359,7 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
             }
 
             var state = new SpecificationStateModel(asserted.Name, SpecificationStateKind.Event, values) { For = draft.When?.For };
-            if (!StatesEveryValue(state, asserted, draft))
+            if (!SpecificationEventCompleteness.StatesEveryValue(state, asserted, draft))
             {
                 return;
             }
