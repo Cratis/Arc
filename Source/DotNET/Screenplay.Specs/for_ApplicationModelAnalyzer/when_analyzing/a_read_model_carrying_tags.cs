@@ -7,7 +7,7 @@ namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
 /// Chronicle tags read models as readily as it tags events, and only the event has somewhere in the document to carry
-/// them - a read model is named there only as what a query answers with. Passing the tags over without a word would
+/// them - a <c>readmodel</c> declaration states its shape and nothing else. Passing the tags over without a word would
 /// leave a reader who sees tags throughout the events concluding that the read models carry none.
 /// </summary>
 public class a_read_model_carrying_tags : Specification

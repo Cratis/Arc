@@ -12,6 +12,9 @@ public record CommandReadModel(string Name, string Alias, string Key)
     /// <summary>Gets the source namespace owning the read model.</summary>
     public string Namespace { get; init; } = string.Empty;
 
+    /// <summary>Gets the full name of the read model type, when it was read from code.</summary>
+    public string? FullName { get; init; }
+
     /// <summary>Gets the read model's declared properties.</summary>
     public IReadOnlyList<PropertyModel> Properties { get; init; } = [];
 }

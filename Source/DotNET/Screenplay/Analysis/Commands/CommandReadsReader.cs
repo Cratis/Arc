@@ -70,6 +70,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 reads.Add(new(type.Name, alias, identifier)
                 {
                     Namespace = type.ContainingNamespace.ToDisplayString(),
+                    FullName = type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString(),
                     Properties = new PropertyReader(types).Read(type).ToList()
                 });
             }

@@ -30,5 +30,6 @@ public static class SliceContent
         !slice.Screens.Any() &&
         !slice.Constraints.Any() &&
         !slice.Specifications.Any() &&
+        !(slice.ReadModels ?? []).Any() &&
         slice.Description is null;
 }

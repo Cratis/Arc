@@ -23,7 +23,7 @@ public static class ScopedApplicationModel
     /// <param name="scope">The scope of the document.</param>
     /// <returns>The scoped <see cref="ApplicationModel"/>.</returns>
     /// <remarks>
-    /// A slice outside the scope that declares an event a slice inside it refers to becomes an import. The
+    /// A slice outside the scope that declares an event or a read model a slice inside it refers to becomes an import. The
     /// reference is real and the document has to compile on its own, so it states the dependency outright in
     /// exactly the way the language already has for an event declared elsewhere.
     /// </remarks>
@@ -75,9 +75,62 @@ public static class ScopedApplicationModel
                 .SelectMany(ExternalEvents.ReferredToBy)
                 .Where(elsewhere.ContainsKey)
                 .Select(_ => elsewhere[_])
+                .Concat(ReadModelsDeclaredElsewhere(model, slices, within))
                 .Concat(model.Imports)
                 .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal)
         ];
     }
+
+    /// <summary>
+    /// Gets the fully qualified name of every read model the scoped document refers to that a slice outside it declares.
+    /// </summary>
+    /// <param name="model">The model of the whole application.</param>
+    /// <param name="slices">The slices within the scope.</param>
+    /// <param name="within">The namespaces of the slices within the scope.</param>
+    /// <returns>The imports.</returns>
+    /// <remarks>
+    /// A read model is declared once, in the slice that owns it, so a projection or a query in one part of the
+    /// application can name a read model another part declares. Once the parts are separate documents that is a
+    /// dependency on a declaration elsewhere, and it is stated the same way an event declared elsewhere is.
+    /// </remarks>
+    static IEnumerable<string> ReadModelsDeclaredElsewhere(ApplicationModel model, IReadOnlyList<SliceModel> slices, HashSet<string> within)
+    {
+        var reads = slices.SelectMany(_ => _.Commands).SelectMany(_ => _.Authoring?.Reads ?? []).ToList();
+
+        // An authoring-only read is declared by the document itself, beside the one projection building it, whenever no
+        // slice of the document declares the read model - so importing it as well would name it twice.
+        var built = slices.SelectMany(_ => _.Projections).GroupBy(_ => _.ReadModel, StringComparer.Ordinal)
+            .Where(_ => _.Count() == 1)
+            .Select(_ => _.Key);
+        var declared = slices.SelectMany(_ => _.ReadModels).Select(_ => _.Name)
+            .Concat(reads.Select(_ => _.Name).Intersect(built, StringComparer.Ordinal))
+            .ToHashSet(StringComparer.Ordinal);
+        var elsewhere = model.Slices
+            .Where(_ => !within.Contains(_.Namespace))
+            .OrderBy(_ => _.Namespace, StringComparer.Ordinal)
+            .ThenBy(_ => _.Name, StringComparer.Ordinal)
+            .SelectMany(slice => slice.ReadModels
+                .Where(_ => !declared.Contains(_.Name))
+                .Select(readModel => (ReadModel: readModel, Import: $"{slice.Namespace}{Namespaces.Separator}{readModel.Name}")))
+            .ToList();
+        var references = slices
+            .SelectMany(slice => slice.Projections.Select(_ => (Name: _.ReadModel, FullName: (string?)null))
+                .Concat(slice.Queries.Select(_ => (_.ReturnType.Name, _.ReturnTypeFullName))))
+            .Concat(reads.Select(_ => (_.Name, _.FullName)));
+
+        return references
+            .SelectMany(reference => elsewhere.Where(_ => Refers(reference, _.ReadModel)).Select(_ => _.Import));
+    }
+
+    /// <summary>
+    /// Determines whether a reference names a read model, by full name when both are known.
+    /// </summary>
+    /// <param name="reference">The simple and, when known, full name the reference is written with.</param>
+    /// <param name="readModel">The read model.</param>
+    /// <returns>True when it does.</returns>
+    static bool Refers((string Name, string? FullName) reference, ReadModelModel readModel) =>
+        reference.FullName is not null && readModel.FullName is not null
+            ? reference.FullName == readModel.FullName
+            : reference.Name == readModel.Name;
 }

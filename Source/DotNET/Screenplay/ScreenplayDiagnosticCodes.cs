@@ -419,10 +419,10 @@ public static class ScreenplayDiagnosticCodes
     /// A read model declares something the document has nowhere to hold.
     /// </summary>
     /// <remarks>
-    /// A read model is never declared in a Screenplay in its own right - it appears only as the type a query answers
-    /// with - so anything it carries beyond its shape has nowhere to go. Tags are the case that matters, and they
-    /// matter because an event's tags <em>are</em> printed: a reader seeing tags throughout the events and none on
-    /// the read models would reasonably conclude that the read models carry none. This is separate from
+    /// A <c>readmodel</c> declaration states the shape of a read model - its properties, a description and the file
+    /// declaring it - and nothing else, so anything a read model carries beyond that has nowhere to go. Tags are the
+    /// case that matters, and they matter because an event's tags <em>are</em> printed: a reader seeing tags
+    /// throughout the events and none on the read models would reasonably conclude that the read models carry none. This is separate from
     /// <see cref="ServingConcernWithoutCounterpart"/> because the reason is different - the declaration says nothing
     /// about the request, it is a declaration the document does not make at all.
     /// </remarks>
@@ -501,4 +501,17 @@ public static class ScreenplayDiagnosticCodes
 
     /// <summary>Provisioning or a read dependency lives in code rather than a supported declarative shape.</summary>
     public const string UnreadableCommandProvisioning = "SP0055";
+
+    /// <summary>
+    /// A read model the document refers to is left undeclared, because no declaration could be written that says what
+    /// the application holds.
+    /// </summary>
+    /// <remarks>
+    /// A read model is declared once, in one slice, under its simple name, with every property typed by something the
+    /// document declares. When two read models share a simple name, when the name is already taken by a concept or a
+    /// type, when a property is typed by something the document cannot declare, or when no slice refers to it, any
+    /// declaration written would describe a shape the application does not have. The read model is left out instead,
+    /// so whatever builds or reads it names it exactly as it did before read models were declared at all.
+    /// </remarks>
+    public const string UndeclarableReadModel = "SP0057";
 }
