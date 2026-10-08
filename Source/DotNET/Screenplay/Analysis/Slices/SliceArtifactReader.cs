@@ -84,6 +84,7 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
 
         if (QueryReader.IsReadModel(type))
         {
+            readers.ReadModels.Declare(type);
             ReportWhatTheReadModelCannotSay(type, @namespace);
             AddQueries(content, type, QueryReader.MethodsOf(type), @namespace);
             Assign(content, readers.ModelBoundProjections.Read(type, @namespace));
@@ -91,11 +92,13 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
 
         if (FluentProjectionReader.ReadModelOf(type) is { } projected)
         {
+            readers.ReadModels.Declare(projected);
             Assign(content, readers.FluentProjections.Read(type, projected, @namespace));
         }
 
         if (ReducerReader.ReadModelOf(type) is { } reduced)
         {
+            readers.ReadModels.Declare(reduced);
             Assign(content, readers.Reducers.Read(type, reduced, @namespace));
         }
 
@@ -155,8 +158,8 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
     /// <param name="type">The read model.</param>
     /// <param name="location">Where it lives.</param>
     /// <remarks>
-    /// A read model appears in the document only as the type a query answers with, so a tag on one has nowhere to go
-    /// - while a tag on an event is printed. Saying so is what keeps a reader from taking the difference for the
+    /// A <c>readmodel</c> declaration states the shape and nothing else, so a tag on one has nowhere to go - while a
+    /// tag on an event is printed. Saying so is what keeps a reader from taking the difference for the
     /// application's own.
     /// </remarks>
     void ReportWhatTheReadModelCannotSay(INamedTypeSymbol type, string location)
@@ -166,7 +169,7 @@ public class SliceArtifactReader(ArtifactReaders readers, ScreenplayDiagnostics 
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.ReadModelFeatureWithoutCounterpart,
-                $"The read model '{type.Name}' is tagged {string.Join(", ", tags.Select(tag => $"'{tag}'"))}, and a read model is named in the document only as what a query answers with, so it has nowhere to carry them",
+                $"The read model '{type.Name}' is tagged {string.Join(", ", tags.Select(tag => $"'{tag}'"))}, and a read model declaration states only its shape, so it has nowhere to carry them",
                 location);
         }
 

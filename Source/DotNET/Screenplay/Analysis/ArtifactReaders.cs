@@ -9,6 +9,7 @@ using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Projections;
 using Cratis.Arc.Screenplay.Analysis.Queries;
 using Cratis.Arc.Screenplay.Analysis.Reactors;
+using Cratis.Arc.Screenplay.Analysis.ReadModels;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Analysis.Validation;
 using Microsoft.CodeAnalysis;
@@ -32,7 +33,8 @@ public class ArtifactReaders
         FluentProjectionReader fluentProjections,
         ReducerReader reducers,
         ReactorReader reactors,
-        ConstraintReader constraints)
+        ConstraintReader constraints,
+        ReadModelReader readModels)
     {
         Types = types;
         AggregateRoots = aggregates;
@@ -46,6 +48,7 @@ public class ArtifactReaders
         Reducers = reducers;
         Reactors = reactors;
         Constraints = constraints;
+        ReadModels = readModels;
     }
 
     /// <summary>Gets the registry collecting the concepts every artifact refers to.</summary>
@@ -83,6 +86,9 @@ public class ArtifactReaders
 
     /// <summary>Gets the reader for constraints declared in code.</summary>
     public ConstraintReader Constraints { get; }
+
+    /// <summary>Gets the reader declaring the shape of each read model.</summary>
+    public ReadModelReader ReadModels { get; }
 
     /// <summary>
     /// Composes every reader for a compilation.
@@ -139,6 +145,7 @@ public class ArtifactReaders
             new FluentProjectionReader(models, diagnostics),
             new ReducerReader(diagnostics),
             new ReactorReader(models, paths),
-            new ConstraintReader(models, paths, diagnostics));
+            new ConstraintReader(models, paths, diagnostics),
+            new ReadModelReader(paths, whole.ReadModels));
     }
 }

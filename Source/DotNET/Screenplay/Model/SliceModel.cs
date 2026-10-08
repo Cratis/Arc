@@ -53,6 +53,16 @@ public record SliceModel(
     public IEnumerable<SpecificationModel> Specifications { get; init; } = [];
 
     /// <summary>
+    /// Gets the read models the slice declares.
+    /// </summary>
+    /// <remarks>
+    /// A read model belongs to the whole application rather than to the namespace it is written in - a projection in
+    /// one slice can build what a query in another slice reads - so it is placed once every slice is known, and is
+    /// declared in exactly one of them. See <see cref="Analysis.ReadModels.ReadModelPlacement"/> for which one.
+    /// </remarks>
+    public IEnumerable<ReadModelModel> ReadModels { get; init; } = [];
+
+    /// <summary>
     /// Creates a slice that declares nothing, for use as a starting point.
     /// </summary>
     /// <param name="namespace">The full namespace the slice lives in.</param>

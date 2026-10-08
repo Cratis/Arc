@@ -29,6 +29,11 @@ public class ShapeRegistry
     readonly Dictionary<string, string> _undeclarable = new(StringComparer.Ordinal);
 
     /// <summary>
+    /// Gets the simple name of every record registered so far.
+    /// </summary>
+    public IEnumerable<string> Names => _declaredFrom.Keys;
+
+    /// <summary>
     /// Gets every shape the document declares, ordered by name.
     /// </summary>
     /// <param name="taken">The names something else already declares, which a shape cannot be declared under.</param>
@@ -55,6 +60,24 @@ public class ShapeRegistry
                 .Select(_ => new UndeclarableShape(_declaredFrom[_.Key], $"a concept is already declared as '{_.Key}'")))
             .OrderBy(_ => _.Type, StringComparer.Ordinal)
     ];
+
+    /// <summary>
+    /// Determines whether registering a record would declare it under its simple name.
+    /// </summary>
+    /// <param name="type">The record to ask about.</param>
+    /// <returns>True when its simple name is free or already declared from this very type.</returns>
+    /// <remarks>
+    /// Registering keeps the first type declared under a name and marks every later one undeclarable, so a property
+    /// typed by the later one would be written with a name declaring someone else's shape. Asking before registering
+    /// is what lets a caller decline instead.
+    /// </remarks>
+    public bool WouldResolveTo(ITypeSymbol type)
+    {
+        var full = type.ToDisplayString();
+
+        return !_undeclarable.ContainsKey(full) &&
+            (!_declaredFrom.TryGetValue(type.Name, out var already) || string.Equals(already, full, StringComparison.Ordinal));
+    }
 
     /// <summary>
     /// Registers a record as a shape, reading what it carries through the resolver naming each value.

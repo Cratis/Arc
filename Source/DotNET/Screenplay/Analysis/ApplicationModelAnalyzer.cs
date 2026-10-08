@@ -3,10 +3,12 @@
 
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Policies;
+using Cratis.Arc.Screenplay.Analysis.ReadModels;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Slices;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -66,10 +68,17 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
 
         whole.AggregateRoots.Report(diagnostics);
         whole.Elsewhere.Report(diagnostics);
-        TypesTheDocumentCannotName.Report(whole.Types, diagnostics, domain);
-
         var joined = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
-        var slices = Specified(projects, joined, diagnostics, new HeldValues(whole.Models));
+        var slices = ReadModelPlacement.Place(
+            Specified(projects, joined, diagnostics, new HeldValues(whole.Models)),
+            whole.ReadModels,
+            whole.Types,
+            new ScreenplayNaming(),
+            diagnostics);
+
+        // Placing a read model reads what it holds, which can reach a type the document cannot name, so what cannot
+        // be named is reported once every read model is in.
+        TypesTheDocumentCannotName.Report(whole.Types, diagnostics, domain);
         var imports = ExternalEvents.Resolve(ordered, slices, diagnostics);
         NamespacesWithoutStructure.Report(slices, diagnostics, options.SegmentsToSkip ?? 0);
 

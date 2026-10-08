@@ -56,6 +56,13 @@ reports SP0015 1
 # The reporting slice declared nothing else, so it is left out and that is said too.
 reports SP0002 1
 
+# The read model itself is declared once, beside the builder that reached the document, with the shape and summary
+# its type declares - which is what lets the projection resolve the read model it names.
+once readmodel Order
+says description "Represents what was ordered."
+says file Samples/Layered/Ordering/Placing/Placing.cs
+says sku String
+
 
 # ---------------------------------------------------------------------------------------------------------------
 # What the application declares across the two projects.

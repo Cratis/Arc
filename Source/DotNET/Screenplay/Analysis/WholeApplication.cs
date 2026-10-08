@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
+using Cratis.Arc.Screenplay.Analysis.ReadModels;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Microsoft.CodeAnalysis;
@@ -44,6 +45,11 @@ public record WholeApplication(IReadOnlyList<Compilation> Compilations, Screenpl
     /// Gets the registry collecting every concept the application refers to.
     /// </summary>
     public TypeRegistry Types { get; } = new();
+
+    /// <summary>
+    /// Gets the catalog collecting the shape of every read model the application declares.
+    /// </summary>
+    public ReadModelCatalog ReadModels { get; } = new();
 
     /// <summary>
     /// Gets the aggregate roots the application declares, and which of them a command reaches.

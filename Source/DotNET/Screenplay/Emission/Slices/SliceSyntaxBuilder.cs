@@ -57,6 +57,16 @@ public class SliceSyntaxBuilder(
     public IReadOnlyList<CommandReadModel> AuthoringReadModels { get; set; } = [];
 
     /// <summary>
+    /// Gets every read model the document declares, decided once for the whole document by
+    /// <see cref="ReadModelDeclarations"/>.
+    /// </summary>
+    /// <remarks>
+    /// A read model placed in a slice is declared only when it is among these, and an authoring-only <c>reads</c>
+    /// declares a read model a second time only when it is not.
+    /// </remarks>
+    public IReadOnlySet<ReadModelModel> DeclaredReadModels { get; init; } = new HashSet<ReadModelModel>();
+
+    /// <summary>
     /// Builds the slice declaration.
     /// </summary>
     /// <param name="slice">The slice to build for.</param>
@@ -95,9 +105,48 @@ public class SliceSyntaxBuilder(
             [.. specifications.Build(slice.Specifications)],
             SourceLocation.Start,
             naming.ToStringLiteral(slice.Description),
-            ReadModels: AuthoringReadModels.Where(read => read.Namespace == slice.Namespace).DistinctBy(read => read.Name)
-                .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), read.Properties.Select(property => new PropertySyntax(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start)).ToList(), SourceLocation.Start)).ToList());
+            ReadModels: [.. BuildReadModels(slice)]);
     }
+
+    /// <summary>
+    /// Builds the read models a slice declares.
+    /// </summary>
+    /// <param name="slice">The slice to build for.</param>
+    /// <returns>The read models, ordered by name.</returns>
+    /// <remarks>
+    /// A read model placed in the slice is declared when the document declares it at all (see
+    /// <see cref="DeclaredReadModels"/>). One the document leaves out is named by whatever builds or reads it exactly
+    /// as it was before read models were declared. A read model an authoring-only <c>reads</c> needs, that the
+    /// document declares nowhere, is declared in the slice of the projection building it.
+    /// </remarks>
+    IEnumerable<ReadModelSyntax> BuildReadModels(SliceModel slice)
+    {
+        var placed = slice.ReadModels
+            .Where(DeclaredReadModels.Contains)
+            .Select(readModel => new ReadModelSyntax(
+                naming.ToDeclarationName(readModel.Name),
+                [.. readModel.Properties.Select(ToProperty)],
+                SourceLocation.Start,
+                naming.ToStringLiteral(readModel.Description))
+            {
+                File = naming.ToFilePath(readModel.File) is { } path ? new FileReferenceSyntax(path, SourceLocation.Start) : null
+            });
+        var declared = DeclaredReadModels.Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
+        var authoring = AuthoringReadModels
+            .Where(read => read.Namespace == slice.Namespace && !declared.Contains(read.Name))
+            .DistinctBy(read => read.Name)
+            .Select(read => new ReadModelSyntax(naming.ToDeclarationName(read.Name), [.. read.Properties.Select(ToProperty)], SourceLocation.Start));
+
+        return [.. placed.Concat(authoring).OrderBy(_ => _.Name, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// Converts a property of a read model.
+    /// </summary>
+    /// <param name="property">The property to convert.</param>
+    /// <returns>The <see cref="PropertySyntax"/>.</returns>
+    PropertySyntax ToProperty(PropertyModel property) =>
+        new(naming.ToPropertyName(property.Name), types.Convert(property.Type), SourceLocation.Start);
 
     /// <summary>
     /// Builds the projections a slice declares.

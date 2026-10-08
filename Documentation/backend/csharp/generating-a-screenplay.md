@@ -151,6 +151,47 @@ Both forms preserve descriptions, documentation, rename pins, and the persisted 
 
 The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A routed wrapper, an unproven tuple destination, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination once per command, even when the command has no identifier, rather than retargeting it.
 
+## Read models
+
+Every read model the application declares gets a `readmodel` declaration of its own: each `[ReadModel]` type, and each type an `IProjectionFor<T>` or `IReducerFor<T>` builds. The declaration carries the properties of the type, its XML `<summary>` as `description`, and a `file` line when the file declaring it has a repository-relative path that stays true on another machine. Projections, reducers, and queries then name a read model the document declares, which is what lets them bind to the executable model.
+
+```screenplay
+query ById => Book optional
+  by id Uuid
+
+readmodel Book
+  description "A book on the shelves and how many of it there are."
+  file Library/Inventory/Listing/Book.cs
+  id Uuid
+  title String
+  count Int
+
+projection Book => Book
+  automap
+  from BookAddedToInventory
+```
+
+The declaration states the shape and nothing else. No property is marked `identifier`: the executable model identifies an instance through the read model's keyed query, so a read model with a `by` query answering with one instance is identifiable, and one without such a query is declared without claiming an identity it does not have.
+
+A document refers to a read model by its simple name, so each read model is declared exactly once. It goes in the first slice, in namespace order, that matches the earliest of these:
+
+1. The slice declaring a keyed query onto it.
+2. The slice declaring the projection or reducer that builds it.
+3. The slice its type is written in.
+4. The slice declaring any other query onto it.
+5. The slice declaring a command that reads it.
+
+Scoped embedded documents import a read model declared in another scope, the same way they import an event declared elsewhere.
+
+A read model is left undeclared, with Information diagnostic `SP0057`, when no declaration could say what the application holds:
+
+- two read models come out under the same declaration name (`Order_Summary` and `OrderSummary` both become `OrderSummary`), or a query or a command reads a different type under that name;
+- the name is already used by a concept or a type;
+- a value it holds, at any depth, has a type the document cannot declare, is a collection whose elements may be null (`optional` on a collection says only that the collection may be absent), or shares its declaration name with a different type the document already declares, with another type the read model holds, or with a read model;
+- no slice refers to it.
+
+Whatever builds or reads it still names it, and none of the concepts or types it holds are declared on its behalf.
+
 ## Generated values and responses
 
 Readable generated UUID concepts and command responses are emitted by default only for commands without successful scenarios. Until deterministic generation fixtures and response expectations are supported, commands with successful scenarios keep their legacy productions or handler reference without `generated` or `returns`; `SP0052` explains what was withheld to preserve those scenarios. A generated value must be a required scalar concept backed by `Uuid`, with no concept validator or validation rules. Its local must be written only by its initializer, and the resolved constructor must construct that same concept type and forward the fresh UUID unchanged to the concept or event-source base, without casts or user-defined conversions. Response-record fields must be compiler-synthesized positional properties, not explicit properties that transform their inputs. Scalar responses use `returns <property>` only for a direct value of the same declared type without a value-changing conversion; fully readable response records use a `returns` block whose fields refer directly to command inputs or admitted generated values. These constructs select ESM v7; documents without them retain their existing ESM version.
@@ -354,7 +395,8 @@ These details can remain outside the document because the language has no counte
 | Inline `policy` code and requirements built in code                                                   | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole`, and `RequireClaim` given the values it accepts are recovered; the rest is reported as `SP0026` — including a `RequireClaim` naming only a claim type, which a policy condition has no way to state.                                                                                                |
 | The event source id from a `(TKey, TEvent)` handler                                                   | The event is recovered. An admitted generated UUID identity and response are stated by default. If the destination cannot be proven or the generated concept has validation, no destination is inferred and `SP0013` explains the omission.                                                                                                                                                                                                                                                                                                                                         |
 | Emptying a scope with `[ClearWith]`; removing a child with `[RemovedWith]` on the property holding it | Nothing in the model a projection is built from carries a scope being emptied again, so `[ClearWith]` has nowhere to go (`SP0015`). A removal does have somewhere — but it is read from the type of the child, alongside the events filling that child in, so the same removal written beside the collection is reported as `SP0007` instead.                                                                                                       |
-| Read model tags                                                                                       | A read model has no declaration of its own — it appears as the type a query returns — so there is nowhere to hang a tag. Tags on _events_ are recovered and written out. `SP0042`.                                                                                                                                                                                                                                                                  |
+| Read model tags                                                                                       | A `readmodel` declaration states the shape of a read model — its properties, a description, and the file declaring it — and nothing else, so there is nowhere to hang a tag. Tags on _events_ are recovered and written out. `SP0042`.                                                                                                                                                                                                              |
+| Read models the document cannot declare | Two read models sharing a declaration name, a name a concept or type already uses, a value with no faithful Screenplay type (no type at all, nullable collection elements, or a type whose name another type already declares), or a read model no slice refers to. The read model is left undeclared rather than described with a shape the application does not have. Information diagnostic `SP0057`. |
 | Query paging and sorting, custom routes                                                               | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template — `[Path]`, `[Route]`, or a template on an HTTP verb — has no counterpart. `SP0041`.                                                                                                                                                                                                                                    |
 | Several command identity candidates | The generator cannot choose between key properties or event source identities. No `identifier` is emitted. Information diagnostic `SP0049`. |
 | An unreadable command identity | A self-provided identity must directly return a required scalar command property; an optional or collection key cannot be an identifier. Information diagnostic `SP0050`. |

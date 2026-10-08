@@ -15,3 +15,4 @@ ARCCHR0011|Arc.Chronicle|Info|Plain read model in event-producing command is unp
 ARCCHR0012|Arc.Chronicle|Info|Immediate append bypasses protected decision
 ARCCHR0013|Arc.Chronicle|Info|Legacy event source type attribute has a matching event source definition
 ARCCHR0014|Arc.Chronicle|Warning|Reactor or reducer observes a stream its event source definition does not declare
+ARCCHR0015|Arc.Chronicle|Warning|Command handler must not return a nullable event

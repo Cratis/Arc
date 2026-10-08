@@ -55,6 +55,37 @@ public class TypeRegistry
     public IEnumerable<ConceptModel> Concepts => _concepts.Concepts;
 
     /// <summary>
+    /// Gets the simple name of every concept and record registered so far.
+    /// </summary>
+    public IEnumerable<string> Names => [.. _concepts.Names, .. _shapes.Names];
+
+    /// <summary>
+    /// Determines whether naming a type would refer to the declaration of that very type.
+    /// </summary>
+    /// <param name="type">The type a property carries, already stripped of optionality and collection.</param>
+    /// <returns>True when the type is a primitive, or a concept or a record its simple name is free or already used for.</returns>
+    /// <remarks>
+    /// A concept and a record are declared under their simple name, the first one registered under a name keeping it.
+    /// A type arriving later under a name another type holds is still written with that name, which then states the
+    /// other type's shape. This asks before anything is registered, so a caller that cannot afford that - a read model
+    /// declared after every slice is read - can leave the declaration out instead of registering a false one.
+    /// </remarks>
+    public bool WouldResolveTo(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out _))
+        {
+            return true;
+        }
+
+        if (type.TypeKind == TypeKind.Enum || type.FindBase(WellKnownTypeNames.ConceptAs) is not null)
+        {
+            return !_shapes.Names.Contains(type.Name, StringComparer.Ordinal) && _concepts.WouldResolveTo(type);
+        }
+
+        return CarriedTypes.IsRecord(type) && !_concepts.Names.Contains(type.Name) && _shapes.WouldResolveTo(type);
+    }
+
+    /// <summary>
     /// Resolves the Screenplay type reference a symbol corresponds to.
     /// </summary>
     /// <param name="type">The type to resolve.</param>

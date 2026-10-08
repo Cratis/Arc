@@ -24,3 +24,5 @@
   href: index.md#arcchr0011-unguarded-legacy-decision-reads
 - name: ARCCHR0012 - Immediate append with a decision read
   href: index.md#arcchr0012-immediate-append-with-a-decision-read
+- name: ARCCHR0015 - Command handler must not return a nullable event
+  href: ARCCHR0015.md

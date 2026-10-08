@@ -18,4 +18,14 @@ public record QueryModel(
     PropertyModel? By,
     IEnumerable<PropertyModel> Filters,
     AuthorizationModel? Authorization,
-    bool IsObservable = false);
+    bool IsObservable = false)
+{
+    /// <summary>
+    /// Gets the full name of the type the query returns, when it was read from code.
+    /// </summary>
+    /// <remarks>
+    /// The document names what a query returns by its simple name only, so two types sharing one are told apart by
+    /// this - a query returning one of them must not be taken as reading a read model that is the other.
+    /// </remarks>
+    public string? ReturnTypeFullName { get; init; }
+}
