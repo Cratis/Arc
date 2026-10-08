@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Screenplay.Embedded.Build.Generators;
 using Cratis.Arc.Screenplay.Embedded.Generation;
+using Cratis.Screenplay.Semantics;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Utilities;
 
@@ -91,6 +92,11 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     public bool AuthoringOnlyConstructs { get; set; }
 
     /// <summary>
+    /// Gets or sets the executable model version cap in canonical form, such as 6.0, or empty for no cap.
+    /// </summary>
+    public string? MaximumExecutableModelVersion { get; set; }
+
+    /// <summary>
     /// Gets or sets the directory the generated files are written to.
     /// </summary>
     [Required]
@@ -165,7 +171,9 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
 
         var generation = new EmbeddedDocumentGenerator().Generate(generated.Compilation, new(AssemblyName, RootNamespace)
         {
-            AuthoringOnlyConstructs = AuthoringOnlyConstructs
+            AuthoringOnlyConstructs = AuthoringOnlyConstructs,
+            MaximumExecutableModelVersion = string.IsNullOrWhiteSpace(MaximumExecutableModelVersion)
+                ? null : SemanticVersion.Parse(MaximumExecutableModelVersion)
         });
         foreach (var diagnostic in generation.Diagnostics)
         {

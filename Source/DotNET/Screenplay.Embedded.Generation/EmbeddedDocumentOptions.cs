@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Screenplay.Semantics;
+
 namespace Cratis.Arc.Screenplay.Embedded.Generation;
 
 /// <summary>
@@ -19,6 +21,11 @@ public record EmbeddedDocumentOptions(string? AssemblyName, string? RootNamespac
     /// Gets a value indicating whether authoring-only constructs are included in embedded documents.
     /// </summary>
     public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
+    /// Gets the executable model version cap, or null to emit the latest supported constructs.
+    /// </summary>
+    public SemanticVersion? MaximumExecutableModelVersion { get; init; }
 
     /// <summary>
     /// Gets the options with every value filled in.

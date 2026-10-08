@@ -17,6 +17,7 @@ using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Emission.Validation;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
+using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.Emission;
@@ -54,11 +55,16 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     {
         if (options.AuthoringOnlyConstructs)
         {
+            if (options.MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V7))
+            {
+                model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, cap, authoringOnlyConstructs: true));
+            }
+
             model = AuthoringDeclarations.Resolve(model, diagnostics);
         }
         else
         {
-            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model));
+            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion));
         }
 
         model = new ExecutableValidationRules(diagnostics).Apply(model);

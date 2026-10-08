@@ -20,11 +20,13 @@ public class a_generated_document : Specification
     protected RoundTripResult RoundTrip;
     Compilation _compilation;
 
-    protected void Generate(params (string Path, string Text)[] sources)
+    protected void Generate(params (string Path, string Text)[] sources) => Generate(new ScreenplayOptions(), sources);
+
+    protected void Generate(ScreenplayOptions options, params (string Path, string Text)[] sources)
     {
         _compilation = Analyzed.Compile(sources);
         Result = new ScreenplayGenerator(new ApplicationModelAnalyzer(DeclaredUserInterfaceFiles.None), new ScreenplayEmitter())
-            .Generate(_compilation, new ScreenplayOptions());
+            .Generate(_compilation, options);
         RoundTrip = Verification.RoundTrip.For(new ScreenplayCompiler().Compile(Result.Source).Value!);
         var catalog = SemanticIdentityCatalog.Empty(ApplicationIdentity.Create("Library"));
         const string Key = "application";

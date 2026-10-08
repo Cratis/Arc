@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.Emission.Commands;
 
@@ -17,11 +18,20 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="model">The full application, including concept rules.</param>
     /// <returns>The model used consistently by command, event, and specification emission.</returns>
-    public ApplicationModel Apply(ApplicationModel model) => model with
+    public ApplicationModel Apply(ApplicationModel model) => Apply(model, null);
+
+    /// <summary>
+    /// Removes generated values and responses outside the requested executable version.
+    /// </summary>
+    /// <param name="model">The full application, including concept rules.</param>
+    /// <param name="maximumVersion">The executable model version cap, or null for the latest constructs.</param>
+    /// <param name="authoringOnlyConstructs">Whether to retain additional authoring-only constructs.</param>
+    /// <returns>The model used consistently by command, event, and specification emission.</returns>
+    public ApplicationModel Apply(ApplicationModel model, SemanticVersion? maximumVersion, bool authoringOnlyConstructs = false) => model with
     {
         Slices = model.Slices.Select(slice => slice with
         {
-            Commands = slice.Commands.Select(command => Admit(command, model, slice.Namespace)).ToList()
+            Commands = slice.Commands.Select(command => Admit(command, model, slice.Namespace, maximumVersion, authoringOnlyConstructs)).ToList()
         }).ToList()
     };
 
@@ -41,11 +51,22 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         _ => false
     };
 
-    CommandModel Admit(CommandModel command, ApplicationModel model, string location)
+    CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
         if (command.Authoring is not { } authoring)
         {
             return command;
+        }
+
+        var capped = maximumVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V7) &&
+            (authoring.Generated.Count > 0 || authoring.Response is not null || authoring.ResponseFields.Count > 0);
+        if (authoringOnlyConstructs && !capped)
+        {
+            return command;
+        }
+        if (capped)
+        {
+            Report(command, location, $"Generation and responses were withheld because ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{maximumVersion}; ESM v7 is required, so the command retains its legacy productions or handler reference");
         }
 
         var blocked = authoring.Generated.Where(property => !CanGenerate(property, authoring, model)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
@@ -80,7 +101,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Report(command, location, $"Generation and responses for command '{command.Name}' were withheld to keep scenarios with explicit given event sources; generated identity fixtures are not yet recovered, so the command retains its legacy productions or handler reference");
         }
 
-        var legacy = protectedValues.Count > 0 || requiredMapping || preserveScenarios || preserveExplicitSources;
+        var legacy = capped || protectedValues.Count > 0 || requiredMapping || preserveScenarios || preserveExplicitSources;
         if (requiredMapping)
         {
             Report(command, location, "A required event payload mapping needs an unadmitted generated value; generated values and responses were left in code and the command retains its legacy productions without unreadable mappings");
@@ -96,10 +117,10 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Identifier = legacy || (authoring.Identifier is { } identifier && blocked.Contains(identifier)) ? null : authoring.Identifier,
             Response = legacy || (authoring.Response is { } response && blocked.Contains(response)) ? null : authoring.Response,
             ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
-            Operations = [],
-            Route = null,
-            Reads = [],
-            Requirements = []
+            Operations = authoringOnlyConstructs ? authoring.Operations : [],
+            Route = authoringOnlyConstructs ? authoring.Route : null,
+            Reads = authoringOnlyConstructs ? authoring.Reads : [],
+            Requirements = authoringOnlyConstructs ? authoring.Requirements : []
         };
         if (authoring.Identifier is not null && retained.Identifier is null)
         {

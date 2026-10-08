@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Screenplay.Semantics;
+
 namespace Cratis.Arc.Screenplay;
 
 /// <summary>
@@ -64,6 +66,16 @@ public record ScreenplayOptions
     /// compile as authoring syntax but block executable binding with PLAY0268.
     /// </remarks>
     public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
+    /// Gets the maximum executable model version whose generated command values and responses are emitted.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to null, admitting the latest supported constructs. A cap below v7 keeps commands in their legacy
+    /// form without generated values or responses. Earlier executable constructs and authoring-only admission
+    /// limitations are unchanged; the cap does not guarantee that a document binds.
+    /// </remarks>
+    public SemanticVersion? MaximumExecutableModelVersion { get; init; }
 
     /// <summary>
     /// Gets a value indicating whether every value has been filled in already.

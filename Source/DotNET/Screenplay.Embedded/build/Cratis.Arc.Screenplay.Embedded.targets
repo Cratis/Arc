@@ -75,6 +75,7 @@
             AssemblyName="$(AssemblyName)"
             RootNamespace="$(RootNamespace)"
             AuthoringOnlyConstructs="$(CratisEmbeddedScreenplayAuthoringOnlyConstructs)"
+            MaximumExecutableModelVersion="$(CratisEmbeddedScreenplayMaximumExecutableModelVersion)"
             OutputPath="$(CratisEmbeddedScreenplayOutputPath)">
             <Output TaskParameter="Documents" ItemName="CratisEmbeddedScreenplayDocument" />
         </GenerateEmbeddedScreenplayDocuments>

@@ -206,6 +206,14 @@ A generated identifier supplies an inline event's destination. Standalone produc
 
 The generator preserves the legacy authoring document and adds generated values and responses only where they are admitted. Documents containing handler references still compile and round-trip, but have **no executable model** because handlers report `PLAY0268`.
 
+## Keeping documents below ESM v7
+
+If your renderer does not yet admit ESM v7, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V6`. The default is `null` (no cap), so existing output is unchanged. A cap below v7 withholds generated identifiers, other generated values, and scalar or record `returns` blocks. Commands keep the same legacy productions or handler references used when generation cannot be represented, and Information diagnostic `SP0052` names the cap.
+
+Embedded generation exposes the same nullable version on `EmbeddedDocumentOptions`. For MSBuild generation, set `CratisEmbeddedScreenplayMaximumExecutableModelVersion` to the canonical version `6.0`; leave it empty for no cap. For example, this lets you generate a document for `cratis render` versions that refuse ESM v7 with `CLI-RENDER-004` until their Stage renderer admits it. The separately shipped CLI must expose the generation option before it can be selected there.
+
+The cap also withholds v7 command values and responses when `AuthoringOnlyConstructs` is enabled, without disabling its other authoring constructs. It does not turn handler references or authoring-only constructs into executable behavior, nor downgrade earlier ESM features: a document may still have an existing binding limitation.
+
 ## Including authoring-only constructs
 
 Set `ScreenplayOptions.AuthoringOnlyConstructs` to `true` when you want a fuller authoring document rather than an executable model. It defaults to `false`. Embedded generation exposes the same boolean on `EmbeddedDocumentOptions`; MSBuild projects can set `CratisEmbeddedScreenplayAuthoringOnlyConstructs` to `true`. The separately shipped CLI must expose the option before it can be selected there.
