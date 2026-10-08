@@ -20,7 +20,9 @@ namespace Cratis.Arc.Screenplay.Embedded.Generation;
 /// The three halves of the existing generator are reused as they are. The source is analyzed once - analyzing it
 /// per document would be the same work repeated and could recover different models for the same application - and
 /// every document is emitted from a narrowed view of that one model and then read back with the compiler the
-/// language ships. Nothing is embedded that the Screenplay compiler has not accepted.
+/// language ships. Only the final assembly document is bound: it holds the whole application, whereas scoped
+/// documents have symbolic imports the executable binder does not admit. Nothing is embedded that the Screenplay
+/// compiler has not accepted.
 /// </remarks>
 public class EmbeddedDocumentGenerator(
     IApplicationModelAnalyzer analyzer,
@@ -79,20 +81,14 @@ public class EmbeddedDocumentGenerator(
             var emission = emitter.Emit(ScopedApplicationModel.For(model, scope), ScreenplayOptionsFor(scope, resolved));
             diagnostics.AddRange(emission.Diagnostics);
 
+            if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
+            {
+                emission = AssemblyDocumentArrangement.Apply(emission, scopes);
+            }
+
             if (verify)
             {
                 ReportDocumentThatDoesNotCompile(emission.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
-            }
-
-            if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
-            {
-                var arranged = AssemblyDocumentArrangement.Apply(emission, scopes);
-                if (verify && !string.Equals(emission.Source, arranged.Source, StringComparison.Ordinal))
-                {
-                    ReportDocumentThatDoesNotCompile(arranged.Source, scope, diagnostics, resolved.AuthoringOnlyConstructs);
-                }
-
-                emission = arranged;
             }
 
             documents.Add(new(scope.Document, emission.Source));
@@ -132,7 +128,7 @@ public class EmbeddedDocumentGenerator(
             _.Severity == ScreenplayDiagnosticSeverity.Error);
 
     /// <summary>
-    /// Reads a printed document back and reports syntax and unexpected semantic binding errors.
+    /// Checks every document's syntax and the whole-application document's semantic binding.
     /// </summary>
     /// <param name="source">The printed document.</param>
     /// <param name="scope">The scope the document describes.</param>
@@ -141,13 +137,16 @@ public class EmbeddedDocumentGenerator(
     /// <remarks>
     /// Embedding a document nobody can open is worse than failing the build, because the failure then surfaces in
     /// an application rather than in the build that produced it. Every document is read back, including the ones
-    /// scoping narrows - a reference that resolved while the whole application was in one document is exactly the
-    /// kind of thing narrowing breaks. Binding defects are Information here so a generator limitation cannot break
-    /// a consumer's build; the end-to-end gate rejects SP0056 regardless of severity.
+    /// scoping narrows. Scoped documents contain subsets of the assembly document and symbolic imports that ESM v1
+    /// cannot bind, so they are compiled independently but semantically verified through the final assembly document.
+    /// Binding defects in that whole-application document are Information here so a generator limitation cannot
+    /// break a consumer's build; the end-to-end gate rejects SP0056 regardless of severity.
     /// </remarks>
     void ReportDocumentThatDoesNotCompile(string source, DocumentScope scope, ScreenplayDiagnostics diagnostics, bool authoringOnlyConstructs)
     {
-        var verification = verifier.Verify(source);
+        var verification = scope.Kind == EmbeddedDocumentKind.Assembly
+            ? verifier.Verify(source)
+            : verifier.VerifySyntax(source);
 
         if (verification.Compiles)
         {

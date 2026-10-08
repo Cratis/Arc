@@ -28,11 +28,11 @@ public class ScreenplayVerifier(IScreenplayCompiler compiler) : IScreenplayVerif
     /// <inheritdoc/>
     public ScreenplayVerification Verify(string source)
     {
-        var compilation = compiler.Compile(source);
+        var verification = VerifySyntax(source);
 
-        if (!compilation.Success)
+        if (!verification.Compiles || verification.Application is null)
         {
-            return new(source, compilation.Value, [.. compilation.Diagnostics]);
+            return verification;
         }
 
         const string ApplicationName = "Generated";
@@ -41,9 +41,14 @@ public class ScreenplayVerifier(IScreenplayCompiler compiler) : IScreenplayVerif
         var document = SemanticSourceDocument.Create(catalog.ResolveDocument(Key), Key, "application.play", source);
         var bound = new SemanticModelCompiler().Compile(ApplicationName, SemanticDocumentSet.Create([document], catalog));
 
-        return new(source, compilation.Value, [.. compilation.Diagnostics])
-        {
-            BindingDiagnostics = [.. bound.Diagnostics]
-        };
+        return verification with { BindingDiagnostics = [.. bound.Diagnostics] };
+    }
+
+    /// <inheritdoc/>
+    public ScreenplayVerification VerifySyntax(string source)
+    {
+        var compilation = compiler.Compile(source);
+
+        return new(source, compilation.Value, [.. compilation.Diagnostics]);
     }
 }

@@ -19,4 +19,15 @@ public interface IScreenplayVerifier
     /// <param name="source">The printed <c>.play</c> text to compile.</param>
     /// <returns>The <see cref="ScreenplayVerification"/>.</returns>
     ScreenplayVerification Verify(string source);
+
+    /// <summary>
+    /// Compiles a printed Screenplay document without binding its potentially incomplete application scope.
+    /// </summary>
+    /// <param name="source">The printed <c>.play</c> text to compile.</param>
+    /// <returns>The syntax verification, without semantic binding diagnostics.</returns>
+    /// <remarks>
+    /// The default implementation preserves existing verifier implementations while using the compiler the
+    /// language ships for this additional syntax-only check.
+    /// </remarks>
+    ScreenplayVerification VerifySyntax(string source) => new ScreenplayVerifier().VerifySyntax(source);
 }
