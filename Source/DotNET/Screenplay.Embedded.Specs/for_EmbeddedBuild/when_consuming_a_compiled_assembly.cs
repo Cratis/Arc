@@ -40,6 +40,8 @@ public class when_consuming_a_compiled_assembly : Specification
         .SelectMany(_ => _.Events).Any(_ => _.Name == "AuthorRegistered").ShouldBeTrue();
     [Fact] void should_keep_other_features_out_of_the_authors_document() => _documents["Company.Library.Catalog.Authors"].Contains("SignIn", StringComparison.Ordinal).ShouldBeFalse();
     [Fact] void should_embed_documents_accepted_by_the_screenplay_compiler() => _documents.Values.All(_ => new ScreenplayCompiler().Compile(_).Success).ShouldBeTrue();
+    [Fact] void should_embed_documents_without_compiler_warnings() => _documents.Values.SelectMany(_ => new ScreenplayCompiler().Compile(_).Diagnostics)
+        .Where(_ => _.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Warning).ShouldBeEmpty();
     [Fact] void should_use_actual_manifest_resources_for_every_document() => _catalog.Documents.All(_ => _assembly.GetManifestResourceNames().Contains(_.ResourceName)).ShouldBeTrue();
 
     string ReadDocument(EmbeddedDocument document)

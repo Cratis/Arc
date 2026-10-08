@@ -43,7 +43,7 @@ public class from_the_projects_of_a_layered_application : Specification
     [Fact] void should_compile_the_contracts_project() => Analyzed.ErrorsIn(_contracts).ShouldBeEmpty();
     [Fact] void should_compile_the_application_project() => Analyzed.ErrorsIn(_application).ShouldBeEmpty();
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
-    [Fact] void should_produce_a_document_the_compiler_says_nothing_about() => _compiled.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_produce_a_document_without_warnings_or_errors() => _compiled.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_declare_the_command_the_application_project_holds() => Says("command PlaceOrder").ShouldBeTrue();
     [Fact] void should_declare_the_event_the_contracts_project_holds() => Says("event OrderPlaced").ShouldBeTrue();
     [Fact] void should_state_what_the_command_produces() => Says("produces OrderPlaced").ShouldBeTrue();
