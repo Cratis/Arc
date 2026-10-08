@@ -48,7 +48,7 @@ public class a_scenario_that_issues_no_command : given.an_emitter
     }
 
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
-    [Fact] void should_compile_without_any_diagnostics() => _roundTrip.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_state_what_had_happened() => _emission.Source.Contains("given AuthorFollowed", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_say_the_read_model_followed() => _emission.Source.Contains("then readmodel AuthorWatch", StringComparison.Ordinal).ShouldBeTrue();

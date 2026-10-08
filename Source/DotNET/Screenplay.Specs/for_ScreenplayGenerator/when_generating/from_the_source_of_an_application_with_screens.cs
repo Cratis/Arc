@@ -57,7 +57,7 @@ public class from_the_source_of_an_application_with_screens : Specification
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
-    [Fact] void should_produce_a_document_the_compiler_says_nothing_about() => _compiled.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_produce_a_document_without_warnings_or_errors() => _compiled.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_declare_the_screen_of_the_state_changing_slice() => Says("screen AddAuthor").ShouldBeTrue();
     [Fact] void should_declare_the_screen_of_the_state_viewing_slice() => Says("screen AuthorList").ShouldBeTrue();

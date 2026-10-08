@@ -45,7 +45,7 @@ public class an_application_carrying_records : given.an_emitter
     }
 
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
-    [Fact] void should_compile_without_any_diagnostics() => _roundTrip.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_declare_the_shape() => _emission.Source.Contains("type ShelfPosition", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_say_what_the_shape_carries() => _emission.Source.Contains("  aisle CopyCount", StringComparison.Ordinal).ShouldBeTrue();

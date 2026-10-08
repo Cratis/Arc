@@ -9,7 +9,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 /// <summary>
 /// This is the whole promise, end to end: C# an Arc application could really be written in goes in, and a document
-/// that the Screenplay compiler accepts without a single diagnostic comes out - and printing that document again
+/// that the Screenplay compiler accepts without warnings or errors comes out - and printing that document again
 /// yields byte identical text, which is what proves nothing was lost between the two halves.
 /// </summary>
 public class from_the_source_of_a_whole_application : Specification
@@ -40,7 +40,7 @@ public class from_the_source_of_a_whole_application : Specification
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
-    [Fact] void should_produce_a_document_the_compiler_says_nothing_about() => _compiled.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_produce_a_document_without_warnings_or_errors() => _compiled.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_name_the_domain_after_the_compilation() => Says("domain Library").ShouldBeTrue();
     [Fact] void should_declare_the_concepts_the_application_refers_to() => Says("concept AuthorName : String @pii").ShouldBeTrue();

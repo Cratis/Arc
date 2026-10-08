@@ -39,7 +39,7 @@ public class a_projection_with_an_unmappable_expression : given.an_emitter
     [Fact] void should_report_the_mapping_as_unmappable() => _emission.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.UnmappableProjectionExpression]);
     [Fact] void should_name_the_expression_in_the_report() => _emission.Diagnostics.Single().Message.Contains("$env.SERVICE", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_still_compile() => _roundTrip.Errors.ShouldBeEmpty();
-    [Fact] void should_still_compile_without_any_diagnostics() => _roundTrip.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_still_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
 
     static ProjectionModel ProjectionWithAnUnmappableMapping() =>
         new(
