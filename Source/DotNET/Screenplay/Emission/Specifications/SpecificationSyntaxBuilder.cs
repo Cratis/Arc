@@ -83,10 +83,26 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
 
-        if (specification.AssertsResponse && command?.Authoring is { Response: not null } or { ResponseFields.Count: > 0 })
+        var responds = command?.Authoring is { Response: not null } or { ResponseFields.Count: > 0 };
+        if (specification.AssertsResponse && responds && specification.Returns?.Fits(command!.Authoring) != true)
         {
-            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but then returns expectations are not yet recovered", location);
+            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because it asserts CommandResult.Response, but not as unconditional equalities with concrete values that fit the emitted returns", location);
             return null;
+        }
+
+        if (ResponseOnlyScenarios.IsResponseOnly(specification) && (!responds || !ResponseOnlyScenarios.RecordsNoFacts(command)))
+        {
+            var reason = !responds
+                ? "its only outcome is a command response the emitted command does not return"
+                : "its only outcome is the command response, and the command is not proven to record no facts; a specification with no expected events asserts that none were produced";
+            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because {reason}", location);
+            return null;
+        }
+
+        if (specification.Returns is not null && !responds)
+        {
+            // As in the legacy document, a response the command does not emit is not asserted.
+            specification = specification with { Returns = null };
         }
 
         if (!specification.Errors.Any() && command?.Authoring is { Generated.Count: > 0 })
@@ -209,8 +225,23 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         {
             WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
                 ? new(naming.ToDeclarationName(appended.Name), [.. Values(appended)], SourceLocation.Start) { For = SourceOf(appended) }
-                : null
+                : null,
+            ThenReturns = Returns(specification.Returns)
         };
+
+    /// <summary>
+    /// Builds the response a scenario expects.
+    /// </summary>
+    /// <param name="returns">The expected response, or <see langword="null"/>.</param>
+    /// <returns>The scalar or record subset expectation, or <see langword="null"/>.</returns>
+    SpecificationReturnSyntax? Returns(SpecificationReturnModel? returns) => returns switch
+    {
+        { Value: { } value } => new ScalarSpecificationReturnSyntax(_sources.Convert(value), SourceLocation.Start),
+        { Fields.Count: > 0 } => new RecordSpecificationReturnSyntax(
+            [.. returns.Fields.Select(field => new PropertyMappingSyntax(naming.ToPropertyName(field.Property), _sources.Convert(field.Source), SourceLocation.Start))],
+            SourceLocation.Start),
+        _ => null
+    };
 
     /// <summary>
     /// Builds the command a scenario issued.

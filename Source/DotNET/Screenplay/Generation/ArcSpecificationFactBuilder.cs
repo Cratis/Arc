@@ -53,6 +53,12 @@ internal sealed class ArcSpecificationFactBuilder(
             return null;
         }
 
+        if (specification.Returns is not null && !specification.Then.Any() && !specification.Errors.Any())
+        {
+            _sourceEvidence.Block(specification, evidence, "its only outcome is a command response, which has no generation fact");
+            return null;
+        }
+
         var targetsStateView = SpecificationMembers.ReadModelOf(SpecificationMembers.StepsOf(evidence.SourceType)) is not null;
         var targetKind = targetsStateView ? ArtifactKind.ReadModel : ArtifactKind.Command;
         var sliceKind = targetsStateView ? GenerationSliceKind.StateView : GenerationSliceKind.StateChange;

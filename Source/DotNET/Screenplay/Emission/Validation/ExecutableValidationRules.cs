@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Emission.Validation;
@@ -19,7 +20,8 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
     public ApplicationModel Apply(ApplicationModel model)
     {
         var exercised = model.Slices.SelectMany(slice => slice.Specifications)
-            .Where(specification => specification.When is { Kind: SpecificationStateKind.Command })
+            .Where(specification => specification.When is { Kind: SpecificationStateKind.Command } issued &&
+                ResponseOnlyScenarios.CanBeStated(specification, model.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == issued.Name)))
             .Select(specification => specification.When!.Name).ToHashSet(StringComparer.Ordinal);
         var commands = model.Slices.SelectMany(slice => slice.Commands).Where(command => exercised.Contains(command.Name)).ToList();
 

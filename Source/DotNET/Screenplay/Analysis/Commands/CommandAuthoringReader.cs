@@ -211,7 +211,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         {
             var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType) &&
                 !AggregateRootBehaviors.ReachedFrom(body, model).Any();
-            return result with { Response = source, Identifier = generatedIdentifier ? source : null };
+            return result with { Response = source, Identifier = generatedIdentifier ? source : null, ResponseType = ResponseTypes.NameOf(responseType) };
         }
 
         if (response is BaseObjectCreationExpressionSyntax creation && model.GetTypeInfo(creation).Type is INamedTypeSymbol { IsRecord: true } record &&
@@ -219,7 +219,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             (response != returned || SymbolEqualityComparer.Default.Equals(record, ResponseValueType(handler.ReturnType))) &&
             ReadRecord(creation, record, model, command) is { } fields)
         {
-            return result with { ResponseFields = fields };
+            return result with { ResponseFields = fields, ResponseType = ResponseTypes.NameOf(record) };
         }
 
         Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The response is not a direct command property, generated UUID concept, or fully readable response record and was left in code", location);
@@ -249,7 +249,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             return true;
         }
 
-        if (ContainsOperation(handler.ReturnType) || authoring is not { Response: not null } and not { ResponseFields.Count: > 0 })
+        if (ContainsOperation(handler.ReturnType) || authoring is not { Response: not null } and not { ResponseFields.Count: > 0 } ||
+            MayCarryEvent(handler.ReturnType, new(SymbolEqualityComparer.Default)) ||
+            models.For(body.SyntaxTree) is not { } bodyModel ||
+            body.DescendantNodesAndSelf().OfType<ExpressionSyntax>().Any(expression =>
+                bodyModel.GetTypeInfo(expression).Type is { } type && MayCarryEvent(type, new(SymbolEqualityComparer.Default), allowOpen: true)))
         {
             return false;
         }
@@ -266,6 +270,44 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 models.For(variable.SyntaxTree) is { } model && model.GetDeclaredSymbol(variable) is ILocalSymbol local &&
                 authoring.Generated.Any(property => property.Name == local.Name));
     });
+
+    /// <summary>
+    /// Determines whether a value of a type can be, or can carry, an event the pipeline appends.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <param name="visited">The types already checked.</param>
+    /// <param name="allowOpen">Whether open types such as <see cref="object"/> and interfaces are accepted, for subexpressions.</param>
+    /// <returns>True for events, tuples, collections, results and unions with an event, and for types that could hold one at runtime.</returns>
+    /// <remarks>
+    /// A handler appends whatever event its returned value holds, whether directly, in a tuple, in a collection, or
+    /// in a <c>Result</c> or <c>OneOf</c> branch. A returned <see cref="object"/>, <see langword="dynamic"/>, interface or type
+    /// parameter can hold an event at runtime and is not proven free of one.
+    /// </remarks>
+    static bool MayCarryEvent(ITypeSymbol type, HashSet<ITypeSymbol> visited, bool allowOpen = false)
+    {
+        if (!visited.Add(type))
+        {
+            return false;
+        }
+
+        if (EventReader.IsEvent(type))
+        {
+            return true;
+        }
+
+        if (!allowOpen && (type.SpecialType == SpecialType.System_Object || type.TypeKind is TypeKind.Dynamic or TypeKind.Interface or TypeKind.TypeParameter or TypeKind.Error))
+        {
+            return true;
+        }
+
+        return type switch
+        {
+            IArrayTypeSymbol array => MayCarryEvent(array.ElementType, visited, allowOpen),
+            INamedTypeSymbol { IsTupleType: true } tuple => tuple.TupleElements.Any(element => MayCarryEvent(element.Type, visited, allowOpen)),
+            INamedTypeSymbol named => named.TypeArguments.Any(argument => MayCarryEvent(argument, visited, allowOpen)),
+            _ => false
+        };
+    }
 
     static bool HasProvide(INamedTypeSymbol command)
     {

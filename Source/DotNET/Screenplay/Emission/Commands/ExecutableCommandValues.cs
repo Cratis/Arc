@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Specifications;
+using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
 
@@ -85,20 +86,35 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var requiredMapping = command.Produces.Any(production => production.Mappings.Any(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name)) &&
             model.Slices.SelectMany(slice => slice.Events).FirstOrDefault(@event => production.EventTypeIdentity is { } identity
                 ? @event.TypeIdentity == identity : @event.Name == production.EventName)?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true));
-        var successfulScenarios = model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
-            specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name && !specification.Errors.Any());
-        var preserveScenarios = successfulScenarios && (authoring.Generated.Count > 0 || authoring.Response is not null || authoring.ResponseFields.Count > 0);
-        if (preserveScenarios)
+
+        // A scenario whose only outcome is a response keeps nothing a fallback would preserve: it is emitted only
+        // where its then returns fits the emitted response, and otherwise left out as before.
+        var successfulScenarios = model.Slices.SelectMany(slice => slice.Specifications).Where(specification =>
+            specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
+            !specification.Errors.Any() && specification.Then.Any()).ToList();
+        var needsFixtures = successfulScenarios.Count > 0 && authoring.Generated.Count > 0;
+        if (needsFixtures)
         {
-            Report(command, location, "Generation and responses were withheld to keep successful scenarios; deterministic generation fixtures and response expectations are not yet recovered, so the command retains its legacy productions or handler reference");
+            Report(command, location, "Generation and responses were withheld to keep successful scenarios; Arc creates generated values inside Handle() with no seam a scenario can pin, so no deterministic generation fixture can be recovered and the command retains its legacy productions or handler reference");
         }
 
+        var unrecoveredReturns = !needsFixtures && (authoring.Response is not null || authoring.ResponseFields.Count > 0) &&
+            successfulScenarios.Exists(specification => specification.AssertsResponse && specification.Returns?.Fits(authoring) != true);
+        if (unrecoveredReturns)
+        {
+            Report(command, location, "Responses were withheld to keep successful scenarios asserting CommandResult.Response in a way that cannot be stated as then returns, so the command retains its legacy productions or handler reference");
+        }
+
+        var preserveScenarios = needsFixtures || unrecoveredReturns;
+
+        // A response-only scenario on a command with generated values is never emitted, so it preserves nothing.
         var preserveExplicitSources = authoring.Generated.Count > 0 && model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
             specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
+            !ResponseOnlyScenarios.IsResponseOnly(specification) &&
             SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true });
         if (preserveExplicitSources)
         {
-            Report(command, location, $"Generation and responses for command '{command.Name}' were withheld to keep scenarios with explicit given event sources; generated identity fixtures are not yet recovered, so the command retains its legacy productions or handler reference");
+            Report(command, location, $"Generation and responses for command '{command.Name}' were withheld to keep scenarios with explicit given event sources; generated identity fixtures cannot be recovered from Arc scenarios, so the command retains its legacy productions or handler reference");
         }
 
         var legacy = capped || protectedValues.Count > 0 || requiredMapping || preserveScenarios || preserveExplicitSources;
