@@ -60,7 +60,7 @@ public class a_specification_expecting_a_rejection : Specification
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor("Jane Austen"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
             [Fact] void should_say_so_on_the_result() => _result.IsSuccess.ShouldBeFalse();
         }
         """;

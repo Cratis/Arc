@@ -57,7 +57,7 @@ public class from_source_seeding_the_event_log_of_a_rejected_command : Specifica
 
             async Task Because() => _result = await _scenario.Execute(new StartOnboarding(_orgNumber, "Racing Customer AS"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
             [Fact] async Task should_only_hold_the_seeded_registration() =>
                 await _scenario.EventScenario.EventSequence.ShouldHaveAppendedEvent<CustomerRegistered>(
                     _orgNumber, @event => @event.Name == "Existing Customer AS");

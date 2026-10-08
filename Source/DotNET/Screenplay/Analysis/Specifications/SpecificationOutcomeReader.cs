@@ -175,6 +175,19 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
 
             var appended = SpecificationAssertions.AppendedEventOf(method);
             var rejection = SpecificationAssertions.IsRejection(invocation, method, semanticModel);
+            if (SpecificationAssertions.IsUnsupportedFailure(invocation, method))
+            {
+                if (!rejected || string.Equals(method.Name, "ShouldNotBeAuthorized", StringComparison.Ordinal) ||
+                    string.Equals(method.Name, "ShouldHaveExceptions", StringComparison.Ordinal))
+                {
+                    draft.CannotRead($"'{method.Name}' does not assert a validation or constraint rejection, and its failure outcome cannot be stated faithfully");
+                    return;
+                }
+
+                // A separate validation assertion proves the category; the generic failure adds no reason.
+                continue;
+            }
+
             if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
             {
                 draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");

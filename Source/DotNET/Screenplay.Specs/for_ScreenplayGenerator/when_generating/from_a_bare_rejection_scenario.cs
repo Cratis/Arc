@@ -10,9 +10,10 @@ public class from_a_bare_rejection_scenario : a_generated_document
     const string Name = "WhenRegisteringAndTheNameIsEmpty";
 
     [Theory]
-    [InlineData("_result.IsSuccess.ShouldBeFalse()")]
     [InlineData("_result.IsValid.ShouldBeFalse()")]
-    [InlineData("_result.ShouldNotBeSuccessful()")]
+    [InlineData("_result.ShouldHaveValidationErrors()")]
+    [InlineData("_result.ShouldHaveValidationErrorFor(Reason())")]
+    [InlineData("{ _result.IsValid.ShouldBeFalse(); _result.IsSuccess.ShouldBeFalse(); }")]
     public void should_bind_and_run_a_rejection_without_a_reason(string assertion)
     {
         GenerateScenario(assertion);
@@ -22,6 +23,23 @@ public class from_a_bare_rejection_scenario : a_generated_document
         AssertDocument();
         var run = Run(Name);
         Assert.True(run.Passed, string.Join(Environment.NewLine, run.Failures) + Environment.NewLine + Result.Source);
+    }
+
+    [Theory]
+    [InlineData("_result.ShouldNotBeAuthorized()")]
+    [InlineData("_result.ShouldHaveExceptions()")]
+    [InlineData("_result.ShouldNotBeSuccessful()")]
+    [InlineData("_result.IsSuccess.ShouldBeFalse()")]
+    [InlineData("{ _result.IsValid.ShouldBeFalse(); _result.ShouldNotBeAuthorized(); }")]
+    [InlineData("{ _result.IsValid.ShouldBeFalse(); _result.ShouldHaveExceptions(); }")]
+    public void should_omit_a_failure_that_does_not_assert_only_a_validation_rejection(string assertion)
+    {
+        GenerateScenario(assertion);
+        Result.Source.ShouldNotContain("then error");
+        Result.Source.ShouldNotContain("then denied");
+        Result.Source.ShouldNotContain($"specification {Name}");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeTrue();
+        AssertDocument();
     }
 
     [Fact]
@@ -36,13 +54,23 @@ public class from_a_bare_rejection_scenario : a_generated_document
 
     void GenerateScenario(string assertion)
     {
-        var validatesResult = assertion == "_result.IsValid.ShouldBeFalse()";
-        var testing = validatesResult
-            ? IntegrationTesting.Source.Replace(
-                "public Task<CommandResult> Execute(TCommand command) => Task.FromResult(new CommandResult());",
-                "public Task<Cratis.Arc.Commands.CommandResult> Execute(TCommand command) => Task.FromResult(new Cratis.Arc.Commands.CommandResult());",
-                StringComparison.Ordinal)
-            : IntegrationTesting.Source;
+        var testing = IntegrationTesting.Source.Replace(
+            "public Task<CommandResult> Execute(TCommand command) => Task.FromResult(new CommandResult());",
+            "public Task<Cratis.Arc.Commands.CommandResult> Execute(TCommand command) => Task.FromResult(new Cratis.Arc.Commands.CommandResult());",
+            StringComparison.Ordinal) + """
+
+            namespace Cratis.Arc.Testing.Commands
+            {
+                public static class CommandResultShouldExtensions
+                {
+                    public static void ShouldHaveValidationErrors(this Cratis.Arc.Commands.CommandResult result) { }
+                    public static void ShouldHaveValidationErrorFor(this Cratis.Arc.Commands.CommandResult result, string message) { }
+                    public static void ShouldNotBeSuccessful(this Cratis.Arc.Commands.CommandResult result) { }
+                    public static void ShouldNotBeAuthorized(this Cratis.Arc.Commands.CommandResult result) { }
+                    public static void ShouldHaveExceptions(this Cratis.Arc.Commands.CommandResult result) { }
+                }
+            }
+            """;
         const string Source = """
             using Cratis.Arc.Commands;
             using Cratis.Arc.Commands.ModelBound;
@@ -73,11 +101,12 @@ public class from_a_bare_rejection_scenario : a_generated_document
             public class and_the_name_is_empty
             {
                 readonly CommandScenario<RegisterAuthor> _scenario = new();
-                {{(validatesResult ? "Cratis.Arc.Commands.CommandResult" : "Result")}} _result = null!;
+                Cratis.Arc.Commands.CommandResult _result = null!;
                 readonly Status _unrelated = new(false);
                 public record Status(bool IsValid);
                 async Task Because() => _result = await _scenario.Execute(new RegisterAuthor("current", ""));
-                [Fact] void should_reject_the_command() => {{assertion}};
+                static string Reason() => "Name is required";
+                [Fact] void should_reject_the_command() {{(assertion.StartsWith('{') ? assertion : "=> " + assertion + ";")}}
             }
             """;
         Generate(
