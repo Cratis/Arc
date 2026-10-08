@@ -99,7 +99,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             .OfType<InvocationExpressionSyntax>()
             .Any(invocation =>
                 semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
-                SpecificationAssertions.IsRejection(invocation, method));
+                SpecificationAssertions.IsRejection(invocation, method, semanticModel));
 
     /// <summary>
     /// Adds an event a specification says followed, or records that it cannot be read.
@@ -174,7 +174,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             }
 
             var appended = SpecificationAssertions.AppendedEventOf(method);
-            var rejection = SpecificationAssertions.IsRejection(invocation, method);
+            var rejection = SpecificationAssertions.IsRejection(invocation, method, semanticModel);
             if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
             {
                 draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");

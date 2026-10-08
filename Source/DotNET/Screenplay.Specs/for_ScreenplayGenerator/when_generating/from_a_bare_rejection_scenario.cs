@@ -24,8 +24,25 @@ public class from_a_bare_rejection_scenario : a_generated_document
         Assert.True(run.Passed, string.Join(Environment.NewLine, run.Failures) + Environment.NewLine + Result.Source);
     }
 
+    [Fact]
+    public void should_not_treat_an_unrelated_validity_property_as_a_command_rejection()
+    {
+        GenerateScenario("_unrelated.IsValid.ShouldBeFalse()");
+        Result.Source.ShouldNotContain("then error");
+        Result.Source.ShouldNotContain($"specification {Name}");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeTrue();
+        AssertDocument();
+    }
+
     void GenerateScenario(string assertion)
     {
+        var validatesResult = assertion == "_result.IsValid.ShouldBeFalse()";
+        var testing = validatesResult
+            ? IntegrationTesting.Source.Replace(
+                "public Task<CommandResult> Execute(TCommand command) => Task.FromResult(new CommandResult());",
+                "public Task<Cratis.Arc.Commands.CommandResult> Execute(TCommand command) => Task.FromResult(new Cratis.Arc.Commands.CommandResult());",
+                StringComparison.Ordinal)
+            : IntegrationTesting.Source;
         const string Source = """
             using Cratis.Arc.Commands;
             using Cratis.Arc.Commands.ModelBound;
@@ -56,14 +73,16 @@ public class from_a_bare_rejection_scenario : a_generated_document
             public class and_the_name_is_empty
             {
                 readonly CommandScenario<RegisterAuthor> _scenario = new();
-                Result _result = null!;
+                {{(validatesResult ? "Cratis.Arc.Commands.CommandResult" : "Result")}} _result = null!;
+                readonly Status _unrelated = new(false);
+                public record Status(bool IsValid);
                 async Task Because() => _result = await _scenario.Execute(new RegisterAuthor("current", ""));
                 [Fact] void should_reject_the_command() => {{assertion}};
             }
             """;
         Generate(
             (Analyzed.SlicePath, Source),
-            (IntegrationTesting.Path, IntegrationTesting.Source.Replace("public bool IsSuccess => true;", "public bool IsSuccess => true; public bool IsValid => true;", StringComparison.Ordinal)),
+            (IntegrationTesting.Path, testing),
             ("Library/Authors/Registration/when_registering/and_the_name_is_empty.cs", scenario));
     }
 }
