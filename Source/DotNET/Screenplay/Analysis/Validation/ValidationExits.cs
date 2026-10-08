@@ -53,10 +53,19 @@ internal static class ValidationExits
         var exceptionType = expression is null ? null : semanticModel.GetTypeInfo(expression).Type;
         var exactType = exceptionType is not null && expression is ObjectCreationExpressionSyntax or ImplicitObjectCreationExpressionSyntax;
 
-        return exit.Ancestors().OfType<TryStatementSyntax>().Any(statement =>
-            statement.Block.Span.Contains(exit.Span) && !statement.Span.Contains(root.Span) &&
-            (statement.Finally is null || Continues(statement.Finally.Block, semanticModel)) &&
-            CatchesAndContinues(statement, exceptionType, exactType, semanticModel));
+        // Only the innermost try whose block holds the throw decides. An outer catch never sees the exception when an
+        // inner catch rethrows, exits or swallows it differently, so letting any enclosing try count could treat a throw
+        // that leaves the validator as caught.
+        var innermost = exit.Ancestors().OfType<TryStatementSyntax>().FirstOrDefault(statement => statement.Block.Span.Contains(exit.Span));
+
+        if (innermost is null)
+        {
+            return false;
+        }
+
+        return !innermost.Span.Contains(root.Span) &&
+            (innermost.Finally is null || Continues(innermost.Finally.Block, semanticModel)) &&
+            CatchesAndContinues(innermost, exceptionType, exactType, semanticModel);
     }
 
     static bool CatchesAndContinues(TryStatementSyntax statement, ITypeSymbol? exceptionType, bool exactType, SemanticModel semanticModel)

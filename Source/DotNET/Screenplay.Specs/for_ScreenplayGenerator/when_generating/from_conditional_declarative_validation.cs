@@ -30,6 +30,7 @@ public class from_conditional_declarative_validation : a_generated_document
         ("try { throw new ValidationDisabled(); } catch { while (true) { } } RULES", "early exit 'throw", false),
         ("try { throw new ValidationDisabled(); } catch { } finally { while (true) { } } RULES", "early exit 'throw", false),
         ("try { throw new ValidationDisabled(); } catch { if (Disabled()) return; } RULES", "early exit 'throw", false),
+        ("try { try { throw new ValidationDisabled(); } catch (ValidationDisabled) { return; } } catch { } RULES", "early exit", false),
         ("try { if (Disabled()) throw new ValidationDisabled(); RULES } catch { }", "early exit 'throw", false),
         ("try { throw new ValidationDisabled(); } catch { } finally { if (Disabled()) throw new ValidationDisabled(); } RULES", "early exit 'throw", false),
         ("if (Disabled()) return; RuleSet(\"default\", () => { RULES });", "early exit 'return;'", false),
