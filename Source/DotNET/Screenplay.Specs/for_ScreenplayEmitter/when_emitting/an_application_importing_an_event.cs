@@ -49,7 +49,7 @@ public class an_application_importing_an_event : given.an_emitter
     [Fact] void should_declare_the_import() => _emission.Source.Contains("import Partners.Contracts.InvitationToJoinAdaAccepted", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_still_observe_it_from_the_reactor() => _emission.Source.Contains("when InvitationToJoinAdaAccepted", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
-    [Fact] void should_leave_the_language_nothing_to_warn_about() => _roundTrip.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
+    [Fact] void should_leave_the_language_nothing_to_warn_about() => _roundTrip.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_report_nothing_as_unmappable() => _emission.Diagnostics.ShouldBeEmpty();
 }

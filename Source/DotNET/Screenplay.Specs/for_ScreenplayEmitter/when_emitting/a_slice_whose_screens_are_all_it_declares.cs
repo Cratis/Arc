@@ -48,7 +48,7 @@ public class a_slice_whose_screens_are_all_it_declares : given.an_emitter
     [Fact] void should_refer_to_the_file_realizing_each_screen() => Says("file Lending/Overview/LendingOverview.tsx").ShouldBeTrue();
     [Fact] void should_order_the_screens_by_name() => _emission.Source.IndexOf("screen DueSoon", StringComparison.Ordinal).ShouldBeLessThan(_emission.Source.IndexOf("screen LendingOverview", StringComparison.Ordinal));
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
-    [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.Where(_ => _.Severity != Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Information || _.Code is not ("PLAY0516" or "PLAY0517")).ShouldBeEmpty();
+    [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_report_nothing_as_unmappable() => _emission.Diagnostics.ShouldBeEmpty();
 }

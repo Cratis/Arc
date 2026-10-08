@@ -36,7 +36,7 @@ public class EventModelParser(IScreenplayCompiler compiler) : IEventModelParser
         var compiled = compilation.Diagnostics ?? [];
         var errors = compiled.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ToList();
         var warnings = compiled
-            .Where(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error)
+            .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning)
             .Concat(compilation.Success ? visitor.Warnings.All : [])
             .ToList();
 
