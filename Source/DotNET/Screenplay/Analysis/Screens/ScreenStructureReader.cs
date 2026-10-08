@@ -189,6 +189,12 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
                     continue;
                 }
 
+                if (column["body"] is not null || column["selectionMode"] is not null)
+                {
+                    unread.Column(readModel, "renders its cells with a callback or as a selection control rather than showing a property");
+                    continue;
+                }
+
                 var header = column["header"];
                 if (header is { Literal: null })
                 {

@@ -74,6 +74,17 @@ public static partial class JsxElements
     {
         readable = true;
         selfClosing = false;
+
+        // An element can carry type arguments - <Column<Issue> ... /> - which say nothing the document needs.
+        if (position < text.Length && text[position] == '<')
+        {
+            position = SkipTypeArguments(text, position);
+            if (position < 0)
+            {
+                return -1;
+            }
+        }
+
         while (true)
         {
             position = SkipWhitespace(text, position);
@@ -193,6 +204,41 @@ public static partial class JsxElements
         return null;
     }
 
+    static int SkipTypeArguments(string text, int open)
+    {
+        var depth = 0;
+        for (var position = open; position < text.Length; position++)
+        {
+            switch (text[position])
+            {
+                case '<':
+                    depth++;
+                    break;
+                case '>' when position > 0 && text[position - 1] == '=':
+                    break;
+                case '>':
+                    if (--depth == 0)
+                    {
+                        return position + 1;
+                    }
+
+                    break;
+                case '"' or '\'' or '`':
+                    position = EndOfString(text, position);
+                    if (position < 0)
+                    {
+                        return -1;
+                    }
+
+                    break;
+                case '{' or '}' or ';':
+                    return -1;
+            }
+        }
+
+        return -1;
+    }
+
     static int Braced(string text, int open)
     {
         var depth = 0;
@@ -252,7 +298,7 @@ public static partial class JsxElements
         return position;
     }
 
-    static Regex TagRegex(string tag) => new($@"<(?<closing>/)?\s*{Regex.Escape(tag)}(?=[\s/>])", RegexOptions.None, TimeSpan.FromSeconds(1));
+    static Regex TagRegex(string tag) => new($@"<(?<closing>/)?\s*{Regex.Escape(tag)}(?=[\s/>]|<)", RegexOptions.None, TimeSpan.FromSeconds(1));
 
     [GeneratedRegex(@"[A-Za-z_$][\w$\-:]*", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex AttributeNameRegex();
