@@ -114,6 +114,18 @@ public static class WellKnownTypeNames
     /// <summary>The attribute configuring a reactor.</summary>
     public const string ReactorAttribute = "Cratis.Chronicle.Reactors.ReactorAttribute";
 
+    /// <summary>The context of an event occurrence a reactor handler may take alongside the event.</summary>
+    public const string EventContext = "Cratis.Chronicle.Events.EventContext";
+
+    /// <summary>The interface a reactor implements to choose the event source its returned events are appended to.</summary>
+    public const string CanProvideEventSourceId = "Cratis.Chronicle.Events.ICanProvideEventSourceId";
+
+    /// <summary>The attribute a reactor uses to execute the commands it returns as the system.</summary>
+    public const string ExecuteCommandsAsSystemAttribute = "Cratis.Arc.Chronicle.Reactors.ExecuteCommandsAsSystemAttribute";
+
+    /// <summary>The attribute marking a reactor handler as running only while the reactor replays.</summary>
+    public const string ReplayAttribute = "Cratis.Chronicle.Reactors.ReplayAttribute";
+
     /// <summary>The base type an aggregate root derives from.</summary>
     public const string AggregateRoot = "Cratis.Arc.Chronicle.Aggregates.AggregateRoot";
 
@@ -170,6 +182,9 @@ public static class WellKnownTypeNames
 
     /// <summary>The scenario a specification drives a reactor through in process.</summary>
     public const string ReactorScenario = "Cratis.Chronicle.Testing.Reactors.ReactorScenario`1";
+
+    /// <summary>The builder a reactor scenario delivers the events of one event source through.</summary>
+    public const string ReactorSourceGivenBuilder = "Cratis.Chronicle.Testing.Reactors.ReactorSourceGivenBuilder`1";
 
     /// <summary>The extensions a specification issues a command through over HTTP.</summary>
     public const string HttpClientExtensions = "Cratis.Chronicle.XUnit.Integration.HttpClientExtensions";

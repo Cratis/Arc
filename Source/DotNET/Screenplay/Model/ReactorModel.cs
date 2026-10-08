@@ -31,6 +31,14 @@ public record ReactorModel(
     }
 
     /// <summary>
+    /// Gets the handlers of the reactor whose whole effect can be stated declaratively, one per observed event.
+    /// </summary>
+    /// <remarks>
+    /// An observed event without an entry here is handled by code, and the document points at the file for it.
+    /// </remarks>
+    public IEnumerable<ReactionModel> Reactions { get; init; } = [];
+
+    /// <summary>
     /// Deconstructs the reactor into the members it had before it could be filtered to an event source, so existing deconstruction keeps compiling.
     /// </summary>
     /// <param name="name">The name of the reactor.</param>

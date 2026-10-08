@@ -78,6 +78,7 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null, He
                 .FirstOrDefault(call => semanticModel.GetSymbolInfo(call).Symbol is IMethodSymbol candidate &&
                     (candidate.ReturnType.Is(WellKnownTypeNames.EventSourceGivenBuilder) ||
                      candidate.ReturnType.Is(WellKnownTypeNames.CommandScenarioSourceGivenBuilder) ||
+                     candidate.ReturnType.Is(WellKnownTypeNames.ReactorSourceGivenBuilder) ||
                      candidate.ReturnType.Is(WellKnownTypeNames.EventSourceWhenBuilder)));
             if (builder is not null && semanticModel.GetSymbolInfo(builder).Symbol is IMethodSymbol builderMethod)
             {

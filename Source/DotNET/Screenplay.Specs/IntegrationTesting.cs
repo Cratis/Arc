@@ -123,16 +123,34 @@ public static class IntegrationTesting
             public class ReactorScenario<TReactor>
             {
                 public ReactorScenarioGivenBuilder<TReactor> Given => new();
+
+                public System.Collections.Generic.IReadOnlyList<object> Produced => [];
+
+                public void ShouldHaveProduced<T>()
+                {
+                }
+
+                public void ShouldHaveProduced<T>(System.Func<T, bool> predicate)
+                {
+                }
+
+                public void ShouldNotHaveProduced<T>()
+                {
+                }
             }
 
             public class ReactorScenarioGivenBuilder<TReactor>
             {
                 public ReactorSourceGivenBuilder<TReactor> ForEventSource(EventSourceId eventSourceId) => new();
+
+                public ReactorSourceGivenBuilder<TReactor> ForEventSourceId(EventSourceId eventSourceId) => new();
             }
 
             public class ReactorSourceGivenBuilder<TReactor>
             {
                 public Task Events(params object[] events) => Task.CompletedTask;
+
+                public ReactorSourceGivenBuilder<TReactor> ReadModel<TReadModel>(TReadModel readModel) => this;
             }
         }
 

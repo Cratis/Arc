@@ -286,6 +286,36 @@ Named rules are opaque to reference execution. The generator withholds them when
 
 Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
 
+## Reactors
+
+Every reactor becomes a `reaction` with one `when` trigger per event it handles. What happens under each trigger depends on the handler.
+
+A handler whose only effect is the value it returns is stated as what that value sets off, so specifications can run it:
+
+```csharp
+public class Welcomer : IReactor
+{
+    public AuthorWelcomed Welcome(AuthorRegistered @event) => new(@event.Name, "Welcome");
+}
+```
+
+```screenplay
+reaction Welcomer
+  when AuthorRegistered
+    produces AuthorWelcomed
+      name = name
+      greeting = "Welcome"
+```
+
+The generator only writes this form when it is exactly what Chronicle and Arc do with the returned value:
+
+- **`produces`** comes from an event returned by a synchronous handler declared to return that event, or from a literal collection of events returned as a sequence of events or of `object`. Chronicle appends the events to the event source of the triggering event, which is what `produces` says when it names no `for`.
+- **`invokes`** comes from a command returned through `Task<TCommand>` (`Task.FromResult(...)`, or an `async` handler that only returns it), or from a literal collection of commands returned as a sequence of `object`. Arc's command side effect handlers run each command through the pipeline with no caller, in order, and stop at the first that fails, which is how a reaction invokes a command. Chronicle rejects a synchronous handler declared to return a command type, so that shape stays code.
+- The handler takes only the event and, optionally, its `EventContext`. Its body is a single unconditional return of one construction or one literal collection of them, and every value it sets is a property of the triggering event, `context.Occurred` (`$context.occurred`), or a constant. It must set every property that can be set.
+- Every event and command it names is declared once in the document, with the properties the mapping fills in. An invoked command receives every one of its properties, and none of them is generated.
+
+Anything else keeps the trigger's `file` reference, exactly as before: a branch, a computed value, a call to a collaborator, any other parameter, an `object` return, a `[Replay]` handler, several handlers for one event, a reactor implementing `ICanProvideEventSourceId`, a reactor observing another event sequence or filtered with `[FromEventSource<TSource>]`, and commands returned by a reactor marked `[ExecuteCommandsAsSystem]`, because a reaction has no way to say a command runs as the system. Conditions are not translated into `where`. A reaction with a `file` body returns `SemanticUnsupported` when a specification reaches it.
+
 ## The scenarios a slice is specified by
 
 A `.play` says what a slice does. The Chronicle integration specs in the folder beneath it already say the same thing by example — what had happened, the command that was issued, what followed — which is exactly the shape of a Screenplay `specification`. So they are read too, and the document carries the examples proving the model rather than only the model:
@@ -358,6 +388,44 @@ A scenario that does not assert the response does not hold the response back.
 Generated values are a different matter. Arc creates them inside `Handle()`, through `AuthorId.New()`, `Guid.NewGuid()` or Arc's own event source allocation, and neither `CommandScenario` nor the Chronicle testing extensions offer a way for a scenario to choose them. A scenario can only relate a generated value to another value from the same run, such as the response compared with an appended event's source. It cannot pin the value to a literal, and a literal comparison against a freshly generated value would fail when the scenario runs. Screenplay requires indented `for <value>` for a generated identifier and `generated <property> = <value>` for other generated values beneath `when`. Missing fixtures would execute as `Unsupported(IdentityAllocation)`, not a passing example. Because no fixture can be recovered from an Arc scenario, a command with generated values and successful scenarios keeps its legacy productions or handler reference without `generated` or `returns`, and `SP0052` says why. `ScreenplayOptions.MaximumExecutableModelVersion` below 7 withholds responses and `then returns` as well. Validation and authorization rejection scenarios need no generation fixture because those checks precede generation. When any scenario issuing a command states explicit given event sources, generation and responses are withheld with `SP0052`, including for constraint rejections, so the command keeps its legacy form. This does not retain a scenario whose event sources cannot be stated faithfully.
 
 Expect the document to grow. On a real application this roughly doubled it, at about seven lines per scenario.
+
+### Reactor scenarios and the reactions a scenario sets off
+
+Since ESM v6 a specification runs the reactions its facts set off, and its `then` events are every fact that follows: the action's and the reactions'. Arc's `CommandScenario` and `EventScenario` run no reactor. A command or append scenario whose facts set off a reaction stated with `produces` or `invokes` would therefore state less than the document runs, so it is omitted with `SP0039`. A rejected command records no facts and is kept. A scenario reaching a reaction that is still a `file` reference is kept as before.
+
+A Chronicle `ReactorScenario` of a reactor stated declaratively becomes a specification of its reaction. The event it delivers becomes `when append`, and each `ShouldHaveProduced<TEvent>(...)` becomes a `then` event, in the order the reaction produces them:
+
+```csharp
+public class and_the_author_is_welcomed
+{
+    readonly ReactorScenario<Welcomer> _scenario = new();
+
+    async Task Because() =>
+        await _scenario.Given.ForEventSource(EventSourceId.New()).Events(new AuthorRegistered("Jane Austen", "UK"));
+
+    [Fact] void should_welcome_the_author() =>
+        _scenario.ShouldHaveProduced<AuthorWelcomed>(e => e.Name == "Jane Austen" && e.Greeting == "Welcome");
+}
+```
+
+```screenplay
+specification WhenAnAuthorIsRegisteredAndTheAuthorIsWelcomed
+  when append AuthorRegistered
+    name = "Jane Austen"
+    country = "UK"
+  then AuthorWelcomed
+    name = "Jane Austen"
+    greeting = "Welcome"
+```
+
+The scenario is kept only when it says what its reaction does, and no more:
+
+- Its assertions are `ShouldHaveProduced<TEvent>(...)` and `ShouldNotHaveProduced<T>()` and nothing else. A predicate is a conjunction of equalities with constants, and each event is stated whole: every property gets a value.
+- It expects every event the reaction appends to the triggering event's source, each once. `ShouldNotHaveProduced<T>()` must name something the reaction does not produce.
+- The last event it delivers is the one the reaction handles. Earlier events become `given` only when the reactor does not handle them, because every event a reactor scenario delivers runs the reactor.
+- It seeds no read model, the appended event sets off no other reactor, and nothing the reaction appends sets off a reaction.
+
+A reactor scenario that asserts something else has no counterpart and is reported with `SP0043`. That covers a collaborator mock, `Produced` read directly, a scenario of a reactor whose handlers are all code, and `ShouldHaveProduced<TCommand>()`. Screenplay states the facts an invoked command records, while the reactor scenario only records the command. A reactor scenario that does have a counterpart but cannot be stated faithfully is omitted with `SP0039`, which names the reason.
 
 ### A scenario is read whole or not at all
 

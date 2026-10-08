@@ -190,7 +190,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new EventSyntaxBuilder(naming, _types, _names),
             new QuerySyntaxBuilder(naming, _types, _authorize),
             new ConstraintSyntaxBuilder(naming),
-            new ReactorSyntaxBuilder(naming, diagnostics),
+            new ReactorSyntaxBuilder(naming, diagnostics) { Application = model },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
             new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics })
