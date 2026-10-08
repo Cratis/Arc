@@ -44,7 +44,6 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         "Configure", "DependentRules", "Cascade", "OnFailure", "OnAnyFailure", "WhenAsync", "UnlessAsync"
     };
     static readonly HashSet<string> _conditions = new(StringComparer.Ordinal) { When, Unless, "WhenAsync", "UnlessAsync" };
-    static readonly HashSet<string> _conditionalBlocks = new(StringComparer.Ordinal) { When, Unless, "WhenAsync", "UnlessAsync", "Otherwise", "DependentRules" };
 
     readonly ValidationOperands _operands = new(diagnostics);
 
@@ -84,11 +83,14 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
 
         var preceding = 0;
-        var conditional = IsConditional(chain, semanticModel);
+        var scope = ValidationConditions.ScopeOf(chain, semanticModel);
+        var conditional = scope is not null || chain.Calls.Any(call =>
+            _conditions.Contains(InvocationChain.NameOf(call)) || InvocationChain.NameOf(call) == "Otherwise" || InvocationChain.NameOf(call) == "DependentRules");
 
         foreach (var call in chain.Calls)
         {
-            var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding, conditional);
+            var condition = scope ?? ConditionFor(call, chain, semanticModel);
+            var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding, conditional, condition);
             if (added != 0)
             {
                 preceding = Math.Max(0, added);
@@ -96,47 +98,30 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
     }
 
-    static bool IsConditional(InvocationChain chain, SemanticModel semanticModel) =>
-        HasPrecedingExit(chain.Root) ||
-        chain.Calls.Any(call => _conditions.Contains(InvocationChain.NameOf(call))) ||
-        chain.Root.Ancestors().Any(node => node is IfStatementSyntax or SwitchStatementSyntax or ConditionalExpressionSyntax or
-            ForStatementSyntax or ForEachStatementSyntax or WhileStatementSyntax or DoStatementSyntax || IsConditionalBlock(node, semanticModel));
-
-    static bool HasPrecedingExit(SyntaxNode root)
+    static string? ConditionFor(InvocationExpressionSyntax rule, InvocationChain chain, SemanticModel semanticModel)
     {
-        for (var node = root; node is not (null or BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax); node = node.Parent)
+        var following = chain.Calls.SkipWhile(call => call != rule).Skip(1);
+        var interveningValidator = false;
+        foreach (var call in following)
         {
-            if (node.Parent is BlockSyntax block && block.Statements.TakeWhile(statement => statement != node)
-                .SelectMany(statement => statement.DescendantNodesAndSelf(descendIntoChildren: child =>
-                    child is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)))
-                .Any(statement => statement is ReturnStatementSyntax or ThrowStatementSyntax or ThrowExpressionSyntax or GotoStatementSyntax))
+            var name = InvocationChain.NameOf(call);
+            if (_conditions.Contains(name))
             {
-                return true;
+                var argument = call.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon?.Name.Identifier.ValueText == "applyConditionTo") ??
+                    call.ArgumentList.Arguments.Skip(1).FirstOrDefault(argument => argument.NameColon is null);
+                var currentOnly = argument is not null && semanticModel.GetConstantValue(argument.Expression) is { HasValue: true, Value: 1 };
+                if (!currentOnly || !interveningValidator)
+                {
+                    return $"'{name}{call.ArgumentList}'";
+                }
+            }
+            else if (name != WithMessage && !_modifiers.Contains(name))
+            {
+                interveningValidator = true;
             }
         }
 
-        return false;
-    }
-
-    static bool IsConditionalBlock(SyntaxNode node, SemanticModel semanticModel)
-    {
-        if (node is not InvocationExpressionSyntax invocation)
-        {
-            return false;
-        }
-
-        var name = invocation.Expression is IdentifierNameSyntax identifier
-            ? identifier.Identifier.ValueText : InvocationChain.NameOf(invocation);
-        if (name == "RuleSet")
-        {
-            var argument = invocation.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon?.Name.Identifier.ValueText == "ruleSetName") ??
-                invocation.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon is null);
-
-            return argument is null || semanticModel.GetConstantValue(argument.Expression) is not { HasValue: true, Value: string ruleSet } ||
-                !string.Equals(ruleSet, "default", StringComparison.OrdinalIgnoreCase);
-        }
-
-        return _conditionalBlocks.Contains(name);
+        return null;
     }
 
     /// <summary>
@@ -149,7 +134,8 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
     /// <param name="location">Where the validator lives, for use in diagnostics.</param>
     /// <param name="rules">The rules collected so far.</param>
     /// <param name="preceding">The number of rules the call before this one declared.</param>
-    /// <param name="conditional">Whether the chain executes conditionally.</param>
+    /// <param name="conditional">Whether a named predicate in the chain executes conditionally.</param>
+    /// <param name="condition">The condition holding this declarative rule, if any.</param>
     /// <returns>The number of rules the call added, or minus one for an omitted validator.</returns>
     int ReadCall(
         InvocationExpressionSyntax call,
@@ -159,7 +145,8 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         string location,
         IList<ValidationRuleModel> rules,
         int preceding,
-        bool conditional)
+        bool conditional,
+        string? condition)
     {
         var name = InvocationChain.NameOf(call);
 
@@ -170,11 +157,20 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             return 0;
         }
 
-        if (string.Equals(name, When, StringComparison.Ordinal) || string.Equals(name, Unless, StringComparison.Ordinal))
+        if (_conditions.Contains(name))
         {
-            ReportCondition(call, name, property, location);
-
             return 0;
+        }
+
+        if (condition is not null && ((!forEach && name == Length && call.ArgumentList.Arguments.Count == 2) ||
+            ValidationRuleKinds.TryResolve(name, forEach, out _)))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnmappableValidationRule,
+                $"The '{name}' rule on '{property}' executes conditionally under {condition}, so it was left out rather than stated unconditionally",
+                location);
+
+            return -1;
         }
 
         if (!forEach && string.Equals(name, Length, StringComparison.Ordinal) && call.ArgumentList.Arguments.Count == 2)
@@ -231,26 +227,6 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
 
         return 1;
     }
-
-    /// <summary>
-    /// Reports the condition the rules declared before it are held to.
-    /// </summary>
-    /// <param name="call">The call carrying the condition.</param>
-    /// <param name="name">The name of the call.</param>
-    /// <param name="property">The property the chain declares rules for.</param>
-    /// <param name="location">Where the validator lives, for use in diagnostics.</param>
-    /// <remarks>
-    /// A rule that only holds sometimes is stated as though it always holds, because a rule carries no condition of
-    /// its own yet (Cratis/Screenplay#32). That is a real difference between the document and the application, so the
-    /// condition is written into the report rather than only its absence - a reader who can see what the rule was
-    /// held to can tell one that hardly ever applies from one that nearly always does, and a report naming only the
-    /// call says neither.
-    /// </remarks>
-    void ReportCondition(InvocationExpressionSyntax call, string name, string property, string location) =>
-        diagnostics.Warning(
-            ScreenplayDiagnosticCodes.UnmappableValidationRule,
-            $"The rules on '{property}' are held to '{name}{call.ArgumentList}', and a rule carries no condition; retained declarative rules are stated as though nothing held them, while conditional named predicates are left out",
-            location);
 
     /// <summary>
     /// Applies a message to every rule the call before it declared.
