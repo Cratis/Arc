@@ -47,9 +47,10 @@ public class with_effective_compiler_features : Specification, IDisposable
     [Fact] void should_use_the_last_value_for_duplicate_features() => Options.Features["second"].ShouldEqual("last");
     [Fact] void should_let_explicit_features_override_the_dedicated_namespace_properties_like_csc() => Options.Features["InterceptorsNamespaces"].ShouldEqual("EmbeddedInterceptors.Current");
     [Fact] void should_preserve_features_on_generated_syntax_trees() => _generated.Compilation.SyntaxTrees.Last().Options.Features.ShouldEqual(Options.Features);
-    [Fact] void should_preserve_the_language_version() => Options.LanguageVersion.ShouldEqual(LanguageVersion.Preview);
-    [Fact] void should_preserve_preprocessor_symbols() => Options.PreprocessorSymbolNames.ShouldContainOnly("DEBUG", "TRACE");
+    [Fact] void should_preserve_the_language_version() => GeneratedOptions.LanguageVersion.ShouldEqual(LanguageVersion.Preview);
+    [Fact] void should_preserve_preprocessor_symbols() => GeneratedOptions.PreprocessorSymbolNames.ShouldContainOnly("DEBUG", "TRACE");
 
+    CSharpParseOptions GeneratedOptions => (CSharpParseOptions)_generated.Compilation.SyntaxTrees.Last().Options;
     CSharpParseOptions Options => (CSharpParseOptions)_compilation.SyntaxTrees.Single().Options;
 
     /// <inheritdoc/>

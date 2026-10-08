@@ -26,7 +26,7 @@ public class when_consuming_a_compiled_assembly : Specification
         _model = new EventModelParser().Parse("Company.Library", "Library", _documents["Company.Library"]);
     }
 
-    [Fact] void should_forward_compiler_features_through_the_real_build_target() => Company.Library.CompilerFeatureCalls.Intercepted().ShouldEqual("Current:forwarded|Legacy:forwarded");
+    [Fact] void should_compile_with_configured_features() => Company.Library.CompilerFeatureCalls.Intercepted().ShouldEqual("Current:forwarded|Legacy:forwarded");
     [Fact] void should_embed_five_documents() => _catalog.Documents.Count.ShouldEqual(5);
     [Fact] void should_embed_an_assembly_document_at_the_root_namespace() => _catalog.Documents.Single(_ => _.Id == "Company.Library").Kind.ShouldEqual(EmbeddedDocumentKind.Assembly);
     [Fact] void should_classify_catalog_as_a_module() => _catalog.Documents.Single(_ => _.Id == "Company.Library.Catalog").Kind.ShouldEqual(EmbeddedDocumentKind.Module);
