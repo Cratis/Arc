@@ -25,7 +25,7 @@ public class a_library_application : given.a_library_model
     }
 
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
-    [Fact] void should_compile_without_any_diagnostics() => _roundTrip.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_report_nothing_as_unmappable() => _emission.Diagnostics.ShouldBeEmpty();
     [Fact] void should_print_what_it_returns() => _emission.Source.ShouldEqual(_roundTrip.Printed);

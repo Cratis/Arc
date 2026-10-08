@@ -17,7 +17,7 @@
         "@cratis/event-models": "^0.115.0",
         "@cratis/fundamentals": "^7.22.0",
         "@cratis/scene": "^0.115.0",
-        "@cratis/screenplay-language": "^4.68.2",
+        "@cratis/screenplay-language": "^4.80.0",
         "dompurify": "^3.4.16",
         "monaco-editor": "^0.57.0",
         "pixi.js": "8.21.0",
