@@ -22,6 +22,16 @@ public class QuerySyntaxBuilder(
     AuthorizeSyntaxBuilder authorize)
 {
     /// <summary>
+    /// Gets whether unadmitted performer metadata should be emitted.
+    /// </summary>
+    public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
+    /// Gets where withheld metadata is reported.
+    /// </summary>
+    public ScreenplayDiagnostics? Diagnostics { get; init; }
+
+    /// <summary>
     /// Builds the query declaration.
     /// </summary>
     /// <param name="query">The query to build for.</param>
@@ -34,13 +44,40 @@ public class QuerySyntaxBuilder(
             [.. query.Filters.Select(ToParameter)],
             authorize.Build(query.Authorization),
             SourceLocation.Start,
+            Description: naming.ToStringLiteral(query.Description),
+            Performer: PerformerOf(query),
             IsObservable: query.IsObservable);
 
     /// <summary>
-    /// Converts a parameter of the query.
+    /// Builds the authoring-only implementation reference.
+    /// </summary>
+    /// <param name="query">The query to convert.</param>
+    /// <returns>The performer, or null when no file was recovered.</returns>
+    PerformerSyntax? PerformerOf(QueryModel query)
+    {
+        if (naming.ToFilePath(query.PerformerFile) is not { } path)
+        {
+            return null;
+        }
+
+        if (AuthoringOnlyConstructs)
+        {
+            return new(new FileReferenceSyntax(path, SourceLocation.Start), null, SourceLocation.Start);
+        }
+
+        Diagnostics?.Information(
+            ScreenplayDiagnosticCodes.UnmappableQuery,
+            $"The query '{query.Name}' has a body; performer references are authoring-only, so enable ScreenplayOptions.AuthoringOnlyConstructs to include its implementation file",
+            query.PerformerFile);
+
+        return null;
+    }
+
+    /// <summary>
+    /// Converts a query parameter.
     /// </summary>
     /// <param name="parameter">The parameter to convert.</param>
-    /// <returns>The <see cref="QueryParameterSyntax"/>.</returns>
+    /// <returns>The parameter syntax.</returns>
     QueryParameterSyntax ToParameter(PropertyModel parameter) =>
         new(naming.ToPropertyName(parameter.Name), types.Convert(parameter.Type), SourceLocation.Start);
 }
