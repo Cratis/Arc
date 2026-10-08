@@ -35,6 +35,11 @@ public class PolicyRequirementReader(ScreenplayDiagnostics diagnostics)
     public const string RequireClaim = "RequireClaim";
 
     /// <summary>
+    /// Gets the application compilations used to validate artifact-dependent assertion use sites.
+    /// </summary>
+    public IReadOnlyList<Compilation>? Compilations { get; init; }
+
+    /// <summary>
     /// Reads what a policy requires.
     /// </summary>
     /// <param name="registration">The registration to read.</param>
@@ -76,6 +81,11 @@ public class PolicyRequirementReader(ScreenplayDiagnostics diagnostics)
                         method.ContainingType.Is(WellKnownTypeNames.AuthorizationPolicyBuilder))
             .OrderBy(_ => (_.Expression as MemberAccessExpressionSyntax)?.Name.SpanStart ?? _.SpanStart);
 
+    static bool IsUnconditional(InvocationExpressionSyntax call, PolicyRegistration registration) =>
+        call.Ancestors().TakeWhile(node => node != registration.Configure).All(node =>
+            node is not AnonymousFunctionExpressionSyntax and not ConditionalExpressionSyntax and
+                ((not StatementSyntax) or ExpressionStatementSyntax or BlockSyntax));
+
     /// <summary>
     /// Combines a set of alternatives into one requirement.
     /// </summary>
@@ -111,6 +121,12 @@ public class PolicyRequirementReader(ScreenplayDiagnostics diagnostics)
             PolicyValues.Of(arguments, registration.SemanticModel) is { Count: > 1 } claim)
         {
             return AnyOf(claim.Skip(1).Select(_ => new ClaimRequirement(claim[0], _)));
+        }
+
+        if (string.Equals(name, "RequireAssertion", StringComparison.Ordinal) && arguments is [var assertion] && IsUnconditional(call, registration) &&
+            new PolicyAssertionReader(Compilations ?? [registration.SemanticModel.Compilation]).Read(assertion, registration) is { } requirement)
+        {
+            return requirement;
         }
 
         Report(registration, $"'{name}' has no counterpart in a policy condition");

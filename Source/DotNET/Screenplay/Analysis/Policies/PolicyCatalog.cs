@@ -24,7 +24,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Policies;
 /// </remarks>
 public class PolicyCatalog(IReadOnlyList<Compilation> compilations, string? location, ScreenplayDiagnostics diagnostics)
 {
-    readonly PolicyRequirementReader _requirements = new(diagnostics);
+    readonly PolicyRequirementReader _requirements = new(diagnostics) { Compilations = compilations };
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PolicyCatalog"/> class for an application of a single project.
