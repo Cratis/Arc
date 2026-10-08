@@ -90,8 +90,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
 
-        if (specification.Returns is not null && !specification.Then.Any() && !specification.Errors.Any() &&
-            (!responds || command is not { HasNoFactBehavior: true }))
+        if (ResponseOnlyScenarios.IsResponseOnly(specification) && (!responds || !ResponseOnlyScenarios.RecordsNoFacts(command)))
         {
             var reason = !responds
                 ? "its only outcome is a command response the emitted command does not return"

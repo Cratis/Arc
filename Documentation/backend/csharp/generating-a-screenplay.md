@@ -342,7 +342,7 @@ specification WhenEchoingAndANameIsSupplied
   then returns "Apollo"
 ```
 
-The generator reads `ShouldEqual` and xUnit's `Assert.Equal`, applied unconditionally to `CommandResult<T>.Response`, or to one field of a record response, and compared with a literal, a `string`, `int`, `decimal` or `bool` constant, `Guid.Parse("...")`, an enumeration member, or a concept constructed directly from a literal or `Guid.Parse("...")`. A whole record compared with a construction of every field becomes the full field list. Field assertions become a `then returns` block holding only the asserted fields. `T` must be the type the handler returns. Every read of `Response` in the scenario must be such an equality. A null check, a comparison with a value computed during the run, or an assertion under a condition cannot be stated, and nothing about the response is stated in that case.
+The generator reads `ShouldEqual` and xUnit's `Assert.Equal`, applied unconditionally to `CommandResult<T>.Response`, or to one field of a record response, and compared with a literal, a `string`, `int`, `decimal` or `bool` constant, `Guid.Parse("...")`, an enumeration member, or a concept constructed directly from a literal or `Guid.Parse("...")`. A whole record compared with a construction of every field becomes the full field list. Field assertions become a `then returns` block holding only the asserted fields. `T` must be the type the handler returns, and the result must be the variable the scenario's own `Execute` call is assigned to, written nowhere else. Every read of `Response` in the scenario must be such an equality. A null check, a comparison with a value computed during the run, a result from somewhere else, or an assertion under a condition, after an early `return`, or inside a `try` with a `catch` cannot be stated, and nothing about the response is stated in that case. A scenario left out this way does not hold back the command's named rules.
 
 What happens to a scenario asserting the response:
 
@@ -350,7 +350,7 @@ What happens to a scenario asserting the response:
 |---|---|---|
 | States the response and other outcomes | Emits `returns` | The scenario keeps its events and gains `then returns`. |
 | Asserts the response in a form that cannot be stated, beside other outcomes | Has a response | The command keeps its legacy form (`SP0052`); the scenario is kept and the response assertion ignored, as in the legacy document. |
-| Has the response as its only outcome | Emits `returns` and is proven to record no facts | The scenario is stated with `then returns` only. |
+| Has the response as its only outcome | Emits `returns`, has no productions, and its handler can return no event: no event, tuple, collection, `Result` or union holding one, and no `object` or interface | The scenario is stated with `then returns` only. |
 | Has the response as its only outcome, or asserts it in a form that cannot be stated | Records facts, or emits no `returns` | The scenario is omitted with `SP0039`, because a specification without expected events asserts that none were produced. |
 
 A scenario that does not assert the response does not hold the response back.

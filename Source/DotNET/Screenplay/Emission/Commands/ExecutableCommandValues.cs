@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Specifications;
+using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
 
@@ -106,8 +107,10 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
 
         var preserveScenarios = needsFixtures || unrecoveredReturns;
 
+        // A response-only scenario on a command with generated values is never emitted, so it preserves nothing.
         var preserveExplicitSources = authoring.Generated.Count > 0 && model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
             specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
+            !ResponseOnlyScenarios.IsResponseOnly(specification) &&
             SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true });
         if (preserveExplicitSources)
         {

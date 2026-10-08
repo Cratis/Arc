@@ -45,6 +45,43 @@ public static class StepsTaken
     }
 
     /// <summary>
+    /// Determines whether every normal completion of a body passes through a call, exactly once.
+    /// </summary>
+    /// <param name="call">The call to check.</param>
+    /// <param name="body">The body the call is written in.</param>
+    /// <returns>True when nothing around or before the call can skip or swallow it.</returns>
+    /// <remarks>
+    /// <see cref="Always"/> reads only what encloses the call. A guard written before it - <c>if (...) return;</c> -
+    /// lets the body finish without reaching it just as much, and a <see langword="try"/> with a <see langword="catch"/> lets the body
+    /// finish after the call failed. Either way the body can pass without the call having held.
+    /// </remarks>
+    public static bool AlwaysCompletesThrough(SyntaxNode call, SyntaxNode body)
+    {
+        if (!Always(call, body))
+        {
+            return false;
+        }
+
+        for (var node = call; node is not null && node != body; node = node.Parent)
+        {
+            if (node.Parent is TryStatementSyntax { Catches.Count: > 0 })
+            {
+                return false;
+            }
+
+            if (node.Parent is BlockSyntax block && block.Statements.TakeWhile(statement => statement != node)
+                .SelectMany(statement => statement.DescendantNodesAndSelf(descendIntoChildren: child =>
+                    child is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)))
+                .Any(statement => statement is ReturnStatementSyntax or ThrowStatementSyntax or ThrowExpressionSyntax or GotoStatementSyntax or YieldStatementSyntax))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Determines whether a construct makes what is written inside it conditional, repeated or deferred.
     /// </summary>
     /// <param name="node">The construct to check.</param>

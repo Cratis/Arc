@@ -55,9 +55,13 @@ public class from_a_scenario_asserting_the_response : a_generated_document
     [InlineData("((CommandResult<string>)_result).Response.ShouldEqual(\"Apo\" + _suffix)")]
     [InlineData("Assert.Equal(_result.ToString(), ((CommandResult<string>)_result).Response)")]
     [InlineData("{ if (_result is not null) ((CommandResult<string>)_result).Response.ShouldEqual(\"Apollo\"); }")]
-    public void should_leave_out_a_response_only_scenario_it_cannot_state(string assertion)
+    [InlineData("{ if (!_result.IsSuccess) return; Assert.Equal(\"Apollo\", ((CommandResult<string>)_result).Response); }")]
+    [InlineData("{ try { Assert.Equal(\"Apollo\", ((CommandResult<string>)_result).Response); } catch (System.Exception) { } }")]
+    [InlineData("((CommandResult<string>)_other).Response.ShouldEqual(\"Apollo\")")]
+    [InlineData("((CommandResult<string>)_result).Response.ShouldEqual(\"Apollo\")", "void Reset() => _result = _other;")]
+    public void should_leave_out_a_response_only_scenario_it_cannot_state(string assertion, string members = "")
     {
-        GenerateScenario(assertion);
+        GenerateScenario(new ScreenplayOptions(), assertion, members);
         Result.Source.ShouldNotContain("specification");
         Result.Source.ShouldContain("returns name");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("CommandResult.Response");
@@ -76,7 +80,7 @@ public class from_a_scenario_asserting_the_response : a_generated_document
 
     void GenerateScenario(string assertion) => GenerateScenario(new ScreenplayOptions(), assertion);
 
-    void GenerateScenario(ScreenplayOptions options, string assertion)
+    void GenerateScenario(ScreenplayOptions options, string assertion, string members = "")
     {
         var body = assertion.StartsWith('{') ? assertion : $"=> {assertion};";
         var scenario = $$"""
@@ -91,6 +95,8 @@ public class from_a_scenario_asserting_the_response : a_generated_document
             {
                 const string Expected = "Apollo";
                 readonly string _suffix = "llo";
+                readonly CommandResult _other = new CommandResult<string>("Apollo");
+                {{members}}
                 readonly CommandScenario<EchoName> _scenario = new();
                 CommandResult _result = null!;
                 async Task Because() => _result = await _scenario.Execute(new EchoName("Apollo"));

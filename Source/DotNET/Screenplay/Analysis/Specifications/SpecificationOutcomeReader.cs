@@ -48,8 +48,8 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
         var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
         draft.AssertsResponse = bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
             SpecificationReturnValues.ReadsResponse(member, item.Model!)));
-        draft.Returns = draft.AssertsResponse && !rejected
-            ? new SpecificationReturnValues(new MappingSourceReader(diagnostics)).Read(bodies.Select(item => (item.Body, item.Model!)))
+        draft.Returns = draft.AssertsResponse && !rejected && ActionOf(draft) is { } action
+            ? new SpecificationReturnValues(new MappingSourceReader(diagnostics), models).Read(bodies.Select(item => (item.Body, item.Model!)), type, action)
             : null;
 
         foreach (var (body, semanticModel) in bodies)
@@ -67,6 +67,17 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     internal static bool RestatesAppend(SpecificationStateModel state, SpecificationStateModel? action) =>
         action is { Kind: SpecificationStateKind.Event } && state.Kind == SpecificationStateKind.Event &&
         string.Equals(state.Name, action.Name, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Gets the invocation issuing the scenario's command.
+    /// </summary>
+    /// <param name="draft">The scenario collected so far.</param>
+    /// <returns>The invocation, or <see langword="null"/> when the scenario issued no command.</returns>
+    static InvocationExpressionSyntax? ActionOf(SpecificationDraft draft) =>
+        draft.When is { Kind: SpecificationStateKind.Command } when &&
+        draft.GetStateEvidence().TryGetValue(when, out var evidence) && evidence.Source.SourceTree is { } tree
+            ? tree.GetRoot().FindNode(evidence.Source.SourceSpan, getInnermostNodeForTie: true).FirstAncestorOrSelf<InvocationExpressionSyntax>()
+            : null;
 
     /// <summary>
     /// Determines whether an event is one the scenario started with.

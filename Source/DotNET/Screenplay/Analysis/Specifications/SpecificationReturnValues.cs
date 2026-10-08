@@ -13,17 +13,20 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// Reads the command response a scenario asserts with concrete values.
 /// </summary>
 /// <param name="sources">The reader proving a value is an exact literal of the type it is compared with.</param>
+/// <param name="models">The <see cref="SemanticModels"/> every declaration of the scenario is read through.</param>
 /// <remarks>
 /// A response is stated only when every read of <c>CommandResult&lt;T&gt;.Response</c> in the assertions is an
 /// unconditional equality with a concrete value: the whole response, or one field of a record response. Anything else -
 /// a null check, a comparison with a value the scenario computes or reads from the run, or an assertion held to a
-/// condition - says something the document cannot state, so nothing is stated rather than part of it.
+/// condition or after an early exit - says something the document cannot state, so nothing is stated rather than
+/// part of it. The result whose response is read must be the one the scenario's own action produced: the variable
+/// the awaited <c>Execute</c> is assigned to, written nowhere else.
 /// <para>
 /// Values a command generates inside <c>Handle()</c> cannot be compared with a literal at all: Arc offers no way
 /// for a scenario to choose them, so a scenario can only relate them to other values of the same run.
 /// </para>
 /// </remarks>
-public class SpecificationReturnValues(MappingSourceReader sources)
+public class SpecificationReturnValues(MappingSourceReader sources, SemanticModels models)
 {
     const string CommandResultOfT = "Cratis.Arc.Commands.CommandResult`1";
     const string ResponseProperty = "Response";
@@ -49,9 +52,17 @@ public class SpecificationReturnValues(MappingSourceReader sources)
     /// Reads the response the assertions state.
     /// </summary>
     /// <param name="bodies">The assertion bodies with the semantic model each is read through.</param>
+    /// <param name="scenario">The type declaring the scenario.</param>
+    /// <param name="action">The invocation issuing the scenario's command.</param>
     /// <returns>The response, or <see langword="null"/> when a response read is not a recoverable equality.</returns>
-    public SpecificationReturnModel? Read(IEnumerable<(SyntaxNode Body, SemanticModel Model)> bodies)
+    public SpecificationReturnModel? Read(IEnumerable<(SyntaxNode Body, SemanticModel Model)> bodies, INamedTypeSymbol scenario, InvocationExpressionSyntax action)
     {
+        if (models.For(action.SyntaxTree) is not { } actionModel || ResultOf(action, actionModel) is not { } result ||
+            !WrittenOnlyBy(result, action, scenario))
+        {
+            return null;
+        }
+
         string? responseType = null;
         LiteralSource? scalar = null;
         var fields = new List<PropertyMappingModel>();
@@ -62,8 +73,9 @@ public class SpecificationReturnValues(MappingSourceReader sources)
             foreach (var access in body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Where(member => ReadsResponse(member, semanticModel)))
             {
                 any = true;
-                if (semanticModel.GetSymbolInfo(access).Symbol is not IPropertySymbol { ContainingType: { } result } ||
-                    !result.Is(CommandResultOfT) || result.TypeArguments is not [var type] ||
+                if (!SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(Receiver(access.Expression)).Symbol?.OriginalDefinition, result.OriginalDefinition) ||
+                    semanticModel.GetSymbolInfo(access).Symbol is not IPropertySymbol { ContainingType: { } commandResult } ||
+                    !commandResult.Is(CommandResultOfT) || commandResult.TypeArguments is not [var type] ||
                     type.NullableAnnotation == NullableAnnotation.Annotated ||
                     (responseType ??= ResponseTypes.NameOf(type)) != ResponseTypes.NameOf(type))
                 {
@@ -125,6 +137,34 @@ public class SpecificationReturnValues(MappingSourceReader sources)
 
     static SyntaxNode? Outer(ExpressionSyntax expression) => Wrapper(expression).Parent;
 
+    static ExpressionSyntax Receiver(ExpressionSyntax expression) => expression switch
+    {
+        ParenthesizedExpressionSyntax parenthesized => Receiver(parenthesized.Expression),
+        CastExpressionSyntax cast => Receiver(cast.Expression),
+        PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppress => Receiver(suppress.Operand),
+        BinaryExpressionSyntax { RawKind: (int)SyntaxKind.AsExpression } conversion => Receiver(conversion.Left),
+        _ => expression
+    };
+
+    static ISymbol? ResultOf(InvocationExpressionSyntax action, SemanticModel semanticModel)
+    {
+        SyntaxNode node = action;
+        while (node.Parent is AwaitExpressionSyntax or ParenthesizedExpressionSyntax)
+        {
+            node = node.Parent;
+        }
+
+        var symbol = node.Parent switch
+        {
+            AssignmentExpressionSyntax { RawKind: (int)SyntaxKind.SimpleAssignmentExpression } assignment when assignment.Right == node =>
+                semanticModel.GetSymbolInfo(assignment.Left).Symbol,
+            EqualsValueClauseSyntax { Parent: VariableDeclaratorSyntax declarator } => semanticModel.GetDeclaredSymbol(declarator),
+            _ => null
+        };
+
+        return symbol is IFieldSymbol or IPropertySymbol or ILocalSymbol ? symbol : null;
+    }
+
     static ExpressionSyntax Wrapper(ExpressionSyntax expression)
     {
         while (expression.Parent is ParenthesizedExpressionSyntax or PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression })
@@ -144,7 +184,7 @@ public class SpecificationReturnValues(MappingSourceReader sources)
             semanticModel.GetSymbolInfo(should).Symbol is IMethodSymbol { ReducedFrom: { } extension } &&
             string.Equals(extension.Name, ShouldEqual, StringComparison.Ordinal) &&
             extension.ContainingType.Is(ShouldEqualityExtensions) && extension.Parameters.Length == 2 &&
-            StepsTaken.Always(should, body))
+            StepsTaken.AlwaysCompletesThrough(should, body))
         {
             return argument.Expression;
         }
@@ -156,7 +196,7 @@ public class SpecificationReturnValues(MappingSourceReader sources)
             string.Equals(first.Name, Expected, StringComparison.Ordinal) && string.Equals(second.Name, Actual, StringComparison.Ordinal) &&
             SymbolEqualityComparer.Default.Equals(first.Type, second.Type) &&
             (method.OriginalDefinition.Parameters[0].Type is ITypeParameterSymbol || first.Type.SpecialType == SpecialType.System_String) &&
-            StepsTaken.Always(equal, body))
+            StepsTaken.AlwaysCompletesThrough(equal, body))
         {
             var actualIndex = list.Arguments.IndexOf(actual);
             var expectedArgument = list.Arguments[1 - actualIndex];
@@ -181,6 +221,35 @@ public class SpecificationReturnValues(MappingSourceReader sources)
         }
 
         fields.Add(new(name, value));
+        return true;
+    }
+
+    bool WrittenOnlyBy(ISymbol result, InvocationExpressionSyntax action, INamedTypeSymbol scenario)
+    {
+        var declarations = new List<SyntaxReference>();
+        for (var current = scenario; current is not null; current = current.BaseType)
+        {
+            declarations.AddRange(current.DeclaringSyntaxReferences);
+        }
+
+        declarations.AddRange(result.ContainingType?.DeclaringSyntaxReferences ?? []);
+        foreach (var node in declarations.Select(reference => reference.GetSyntax()).Distinct().SelectMany(declaration => declaration.DescendantNodes()))
+        {
+            var written = node switch
+            {
+                AssignmentExpressionSyntax assignment when !assignment.Right.DescendantNodesAndSelf().Contains(action) => assignment.Left,
+                ArgumentSyntax argument when !argument.RefKindKeyword.IsKind(SyntaxKind.None) => argument.Expression,
+                PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax => (node as PrefixUnaryExpressionSyntax)?.Operand ?? ((PostfixUnaryExpressionSyntax)node).Operand,
+                _ => null
+            };
+            ExpressionSyntax[] targets = written is TupleExpressionSyntax tuple ? [.. tuple.DescendantNodes().OfType<ExpressionSyntax>()] : written is null ? [] : [written];
+            if (targets.Length > 0 && models.For(node.SyntaxTree) is { } semanticModel &&
+                targets.Any(target => SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(target).Symbol?.OriginalDefinition, result.OriginalDefinition)))
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 
