@@ -41,7 +41,7 @@ public class when_source_folder_and_namespace_placements_conflict : Specificatio
 
             async Task Because() => _result = await _scenario.Execute(new RenameProject(""));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

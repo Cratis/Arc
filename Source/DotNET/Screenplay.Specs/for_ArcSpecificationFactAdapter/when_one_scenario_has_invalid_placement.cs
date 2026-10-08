@@ -57,7 +57,7 @@ public class when_one_scenario_has_invalid_placement : Specification
 
             async Task Because() => _result = await _scenario.Execute(new RegisterProject(""));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 
@@ -77,7 +77,7 @@ public class when_one_scenario_has_invalid_placement : Specification
 
             async Task Because() => _result = await _scenario.Execute(new RenameProject(""));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

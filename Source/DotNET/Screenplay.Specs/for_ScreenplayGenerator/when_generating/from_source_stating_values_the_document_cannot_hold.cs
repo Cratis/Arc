@@ -90,7 +90,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
             async Task Because() => _result = await _scenario.Execute(new ReissueSigning((ContractSide)99, "again"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 
@@ -110,7 +110,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
             async Task Because() => _result = await _scenario.Execute(new ChangeSigningTier(default));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 
@@ -130,7 +130,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
             async Task Because() => _result = await _scenario.Execute(new TagSigning(null!));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 
@@ -151,7 +151,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
             async Task Because() => _result = await _scenario.Execute(new SetSigningPreferences(null!, null));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 
@@ -174,7 +174,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
             async Task Because() => _result = await _scenario.Execute(new ReissueSigning(ContractSide.Customer, "again"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 
@@ -195,7 +195,7 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
             async Task Because() => _result = await _scenario.Execute(new SetSigningPreferences(new SigningPreferences(true), null));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

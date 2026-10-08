@@ -68,6 +68,21 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     public string? LanguageVersion { get; set; }
 
     /// <summary>
+    /// Gets or sets the effective MSBuild compiler features.
+    /// </summary>
+    public string? Features { get; set; }
+
+    /// <summary>
+    /// Gets or sets the namespaces allowed to declare interceptors, separated by semicolons.
+    /// </summary>
+    public string? InterceptorsNamespaces { get; set; }
+
+    /// <summary>
+    /// Gets or sets the legacy interceptor namespaces, added to <see cref="InterceptorsNamespaces"/>.
+    /// </summary>
+    public string? InterceptorsPreviewNamespaces { get; set; }
+
+    /// <summary>
     /// Gets or sets the compiler output type, including executable projects with top-level statements.
     /// </summary>
     public string? OutputType { get; set; }
@@ -164,7 +179,10 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
             References.Select(_ => _.GetMetadata("FullPath")),
             DefineConstants,
             LanguageVersion,
-            OutputType);
+            OutputType,
+            Features,
+            InterceptorsNamespaces,
+            InterceptorsPreviewNamespaces);
 
         var generated = CompilationGenerators.Run(
             compilation,

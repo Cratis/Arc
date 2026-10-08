@@ -299,7 +299,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             [.. Events(specification.Given)],
             When(specification.When),
             [.. Events(specification.Then)],
-            [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_) ?? string.Empty, SourceLocation.Start))],
+            [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_), SourceLocation.Start))],
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
             [.. ReadModels(specification.Then)])

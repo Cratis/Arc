@@ -22,7 +22,7 @@ public class from_a_scenario_asserting_a_response_beside_events : a_generated_do
         Result.Source.ShouldContain("then returns \"Apollo\"");
         Result.Source.ShouldContain("then AuthorRegistered");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeFalse();
-        AssertDocument();
+        AssertRoutingAndRun();
         Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V7);
     }
 
@@ -33,7 +33,7 @@ public class from_a_scenario_asserting_a_response_beside_events : a_generated_do
         Result.Source.ShouldContain("returns name");
         Result.Source.ShouldContain($"specification {Name}");
         Result.Source.ShouldNotContain("then returns");
-        AssertDocument();
+        AssertRoutingAndRun();
     }
 
     [Theory]
@@ -46,7 +46,7 @@ public class from_a_scenario_asserting_a_response_beside_events : a_generated_do
         Result.Source.ShouldContain("returns\n");
         string.Join('\n', Result.Source.Split('\n').Select(line => line.TrimStart()))
             .ShouldContain("then returns\n" + string.Join('\n', fields.Split('\n').Select(line => line.TrimStart())));
-        AssertDocument();
+        AssertRoutingAndRun();
     }
 
     [Theory]
@@ -65,6 +65,29 @@ public class from_a_scenario_asserting_a_response_beside_events : a_generated_do
         AssertDocument();
     }
 
+    [Theory]
+    [InlineData("public (AuthorRegistered, string) Handle() { return (new(Name), Name); }")]
+    [InlineData("public (string, AuthorRegistered) Handle() => (Name, new(Name));")]
+    [InlineData("public Task<(AuthorRegistered, string)> Handle() => Task.FromResult((new AuthorRegistered(Name), Name));")]
+    [InlineData("public async Task<(AuthorRegistered, string)> Handle() { await Task.CompletedTask; return (new(Name), Name); }")]
+    [InlineData("public ValueTask<(AuthorRegistered, string)> Handle() => new((new AuthorRegistered(Name), Name));")]
+    public void should_route_the_returned_tuple_event_through_the_command_context(string handler)
+    {
+        GenerateScenario(handler, null);
+        AssertRoutingAndRun();
+    }
+
+    void AssertRoutingAndRun()
+    {
+        string.Join(' ', Result.Source.Split([' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)).ShouldContain("id String identifier");
+        Result.Source.ShouldContain("for id");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult ||
+            diagnostic.Code == ScreenplayDiagnosticCodes.UnrepresentableProductionDestination || diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeFalse();
+        AssertDocument();
+        var run = Run(Name);
+        Assert.True(run.Passed, string.Join(Environment.NewLine, run.Failures) + Environment.NewLine + Result.Source);
+    }
+
     void GenerateScenario(string handler, string? assertion)
     {
         var testing = IntegrationTesting.Source.Replace(
@@ -72,6 +95,7 @@ public class from_a_scenario_asserting_a_response_beside_events : a_generated_do
             "public Task<Cratis.Arc.Commands.CommandResult> Execute(TCommand command) => Task.FromResult(new Cratis.Arc.Commands.CommandResult());",
             StringComparison.Ordinal);
         var slice = $$"""
+            using System.Threading.Tasks;
             using Cratis.Arc.Commands.ModelBound;
             using Cratis.Chronicle.Events;
             using Cratis.Chronicle.Keys;
