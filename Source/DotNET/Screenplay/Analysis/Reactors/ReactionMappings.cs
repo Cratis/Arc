@@ -19,6 +19,16 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 public static class ReactionMappings
 {
     /// <summary>
+    /// The largest whole number a document's number holds exactly, since numbers are written as doubles.
+    /// </summary>
+    const long ExactDoubleLimit = 9_007_199_254_740_992;
+
+    /// <summary>
+    /// The magnitude below which a decimal is converted to a double and back without overflow.
+    /// </summary>
+    const decimal ExactDecimalLimit = 1_000_000_000_000_000m;
+
+    /// <summary>
     /// Reads every mapping of a construction.
     /// </summary>
     /// <param name="creation">The construction to read.</param>
@@ -27,6 +37,12 @@ public static class ReactionMappings
     /// <param name="trigger">The parameter carrying the triggering event.</param>
     /// <param name="context">The parameter carrying the event context, if the handler takes it.</param>
     /// <returns>The mappings in the order the type declares its properties, or <see langword="null"/> when any value is code.</returns>
+    /// <remarks>
+    /// Every property the type carries has to be given a value, and given it directly: a positional record property
+    /// through its constructor argument, or an automatic property without an initializer through the object
+    /// initializer. A computed property, one with an initializer or an accessor body, or a type deriving from another
+    /// carries a value the construction does not state, so the construction stays code.
+    /// </remarks>
     public static IReadOnlyList<PropertyMappingModel>? Read(
         BaseObjectCreationExpressionSyntax creation,
         SemanticModel semanticModel,
@@ -34,8 +50,12 @@ public static class ReactionMappings
         IParameterSymbol trigger,
         IParameterSymbol? context)
     {
+        if (!IsPlain(target) || semanticModel.GetSymbolInfo(creation).Symbol is not IMethodSymbol constructor)
+        {
+            return null;
+        }
+
         var properties = target.DeclaredProperties().ToList();
-        var constructor = semanticModel.GetSymbolInfo(creation).Symbol as IMethodSymbol;
         var mapped = new Dictionary<string, PropertyMappingModel>(StringComparer.Ordinal);
         var arguments = creation.ArgumentList?.Arguments ?? default;
 
@@ -43,9 +63,9 @@ public static class ReactionMappings
         {
             var argument = arguments[index];
             var name = argument.NameColon?.Name.Identifier.ValueText ??
-                (constructor is not null && index < constructor.Parameters.Length ? constructor.Parameters[index].Name : null);
-            var property = properties.Find(_ => string.Equals(_.Name, name, StringComparison.OrdinalIgnoreCase));
-            if (property is null || !Add(mapped, property, argument.Expression, semanticModel, trigger, context))
+                (index < constructor.Parameters.Length ? constructor.Parameters[index].Name : null);
+            var property = properties.Find(_ => string.Equals(_.Name, name, StringComparison.Ordinal));
+            if (property is null || !IsPositional(property) || !Add(mapped, property, argument.Expression, semanticModel, trigger, context))
             {
                 return null;
             }
@@ -56,19 +76,58 @@ public static class ReactionMappings
             if (initialized is not AssignmentExpressionSyntax { Left: IdentifierNameSyntax } assignment ||
                 semanticModel.GetSymbolInfo(assignment.Left).Symbol is not IPropertySymbol assigned ||
                 properties.Find(_ => string.Equals(_.Name, assigned.Name, StringComparison.Ordinal)) is not { } property ||
+                !IsAutomatic(property) ||
                 !Add(mapped, property, assignment.Right, semanticModel, trigger, context))
             {
                 return null;
             }
         }
 
-        if (properties.Exists(_ => _.SetMethod is not null && !mapped.ContainsKey(_.Name)))
-        {
-            return null;
-        }
-
-        return [.. properties.Where(_ => mapped.ContainsKey(_.Name)).Select(_ => mapped[_.Name])];
+        return properties.TrueForAll(_ => mapped.ContainsKey(_.Name)) ? [.. properties.Select(_ => mapped[_.Name])] : null;
     }
+
+    /// <summary>
+    /// Determines whether constructing a type does nothing but put the values it is given into its properties.
+    /// </summary>
+    /// <param name="type">The type being constructed.</param>
+    /// <returns>True when it derives from nothing but <see langword="object"/> and declares no field of its own.</returns>
+    /// <remarks>
+    /// A base type receives its values through an initializer that may change them, and a field may be initialized by
+    /// code that runs on construction, so either keeps the construction code.
+    /// </remarks>
+    static bool IsPlain(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Class &&
+        type.BaseType?.SpecialType == SpecialType.System_Object &&
+        !type.GetMembers().OfType<IFieldSymbol>().Any(_ => !_.IsStatic && !_.IsImplicitlyDeclared);
+
+    /// <summary>
+    /// Determines whether a property is the one the compiler synthesizes for a positional record parameter.
+    /// </summary>
+    /// <param name="property">The property.</param>
+    /// <returns>True when its value is exactly the argument given for the parameter.</returns>
+    /// <remarks>
+    /// A positional parameter can also be declared again as a property of its own, initialized from the parameter by
+    /// code - <c>public string Name { get; init; } = Name.Trim();</c> - in which case the value it carries is not the
+    /// argument. Only the synthesized property is a pass-through.
+    /// </remarks>
+    static bool IsPositional(IPropertySymbol property) =>
+        property.DeclaringSyntaxReferences.Length > 0 &&
+        property.DeclaringSyntaxReferences.All(_ => _.GetSyntax() is ParameterSyntax);
+
+    /// <summary>
+    /// Determines whether a property is an automatic property that can be set and has no initializer.
+    /// </summary>
+    /// <param name="property">The property.</param>
+    /// <returns>True when assigning it stores exactly the value assigned.</returns>
+    static bool IsAutomatic(IPropertySymbol property) =>
+        property.SetMethod is not null &&
+        property.DeclaringSyntaxReferences.Length > 0 &&
+        property.DeclaringSyntaxReferences.All(_ => _.GetSyntax() is PropertyDeclarationSyntax
+        {
+            Initializer: null,
+            ExpressionBody: null,
+            AccessorList: { } accessors
+        } && accessors.Accessors.All(accessor => accessor is { Body: null, ExpressionBody: null }));
 
     /// <summary>
     /// Adds the mapping of one property.
@@ -159,6 +218,13 @@ public static class ReactionMappings
             return EnumConstants.TryResolve(enumeration, value, out var member) ? new(member) : null;
         }
 
-        return value is string or bool or int or long or decimal or double ? new(value) : null;
+        return value switch
+        {
+            string or bool or int => new(value),
+            long number when number is >= -ExactDoubleLimit and <= ExactDoubleLimit => new(value),
+            double number when double.IsFinite(number) => new(value),
+            decimal number when number is > -ExactDecimalLimit and < ExactDecimalLimit && (decimal)(double)number == number => new(value),
+            _ => null
+        };
     }
 }

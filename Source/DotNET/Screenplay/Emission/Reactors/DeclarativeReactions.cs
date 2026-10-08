@@ -63,6 +63,20 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
         application.Slices.SelectMany(_ => _.Reactors).SelectMany(_ => _.ObservedEvents).Select(naming.ToDeclarationName).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
+    /// Determines whether a value is written into the document exactly as the source states it.
+    /// </summary>
+    /// <param name="source">The source of the value.</param>
+    /// <returns>True unless it is text the document would write differently.</returns>
+    /// <remarks>
+    /// Text is put on one line, trimmed and has its double quotes replaced on its way into the document, which is
+    /// harmless for a description and wrong for a value a reaction gives an event. Such a value, and text the
+    /// document would read back as an escape, keeps the handler a file reference.
+    /// </remarks>
+    bool RoundTrips(MappingSourceModel source) =>
+        source is not LiteralSource { Value: string text } ||
+        (string.Equals(naming.ToStringLiteral(text), text, StringComparison.Ordinal) && !text.Contains('\\', StringComparison.Ordinal));
+
+    /// <summary>
     /// Determines whether a production binds against the events the document declares.
     /// </summary>
     /// <param name="produces">The production.</param>
@@ -78,7 +92,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
 
         var declared = events[0].Properties.Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
 
-        return produces.Mappings.All(_ => declared.Contains(_.Property) && !_reserved.Contains(naming.ToPropertyName(_.Property)));
+        return produces.Mappings.All(_ => declared.Contains(_.Property) && !_reserved.Contains(naming.ToPropertyName(_.Property)) && RoundTrips(_.Source));
     }
 
     /// <summary>
@@ -99,6 +113,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
 
         return declared.SetEquals(mapped) &&
             !(command.Authoring?.Generated ?? []).Any(_ => mapped.Contains(_.Name)) &&
-            !mapped.Any(_ => _reserved.Contains(naming.ToPropertyName(_)));
+            !mapped.Any(_ => _reserved.Contains(naming.ToPropertyName(_))) &&
+            invocation.Mappings.All(_ => RoundTrips(_.Source));
     }
 }

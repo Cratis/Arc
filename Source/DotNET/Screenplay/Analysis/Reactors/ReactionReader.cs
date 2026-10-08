@@ -30,9 +30,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 /// nothing but the event and its context, and every value it gives them has to be a property of the triggering event,
 /// the time it occurred, or a constant. Anything else is code, and the reaction keeps pointing at its file.
 /// <para>
-/// A reactor choosing the event source its events are appended to, executing its commands as the system, observing a
-/// sequence other than the event log or filtered to an event source does something the reaction cannot say, so none
-/// of its handlers are read.
+/// A reactor choosing the event source its events are appended to, observing a sequence other than the event log, or
+/// narrowed by tag, event source type, stream type or event source definition does something the reaction cannot say,
+/// so none of its handlers are read. A reactor executing its commands as the system keeps the handlers returning
+/// commands as code.
 /// </para>
 /// </remarks>
 public class ReactionReader(SemanticModels models)
@@ -58,7 +59,7 @@ public class ReactionReader(SemanticModels models)
     /// <returns>The reactions, one per observed event whose handler can be stated.</returns>
     public IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers)
     {
-        if (reactor.FindInterface(WellKnownTypeNames.CanProvideEventSourceId) is not null)
+        if (reactor.FindInterface(WellKnownTypeNames.CanProvideEventSourceId) is not null || IsNarrowed(reactor, handlers))
         {
             return [];
         }
@@ -72,6 +73,83 @@ public class ReactionReader(SemanticModels models)
             .OfType<ReactionModel>()
             .ToList();
     }
+
+    /// <summary>
+    /// Determines whether Chronicle narrows which occurrences reach a reactor, or routes what it appends, in a way a
+    /// reaction cannot state.
+    /// </summary>
+    /// <param name="reactor">The type declaring the reactor.</param>
+    /// <param name="handlers">The handlers of the reactor.</param>
+    /// <returns>True when the reactor is filtered, observes a sequence other than the event log, or routes its events.</returns>
+    /// <remarks>
+    /// Chronicle registers a reactor with the tags it filters by (<c>[FilterEventsByTag]</c>), the event source and
+    /// stream type it is filtered to (<c>[EventSourceType]</c>, <c>[EventStreamType]</c>, which also become the source
+    /// and stream type of what it appends), and the sequence it observes - named by <c>[EventSequence]</c>, an inbox
+    /// named by <c>[EventStore]</c> on the reactor, or an inbox inferred from <c>[EventStore]</c> on the events it
+    /// handles or on their assembly. A reaction triggered by an event states that it runs for every occurrence in the
+    /// event log, so a reactor narrowed by any of these keeps its file reference. Chronicle reads these attributes
+    /// inherited from base types, so the bases are asked as well.
+    /// </remarks>
+    static bool IsNarrowed(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers)
+    {
+        for (var current = reactor; current is not null; current = current.BaseType)
+        {
+            foreach (var attribute in current.GetAttributes())
+            {
+                if (attribute.AttributeClass is not { } type)
+                {
+                    continue;
+                }
+
+                if (type.Is(WellKnownTypeNames.FilterEventsByTagAttribute) ||
+                    type.Is(WellKnownTypeNames.EventSourceTypeAttribute) ||
+                    type.Is(WellKnownTypeNames.EventStreamTypeAttribute) ||
+                    type.Is(WellKnownTypeNames.EventStoreAttribute))
+                {
+                    return true;
+                }
+
+                if (NamesASequence(type) && !NamesTheEventLog(type, attribute))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return handlers.Any(handler =>
+            handler.Parameters[0].Type.HasAttribute(WellKnownTypeNames.EventStoreAttribute) ||
+            handler.Parameters[0].Type.ContainingAssembly?.HasAttribute(WellKnownTypeNames.EventStoreAttribute) == true);
+    }
+
+    /// <summary>
+    /// Determines whether an attribute names the sequence a reactor observes.
+    /// </summary>
+    /// <param name="type">The type of the attribute.</param>
+    /// <returns>True when it is or derives from <c>[EventSequence]</c>.</returns>
+    static bool NamesASequence(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.Is(WellKnownTypeNames.EventSequenceAttribute))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Determines whether a sequence attribute names the event log.
+    /// </summary>
+    /// <param name="type">The type of the attribute.</param>
+    /// <param name="attribute">The attribute.</param>
+    /// <returns>True when it is <c>[EventLog]</c> or <c>[EventSequence("event-log")]</c>.</returns>
+    static bool NamesTheEventLog(INamedTypeSymbol type, AttributeData attribute) =>
+        type.Is(WellKnownTypeNames.EventLogAttribute) ||
+        (type.Is(WellKnownTypeNames.EventSequenceAttribute) &&
+            attribute.ConstructorArguments is [{ Value: string sequence }] &&
+            string.Equals(sequence, ReactorReader.EventLogSequence, StringComparison.Ordinal));
 
     /// <summary>
     /// Determines whether a reactor executes the commands it returns as the system.

@@ -123,6 +123,18 @@ public static class WellKnownTypeNames
     /// <summary>The attribute a reactor uses to execute the commands it returns as the system.</summary>
     public const string ExecuteCommandsAsSystemAttribute = "Cratis.Arc.Chronicle.Reactors.ExecuteCommandsAsSystemAttribute";
 
+    /// <summary>The attribute filtering what an observer receives to events carrying a tag.</summary>
+    public const string FilterEventsByTagAttribute = "Cratis.Chronicle.FilterEventsByTagAttribute";
+
+    /// <summary>The attribute naming the event store whose inbox an observer or event belongs to.</summary>
+    public const string EventStoreAttribute = "Cratis.Chronicle.Events.EventStoreAttribute";
+
+    /// <summary>The attribute naming the event sequence an observer observes.</summary>
+    public const string EventSequenceAttribute = "Cratis.Chronicle.EventSequences.EventSequenceAttribute";
+
+    /// <summary>The attribute saying an observer observes the event log.</summary>
+    public const string EventLogAttribute = "Cratis.Chronicle.EventSequences.EventLogAttribute";
+
     /// <summary>The attribute marking a reactor handler as running only while the reactor replays.</summary>
     public const string ReplayAttribute = "Cratis.Chronicle.Reactors.ReplayAttribute";
 
