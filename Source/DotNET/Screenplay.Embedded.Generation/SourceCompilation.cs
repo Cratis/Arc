@@ -12,8 +12,8 @@ namespace Cratis.Arc.Screenplay.Embedded.Generation;
 /// Builds the compilation the documents of a project are generated from.
 /// </summary>
 /// <remarks>
-/// The build already knows what the C# compiler is about to be given - the files, the references, the symbols and
-/// the language version - so the same inputs are parsed here rather than a workspace being loaded or a project file
+/// The build already knows what the C# compiler is about to be given - the files, the references, the symbols,
+/// the language version and the effective features - so the same inputs are parsed here rather than a workspace being loaded or a project file
 /// being read a second time. A compilation built from anything else would describe a different application than the
 /// one being built.
 /// </remarks>
@@ -35,11 +35,37 @@ public static class SourceCompilation
         IEnumerable<string> references,
         string? defineConstants,
         string? languageVersion,
-        string? outputType = null)
+        string? outputType = null) =>
+        Create(assemblyName, sources, references, defineConstants, languageVersion, outputType, null, null, null);
+
+    /// <summary>
+    /// Creates the compilation with the effective compiler features supplied by MSBuild.
+    /// </summary>
+    /// <param name="assemblyName">The name of the assembly being built.</param>
+    /// <param name="sources">The full path of every file being compiled.</param>
+    /// <param name="references">The full path of every assembly being referenced.</param>
+    /// <param name="defineConstants">The preprocessor symbols separated by <c>;</c>.</param>
+    /// <param name="languageVersion">The language version the source is compiled with.</param>
+    /// <param name="outputType">The project output type.</param>
+    /// <param name="features">The MSBuild compiler features separated by semicolons, commas or spaces.</param>
+    /// <param name="interceptorsNamespaces">The namespaces allowed to declare interceptors, separated by semicolons.</param>
+    /// <param name="interceptorsPreviewNamespaces">The legacy alias for interceptor namespaces, added to the current namespaces.</param>
+    /// <returns>The <see cref="Compilation"/>.</returns>
+    public static Compilation Create(
+        string assemblyName,
+        IEnumerable<string> sources,
+        IEnumerable<string> references,
+        string? defineConstants,
+        string? languageVersion,
+        string? outputType,
+        string? features,
+        string? interceptorsNamespaces,
+        string? interceptorsPreviewNamespaces)
     {
         var parseOptions = new CSharpParseOptions(
             LanguageVersionOf(languageVersion),
-            preprocessorSymbols: SymbolsOf(defineConstants));
+            preprocessorSymbols: SymbolsOf(defineConstants))
+            .WithFeatures(CompilerFeatures.Parse(features, interceptorsNamespaces, interceptorsPreviewNamespaces));
 
         var trees = sources
             .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
