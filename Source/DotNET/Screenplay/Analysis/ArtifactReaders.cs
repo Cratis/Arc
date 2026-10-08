@@ -140,7 +140,7 @@ public class ArtifactReaders
                 }
             },
             new ControllerCommandReader(types, properties, produces, validators, paths),
-            new QueryReader(types, diagnostics),
+            new QueryReader(types, diagnostics) { Paths = paths },
             new ModelBoundProjectionReader(diagnostics),
             new FluentProjectionReader(models, diagnostics),
             new ReducerReader(diagnostics),

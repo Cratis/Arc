@@ -53,6 +53,7 @@ public class from_the_projects_of_a_layered_application : Specification
     [Fact] void should_write_the_path_of_a_file_relative_to_the_directory_the_projects_share() => Says("Library/Shipping/Dispatching/Dispatching.cs").ShouldBeTrue();
     [Fact] void should_import_nothing() => _result.Model.Imports.ShouldBeEmpty();
     [Fact] void should_not_refer_to_an_event_it_never_introduces() => _result.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.EventDeclaredOutsideCompilation).ShouldBeFalse();
-    [Fact] void should_report_no_defects() => _result.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_only_the_withheld_query_implementation() => _result.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.UnmappableQuery]);
+    [Fact] void should_report_no_defects() => _result.Diagnostics.Where(_ => _.Severity != ScreenplayDiagnosticSeverity.Information).ShouldBeEmpty();
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }
