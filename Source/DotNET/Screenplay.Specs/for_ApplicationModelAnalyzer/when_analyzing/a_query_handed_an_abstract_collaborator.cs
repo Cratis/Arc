@@ -31,6 +31,7 @@ public class a_query_handed_an_abstract_collaborator : Specification
         public record Author
         {
             public string Id { get; init; } = string.Empty;
+            public string Name { get; init; } = string.Empty;
 
             public static IEnumerable<Author> AuthorsSince(string name, TimeProvider time, Clock clock) => [];
         }

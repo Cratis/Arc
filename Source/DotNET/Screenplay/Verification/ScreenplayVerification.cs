@@ -33,13 +33,12 @@ public record ScreenplayVerification(
     public bool Compiles => Errors.Count == 0;
 
     /// <summary>
-    /// Gets unexpected semantic binding errors for the selected generation mode.
+    /// Gets unexpected semantic binding errors in either generation mode.
     /// </summary>
-    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were emitted.</param>
-    /// <returns>Every binding error except expected authoring admission and legacy read-consistency diagnostics.</returns>
-    public IReadOnlyList<Diagnostic> UnexpectedBindingErrors(bool authoringOnlyConstructs) =>
+    /// <returns>Every binding error except expected admission and legacy read-consistency diagnostics.</returns>
+    public IReadOnlyList<Diagnostic> UnexpectedBindingErrors() =>
         [.. BindingDiagnostics.Where(diagnostic =>
             diagnostic.Severity == DiagnosticSeverity.Error &&
             diagnostic.Code != "PLAY0271" &&
-            !(authoringOnlyConstructs && diagnostic.Code == "PLAY0268"))];
+            diagnostic.Code != "PLAY0268")];
 }

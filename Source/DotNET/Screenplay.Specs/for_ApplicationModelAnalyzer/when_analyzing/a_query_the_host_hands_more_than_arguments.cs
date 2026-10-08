@@ -26,6 +26,7 @@ public class a_query_the_host_hands_more_than_arguments : Specification
         public record Author
         {
             public string Id { get; init; } = string.Empty;
+            public string Name { get; init; } = string.Empty;
 
             public static IEnumerable<Author> AuthorsByName(
                 string name,

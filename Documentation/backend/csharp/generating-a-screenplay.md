@@ -48,7 +48,7 @@ Warning SP0019: The query 'Raw' returns 'IActionResult', which says how the resu
 transported rather than what it is, so the query was left out (Library.Messaging.Feed)
 ```
 
-Diagnostics come in three severities. **Information** means something is worth knowing but the document is complete. **Warning** means something was left out or the generated document contains an unexpected semantic binding error (`SP0056`). **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
+Diagnostics come in three severities. **Information** describes a limitation without failing generation. **Warning** means something was left out or standalone generation found an unexpected semantic binding error (`SP0056`). Embedded generation reports `SP0056` as Information so a generator limitation cannot break your application's build. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
 
 ## What the generator expects of its host
 
@@ -173,6 +173,8 @@ projection Book => Book
 
 The declaration states the shape and nothing else. No property is marked `identifier`: the executable model identifies an instance through the read model's keyed query, so a read model with a `by` query answering with one instance is identifiable, and one without such a query is declared without claiming an identity it does not have.
 
+A query's first required caller parameter becomes `by` only when its emitted name exactly matches an emitted read-model property name, including case. Otherwise it remains a `filter`: it narrows the result without claiming a key property the read model does not hold. For example, `GetById(string id)` returning a model with only a `Title` property emits `filter id String`, not `by id String`. Filtered queries are valid authoring syntax but are not yet executable.
+
 A document refers to a read model by its simple name, so each read model is declared exactly once. It goes in the first slice, in namespace order, that matches the earliest of these:
 
 1. The slice declaring a keyed query onto it.
@@ -227,7 +229,9 @@ on line 6. That is the generator being wrong rather than anything the source dec
 and the document is returned as it stands so the line can be read (Library)
 ```
 
-A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes an `SP0056` **Warning**, carrying the binder's code, message, line and column. The warning identifies a generator defect, not an application defect. `PLAY0268` admission errors are excluded only when `AuthoringOnlyConstructs` is enabled; documented legacy-consistency diagnostics (`PLAY0271`) and informational diagnostics do not produce `SP0056`. Default output is checked without the authoring admission exemption, so legacy handlers and other unadmitted constructs still surface as warnings. Embedded generation applies the same checks to each scoped document. The end-to-end check rejects unexpected binding errors in both modes.
+A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` is expected in **both** modes: it marks syntax the language parses but no supported executable model admits yet, including legacy handlers, read models without keyed queries, and list, observable, filtered, or authoring-only constructs. Documented legacy-consistency diagnostics (`PLAY0271`) and informational diagnostics also do not produce `SP0056`.
+
+Standalone generation reports `SP0056` as **Warning**. Embedded generation applies the same checks to each scoped document but reports it as **Information**, so MSBuild warnings-as-errors cannot break a consumer build because of a generator limitation. Arc's end-to-end CI gate takes the stricter responsibility: it fails on **any `SP0056`, regardless of severity**, or any unexpected binding error, and runs all three sample applications with authoring-only constructs both disabled and enabled. Accepting an admission limitation never exempts unresolved references, type mismatches, or other binding defects.
 
 The document is still written out, so you can open it at the reported line and see what happened. If you hit this, it is a bug worth [reporting](https://github.com/Cratis/Arc/issues) — include the line, and the C# declaration it came from.
 

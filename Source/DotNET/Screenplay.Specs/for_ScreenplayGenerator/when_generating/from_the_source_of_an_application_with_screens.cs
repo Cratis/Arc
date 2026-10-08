@@ -66,6 +66,6 @@ public class from_the_source_of_an_application_with_screens : Specification
     [Fact] void should_bind_the_query_keyed_by_a_parameter() => Says("data Author via query AuthorById by id").ShouldBeTrue();
     [Fact] void should_leave_out_the_companion_of_a_component() => Says("AuthorList.stories").ShouldBeFalse();
     [Fact] void should_bind_nothing_on_a_screen_that_imports_only_a_command() => Says("via query RegisterAuthor").ShouldBeFalse();
-    [Fact] void should_report_only_screen_structure_and_binding_defects() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred, ScreenplayDiagnosticCodes.DocumentDidNotBind]);
+    [Fact] void should_report_only_the_screen_structure_that_was_not_inferred() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred]);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

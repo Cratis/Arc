@@ -62,7 +62,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var diagnostics = new ScreenplayDiagnostics();
         diagnostics.AddRange(analysis.Diagnostics);
         diagnostics.AddRange(emission.Diagnostics);
-        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain, resolved.AuthoringOnlyConstructs);
+        ReportDocumentThatDoesNotCompile(emission.Source, analysis.Diagnostics, diagnostics, resolved.Domain);
 
         return new(emission.Source, analysis.Model, diagnostics.All);
     }
@@ -78,7 +78,6 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
     /// <param name="analyzed">What analysis reported, which says whether the source it read compiled.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
     /// <param name="location">Where to report against.</param>
-    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were emitted.</param>
     /// <remarks>
     /// Everything else reported names something the application declared that the language cannot hold. This names
     /// the generator being wrong, which is why it runs on every generation rather than on request - the only way a
@@ -101,8 +100,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         string source,
         IEnumerable<ScreenplayDiagnostic> analyzed,
         ScreenplayDiagnostics diagnostics,
-        string? location,
-        bool authoringOnlyConstructs)
+        string? location)
     {
         if (analyzed.Any(_ => _.Code == ScreenplayDiagnosticCodes.SourceDidNotCompile && _.Severity == ScreenplayDiagnosticSeverity.Error))
         {
@@ -112,7 +110,7 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var verification = _verifier.Verify(source);
         if (verification.Compiles)
         {
-            foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
+            foreach (var error in verification.UnexpectedBindingErrors())
             {
                 diagnostics.Warning(
                     ScreenplayDiagnosticCodes.DocumentDidNotBind,

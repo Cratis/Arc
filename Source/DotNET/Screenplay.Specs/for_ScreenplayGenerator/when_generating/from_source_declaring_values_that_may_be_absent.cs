@@ -75,7 +75,7 @@ public class from_source_declaring_values_that_may_be_absent : Specification
     [Fact] void should_mark_an_optional_concept_on_an_event() => Says("grouping InvoiceGroupKey optional").ShouldBeTrue();
     [Fact] void should_mark_an_optional_enumeration() => Says("standing InvoiceStanding optional").ShouldBeTrue();
     [Fact] void should_mark_a_collection_of_optional_values() => Says("numbers InvoiceNumber[] optional").ShouldBeTrue();
-    [Fact] void should_mark_an_optional_parameter_of_a_query() => Says("by groupKey InvoiceGroupKey optional").ShouldBeTrue();
+    [Fact] void should_mark_an_optional_parameter_of_a_query() => Says("filter groupKey InvoiceGroupKey optional").ShouldBeTrue();
     [Fact] void should_never_name_the_wrapper_a_value_may_be_absent_behind() => Says("Nullable").ShouldBeFalse();
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

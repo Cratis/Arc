@@ -18,14 +18,14 @@ public class and_the_document_has_authoring_binding_errors : given.a_printed_doc
         authoringOnlyConstructs: true);
 
     [Fact] void should_compile() => Assert.True(Verified.Compiles, string.Join(Environment.NewLine, Verified.Errors.Select(diagnostic => diagnostic.Message)));
-    [Fact] void should_have_only_authoring_admission_errors() => Verified.UnexpectedBindingErrors(false).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
-    [Fact] void should_accept_authoring_admission_errors_when_enabled() => Verified.UnexpectedBindingErrors(true).ShouldBeEmpty();
+    [Fact] void should_have_admission_errors() => Verified.BindingDiagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual(["PLAY0268"]);
+    [Fact] void should_accept_admission_errors_when_enabled() => Verified.UnexpectedBindingErrors().ShouldBeEmpty();
     [Fact] void should_report_no_binding_defect() => Result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);
 
     [Fact]
-    void should_report_authoring_admission_errors_in_default_mode()
+    void should_accept_admission_errors_in_default_mode()
     {
         Generate(Verified.Source);
-        Result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldEqual(1);
+        Result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);
     }
 }

@@ -57,7 +57,8 @@ foreach (var group in generated.Diagnostics.GroupBy(_ => _.Code).OrderBy(_ => _.
     Console.WriteLine($"  {group.Key} x{group.Count()}");
 }
 
-var errors = generated.Diagnostics.Where(_ => _.Severity == ScreenplayDiagnosticSeverity.Error).ToList();
+// SP0056 is non-fatal for consumers, but any occurrence is a generator regression in this CI gate.
+var errors = generated.Diagnostics.Where(_ => _.Severity == ScreenplayDiagnosticSeverity.Error || _.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ToList();
 foreach (var error in errors)
 {
     Console.WriteLine($"  generation error {error.Code}: {error.Message}");
@@ -81,14 +82,7 @@ if (rejected.Count > 0)
     return 1;
 }
 
-if (errors.Count > 0)
-{
-    Console.WriteLine($"Generation reported {errors.Count} error(s)");
-
-    return 1;
-}
-
-var bindingErrors = compiled.UnexpectedBindingErrors(authoringOnlyConstructs);
+var bindingErrors = compiled.UnexpectedBindingErrors();
 foreach (var diagnostic in compiled.BindingDiagnostics)
 {
     Console.WriteLine($"  binding {diagnostic.Severity} {diagnostic.Code} in '{output}' on line {diagnostic.Location.Line}, column {diagnostic.Location.Column}: {diagnostic.Message}");
@@ -97,6 +91,13 @@ foreach (var diagnostic in compiled.BindingDiagnostics)
 if (bindingErrors.Count > 0)
 {
     Console.WriteLine($"The generated document did not bind clean - {bindingErrors.Count} unexpected error(s)");
+
+    return 1;
+}
+
+if (errors.Count > 0)
+{
+    Console.WriteLine($"Generation reported {errors.Count} error(s)");
 
     return 1;
 }

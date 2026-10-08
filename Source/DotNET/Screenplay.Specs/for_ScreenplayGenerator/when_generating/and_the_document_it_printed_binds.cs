@@ -16,6 +16,6 @@ public class and_the_document_it_printed_binds : given.a_printed_document
         """);
 
     [Fact] void should_compile() => Verified.Compiles.ShouldBeTrue();
-    [Fact] void should_bind_without_errors() => Verified.UnexpectedBindingErrors(false).ShouldBeEmpty();
+    [Fact] void should_bind_without_errors() => Verified.UnexpectedBindingErrors().ShouldBeEmpty();
     [Fact] void should_report_no_binding_defect() => Result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);
 }
