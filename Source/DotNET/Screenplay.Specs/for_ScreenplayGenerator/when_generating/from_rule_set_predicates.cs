@@ -9,7 +9,9 @@ public class from_rule_set_predicates : a_generated_document
 {
     [Theory]
     [InlineData("\"draft\"", false)]
-    [InlineData("\"default,draft\"", false)]
+    [InlineData("\"default,draft\"", true)]
+    [InlineData("\"draft; Default\"", true)]
+    [InlineData("\" default \"", true)]
     [InlineData("GetRuleSetName()", false)]
     [InlineData("\"default\"", true)]
     [InlineData("\"DEFAULT\"", true)]

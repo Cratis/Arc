@@ -25,7 +25,7 @@ internal static class ValidationConditions
     /// <returns>The conditional scope, or <see langword="null"/> for an unconditional scope.</returns>
     internal static string? ScopeOf(InvocationChain chain, SemanticModel semanticModel)
     {
-        if (PrecedingExit(chain.Root) is { } exit)
+        if (ValidationExits.Preceding(chain.Root, semanticModel) is { } exit)
         {
             return $"a preceding early exit '{exit}'";
         }
@@ -49,22 +49,6 @@ internal static class ValidationConditions
         return null;
     }
 
-    static SyntaxNode? PrecedingExit(SyntaxNode root)
-    {
-        for (var node = root; node is not (null or BaseMethodDeclarationSyntax or LocalFunctionStatementSyntax); node = node.Parent)
-        {
-            if (node.Parent is BlockSyntax block && block.Statements.TakeWhile(statement => statement != node)
-                .SelectMany(statement => statement.DescendantNodesAndSelf(descendIntoChildren: child =>
-                    child is not (AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax)))
-                .FirstOrDefault(statement => statement is ReturnStatementSyntax or ThrowStatementSyntax or ThrowExpressionSyntax or GotoStatementSyntax) is { } exit)
-            {
-                return exit;
-            }
-        }
-
-        return null;
-    }
-
     static string? ConditionalBlock(InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
         var name = invocation.Expression is IdentifierNameSyntax identifier
@@ -75,7 +59,8 @@ internal static class ValidationConditions
                 invocation.ArgumentList.Arguments.FirstOrDefault(argument => argument.NameColon is null);
             var value = argument is null ? default : semanticModel.GetConstantValue(argument.Expression);
 
-            return value is { HasValue: true, Value: string ruleSet } && string.Equals(ruleSet, "default", StringComparison.OrdinalIgnoreCase)
+            return value is { HasValue: true, Value: string ruleSet } &&
+                ruleSet.Split(',', ';').Any(name => string.Equals(name.Trim(), "default", StringComparison.OrdinalIgnoreCase))
                 ? null : $"RuleSet({argument?.Expression})";
         }
 

@@ -84,8 +84,7 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
 
         var preceding = 0;
         var scope = ValidationConditions.ScopeOf(chain, semanticModel);
-        var conditional = scope is not null || chain.Calls.Any(call =>
-            _conditions.Contains(InvocationChain.NameOf(call)) || InvocationChain.NameOf(call) == "Otherwise" || InvocationChain.NameOf(call) == "DependentRules");
+        var conditional = scope is not null || chain.Calls.Any(call => _conditions.Contains(InvocationChain.NameOf(call)));
 
         foreach (var call in chain.Calls)
         {
