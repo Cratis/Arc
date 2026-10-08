@@ -54,7 +54,7 @@ public class a_specification_whose_steps_cannot_be_read : Specification
 
             async Task Because() => _result = await _scenario.Execute(_command);
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
 
         public class and_what_it_starts_from_depends_on_a_condition
@@ -74,7 +74,7 @@ public class a_specification_whose_steps_cannot_be_read : Specification
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor("Mary Shelley"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
 
         public class and_nothing_it_expects_has_a_place_in_the_language

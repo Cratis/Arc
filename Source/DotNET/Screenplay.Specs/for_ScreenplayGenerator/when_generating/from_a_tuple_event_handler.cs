@@ -22,10 +22,10 @@ public class from_a_tuple_event_handler : a_generated_document
         }
         """));
 
-    [Fact] void should_keep_the_event_standalone() => Result.Source.ShouldNotContain("produces event AuthorRegistered");
-    [Fact] void should_not_retarget_the_tuple() => Result.Source.ShouldNotContain("for id");
-    [Fact] void should_not_mark_the_context_identifier() => Result.Source.ShouldNotContain(" identifier");
-    [Fact] void should_retain_the_existing_tuple_diagnostic() => Result.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldEqual(1);
-    [Fact] void should_report_the_unrepresented_destination() => Result.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.UnrepresentableProductionDestination).ShouldEqual(1);
+    [Fact] void should_inline_the_returned_event() => Result.Source.ShouldContain("produces event AuthorRegistered");
+    [Fact] void should_use_the_command_context_not_the_raw_guid_response() => Result.Source.ShouldContain("for id");
+    [Fact] void should_mark_the_context_identifier() => Result.Source.ShouldContain(" identifier");
+    [Fact] void should_not_report_an_unproven_tuple_identity() => Result.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldEqual(0);
+    [Fact] void should_not_report_an_unrepresented_destination() => Result.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.UnrepresentableProductionDestination).ShouldEqual(0);
     [Fact] void should_compile_round_trip_and_bind() => AssertDocument();
 }
