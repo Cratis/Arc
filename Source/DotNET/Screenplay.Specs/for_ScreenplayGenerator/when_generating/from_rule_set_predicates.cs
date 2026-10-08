@@ -9,7 +9,9 @@ public class from_rule_set_predicates : a_generated_document
 {
     [Theory]
     [InlineData("\"draft\"", false)]
-    [InlineData("\"default,draft\"", false)]
+    [InlineData("\"default,draft\"", true)]
+    [InlineData("\"draft; Default\"", true)]
+    [InlineData("\" default \"", true)]
     [InlineData("GetRuleSetName()", false)]
     [InlineData("\"default\"", true)]
     [InlineData("\"DEFAULT\"", true)]
@@ -41,7 +43,7 @@ public class from_rule_set_predicates : a_generated_document
                 static bool IsKnownName(string name) => name == "Apollo";
             }
             """));
-        Result.Source.ShouldContain("name not empty");
+        Result.Source.Contains("name not empty", StringComparison.Ordinal).ShouldEqual(retained);
         Result.Source.Contains("rule IsKnownName", StringComparison.Ordinal).ShouldEqual(retained);
         Result.Source.Contains("message \"Use a known name\"", StringComparison.Ordinal).ShouldEqual(retained);
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableValidationRule &&
