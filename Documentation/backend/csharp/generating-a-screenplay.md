@@ -48,7 +48,7 @@ Warning SP0019: The query 'Raw' returns 'IActionResult', which says how the resu
 transported rather than what it is, so the query was left out (Library.Messaging.Feed)
 ```
 
-Diagnostics come in three severities. **Information** means something is worth knowing but the document is complete. **Warning** means something was left out. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
+Diagnostics come in three severities. **Information** describes a limitation without failing generation. **Warning** means something was left out or standalone generation found an unexpected semantic binding error (`SP0056`). Embedded generation reports `SP0056` as Information so a generator limitation cannot break your application's build. **Error** means the document should not be trusted at all — either because the generator produced something the language rejects, or because nothing at all was recovered from source the compiler accepted.
 
 ## What the generator expects of its host
 
@@ -173,6 +173,8 @@ projection Book => Book
 
 The declaration states the shape and nothing else. No property is marked `identifier`: the executable model identifies an instance through the read model's keyed query, so a read model with a `by` query answering with one instance is identifiable, and one without such a query is declared without claiming an identity it does not have.
 
+A query's first required caller parameter becomes `by` only when its emitted name exactly matches an emitted read-model property name, including case. Otherwise it remains a `filter`: it narrows the result without claiming a key property the read model does not hold. For example, `GetById(string id)` returning a model with only a `Title` property emits `filter id String`, not `by id String`. Filtered queries are valid authoring syntax but are not yet executable.
+
 A document refers to a read model by its simple name, so each read model is declared exactly once. It goes in the first slice, in namespace order, that matches the earliest of these:
 
 1. The slice declaring a keyed query onto it.
@@ -216,7 +218,7 @@ These documents still compile and round-trip, but **there is no executable model
 
 ## The generator checks its own output
 
-Every diagnostic above names something about _your application_ — a construct the language cannot hold, source that did not compile, projects that share no directory. There is one that names a defect in the generator instead.
+Most diagnostics name something about _your application_ — a construct the language cannot hold, source that did not compile, projects that share no directory. `SP0034` and `SP0056` name defects in the generated document instead.
 
 After the document is written, the generator hands it straight back to the Screenplay compiler. If the compiler rejects it, `SP0034` is reported as an error — because a `.play` that does not compile is output nobody can use, and there is no way of writing an application that avoids it. This is not a mode you turn on: it runs on every generation, since the only way a rejected document is ever found is by reading each one back.
 
@@ -227,9 +229,19 @@ on line 6. That is the generator being wrong rather than anything the source dec
 and the document is returned as it stands so the line can be read (Library)
 ```
 
+A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` alone does **not** mean an expected limitation: Screenplay also uses it for malformed bindings, including incompatible condition operands. The generator accepts only the pinned binder's known admission messages:
+
+- In both modes: legacy handler attachments; read models without one unambiguous keyed query; queries outside the optional, caller-keyed snapshot subset (list, required, observable, filtered, scoped, or performer-backed queries); concept compliance attributes whose execution needs portable data-subject semantics.
+- With authoring-only constructs enabled: the explicit refusal of operations and systems, or event sources, streams, and routes.
+- Documented legacy read and concurrency messages (`PLAY0271`) remain accepted. Informational diagnostics do not produce `SP0056`.
+
+The classifier matches the complete reason after a declaration name, or the complete authoring-feature refusal message. Unknown or changed messages fail closed. Operand/type mismatches, undeclared operands, ambiguous references across slices, and invalid parent keys produce `SP0056` even when Screenplay reports them as `PLAY0268`.
+
+Standalone generation reports `SP0056` as **Warning**. Embedded generation compiles every scoped document independently, but binds only the final assembly/root document that holds the whole application. Scoped documents contain subsets of that document and symbolic imports the executable binder does not admit; they are compiled but semantically verified through the whole-application document, not bound in isolation. Embedded generation reports `SP0056` as **Information**, so MSBuild warnings-as-errors cannot break a consumer build because of a generator limitation. Arc's end-to-end CI gate takes the stricter responsibility: it fails on **any `SP0056`, regardless of severity**, or any unexpected binding error, and runs all three sample applications with authoring-only constructs both disabled and enabled. Accepting an admission limitation never exempts unresolved references, type mismatches, or other binding defects.
+
 The document is still written out, so you can open it at the reported line and see what happened. If you hit this, it is a bug worth [reporting](https://github.com/Cratis/Arc/issues) — include the line, and the C# declaration it came from.
 
-Source that did not compile (`SP0024`) suppresses `SP0034` **when it is reported as an error** — a model recovered from symbols the compiler never accepted describes an application that does not exist, so a poor document made from it is a consequence of the broken build rather than a second, separate defect. Fix the build and generate again.
+Source that did not compile (`SP0024`) suppresses `SP0034` and `SP0056` **when it is reported as an error** — a model recovered from symbols the compiler never accepted describes an application that does not exist, so a poor document made from it is a consequence of the broken build rather than a second, separate defect. Fix the build and generate again.
 
 As a warning it suppresses nothing. That severity says the model stands, and a document built from a model that stands is exactly what the check exists for — suppressing it there would hand back a `.play` the language rejects with nothing wrong reported.
 
@@ -404,6 +416,7 @@ These details can remain outside the document because the language has no counte
 | Event-source definition routes | Source and stream syntax is authoring-only. `SP0044` is Information when the option is disabled and Warning when it is enabled but no unambiguous readable route can be stated. Existing concurrency dimensions are retained. |
 | Unreadable source or stream routes | Routes are authoring-only. Computed stream ids or conflicting source and stream declarations cannot be stated without guessing. Information diagnostic `SP0054`. |
 | Unreadable reads or provisioning | Reads and requirements are authoring-only. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`. |
+| Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.
 

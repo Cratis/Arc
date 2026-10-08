@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
@@ -14,7 +15,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Queries;
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// A query returns one instance or many, however the signature dresses that up - awaited, streamed, observed or
-/// queryable. The first parameter that has to be given identifies the instance; everything else narrows the result.
+/// queryable. The first required parameter identifies an instance only when its emitted name matches a property
+/// of what the query returns; otherwise it narrows the result without claiming a key the read model does not hold.
 /// </remarks>
 public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
 {
@@ -28,6 +30,8 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         WellKnownTypeNames.Paging,
         WellKnownTypeNames.Sorting
     ];
+
+    readonly ScreenplayNaming _naming = new();
 
     /// <summary>
     /// Determines whether a type is a model-bound read model.
@@ -115,12 +119,18 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
 
         var parameters = method.Parameters.Where(IsInput).ToList();
         var required = parameters.Find(_ => !_.HasExplicitDefaultValue);
+        var collection = false;
+        var returned = QueryReturnTypes.Unwrap(method.ReturnType, ref collection);
+        var key = required is not null && returned.DeclaredProperties().Any(property =>
+            string.Equals(_naming.ToPropertyName(property.Name), _naming.ToPropertyName(required.Name), StringComparison.Ordinal))
+            ? required
+            : null;
 
         return new(
             method.Name,
             returnType,
-            required is null ? null : ToParameter(required),
-            [.. parameters.Where(_ => !SymbolEqualityComparer.Default.Equals(_, required)).Select(ToParameter)],
+            key is null ? null : ToParameter(key),
+            [.. parameters.Where(_ => !SymbolEqualityComparer.Default.Equals(_, key)).Select(ToParameter)],
             AuthorizationReader.Read(method, declaring),
             QueryReturnTypes.IsObservable(method.ReturnType))
         {

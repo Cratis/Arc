@@ -18,6 +18,11 @@ public record ScreenplayVerification(
     IReadOnlyList<Diagnostic> Diagnostics)
 {
     /// <summary>
+    /// Gets the diagnostics from compiling and binding the generated document to an executable semantic model.
+    /// </summary>
+    public IReadOnlyList<Diagnostic> BindingDiagnostics { get; init; } = [];
+
+    /// <summary>
     /// Gets everything the Screenplay compiler reported as an error.
     /// </summary>
     public IReadOnlyList<Diagnostic> Errors => [.. Diagnostics.Where(_ => _.Severity == DiagnosticSeverity.Error)];
@@ -26,4 +31,14 @@ public record ScreenplayVerification(
     /// Gets a value indicating whether the printed text compiles.
     /// </summary>
     public bool Compiles => Errors.Count == 0;
+
+    /// <summary>
+    /// Gets unexpected semantic binding errors in either generation mode.
+    /// </summary>
+    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
+    /// <returns>Every binding error except the known admission and legacy read-consistency messages.</returns>
+    public IReadOnlyList<Diagnostic> UnexpectedBindingErrors(bool authoringOnlyConstructs = false) =>
+        [.. BindingDiagnostics.Where(diagnostic =>
+            diagnostic.Severity == DiagnosticSeverity.Error &&
+            !ExpectedBindingDiagnostics.IsExpected(diagnostic, authoringOnlyConstructs))];
 }

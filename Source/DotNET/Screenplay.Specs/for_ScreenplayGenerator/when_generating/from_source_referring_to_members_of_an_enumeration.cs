@@ -111,6 +111,6 @@ public class from_source_referring_to_members_of_an_enumeration : Specification
     [Fact] void should_never_refer_to_a_member_by_the_number_behind_it() => Lines().ShouldNotContain("role = 2");
     [Fact] void should_never_compare_against_the_number_behind_a_member() => Lines().ShouldNotContain("produces when role == 2");
     [Fact] void should_leave_a_number_belonging_to_no_enumeration_as_a_number() => Lines().ShouldContain("attempt = 6");
-    [Fact] void should_report_nothing_as_unmappable() => _result.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_no_defects() => _result.Diagnostics.ShouldBeEmpty();
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

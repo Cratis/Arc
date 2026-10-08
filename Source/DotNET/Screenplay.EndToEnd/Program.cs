@@ -3,20 +3,24 @@
 
 using Cratis.Arc.Screenplay;
 using Cratis.Arc.Screenplay.EndToEnd;
-using Cratis.Screenplay;
+using Cratis.Arc.Screenplay.Verification;
 using Cratis.Screenplay.Diagnostics;
 
-if (args.Length < 2)
+const string AuthoringFlag = "--authoring-only-constructs";
+var authoringOnlyConstructs = args.Contains(AuthoringFlag, StringComparer.Ordinal);
+var positional = args.Where(arg => arg != AuthoringFlag).ToArray();
+
+if (positional.Length < 2)
 {
     Console.WriteLine("Usage:");
-    Console.WriteLine("  Cratis.Arc.Screenplay.EndToEnd <project-or-solution> <output-file> [expectations-file]");
+    Console.WriteLine("  Cratis.Arc.Screenplay.EndToEnd <project-or-solution> <output-file> [expectations-file] [--authoring-only-constructs]");
 
     return 2;
 }
 
-var project = Path.GetFullPath(args[0]);
-var output = Path.GetFullPath(args[1]);
-var expected = args.Length > 2 ? Path.GetFullPath(args[2]) : null;
+var project = Path.GetFullPath(positional[0]);
+var output = Path.GetFullPath(positional[1]);
+var expected = positional.Length > 2 ? Path.GetFullPath(positional[2]) : null;
 
 Console.WriteLine($"Generating the Screenplay document of '{project}'");
 
@@ -41,7 +45,7 @@ foreach (var compilation in compilations)
     Console.WriteLine($"  project: {compilation.AssemblyName}");
 }
 
-var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions { Domain = loaded.Name });
+var generated = new ScreenplayGenerator().Generate(compilations, new ScreenplayOptions { Domain = loaded.Name, AuthoringOnlyConstructs = authoringOnlyConstructs });
 
 Directory.CreateDirectory(Path.GetDirectoryName(output)!);
 await File.WriteAllTextAsync(output, generated.Source);
@@ -53,13 +57,14 @@ foreach (var group in generated.Diagnostics.GroupBy(_ => _.Code).OrderBy(_ => _.
     Console.WriteLine($"  {group.Key} x{group.Count()}");
 }
 
-var errors = generated.Diagnostics.Where(_ => _.Severity == ScreenplayDiagnosticSeverity.Error).ToList();
+// SP0056 is non-fatal for consumers, but any occurrence is a generator regression in this CI gate.
+var errors = generated.Diagnostics.Where(_ => _.Severity == ScreenplayDiagnosticSeverity.Error || _.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ToList();
 foreach (var error in errors)
 {
     Console.WriteLine($"  generation error {error.Code}: {error.Message}");
 }
 
-var compiled = new ScreenplayCompiler().Compile(generated.Source);
+var compiled = new ScreenplayVerifier().Verify(generated.Source);
 var rejected = compiled.Diagnostics.Where(_ => _.Severity is DiagnosticSeverity.Warning or DiagnosticSeverity.Error).ToList();
 foreach (var diagnostic in compiled.Diagnostics)
 {
@@ -77,6 +82,19 @@ if (rejected.Count > 0)
     return 1;
 }
 
+var bindingErrors = compiled.UnexpectedBindingErrors(authoringOnlyConstructs);
+foreach (var diagnostic in compiled.BindingDiagnostics)
+{
+    Console.WriteLine($"  binding {diagnostic.Severity} {diagnostic.Code} in '{output}' on line {diagnostic.Location.Line}, column {diagnostic.Location.Column}: {diagnostic.Message}");
+}
+
+if (bindingErrors.Count > 0)
+{
+    Console.WriteLine($"The generated document did not bind clean - {bindingErrors.Count} unexpected error(s)");
+
+    return 1;
+}
+
 if (errors.Count > 0)
 {
     Console.WriteLine($"Generation reported {errors.Count} error(s)");
@@ -84,7 +102,7 @@ if (errors.Count > 0)
     return 1;
 }
 
-Console.WriteLine("The generated document reads back clean");
+Console.WriteLine("The generated document compiles and has no unexpected binding errors");
 
 // Reading back clean proves the document is valid, not that it is true. A generator that quietly declined to read
 // something writes a smaller document that compiles just as well, so an application whose expectations are declared

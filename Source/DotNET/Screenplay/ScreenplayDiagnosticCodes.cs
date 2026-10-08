@@ -503,6 +503,11 @@ public static class ScreenplayDiagnosticCodes
     public const string UnreadableCommandProvisioning = "SP0055";
 
     /// <summary>
+    /// The generated document compiled but contains an unexpected semantic binding error.
+    /// </summary>
+    public const string DocumentDidNotBind = "SP0056";
+
+    /// <summary>
     /// A read model the document refers to is left undeclared, because no declaration could be written that says what
     /// the application holds.
     /// </summary>

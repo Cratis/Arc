@@ -56,6 +56,6 @@ public class from_the_source_of_a_whole_application : Specification
     [Fact] void should_declare_the_projection() => Says("projection Author").ShouldBeTrue();
     [Fact] void should_declare_the_reactor() => Says("reaction ReservationNotifier").ShouldBeTrue();
     [Fact] void should_read_the_reactor_from_the_file_it_lives_in() => Says("Lending/Notifications/Notifications.cs").ShouldBeTrue();
-    [Fact] void should_report_nothing_as_unmappable() => _result.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_report_no_defects() => _result.Diagnostics.ShouldBeEmpty();
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }
