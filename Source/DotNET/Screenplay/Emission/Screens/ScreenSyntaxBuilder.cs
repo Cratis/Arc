@@ -15,10 +15,11 @@ namespace Cratis.Arc.Screenplay.Emission.Screens;
 /// <param name="naming">The <see cref="IScreenplayNaming"/> used for name conversion.</param>
 /// <param name="types">The <see cref="TypeReferenceConverter"/> used for the type each binding reads.</param>
 /// <remarks>
-/// A screen is written with its <c>file</c> reference and its <c>data</c> directives together. The grammar allows a
-/// screen to carry both, and both are worth saying - the bindings state what the screen reads, and the file stays
-/// the honest pointer to the implementation that no directive replaces. Nothing else is written, because nothing
-/// else is known: the widgets of a screen live in JSX, which this generator does not read.
+/// A screen is written with its <c>file</c> reference and its directives together. The grammar allows a screen to
+/// carry both, and both are worth saying - the directives state what the screen reads and shows, and the file stays
+/// the honest pointer to the implementation that no directive replaces. The <c>data</c> bindings come first, then the
+/// titles, tables and actions read from the Cratis Components the screen uses. Nothing else is written, because
+/// nothing else is known.
 /// </remarks>
 public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverter types)
 {
@@ -42,7 +43,15 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
         var name = naming.ToDeclarationName(screen.Name);
         var path = naming.ToFilePath(screen.FilePath) ?? Conventional(@namespace, name);
 
-        return new(name, new FileReferenceSyntax(path, SourceLocation.Start), [.. Bindings(screen)], SourceLocation.Start);
+        ScreenDirectiveSyntax[] directives =
+        [
+            .. Bindings(screen),
+            .. screen.Titles.Select(_ => new ScreenTitleSyntax(_, SourceLocation.Start)),
+            .. screen.Tables.Select(Table),
+            .. screen.Actions.Select(_ => new ScreenActionSyntax(naming.ToDeclarationName(_), null, null, SourceLocation.Start))
+        ];
+
+        return new(name, new FileReferenceSyntax(path, SourceLocation.Start), directives, SourceLocation.Start);
     }
 
     /// <summary>
@@ -80,5 +89,21 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             types.Convert(data.Type) with { IsOptional = false },
             naming.ToDeclarationName(data.Query),
             data.By is null ? null : naming.ToPropertyName(data.By),
+            SourceLocation.Start);
+
+    /// <summary>
+    /// Builds one <c>table</c> directive.
+    /// </summary>
+    /// <param name="table">The table to build for.</param>
+    /// <returns>The <see cref="ScreenTableSyntax"/>.</returns>
+    /// <remarks>
+    /// The table is named after the read model its rows are, under the name the document declares it by. A column is
+    /// written with the property exactly as the component names it, because that is the property the component shows.
+    /// </remarks>
+    ScreenTableSyntax Table(ScreenTableModel table) =>
+        new(
+            types.Convert(new TypeReferenceModel(table.ReadModel, false, false)).Name,
+            [.. table.Columns.Select(_ => new ScreenColumnSyntax(_.Property, _.Label, SourceLocation.Start))],
+            null,
             SourceLocation.Start);
 }

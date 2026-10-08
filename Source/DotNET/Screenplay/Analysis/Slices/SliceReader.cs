@@ -63,7 +63,7 @@ public class SliceReader(
             reactors,
             [.. content.Constraints.OrderBy(_ => _.Name, StringComparer.Ordinal)])
         {
-            Screens = [.. screens.Read(@namespace, types, queries)]
+            Screens = [.. screens.Read(@namespace, types, queries, commands)]
         };
     }
 

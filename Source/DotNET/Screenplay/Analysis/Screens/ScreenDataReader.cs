@@ -6,10 +6,9 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.Analysis.Screens;
 
 /// <summary>
-/// Reads which of a slice's queries a screen binds, and says plainly what it does not read.
+/// Reads which of a slice's queries a screen binds.
 /// </summary>
 /// <param name="files">The <see cref="IUserInterfaceFiles"/> the text of a component is asked of.</param>
-/// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything not inferred is reported to.</param>
 /// <param name="elsewhere">The <see cref="CrossSliceQueries"/> a name matching no query of the slice is held by.</param>
 /// <remarks>
 /// Arc generates a proxy per query and a component imports it by name, so an import is a name the model can be held
@@ -28,12 +27,11 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <see cref="ViewModelImports"/> for how far that is followed.
 /// </para>
 /// <para>
-/// Every screen also reports what stays out. The rest of the declarative form is JSX structure, and the cost of
-/// guessing it wrong is a document that states something about the application that is not so - which is worse than
-/// a document that says less. Saying so per screen is what turns that limit from a silence into an answer.
+/// The rest of the declarative form - titles, tables, columns and actions - is read by
+/// <see cref="ScreenStructureReader"/>, which also reports what of it stays unread.
 /// </para>
 /// </remarks>
-public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics diagnostics, CrossSliceQueries elsewhere)
+public class ScreenDataReader(IUserInterfaceFiles files, CrossSliceQueries elsewhere)
 {
     /// <summary>
     /// Reads the bindings of one screen.
@@ -53,7 +51,6 @@ public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics d
         var imports = written.Concat(ViewModelImports.Of(path, written, files)).Distinct().ToList();
         var imported = new HashSet<string>(imports.Select(_ => _.Name), StringComparer.Ordinal);
 
-        ReportUninferredStructure(@namespace, name);
         elsewhere.Record(@namespace, name, path, imports);
 
         return
@@ -64,15 +61,4 @@ public class ScreenDataReader(IUserInterfaceFiles files, ScreenplayDiagnostics d
                 .Select(_ => new ScreenDataModel(_.Name, _.ReturnType, _.By?.Name))
         ];
     }
-
-    /// <summary>
-    /// Reports the part of a screen's body that is never inferred.
-    /// </summary>
-    /// <param name="namespace">The namespace of the slice the screen belongs to.</param>
-    /// <param name="name">The name of the screen.</param>
-    void ReportUninferredStructure(string @namespace, string name) =>
-        diagnostics.Information(
-            ScreenplayDiagnosticCodes.ScreenStructureNotInferred,
-            $"The screen '{name}' is written in TypeScript and JSX, so beyond the file realizing it and the queries it binds - its title, sections, tables, summaries, actions and navigation - nothing about it is inferred",
-            @namespace);
 }

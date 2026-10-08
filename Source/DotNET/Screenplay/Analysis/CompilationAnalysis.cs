@@ -72,7 +72,8 @@ public class CompilationAnalysis
             whole.Files,
             paths,
             new(diagnostics),
-            new(whole.Files, diagnostics, whole.Elsewhere),
+            new(whole.Files, whole.Elsewhere),
+            new(whole.Files, diagnostics),
             whole.Elsewhere);
 
         var recovered = new RecoveredArtifacts();
