@@ -47,6 +47,11 @@ public class SpecificationDraft
     public bool AssertsResponse { get; set; }
 
     /// <summary>
+    /// Gets or sets the response every response assertion states with concrete values, or <see langword="null"/>.
+    /// </summary>
+    public SpecificationReturnModel? Returns { get; set; }
+
+    /// <summary>
     /// Gets why the scenario could not be read, or <see langword="null"/> while all of it still can be.
     /// </summary>
     public string? Unreadable { get; private set; }

@@ -29,7 +29,15 @@ public record SpecificationModel(
     IEnumerable<string> Errors)
 {
     /// <summary>
-    /// Gets whether the source asserts a command response that is not yet represented.
+    /// Gets whether the source asserts the command response.
     /// </summary>
+    /// <remarks>
+    /// When <see cref="Returns"/> is <see langword="null"/>, the assertion was not recovered.
+    /// </remarks>
     public bool AssertsResponse { get; init; }
+
+    /// <summary>
+    /// Gets the command response the source asserts with concrete values, or <see langword="null"/> when none was recovered.
+    /// </summary>
+    public SpecificationReturnModel? Returns { get; init; }
 }

@@ -25,6 +25,11 @@ public record CommandAuthoringModel
     /// <summary>Gets the fields of an unnamed record response.</summary>
     public IReadOnlyList<PropertyMappingModel> ResponseFields { get; init; } = [];
 
+    /// <summary>
+    /// Gets the fully qualified type of the recovered response, used to prove that a scenario observed this response.
+    /// </summary>
+    public string? ResponseType { get; init; }
+
     /// <summary>Gets the operations in returned order.</summary>
     public IReadOnlyList<OperationModel> Operations { get; init; } = [];
 

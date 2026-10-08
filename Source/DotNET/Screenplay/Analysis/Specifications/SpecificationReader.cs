@@ -114,10 +114,10 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
                 ? "the event it appends is put together somewhere this cannot read"
                 : "the command it issues is put together somewhere this cannot read");
         }
-        else if (draft.Then.Count == 0 && draft.Errors.Count == 0)
+        else if (draft.Then.Count == 0 && draft.Errors.Count == 0 && draft.Returns is null)
         {
             draft.CannotRead(draft.AssertsResponse
-                ? "it asserts only CommandResult.Response, but response expectations are not yet recovered"
+                ? "it asserts only CommandResult.Response, and not as an unconditional equality with concrete values the document can state as then returns"
                 : "it expects no event and no rejection, and those are the outcomes the language holds");
         }
 
@@ -133,7 +133,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse };
+        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse, Returns = draft.Returns };
         SpecificationEvidence.Register(
             specification,
             new(

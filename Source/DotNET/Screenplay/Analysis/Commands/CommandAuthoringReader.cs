@@ -211,7 +211,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         {
             var generatedIdentifier = generated.Exists(property => property.Name == source) && IsEventSourceIdentity(responseType) &&
                 !AggregateRootBehaviors.ReachedFrom(body, model).Any();
-            return result with { Response = source, Identifier = generatedIdentifier ? source : null };
+            return result with { Response = source, Identifier = generatedIdentifier ? source : null, ResponseType = ResponseTypes.NameOf(responseType) };
         }
 
         if (response is BaseObjectCreationExpressionSyntax creation && model.GetTypeInfo(creation).Type is INamedTypeSymbol { IsRecord: true } record &&
@@ -219,7 +219,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             (response != returned || SymbolEqualityComparer.Default.Equals(record, ResponseValueType(handler.ReturnType))) &&
             ReadRecord(creation, record, model, command) is { } fields)
         {
-            return result with { ResponseFields = fields };
+            return result with { ResponseFields = fields, ResponseType = ResponseTypes.NameOf(record) };
         }
 
         Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The response is not a direct command property, generated UUID concept, or fully readable response record and was left in code", location);

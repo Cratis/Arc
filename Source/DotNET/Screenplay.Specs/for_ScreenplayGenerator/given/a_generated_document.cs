@@ -6,6 +6,7 @@ using Cratis.Arc.Screenplay.Emission;
 using Cratis.Arc.Screenplay.Verification;
 using Cratis.Screenplay;
 using Cratis.Screenplay.Semantics;
+using Cratis.Screenplay.Semantics.Execution;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
@@ -32,6 +33,17 @@ public class a_generated_document : Specification
         const string Key = "application";
         var document = SemanticSourceDocument.Create(catalog.ResolveDocument(Key), Key, "application.play", Result.Source);
         Bound = new SemanticModelCompiler().Compile("Library", SemanticDocumentSet.Create([document], catalog));
+    }
+
+    /// <summary>
+    /// Runs one generated specification through the Screenplay reference runner.
+    /// </summary>
+    /// <param name="name">The name of the specification.</param>
+    /// <returns>The <see cref="SemanticSpecificationRun"/>.</returns>
+    protected SemanticSpecificationRun Run(string name)
+    {
+        var plan = SemanticExecutionPlan.Compile(Bound.Value!.Model).Plan!;
+        return new SemanticSpecificationRunner().Run(plan, plan.Specifications.Values.Single(specification => specification.Name == name).Id);
     }
 
     protected void AssertDocument()
