@@ -57,7 +57,7 @@ public class a_specification_of_a_slice : Specification
 
             async Task Because() => await _scenario.Execute(new RegisterAuthor("Mary Shelley", 42));
 
-            [Fact] void should_register_the_author() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>("author");
+            [Fact] Task should_register_the_author() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == "Mary Shelley");
         }
         """;
 
