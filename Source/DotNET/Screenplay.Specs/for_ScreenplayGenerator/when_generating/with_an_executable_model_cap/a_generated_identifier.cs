@@ -28,6 +28,7 @@ public class a_generated_identifier : a_generated_document
     [Fact] void should_not_invent_a_destination() => Result.Source.ShouldNotContain("for authorId");
     [Fact] void should_remove_the_unused_generated_concept() => Result.Source.ShouldNotContain("concept AuthorId");
     [Fact] void should_report_the_cap_with_sp0052() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).Message.ShouldContain("MaximumExecutableModelVersion is capped at ESM v6.0");
+    [Fact] void should_not_report_the_capped_identity_as_unadmitted() => Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldBeEmpty();
     [Fact] void should_bind_and_round_trip() => AssertDocument();
     [Fact] void should_bind_below_v7() => SemanticVersion.V6.IsAtLeast(Bound.Value!.Model.SemanticVersion).ShouldBeTrue();
 }

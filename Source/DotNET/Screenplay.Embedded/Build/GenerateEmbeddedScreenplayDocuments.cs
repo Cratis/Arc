@@ -145,6 +145,19 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     /// <returns>True when every document was generated and written, false otherwise.</returns>
     bool Generate()
     {
+        SemanticVersion? maximumVersion = null;
+        if (!string.IsNullOrWhiteSpace(MaximumExecutableModelVersion))
+        {
+            if (!SemanticVersion.TryParse(MaximumExecutableModelVersion, out var parsed))
+            {
+                Log.LogError("CratisEmbeddedScreenplayMaximumExecutableModelVersion must be a supported executable model version in canonical major.minor form (for example '6.0'); received '{0}'.", MaximumExecutableModelVersion);
+
+                return false;
+            }
+
+            maximumVersion = parsed;
+        }
+
         var compilation = SourceCompilation.Create(
             AssemblyName,
             Sources.Select(_ => _.GetMetadata("FullPath")),
@@ -172,8 +185,7 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
         var generation = new EmbeddedDocumentGenerator().Generate(generated.Compilation, new(AssemblyName, RootNamespace)
         {
             AuthoringOnlyConstructs = AuthoringOnlyConstructs,
-            MaximumExecutableModelVersion = string.IsNullOrWhiteSpace(MaximumExecutableModelVersion)
-                ? null : SemanticVersion.Parse(MaximumExecutableModelVersion)
+            MaximumExecutableModelVersion = maximumVersion
         });
         foreach (var diagnostic in generation.Diagnostics)
         {

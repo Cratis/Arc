@@ -122,7 +122,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Reads = authoringOnlyConstructs ? authoring.Reads : [],
             Requirements = authoringOnlyConstructs ? authoring.Requirements : []
         };
-        if (authoring.Identifier is not null && retained.Identifier is null)
+        if (!capped && authoring.Identifier is not null && retained.Identifier is null)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult,
