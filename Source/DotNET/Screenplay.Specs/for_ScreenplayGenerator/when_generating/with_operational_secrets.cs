@@ -26,11 +26,75 @@ public class with_operational_secrets : a_generated_document
     [Theory]
     [InlineData("[Encrypted, NotAudited]")]
     [InlineData("[property: Encrypted, NotAudited]")]
-    public void should_read_positional_parameter_and_property_markings(string attributes)
+    public void should_not_promote_positional_parameter_and_property_markings_to_a_concept_contract(string attributes)
     {
         GenerateSecret(string.Empty, attributes, false);
 
-        Result.Source.ShouldContain("concept Secret : String @sensitive");
+        Result.Source.ShouldContain("concept Secret : String");
+        Result.Source.ShouldNotContain("@sensitive");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+        AssertCompiles();
+    }
+
+    [Fact]
+    public void should_not_promote_one_suppressed_command_to_a_concept_contract()
+    {
+        Generate((Analyzed.SlicePath, """
+            using Cratis.Arc.Commands.ModelBound;
+            using Cratis.Arc.Chronicle.Commands;
+            using Cratis.Chronicle.Events;
+            using Cratis.Chronicle.ProtectedValues;
+            using Cratis.Concepts;
+
+            namespace Library.Authors.Registration;
+
+            [Encrypted]
+            public record Secret(string Value) : ConceptAs<string>(Value);
+
+            [Command]
+            public record SetSecret([property: NotAudited] Secret Secret)
+            {
+                public SecretSet Handle() => new(Secret);
+            }
+
+            [Command]
+            public record ReplaceSecret(Secret Secret)
+            {
+                public SecretSet Handle() => new(Secret);
+            }
+
+            [EventType]
+            public record SecretSet(Secret Secret);
+            """));
+
+        Result.Source.ShouldNotContain("@sensitive");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+        AssertCompiles();
+    }
+
+    [Fact]
+    public void should_not_report_primitive_member_markings_as_partial_concepts()
+    {
+        Generate((Analyzed.SlicePath, """
+            using Cratis.Arc.Commands.ModelBound;
+            using Cratis.Arc.Chronicle.Commands;
+            using Cratis.Chronicle.Events;
+            using Cratis.Chronicle.ProtectedValues;
+
+            namespace Library.Authors.Registration;
+
+            [Command, NotAudited]
+            public record SetSecret([property: Encrypted, NotAudited] string Secret, string OldPassword)
+            {
+                public SecretSet Handle() => new(Secret);
+            }
+
+            [EventType]
+            public record SecretSet(string Secret);
+            """));
+
+        Result.Source.ShouldNotContain("@sensitive");
+        Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).ShouldBeEmpty();
         AssertCompiles();
     }
 

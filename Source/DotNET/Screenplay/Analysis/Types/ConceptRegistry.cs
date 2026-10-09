@@ -28,14 +28,15 @@ public class ConceptRegistry
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
-    readonly HashSet<string> _sensitive = new(StringComparer.Ordinal);
     readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the types with encryption or audit suppression alone.
     /// </summary>
-    public IEnumerable<string> PartialSecrets => _partialSecrets.Order(StringComparer.Ordinal);
+    public IEnumerable<string> PartialSecrets => _partialSecrets
+        .Where(name => !_concepts.TryGetValue(name, out var concept) || !concept.IsSensitive)
+        .Order(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type whose simple name a concept was already declared under.
@@ -51,7 +52,6 @@ public class ConceptRegistry
             .Select(_ => _ with
             {
                 IsPii = _.IsPii || _pii.Contains(_.Name),
-                IsSensitive = _.IsSensitive || _sensitive.Contains(_.Name),
                 Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : []
             })
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
@@ -114,21 +114,18 @@ public class ConceptRegistry
     public void MarkAsPii(ITypeSymbol type) => _pii.Add(UnderlyingTypes.Of(type).Name);
 
     /// <summary>
-    /// Records encryption and audit suppression from the same value declaration.
+    /// Records member markings that cannot establish a concept-wide secret contract.
     /// </summary>
     /// <param name="type">The type of the value.</param>
     /// <param name="encrypted">Whether the value is encrypted.</param>
     /// <param name="notAudited">Whether the value is withheld from auditing.</param>
     public void MarkSecret(ITypeSymbol type, bool encrypted, bool notAudited)
     {
-        var name = UnderlyingTypes.Of(type).Name;
-        if (encrypted && notAudited)
+        var carried = UnderlyingTypes.Of(type);
+        if ((encrypted || notAudited) &&
+            (carried.TypeKind == TypeKind.Enum || carried.FindBase(WellKnownTypeNames.ConceptAs) is not null))
         {
-            _sensitive.Add(name);
-        }
-        else if (encrypted || notAudited)
-        {
-            _partialSecrets.Add(name);
+            _partialSecrets.Add(carried.Name);
         }
     }
 
@@ -174,18 +171,20 @@ public class ConceptRegistry
     ConceptModel ToConcept(ITypeSymbol type, ITypeSymbol backing)
     {
         var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
-        MarkSecret(type, type.HasAttribute(WellKnownTypeNames.EncryptedAttribute), type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute));
+        var encrypted = type.HasAttribute(WellKnownTypeNames.EncryptedAttribute);
+        var notAudited = type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute);
+        MarkSecret(type, encrypted, notAudited);
 
         if (backing.TypeKind == TypeKind.Enum)
         {
-            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []);
+            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []) { IsSensitive = encrypted && notAudited };
         }
 
         var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
             ? primitive
             : ScreenplayPrimitive.String;
 
-        return new(type.Name, resolved, pii, [], []);
+        return new(type.Name, resolved, pii, [], []) { IsSensitive = encrypted && notAudited };
     }
 
     /// <summary>

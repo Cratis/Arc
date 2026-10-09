@@ -31,7 +31,7 @@ public static class TypesTheDocumentCannotName
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.PartialSecretMarking,
-                $"'{type}' carries only encryption or audit suppression; @sensitive requires both, so the partial marking was not mapped",
+                $"'{type}' has encryption or audit suppression markings that do not establish both on the concept itself; the partial or member-specific marking was not mapped to @sensitive",
                 location);
         }
 
