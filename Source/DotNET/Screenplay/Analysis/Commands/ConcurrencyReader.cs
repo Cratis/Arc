@@ -26,15 +26,57 @@ public static class ConcurrencyReader
     /// </summary>
     /// <param name="command">The type declaring the command.</param>
     /// <returns>The <see cref="ConcurrencyModel"/>, or <see langword="null"/> when the command declares none.</returns>
-    public static ConcurrencyModel? Read(INamedTypeSymbol command)
+    public static ConcurrencyModel? Read(INamedTypeSymbol command) => Read(command, null, null);
+
+    /// <summary>
+    /// Reads the declared scope and reports property-derived stream ids that cannot be emitted as fixed values.
+    /// </summary>
+    /// <param name="command">The command type.</param>
+    /// <param name="diagnostics">The optional diagnostic sink.</param>
+    /// <param name="location">The command's diagnostic location.</param>
+    /// <returns>The representable concurrency dimensions.</returns>
+    public static ConcurrencyModel? Read(INamedTypeSymbol command, ScreenplayDiagnostics? diagnostics, string? location)
     {
         var sourceType = Dimension(command, WellKnownTypeNames.EventSourceTypeAttribute);
         var streamType = Dimension(command, WellKnownTypeNames.EventStreamTypeAttribute);
         var streamId = Dimension(command, WellKnownTypeNames.EventStreamIdAttribute);
+        if (streamId is not null && IsTemplate(streamId))
+        {
+            diagnostics?.Information(
+                ScreenplayDiagnosticCodes.UnreadableCommandRoute,
+                "A template concurrency stream id is property-derived; its stream id mapping was left in code",
+                location ?? command.Name);
+            streamId = null;
+        }
 
         return sourceType is null && streamType is null && streamId is null
             ? null
             : new(false, sourceType, streamType, streamId, []);
+    }
+
+    /// <summary>
+    /// Determines whether a stream id contains an unescaped property placeholder.
+    /// </summary>
+    /// <param name="value">The attribute value.</param>
+    /// <returns>Whether it contains a property placeholder.</returns>
+    internal static bool IsTemplate(string value)
+    {
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] != '{')
+            {
+                continue;
+            }
+            if (index + 1 < value.Length && value[index + 1] == '{')
+            {
+                index++;
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     /// <summary>

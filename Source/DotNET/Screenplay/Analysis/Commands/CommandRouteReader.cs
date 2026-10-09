@@ -69,9 +69,13 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
             streamId = property.Name;
             streamIdType = types.Resolve(property.Type);
         }
-        else if (command.GetAttribute(WellKnownTypeNames.EventStreamIdAttribute)?.GetArgument(0) is string)
+        else if (command.GetAttribute(WellKnownTypeNames.EventStreamIdAttribute)?.GetArgument(0) is string streamIdValue)
         {
-            Report("A literal stream id attribute is not a property-backed route; its stream id was left in code", location);
+            Report(
+                ConcurrencyReader.IsTemplate(streamIdValue)
+                    ? "A template stream id is property-derived but has no portable route mapping; its stream id mapping was left in code"
+                    : "A literal stream id attribute is not a property-backed route; its stream id was left in code",
+                location);
             return null;
         }
 
