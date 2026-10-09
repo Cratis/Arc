@@ -180,7 +180,20 @@ public record GenerateReport(EventSourceId AccountId, string ReportingScopeId, D
 public record ReportGenerated(DateOnly Period);
 ```
 
-`{Name}` selects a readable public instance property. Concepts use their underlying value, enums use their name, `DateOnly` uses `yyyy-MM-dd`, and `DateTime` or `DateTimeOffset` uses round-trip `O` formatting. Other formattable values use invariant culture. `{{` and `}}` escape literal braces within a template. Unknown properties, null or blank parts, malformed braces, and a resolved id equal to `Default` or empty are refused. Constant values without placeholders keep their existing behavior.
+`{Name}` selects a readable public instance property. Each part is formatted as follows:
+
+| Part type | Format |
+| --- | --- |
+| Concept | Its underlying value, using the rules below |
+| `string` | Unchanged |
+| Enum | Its name |
+| `DateOnly` | `yyyy-MM-dd` |
+| `DateTime`, `DateTimeOffset`, `TimeOnly` | Round-trip `O`, preserving seconds and fractional ticks |
+| `TimeSpan` | Invariant `c` |
+| Other `IFormattable` values, including numbers and `Guid` | Default format with invariant culture |
+| Other values | `ToString()` |
+
+`{{` and `}}` escape literal braces within a template. Unknown properties, null or blank parts, malformed braces, and a resolved id equal to `Default` or empty are refused. Arc resolves template parts on first route use after authorization and validation, so a validator can reject a missing part without a template exception. Constant values and `ICanProvideEventStreamId` keep their existing behavior.
 
 `EventStreamIdTemplate.Resolve("{ReportingScopeId}:{Period}", command)` resolves a template outside the pipeline. `EventStreamIdTemplate.ResolveFor(command)` resolves the command's attribute or provider interface exactly as the pipeline does, and returns null when neither declares an id. Use the same function for a read or seed route instead of repeating the join. An attribute with a value and `ICanProvideEventStreamId` still raises `AmbiguousEventStreamId`.
 
