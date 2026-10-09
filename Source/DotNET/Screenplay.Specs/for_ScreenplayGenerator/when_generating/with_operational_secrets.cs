@@ -54,7 +54,7 @@ public class with_operational_secrets : a_generated_document
     [InlineData("[PII]")]
     public void should_withhold_compliance_annotations_from_stream_ids(string attributes)
     {
-        Generate(new ScreenplayOptions { AuthoringOnlyConstructs = true }, (Analyzed.SlicePath, $$"""
+        var source = $$"""
             using Cratis.Arc.Commands.ModelBound;
             using Cratis.Arc.Chronicle.Commands;
             using Cratis.Chronicle.Compliance.GDPR;
@@ -76,7 +76,8 @@ public class with_operational_secrets : a_generated_document
 
             [EventType]
             public record SecretSet(Secret Secret);
-            """));
+            """;
+        Generate(new ScreenplayOptions { AuthoringOnlyConstructs = true }, (Analyzed.SlicePath, source));
 
         Result.Source.ShouldContain("streamId Secret");
         Result.Source.ShouldContain("streamId = secret");
@@ -113,7 +114,7 @@ public class with_operational_secrets : a_generated_document
 
     void AssertCompiles()
     {
-        Result.Diagnostics.Where(diagnostic => diagnostic.Code is ScreenplayDiagnosticCodes.SourceDidNotCompile or ScreenplayDiagnosticCodes.DocumentDidNotCompile or ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeEmpty();
+        Result.Diagnostics.Where(diagnostic => string.Equals(diagnostic.Code, ScreenplayDiagnosticCodes.SourceDidNotCompile, StringComparison.Ordinal) || string.Equals(diagnostic.Code, ScreenplayDiagnosticCodes.DocumentDidNotCompile, StringComparison.Ordinal) || string.Equals(diagnostic.Code, ScreenplayDiagnosticCodes.DocumentDidNotBind, StringComparison.Ordinal)).ShouldBeEmpty();
         RoundTrip.Errors.ShouldBeEmpty();
         RoundTrip.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Warning).ShouldBeEmpty();
         RoundTrip.IsStable.ShouldBeTrue();
