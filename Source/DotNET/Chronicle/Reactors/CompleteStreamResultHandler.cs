@@ -29,7 +29,7 @@ public class CompleteStreamResultHandler : IReactorSideEffectHandler
         var completion = (CompleteStream)value;
         var streamType = completion.EventStreamType ?? reactorContext.EventContext.EventStreamType;
         var streamId = completion.EventStreamId ?? reactorContext.EventContext.EventStreamId;
-        if (streamType.IsAll && (streamId.IsDefault || streamId == EventStreamId.NotSet))
+        if (streamId.IsDefault || streamId == EventStreamId.NotSet)
         {
             return Failure("The default stream cannot be completed.");
         }

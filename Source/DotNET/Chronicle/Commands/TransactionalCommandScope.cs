@@ -204,7 +204,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
 
             if (result.IsSuccess && frame.Completions.Count > 0)
             {
-                if (observation.CompletionObserved || unitOfWork.TryGetLastCommittedEventSequenceNumber(out _))
+                // A sequence number reported by the unit is not commit evidence: Chronicle also reports one after
+                // rollback or an append that threw. Only this scope's observed successful commit authorizes completion.
+                if (observation.CompletionObserved && commitResult.IsSuccess)
                 {
                     await CompleteStreams(frame, result);
                 }
