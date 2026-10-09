@@ -18,7 +18,7 @@ public class with_operational_secrets : a_generated_document
     {
         GenerateSecret(attributes, string.Empty, false);
 
-        Result.Source.ShouldContain($"concept Secret String{(annotation.Length == 0 ? string.Empty : $" {annotation}")}");
+        Result.Source.ShouldContain($"concept Secret : String{(annotation.Length == 0 ? string.Empty : $" {annotation}")}");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).ShouldEqual(partial);
         AssertCompiles();
     }
@@ -30,7 +30,7 @@ public class with_operational_secrets : a_generated_document
     {
         GenerateSecret(string.Empty, attributes, false);
 
-        Result.Source.ShouldContain("concept Secret String @sensitive");
+        Result.Source.ShouldContain("concept Secret : String @sensitive");
         AssertCompiles();
     }
 
