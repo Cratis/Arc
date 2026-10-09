@@ -32,7 +32,7 @@ public static class AuthoringDeclarations
 
         var resolved = model with
         {
-            Slices = model.Slices.Select(slice => ResolveSlice(slice, systems, conflictingSources, readOwners, diagnostics)).ToList()
+            Slices = model.Slices.Select(slice => ResolveSlice(slice, systems, conflictingSources, readOwners, model.Concepts, diagnostics)).ToList()
         };
 
         return RemoveOrphans(model, resolved);
@@ -98,7 +98,7 @@ public static class AuthoringDeclarations
         _ => false
     };
 
-    static SliceModel ResolveSlice(SliceModel slice, HashSet<string> systems, HashSet<string> sources, Dictionary<string, string> readOwners, ScreenplayDiagnostics diagnostics)
+    static SliceModel ResolveSlice(SliceModel slice, HashSet<string> systems, HashSet<string> sources, Dictionary<string, string> readOwners, IEnumerable<ConceptModel> concepts, ScreenplayDiagnostics diagnostics)
     {
         var declared = slice.Events.Select(e => e.Name).Concat(slice.Commands.Select(command => command.Name)).ToHashSet(StringComparer.Ordinal);
         var duplicateOperations = slice.Commands.SelectMany(command => command.Authoring?.Operations ?? []).GroupBy(operation => operation.Name, StringComparer.Ordinal)
@@ -131,6 +131,12 @@ public static class AuthoringDeclarations
             if (route is not null && sources.Contains(route.Source))
             {
                 diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': source '{route.Source}' has incompatible identity or stream-id types and its routes were left out", slice.Namespace);
+                route = null;
+            }
+            else if (route is { IdentifierType: { } identity } && command.Produces.Any(production => !production.UsesCommandContext) &&
+                identity.Name != "Uuid" && !concepts.Any(concept => concept.Name == identity.Name && concept.Primitive == ScreenplayPrimitive.Uuid))
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': an explicitly routed or unproven production has no representable destination of the source's identifier type, so the command's source and stream route was left out", slice.Namespace);
                 route = null;
             }
 
