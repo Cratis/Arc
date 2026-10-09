@@ -135,6 +135,12 @@ static class SpecificationEventPredicateValues
             return false;
         }
 
+        if (value is null)
+        {
+            unstatable.Add($"it states '{eventType.Name}.{property.Name}' as null, which the Screenplay binder does not accept in this fixture");
+            return false;
+        }
+
         if (!properties.Add(property.Name))
         {
             return false;

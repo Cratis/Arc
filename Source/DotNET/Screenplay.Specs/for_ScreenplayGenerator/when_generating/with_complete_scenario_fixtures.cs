@@ -133,4 +133,21 @@ public class with_complete_scenario_fixtures
         result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("AuthorRegistered.Name");
         result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);
     }
+
+    [Theory]
+    [InlineData("e.Name == \"Jane\" && e.Country == null")]
+    [InlineData("null == e.Country && e.Name == \"Jane\"")]
+    public void should_omit_a_scenario_whose_expected_event_predicate_states_null(string predicate)
+    {
+        var sources = Sources("", "new RegisterAuthor { Name = \"Jane Austen\" }");
+        sources[0] = (sources[0].Path, sources[0].Text.Replace("AuthorRegistered(string Name)", "AuthorRegistered(string Name, string? Country)", StringComparison.Ordinal).Replace("new(Name)", "new(Name, Name)", StringComparison.Ordinal));
+        sources[1] = (sources[1].Path, sources[1].Text.Replace(
+            "[Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();",
+            $"[Fact] void should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(\"author\", e => {predicate});",
+            StringComparison.Ordinal));
+        var result = Generate(sources);
+        result.Source.ShouldNotContain("specification WhenRegisteringAndTheFixtureIsComplete");
+        result.Source.ShouldNotContain("country = null");
+        result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("Country");
+    }
 }
