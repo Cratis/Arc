@@ -93,6 +93,20 @@ public static class CommandContextExtensions
             : null;
 
     /// <summary>
+    /// Gets event tags returned from the command handler and captured by the context updater.
+    /// </summary>
+    /// <param name="commandContext">The command context.</param>
+    /// <returns>The returned named tags, or an empty collection when unset.</returns>
+    /// <remarks>
+    /// This accessor does not evaluate attributes or tag providers. Use <see cref="CommandEventTags.ResolveEventTags"/>
+    /// at the append boundary to union all command tag sources.
+    /// </remarks>
+    public static IEnumerable<NamedTag> GetEventTags(this CommandContext commandContext) =>
+        commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventTags, out var value) && value is IEnumerable<NamedTag> tags
+            ? tags
+            : [];
+
+    /// <summary>
     /// Gets the subject from the command context, if present.
     /// </summary>
     /// <remarks>

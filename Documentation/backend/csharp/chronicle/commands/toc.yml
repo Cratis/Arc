@@ -2,6 +2,8 @@
   href: index.md
 - name: Events
   href: events.md
+- name: Event tags
+  href: event-tags.md
 - name: Setting Subject
   href: subject.md
 - name: Returning EventSourceId
