@@ -13,6 +13,7 @@ public class and_the_completion_is_refused : given.a_pending_completion
     {
         Result<EventSequenceNumber, CompleteStreamError> refused = CompleteStreamError.DefaultStreamCannotBeCompleted;
         _eventLog.CompleteStream("completion", "period").Returns(refused);
+        _operations.Clear();
     }
 
     async Task Because()

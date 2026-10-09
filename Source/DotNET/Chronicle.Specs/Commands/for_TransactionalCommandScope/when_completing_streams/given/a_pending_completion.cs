@@ -19,6 +19,7 @@ public class a_pending_completion : for_TransactionalCommandScope.given.a_transa
     void Establish()
     {
         _eventLog = Substitute.For<IEventLog>();
+        _eventLog.Id.Returns(EventSequenceId.Log);
         _operations = [];
         _eventLog.CompleteStream("completion", "period").Returns(_ =>
         {
