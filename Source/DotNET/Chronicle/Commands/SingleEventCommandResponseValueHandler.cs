@@ -38,7 +38,7 @@ public class SingleEventCommandResponseValueHandler(
         var routing = CommandTransactionAppender.ResolveRouting(null, commandContext);
         if (!eventLog.TryEnrollForCommand(eventSourceId, value, commandContext, concurrencyScope, routing: routing))
         {
-            var result = await eventLog.AppendForCommand(eventSourceId, value, routing, concurrencyScope, namedTags: commandContext.GetEventTags());
+            var result = await eventLog.AppendForCommand(eventSourceId, value, routing, concurrencyScope, namedTags: commandContext.ResolveEventTags());
 
             if (!result.IsSuccess)
             {

@@ -132,7 +132,7 @@ internal static class CommandTransactionAppender
     /// <param name="namedTags">The wrapper's named tags, if any.</param>
     /// <returns>The merged tag snapshot.</returns>
     internal static NamedTag[] MergeEventTags(CommandContext commandContext, IEnumerable<NamedTag>? namedTags = default) =>
-        (namedTags ?? []).Concat(commandContext.GetEventTags()).DistinctBy(_ => (_.Name.Value, _.Value)).ToArray();
+        (namedTags ?? []).Concat(commandContext.ResolveEventTags()).DistinctBy(_ => (_.Name.Value, _.Value)).ToArray();
 
     /// <summary>
     /// Tries to enroll the event in the command's transaction, using the same metadata the immediate append would

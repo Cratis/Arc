@@ -53,7 +53,7 @@ public class EventsCommandResponseValueHandler(
                 CommandTransaction.RefuseImmediateAppend();
                 foreach (var @event in events)
                 {
-                    var appendResult = await eventLog.AppendForCommand(eventSourceId, @event, routing, concurrencyScope, namedTags: commandContext.GetEventTags());
+                    var appendResult = await eventLog.AppendForCommand(eventSourceId, @event, routing, concurrencyScope, namedTags: commandContext.ResolveEventTags());
 
                     if (!appendResult.IsSuccess)
                     {
@@ -64,7 +64,7 @@ public class EventsCommandResponseValueHandler(
             else
             {
                 CommandTransaction.RefuseImmediateAppend();
-                var result = await eventLog.AppendManyForCommand(eventSourceId, events, routing, concurrencyScope, commandContext.GetEventTags());
+                var result = await eventLog.AppendManyForCommand(eventSourceId, events, routing, concurrencyScope, commandContext.ResolveEventTags());
 
                 if (!result.IsSuccess)
                 {
