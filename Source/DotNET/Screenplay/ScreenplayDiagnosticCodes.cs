@@ -534,7 +534,7 @@ public static class ScreenplayDiagnosticCodes
     public const string ProtectedIdentityAnnotation = "SP0059";
 
     /// <summary>
-    /// A specification event route requires the authoring-only option, so its scenario was withheld.
+    /// A specification event route requires the authoring-only option or has no syntax at its occurrence position.
     /// </summary>
     public const string SpecificationRouteNotRepresentable = "SP0060";
 }

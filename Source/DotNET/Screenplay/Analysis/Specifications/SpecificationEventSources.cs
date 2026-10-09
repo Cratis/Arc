@@ -68,8 +68,9 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null, He
     /// <param name="method">The resolved method.</param>
     /// <param name="semanticModel">The model resolving the source expression.</param>
     /// <param name="draft">The scenario collecting the occurrences.</param>
+    /// <param name="requireLiteral">Whether explicit routing requires a literal even when it matches the command's source.</param>
     /// <returns>The concrete source, or null for a shared symbolic source.</returns>
-    public LiteralSource? Read(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel, SpecificationDraft draft)
+    public LiteralSource? Read(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel semanticModel, SpecificationDraft draft, bool requireLiteral = false)
     {
         var expression = CallArguments.For(invocation, method, "eventSourceId").SingleOrDefault();
         if (expression is null)
@@ -99,7 +100,7 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null, He
             if ((_commandSource is { } destination && Same(source, destination)) ||
                 (_commandMemberSource is { } member && Same(source, member)))
             {
-                return null;
+                return requireLiteral ? source.Literal : null;
             }
 
             HasUnresolvedCommandSources |= source.Literal is null;

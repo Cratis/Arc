@@ -158,7 +158,9 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         var occurrences = specification.Given.Concat(specification.Then)
             .Concat(specification.When is { } action ? [action] : [])
             .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
-        if (AuthoringOnlyConstructs && occurrences.Exists(state => !CanStateRoute(state)))
+        var requiresLiteralRoute = specification.Given.Concat(specification.When is { } appendedAction ? [appendedAction] : [])
+            .Any(state => state.Route is { Source: not null } && state.For is null);
+        if (AuthoringOnlyConstructs && (requiresLiteralRoute || occurrences.Exists(state => !CanStateRoute(state))))
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -173,6 +175,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         if (specification.When is { Kind: SpecificationStateKind.Command } ||
+            occurrences.Any(state => state.Route is { Source: not null }) ||
             occurrences.Select(state => state.For).Distinct().Count() != 1)
         {
             Diagnostics?.Warning(
@@ -391,7 +394,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
             When(specification.When),
-            [.. Events(specification.Then)],
+            [.. Events(specification.Then, expected: true)],
             [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_), SourceLocation.Start))],
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
@@ -435,14 +438,24 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// Builds the states of a step that name an event.
     /// </summary>
     /// <param name="states">The states to build from.</param>
+    /// <param name="expected">Whether these are then occurrences, where no stream is allowed.</param>
     /// <returns>The events.</returns>
-    IEnumerable<SpecificationEventSyntax> Events(IEnumerable<SpecificationStateModel> states) =>
+    IEnumerable<SpecificationEventSyntax> Events(IEnumerable<SpecificationStateModel> states, bool expected = false) =>
         states
             .Where(_ => _.Kind == SpecificationStateKind.Event)
-            .Select(Event);
+            .Select(state => Event(state, expected));
 
-    SpecificationEventSyntax Event(SpecificationStateModel state) =>
-        new(naming.ToDeclarationName(state.Name), [.. Values(state)], SourceLocation.Start)
+    SpecificationEventSyntax Event(SpecificationStateModel state, bool expected = false)
+    {
+        if (AuthoringOnlyConstructs && !expected && state.Route is { Source: null, Stream: null })
+        {
+            Diagnostics?.Information(
+                ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
+                $"The unrouted occurrence of '{state.Name}' has no route directive because Screenplay allows no stream only on then events",
+                state.Name);
+        }
+
+        return new(naming.ToDeclarationName(state.Name), [.. Values(state)], SourceLocation.Start)
         {
             For = SourceOf(state),
             Stream = AuthoringOnlyConstructs && state.Route is { Source: not null, Stream: not null } route
@@ -451,8 +464,9 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                     StreamId = route.StreamId is { } id ? new("streamId", _sources.Convert(id), SourceLocation.Start) : null
                 }
                 : null,
-            NoStream = AuthoringOnlyConstructs && state.Route is { Source: null, Stream: null } ? new(SourceLocation.Start) : null
+            NoStream = AuthoringOnlyConstructs && expected && state.Route is { Source: null, Stream: null } ? new(SourceLocation.Start) : null
         };
+    }
 
     /// <summary>
     /// Builds the states of a step that name a read model.

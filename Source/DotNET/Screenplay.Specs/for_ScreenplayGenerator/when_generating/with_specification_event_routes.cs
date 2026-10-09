@@ -54,6 +54,7 @@ public class with_specification_event_routes : a_generated_document
         Result.Source.ShouldContain("then AuthorRegistered");
         Result.Source.Split("stream Account.Transactions", StringSplitOptions.None).Length.ShouldEqual(4);
         Result.Source.Split("streamId = \"October\"", StringSplitOptions.None).Length.ShouldEqual(3);
+        Result.Source.ShouldContain("for \"11111111-1111-1111-1111-111111111111\"");
         AssertAuthoringRoutes();
     }
 
@@ -69,12 +70,13 @@ public class with_specification_event_routes : a_generated_document
     }
 
     [Fact]
-    public void should_state_no_stream_for_an_unrouted_append()
+    public void should_report_an_unrouted_prior_occurrence_without_emitting_invalid_syntax()
     {
         var scenario = Scenario.Replace(",\n        eventStreamType: \"Transactions\", eventStreamId: \"October\", eventSourceType: \"Account\"", string.Empty, StringComparison.Ordinal);
         GenerateScenario(true, scenario);
 
-        Result.Source.ShouldContain("no stream");
+        Result.Source.ShouldNotContain("no stream");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         AssertAuthoringRoutes();
     }
 

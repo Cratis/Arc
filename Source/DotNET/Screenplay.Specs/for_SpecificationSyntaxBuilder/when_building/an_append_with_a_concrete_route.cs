@@ -16,11 +16,25 @@ public class an_append_with_a_concrete_route : Specification
     {
         var appended = new SpecificationStateModel("AuthorRegistered", SpecificationStateKind.Event, [new("Name", new LiteralSource("Jane Austen"))])
         {
+            For = new("author"),
             Route = new("Account", "Transactions", new("October"))
         };
         var readModel = new SpecificationStateModel("Author", SpecificationStateKind.ReadModel, [new("Name", new LiteralSource("Jane Austen"))]);
         var specification = new SpecificationModel("Appending", [], appended, [readModel], []);
         _syntax = new SpecificationSyntaxBuilder(new ScreenplayNaming()) { AuthoringOnlyConstructs = true }.Build([specification]).Single();
+    }
+
+    [Fact]
+    public void should_state_no_stream_only_on_an_expected_event()
+    {
+        var action = new SpecificationStateModel("RegisterAuthor", SpecificationStateKind.Command, []);
+        var expected = new SpecificationStateModel("AuthorRegistered", SpecificationStateKind.Event, [new("Name", new LiteralSource("Jane Austen"))])
+        {
+            Route = SpecificationEventRouteModel.NoStream
+        };
+        var specification = new SpecificationModel("Registering", [], action, [expected], []);
+        var syntax = new SpecificationSyntaxBuilder(new ScreenplayNaming()) { AuthoringOnlyConstructs = true }.Build([specification]).Single();
+        syntax.ThenEvents.Single().NoStream.ShouldNotBeNull();
     }
 
     [Fact] void should_keep_the_append() => _syntax.WhenAppended!.EventType.ShouldEqual("AuthorRegistered");

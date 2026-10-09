@@ -71,8 +71,9 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
             }
 
             var kind = SpecificationCalls.IsGivenReadModel(method) ? SpecificationStateKind.ReadModel : SpecificationStateKind.Event;
+            var route = kind == SpecificationStateKind.Event ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null;
             var source = kind == SpecificationStateKind.Event && (draft.When is not null || SpecificationMembers.HoldsAnEventScenario(steps) || SpecificationMembers.HoldsAScenario(steps))
-                ? draft.EventSources.Read(invocation, method, semanticModel, draft)
+                ? draft.EventSources.Read(invocation, method, semanticModel, draft, requireLiteral: route is { Source: not null })
                 : null;
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
@@ -85,7 +86,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                     name,
                     location,
                     source,
-                    kind == SpecificationStateKind.Event ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null);
+                    route);
             }
         }
     }
@@ -155,13 +156,14 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                     semanticModel.Compilation);
             }
 
+            var route = append ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null;
             var state = new SpecificationStateModel(
                 command.Name,
                 append ? SpecificationStateKind.Event : SpecificationStateKind.Command,
                 values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft))
             {
-                For = append ? draft.EventSources.Read(invocation, method, semanticModel, draft) : null,
-                Route = append ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null
+                For = append ? draft.EventSources.Read(invocation, method, semanticModel, draft, requireLiteral: route is { Source: not null }) : null,
+                Route = route
             };
             draft.SetWhen(state, command, invocation.GetLocation());
         }
