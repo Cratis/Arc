@@ -94,7 +94,7 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
         var steps = SpecificationMembers.StepsOf(type);
         var draft = new SpecificationDraft { EventSources = new(models, _held) };
         var stated = new ScreenplayDiagnostics();
-        var values = new SpecificationValues(stated, new GeneratedIdentities(models)) { Models = models, HeldValues = _held };
+        var values = new SpecificationValues(stated, new GeneratedIdentities(models));
         var reactions = ReactorReader.ReactionsOf(reactor, models).ToList();
         var observed = ReactorReader.ObservedBy(reactor).ToHashSet(StringComparer.Ordinal);
 

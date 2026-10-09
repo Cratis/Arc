@@ -27,12 +27,12 @@ public partial class from_a_command_scenario_with_another_sources_given
         AssertOmitted();
     }
 
-    [Fact] void should_keep_distinct_constant_members_with_the_same_value_implicit()
+    [Fact] void should_omit_distinct_constant_members_whose_command_identity_is_not_stated()
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), SameSourceScenario()
             .Replace("readonly EventSourceId _otherId = EventSourceId.New();", "readonly EventSourceId _otherId = new(\"same\"); readonly EventSourceId _currentId = new(\"same\");", StringComparison.Ordinal)
             .Replace("RegisterAuthor(_otherId,", "RegisterAuthor(_currentId,", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_keep_the_commands_own_source_implicit_when_its_identifier_is_not_emitted()

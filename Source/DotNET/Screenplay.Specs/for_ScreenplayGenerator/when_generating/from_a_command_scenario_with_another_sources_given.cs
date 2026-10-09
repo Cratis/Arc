@@ -130,7 +130,22 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
     [Theory]
     [InlineData("new AuthorId(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"))")]
     [InlineData("new AuthorId(new System.Guid(\"6f3c8b4719384d4c8f26817e306a10e2\"))")]
-    [InlineData("(AuthorId)\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\"")]
+    public void should_omit_a_scenario_whose_concept_identity_is_not_read_as_a_literal(string identity)
+    {
+        var slice = Slice.Replace("[Key] string Id", "[Key] AuthorId Id", StringComparison.Ordinal) + """
+
+            public record AuthorId(System.Guid Value) : Cratis.Concepts.ConceptAs<System.Guid>(Value)
+            {
+                public static implicit operator AuthorId(string value) => new(System.Guid.Parse(value));
+            }
+            """;
+        GenerateScenario(slice, Scenario
+            .Replace("ForEventSource(\"other\")", "ForEventSource(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\")", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", $"RegisterAuthor({identity},", StringComparison.Ordinal));
+        AssertOmitted("RegisterAuthor.Id");
+    }
+
+    [Theory]
     [InlineData("\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"")]
     public void should_keep_a_literal_given_matching_a_constructed_concept(string identity)
     {
@@ -167,18 +182,18 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         GenerateScenario(Slice.Replace("[Key] string Id", "[Key] System.Guid Id", StringComparison.Ordinal), Scenario
             .Replace("ForEventSource(\"other\")", $"ForEventSource(\"{source}\")", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"),", StringComparison.Ordinal));
-        AssertOmitted();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Theory]
     [InlineData("System.Guid.Parse(\"{6F3C8B47-1938-4D4C-8F26-817E306A10E2}\")")]
     [InlineData("new System.Guid(\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\")")]
-    public void should_keep_a_runtime_guid_source_matching_the_command(string source)
+    public void should_omit_a_runtime_guid_source_whose_command_identity_is_not_stated(string source)
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "[Key] System.Guid Id", StringComparison.Ordinal), Scenario
             .Replace("ForEventSource(\"other\")", $"ForEventSource({source})", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"),", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Theory]
@@ -201,11 +216,11 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         AssertOmitted("RegisterAuthor.Id");
     }
 
-    [Fact] void should_keep_a_literal_given_matching_a_constructed_event_source()
+    [Fact] void should_omit_a_constructed_event_source_whose_command_identity_is_not_stated()
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), Scenario
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(new EventSourceId(\"other\"),", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_omit_an_undecidable_computed_source_for_a_validation_rejection()

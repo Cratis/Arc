@@ -22,17 +22,6 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIdentities identities)
 {
     readonly MappingSourceReader _sources = new(diagnostics);
-    SpecificationFixtureLiterals? _fixtures;
-
-    /// <summary>
-    /// Gets the models owning held fixture initializers.
-    /// </summary>
-    internal SemanticModels? Models { get; init; }
-
-    /// <summary>
-    /// Gets the stability analysis of held fixtures.
-    /// </summary>
-    internal HeldValues? HeldValues { get; init; }
 
     /// <summary>
     /// Reads the values one construction states.
@@ -137,27 +126,10 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
             name,
             exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))?.Name ?? name;
 
-    static void Complete(
-        BaseObjectCreationExpressionSyntax creation,
-        IMethodSymbol? constructor,
-        SemanticModel semanticModel,
-        ITypeSymbol type,
-        List<PropertyMappingModel> values,
-        SpecificationDraft draft)
+    static void Complete(ITypeSymbol type, List<PropertyMappingModel> values, SpecificationDraft draft)
     {
-        var stated = Stated(creation, constructor).Select(value => PropertyOf(type, value.Name, exact: false)).ToHashSet(StringComparer.Ordinal);
         foreach (var property in type.DeclaredProperties().Where(property => values.TrueForAll(value => value.Property != property.Name)))
         {
-            if (!stated.Contains(property.Name) && TryUnsetValue(property, constructor, semanticModel, out var constant) &&
-                StatableValues.TryState(property.Type, constant, out var literal) &&
-                (literal is not null || CanStateNull(type, property)))
-            {
-                var value = new PropertyMappingModel(property.Name, new LiteralSource(literal));
-                values.Add(value);
-                draft.AddValue(value, creation.GetLocation());
-                continue;
-            }
-
             draft.CannotRead($"it cannot prove a stateable value for '{type.Name}.{property.Name}', and the Screenplay binder requires every fixture property");
         }
     }
@@ -166,75 +138,6 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         !CommandReader.IsCommand(type) && !EventReader.IsEvent(type) &&
         (property.Type.NullableAnnotation == NullableAnnotation.Annotated ||
          property.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
-
-    static bool TryUnsetValue(IPropertySymbol property, IMethodSymbol? constructor, SemanticModel semanticModel, out object? value)
-    {
-        value = null;
-        var owner = property.ContainingType;
-        if (constructor is null || owner.BaseType?.SpecialType != SpecialType.System_Object ||
-            owner.InstanceConstructors.Any(method => method.DeclaringSyntaxReferences.Any(reference => reference.GetSyntax() is ConstructorDeclarationSyntax)))
-        {
-            return false;
-        }
-
-        if (property.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()).ToArray() is [ParameterSyntax] &&
-            constructor.Parameters.SingleOrDefault(parameter => string.Equals(parameter.Name, property.Name, StringComparison.OrdinalIgnoreCase)) is { HasExplicitDefaultValue: true } parameter)
-        {
-            value = parameter.ExplicitDefaultValue;
-            return true;
-        }
-
-        if (property.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()).ToArray() is not
-            [PropertyDeclarationSyntax { ExpressionBody: null, AccessorList: { } accessors } declaration] ||
-            accessors.Accessors.Any(accessor => accessor.Body is not null || accessor.ExpressionBody is not null))
-        {
-            return false;
-        }
-
-        if (declaration.Initializer is { Value: { } initializer })
-        {
-            var constant = semanticModel.Compilation.GetSemanticModel(initializer.SyntaxTree).GetConstantValue(MappingSourceReader.Unwrap(initializer));
-            if (!constant.HasValue)
-            {
-                return false;
-            }
-
-            value = constant.Value;
-            return true;
-        }
-
-        if (property.Type.IsReferenceType || property.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
-        {
-            return true;
-        }
-
-        value = property.Type.SpecialType switch
-        {
-            SpecialType.System_Boolean => false,
-            SpecialType.System_Byte or SpecialType.System_SByte or SpecialType.System_Int16 or SpecialType.System_UInt16 or
-                SpecialType.System_Int32 or SpecialType.System_UInt32 or SpecialType.System_Int64 or SpecialType.System_UInt64 => 0,
-            SpecialType.System_Single or SpecialType.System_Double or SpecialType.System_Decimal => 0m,
-            _ => null
-        };
-        if (property.Type.TypeKind == TypeKind.Enum)
-        {
-            value = 0;
-        }
-        else if (property.Type.Is("System.Guid"))
-        {
-            value = Guid.Empty.ToString("D");
-        }
-        else if (property.Type.Is("System.DateOnly"))
-        {
-            value = "0001-01-01";
-        }
-        else if (property.Type.Is("System.DateTimeOffset"))
-        {
-            value = "0001-01-01T00:00:00+00:00";
-        }
-
-        return value is not null;
-    }
 
     List<PropertyMappingModel> Read(
         BaseObjectCreationExpressionSyntax creation,
@@ -256,7 +159,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
 
         if (!queryValues)
         {
-            Complete(creation, constructor, semanticModel, type, values, draft);
+            Complete(type, values, draft);
         }
 
         return values;
@@ -276,9 +179,9 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     /// <param name="draft">The scenario collecting exact value evidence.</param>
     /// <param name="queryValues">Whether the additive Stage query literal syntax is admitted.</param>
     /// <remarks>
-    /// Values are collected before completeness is checked. An identity made on the spot has no provable value -
-    /// see <see cref="GeneratedIdentities"/> - and takes the scenario with it when completeness is checked. A constant
-    /// the document cannot hold at all - a number no
+    /// An identity made on the spot is left out without a word, because there is no value for the document to have
+    /// missed - see <see cref="GeneratedIdentities"/>. A value that is code is one the source states and the document
+    /// does not, which is the difference worth reading. A constant the document cannot hold at all - a number no
     /// member of an enumeration is declared with (including <see langword="default"/> for one with no zero member and flags
     /// combined into a value no member is declared with), or <see langword="null"/> for a required property - takes the
     /// whole scenario with it, because what it issues or starts from would no longer be what was written.
@@ -316,11 +219,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         }
         else
         {
-            literal = localProperty is not null ? (_fixtures ??= new(Models, HeldValues)).Read(expression, semanticModel, localProperty.Type) : null;
-            if (literal is null && localProperty?.Type.FindBase(WellKnownTypeNames.ConceptAs) is null)
-            {
-                literal = _sources.Read(expression, semanticModel, type, location) as LiteralSource;
-            }
+            literal = _sources.Read(expression, semanticModel, type, location) as LiteralSource;
         }
         if (literal is { Value: null } && localProperty is not null && !queryValues && !CanStateNull(type, localProperty))
         {

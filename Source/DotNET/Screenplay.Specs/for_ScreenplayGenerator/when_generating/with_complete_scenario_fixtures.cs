@@ -23,7 +23,7 @@ public class with_complete_scenario_fixtures
             [Command]
             public record RegisterAuthor
             {
-                public string Name { get; init; } = "Jane Austen";
+                public string Name { get; init; }
                 {{properties}}
                 public AuthorRegistered Handle() => new(Name);
             }
@@ -71,50 +71,35 @@ public class with_complete_scenario_fixtures
     }
 
     [Fact]
-    public void should_state_proven_initializers_and_automatic_property_defaults()
+    public void should_state_a_pass_through_concept_value_as_it_was_read_before()
     {
-        var result = Generate(Sources("public int Age { get; init; } public bool Active { get; init; } public Status Status { get; init; }", "new RegisterAuthor()"));
+        var sources = Sources("public Quantity Amount { get; init; } = null!;", "new RegisterAuthor { Name = \"Jane Austen\", Amount = 5 }");
+        sources[0] = (sources[0].Path, sources[0].Text + "\npublic record Quantity(int Value) : Cratis.Concepts.ConceptAs<int>(Value)\n{\n    public static implicit operator Quantity(int value) => new(value);\n}\n");
+        var result = Generate(sources);
         result.Source.ShouldContain("specification WhenRegisteringAndTheFixtureIsComplete");
-        result.Source.ShouldContain("name = \"Jane Austen\"");
-        result.Source.ShouldContain("age = 0");
-        result.Source.ShouldContain("active = false");
-        result.Source.ShouldContain("status = \"new\"");
-        result.Diagnostics.ShouldBeEmpty();
+        result.Source.ShouldContain("amount = 5");
     }
 
     [Theory]
-    [InlineData("public Guid Id { get; init; }", "id = \"00000000-0000-0000-0000-000000000000\"")]
-    [InlineData("public DateOnly Date { get; init; }", "date = \"0001-01-01\"")]
-    [InlineData("public DateTimeOffset Instant { get; init; }", "instant = \"0001-01-01T00:00:00+00:00\"")]
-    public void should_state_stateable_framework_defaults(string properties, string stated)
+    [InlineData("public int Age { get; init; } = 42;")]
+    [InlineData("public bool Active { get; init; }")]
+    [InlineData("public Guid Id { get; init; }")]
+    public void should_not_state_a_value_the_creation_does_not_state(string properties)
     {
-        var result = Generate(Sources(properties, "new RegisterAuthor()"));
-        result.Source.ShouldContain("specification WhenRegisteringAndTheFixtureIsComplete");
-        result.Source.ShouldContain(stated);
-        result.Diagnostics.ShouldBeEmpty();
+        var result = Generate(Sources(properties, "new RegisterAuthor { Name = \"Jane Austen\" }"));
+        result.Source.ShouldNotContain("specification WhenRegisteringAndTheFixtureIsComplete");
+        result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("RegisterAuthor.");
     }
 
     [Fact]
-    public void should_state_a_positional_constructor_default()
+    public void should_omit_a_scenario_whose_concept_property_only_has_an_initializer_converted_to_a_generated_identity()
     {
-        var sources = Sources("", "new RegisterAuthor()");
-        sources[0] = (sources[0].Path, sources[0].Text.Replace("public record RegisterAuthor", "public record RegisterAuthor(int Age = 21)", StringComparison.Ordinal));
-        var result = Generate(sources);
-        result.Source.ShouldContain("age = 21");
-        result.Diagnostics.ShouldBeEmpty();
-    }
+        var sources = Sources("public AuthorId Id { get; init; } = \"6f3c8b47-1938-4d4c-8f26-817e306a10e2\";", "new RegisterAuthor { Name = \"Jane Austen\" }");
+        sources[0] = (sources[0].Path, sources[0].Text + """
 
-    [Theory]
-    [InlineData("Value", "Guid.NewGuid()")]
-    [InlineData("Guid.NewGuid()", "Guid.Parse(value)")]
-    public void should_not_invent_a_fixture_for_a_concept_conversion_that_changes_its_input(string backing, string converted)
-    {
-        var sources = Sources("public AuthorId Id { get; init; } = null!;", "new RegisterAuthor { Id = \"6f3c8b47-1938-4d4c-8f26-817e306a10e2\" }");
-        sources[0] = (sources[0].Path, sources[0].Text + $$"""
-
-            public record AuthorId(Guid Value) : Cratis.Concepts.ConceptAs<Guid>({{backing}})
+            public record AuthorId(Guid Value) : Cratis.Concepts.ConceptAs<Guid>(Value)
             {
-                public static implicit operator AuthorId(string value) => new({{converted}});
+                public static implicit operator AuthorId(string value) => new(Guid.NewGuid());
             }
             """);
         var result = Generate(sources);
@@ -123,13 +108,13 @@ public class with_complete_scenario_fixtures
     }
 
     [Theory]
-    [InlineData("public Guid Id { get; init; }", "new RegisterAuthor { Id = Guid.NewGuid() }", "Id")]
-    [InlineData("public int Age { get; init; }", "new RegisterAuthor { Age = DateTime.UtcNow.Year }", "Age")]
-    [InlineData("public string? Alias { get; init; }", "new RegisterAuthor()", "Alias")]
-    [InlineData("public string? Alias { get; init; }", "new RegisterAuthor { Alias = null }", "Alias")]
-    [InlineData("public int? Age { get; init; }", "new RegisterAuthor()", "Age")]
-    [InlineData("public int Age { get; init; } = DateTime.UtcNow.Year;", "new RegisterAuthor()", "Age")]
-    [InlineData("public int Age => DateTime.UtcNow.Year;", "new RegisterAuthor()", "Age")]
+    [InlineData("public Guid Id { get; init; }", "new RegisterAuthor { Name = \"Jane Austen\", Id = Guid.NewGuid() }", "Id")]
+    [InlineData("public int Age { get; init; }", "new RegisterAuthor { Name = \"Jane Austen\", Age = DateTime.UtcNow.Year }", "Age")]
+    [InlineData("public string? Alias { get; init; }", "new RegisterAuthor { Name = \"Jane Austen\" }", "Alias")]
+    [InlineData("public string? Alias { get; init; }", "new RegisterAuthor { Name = \"Jane Austen\", Alias = null }", "Alias")]
+    [InlineData("public int? Age { get; init; }", "new RegisterAuthor { Name = \"Jane Austen\" }", "Age")]
+    [InlineData("public int Age { get; init; } = DateTime.UtcNow.Year;", "new RegisterAuthor { Name = \"Jane Austen\" }", "Age")]
+    [InlineData("public int Age => DateTime.UtcNow.Year;", "new RegisterAuthor { Name = \"Jane Austen\" }", "Age")]
     [InlineData("public int Age { get; init; } public RegisterAuthor() { Age = DateTime.UtcNow.Year; }", "new RegisterAuthor { Name = \"Jane Austen\" }", "Age")]
     public void should_omit_a_scenario_with_an_unstateable_property(string properties, string creation, string property)
     {
@@ -143,7 +128,7 @@ public class with_complete_scenario_fixtures
     [Fact]
     public void should_omit_a_scenario_with_an_incomplete_given_event()
     {
-        var result = Generate(Sources("", "new RegisterAuthor()", "_scenario.Given.ForEventSource(\"author\").Events(new AuthorRegistered(DateTime.UtcNow.Year.ToString()));"));
+        var result = Generate(Sources("", "new RegisterAuthor { Name = \"Jane Austen\" }", "_scenario.Given.ForEventSource(\"author\").Events(new AuthorRegistered(DateTime.UtcNow.Year.ToString()));"));
         result.Source.ShouldNotContain("specification WhenRegisteringAndTheFixtureIsComplete");
         result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("AuthorRegistered.Name");
         result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);
