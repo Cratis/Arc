@@ -93,7 +93,9 @@ public class CommandKindTags : ICanProvideCommandEventTags
 }
 ```
 
-Every provider receives the command instance. A provider can return an empty collection for commands it does not apply to. Keep providers transient or scoped when they depend on request, user, or tenant services; do not capture those values in a singleton.
+Arc resolves providers per command from the command's service scope, so providers may take scoped dependencies such as tenant services. Providers run only after the command passes authorization and validation and returns events to append; validation-only calls and commands without returned events do not evaluate tags. Each provider receives the command instance and can return an empty collection for commands it does not apply to. Keep providers transient or scoped when they depend on request, user, or tenant services; do not capture those values in a singleton.
+
+Arc evaluates attributes, the command interface and application providers once, at the first returned-event append. Tags returned from `Handle()` join that union. `commandContext.GetEventTags()` reads only returned tags without evaluating any providers; `commandContext.ResolveEventTags()` resolves the union at append time. For a manually constructed context without a service provider or Arc's type discovery, resolution includes attribute, command-interface and returned tags, but no application-wide providers.
 
 ## Combine command and per-event tags
 

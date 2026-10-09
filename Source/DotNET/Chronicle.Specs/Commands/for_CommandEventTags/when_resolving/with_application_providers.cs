@@ -3,9 +3,9 @@
 
 using Cratis.Chronicle;
 
-namespace Cratis.Arc.Chronicle.Commands.for_EventTagsValuesProvider.when_providing;
+namespace Cratis.Arc.Chronicle.Commands.for_CommandEventTags.when_resolving;
 
-public class with_application_providers : given.an_event_tags_provider
+public class with_application_providers : given.a_command_event_tags_resolver
 {
     object _command;
     ICanProvideCommandEventTags _secondProvider;
@@ -14,12 +14,13 @@ public class with_application_providers : given.an_event_tags_provider
     {
         _command = new object();
         _applicationProvider.GetEventTags(_command).Returns([new NamedTag("tenant", "first")]);
-        _secondProvider = Substitute.For<ICanProvideCommandEventTags>();
+        _secondProvider = Substitute.For<SecondProvider>();
         _secondProvider.GetEventTags(_command).Returns([new NamedTag("tenant", "second")]);
-        _provider = new(new KnownInstancesOf<ICanProvideCommandEventTags>([_applicationProvider, _secondProvider]));
+        _types.FindMultiple<ICanProvideCommandEventTags>().Returns([typeof(FirstProvider), typeof(SecondProvider)]);
+        _services.GetService(typeof(SecondProvider)).Returns(_secondProvider);
     }
-    void Because() => _values = _provider.Provide(_command);
+    void Because() => _tags = Resolve(_command);
 
-    [Fact] void should_union_every_provider() => ((IEnumerable<NamedTag>)_values[WellKnownCommandContextKeys.EventTags]).ShouldEqual([new NamedTag("tenant", "first"), new NamedTag("tenant", "second")]);
+    [Fact] void should_union_every_provider() => _tags.ShouldEqual([new NamedTag("tenant", "first"), new NamedTag("tenant", "second")]);
     [Fact] void should_pass_the_command_to_each_provider() => _secondProvider.Received(1).GetEventTags(_command);
 }
