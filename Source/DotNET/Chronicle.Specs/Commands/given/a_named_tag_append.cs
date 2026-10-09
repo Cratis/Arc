@@ -65,7 +65,10 @@ public abstract class a_named_tag_append : Specification
         });
         _eventLog.AppendManyWithNamedTags(default!, default!).ReturnsForAnyArgs(call =>
         {
-            _appended.AddRange(call.ArgAt<IEnumerable<EventForEventSourceId>>(0));
+            _appended.AddRange(call.ArgAt<IEnumerable<EventForEventSourceId>>(0).Select(@event => @event with
+            {
+                Tags = @event.Tags.Concat(call.ArgAt<IEnumerable<string>?>(3) ?? []).Distinct().ToArray()
+            }));
             return AppendManyResult.Success(_context.CorrelationId, []);
         });
         _eventLog.Append(default!, default!).ReturnsForAnyArgs(call =>
