@@ -10,10 +10,11 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="FilePath">The path of the file realizing the screen, relative to the root of the source.</param>
 /// <remarks>
 /// A screen is the one part of a slice whose realization is not C#, so most of what it shows stays where it is
-/// written. Two things are still recovered: which file realizes it, which is what lets a reader open it, and which
-/// of the slice's queries it binds, which is a name the model already holds and can be checked against. What the
-/// screen then does with that data - its sections, tables, columns and actions - is structure expressed in JSX, and
-/// inventing it would put a confident falsehood into a document whose whole value is that it is true.
+/// written. What is recovered is what can be read without guessing: which file realizes it, which of the slice's
+/// queries it binds, and the structure stated through the properties of known Cratis Components - the title of a
+/// data page, the tables and columns of its data tables and the commands its command dialogs run. Structure written
+/// in any other JSX is not read, because inventing it would put a confident falsehood into a document whose whole
+/// value is that it is true.
 /// </remarks>
 public record ScreenModel(string Name, string FilePath)
 {
@@ -21,4 +22,19 @@ public record ScreenModel(string Name, string FilePath)
     /// Gets the read models the screen binds through the queries of its slice.
     /// </summary>
     public IEnumerable<ScreenDataModel> Data { get; init; } = [];
+
+    /// <summary>
+    /// Gets the titles the screen shows, in the order its components state them.
+    /// </summary>
+    public IEnumerable<string> Titles { get; init; } = [];
+
+    /// <summary>
+    /// Gets the tables the screen shows, in the order its components state them.
+    /// </summary>
+    public IEnumerable<ScreenTableModel> Tables { get; init; } = [];
+
+    /// <summary>
+    /// Gets the commands of its slice the screen runs, in the order its components state them.
+    /// </summary>
+    public IEnumerable<string> Actions { get; init; } = [];
 }

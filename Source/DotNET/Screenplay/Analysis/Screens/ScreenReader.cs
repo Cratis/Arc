@@ -13,18 +13,20 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <param name="paths">The <see cref="SourcePaths"/> rewriting the path of each file.</param>
 /// <param name="ambiguity">The <see cref="AmbiguousScreens"/> anything uncertain is reported to.</param>
 /// <param name="data">The <see cref="ScreenDataReader"/> reading which of the slice's queries a screen binds.</param>
+/// <param name="structure">The <see cref="ScreenStructureReader"/> reading what a screen states through known Cratis Components.</param>
 /// <param name="elsewhere">The <see cref="CrossSliceQueries"/> told what each slice declares and where it lives.</param>
 /// <remarks>
-/// Two things about a screen are recovered and no more: the file realizing it, which is what a reader opens, and the
-/// queries it binds, which are names the model already holds and can be held against what the slice really declares.
-/// The rest of a screen is JSX, and a guessed table or column would be a confident falsehood in a document whose
-/// entire value is that it is true.
+/// What is recovered about a screen is what can be read without guessing: the file realizing it, which is what a
+/// reader opens, the queries it binds, which are names the model already holds, and the structure it states through
+/// known Cratis Components. The rest of a screen is JSX, and a guessed table or column would be a confident falsehood
+/// in a document whose entire value is that it is true.
 /// </remarks>
 public class ScreenReader(
     IUserInterfaceFiles files,
     SourcePaths paths,
     AmbiguousScreens ambiguity,
     ScreenDataReader data,
+    ScreenStructureReader structure,
     CrossSliceQueries elsewhere)
 {
     /// <summary>
@@ -33,11 +35,13 @@ public class ScreenReader(
     /// <param name="namespace">The namespace of the slice.</param>
     /// <param name="types">The types the slice is declared by.</param>
     /// <param name="queries">The queries the slice declares, under the names it declares them.</param>
+    /// <param name="commands">The commands the slice declares.</param>
     /// <returns>The screens, ordered by name.</returns>
     public IEnumerable<ScreenModel> Read(
         string @namespace,
         IEnumerable<INamedTypeSymbol> types,
-        IReadOnlyCollection<QueryModel> queries)
+        IReadOnlyCollection<QueryModel> queries,
+        IReadOnlyCollection<CommandModel> commands)
     {
         var directories = SliceDirectories.Of(types);
         elsewhere.Declare(@namespace, directories, queries);
@@ -49,7 +53,7 @@ public class ScreenReader(
 
         ambiguity.ReportDirectories(@namespace, directories);
 
-        return Named(@namespace, Found(directories), queries);
+        return Named(@namespace, Found(directories), queries, commands);
     }
 
     /// <summary>
@@ -70,12 +74,17 @@ public class ScreenReader(
     /// <param name="namespace">The namespace of the slice.</param>
     /// <param name="found">The paths found alongside the source.</param>
     /// <param name="queries">The queries the slice declares.</param>
+    /// <param name="commands">The commands the slice declares.</param>
     /// <returns>The screens, ordered by name.</returns>
     /// <remarks>
     /// A name is what one screen is told apart from another by, so two files claiming the same one leave a document
     /// that says the same word twice and means it differently. The first is kept and the rest are reported.
     /// </remarks>
-    IEnumerable<ScreenModel> Named(string @namespace, IEnumerable<string> found, IReadOnlyCollection<QueryModel> queries)
+    IEnumerable<ScreenModel> Named(
+        string @namespace,
+        IEnumerable<string> found,
+        IReadOnlyCollection<QueryModel> queries,
+        IReadOnlyCollection<CommandModel> commands)
     {
         var screens = new Dictionary<string, ScreenModel>(StringComparer.Ordinal);
 
@@ -92,9 +101,13 @@ public class ScreenReader(
                 continue;
             }
 
+            var stated = structure.Read(@namespace, name, path, queries, commands);
             screens.Add(name, new(name, paths.Relative(path) ?? path)
             {
-                Data = [.. data.Read(@namespace, name, path, queries)]
+                Data = [.. data.Read(@namespace, name, path, queries)],
+                Titles = stated.Titles,
+                Tables = stated.Tables,
+                Actions = stated.Actions
             });
         }
 

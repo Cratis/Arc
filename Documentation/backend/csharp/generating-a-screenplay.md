@@ -501,13 +501,55 @@ slice StateView Listing
     data Author via query AuthorById by id
 ```
 
-Two things about a screen are recovered, and both come from something that can be checked.
+What is recovered about a screen comes from something that can be checked.
 
 **The `file` reference** says which file realizes the screen. It is what a reader opens, and no directive replaces it, so it stays on the screen even when directives sit beside it.
 
 **The `data` directives** say which of the slice's queries the screen reads through. Arc generates a TypeScript proxy per query and a component imports that proxy by name, so the component's `import` statements name candidates — and a candidate is kept only when it matches a query the slice really declares. Nothing about the binding comes from the component beyond that name: the read model, whether there is one or many of it, and the parameter it is keyed by all come from the C# query. An import naming anything else — a package, a command, a sibling component, a type-only import — leaves nothing behind.
 
-Everything else in the declarative form — `title`, `section`, `table` and `summary` with their columns and fields, `action`, `navigate to`, `layout` — is **never inferred**. That is structure expressed in JSX and component properties, and a guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Every screen reports `SP0028` to say so. Write those directives by hand if you want them, and expect a regeneration to leave them out.
+**`title`, `table` and `action`** come from the [Cratis Components](/components/) the screen uses, because their properties mean the same thing in every application. Only components imported from `@cratis/components` are read:
+
+| Component | Becomes |
+| --- | --- |
+| `DataPage` `title="…"` | `title "…"` |
+| `DataPage`, `DataTableForQuery` or `DataTableForObservableQuery` with `query={…}` naming a query of the slice | `table <ReadModel>`, named after the read model the query returns |
+| `Column` `field="…"` inside such a table | `column <field>`, with `label "…"` when `header="…"` is text |
+| `CommandDialog` with `command={…}` naming a command of the slice | `action <Command>` |
+
+Take a listing screen written with a data page:
+
+```tsx
+import { DataPage } from '@cratis/components/DataPage';
+import { Column } from '@cratis/components/DataTables';
+import { AllAuthors } from './AllAuthors';
+
+export const AuthorList = () => (
+    <DataPage title="Authors" query={AllAuthors} emptyMessage="No authors">
+        <DataPage.MenuItems>
+            <DataPage.MenuItem label="Retire" command={() => retire()} />
+        </DataPage.MenuItems>
+        <DataPage.Columns>
+            <Column field="name" header="Name" />
+            <Column header="Initials" body={author => author.name.slice(0, 1)} />
+        </DataPage.Columns>
+    </DataPage>
+);
+```
+
+It is generated as:
+
+```text
+screen AuthorList
+  file Authors/Listing/AuthorList.tsx
+  data Author[] via query AllAuthors
+  title "Authors"
+  table Author
+    column name label "Name"
+```
+
+A property is read only when it is written as text, or as the name of a query or command the slice declares. Anything else is left out rather than guessed, and `SP0028` reports each omission on its own: a computed title or header, a column without a `field`, a menu item (its `command` is a callback, so the action it takes is not read), a `detailsComponent`, a table or dialog bound to a query or command of another slice, and a component whose properties are spread in from an object. Above, the `Initials` column and the `Retire` menu item are each reported.
+
+Everything else is **never inferred**: `section`, `summary`, `navigate to`, `layout`, and any structure written in JSX that is not one of the components above. Nothing in the Cratis Components states navigation — a details component is a pane on the same screen — so no `navigate to` is written. A screen that uses none of the components reports `SP0028` once. A guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Write those directives by hand if you want them, and expect a regeneration to leave them out.
 
 Two more rules keep the result honest:
 
@@ -527,7 +569,7 @@ These are part of the language, but nothing in C# says them, so a generated docu
 | `capture`                                                                                                      | Describes ingesting an external system. Nothing in an Arc application declares one.                                                                     |
 | `persona`                                                                                                      | Who uses the system is a product decision, not a code artifact.                                                                                         |
 | `seed`                                                                                                         | Sample data is a modeling concern, not something the source states.                                                                                     |
-| The declarative body of a `screen` — `title`, `section`, `table`, `summary`, `action`, `navigate to`, `layout` | What a screen _shows and does_ is JSX. Its `file` reference and its `data` bindings are generated; the rest would be a guess — see [Screens](#screens). |
+| The rest of the body of a `screen` — `section`, `summary`, `navigate to`, `layout`, and structure outside known Cratis Components | What a screen _shows and does_ is JSX. Its `file`, its `data` bindings and what known Cratis Components state are generated; the rest would be a guess — see [Screens](#screens). |
 | `@sensitive`                                                                                                   | `@pii` is the one of the two concept attributes with a counterpart — `[PII]`. Nothing in Arc or Chronicle says `@sensitive`.                            |
 
 ### Detail Screenplay cannot represent

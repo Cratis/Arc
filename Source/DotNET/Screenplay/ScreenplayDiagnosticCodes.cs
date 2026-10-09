@@ -216,14 +216,17 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableAggregateStateCondition = "SP0027";
 
     /// <summary>
-    /// The declarative body of a screen beyond the queries it binds is not inferred.
+    /// Part of the declarative body of a screen is not inferred.
     /// </summary>
     /// <remarks>
     /// A <c>data</c> directive is recovered, because the query a component imports is a name the model already knows
-    /// and can be checked against. Everything else a screen declares - <c>title</c>, <c>section</c>, <c>table</c> and
-    /// <c>summary</c> with their columns and fields, <c>action</c> and <c>navigate to</c> - is structure expressed in
-    /// JSX and component properties, which this generator does not read. A guessed column is worse than an absent
-    /// one, so none of it is inferred and every screen says so.
+    /// and can be checked against. A <c>title</c>, a <c>table</c> with its columns and an <c>action</c> are recovered
+    /// from the properties of known Cratis Components - <c>DataPage</c>, <c>DataTableForQuery</c>,
+    /// <c>DataTableForObservableQuery</c>, <c>Column</c> and <c>CommandDialog</c> - when they are written as text or as
+    /// the name of a query or command the slice declares. This is reported once for each of those that is not - a
+    /// computed title, a column without a field, a menu item running a callback, a query of another slice - and once
+    /// for a screen using none of them, whose structure is JSX this generator does not read. A guessed column is worse
+    /// than an absent one, so nothing is guessed and every omission says so.
     /// </remarks>
     public const string ScreenStructureNotInferred = "SP0028";
 

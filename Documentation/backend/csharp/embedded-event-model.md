@@ -171,6 +171,10 @@ Open **View** in the upper right to choose:
 
 These choices are stored in your browser's local storage and restored on the next visit. If the browser blocks persistence, the viewer applies the choice but displays a warning that it could not remember it.
 
+Each slice shows the specifications the document declares for it, in declaration order. A specification is drawn as cards: the events given before it, what it does, the events it expects and the errors it expects (`then denied` appears as an error named `denied`). What it does is the slice's own command when it runs it, with the values it sets; any other action is named for its kind, such as `append AuthorRegistered` or `clock 2026-10-05T08:00:00Z`, with its values. An event stated `for` a source carries that source in its card's name.
+
+What a specification states that has no card travels in its header, after its name: the caller, the clock, generated values, read models given or expected, read models expected to be absent, the response `then returns` expects, query results, operations, and stream routes. Nothing a specification states is dropped, so the board and the generated source always say the same thing. The board does not run specifications; it has no run outcome to show.
+
 ![Upper-right View menu showing detail level, property visibility, and visualization choices](images/embedded-event-model-view-options.png)
 
 Choose **Source** to inspect the generated Screenplay for the selected document, highlighted the way the Screenplay editor shows it. The source is read-only because it is generated from your code. This is useful when a conversion warning says a declaration or mapping cannot be represented on the board.

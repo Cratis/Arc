@@ -46,7 +46,7 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
             Events: Events(syntax, slicePath, sliceType),
             Queries: Queries(syntax, slicePath),
             Actors: [],
-            Specifications: [],
+            Specifications: Specifications(syntax, slicePath, command),
             CommentCount: 0);
     }
 
@@ -187,6 +187,12 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
         return [.. declared, .. consumed];
     }
 
+    IReadOnlyList<SliceSpecification> Specifications(SliceSyntax syntax, string slicePath, CommandItem? command)
+    {
+        var visitor = new SpecificationSyntaxVisitor(documentId, slicePath, owners, command);
+        return [.. (syntax.Specifications ?? []).Select(visitor.Visit)];
+    }
+
     IReadOnlyList<QueryItem> Queries(SliceSyntax syntax, string slicePath) =>
     [
         .. (syntax.Queries ?? []).Select(query => new QueryItem(
@@ -246,7 +252,6 @@ public class SliceSyntaxVisitor(string documentId, string path, ScreenplayEventO
         warnings.Dropped(EventModelWarningCodes.SliceConstructNotCarried, slicePath, (syntax.Screens ?? []).Count(), "screen", "the board has no way to record a screen", syntax.Location);
         warnings.Dropped(EventModelWarningCodes.SliceConstructNotCarried, slicePath, (syntax.Captures ?? []).Count(), "capture", "the board has no way to record a capture", syntax.Location);
         warnings.Dropped(EventModelWarningCodes.SliceConstructNotCarried, slicePath, (syntax.Reducers ?? []).Count(), "reducer", "the board builds a read model from a projection", syntax.Location);
-        warnings.Dropped(EventModelWarningCodes.SliceConstructNotCarried, slicePath, (syntax.Specifications ?? []).Count(), "specification", "the board holds a specification against the identities of the items it exercises, which this document does not yet state", syntax.Location);
         warnings.Dropped(EventModelWarningCodes.SliceConstructNotCarried, slicePath, (syntax.Constraints ?? []).OfType<FileConstraintSyntax>().Count(), "file-backed constraint", "it points at code outside the document, and the board records a constraint as a declaration on an event", syntax.Location);
 
         foreach (var command in commands)

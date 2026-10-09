@@ -40,6 +40,7 @@ export default defineConfig({
                         { name: 'monaco-browser', test: /monaco-editor\/esm\/vs\/editor\/browser\// },
                         { name: 'monaco-contrib', test: /monaco-editor\/esm\/vs\/editor\/contrib\//, maxSize: 450_000 },
                         { name: 'monaco', test: /node_modules[/]monaco-editor[/]/ },
+                        { name: 'pixi-rendering', test: /node_modules[/]pixi.js[/]lib[/]rendering[/]/ },
                         { name: 'pixi', test: /node_modules[/]pixi.js[/]/ },
                         { name: 'screenplay-language-shared', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/]chunk-/ },
                         { name: 'screenplay-language-entry', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/](index|sub-languages[/].*)\.js$/ }
