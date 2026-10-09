@@ -64,6 +64,42 @@ public static partial class ScreenImports
     }
 
     /// <summary>
+    /// Gets every name a file imports, from any module, under the name the file calls it by.
+    /// </summary>
+    /// <param name="text">The text of the file, or <see langword="null"/> when it could not be read.</param>
+    /// <returns>The bindings, keyed by the name the file calls each import by.</returns>
+    /// <remarks>
+    /// A component is written under the name the file gives it, so telling a Cratis Components <c>DataPage</c> from
+    /// anything else of the same name - and a renamed query proxy from the query it is - takes the local name, the
+    /// exported name and the module together. Only named imports are read, for the same reason <see cref="Statements"/>
+    /// reads only those.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, ScreenImportBinding> Bindings(string? text)
+    {
+        var bindings = new Dictionary<string, ScreenImportBinding>(StringComparer.Ordinal);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return bindings;
+        }
+
+        foreach (var statement in StatementRegex().Matches(WithoutComments(text)).Cast<Match>())
+        {
+            var clause = statement.Groups["clause"].Value;
+            if (IsTypeOnly(clause))
+            {
+                continue;
+            }
+
+            foreach (var (name, local) in LocalNamesIn(clause))
+            {
+                bindings.TryAdd(local, new(local, name, statement.Groups["module"].Value));
+            }
+        }
+
+        return bindings;
+    }
+
+    /// <summary>
     /// Removes everything a comment holds, leaving the lines around it where they were.
     /// </summary>
     /// <param name="text">The text of the file.</param>
@@ -74,7 +110,7 @@ public static partial class ScreenImports
     /// spans are kept, because a statement is recognized by starting a line and joining it to the line before would
     /// hide a real import rather than a commented one.
     /// </remarks>
-    static string WithoutComments(string text) =>
+    internal static string WithoutComments(string text) =>
         CommentRegex().Replace(text, match => new string('\n', match.Value.Count(_ => _ == '\n')));
 
     /// <summary>
@@ -101,7 +137,14 @@ public static partial class ScreenImports
     /// </summary>
     /// <param name="clause">The clause to read.</param>
     /// <returns>The names.</returns>
-    static IEnumerable<string> NamedIn(string clause)
+    static IEnumerable<string> NamedIn(string clause) => LocalNamesIn(clause).Select(_ => _.Name);
+
+    /// <summary>
+    /// Gets the exported names an import clause brings in, each with the name the importing file calls it by.
+    /// </summary>
+    /// <param name="clause">The clause to read.</param>
+    /// <returns>The exported and local names.</returns>
+    static IEnumerable<(string Name, string Local)> LocalNamesIn(string clause)
     {
         var open = clause.IndexOf('{', StringComparison.Ordinal);
         var close = clause.LastIndexOf('}');
@@ -112,31 +155,31 @@ public static partial class ScreenImports
 
         foreach (var specifier in clause[(open + 1)..close].Split(','))
         {
-            if (ExportedNameIn(specifier) is { } name)
+            if (NamesIn(specifier) is { } names)
             {
-                yield return name;
+                yield return names;
             }
         }
     }
 
     /// <summary>
-    /// Gets the name a module exports a specifier under, seeing past whatever the importing file renames it to.
+    /// Gets the name a module exports a specifier under and the name the importing file renames it to.
     /// </summary>
     /// <param name="specifier">The specifier to read.</param>
-    /// <returns>The exported name, or <see langword="null"/> when the specifier is not one.</returns>
-    static string? ExportedNameIn(string specifier)
+    /// <returns>The exported and local names, or <see langword="null"/> when the specifier is not one.</returns>
+    static (string Name, string Local)? NamesIn(string specifier)
     {
         var words = specifier.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
-        var exported = words switch
+        (string Name, string Local)? names = words switch
         {
             ["type", ..] => null,
-            [var only] => only,
-            [var name, "as", _] => name,
+            [var only] => (only, only),
+            [var name, "as", var local] => (name, local),
             _ => null
         };
 
-        return exported is not null && IdentifierRegex().IsMatch(exported) ? exported : null;
+        return names is { } read && IdentifierRegex().IsMatch(read.Name) && IdentifierRegex().IsMatch(read.Local) ? read : null;
     }
 
     /// <summary>
