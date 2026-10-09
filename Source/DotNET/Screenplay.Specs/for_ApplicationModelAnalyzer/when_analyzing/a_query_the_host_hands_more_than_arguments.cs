@@ -51,5 +51,6 @@ public class a_query_the_host_hands_more_than_arguments : Specification
     [Fact] void should_leave_out_everything_the_host_fills_in() => _query.Filters.ShouldBeEmpty();
     [Fact] void should_say_the_query_is_paged() => _analysis.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart && _.Message.Contains("paging", StringComparison.Ordinal)).ShouldEqual(1);
     [Fact] void should_say_the_query_is_sorted() => _analysis.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart && _.Message.Contains("sorting", StringComparison.Ordinal)).ShouldEqual(1);
-    [Fact] void should_say_nothing_about_the_plumbing_the_host_fills_in_of_its_own() => _analysis.Diagnostics.Count.ShouldEqual(2);
+    [Fact] void should_report_the_context_without_inventing_a_parameter_source() => _analysis.Diagnostics.Count(_ => _.Message.Contains("no 'from $context' source was inferred", StringComparison.Ordinal)).ShouldEqual(1);
+    [Fact] void should_report_only_paging_sorting_and_the_context_limit() => _analysis.Diagnostics.Count.ShouldEqual(3);
 }

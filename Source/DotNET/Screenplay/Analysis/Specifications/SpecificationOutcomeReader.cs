@@ -99,7 +99,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             .OfType<InvocationExpressionSyntax>()
             .Any(invocation =>
                 semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
-                SpecificationAssertions.IsRejection(invocation, method));
+                SpecificationAssertions.IsRejection(invocation, method, semanticModel));
 
     /// <summary>
     /// Adds an event a specification says followed, or records that it cannot be read.
@@ -147,6 +147,11 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
                 ? draft.EventSources.Read(invocation, method, semanticModel, draft)
                 : null
         };
+        if (!SpecificationEventCompleteness.StatesEveryValue(state, appended, draft))
+        {
+            return;
+        }
+
         draft.AddThen(state, appended, invocation.GetLocation());
     }
 
@@ -169,7 +174,20 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             }
 
             var appended = SpecificationAssertions.AppendedEventOf(method);
-            var rejection = SpecificationAssertions.IsRejection(invocation, method);
+            var rejection = SpecificationAssertions.IsRejection(invocation, method, semanticModel);
+            if (SpecificationAssertions.IsUnsupportedFailure(invocation, method))
+            {
+                if (!rejected || string.Equals(method.Name, "ShouldNotBeAuthorized", StringComparison.Ordinal) ||
+                    string.Equals(method.Name, "ShouldHaveExceptions", StringComparison.Ordinal))
+                {
+                    draft.CannotRead($"'{method.Name}' does not assert a validation or constraint rejection, and its failure outcome cannot be stated faithfully");
+                    return;
+                }
+
+                // A separate validation assertion proves the category; the generic failure adds no reason.
+                continue;
+            }
+
             if (appended is null && SpecificationAssertions.HasAppendedEventAssertionName(method))
             {
                 draft.CannotRead("an appended-event assertion does not match an exact allowlisted testing API signature");

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Policies;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
@@ -37,6 +38,7 @@ public class PolicyConditionConverter(IScreenplayNaming naming)
         AuthenticatedRequirement => new AuthenticatedConditionSyntax(SourceLocation.Start),
         RoleRequirement role => Role(role.Role),
         ClaimRequirement claim => Claim(claim),
+        ClaimTargetRequirement target => ClaimTarget(target),
         CombinedRequirement combined => Combine(combined),
         _ => null
     };
@@ -61,6 +63,16 @@ public class PolicyConditionConverter(IScreenplayNaming naming)
     ClaimConditionSyntax? Claim(ClaimRequirement claim) =>
         naming.ToStringLiteral(claim.Claim) is { } name && naming.ToStringLiteral(claim.Value) is { } value
             ? new ClaimConditionSyntax(name, false, new LiteralExpressionSyntax(value, SourceLocation.Start), SourceLocation.Start)
+            : null;
+
+    /// <summary>
+    /// Converts a proven subject or artifact claim target without quoting it as a literal.
+    /// </summary>
+    /// <param name="target">The proven target.</param>
+    /// <returns>The claim condition, or null when its name cannot be written.</returns>
+    ClaimConditionSyntax? ClaimTarget(ClaimTargetRequirement target) =>
+        naming.ToStringLiteral(target.Claim) is { } name
+            ? new ClaimConditionSyntax(name, target.MatchesSubject, target.MatchesSubject ? null : new PathExpressionSyntax(target.Path, SourceLocation.Start), SourceLocation.Start)
             : null;
 
     /// <summary>

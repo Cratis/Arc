@@ -28,4 +28,14 @@ public record QueryModel(
     /// this - a query returning one of them must not be taken as reading a read model that is the other.
     /// </remarks>
     public string? ReturnTypeFullName { get; init; }
+
+    /// <summary>
+    /// Gets the query's XML summary.
+    /// </summary>
+    public string? Description { get; init; }
+
+    /// <summary>
+    /// Gets the repository-relative file implementing the query; emission includes it only in authoring mode.
+    /// </summary>
+    public string? PerformerFile { get; init; }
 }

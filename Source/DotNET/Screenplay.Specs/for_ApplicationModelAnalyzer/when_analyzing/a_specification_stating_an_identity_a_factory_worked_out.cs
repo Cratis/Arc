@@ -54,7 +54,7 @@ public class a_specification_stating_an_identity_a_factory_worked_out : Specific
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor(_id, "Jane Austen"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

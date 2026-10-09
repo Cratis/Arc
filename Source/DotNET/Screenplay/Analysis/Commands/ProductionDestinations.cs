@@ -37,8 +37,10 @@ public static class ProductionDestinations
                 return false;
             }
 
-            if (node is TupleExpressionSyntax tuple && (!generatedIdentity || !tuple.Arguments.Any(argument => argument.Expression == creation) ||
-                (tuple.Parent is not ReturnStatementSyntax && !ReferenceEquals(tuple, body))))
+            if (node is TupleExpressionSyntax tuple &&
+                (!tuple.Arguments.Any(argument => MappingSourceReader.Unwrap(argument.Expression) == creation) ||
+                 (!EventResponseTuples.UsesCommandContext(model.GetTypeInfo(tuple).Type ?? model.GetTypeInfo(tuple).ConvertedType) &&
+                  (!generatedIdentity || (tuple.Parent is not ReturnStatementSyntax && !ReferenceEquals(tuple, body))))))
             {
                 return false;
             }

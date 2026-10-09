@@ -59,7 +59,7 @@ public class when_analyzing_an_exact_rejection_scenario : Specification
                 _result = await _scenario.Execute(new RegisterProject(""));
             }
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

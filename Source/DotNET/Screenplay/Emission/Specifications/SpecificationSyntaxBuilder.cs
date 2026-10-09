@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
+using Cratis.Arc.Screenplay.Emission.Reactors;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
@@ -45,6 +46,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     [
         .. specifications
             .Select(WithRepresentableSources)
+            .OfType<SpecificationModel>()
+            .Select(WithReactionsAccountedFor)
             .OfType<SpecificationModel>()
             .Select(WithFollowingAssertions)
             .OfType<SpecificationModel>()
@@ -140,9 +143,87 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         };
     }
 
+    /// <summary>
+    /// Keeps a scenario only when what it says follows its action accounts for the declarative reactions it sets off.
+    /// </summary>
+    /// <param name="specification">The scenario.</param>
+    /// <returns>The scenario, or <see langword="null"/> when it was left out.</returns>
+    /// <remarks>
+    /// Since ESM v6 the reactions a fact sets off run in a specification, and its <c>then</c> events are every fact
+    /// that follows - the action's and the reactions'. A command or append scenario in Arc runs no reactor, so one
+    /// whose facts set off a reaction the document states declaratively says less than the document would run, and is
+    /// left out rather than stated as an outcome the reference would contradict. A reactor scenario is kept only while
+    /// the reaction of its reactor is stated declaratively, is the only thing reacting to the appended event, and
+    /// appends nothing that sets anything else off.
+    /// </remarks>
+    SpecificationModel? WithReactionsAccountedFor(SpecificationModel specification)
+    {
+        if (Application is null || specification.When is not { } action || specification.Errors.Any())
+        {
+            return specification;
+        }
+
+        var reactions = new DeclarativeReactions(naming, Application);
+        var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
+            Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
+        var reason = specification.Reactor is { } reactor
+            ? ReactorScenarioGap(specification, action, reactor, reactions)
+            : ActionScenarioGap(specification, action, reactions);
+        if (reason is null)
+        {
+            return specification;
+        }
+
+        Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because {reason}", location);
+        return null;
+    }
+
+    string? ActionScenarioGap(SpecificationModel specification, SpecificationStateModel action, DeclarativeReactions reactions)
+    {
+        var stated = action.Kind == SpecificationStateKind.Event ? [action] : specification.Then.ToList();
+        var facts = stated
+            .Where(state => state.Kind == SpecificationStateKind.Event)
+            .Select(state => naming.ToDeclarationName(state.Name))
+            .ToHashSet(StringComparer.Ordinal);
+        var reached = reactions.All().FirstOrDefault(item => facts.Contains(naming.ToDeclarationName(item.Reaction.EventName)));
+
+        return reached.Reactor is null
+            ? null
+            : $"'{reached.Reaction.EventName}' follows its action and sets off the declarative reaction '{naming.ToDeclarationName(reached.Reactor.Name)}', which the scenario does not run, so what follows would not be what it states";
+    }
+
+    string? ReactorScenarioGap(SpecificationModel specification, SpecificationStateModel action, string reactor, DeclarativeReactions reactions)
+    {
+        var appended = naming.ToDeclarationName(action.Name);
+        var reactors = Application!.Slices.SelectMany(slice => slice.Reactors).ToList();
+        if (reactors.Where(model => model.Name == reactor).ToList() is not [var model] ||
+            reactions.For(model, action.Name) is not { } reaction)
+        {
+            return $"the reaction of '{reactor}' to '{action.Name}' is not stated declaratively in the document";
+        }
+
+        if (reactors.Exists(other => !ReferenceEquals(other, model) && other.ObservedEvents.Any(observed => naming.ToDeclarationName(observed) == appended)))
+        {
+            return $"'{action.Name}' also sets off another reactor, whose effects the scenario does not state";
+        }
+
+        var observed = reactions.Observed();
+        if (reaction.Produces.Any(produced => observed.Contains(naming.ToDeclarationName(produced.EventName))))
+        {
+            return "an event its reaction appends sets off further reactions, whose effects the scenario does not state";
+        }
+
+        var expected = specification.Then.Select(state => naming.ToDeclarationName(state.Name)).Order(StringComparer.Ordinal);
+        var produces = reaction.Produces.Select(produced => naming.ToDeclarationName(produced.EventName)).Order(StringComparer.Ordinal);
+
+        return reaction.Invokes.Any() || !expected.SequenceEqual(produces, StringComparer.Ordinal)
+            ? "it does not state every fact its reaction appends"
+            : null;
+    }
+
     SpecificationModel? WithFollowingAssertions(SpecificationModel specification)
     {
-        if (specification.When is not { Kind: SpecificationStateKind.Event })
+        if (specification.When is not { Kind: SpecificationStateKind.Event } || specification.Reactor is not null)
         {
             return specification;
         }
@@ -218,7 +299,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             [.. Events(specification.Given)],
             When(specification.When),
             [.. Events(specification.Then)],
-            [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_) ?? string.Empty, SourceLocation.Start))],
+            [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_), SourceLocation.Start))],
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
             [.. ReadModels(specification.Then)])

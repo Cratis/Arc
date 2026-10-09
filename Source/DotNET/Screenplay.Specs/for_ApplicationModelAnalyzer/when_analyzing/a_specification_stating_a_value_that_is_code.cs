@@ -48,7 +48,7 @@ public class a_specification_stating_a_value_that_is_code : Specification
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor("Jane Austen", _age));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

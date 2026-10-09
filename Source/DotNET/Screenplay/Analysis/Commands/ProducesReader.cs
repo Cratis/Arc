@@ -51,7 +51,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
 
         foreach (var handler in handlers)
         {
-            if (!generatedIdentity)
+            if (!generatedIdentity && !EventResponseTuples.UsesCommandContext(handler.ReturnType))
             {
                 ReportEventSourceIdResult(command, handler, location);
             }
@@ -63,7 +63,8 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                     continue;
                 }
 
-                var usesCommandContext = generatedIdentity || !HandlerBodies.YieldsEventSourceId(handler.ReturnType);
+                var usesCommandContext = generatedIdentity || !HandlerBodies.YieldsEventSourceId(handler.ReturnType) ||
+                    EventResponseTuples.UsesCommandContext(handler.ReturnType);
                 ReadBody(command, body, semanticModel, location, produces, null, usesCommandContext, sources, generatedIdentity);
 
                 foreach (var behavior in AggregateRootBehaviors.ReachedFrom(body, semanticModel))

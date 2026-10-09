@@ -57,7 +57,7 @@ public class a_specification_against_a_running_host : Specification
 
             readonly IEventSequence _sequence = null!;
 
-            [Fact] void should_register_the_author() => _sequence.ShouldHaveAppendedEvent<AuthorRegistered>("author");
+            [Fact] Task should_register_the_author() => _sequence.ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == context.AuthorName);
         }
         """;
 

@@ -149,7 +149,7 @@ An event used by exactly one production site can appear as `produces event <Name
 
 Both forms preserve descriptions, documentation, rename pins, and the persisted payload shape. Inlining changes where the declaration appears, not its executable meaning. Scoped embedded documents still import an inline event declared outside their scope, and the board keeps its schema and flow links.
 
-The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A routed wrapper, an unproven tuple destination, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination once per command, even when the command has no identifier, rather than retargeting it.
+The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A directly returned `(TEvent, TResponse)` tuple preserves that destination when the response cannot be an event source identifier, including returns through `Task` or `ValueTask`. Arc handles the event through command context and returns the separate response to the caller; an ordinary response does not replace the event source. A response typed as an event source identifier, `object`, or an interface does not prove this routing. A routed wrapper, an unproven tuple destination, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination once per command, even when the command has no identifier, rather than retargeting it.
 
 ## Read models
 
@@ -193,6 +193,22 @@ A read model is left undeclared, with Information diagnostic `SP0057`, when no d
 - no slice refers to it.
 
 Whatever builds or reads it still names it, and none of the concepts or types it holds are declared on its behalf.
+
+## Query descriptions and implementations
+
+A query method's XML `<summary>` becomes its `description`. Parameters with explicit defaults become optional filters, including non-null defaults such as `int limit = 10`. Screenplay cannot state the default value itself; Information diagnostic `SP0019` reports that gap. Nullable scalar returns remain optional through `Task<T>` and `ValueTask<T>` wrappers. For collection returns, `optional` describes the collection, not its elements; nullable elements are reported as `SP0019` rather than described as an optional collection.
+
+Set `ScreenplayOptions.AuthoringOnlyConstructs` to include a `performer` with the repository-relative file containing a query's block or expression body. A declaration without a body gets no performer. Performer-backed queries are not executable in the pinned language, so default output retains the query without its performer and reports Information diagnostic `SP0019`. A body with no portable source path is also reported rather than given a machine-specific file reference.
+
+The generator does not infer `from $context.*` from a parameter's name or from reads inside the query body. Arc's model-bound parameter binder supplies caller arguments, dependencies, and cancellation tokens; it does not declare a scalar parameter-to-Screenplay-context binding. Arc's `QueryContext` is a host dependency with a different shape from Screenplay's context. It remains excluded from caller parameters, and `SP0041` explains why no context source was inferred. Paging and sorting remain serving concerns, not context-bound scalar filters.
+
+## Policy claim targets
+
+Readable `RequireAssertion` registrations can describe claims compared with command input properties instead of literal values. The supported shape guards `AuthorizationHandlerContext.Resource` as a `CommandContext` holding the command type, then calls the real `ClaimsPrincipal.HasClaim` with a constant claim type and a required string property. Positional record properties and nested positional record members become artifact paths; `&&`, `||`, and parentheses keep their meaning. The resource guard is removed only when every application use of that policy authorizes the guarded command type. An identifier comparison becomes `matches subject` for a command with an empty void `Handle()`; other proven comparisons keep their property paths rather than assuming the generated command retains an identifier.
+
+A keyed snapshot query can also yield `matches subject`. Its assertion must guard the `QueryContext` argument dictionary, read the key with `TryGetValue`, check that the retrieved value is a string, and compare that value with `HasClaim`. Every use must have that same sole caller-supplied string key, matching a returned read-model property. A dictionary indexer, unchecked cast, another query shape, or an additional unreadable guard is not treated as equivalent.
+
+Computed getters, transformations, nullable claim targets, conditional assertion registration, and arbitrary policy bodies retain `SP0026` rather than producing a partial recovered assertion. Existing literal-claim, role, and authenticated requirements remain supported. When nothing is recovered, the existing `require authenticated` fallback remains explicitly diagnosed; it is not a claim that the original policy allowed access. Screenplay 4.80.0 does not support `not` policy conditions, so negated assertions also retain this fallback without a dependency upgrade.
 
 ## Generated values and responses
 
@@ -296,6 +312,37 @@ Named rules are opaque to reference execution. The generator withholds them when
 
 Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
 
+## Reactors
+
+Every reactor becomes a `reaction` with one `when` trigger per event it handles. What happens under each trigger depends on the handler.
+
+A handler whose only effect is the value it returns is stated as what that value sets off, so specifications can run it:
+
+```csharp
+public class Welcomer : IReactor
+{
+    public AuthorWelcomed Welcome(AuthorRegistered @event) => new(@event.Name, "Welcome");
+}
+```
+
+```screenplay
+reaction Welcomer
+  when AuthorRegistered
+    produces AuthorWelcomed
+      name = name
+      greeting = "Welcome"
+```
+
+The generator only writes this form when it is exactly what Chronicle and Arc do with the returned value:
+
+- **`produces`** comes from an event returned by a synchronous handler declared to return that event, or from a literal collection of events returned as a sequence of events or of `object`. Chronicle appends the events to the event source of the triggering event, which is what `produces` says when it names no `for`.
+- **`invokes`** comes from a command returned through `Task<TCommand>` (`Task.FromResult(...)`, or an `async` handler that only returns it), or from a literal collection of commands returned as a sequence of `object`. Arc's command side effect handlers run each command through the pipeline with no caller, in order, and stop at the first that fails, which is how a reaction invokes a command. Chronicle rejects a synchronous handler declared to return a command type, so that shape stays code.
+- The handler takes only the event and, optionally, its `EventContext`. Its body is a single unconditional return of one construction or one literal collection of them, and every value it sets is a property of the triggering event, `context.Occurred` (`$context.occurred`), or a constant. A text constant must be written into the document unchanged, so text with surrounding or repeated whitespace, line breaks, double quotes or backslashes stays code, as do numbers a double cannot hold exactly.
+- The construction gives every property the event or command carries a value, directly: a positional record property through its constructor argument, or an automatic property with no initializer through the object initializer. A computed property, a property with an initializer or accessor body, a redeclared positional property, an explicit field, or a type deriving from another type keeps the handler as code.
+- Every event and command it names is declared once in the document, with the properties the mapping fills in. An invoked command receives every one of its properties, and none of them is generated.
+
+Anything else keeps the trigger's `file` reference, exactly as before: a branch, a computed value, a call to a collaborator, any other parameter, an `object` return, a `[Replay]` handler, several handlers for one event, a reactor implementing `ICanProvideEventSourceId`, a reactor Chronicle narrows or routes - `[FilterEventsByTag]`, `[EventSourceType]`, `[EventStreamType]`, `[FromEventSource<TSource>]`, or another sequence than the event log through `[Reactor(eventSequence: ...)]`, `[EventSequence]`, `[EventStore]` on the reactor, or `[EventStore]` on an event it handles or that event's assembly - and commands returned by a reactor marked `[ExecuteCommandsAsSystem]`, because a reaction has no way to say a command runs as the system. Conditions are not translated into `where`. A reaction with a `file` body returns `SemanticUnsupported` when a specification reaches it.
+
 ## The scenarios a slice is specified by
 
 A `.play` says what a slice does. The Chronicle integration specs in the folder beneath it already say the same thing by example — what had happened, the command that was issued, what followed — which is exactly the shape of a Screenplay `specification`. So they are read too, and the document carries the examples proving the model rather than only the model:
@@ -331,13 +378,15 @@ slice StateChange Registration
 
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
+Event assertions must state every payload property. `ShouldHaveAppendedEvent` predicates that check only part of an event, or assert only its type, cause the whole command or append scenario to be omitted with `SP0039` (Warning), naming the event and its missing properties. Screenplay compares expected events as whole facts, not subsets; the generator does not fill the gaps from command inputs or defaults. The current Screenplay dependency requires nullable properties too. Although newer language versions permit omitted optional properties, the generator conservatively omits these partial scenarios as well; an explicit `null` is not a valid specification event value. Complete predicates retain their stated values. This check also applies to event assertions after `when append`, before any assertion that merely restates the appended fact is removed.
+
 A generated scenario must say the same thing as the code. Screenplay assumes a source-less command scenario's `given` events belong to the command's own source. An event seeded or asserted on another source must state that source as an indented `for <value>` on its `given`, event `then`, or `when append` block. If the generator cannot state it faithfully, it omits the whole scenario with `SP0039` (Warning), including validation-only and authorization rejections. A command without an emitted identifier is not an exception: explicit sources cannot be collapsed into one implicit source unless they are provably the same as the command's source.
 
 Concrete sources can be stated only when every producing command retains the same required scalar identifier type and the values fit that type. A `Uuid` destination requires a canonical lowercase GUID string. Stable fields and properties with a single constant initializer are followed one hop; equal values, including constant-wrapped identities, remain implicit when they match the command's source. String event-source ids are compared exactly, including casing and braces; only values converted to GUIDs at runtime are normalized to `Guid.ToString("D")`. A positional identifier property read from the same unreassigned held command passed to `Scenario.Execute` also remains implicit. An event scenario sharing one source can also remain implicit when that source cannot be typed. Distinct or undecidable sources that cannot be stated take the scenario out with `SP0039`; separate calls to `EventSourceId.New()` are not the same source.
 
 Screenplay cannot yet state event stream type and stream id in scenario occurrences. That language gap is tracked in [Cratis/Screenplay#457](https://github.com/Cratis/Screenplay/issues/457); an event-source `for` value does not state stream metadata.
 
-A rejection the source asserts without naming a reason is written as bare `then error`. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
+A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()`, `IsSuccess.ShouldBeFalse()`, and `ShouldNotBeSuccessful()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
 A scenario that compares the command response with concrete values becomes `then returns`:
 
@@ -368,6 +417,44 @@ A scenario that does not assert the response does not hold the response back.
 Generated values are a different matter. Arc creates them inside `Handle()`, through `AuthorId.New()`, `Guid.NewGuid()` or Arc's own event source allocation, and neither `CommandScenario` nor the Chronicle testing extensions offer a way for a scenario to choose them. A scenario can only relate a generated value to another value from the same run, such as the response compared with an appended event's source. It cannot pin the value to a literal, and a literal comparison against a freshly generated value would fail when the scenario runs. Screenplay requires indented `for <value>` for a generated identifier and `generated <property> = <value>` for other generated values beneath `when`. Missing fixtures would execute as `Unsupported(IdentityAllocation)`, not a passing example. Because no fixture can be recovered from an Arc scenario, a command with generated values and successful scenarios keeps its legacy productions or handler reference without `generated` or `returns`, and `SP0052` says why. `ScreenplayOptions.MaximumExecutableModelVersion` below 7 withholds responses and `then returns` as well. Validation and authorization rejection scenarios need no generation fixture because those checks precede generation. When any scenario issuing a command states explicit given event sources, generation and responses are withheld with `SP0052`, including for constraint rejections, so the command keeps its legacy form. This does not retain a scenario whose event sources cannot be stated faithfully.
 
 Expect the document to grow. On a real application this roughly doubled it, at about seven lines per scenario.
+
+### Reactor scenarios and the reactions a scenario sets off
+
+Since ESM v6 a specification runs the reactions its facts set off, and its `then` events are every fact that follows: the action's and the reactions'. Arc's `CommandScenario` and `EventScenario` run no reactor. A command or append scenario whose facts set off a reaction stated with `produces` or `invokes` would therefore state less than the document runs, so it is omitted with `SP0039`. A rejected command records no facts and is kept. A scenario reaching a reaction that is still a `file` reference is kept as before.
+
+A Chronicle `ReactorScenario` of a reactor stated declaratively becomes a specification of its reaction. The event it delivers becomes `when append`, and each `ShouldHaveProduced<TEvent>(...)` becomes a `then` event, in the order the reaction produces them:
+
+```csharp
+public class and_the_author_is_welcomed
+{
+    readonly ReactorScenario<Welcomer> _scenario = new();
+
+    async Task Because() =>
+        await _scenario.Given.ForEventSource(EventSourceId.New()).Events(new AuthorRegistered("Jane Austen", "UK"));
+
+    [Fact] void should_welcome_the_author() =>
+        _scenario.ShouldHaveProduced<AuthorWelcomed>(e => e.Name == "Jane Austen" && e.Greeting == "Welcome");
+}
+```
+
+```screenplay
+specification WhenAnAuthorIsRegisteredAndTheAuthorIsWelcomed
+  when append AuthorRegistered
+    name = "Jane Austen"
+    country = "UK"
+  then AuthorWelcomed
+    name = "Jane Austen"
+    greeting = "Welcome"
+```
+
+The scenario is kept only when it says what its reaction does, and no more:
+
+- Its assertions are `ShouldHaveProduced<TEvent>(...)` and `ShouldNotHaveProduced<T>()` and nothing else. A predicate is a conjunction of equalities with constants, and each event is stated whole: every property gets a value.
+- It expects every event the reaction appends to the triggering event's source, each once. `ShouldNotHaveProduced<T>()` must name something the reaction does not produce.
+- The last event it delivers is the one the reaction handles. Earlier events become `given` only when the reactor does not handle them, because every event a reactor scenario delivers runs the reactor.
+- It seeds no read model, the appended event sets off no other reactor, and nothing the reaction appends sets off a reaction.
+
+A reactor scenario that asserts something else has no counterpart and is reported with `SP0043`. That covers a collaborator mock, `Produced` read directly, a scenario of a reactor whose handlers are all code, and `ShouldHaveProduced<TCommand>()`. Screenplay states the facts an invoked command records, while the reactor scenario only records the command. A reactor scenario that does have a counterpart but cannot be stated faithfully is omitted with `SP0039`, which names the reason.
 
 ### A scenario is read whole or not at all
 
@@ -446,7 +533,7 @@ These details can remain outside the document because the language has no counte
 | `[FromEventSource<TSource>(stream)]` on a reactor or reducer | The source and stream the observer is filtered to are recovered and kept in the analysis model, but the Screenplay syntax (`Cratis.Screenplay` 4.82.4) gives a reaction trigger and a projection no way to narrow them to an event source or stream. The observer is emitted observing its events from every source, so `SP0047` says what the document leaves out, and `SP0048` says when the definition does not declare the stream. |
 | Aggregate roots no command reaches                                                                    | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. `SP0018`.                                                                                                                                                                                                                |
 | A behavior deciding on the state an aggregate root holds                                              | A `produces when` condition compares the input of the command, which is all a document knows at the moment the command is issued. A behavior refusing to act on what it has already seen is a real decision with nowhere to go, so the event is stated unconditionally and `SP0027` reports the decision. A behavior deciding on one of its own _parameters_ is recovered, because the call site says which command input that parameter was given. |
-| Inline `policy` code and requirements built in code                                                   | `RequireAssertion(…)` and a policy registered from an `AuthorizationPolicy` built elsewhere are code. `RequireAuthenticatedUser`, `RequireRole`, and `RequireClaim` given the values it accepts are recovered; the rest is reported as `SP0026` — including a `RequireClaim` naming only a claim type, which a policy condition has no way to state.                                                                                                |
+| Inline `policy` code and requirements built in code                                                   | Unreadable `RequireAssertion(…)` bodies and a policy registered from an `AuthorizationPolicy` built elsewhere remain in code. Guarded claim-target assertions described above, `RequireAuthenticatedUser`, `RequireRole`, and `RequireClaim` given the values it accepts are recovered; the rest is reported as `SP0026` — including a `RequireClaim` naming only a claim type, which a policy condition has no way to state.                                                                                                |
 | The event source id from a `(TKey, TEvent)` handler                                                   | The event is recovered. An admitted generated UUID identity and response are stated by default. If the destination cannot be proven or the generated concept has validation, no destination is inferred and `SP0013` explains the omission.                                                                                                                                                                                                                                                                                                                                         |
 | Emptying a scope with `[ClearWith]`; removing a child with `[RemovedWith]` on the property holding it | Nothing in the model a projection is built from carries a scope being emptied again, so `[ClearWith]` has nowhere to go (`SP0015`). A removal does have somewhere — but it is read from the type of the child, alongside the events filling that child in, so the same removal written beside the collection is reported as `SP0007` instead.                                                                                                       |
 | Read model tags                                                                                       | A `readmodel` declaration states the shape of a read model — its properties, a description, and the file declaring it — and nothing else, so there is nowhere to hang a tag. Tags on _events_ are recovered and written out. `SP0042`.                                                                                                                                                                                                              |
