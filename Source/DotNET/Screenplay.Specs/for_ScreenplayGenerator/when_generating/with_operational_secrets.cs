@@ -49,6 +49,43 @@ public class with_operational_secrets : a_generated_document
         AssertDocument();
     }
 
+    [Theory]
+    [InlineData("[Encrypted, NotAudited]")]
+    [InlineData("[PII]")]
+    public void should_withhold_compliance_annotations_from_stream_ids(string attributes)
+    {
+        Generate(new ScreenplayOptions { AuthoringOnlyConstructs = true }, (Analyzed.SlicePath, $$"""
+            using Cratis.Arc.Commands.ModelBound;
+            using Cratis.Arc.Chronicle.Commands;
+            using Cratis.Chronicle.Compliance.GDPR;
+            using Cratis.Chronicle.Events;
+            using Cratis.Chronicle.Keys;
+            using Cratis.Chronicle.ProtectedValues;
+
+            namespace Library.Authors.Registration;
+
+            {{attributes}}
+            public record Secret(string Value) : EventStreamId(Value);
+
+            [Command, EventSourceType("Account"), EventStreamType("Transactions")]
+            public record SetSecret([Key] string Id, Secret Secret) : ICanProvideEventStreamId
+            {
+                public EventStreamId GetEventStreamId() => Secret;
+                public SecretSet Handle() => new(Secret);
+            }
+
+            [EventType]
+            public record SecretSet(Secret Secret);
+            """));
+
+        Result.Source.ShouldContain("streamId Secret");
+        Result.Source.ShouldContain("streamId = secret");
+        Result.Source.ShouldNotContain("@pii");
+        Result.Source.ShouldNotContain("@sensitive");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ProtectedIdentityAnnotation).ShouldBeTrue();
+        AssertCompiles();
+    }
+
     void GenerateSecret(string conceptAttributes, string memberAttributes, bool identifier) => Generate(
         (Analyzed.SlicePath, $$"""
             using Cratis.Arc.Commands.ModelBound;

@@ -28,7 +28,7 @@ public class with_specification_event_routes : a_generated_document
             Task Establish() => _scenario.EventScenario.EventSequence.Append(_source, new AuthorRegistered("Prior"),
                 eventStreamType: "Transactions", eventStreamId: "October", eventSourceType: "Account");
 
-            Task Because() => _scenario.Execute(new RegisterAuthor(new AuthorId(Guid.Parse("11111111-1111-1111-1111-111111111111")), "October", "New"));
+            Task Because() => _scenario.Execute(new RegisterAuthor("11111111-1111-1111-1111-111111111111", "October", "New"));
 
             [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(_source, e => e.Name == "New");
         }
@@ -38,7 +38,7 @@ public class with_specification_event_routes : a_generated_document
         [Command]
         [EventSourceType("Account")]
         [EventStreamType("Transactions")]
-        public record RegisterAuthor(AuthorId AuthorId, string Month, string Name) : ICanProvideEventStreamId
+        public record RegisterAuthor([Key] string Id, string Month, string Name) : ICanProvideEventStreamId
         {
             public EventStreamId GetEventStreamId() => Month;
             public AuthorRegistered Handle() => new(Name);

@@ -33,7 +33,11 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
                 $"{given.an_application.Feature}.Issuing" => slice with
                 {
                     Queries = [new QueryModel("InvoiceByReference", new(ReadModel, false, true), reference, [], null)],
-                    ReadModels = [new ReadModelModel(ReadModel, [reference]) { Namespace = Settling }]
+                    ReadModels = [new ReadModelModel(ReadModel, [reference]) { Namespace = Settling }],
+                    Projections = localProjections == 0
+                        ? [new ProjectionModel("InvoiceProjection", ReadModel, "event-log", ProjectionAutoMapMode.Enabled, false,
+                            ProjectionScopeModel.Empty with { From = [new(["InvoiceIssued"], "$eventSourceId", null, new Dictionary<string, string>())] })]
+                        : []
                 },
                 Settling => slice with
                 {

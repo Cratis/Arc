@@ -69,14 +69,10 @@ public class ConceptSyntaxBuilder(
     }
 
     /// <summary>
-    /// Gets the values of an enumeration in the lower camel case form the grammar requires.
+    /// Gets the compliance annotations the concept's value carries.
     /// </summary>
-    /// <param name="concept">The concept to read the values of.</param>
-    /// <returns>The values, empty when the concept is not an enumeration.</returns>
-    /// <remarks>
-    /// A value is written on a line of its own, so a value named after a word the concept body reads as a directive
-    /// is swallowed by that directive rather than declared, and is left out instead.
-    /// </remarks>
+    /// <param name="concept">The concept to annotate.</param>
+    /// <returns>The annotations, in their printed order.</returns>
     IEnumerable<ConceptAttributeSyntax> Attributes(ConceptModel concept)
     {
         if (concept.IsPii)
@@ -90,6 +86,15 @@ public class ConceptSyntaxBuilder(
         }
     }
 
+    /// <summary>
+    /// Gets the values of an enumeration in the lower camel case form the grammar requires.
+    /// </summary>
+    /// <param name="concept">The concept to read the values of.</param>
+    /// <returns>The values, empty when the concept is not an enumeration.</returns>
+    /// <remarks>
+    /// A value is written on a line of its own, so a value named after a word the concept body reads as a directive
+    /// is swallowed by that directive rather than declared, and is left out instead.
+    /// </remarks>
     List<string> ToValues(ConceptModel concept) =>
         concept.Primitive == ScreenplayPrimitive.Enum
             ?
