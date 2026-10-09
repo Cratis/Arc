@@ -1,10 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.Testing.EventSequences;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
@@ -61,6 +65,14 @@ public static class CommandScenarioChronicleExtensions
             (List<AppendedEventWithResult>)scenario.Context[ChronicleCommandScenarioExtender.AppendedEventsKey];
 
         /// <summary>
+        /// Gets successful stream completions recorded by the scenario event log, including idempotent completions.
+        /// </summary>
+        public IReadOnlyList<(EventStreamType EventStreamType, EventStreamId EventStreamId)> CompletedStreams =>
+            scenario.Services.LastOrDefault(_ => _.ServiceType == typeof(IEventLog))?.ImplementationInstance is EventLogForScenario eventLog
+                ? eventLog.CompletedStreams.AsReadOnly()
+                : [];
+
+        /// <summary>
         /// Gets the Chronicle-specific given builder for setting up command scenario state.
         /// </summary>
         public CommandScenarioChronicleGivenBuilder<TCommand> Given =>
@@ -85,7 +97,39 @@ public static class CommandScenarioChronicleExtensions
             }
 
             ChronicleCommandScenarioExtender.EnableDecisionReads(scenario.Services, scenario.Context);
+            var decision = (DecisionCommandScenario)scenario.Context[ChronicleCommandScenarioExtender.DecisionScenarioKey];
+            scenario.Services.TryAddSingleton(decision.Store.EventSources);
             return scenario;
+        }
+
+        /// <summary>
+        /// Resolves a route from the scenario's discovered event source definitions before seeding.
+        /// </summary>
+        public IEventRoutes EventRoutes
+        {
+            get
+            {
+                using var services = scenario.Services.BuildServiceProvider();
+
+                return new EventRoutes(services.GetRequiredService<IEventSources>());
+            }
+        }
+
+        /// <summary>
+        /// Queues routed competing facts after the handler reads and before its owner commits.
+        /// </summary>
+        /// <param name="eventSourceId">The source changed by the competitor.</param>
+        /// <param name="route">The competitor's route.</param>
+        /// <param name="events">The competing facts.</param>
+        /// <exception cref="ConcurrentAppendRequiresDecisionReads">Decision mode was not enabled.</exception>
+        public void AppendConcurrently(EventSourceId eventSourceId, EventRoute route, params object[] events)
+        {
+            if (!scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
+            {
+                throw new ConcurrentAppendRequiresDecisionReads();
+            }
+
+            ((DecisionCommandScenario)decision).QueueCompetingAppend(eventSourceId, events, route);
         }
 
         /// <summary>

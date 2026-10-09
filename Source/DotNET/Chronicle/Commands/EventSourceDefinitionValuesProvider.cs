@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSources;
@@ -25,17 +26,16 @@ public class EventSourceDefinitionValuesProvider(IServiceProvider serviceProvide
         }
 
         var definition = serviceProvider.GetRequiredService<IEventSources>().GetFor(declaration.EventSource);
-        var stream = declaration.Stream is null ? null : definition.FindStream(declaration.Stream)
-            ?? throw new EventRoutingContradictsEventSource(commandType, nameof(EventStreamType), "a stream declared by the event source", declaration.Stream);
-        VerifyStringRouting(commandType, definition, stream);
+        var route = EventRoute.For(definition, declaration.Stream, commandType);
+        VerifyStringRouting(commandType, definition, declaration.Stream is null ? null : definition.FindStream(declaration.Stream));
 
         return new CommandContextValues
         {
             { WellKnownCommandContextKeys.EventSource, declaration.EventSource },
             { WellKnownCommandContextKeys.EventStream, declaration.Stream! },
-            { WellKnownCommandContextKeys.ConcurrencyDimensions, definition.ConcurrencyFor(stream) },
-            { WellKnownCommandContextKeys.EventSourceType, definition.EventSourceType },
-            { WellKnownCommandContextKeys.EventStreamType, stream?.EventStreamType ?? EventStreamType.All }
+            { WellKnownCommandContextKeys.ConcurrencyDimensions, route.Concurrency },
+            { WellKnownCommandContextKeys.EventSourceType, route.EventSourceType },
+            { WellKnownCommandContextKeys.EventStreamType, route.EventStreamType }
         };
     }
 

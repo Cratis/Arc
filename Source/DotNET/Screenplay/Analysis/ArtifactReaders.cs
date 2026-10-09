@@ -133,6 +133,7 @@ public class ArtifactReaders
             new EventReader(properties, diagnostics),
             new CommandReader(properties, produces, validators, paths, new(models, diagnostics))
             {
+                Diagnostics = diagnostics,
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
                 {
                     ValidatedTypes = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)

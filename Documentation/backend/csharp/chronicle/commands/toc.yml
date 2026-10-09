@@ -14,3 +14,7 @@
   href: transactional-commands.md
 - name: Concurrency
   href: concurrency.md
+- name: Stream decisions
+  href: stream-decisions.md
+- name: Completing streams
+  href: completing-streams.md
