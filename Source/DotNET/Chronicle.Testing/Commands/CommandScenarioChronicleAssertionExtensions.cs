@@ -72,6 +72,25 @@ public static class CommandScenarioChronicleAssertionExtensions
     }
 
     /// <summary>
+    /// Asserts that the scenario successfully completed the specified stream.
+    /// </summary>
+    /// <typeparam name="TCommand">The command type of the scenario.</typeparam>
+    /// <param name="scenario">The scenario to assert on.</param>
+    /// <param name="eventStreamType">The expected stream type.</param>
+    /// <param name="eventStreamId">The expected stream id.</param>
+    /// <returns>A completed task.</returns>
+    /// <exception cref="EventSequenceAssertionException">No matching successful completion was recorded.</exception>
+    public static Task ShouldHaveCompletedStream<TCommand>(this CommandScenario<TCommand> scenario, EventStreamType eventStreamType, EventStreamId eventStreamId)
+    {
+        if (!scenario.CompletedStreams.Contains((eventStreamType, eventStreamId)))
+        {
+            throw new EventSequenceAssertionException($"Expected stream '{eventStreamType}/{eventStreamId}' to have been completed, but no matching completion was recorded.");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Asserts that the tail sequence number of the events appended during command execution
     /// matches the expected value.
     /// </summary>

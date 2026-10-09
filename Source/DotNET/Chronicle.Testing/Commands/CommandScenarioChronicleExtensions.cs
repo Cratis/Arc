@@ -61,6 +61,14 @@ public static class CommandScenarioChronicleExtensions
             (List<AppendedEventWithResult>)scenario.Context[ChronicleCommandScenarioExtender.AppendedEventsKey];
 
         /// <summary>
+        /// Gets successful stream completions recorded by the scenario event log, including idempotent completions.
+        /// </summary>
+        public IReadOnlyList<(EventStreamType EventStreamType, EventStreamId EventStreamId)> CompletedStreams =>
+            scenario.Services.LastOrDefault(_ => _.ServiceType == typeof(IEventLog))?.ImplementationInstance is EventLogForScenario eventLog
+                ? eventLog.CompletedStreams.AsReadOnly()
+                : [];
+
+        /// <summary>
         /// Gets the Chronicle-specific given builder for setting up command scenario state.
         /// </summary>
         public CommandScenarioChronicleGivenBuilder<TCommand> Given =>

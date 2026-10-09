@@ -131,6 +131,10 @@ Here throwing deliberately tells the reactor to fail; logging and returning norm
 
 An asynchronous handler can perform manual work and then return supported side effects. Prefer one clear composition style, but mixing them is not a runtime prohibition. Chronicle also supports directly returned **events**; see [React to an event](../react-to-an-event.md).
 
+## Complete the observed stream
+
+Return `CompleteStream` from `Cratis.Arc.Chronicle.Streams` (or `Task<CompleteStream>`) to close a stream without injecting the event log. Omitted stream parts use the observed event's stream type and id; redelivery of an already completed stream succeeds. This completion cannot be mixed with events in a reactor tuple or collection. Return a command when you need final events followed by completion. See [completing streams](../commands/completing-streams.md) for the event-log-wide scope and non-atomic append/completion boundary.
+
 ## See also
 
 - [Commands](../commands/index.md)
