@@ -175,7 +175,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         if (specification.When is { Kind: SpecificationStateKind.Command } ||
-            occurrences.Any(state => state.Route is { Source: not null }) ||
+            occurrences.Exists(state => state.Route is { Source: not null }) ||
             occurrences.Select(state => state.For).Distinct().Count() != 1)
         {
             Diagnostics?.Warning(
