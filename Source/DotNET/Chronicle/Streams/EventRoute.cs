@@ -72,6 +72,15 @@ public sealed record EventRoute(EventSourceType EventSourceType, EventStreamType
     public IEnumerable<EventForEventSourceId> Route(EventSourceId id, IEnumerable<object> events) => events.Select(@event => Route(id, @event));
 
     /// <summary>
+    /// Requests completion of the stream this route selects.
+    /// </summary>
+    /// <returns>A <see cref="CompleteStream"/> for this route's stream type and stream id.</returns>
+    /// <remarks>
+    /// Return the value from a command handler or a reactor. The default stream cannot be completed, so the route needs a specific stream type and stream id.
+    /// </remarks>
+    public CompleteStream Complete() => new(EventStreamType, EventStreamId);
+
+    /// <summary>
     /// Resolves a definition route while naming the declaring command in routing failures.
     /// </summary>
     /// <param name="definition">The discovered definition.</param>
