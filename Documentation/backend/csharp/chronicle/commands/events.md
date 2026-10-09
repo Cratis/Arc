@@ -287,6 +287,10 @@ The response contains two values:
 - the `EventForEventSourceId` values, in append order; and
 - the exact concurrency scopes the decision depended on, keyed by labels you choose.
 
+### Exact scopes replace derived scopes
+
+When `Handle()` returns `EventsWithConcurrencyScopes`, the returned scopes replace every scope Arc would otherwise derive for the command: the ones from `concurrency: true` on `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]`, and the ones from an event source definition's concurrency dimensions. A `concurrency: true` flag on the command's attributes is therefore dead and [ARCCHR0016](../code-analysis/ARCCHR0016.md) warns about it with a quick fix that removes it. The definition is not reported, because it stays the policy for every other writer.
+
 ### Per-event routing
 
 A routing value set on an `EventForEventSourceId` wins over the command context. This applies to every return that carries wrappers: a single wrapper, a collection, a mixed collection, a tuple such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. One event can override its event source type or stream while the others keep the command's metadata. A plain, unwrapped event always uses the command context. A value counts as set when it differs from its default: `EventSourceType.Default`, `EventStreamType.All`, `EventStreamId.Default`, or a non-null `Subject`. A value left at its default falls back to the command context.

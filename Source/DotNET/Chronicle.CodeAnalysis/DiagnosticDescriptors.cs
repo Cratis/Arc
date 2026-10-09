@@ -40,11 +40,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0003_ReactorMustNotReachEventLog = new(
         id: "ARCCHR0003",
         title: "Reactor must not reach the default event log",
-        messageFormat: "Reactor '{0}' reaches the default event log through '{1}'. Return the events from the handler method — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers — instead of appending directly.",
+        messageFormat: "Reactor '{0}' reaches the default event log through '{1}'. {2}.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Reactors observe events and produce side effects; they must not append to the default event log directly, whether by injecting IEventLog or by appending through an injected IEventStore (its EventLog property or GetEventSequence(EventSequenceId.Log)). Both write to the sequence the handler's return type already targets, so return the events instead — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers for another event source. To trigger work in another slice, inject ICommandPipeline and execute a command. Two shapes a returned event cannot express are not reported: routing to a different sequence, such as GetEventSequence(EventSequenceId.Outbox), and appending to an event store other than the one the reactor was handed, such as one obtained from IChronicleClient.GetEventStore.");
+        description: "Reactors observe events and produce side effects; they must not append to the default event log directly, whether by injecting IEventLog or by appending through an injected IEventStore (its EventLog property or GetEventSequence(EventSequenceId.Log)). Both write to the sequence the handler's return type already targets, so return the events instead — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers for another event source. To close a stream, return CompleteStream from the handler instead of calling CompleteStream on the event log. To trigger work in another slice, inject ICommandPipeline and execute a command. Two shapes a returned event cannot express are not reported: routing to a different sequence, such as GetEventSequence(EventSequenceId.Outbox), and appending to an event store other than the one the reactor was handed, such as one obtained from IChronicleClient.GetEventStore.");
 
     /// <summary>
     /// ARCCHR0004: [EventType] repeats the type name as its id.
@@ -89,11 +89,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0007_CommandHandleMustNotInjectEventLog = new(
         id: "ARCCHR0007",
         title: "Command handler must not inject IEventLog",
-        messageFormat: "Command '{0}' injects IEventLog into '{1}' through parameter '{2}'. Express every append through the handler return type, not IEventLog.",
+        messageFormat: "Command '{0}' injects IEventLog into '{1}' through parameter '{2}'. {3}.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A command expresses appends by returning events from its Handle method (a single event, a tuple of event and result, a Result, or a collection). Injecting IEventLog into the handler bypasses Arc's append pipeline and its correlation and ordering guarantees. Return the events instead of appending through IEventLog directly.");
+        description: "A command expresses appends by returning events from its Handle method (a single event, a tuple of event and result, a Result, or a collection). Injecting IEventLog into the handler bypasses Arc's append pipeline and its correlation and ordering guarantees. Return the events instead of appending through IEventLog directly. To close a stream, return CompleteStream from Handle instead of calling IEventLog.CompleteStream.");
 
     /// <summary>
     /// ARCCHR0008: Command key marked with the data annotations Key attribute.
@@ -137,11 +137,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0011_UnprotectedDecisionRead = new(
         id: "ARCCHR0011",
         title: "Plain read model in event-producing command is unprotected",
-        messageFormat: "Command '{0}' reads Chronicle model '{1}' without protecting its decision. {2}.",
+        messageFormat: "Command '{0}' reads Chronicle model '{1}' without protecting its decision. {2}. To decide over one event stream, read it with IStreamReads and append with StreamDecision.Append (see the stream decisions documentation).",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "Plain Chronicle read models and IReadModels.GetInstanceById do not enroll a decision guard. This advisory identifies statically recognizable reads in event-producing commands, their Provide methods and validators; it cannot prove runtime dataflow or external I/O.");
+        description: "Plain Chronicle read models and IReadModels.GetInstanceById do not enroll a decision guard. This advisory identifies statically recognizable reads in event-producing commands, their Provide methods and validators; it cannot prove runtime dataflow or external I/O. A decision over a single event stream is guarded by reading it through IStreamReads, whose StreamDecision carries the exact concurrency scope for the append.");
 
     /// <summary>
     /// ARCCHR0012: An immediate append cannot be covered by the command's decision guard.
@@ -149,11 +149,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0012_ImmediateAppendAfterDecisionRead = new(
         id: "ARCCHR0012",
         title: "Immediate append bypasses protected decision",
-        messageFormat: "Command '{0}' uses a protected decision read and immediately appends through IEventLog. Return the event or use IEventLog.Transactional; an immediate append cannot be rolled back after a decision conflict.",
+        messageFormat: "Command '{0}' uses a protected decision read and immediately appends through IEventLog. Return the event or use IEventLog.Transactional; an immediate append cannot be rolled back after a decision conflict. For a decision over one event stream, return StreamDecision.Append from Handle (see the stream decisions documentation).",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "A plain IEventLog.Append or AppendMany writes before decision scopes are checked at the owner's commit. This advisory does not track aliases, helpers or appends outside the command body.");
+        description: "A plain IEventLog.Append or AppendMany writes before decision scopes are checked at the owner's commit. This advisory does not track aliases, helpers or appends outside the command body. A decision over a single event stream is guarded by reading it through IStreamReads and returning StreamDecision.Append, which carries the exact concurrency scope.");
 
     /// <summary>
     /// ARCCHR0013: A legacy event source type attribute spells out a declared event source definition.
@@ -190,6 +190,54 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A direct or awaited null event result currently succeeds without appending anything. A null event branch inside Result or OneOf instead produces a NullReferenceException failure. Neither gives the caller a rejection reason. Declare a non-nullable event success branch and reject explicitly with ValidationResult.Error, a validator, or Provide. This rule checks direct events, Task/ValueTask results, and Result/OneOf event branches. Optional ICommandOperation results and non-event responses are not reported.");
+
+    /// <summary>
+    /// ARCCHR0016: A stream-metadata attribute asks for the concurrency scope while Handle returns exact scopes.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0016_ConcurrencyAttributeIgnoredByExactScopes = new(
+        id: "ARCCHR0016",
+        title: "Concurrency flag is ignored when the handler returns exact concurrency scopes",
+        messageFormat: "Command '{0}' sets concurrency: true on [{1}], but its Handle method returns EventsWithConcurrencyScopes, whose exact scopes replace the attribute-derived scope. Remove concurrency: true.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "[EventSourceType], [EventStreamType] and [EventStreamId] take a concurrency flag that makes the attribute part of the concurrency scope Arc derives for the command's events. When Handle returns EventsWithConcurrencyScopes (alone, in a Task or ValueTask, or in a tuple), for example from StreamDecision.Append, the returned scopes are used as they are and nothing is derived from the attributes, so the flag has no effect. Event source definitions ([EventSource<T>] with concurrency dimensions) are not reported: a definition is a shared policy the command cannot remove, and an exact scope intentionally replaces it.");
+
+    /// <summary>
+    /// ARCCHR0017: An [EventStreamId] template is invalid.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0017_InvalidEventStreamIdTemplate = new(
+        id: "ARCCHR0017",
+        title: "[EventStreamId] template is invalid",
+        messageFormat: "Command '{0}' has an invalid [EventStreamId] template '{1}': {2}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "A value with {Name} placeholders is resolved from the command at runtime. Each placeholder must name a public instance property of the command whose type converts to a string: a string, a primitive, decimal, Guid, enum, DateOnly, DateTime, DateTimeOffset, TimeOnly, TimeSpan, a ConceptAs<T> over one of these, or an EventSourceId. Braces must balance; write {{ and }} for literal braces. A value without placeholders is a constant stream id and is not checked.");
+
+    /// <summary>
+    /// ARCCHR0018: A command declares its event stream id in two ways.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0018_AmbiguousEventStreamId = new(
+        id: "ARCCHR0018",
+        title: "Command declares its event stream id twice",
+        messageFormat: "Command '{0}' has [EventStreamId] with a value and also implements ICanProvideEventStreamId. Keep one: remove the value from the attribute or stop implementing the interface.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Arc cannot pick between a stream id declared by [EventStreamId(value)] and one provided by ICanProvideEventStreamId, and rejects the command at runtime. Use the attribute for a constant or a {Property} template, or the interface for a computed id.");
+
+    /// <summary>
+    /// ARCCHR0019: An [EventStreamId] template on a type that is not an Arc command.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0019_EventStreamIdTemplateOnlyResolvedForCommands = new(
+        id: "ARCCHR0019",
+        title: "Event stream id template is only resolved for commands",
+        messageFormat: "Reactor '{0}' has [EventStreamId] with the template '{1}', but only Arc commands resolve {{Property}} placeholders. A reactor uses the value as a literal stream id.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Chronicle reactors read [EventStreamId] as a constant, so the braces in a template stay in the stream id of the side-effect events the reactor appends. Only commands are resolved against their properties. Use a constant stream id here, or return the events with an explicit route.");
 
     const string Category = "Arc.Chronicle";
 }

@@ -26,3 +26,11 @@
   href: index.md#arcchr0012-immediate-append-with-a-decision-read
 - name: ARCCHR0015 - Command handler must not return a nullable event
   href: ARCCHR0015.md
+- name: ARCCHR0016 - Concurrency flag ignored with exact scopes
+  href: ARCCHR0016.md
+- name: ARCCHR0017 - Invalid [EventStreamId] template
+  href: ARCCHR0017.md
+- name: ARCCHR0018 - Event stream id declared twice
+  href: ARCCHR0018.md
+- name: ARCCHR0019 - Event stream id template only resolved for commands
+  href: ARCCHR0019.md
