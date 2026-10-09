@@ -43,6 +43,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public bool AuthoringOnlyConstructs { get; init; }
 
     /// <summary>
+    /// Gets where routed occurrences from retained specifications are collected for source declarations.
+    /// </summary>
+    public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
+
+    /// <summary>
     /// Builds the specifications of a slice.
     /// </summary>
     /// <param name="specifications">The scenarios the slice is specified by.</param>
@@ -160,7 +165,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
         var requiresLiteralRoute = specification.Given.Concat(specification.When is { } appendedAction ? [appendedAction] : [])
             .Any(state => state.Route is { Source: not null } && state.For is null);
-        if (AuthoringOnlyConstructs && (requiresLiteralRoute || occurrences.Exists(state => !CanStateRoute(state))))
+        if (AuthoringOnlyConstructs && (requiresLiteralRoute || occurrences.Exists(state => !CanStateRoute(state, occurrences))))
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -302,21 +307,38 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return specification with { Then = remaining };
     }
 
-    bool CanStateRoute(SpecificationStateModel state)
+    bool CanStateRoute(SpecificationStateModel state, IEnumerable<SpecificationStateModel> occurrences)
     {
         if (state.Route is not { Source: not null, Stream: not null } route)
         {
             return true;
         }
 
-        var declared = Application?.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route)
-            .OfType<CommandRouteModel>().FirstOrDefault(candidate => candidate.Source == route.Source && candidate.Stream == route.Stream);
-        if (declared?.IdentifierType is { } identity && state.For is { } source && !CanStateLiteral(source, identity))
+        var declarations = Application is { } application
+            ? application.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route)
+                .OfType<CommandRouteModel>().Concat(ApplicationSyntaxBuilder.SpecificationRoutes(application, (RoutedOccurrences ?? []).Concat(occurrences)))
+                .Where(candidate => candidate.Source == route.Source).ToList()
+            : [];
+        var streamDeclarations = declarations.Where(candidate => candidate.Stream == route.Stream).ToList();
+        if (declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().Distinct().Count() > 1 ||
+            streamDeclarations.Select(candidate => candidate.StreamIdType).Distinct().Count() > 1)
         {
             return false;
         }
 
-        var streamIdType = declared?.StreamIdType ?? (route.StreamId is not null ? new TypeReferenceModel("String", false, false) : null);
+        var declared = streamDeclarations.FirstOrDefault();
+        var identity = declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault();
+        var identifiers = Application?.Slices.SelectMany(slice => slice.Commands)
+            .Where(command => command.Produces.Any(production => production.EventName == state.Name))
+            .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
+            .OfType<TypeReferenceModel>().Distinct().ToList() ?? [];
+        if (identity is not null && (identifiers.Exists(identifier => identifier != identity) ||
+            (state.For is { } source && !CanStateLiteral(source, identity))))
+        {
+            return false;
+        }
+
+        var streamIdType = declared is not null ? declared.StreamIdType : route.StreamId is not null ? new TypeReferenceModel("String", false, false) : null;
         if (streamIdType is null)
         {
             return route.StreamId is null;
@@ -389,8 +411,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </summary>
     /// <param name="specification">The scenario to build for.</param>
     /// <returns>The <see cref="SpecificationSyntax"/>.</returns>
-    SpecificationSyntax Build(SpecificationModel specification) =>
-        new(
+    SpecificationSyntax Build(SpecificationModel specification)
+    {
+        foreach (var occurrence in specification.Given.Concat(specification.Then).Concat(specification.When is { } action ? [action] : [])
+            .Where(state => state.Route is { Source: not null, Stream: not null }))
+        {
+            RoutedOccurrences?.Add(occurrence);
+        }
+
+        return new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
             When(specification.When),
@@ -405,6 +434,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                 : null,
             ThenReturns = Returns(specification.Returns)
         };
+    }
 
     /// <summary>
     /// Builds the response a scenario expects.

@@ -73,7 +73,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var domain = ToName(model.Domain, options.Domain);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
-        var modules = BuildModules(model, options, domain, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)]);
+        var routedOccurrences = new List<SpecificationStateModel>();
+        var modules = BuildModules(model, options, domain, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], routedOccurrences).ToList();
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
@@ -88,8 +89,38 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
                 .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
-            EventSources = options.AuthoringOnlyConstructs ? BuildEventSources(model) : []
+            EventSources = options.AuthoringOnlyConstructs ? BuildEventSources(model, routedOccurrences) : []
         };
+    }
+
+    /// <summary>
+    /// Resolves specification routes without changing declarations recovered from commands.
+    /// </summary>
+    /// <param name="model">The application declaring command routes and event producers.</param>
+    /// <param name="routedOccurrences">The specification occurrences whose routes are being admitted.</param>
+    /// <returns>The source and stream declarations implied by these occurrences.</returns>
+    internal static IEnumerable<CommandRouteModel> SpecificationRoutes(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences)
+    {
+        var commands = model.Slices.SelectMany(slice => slice.Commands).ToList();
+        foreach (var state in routedOccurrences)
+        {
+            if (state.Route is not { Source: not null, Stream: not null } route)
+            {
+                continue;
+            }
+
+            var declarations = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Where(candidate => candidate.Source == route.Source).ToList();
+            var existing = declarations.Find(candidate => candidate.Stream == route.Stream);
+            var identifiers = commands.Where(command => command.Produces.Any(production => production.EventName == state.Name))
+                .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
+                .OfType<TypeReferenceModel>().Distinct().ToList();
+            yield return new(
+                route.Source,
+                route.Stream,
+                declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
+                existing is not null ? existing.StreamIdType : route.StreamId is not null ? new("String", false, false) : null,
+                null);
+        }
     }
 
     /// <summary>
@@ -125,10 +156,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <param name="options">The options to build with, already resolved.</param>
     /// <param name="domain">The name of the domain, which a slice with no namespace left is gathered under.</param>
     /// <param name="declared">The names of the concepts and types the document declares.</param>
+    /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
     /// <returns>The modules.</returns>
-    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlyList<string> declared)
+    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlyList<string> declared, ICollection<SpecificationStateModel> routedOccurrences)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options.AuthoringOnlyConstructs, declared);
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options.AuthoringOnlyConstructs, declared, routedOccurrences);
         if (options.AuthoringOnlyConstructs)
         {
             sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
@@ -167,8 +199,9 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <param name="model">The full application used to type specification destinations.</param>
     /// <param name="authoringOnlyConstructs">Whether optional authoring constructs are emitted.</param>
     /// <param name="declared">The names of the concepts and types the document declares.</param>
+    /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs, IReadOnlyList<string> declared) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs, IReadOnlyList<string> declared, ICollection<SpecificationStateModel> routedOccurrences) =>
         new(
             naming,
             _types,
@@ -194,14 +227,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = model },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = authoringOnlyConstructs })
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = authoringOnlyConstructs, RoutedOccurrences = routedOccurrences })
         {
             InlineEvents = inlineEvents,
             DeclaredReadModels = new ReadModelDeclarations(naming, _types, declared, diagnostics).Of(model.Slices)
         };
 
-    List<EventSourceSyntax> BuildEventSources(ApplicationModel model) => model.Slices.SelectMany(slice => slice.Commands)
-        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Concat(SpecificationRoutes(model))
+    List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences) => model.Slices.SelectMany(slice => slice.Commands)
+        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Concat(SpecificationRoutes(model, routedOccurrences))
         .GroupBy(route => route.Source, StringComparer.Ordinal)
         .OrderBy(group => group.Key, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key, SourceLocation.Start)
         {
@@ -212,30 +245,6 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                     StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null
                 }).ToList()
         }).ToList();
-
-    IEnumerable<CommandRouteModel> SpecificationRoutes(ApplicationModel model)
-    {
-        var commands = model.Slices.SelectMany(slice => slice.Commands).ToList();
-        foreach (var state in model.Slices.SelectMany(slice => slice.Specifications)
-            .SelectMany(specification => specification.Given.Concat(specification.Then).Concat(specification.When is { } action ? [action] : [])))
-        {
-            if (state.Route is not { Source: not null, Stream: not null } route)
-            {
-                continue;
-            }
-
-            var existing = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().FirstOrDefault(candidate => candidate.Source == route.Source && candidate.Stream == route.Stream);
-            var identifiers = commands.Where(command => command.Produces.Any(production => production.EventName == state.Name))
-                .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
-                .OfType<TypeReferenceModel>().Distinct().ToList();
-            yield return new(
-                route.Source,
-                route.Stream,
-                existing?.IdentifierType ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
-                existing?.StreamIdType ?? (route.StreamId is not null ? new("String", false, false) : null),
-                null);
-        }
-    }
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.

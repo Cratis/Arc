@@ -93,9 +93,43 @@ public class with_specification_event_routes : a_generated_document
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeFalse();
     }
 
-    void GenerateScenario(bool authoring, string scenario) => Generate(
+    [Fact]
+    public void should_not_key_a_declared_unkeyed_stream_from_a_specification()
+    {
+        var command = IdentifierSources.With("""
+            [Command, EventSourceType("Account"), EventStreamType("Transactions")]
+            public record RegisterAuthor([Key] string Id, string Month, string Name)
+            {
+                public AuthorRegistered Handle() => new(Name);
+            }
+            """);
+        GenerateScenario(true, Scenario, command);
+
+        Result.Source.ShouldNotContain("specification WhenRegisteringAndItSucceeds");
+        Result.Source.ShouldContain("eventsource Account");
+        Result.Source.ShouldContain("stream Transactions");
+        Result.Source.ShouldContain("stream Account.Transactions");
+        Result.Source.ShouldNotContain("streamId");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeTrue();
+        AssertAuthoringRoutes();
+    }
+
+    [Fact]
+    public void should_not_declare_a_route_from_a_withheld_specification()
+    {
+        var scenario = Scenario.Replace("eventSourceType: \"Account\"", "eventSourceType: \"Discarded\"", StringComparison.Ordinal)
+            .Replace("eventStreamId: \"October\"", "eventStreamId: \" October \"", StringComparison.Ordinal);
+        GenerateScenario(true, scenario);
+
+        Result.Source.ShouldNotContain("specification WhenRegisteringAndItSucceeds");
+        Result.Source.ShouldNotContain("eventsource Discarded");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeTrue();
+        AssertAuthoringRoutes();
+    }
+
+    void GenerateScenario(bool authoring, string scenario, string? command = null) => Generate(
         new ScreenplayOptions { AuthoringOnlyConstructs = authoring },
-        (Analyzed.SlicePath, Command),
+        (Analyzed.SlicePath, command ?? Command),
         ("Library/Feature/Slice/when_registering/and_it_succeeds.cs", scenario),
         (IntegrationTesting.Path, IntegrationTesting.Source));
 
