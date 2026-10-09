@@ -288,6 +288,12 @@ A key is qualified by the class declaring it, because a key is unique to its own
 
 A message genuinely put together in code — `string.Format`, an interpolation — still has no text to write down, and is reported as `SP0016` rather than guessed at. So is a key the language has no way of writing: a reference is a path of bare words, and a resource key is under no such constraint.
 
+## Operational secrets
+
+A concept carrying both `[Encrypted]` and `[NotAudited]` becomes `@sensitive`: encrypted at rest and withheld from the command's causation chain. With `[PII]` as well, it becomes `@pii @sensitive`. Markings on a property or its positional constructor parameter are read too. Encryption or audit suppression alone is not that contract; `SP0058` (Information) reports the partial marking without adding `@sensitive`. An existing `[PII]` marking is retained.
+
+Screenplay rejects `@pii` and `@sensitive` concepts as command identifiers, event-source identifiers, destinations, and stream ids (`PLAY0515`). When a concept is used in one of those positions, the generator leaves its compliance annotations off and reports `SP0059` (Information). Its identity and route remain stated; the diagnostic identifies the compliance meaning the document cannot carry.
+
 ## Identifiers, event documentation, and named rules
 
 A command's required scalar event-source key is emitted with `identifier`, and its productions carry `for <property>`. The generator follows Chronicle's key rules: a property assignable to `EventSourceId`, a generic `EventSourceId<T>`, or `[Key]` on the property or its matching constructor parameter. An implicit conversion from a `ConceptAs<Guid>` to `EventSourceId` does not make that concept a key. An `ICanProvideEventSourceId` implementation is recovered only when it directly returns a required scalar property.

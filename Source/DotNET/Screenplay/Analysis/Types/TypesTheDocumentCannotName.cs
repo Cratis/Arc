@@ -27,6 +27,14 @@ public static class TypesTheDocumentCannotName
     /// </remarks>
     public static void Report(TypeRegistry types, ScreenplayDiagnostics diagnostics, string? location)
     {
+        foreach (var type in types.PartialSecrets)
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.PartialSecretMarking,
+                $"'{type}' carries only encryption or audit suppression; @sensitive requires both, so the partial marking was not mapped",
+                location);
+        }
+
         foreach (var type in types.Unmappable)
         {
             diagnostics.Warning(

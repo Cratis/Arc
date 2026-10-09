@@ -522,4 +522,14 @@ public static class ScreenplayDiagnosticCodes
     /// so whatever builds or reads it names it exactly as it did before read models were declared at all.
     /// </remarks>
     public const string UndeclarableReadModel = "SP0057";
+
+    /// <summary>
+    /// A value carries only encryption or audit suppression, which cannot imply an operational secret.
+    /// </summary>
+    public const string PartialSecretMarking = "SP0058";
+
+    /// <summary>
+    /// Compliance annotations were omitted from a concept used as an identifier or route destination.
+    /// </summary>
+    public const string ProtectedIdentityAnnotation = "SP0059";
 }

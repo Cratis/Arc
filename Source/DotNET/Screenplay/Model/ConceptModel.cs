@@ -20,4 +20,10 @@ public record ConceptModel(
     ScreenplayPrimitive Primitive,
     bool IsPii,
     IEnumerable<string> EnumValues,
-    IEnumerable<ValidationRuleModel> Validations);
+    IEnumerable<ValidationRuleModel> Validations)
+{
+    /// <summary>
+    /// Gets whether the value is encrypted and withheld from command auditing.
+    /// </summary>
+    public bool IsSensitive { get; init; }
+}

@@ -39,6 +39,12 @@ public class PropertyReader(TypeRegistry types)
                 types.MarkAsPii(property.Type);
             }
 
+            var carried = UnderlyingTypes.Of(property.Type);
+            types.MarkSecret(
+                property.Type,
+                MemberAttributes.Has(property, WellKnownTypeNames.EncryptedAttribute) || carried.HasAttribute(WellKnownTypeNames.EncryptedAttribute),
+                MemberAttributes.Has(property, WellKnownTypeNames.NotAuditedAttribute) || carried.HasAttribute(WellKnownTypeNames.NotAuditedAttribute) || type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute));
+
             properties.Add(new(property.Name, types.ResolveCarried(property.Type)));
         }
 

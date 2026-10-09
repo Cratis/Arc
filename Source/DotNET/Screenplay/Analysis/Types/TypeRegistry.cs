@@ -55,6 +55,11 @@ public class TypeRegistry
     public IEnumerable<ConceptModel> Concepts => _concepts.Concepts;
 
     /// <summary>
+    /// Gets the types whose partial secret marking cannot be represented.
+    /// </summary>
+    public IEnumerable<string> PartialSecrets => _concepts.PartialSecrets;
+
+    /// <summary>
     /// Gets the simple name of every concept and record registered so far.
     /// </summary>
     public IEnumerable<string> Names => [.. _concepts.Names, .. _shapes.Names];
@@ -128,6 +133,14 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The type of the value.</param>
     public void MarkAsPii(ITypeSymbol type) => _concepts.MarkAsPii(type);
+
+    /// <summary>
+    /// Records the encryption and audit suppression applying to one value.
+    /// </summary>
+    /// <param name="type">The type of the value.</param>
+    /// <param name="encrypted">Whether the value is encrypted.</param>
+    /// <param name="notAudited">Whether the value is withheld from auditing.</param>
+    public void MarkSecret(ITypeSymbol type, bool encrypted, bool notAudited) => _concepts.MarkSecret(type, encrypted, notAudited);
 
     /// <summary>
     /// Records the validation rules a concept declares for itself.

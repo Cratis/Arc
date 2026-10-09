@@ -59,7 +59,7 @@ public class ConceptSyntaxBuilder(
             declared[name] = new(
                 name,
                 ScreenplayPrimitiveTypes.GetName(concept.Primitive),
-                concept.IsPii ? [new ConceptAttributeSyntax(PersonallyIdentifiableInformation, SourceLocation.Start)] : [],
+                Attributes(concept),
                 values,
                 SourceLocation.Start,
                 [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)]);
@@ -77,6 +77,19 @@ public class ConceptSyntaxBuilder(
     /// A value is written on a line of its own, so a value named after a word the concept body reads as a directive
     /// is swallowed by that directive rather than declared, and is left out instead.
     /// </remarks>
+    IEnumerable<ConceptAttributeSyntax> Attributes(ConceptModel concept)
+    {
+        if (concept.IsPii)
+        {
+            yield return new(PersonallyIdentifiableInformation, SourceLocation.Start);
+        }
+
+        if (concept.IsSensitive)
+        {
+            yield return new(ConceptAttributeSyntax.Sensitive, SourceLocation.Start);
+        }
+    }
+
     List<string> ToValues(ConceptModel concept) =>
         concept.Primitive == ScreenplayPrimitive.Enum
             ?

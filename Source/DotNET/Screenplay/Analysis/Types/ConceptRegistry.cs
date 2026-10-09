@@ -28,6 +28,13 @@ public class ConceptRegistry
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
+    readonly HashSet<string> _sensitive = new(StringComparer.Ordinal);
+    readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the types with encryption or audit suppression alone.
+    /// </summary>
+    public IEnumerable<string> PartialSecrets => _partialSecrets.Order(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -44,6 +51,7 @@ public class ConceptRegistry
             .Select(_ => _ with
             {
                 IsPii = _.IsPii || _pii.Contains(_.Name),
+                IsSensitive = _.IsSensitive || _sensitive.Contains(_.Name),
                 Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : []
             })
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
@@ -106,6 +114,25 @@ public class ConceptRegistry
     public void MarkAsPii(ITypeSymbol type) => _pii.Add(UnderlyingTypes.Of(type).Name);
 
     /// <summary>
+    /// Records encryption and audit suppression from the same value declaration.
+    /// </summary>
+    /// <param name="type">The type of the value.</param>
+    /// <param name="encrypted">Whether the value is encrypted.</param>
+    /// <param name="notAudited">Whether the value is withheld from auditing.</param>
+    public void MarkSecret(ITypeSymbol type, bool encrypted, bool notAudited)
+    {
+        var name = UnderlyingTypes.Of(type).Name;
+        if (encrypted && notAudited)
+        {
+            _sensitive.Add(name);
+        }
+        else if (encrypted || notAudited)
+        {
+            _partialSecrets.Add(name);
+        }
+    }
+
+    /// <summary>
     /// Records the validation rules a concept declares for itself.
     /// </summary>
     /// <param name="conceptName">The name of the concept.</param>
@@ -147,6 +174,7 @@ public class ConceptRegistry
     ConceptModel ToConcept(ITypeSymbol type, ITypeSymbol backing)
     {
         var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
+        MarkSecret(type, type.HasAttribute(WellKnownTypeNames.EncryptedAttribute), type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute));
 
         if (backing.TypeKind == TypeKind.Enum)
         {

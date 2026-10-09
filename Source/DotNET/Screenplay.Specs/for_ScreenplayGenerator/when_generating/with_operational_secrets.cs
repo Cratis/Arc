@@ -1,0 +1,84 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
+
+namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
+
+public class with_operational_secrets : a_generated_document
+{
+    [Theory]
+    [InlineData("[Encrypted, NotAudited]", "@sensitive", false)]
+    [InlineData("[PII, Encrypted, NotAudited]", "@pii @sensitive", false)]
+    [InlineData("[Encrypted]", "", true)]
+    [InlineData("[NotAudited]", "", true)]
+    [InlineData("[PII, Encrypted]", "@pii", true)]
+    [InlineData("[PII, NotAudited]", "@pii", true)]
+    public void should_map_only_the_complete_secret_contract(string attributes, string annotation, bool partial)
+    {
+        GenerateSecret(attributes, string.Empty, false);
+
+        Result.Source.ShouldContain($"concept Secret String{(annotation.Length == 0 ? string.Empty : $" {annotation}")}");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).ShouldEqual(partial);
+        AssertCompiles();
+    }
+
+    [Theory]
+    [InlineData("[Encrypted, NotAudited]")]
+    [InlineData("[property: Encrypted, NotAudited]")]
+    public void should_read_positional_parameter_and_property_markings(string attributes)
+    {
+        GenerateSecret(string.Empty, attributes, false);
+
+        Result.Source.ShouldContain("concept Secret String @sensitive");
+        AssertCompiles();
+    }
+
+    [Theory]
+    [InlineData("[Encrypted, NotAudited]")]
+    [InlineData("[PII, Encrypted, NotAudited]")]
+    [InlineData("[PII]")]
+    public void should_withhold_protected_identity_annotations(string attributes)
+    {
+        GenerateSecret(attributes, string.Empty, true);
+
+        Result.Source.ShouldContain("secret Secret identifier");
+        Result.Source.ShouldNotContain("@pii");
+        Result.Source.ShouldNotContain("@sensitive");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ProtectedIdentityAnnotation).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+        AssertDocument();
+    }
+
+    void GenerateSecret(string conceptAttributes, string memberAttributes, bool identifier) => Generate(
+        (Analyzed.SlicePath, $$"""
+            using Cratis.Arc.Commands.ModelBound;
+            using Cratis.Arc.Chronicle.Commands;
+            using Cratis.Chronicle.Compliance.GDPR;
+            using Cratis.Chronicle.Events;
+            using Cratis.Chronicle.Keys;
+            using Cratis.Chronicle.ProtectedValues;
+            using Cratis.Concepts;
+
+            namespace Library.Authors.Registration;
+
+            {{conceptAttributes}}
+            public record Secret(string Value) : ConceptAs<string>(Value);
+
+            [Command]
+            public record SetSecret({{(identifier ? "[property: Key]" : string.Empty)}} {{memberAttributes}} Secret Secret)
+            {
+                public SecretSet Handle() => new(Secret);
+            }
+
+            [EventType]
+            public record SecretSet(Secret Secret);
+            """));
+
+    void AssertCompiles()
+    {
+        Result.Diagnostics.Where(diagnostic => diagnostic.Code is ScreenplayDiagnosticCodes.SourceDidNotCompile or ScreenplayDiagnosticCodes.DocumentDidNotCompile or ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeEmpty();
+        RoundTrip.Errors.ShouldBeEmpty();
+        RoundTrip.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Warning).ShouldBeEmpty();
+        RoundTrip.IsStable.ShouldBeTrue();
+    }
+}
