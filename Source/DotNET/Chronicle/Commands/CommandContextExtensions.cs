@@ -1,9 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSources;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -91,6 +93,23 @@ public static class CommandContextExtensions
         commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventStreamId, out var value) && value is EventStreamId eventStreamId
             ? eventStreamId
             : null;
+
+    /// <summary>
+    /// Gets the resolved event route shared by the command's reads and returned events.
+    /// </summary>
+    /// <param name="commandContext">The command context.</param>
+    /// <returns>The resolved route, with Chronicle defaults for undeclared dimensions.</returns>
+    public static EventRoute GetEventRoute(this CommandContext commandContext) => new(
+        commandContext.GetEventSourceType() ?? EventSourceType.Default,
+        commandContext.GetEventStreamType() ?? EventStreamType.All,
+        commandContext.GetEventStreamId() ?? EventStreamId.Default)
+    {
+        EventSource = commandContext.GetEventSource(),
+        EventStream = commandContext.GetEventStream(),
+        Concurrency = commandContext.Values.TryGetValue(WellKnownCommandContextKeys.ConcurrencyDimensions, out var dimensions) && dimensions is ConcurrencyDimensions concurrency
+            ? concurrency
+            : ConcurrencyDimensions.None
+    };
 
     /// <summary>
     /// Gets the named tags to apply to every event returned by the command.

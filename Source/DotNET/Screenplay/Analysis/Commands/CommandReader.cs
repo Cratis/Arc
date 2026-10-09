@@ -48,6 +48,11 @@ public class CommandReader(
     public CommandAuthoringReader? Authoring { get; init; }
 
     /// <summary>
+    /// Gets the optional diagnostic sink for concurrency mappings left in code.
+    /// </summary>
+    public ScreenplayDiagnostics? Diagnostics { get; init; }
+
+    /// <summary>
     /// Determines whether a type is a model-bound command.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -73,7 +78,7 @@ public class CommandReader(
             AuthorizationReader.Read(type),
             validators.For(type),
             produces.Read(type, handlers, location, authoring is null ? null : Authoring?.Sources, authoring?.Identifier is not null),
-            ConcurrencyReader.Read(type) ?? EventSourceReader.ReadConcurrency(type),
+            ConcurrencyReader.Read(type, Diagnostics, location) ?? EventSourceReader.ReadConcurrency(type),
             paths.Relative(type.SourceFilePath()),
             EventSourceReader.Read(type))
         {
