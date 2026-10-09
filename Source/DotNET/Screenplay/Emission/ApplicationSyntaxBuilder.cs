@@ -194,14 +194,15 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = model },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics })
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = authoringOnlyConstructs })
         {
             InlineEvents = inlineEvents,
             DeclaredReadModels = new ReadModelDeclarations(naming, _types, declared, diagnostics).Of(model.Slices)
         };
 
     List<EventSourceSyntax> BuildEventSources(ApplicationModel model) => model.Slices.SelectMany(slice => slice.Commands)
-        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().GroupBy(route => route.Source, StringComparer.Ordinal)
+        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Concat(SpecificationRoutes(model))
+        .GroupBy(route => route.Source, StringComparer.Ordinal)
         .OrderBy(group => group.Key, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key, SourceLocation.Start)
         {
             Identifier = source.Select(route => route.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() is { } identifier ? _types.Convert(identifier) : null,
@@ -211,6 +212,26 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                     StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null
                 }).ToList()
         }).ToList();
+
+    IEnumerable<CommandRouteModel> SpecificationRoutes(ApplicationModel model)
+    {
+        var commands = model.Slices.SelectMany(slice => slice.Commands).ToList();
+        foreach (var state in model.Slices.SelectMany(slice => slice.Specifications)
+            .SelectMany(specification => specification.Given.Concat(specification.Then).Concat(specification.When is { } action ? [action] : [])))
+        {
+            if (state.Route is not { Source: not null, Stream: not null } route)
+            {
+                continue;
+            }
+
+            var existing = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().FirstOrDefault(candidate => candidate.Source == route.Source && candidate.Stream == route.Stream);
+            var identifiers = commands.Where(command => command.Produces.Any(production => production.EventName == state.Name))
+                .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
+                .OfType<TypeReferenceModel>().Distinct().ToList();
+            yield return new(route.Source, route.Stream, existing?.IdentifierType ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
+                existing?.StreamIdType ?? (route.StreamId is not null ? new("String", false, false) : null), null);
+        }
+    }
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.

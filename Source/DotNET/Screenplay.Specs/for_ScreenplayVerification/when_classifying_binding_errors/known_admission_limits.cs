@@ -25,6 +25,7 @@ public class known_admission_limits : Specification
     [Theory]
     [InlineData("Operations and systems are not admitted by any supported executable model (ESM) version yet (#301).")]
     [InlineData("Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302).")]
+    [InlineData("Specification event routes are not admitted by any supported executable model (ESM) version yet (#457).")]
     void should_accept_additional_authoring_constructs_only_when_requested(string message)
     {
         var verified = WithError("PLAY0268", message);
@@ -51,7 +52,6 @@ public class known_admission_limits : Specification
     [InlineData("Query reference 'ById' is ambiguous across slices in the current ESM v1 binder.")]
     [InlineData("Projection 'Author' declares a parent key outside a children block, where Chronicle never reads it.")]
     [InlineData("Query 'All' uses an unknown delivery shape.")]
-    [InlineData("Specification event routes are not admitted by any supported executable model (ESM) version yet (#457).")]
     [InlineData("Reaction refusal handling and redelivery are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Explicit no-event assertions are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Unknown future admission message.")]

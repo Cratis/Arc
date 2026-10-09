@@ -19,4 +19,9 @@ public record SpecificationStateModel(string Name, SpecificationStateKind Kind, 
     /// Gets the concrete event occurrence source, separately from its payload.
     /// </summary>
     public LiteralSource? For { get; init; }
+
+    /// <summary>
+    /// Gets the proven occurrence route, when the code supplies routing evidence.
+    /// </summary>
+    public SpecificationEventRouteModel? Route { get; init; }
 }

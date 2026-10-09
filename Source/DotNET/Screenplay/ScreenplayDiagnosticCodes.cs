@@ -532,4 +532,9 @@ public static class ScreenplayDiagnosticCodes
     /// Compliance annotations were omitted from a concept used as an identifier or route destination.
     /// </summary>
     public const string ProtectedIdentityAnnotation = "SP0059";
+
+    /// <summary>
+    /// A specification event route requires the authoring-only option, so its scenario was withheld.
+    /// </summary>
+    public const string SpecificationRouteNotRepresentable = "SP0060";
 }

@@ -77,7 +77,8 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
             {
-                Add(stated, kind, semanticModel, draft, name, location, source);
+                Add(stated, kind, semanticModel, draft, name, location, source,
+                    kind == SpecificationStateKind.Event ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null);
             }
         }
     }
@@ -152,7 +153,8 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
                 append ? SpecificationStateKind.Event : SpecificationStateKind.Command,
                 values.Read(construction.Creation, construction.SemanticModel, command, name, location, draft))
             {
-                For = append ? draft.EventSources.Read(invocation, method, semanticModel, draft) : null
+                For = append ? draft.EventSources.Read(invocation, method, semanticModel, draft) : null,
+                Route = append ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null
             };
             draft.SetWhen(state, command, invocation.GetLocation());
         }
@@ -194,6 +196,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
     /// <param name="name">The name of the specification.</param>
     /// <param name="location">Where the specification lives.</param>
     /// <param name="source">The concrete occurrence source, when stated.</param>
+    /// <param name="route">The proven occurrence route, when stated.</param>
     void Add(
         ExpressionSyntax stated,
         SpecificationStateKind kind,
@@ -201,7 +204,8 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
         SpecificationDraft draft,
         string name,
         string location,
-        LiteralSource? source)
+        LiteralSource? source,
+        SpecificationEventRouteModel? route)
     {
         if (_held.ConstructionOf(stated, semanticModel) is not { } construction ||
             construction.SemanticModel.GetTypeInfo(construction.Creation).Type is not INamedTypeSymbol type)
@@ -219,7 +223,7 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
         var state = new SpecificationStateModel(
             type.Name,
             kind,
-            values.Read(construction.Creation, construction.SemanticModel, type, name, location, draft)) { For = source };
+            values.Read(construction.Creation, construction.SemanticModel, type, name, location, draft)) { For = source, Route = route };
         draft.AddGiven(state, type, stated.GetLocation());
     }
 }

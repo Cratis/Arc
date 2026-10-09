@@ -39,7 +39,8 @@ public static class ExpectedBindingDiagnostics
 
         if (authoringOnlyConstructs &&
             (message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
-            message == "Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302)."))
+            message == "Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302)." ||
+            message == "Specification event routes are not admitted by any supported executable model (ESM) version yet (#457)."))
         {
             return true;
         }
