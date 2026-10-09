@@ -20,7 +20,9 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
     const string Settling = $"{given.an_application.NestedFeature}.Settling";
     EmbeddedDocumentGeneration _generation;
 
-    void Because()
+    void Because() => Generate(1);
+
+    void Generate(int localProjections)
     {
         var reference = new PropertyModel("Reference", new("String", false, false));
         var model = given.an_application.Build();
@@ -46,16 +48,13 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
                         }
                     ],
                     Events = [new EventModel("InvoiceSettled", [reference], [])],
-                    Projections =
-                    [
-                        new ProjectionModel(
-                            "InvoiceProjection",
-                            ReadModel,
-                            "event-log",
-                            ProjectionAutoMapMode.Enabled,
-                            false,
-                            ProjectionScopeModel.Empty with { From = [new(["InvoiceSettled"], "$eventSourceId", null, new Dictionary<string, string>())] })
-                    ]
+                    Projections = Enumerable.Range(0, localProjections).Select(index => new ProjectionModel(
+                        $"InvoiceProjection{index}",
+                        ReadModel,
+                        "event-log",
+                        ProjectionAutoMapMode.Enabled,
+                        false,
+                        ProjectionScopeModel.Empty with { From = [new(["InvoiceSettled"], "$eventSourceId", null, new Dictionary<string, string>())] })).ToList()
                 },
                 _ => slice
             }).ToList()
@@ -66,6 +65,21 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
     GeneratedDocument DocumentOf(string id) => _generation.Documents.Single(_ => _.Document.Id == id);
 
     int Declarations(string source) => source.Split('\n').Count(_ => _.Trim() == $"readmodel {ReadModel}");
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    public void should_not_import_a_read_that_scoped_authoring_admission_withholds(int localProjections)
+    {
+        Generate(localProjections);
+
+        var source = DocumentOf(given.an_application.NestedFeature).Source;
+        source.ShouldNotContain($"import Library.Accounting.Invoices.Issuing.{ReadModel}");
+        source.ShouldNotContain($"reads {ReadModel}");
+        Declarations(source).ShouldEqual(0);
+        _generation.IsSuccess.ShouldBeTrue();
+        _generation.Documents.SelectMany(document => new ScreenplayCompiler().Compile(document.Source).Diagnostics).Select(diagnostic => diagnostic.Code).ShouldNotContain(ImportOfADeclaredName);
+    }
 
     [Fact] void should_succeed() => _generation.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_import_it_into_the_reading_document() => DocumentOf(given.an_application.NestedFeature).Source.Split('\n').Select(_ => _.Trim()).ShouldNotContain($"import Library.Accounting.Invoices.Issuing.{ReadModel}");

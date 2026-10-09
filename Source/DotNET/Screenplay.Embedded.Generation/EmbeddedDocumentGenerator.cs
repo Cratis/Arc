@@ -78,7 +78,8 @@ public class EmbeddedDocumentGenerator(
         var scopes = DocumentScopes.Of(model, resolved);
         foreach (var scope in scopes)
         {
-            var emission = emitter.Emit(ScopedApplicationModel.For(model, scope), ScreenplayOptionsFor(scope, resolved));
+            var documentOptions = ScreenplayOptionsFor(scope, resolved);
+            var emission = emitter.Emit(ScopedApplicationModel.For(model, scope, documentOptions), documentOptions);
             diagnostics.AddRange(emission.Diagnostics);
 
             if (scope.Kind == EmbeddedDocumentKind.Assembly && emission.Application is not null)
