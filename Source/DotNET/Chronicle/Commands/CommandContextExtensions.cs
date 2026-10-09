@@ -93,6 +93,16 @@ public static class CommandContextExtensions
             : null;
 
     /// <summary>
+    /// Gets the named tags to apply to every event returned by the command.
+    /// </summary>
+    /// <param name="commandContext">The command context.</param>
+    /// <returns>The named tags, or an empty collection when unset.</returns>
+    public static IEnumerable<NamedTag> GetEventTags(this CommandContext commandContext) =>
+        commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventTags, out var value) && value is IEnumerable<NamedTag> tags
+            ? tags
+            : [];
+
+    /// <summary>
     /// Gets the subject from the command context, if present.
     /// </summary>
     /// <remarks>

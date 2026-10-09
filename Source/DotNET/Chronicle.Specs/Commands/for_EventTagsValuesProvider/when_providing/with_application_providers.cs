@@ -1,0 +1,25 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Chronicle;
+
+namespace Cratis.Arc.Chronicle.Commands.for_EventTagsValuesProvider.when_providing;
+
+public class with_application_providers : given.an_event_tags_provider
+{
+    object _command;
+    ICanProvideCommandEventTags _secondProvider;
+
+    void Establish()
+    {
+        _command = new object();
+        _applicationProvider.GetEventTags(_command).Returns([new NamedTag("tenant", "first")]);
+        _secondProvider = Substitute.For<ICanProvideCommandEventTags>();
+        _secondProvider.GetEventTags(_command).Returns([new NamedTag("tenant", "second")]);
+        _provider = new(new KnownInstancesOf<ICanProvideCommandEventTags>([_applicationProvider, _secondProvider]));
+    }
+    void Because() => _values = _provider.Provide(_command);
+
+    [Fact] void should_union_every_provider() => ((IEnumerable<NamedTag>)_values[WellKnownCommandContextKeys.EventTags]).ShouldEqual([new NamedTag("tenant", "first"), new NamedTag("tenant", "second")]);
+    [Fact] void should_pass_the_command_to_each_provider() => _secondProvider.Received(1).GetEventTags(_command);
+}

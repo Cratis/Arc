@@ -52,6 +52,10 @@ public record CustomerEmailChanged(string Email);
 
 Chronicle uses the command context to resolve the event source identity and event stream metadata before appending events.
 
+## Event tags
+
+Attach structured named tags to every returned event using `[EventTag]`, `ICanProvideEventTags`, a returned `EventTags` value, or application-wide `ICanProvideCommandEventTags` providers. Command tags form a union with each wrapper's `NamedTags`; the same name with different values keeps both values. See [Event tags](./event-tags.md) for examples and merge rules.
+
 ## Event Source Id Resolution
 
 Chronicle resolves the event source id for commands using a small set of conventions. This value is stored in the command context and is required for event appending.

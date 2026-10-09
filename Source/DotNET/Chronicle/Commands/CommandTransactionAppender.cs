@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -125,6 +126,15 @@ internal static class CommandTransactionAppender
         @event.Tags is { } tags && tags.Any() ? tags : null;
 
     /// <summary>
+    /// Merges wrapper tags followed by command tags, distinct by name and value.
+    /// </summary>
+    /// <param name="commandContext">The command context.</param>
+    /// <param name="namedTags">The wrapper's named tags, if any.</param>
+    /// <returns>The merged tag snapshot.</returns>
+    internal static NamedTag[] MergeEventTags(CommandContext commandContext, IEnumerable<NamedTag>? namedTags = default) =>
+        (namedTags ?? []).Concat(commandContext.GetEventTags()).DistinctBy(_ => (_.Name.Value, _.Value)).ToArray();
+
+    /// <summary>
     /// Tries to enroll the event in the command's transaction, using the same metadata the immediate append would
     /// use from the <see cref="CommandContext"/>.
     /// </summary>
@@ -136,6 +146,7 @@ internal static class CommandTransactionAppender
     /// <param name="tags">Optional tags the command supplied for this event.</param>
     /// <param name="occurred">Optional occurrence time the command supplied for this event.</param>
     /// <param name="routing">Optional resolved routing; defaults to the command context.</param>
+    /// <param name="namedTags">Optional named tags supplied on the event wrapper.</param>
     /// <returns>True when the event was enrolled in the command's transaction; false when no transaction is active.</returns>
     internal static bool TryEnrollForCommand(
         this IEventLog eventLog,
@@ -145,9 +156,11 @@ internal static class CommandTransactionAppender
         ConcurrencyScope? concurrencyScope,
         IEnumerable<string>? tags = default,
         DateTimeOffset? occurred = default,
-        EventRouting? routing = default)
+        EventRouting? routing = default,
+        IEnumerable<NamedTag>? namedTags = default)
     {
         routing ??= ResolveRouting(null, commandContext);
+        var mergedTags = MergeEventTags(commandContext, namedTags);
         if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
             CommandTransaction.RefuseImmediateAppend();
@@ -163,12 +176,29 @@ internal static class CommandTransactionAppender
                 EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
                 Subject = routing.Subject,
                 Occurred = occurred,
-                Tags = tags ?? []
+                Tags = tags ?? [],
+                NamedTags = mergedTags
             };
             unitOfWork.AddEvents(
                 eventLog.Id,
                 [eventForEventSource],
                 [new(eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet)]);
+        }
+        else if (mergedTags.Length > 0)
+        {
+            unitOfWork.AddEventWithNamedTags(
+                eventLog.Id,
+                eventSourceId,
+                @event,
+                mergedTags,
+                eventLog.CreateCommandCausation(commandContext),
+                routing.EventStreamType,
+                routing.EventStreamId,
+                routing.EventSourceType,
+                concurrencyScope,
+                tags,
+                occurred,
+                routing.Subject);
         }
         else
         {
@@ -199,18 +229,85 @@ internal static class CommandTransactionAppender
     /// <param name="concurrencyScope">The optional concurrency scope.</param>
     /// <param name="tags">The optional tags.</param>
     /// <param name="occurred">The optional occurrence time.</param>
+    /// <param name="namedTags">The merged named tags.</param>
     /// <returns>The append result.</returns>
-    internal static Task<AppendResult> AppendForCommand(
+    internal static async Task<IAppendResult> AppendForCommand(
         this IEventLog eventLog,
         EventSourceId eventSourceId,
         object @event,
         EventRouting routing,
         ConcurrencyScope? concurrencyScope,
         IEnumerable<string>? tags = default,
-        DateTimeOffset? occurred = default) =>
-        routing.EventSource is not null
-            ? eventLog.Append(routing.EventSource, eventSourceId, @event, routing.EventStream, routing.EventStreamId, correlationId: default, tags, concurrencyScope, occurred, routing.Subject)
-            : eventLog.Append(eventSourceId, @event, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, tags, concurrencyScope, occurred, routing.Subject);
+        DateTimeOffset? occurred = default,
+        IEnumerable<NamedTag>? namedTags = default)
+    {
+        var tagSnapshot = namedTags?.ToArray() ?? [];
+        if (tagSnapshot.Length > 0)
+        {
+            if (routing.EventSource is not null)
+            {
+                // Chronicle's named-tag single-append overload has no definition routing. A wrapper retains both.
+                var wrapper = new EventForEventSourceId(eventSourceId, @event)
+                {
+                    EventSource = routing.EventSource,
+                    EventStream = routing.EventStream,
+                    EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                    Subject = routing.Subject,
+                    Tags = tags ?? [],
+                    NamedTags = tagSnapshot,
+                    Occurred = occurred
+                };
+                return await eventLog.AppendManyWithNamedTags([wrapper], [], concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } });
+            }
+
+            return await eventLog.AppendWithNamedTags(eventSourceId, @event, tagSnapshot, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, tags, concurrencyScope, occurred, routing.Subject);
+        }
+
+        return routing.EventSource is not null
+            ? await eventLog.Append(routing.EventSource, eventSourceId, @event, routing.EventStream, routing.EventStreamId, correlationId: default, tags, concurrencyScope, occurred, routing.Subject)
+            : await eventLog.Append(eventSourceId, @event, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, tags, concurrencyScope, occurred, routing.Subject);
+    }
+
+    /// <summary>
+    /// Appends plain events with command routing and named tags, preserving the untagged overloads.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="eventSourceId">The event source id.</param>
+    /// <param name="events">The returned events.</param>
+    /// <param name="routing">The resolved routing.</param>
+    /// <param name="concurrencyScope">The concurrency scope.</param>
+    /// <param name="namedTags">The command's named tags.</param>
+    /// <returns>The batch append result.</returns>
+    internal static Task<AppendManyResult> AppendManyForCommand(
+        this IEventLog eventLog,
+        EventSourceId eventSourceId,
+        IEnumerable<object> events,
+        EventRouting routing,
+        ConcurrencyScope? concurrencyScope,
+        IEnumerable<NamedTag> namedTags)
+    {
+        var tagSnapshot = namedTags.ToArray();
+        if (tagSnapshot.Length > 0)
+        {
+            if (routing.EventSource is not null)
+            {
+                var wrappers = events.Select(@event => new EventForEventSourceId(eventSourceId, @event)
+                {
+                    EventSource = routing.EventSource,
+                    EventStream = routing.EventStream,
+                    EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                    NamedTags = tagSnapshot
+                });
+                return eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } });
+            }
+
+            return eventLog.AppendManyWithNamedTags(eventSourceId, events, tagSnapshot, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
+        }
+
+        return routing.EventSource is not null
+            ? eventLog.AppendMany(routing.EventSource, eventSourceId, events, routing.EventStream, routing.EventStreamId, correlationId: default, concurrencyScope: concurrencyScope)
+            : eventLog.AppendMany(eventSourceId, events, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
+    }
 
     static EventForEventSourceId WithRouting(IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext, EventRouting routing) =>
         new(@event.EventSourceId, @event.Event, eventLog.CreateCommandCausation(commandContext))
@@ -222,6 +319,7 @@ internal static class CommandTransactionAppender
             EventSource = routing.EventSource,
             EventStream = routing.EventStream,
             Occurred = @event.Occurred,
-            Tags = @event.Tags
+            Tags = @event.Tags,
+            NamedTags = MergeEventTags(commandContext, @event.NamedTags)
         };
 }
