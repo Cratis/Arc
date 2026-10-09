@@ -59,13 +59,31 @@ public class ConceptSyntaxBuilder(
             declared[name] = new(
                 name,
                 ScreenplayPrimitiveTypes.GetName(concept.Primitive),
-                concept.IsPii ? [new ConceptAttributeSyntax(PersonallyIdentifiableInformation, SourceLocation.Start)] : [],
+                Attributes(concept),
                 values,
                 SourceLocation.Start,
                 [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)]);
         }
 
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
+    }
+
+    /// <summary>
+    /// Gets the compliance annotations the concept's value carries.
+    /// </summary>
+    /// <param name="concept">The concept to annotate.</param>
+    /// <returns>The annotations, in their printed order.</returns>
+    IEnumerable<ConceptAttributeSyntax> Attributes(ConceptModel concept)
+    {
+        if (concept.IsPii)
+        {
+            yield return new(PersonallyIdentifiableInformation, SourceLocation.Start);
+        }
+
+        if (concept.IsSensitive)
+        {
+            yield return new(ConceptAttributeSyntax.Sensitive, SourceLocation.Start);
+        }
     }
 
     /// <summary>

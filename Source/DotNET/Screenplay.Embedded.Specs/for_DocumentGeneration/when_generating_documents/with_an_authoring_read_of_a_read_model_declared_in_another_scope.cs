@@ -20,7 +20,9 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
     const string Settling = $"{given.an_application.NestedFeature}.Settling";
     EmbeddedDocumentGeneration _generation;
 
-    void Because()
+    void Because() => Generate(1, true);
+
+    void Generate(int localProjections, bool readHasProperties)
     {
         var reference = new PropertyModel("Reference", new("String", false, false));
         var model = given.an_application.Build();
@@ -31,7 +33,10 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
                 $"{given.an_application.Feature}.Issuing" => slice with
                 {
                     Queries = [new QueryModel("InvoiceByReference", new(ReadModel, false, true), reference, [], null)],
-                    ReadModels = [new ReadModelModel(ReadModel, [reference]) { Namespace = Settling }]
+                    ReadModels = [new ReadModelModel(ReadModel, [reference]) { Namespace = Settling }],
+                    Projections = localProjections == 0
+                        ? [new ProjectionModel("InvoiceProjection", ReadModel, "event-log", ProjectionAutoMapMode.Enabled, false, ProjectionScopeModel.Empty with { From = [new(["InvoiceIssued"], "$eventSourceId", null, new Dictionary<string, string>())] })]
+                        : []
                 },
                 Settling => slice with
                 {
@@ -41,21 +46,18 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
                         {
                             Authoring = new()
                             {
-                                Reads = [new CommandReadModel(ReadModel, "invoice", "Reference") { Namespace = Settling, Properties = [reference] }]
+                                Reads = [new CommandReadModel(ReadModel, "invoice", "Reference") { Namespace = Settling, Properties = readHasProperties ? [reference] : [] }]
                             }
                         }
                     ],
                     Events = [new EventModel("InvoiceSettled", [reference], [])],
-                    Projections =
-                    [
-                        new ProjectionModel(
-                            "InvoiceProjection",
-                            ReadModel,
-                            "event-log",
-                            ProjectionAutoMapMode.Enabled,
-                            false,
-                            ProjectionScopeModel.Empty with { From = [new(["InvoiceSettled"], "$eventSourceId", null, new Dictionary<string, string>())] })
-                    ]
+                    Projections = Enumerable.Range(0, localProjections).Select(index => new ProjectionModel(
+                        $"InvoiceProjection{index}",
+                        ReadModel,
+                        "event-log",
+                        ProjectionAutoMapMode.Enabled,
+                        false,
+                        ProjectionScopeModel.Empty with { From = [new(["InvoiceSettled"], "$eventSourceId", null, new Dictionary<string, string>())] })).ToList()
                 },
                 _ => slice
             }).ToList()
@@ -66,6 +68,21 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
     GeneratedDocument DocumentOf(string id) => _generation.Documents.Single(_ => _.Document.Id == id);
 
     int Declarations(string source) => source.Split('\n').Count(_ => _.Trim() == $"readmodel {ReadModel}");
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(0, false)]
+    public void should_not_import_a_read_that_scoped_authoring_admission_withholds(int localProjections, bool readHasProperties)
+    {
+        Generate(localProjections, readHasProperties);
+
+        var source = DocumentOf(given.an_application.NestedFeature).Source;
+        source.Split('\n').Select(_ => _.Trim()).ShouldNotContain($"import Library.Accounting.Invoices.Issuing.{ReadModel}");
+        source.ShouldNotContain($"reads {ReadModel}");
+        Declarations(source).ShouldEqual(0);
+        _generation.IsSuccess.ShouldBeTrue();
+        _generation.Documents.SelectMany(document => new ScreenplayCompiler().Compile(document.Source).Diagnostics).Select(diagnostic => diagnostic.Code).ShouldNotContain(ImportOfADeclaredName);
+    }
 
     [Fact] void should_succeed() => _generation.IsSuccess.ShouldBeTrue();
     [Fact] void should_not_import_it_into_the_reading_document() => DocumentOf(given.an_application.NestedFeature).Source.Split('\n').Select(_ => _.Trim()).ShouldNotContain($"import Library.Accounting.Invoices.Issuing.{ReadModel}");

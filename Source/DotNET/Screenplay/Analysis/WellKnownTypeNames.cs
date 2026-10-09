@@ -69,6 +69,12 @@ public static class WellKnownTypeNames
     /// <summary>The attribute marking a value as personally identifiable information.</summary>
     public const string PiiAttribute = "Cratis.Chronicle.Compliance.GDPR.PIIAttribute";
 
+    /// <summary>The attribute encrypting an operational secret.</summary>
+    public const string EncryptedAttribute = "Cratis.Chronicle.ProtectedValues.EncryptedAttribute";
+
+    /// <summary>The attribute withholding a value from command auditing.</summary>
+    public const string NotAuditedAttribute = "Cratis.Arc.Chronicle.Commands.NotAuditedAttribute";
+
     /// <summary>The attribute narrowing a command to an event source type.</summary>
     public const string EventSourceTypeAttribute = "Cratis.Chronicle.Events.EventSourceTypeAttribute";
 

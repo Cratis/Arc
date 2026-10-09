@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Commands;
+using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -125,6 +126,19 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
             name,
             exact ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))?.Name ?? name;
 
+    static void Complete(ITypeSymbol type, List<PropertyMappingModel> values, SpecificationDraft draft)
+    {
+        foreach (var property in type.DeclaredProperties().Where(property => values.TrueForAll(value => value.Property != property.Name)))
+        {
+            draft.CannotRead($"it cannot prove a stateable value for '{type.Name}.{property.Name}', and the Screenplay binder requires every fixture property");
+        }
+    }
+
+    static bool CanStateNull(ITypeSymbol type, IPropertySymbol property) =>
+        !CommandReader.IsCommand(type) && !EventReader.IsEvent(type) &&
+        (property.Type.NullableAnnotation == NullableAnnotation.Annotated ||
+         property.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T });
+
     List<PropertyMappingModel> Read(
         BaseObjectCreationExpressionSyntax creation,
         SemanticModel semanticModel,
@@ -141,6 +155,11 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         foreach (var (name, expression) in Stated(creation, constructor))
         {
             Add(values, PropertyOf(type, name, queryValues), expression, semanticModel, type, sourceType, specification, location, draft, queryValues);
+        }
+
+        if (!queryValues)
+        {
+            Complete(type, values, draft);
         }
 
         return values;
@@ -190,15 +209,24 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         }
         else if (localProperty is not null &&
                  semanticModel.GetConstantValue(MappingSourceReader.Unwrap(expression)) is { HasValue: true } constant &&
-                 !StatableValues.TryState(localProperty.Type, constant.Value, out _))
+                 (!StatableValues.TryState(localProperty.Type, constant.Value, out _) ||
+                  (constant.Value is null && !CanStateNull(type, localProperty))))
         {
-            draft.CannotRead($"it states {StatableValues.WhyNot(type, localProperty, constant.Value)}");
+            draft.CannotRead(!StatableValues.TryState(localProperty.Type, constant.Value, out _)
+                ? $"it states {StatableValues.WhyNot(type, localProperty, constant.Value)}"
+                : $"it states '{type.Name}.{property}' as null, which the Screenplay binder does not accept in this fixture");
             return;
         }
         else
         {
             literal = _sources.Read(expression, semanticModel, type, location) as LiteralSource;
         }
+        if (literal is { Value: null } && localProperty is not null && !queryValues && !CanStateNull(type, localProperty))
+        {
+            draft.CannotRead($"it states '{type.Name}.{property}' as null, which the Screenplay binder does not accept in this fixture");
+            return;
+        }
+
         if (literal is not null)
         {
             var value = new PropertyMappingModel(property, literal);

@@ -70,5 +70,6 @@ public class a_specification_stating_an_identity_a_factory_worked_out : Specific
     void Establish() => _analysis = Analyzed.Source(_sources);
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
-    [Fact] void should_say_it_left_the_value_out() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContain(ScreenplayDiagnosticCodes.UnreadableSpecificationValue);
+    [Fact] void should_omit_the_scenario() => _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.ShouldBeEmpty();
+    [Fact] void should_name_the_unprovable_property() => _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("RegisterAuthor.Id");
 }

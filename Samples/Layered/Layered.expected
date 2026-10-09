@@ -19,24 +19,17 @@
 # wrong one threw and took the whole document with it.
 # ---------------------------------------------------------------------------------------------------------------
 
-# The scenario survived at all - it was the crash site.
-once specification WhenPlacingAnOrderAndTheCustomerOrderedBefore
+# Reading the cross-project identity must not crash. Its value is generated rather than provable, and the pinned
+# Screenplay binder requires every command fixture property, so the whole scenario is omitted rather than stating
+# a different identity or emitting an incomplete command.
+never specification WhenPlacingAnOrderAndTheCustomerOrderedBefore
+never given OrderPlaced
+never when PlaceOrder
+never then OrderPlaced
+reports SP0039 1
 
-# What it starts from, what it does and what follows, with the values it could read.
-says given OrderPlaced
-says sku = "COFFEE-250G"
-says when PlaceOrder
-says sku = "COFFEE-1KG"
-says then OrderPlaced
-
-# This is the assertion that is not about crashing. The identity is made on the spot, so a document leaving it out
-# says exactly what the source says and there is nothing to report. A reader that stopped at the project boundary
-# rather than following the member into the project that declares it would leave it out too - and would report it as
-# a value nothing was recovered from. Both write the same document; only this tells them apart.
+# Values from an omitted scenario are not reported separately.
 reports SP0040 0
-
-# No scenario was dropped on the way, for that reason or any other.
-reports SP0039 0
 
 
 # ---------------------------------------------------------------------------------------------------------------

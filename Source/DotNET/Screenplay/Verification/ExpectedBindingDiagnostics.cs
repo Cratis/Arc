@@ -9,7 +9,7 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// Identifies the executable admission limits deliberately retained in generated authoring documents.
 /// </summary>
 /// <remarks>
-/// Screenplay 4.80.0 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
+/// Screenplay 4.98.0 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
 /// so these exact message shapes follow SemanticModelBinder.Commands, ReadModels, Concepts, and CommandProductions at that
 /// version. A changed or unknown message fails closed as SP0056 rather than silently acquiring an exemption.
 /// </remarks>
@@ -39,7 +39,8 @@ public static class ExpectedBindingDiagnostics
 
         if (authoringOnlyConstructs &&
             (message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
-            message == "Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302)."))
+            message == "Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302)." ||
+            message == "Specification event routes are not admitted by any supported executable model (ESM) version yet (#457)."))
         {
             return true;
         }

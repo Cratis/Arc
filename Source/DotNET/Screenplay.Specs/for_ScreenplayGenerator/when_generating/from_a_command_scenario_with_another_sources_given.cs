@@ -87,19 +87,18 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         AssertImplicitSource();
     }
 
-    [Fact] void should_keep_the_same_stable_symbol_for_given_and_then()
+    [Fact] void should_omit_a_generated_command_identity_even_when_given_and_then_share_its_symbol()
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), SameSourceScenario());
-        AssertImplicitSource(runtimeIdentity: true);
-        Result.Model.Slices.SelectMany(slice => slice.Specifications).Single().Then.Single().For.ShouldBeNull();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
-    [Fact] void should_keep_the_same_stable_receiver_for_given_and_then()
+    [Fact] void should_omit_a_generated_command_identity_even_when_given_and_then_share_its_receiver()
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), SameSourceScenario()
             .Replace("readonly EventSourceId _otherId = EventSourceId.New();", "readonly SourceHolder _holder = new(); class SourceHolder { public readonly EventSourceId Id = EventSourceId.New(); }", StringComparison.Ordinal)
             .Replace("_otherId", "_holder.Id", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_not_treat_distinct_stable_symbols_as_the_same_source()
@@ -107,7 +106,7 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), SameSourceScenario()
             .Replace("readonly EventSourceId _otherId = EventSourceId.New();", "readonly EventSourceId _otherId = EventSourceId.New(); readonly EventSourceId _currentId = EventSourceId.New();", StringComparison.Ordinal)
             .Replace("RegisterAuthor(_otherId,", "RegisterAuthor(_currentId,", StringComparison.Ordinal));
-        AssertOmitted();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_not_treat_distinct_stable_receivers_as_the_same_source()
@@ -116,7 +115,7 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
             .Replace("readonly EventSourceId _otherId = EventSourceId.New();", "readonly SourceHolder _given = new(); readonly SourceHolder _issued = new(); class SourceHolder { public readonly EventSourceId Id = EventSourceId.New(); }", StringComparison.Ordinal)
             .Replace("_otherId", "_given.Id", StringComparison.Ordinal)
             .Replace("RegisterAuthor(_given.Id,", "RegisterAuthor(_issued.Id,", StringComparison.Ordinal));
-        AssertOmitted();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_state_a_distinct_then_source()
@@ -131,7 +130,22 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
     [Theory]
     [InlineData("new AuthorId(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"))")]
     [InlineData("new AuthorId(new System.Guid(\"6f3c8b4719384d4c8f26817e306a10e2\"))")]
-    [InlineData("(AuthorId)\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\"")]
+    public void should_omit_a_scenario_whose_concept_identity_is_not_read_as_a_literal(string identity)
+    {
+        var slice = Slice.Replace("[Key] string Id", "[Key] AuthorId Id", StringComparison.Ordinal) + """
+
+            public record AuthorId(System.Guid Value) : Cratis.Concepts.ConceptAs<System.Guid>(Value)
+            {
+                public static implicit operator AuthorId(string value) => new(System.Guid.Parse(value));
+            }
+            """;
+        GenerateScenario(slice, Scenario
+            .Replace("ForEventSource(\"other\")", "ForEventSource(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\")", StringComparison.Ordinal)
+            .Replace("RegisterAuthor(\"current\",", $"RegisterAuthor({identity},", StringComparison.Ordinal));
+        AssertOmitted("RegisterAuthor.Id");
+    }
+
+    [Theory]
     [InlineData("\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"")]
     public void should_keep_a_literal_given_matching_a_constructed_concept(string identity)
     {
@@ -168,18 +182,18 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         GenerateScenario(Slice.Replace("[Key] string Id", "[Key] System.Guid Id", StringComparison.Ordinal), Scenario
             .Replace("ForEventSource(\"other\")", $"ForEventSource(\"{source}\")", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"),", StringComparison.Ordinal));
-        AssertOmitted();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Theory]
     [InlineData("System.Guid.Parse(\"{6F3C8B47-1938-4D4C-8F26-817E306A10E2}\")")]
     [InlineData("new System.Guid(\"6F3C8B47-1938-4D4C-8F26-817E306A10E2\")")]
-    public void should_keep_a_runtime_guid_source_matching_the_command(string source)
+    public void should_omit_a_runtime_guid_source_whose_command_identity_is_not_stated(string source)
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "[Key] System.Guid Id", StringComparison.Ordinal), Scenario
             .Replace("ForEventSource(\"other\")", $"ForEventSource({source})", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(System.Guid.Parse(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"),", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Theory]
@@ -199,14 +213,14 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
             .Replace("readonly EventSourceId _otherId = EventSourceId.New();", $"readonly string _otherId = {initializer};", StringComparison.Ordinal)
             .Replace("ForEventSource(\"other\")", "ForEventSource(_otherId)", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(_otherId,", StringComparison.Ordinal));
-        AssertOmitted();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
-    [Fact] void should_keep_a_literal_given_matching_a_constructed_event_source()
+    [Fact] void should_omit_a_constructed_event_source_whose_command_identity_is_not_stated()
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), Scenario
             .Replace("RegisterAuthor(\"current\",", "RegisterAuthor(new EventSourceId(\"other\"),", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_omit_an_undecidable_computed_source_for_a_validation_rejection()
@@ -275,22 +289,18 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
         if (runtimeIdentity)
         {
-            // Main preserves these scenarios without a concrete when identity; binding needs an identity fixture.
-            RoundTrip.Errors.ShouldBeEmpty();
-            RoundTrip.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Warning).ShouldBeEmpty();
-            RoundTrip.IsStable.ShouldBeTrue();
-            return;
+            Result.Model.Slices.SelectMany(slice => slice.Specifications).Single().When!.Values.Select(value => value.Property).ShouldContain("Id");
         }
 
         AssertDocument();
     }
 
-    void AssertOmitted()
+    void AssertOmitted(string reason = "event sources cannot be stated faithfully")
     {
         Result.Source.ShouldNotContain("specification");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification &&
             diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning &&
-            diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldBeTrue();
+            diagnostic.Message.Contains(reason, StringComparison.Ordinal)).ShouldBeTrue();
         AssertDocument();
     }
 }

@@ -2,14 +2,12 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
-using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// An identity made where it is stated has no value to state - nobody wrote one down - so a document leaving it out
-/// says exactly as much as the source does. Reporting it would name a difference between the two that is not there,
-/// which is the opposite of what reporting a value that was left out is for.
+/// An identity made where it is stated has no provable fixture value. Since the binder requires every command
+/// property, the scenario is omitted instead of being written with an incomplete command.
 /// </summary>
 public class a_specification_making_an_identity_where_it_states_it : Specification
 {
@@ -59,17 +57,14 @@ public class a_specification_making_an_identity_where_it_states_it : Specificati
     ];
 
     ApplicationModelAnalysis _analysis;
-    SpecificationModel _specification;
 
     void Establish()
     {
         _analysis = Analyzed.Source(_sources);
-        _specification = _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.Single();
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
-    [Fact] void should_keep_the_scenario() => _specification.When.Name.ShouldEqual("RegisterAuthor");
-    [Fact] void should_state_every_value_it_can_read() => _specification.When.Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Jane Austen"))]);
-    [Fact] void should_leave_out_the_identity() => _specification.When.Values.Select(_ => _.Property).ShouldNotContain("Id");
-    [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_omit_the_scenario() => _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.ShouldBeEmpty();
+    [Fact] void should_report_the_unprovable_identity() => _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("RegisterAuthor.Id");
+    [Fact] void should_not_report_partial_values() => _analysis.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.UnreadableSpecificationValue);
 }
