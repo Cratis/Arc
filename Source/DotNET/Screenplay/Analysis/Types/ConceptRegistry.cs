@@ -30,12 +30,12 @@ public class ConceptRegistry
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
     readonly HashSet<string> _sensitive = new(StringComparer.Ordinal);
     readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
+    readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the types with encryption or audit suppression alone.
     /// </summary>
     public IEnumerable<string> PartialSecrets => _partialSecrets.Order(StringComparer.Ordinal);
-    readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type whose simple name a concept was already declared under.

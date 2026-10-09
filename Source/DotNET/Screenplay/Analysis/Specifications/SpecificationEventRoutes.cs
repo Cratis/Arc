@@ -47,7 +47,7 @@ public static class SpecificationEventRoutes
         var streamId = id is null ? null : Text(id);
         var naming = new ScreenplayNaming();
         if (sourceName is null || streamName is null || !ScreenplayIdentifier.IsBareIdentifier(sourceName) || !ScreenplayIdentifier.IsBareIdentifier(streamName) ||
-            (id is not null && (streamId is null || streamId.Length == 0 || !streamId.IsNormalized() || naming.ToStringLiteral(streamId) != streamId)))
+            (id is not null && (string.IsNullOrEmpty(streamId) || !streamId.IsNormalized() || naming.ToStringLiteral(streamId) != streamId)))
         {
             draft.CannotRead("its event route is not a concrete source-owned stream with a portable stream id; no route was inferred");
             return null;

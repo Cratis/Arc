@@ -99,8 +99,10 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                 : null;
             if (commandRoute.StreamId is not null && streamId is null)
             {
-                Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification,
-                    $"The scenario '{specification.Name}' was left out because its command's stream id is not a concrete fixture", location);
+                Diagnostics?.Warning(
+                    ScreenplayDiagnosticCodes.UnreadableSpecification,
+                    $"The scenario '{specification.Name}' was left out because its command's stream id is not a concrete fixture",
+                    location);
                 return null;
             }
 
@@ -146,8 +148,10 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         if (!AuthoringOnlyConstructs && specification.Given.Concat(specification.Then)
             .Concat(specification.When is { } statedAction ? [statedAction] : []).Any(state => state.Route is { Source: not null }))
         {
-            Diagnostics?.Information(ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
-                $"The scenario '{specification.Name}' was left out because specification event routes require ScreenplayOptions.AuthoringOnlyConstructs; no stream metadata was discarded", location);
+            Diagnostics?.Information(
+                ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
+                $"The scenario '{specification.Name}' was left out because specification event routes require ScreenplayOptions.AuthoringOnlyConstructs; no stream metadata was discarded",
+                location);
             return null;
         }
 
@@ -156,8 +160,10 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
         if (AuthoringOnlyConstructs && occurrences.Exists(state => !CanStateRoute(state)))
         {
-            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification,
-                $"The scenario '{specification.Name}' was left out because its route cannot be stated with the document's source and stream-id types", location);
+            Diagnostics?.Warning(
+                ScreenplayDiagnosticCodes.UnreadableSpecification,
+                $"The scenario '{specification.Name}' was left out because its route cannot be stated with the document's source and stream-id types",
+                location);
             return null;
         }
 

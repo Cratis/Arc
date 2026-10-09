@@ -77,7 +77,14 @@ public class SpecificationStepReader(SemanticModels models, SpecificationValues 
 
             foreach (var stated in CallArguments.For(invocation, method, SpecificationCalls.PayloadParameterOf(method) ?? string.Empty))
             {
-                Add(stated, kind, semanticModel, draft, name, location, source,
+                Add(
+                    stated,
+                    kind,
+                    semanticModel,
+                    draft,
+                    name,
+                    location,
+                    source,
                     kind == SpecificationStateKind.Event ? SpecificationEventRoutes.Read(invocation, method, semanticModel, draft) : null);
             }
         }

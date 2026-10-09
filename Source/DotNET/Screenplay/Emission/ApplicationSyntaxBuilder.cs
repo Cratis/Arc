@@ -228,8 +228,12 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             var identifiers = commands.Where(command => command.Produces.Any(production => production.EventName == state.Name))
                 .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
                 .OfType<TypeReferenceModel>().Distinct().ToList();
-            yield return new(route.Source, route.Stream, existing?.IdentifierType ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
-                existing?.StreamIdType ?? (route.StreamId is not null ? new("String", false, false) : null), null);
+            yield return new(
+                route.Source,
+                route.Stream,
+                existing?.IdentifierType ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
+                existing?.StreamIdType ?? (route.StreamId is not null ? new("String", false, false) : null),
+                null);
         }
     }
 
