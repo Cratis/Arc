@@ -25,7 +25,7 @@ public class CompleteStreamCommandResponseValueHandler(IEventLog eventLog) : ICo
         var streamType = completion.EventStreamType ?? commandContext.GetEventStreamType() ?? EventStreamType.All;
         var streamId = completion.EventStreamId ?? commandContext.GetEventStreamId() ?? EventStreamId.Default;
         var result = CommandResult.Success(commandContext.CorrelationId);
-        if (streamType.IsAll && (streamId.IsDefault || streamId == EventStreamId.NotSet))
+        if (streamId.IsDefault || streamId == EventStreamId.NotSet)
         {
             result.ValidationResults = [ValidationResult.Error("The default stream cannot be completed.")];
         }

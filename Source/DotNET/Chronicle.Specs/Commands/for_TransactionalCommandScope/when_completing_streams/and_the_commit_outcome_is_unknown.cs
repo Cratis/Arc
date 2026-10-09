@@ -3,12 +3,12 @@
 
 namespace Cratis.Arc.Chronicle.Commands.for_TransactionalCommandScope.when_completing_streams;
 
-public class and_the_commit_outcome_is_unknown : given.a_pending_completion
+public class and_the_commit_outcome_is_unknown : given.a_real_pending_completion
 {
     async Task Because()
     {
         _result.MergeWith(await Enroll());
-        _unitOfWork.IsCompleted.Returns(true);
+        await _realUnitOfWork.Rollback();
         await _scope.Complete(_context, _result);
     }
 

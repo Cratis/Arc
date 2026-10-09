@@ -38,7 +38,7 @@ new CompleteStream(EventStreamType: "completion", EventStreamId: "another-period
 
 Each omitted part uses the corresponding command route value. Returning events with per-event routing overrides does not change these defaults; name the completion's target explicitly when it differs from the command route.
 
-The default stream (`All` with `Default` or an unset id) cannot be completed. Arc rejects that declaration as a validation failure and rolls back the command's returned events.
+A `Default` or unset stream id cannot be completed for any stream type; commands receive a validation failure and reactors receive a side-effect failure, because completion affects that stream id across every event source in the log.
 
 ## Understand the completion boundary
 
