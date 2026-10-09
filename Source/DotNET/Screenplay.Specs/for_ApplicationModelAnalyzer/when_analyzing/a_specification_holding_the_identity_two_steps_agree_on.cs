@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
-using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
@@ -71,16 +70,13 @@ public class a_specification_holding_the_identity_two_steps_agree_on : Specifica
     ];
 
     ApplicationModelAnalysis _analysis;
-    SpecificationModel _specification;
 
     void Establish()
     {
         _analysis = Analyzed.Source(_sources);
-        _specification = _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.Single();
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
-    [Fact] void should_state_the_values_of_what_it_starts_from() => _specification.Given.Single().Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Jane Austen"))]);
-    [Fact] void should_state_the_values_the_command_was_issued_with() => _specification.When.Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Mary Shelley"))]);
-    [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_omit_the_incomplete_scenario() => _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.ShouldBeEmpty();
+    [Fact] void should_name_the_unprovable_identity() => _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("RegisterAuthor.Id");
 }

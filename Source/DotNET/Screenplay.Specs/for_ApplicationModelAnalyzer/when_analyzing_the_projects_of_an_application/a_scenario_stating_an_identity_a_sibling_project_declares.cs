@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
-using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing_the_projects_of_an_application;
@@ -19,9 +18,8 @@ namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing_the_
 /// every body is read through the models of the whole application.
 /// <para>
 /// Not crashing is the smaller half of this. Reading the declaration through the project that actually holds it is
-/// what lets the identity still be recognized as one made on the spot, and therefore still be left out of the
-/// document rather than reported as a value nothing was recovered from - so the assertions are about the values, and
-/// a guard that merely declined to read across the boundary would fail them.
+/// what lets the identity be recognized as generated. The pinned binder requires every command fixture property,
+/// so this scenario is omitted with a diagnostic naming the unprovable identity rather than emitted incompletely.
 /// </para>
 /// </remarks>
 public class a_scenario_stating_an_identity_a_sibling_project_declares : Specification
@@ -87,7 +85,6 @@ public class a_scenario_stating_an_identity_a_sibling_project_declares : Specifi
     Compilation _contracts;
     Compilation _application;
     ApplicationModelAnalysis _analysis;
-    SpecificationModel _specification;
 
     void Establish()
     {
@@ -109,12 +106,11 @@ public class a_scenario_stating_an_identity_a_sibling_project_declares : Specifi
     void Because()
     {
         _analysis = Analyzed.Projects(_application, _contracts);
-        _specification = _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.Single();
     }
 
     [Fact] void should_compile_the_contracts_project() => Analyzed.ErrorsIn(_contracts).ShouldBeEmpty();
     [Fact] void should_compile_the_application_project() => Analyzed.ErrorsIn(_application).ShouldBeEmpty();
-    [Fact] void should_state_the_values_of_what_it_starts_from() => _specification.Given.Single().Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Jane Austen"))]);
-    [Fact] void should_state_the_values_the_command_was_issued_with() => _specification.When.Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Mary Shelley"))]);
-    [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_omit_the_incomplete_scenario_without_crashing() => _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.ShouldBeEmpty();
+    [Fact] void should_name_the_generated_identity() => _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("RegisterAuthor.Id");
+    [Fact] void should_not_report_partial_values() => _analysis.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.UnreadableSpecificationValue);
 }

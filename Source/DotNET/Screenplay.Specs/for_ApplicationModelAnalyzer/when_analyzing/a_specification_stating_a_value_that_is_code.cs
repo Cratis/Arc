@@ -2,15 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis;
-using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
 /// A scenario written in the host language routinely rests a value on something worked out at run time, which is
-/// exactly what a document stating values has no way to name. Unlike a step, a value stands on its own: leaving one
-/// out leaves the rest of the scenario saying what the source says, so it is left out and said rather than taking
-/// the scenario with it.
+/// exactly what a document stating values has no way to name. The binder requires a complete command fixture, so
+/// an unprovable value takes the whole scenario with it.
 /// </summary>
 public class a_specification_stating_a_value_that_is_code : Specification
 {
@@ -60,22 +58,19 @@ public class a_specification_stating_a_value_that_is_code : Specification
     ];
 
     ApplicationModelAnalysis _analysis;
-    SpecificationModel _specification;
 
     void Establish()
     {
         _analysis = Analyzed.Source(_sources);
-        _specification = _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.Single();
     }
 
     ScreenplayDiagnostic LeftOut() =>
-        _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecificationValue);
+        _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification);
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
-    [Fact] void should_keep_the_scenario() => _specification.When.Name.ShouldEqual("RegisterAuthor");
-    [Fact] void should_state_every_value_it_can_read() => _specification.When.Values.ShouldContainOnly([new PropertyMappingModel("Name", new LiteralSource("Jane Austen"))]);
-    [Fact] void should_leave_out_the_one_it_cannot() => _specification.When.Values.Select(_ => _.Property).ShouldNotContain("Age");
-    [Fact] void should_say_which_value_it_left_out() => LeftOut().Message.ShouldEqual("The value 'when_registering_and_the_age_is_worked_out_at_run_time' states for 'RegisterAuthor.Age' is code rather than a constant, so the scenario states everything but that value");
+    [Fact] void should_omit_the_scenario() => _analysis.Model.Slices.Single(_ => _.Name == "Registration").Specifications.ShouldBeEmpty();
+    [Fact] void should_name_the_unprovable_property() => LeftOut().Message.ShouldContain("RegisterAuthor.Age");
+    [Fact] void should_not_report_values_from_an_omitted_scenario() => _analysis.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.UnreadableSpecificationValue);
     [Fact] void should_say_where_it_left_it_out() => LeftOut().Location.ShouldEqual("Library.Authors.Registration.when_registering.and_the_age_is_worked_out_at_run_time");
-    [Fact] void should_report_it_as_information() => LeftOut().Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+    [Fact] void should_report_it_as_a_warning() => LeftOut().Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
 }

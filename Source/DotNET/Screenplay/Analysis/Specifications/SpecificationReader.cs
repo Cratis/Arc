@@ -84,7 +84,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var draft = new SpecificationDraft { EventSources = new(models, _held) };
         var stated = new ScreenplayDiagnostics();
 
-        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)), _held);
+        var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)) { Models = models, HeldValues = _held }, _held);
         reader.ReadWhen(steps, draft, name, location);
         reader.ReadGiven(steps, draft, name, location, alsoWhereTheActionIs: readModel is not null);
         new SpecificationOutcomeReader(models, stated).Read(type, draft, name, location);

@@ -98,10 +98,10 @@ public partial class from_a_command_scenario_with_another_sources_given
         AssertOmitted();
     }
 
-    [Fact] void should_keep_a_stable_held_commands_positional_identifier_implicit()
+    [Fact] void should_omit_a_stable_held_command_with_a_generated_identifier()
     {
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), HeldCommandScenario());
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     [Fact] void should_omit_a_reassigned_held_commands_identifier()
@@ -120,7 +120,7 @@ public partial class from_a_command_scenario_with_another_sources_given
         GenerateScenario(Slice.Replace("[Key] string Id", "EventSourceId Id", StringComparison.Ordinal), HeldCommandScenario()
             .Replace("readonly RegisterAuthor _command =", "readonly RegisterAuthor _otherCommand = new(EventSourceId.New(), \"Claimed\"); readonly RegisterAuthor _command =", StringComparison.Ordinal)
             .Replace("ForEventSource(_command.Id)", "ForEventSource(_otherCommand.Id)", StringComparison.Ordinal));
-        AssertOmitted();
+        AssertOmitted("RegisterAuthor.Id");
     }
 
     static string HeldCommandScenario() => Scenario

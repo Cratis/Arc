@@ -10,8 +10,8 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// number cast to an enumeration no member is declared with (<see langword="default"/> for an enumeration declaring no
 /// zero member is one), or <see langword="null"/> for a record or list the command requires. The document checks every value against the type of its property and has no form for either, so the
 /// scenario is left out and reported, because writing the command or the state it starts from without that value
-/// would state a different one whose rejection has lost its cause - while <see langword="null"/> is still stated
-/// where the property may be absent.
+/// would state a different one whose rejection has lost its cause. The pinned binder also rejects null command
+/// fixtures when the property may be absent.
 /// </summary>
 public class from_source_stating_values_the_document_cannot_hold : Specification
 {
@@ -228,12 +228,12 @@ public class from_source_stating_values_the_document_cannot_hold : Specification
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(_sources).ShouldBeEmpty();
     [Fact] void should_produce_a_document_that_compiles() => _compiled.Success.ShouldBeTrue();
-    [Fact] void should_state_only_the_scenario_whose_values_the_document_can_hold() => Lines().Count(_ => _.StartsWith("specification ", StringComparison.Ordinal)).ShouldEqual(1);
-    [Fact] void should_state_null_for_a_record_that_may_be_absent() => Lines().ShouldContain("fallback = null");
+    [Fact] void should_omit_every_unstateable_scenario() => Lines().Count(_ => _.StartsWith("specification ", StringComparison.Ordinal)).ShouldEqual(0);
+    [Fact] void should_not_state_null_even_for_an_optional_command_property() => Lines().ShouldNotContain("fallback = null");
     [Fact] void should_never_state_a_number_no_member_is_declared_with() => Lines().ShouldNotContain("side = 99");
     [Fact] void should_never_state_the_command_without_the_value_it_was_rejected_for() => Lines().ShouldNotContain(@"note = ""again""");
     [Fact] void should_never_state_null_for_a_record_the_command_requires() => Lines().ShouldNotContain("preferences = null");
-    [Fact] void should_leave_out_each_scenario_it_cannot_state() => Omissions().Count().ShouldEqual(5);
+    [Fact] void should_leave_out_each_scenario_it_cannot_state() => Omissions().Count().ShouldEqual(6);
     [Fact] void should_warn_about_each_of_them() => _result.Diagnostics
         .Where(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableSpecification)
         .All(_ => _.Severity == ScreenplayDiagnosticSeverity.Warning)
