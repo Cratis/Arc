@@ -80,7 +80,7 @@ public class a_scenario_stating_an_identity_a_sibling_project_declares : Specifi
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor(KnownAuthors.Jane, "Mary Shelley"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

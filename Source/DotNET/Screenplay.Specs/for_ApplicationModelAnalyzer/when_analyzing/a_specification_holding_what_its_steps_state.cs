@@ -56,7 +56,7 @@ public class a_specification_holding_what_its_steps_state : Specification
 
             async Task Because() => _result = await _scenario.Execute(_command);
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

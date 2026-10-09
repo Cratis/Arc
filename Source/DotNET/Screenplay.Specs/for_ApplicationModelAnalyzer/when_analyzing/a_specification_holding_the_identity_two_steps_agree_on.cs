@@ -59,7 +59,7 @@ public class a_specification_holding_the_identity_two_steps_agree_on : Specifica
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor(_id, "Mary Shelley"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

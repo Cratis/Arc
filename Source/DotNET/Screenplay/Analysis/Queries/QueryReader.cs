@@ -34,6 +34,11 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     readonly ScreenplayNaming _naming = new();
 
     /// <summary>
+    /// Gets the source paths used for performer references.
+    /// </summary>
+    public SourcePaths? Paths { get; init; }
+
+    /// <summary>
     /// Determines whether a type is a model-bound read model.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -65,7 +70,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
                 }
 
                 var collection = false;
-                return SymbolEqualityComparer.Default.Equals(QueryReturnTypes.Unwrap(method.ReturnType, ref collection), type);
+                return SymbolEqualityComparer.Default.Equals(UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection)), type);
             })
             .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
     }
@@ -120,7 +125,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         var parameters = method.Parameters.Where(IsInput).ToList();
         var required = parameters.Find(_ => !_.HasExplicitDefaultValue);
         var collection = false;
-        var returned = QueryReturnTypes.Unwrap(method.ReturnType, ref collection);
+        var returned = UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection));
         var key = required is not null && returned.DeclaredProperties().Any(property =>
             string.Equals(_naming.ToPropertyName(property.Name), _naming.ToPropertyName(required.Name), StringComparison.Ordinal))
             ? required
@@ -134,7 +139,9 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             AuthorizationReader.Read(method, declaring),
             QueryReturnTypes.IsObservable(method.ReturnType))
         {
-            ReturnTypeFullName = FullNameOfWhatItReturns(method)
+            ReturnTypeFullName = FullNameOfWhatItReturns(method),
+            Description = Documentation.SummaryOf(method),
+            PerformerFile = new QueryImplementationReader(Paths, diagnostics).Read(method, location)
         };
     }
 
@@ -169,6 +176,22 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
                 $"The query '{method.Name}' hands back a queryable, so the host pages and sorts it on the caller's behalf, which says how the result is asked for rather than what it is, and Screenplay has no counterpart for it",
+                location);
+        }
+
+        if (method.Parameters.Any(parameter => parameter.Type.Is(WellKnownTypeNames.QueryContext)))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart,
+                $"The query '{method.Name}' receives Arc's QueryContext; this is a host dependency, not a scalar context-bound argument, so no 'from $context' source was inferred",
+                location);
+        }
+
+        foreach (var parameter in method.Parameters.Where(parameter => IsInput(parameter) && parameter.HasExplicitDefaultValue && parameter.ExplicitDefaultValue is not null))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnmappableQuery,
+                $"The query '{method.Name}' allows '{parameter.Name}' to be omitted; its non-null default value has no query-parameter counterpart, so only optionality was stated",
                 location);
         }
 
@@ -231,7 +254,22 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
 
         var resolved = types.Resolve(current);
 
-        return collection ? resolved with { IsCollection = true } : resolved;
+        if (!collection)
+        {
+            return resolved;
+        }
+
+        var container = QueryReturnTypes.ContainerOf(method.ReturnType);
+
+        if (current.NullableAnnotation == NullableAnnotation.Annotated || current is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T })
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnmappableQuery,
+                $"The query '{method.Name}' returns nullable collection elements, which query return optionality cannot state; only the collection's optionality was stated",
+                location);
+        }
+
+        return resolved with { IsCollection = true, IsOptional = container.NullableAnnotation == NullableAnnotation.Annotated };
     }
 
     /// <summary>
@@ -239,5 +277,10 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="parameter">The parameter to convert.</param>
     /// <returns>The <see cref="PropertyModel"/>.</returns>
-    PropertyModel ToParameter(IParameterSymbol parameter) => new(parameter.Name, types.Resolve(parameter.Type));
+    PropertyModel ToParameter(IParameterSymbol parameter)
+    {
+        var type = types.Resolve(parameter.Type);
+
+        return new(parameter.Name, type with { IsOptional = parameter.HasExplicitDefaultValue || type.IsOptional });
+    }
 }

@@ -149,6 +149,23 @@ public static class QueryReturnTypes
     }
 
     /// <summary>
+    /// Finds the first collection container after delivery wrappers are removed.
+    /// </summary>
+    /// <param name="type">The declared return type.</param>
+    /// <returns>The collection container, or the scalar return type.</returns>
+    public static ITypeSymbol ContainerOf(ITypeSymbol type)
+    {
+        var current = type;
+        while (current is INamedTypeSymbol named && named.TypeArguments.Length == 1 &&
+            !Matches(named, _sequences) && CollectionElements.ElementOf(current) is null && Matches(named, _wrappers))
+        {
+            current = named.TypeArguments[0];
+        }
+
+        return current;
+    }
+
+    /// <summary>
     /// Determines whether a type is one of a set of wrappers, by name and by the interfaces it implements.
     /// </summary>
     /// <param name="type">The type to check.</param>

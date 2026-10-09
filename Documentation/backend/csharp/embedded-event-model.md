@@ -96,6 +96,14 @@ To generate documents only in Debug, add this to your application project:
 
 A direct reference to `Cratis.Arc.Screenplay.Embedded` enables generation by default; the `Cratis` metapackage disables it in Release unless you explicitly set `CratisEmbeddedScreenplayEnabled` to `true`. Generation does not run during design-time builds. A real build regenerates the resources from the current source; disabling generation prevents previously generated files from being included.
 
+## Compiler features and generated source
+
+Embedded generation forwards the build's `Features`, `InterceptorsNamespaces`, and legacy `InterceptorsPreviewNamespaces` properties to its C# compilation and source-generator driver. This includes namespaces enabled by SDK features such as OpenAPI interceptors; you do not need to disable embedded generation or remove source generators.
+
+`Features` uses Csc's semicolon-, comma-, or space-separated feature syntax. The two interceptor namespace properties are combined as a semicolon-separated list. An explicit `InterceptorsNamespaces` entry in `Features` takes precedence over that combined list, matching Csc. Keep these settings on your application project; there is no separate embedded-generation override.
+
+Custom build hosts can supply the same values through the `Features`, `InterceptorsNamespaces`, and `InterceptorsPreviewNamespaces` task parameters, or through the corresponding parameters of the `SourceCompilation.Create` overload. The existing overload remains available for callers without compiler features.
+
 ## Understand the hierarchy
 
 Namespace placement is relative to your project's `RootNamespace`. Set it explicitly when your assembly name and application namespace differ:

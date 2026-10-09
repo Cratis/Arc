@@ -62,7 +62,7 @@ public class from_source_seeding_an_event_log_a_command_scenario_does_not_hand_o
 
             async Task Because() => Result = await Scenario.Execute(new StartOnboarding("customer", "Racing Customer AS"));
 
-            [Fact] void should_not_succeed() => Result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => Result.ShouldHaveValidationErrors();
             [Fact] async Task should_only_hold_the_seeded_registration() =>
                 await Scenario.EventScenario.EventSequence.ShouldHaveAppendedEvent<CustomerRegistered>(
                     EventSourceId.New(), @event => @event.Name == "Existing Customer AS");
@@ -91,7 +91,7 @@ public class from_source_seeding_an_event_log_a_command_scenario_does_not_hand_o
 
             async Task Because() => _result = await _scenario.Execute(new StartOnboarding("customer", "Racing Customer AS"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

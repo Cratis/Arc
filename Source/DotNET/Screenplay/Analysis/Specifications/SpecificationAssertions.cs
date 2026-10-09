@@ -33,11 +33,25 @@ public static class SpecificationAssertions
     /// <summary>The value of a result saying whether the command was carried out.</summary>
     public const string SuccessProperty = "IsSuccess";
 
-    /// <summary>The assertions saying the command was rejected, without naming why.</summary>
+    /// <summary>
+    /// The value of a result saying whether validation accepted the command.
+    /// </summary>
+    public const string ValidProperty = "IsValid";
+
+    /// <summary>
+    /// The assertions saying validation rejected the command, without naming why.
+    /// </summary>
     public static readonly string[] Rejections =
     [
+        "ShouldHaveValidationErrors"
+    ];
+
+    /// <summary>
+    /// The failure assertions that do not prove a validation or constraint rejection.
+    /// </summary>
+    public static readonly string[] UnsupportedFailures =
+    [
         "ShouldHaveExceptions",
-        "ShouldHaveValidationErrors",
         "ShouldNotBeAuthorized",
         "ShouldNotBeSuccessful"
     ];
@@ -86,11 +100,26 @@ public static class SpecificationAssertions
     /// </summary>
     /// <param name="invocation">The assertion to read.</param>
     /// <param name="method">The method being called.</param>
-    /// <returns>True when the assertion is a rejection.</returns>
+    /// <returns>True when the assertion is a rejection or an unspecified unsuccessful result.</returns>
     public static bool IsRejection(InvocationExpressionSyntax invocation, IMethodSymbol method) =>
         Array.Exists(Rejections, _ => string.Equals(_, method.Name, StringComparison.Ordinal)) ||
         IsNamedRejection(method) ||
         IsUnsuccessful(invocation, method);
+
+    /// <summary>
+    /// Determines whether an assertion rejects the command, including its bound validation result.
+    /// </summary>
+    /// <param name="invocation">The assertion to read.</param>
+    /// <param name="method">The method being called.</param>
+    /// <param name="model">The semantic model resolving the asserted property.</param>
+    /// <returns>Whether the assertion rejects the command.</returns>
+    public static bool IsRejection(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel model) =>
+        (IsRejection(invocation, method) && !IsUnsupportedFailure(invocation, method)) ||
+        (string.Equals(method.Name, FalseAssertion, StringComparison.Ordinal) &&
+         invocation.Expression is MemberAccessExpressionSyntax { Expression: MemberAccessExpressionSyntax subject } &&
+         model.GetSymbolInfo(subject).Symbol is IPropertySymbol property &&
+         string.Equals(property.Name, ValidProperty, StringComparison.Ordinal) &&
+         property.ContainingType.Is("Cratis.Arc.Commands.CommandResult"));
 
     /// <summary>
     /// Determines whether an assertion names the reason the command was rejected.
@@ -99,6 +128,16 @@ public static class SpecificationAssertions
     /// <returns>True when the assertion names a reason.</returns>
     public static bool IsNamedRejection(IMethodSymbol method) =>
         Array.Exists(NamedRejections, _ => string.Equals(_, method.Name, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Determines whether an assertion names a failure the language cannot faithfully state as a validation rejection.
+    /// </summary>
+    /// <param name="invocation">The assertion to read.</param>
+    /// <param name="method">The method being called.</param>
+    /// <returns>Whether the assertion states an authorization, exception, or unspecified failure.</returns>
+    public static bool IsUnsupportedFailure(InvocationExpressionSyntax invocation, IMethodSymbol method) =>
+        Array.Exists(UnsupportedFailures, name => string.Equals(name, method.Name, StringComparison.Ordinal)) ||
+        IsUnsuccessful(invocation, method);
 
     static bool IsCommandScenarioAssertion(IMethodSymbol method) =>
         method.ContainingType.ToDisplayString() == "Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioChronicleAssertionExtensions" &&

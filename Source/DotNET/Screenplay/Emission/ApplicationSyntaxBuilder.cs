@@ -188,7 +188,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 AuthoringOnlyConstructs = authoringOnlyConstructs
             },
             new EventSyntaxBuilder(naming, _types, _names),
-            new QuerySyntaxBuilder(naming, _types, _authorize),
+            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = authoringOnlyConstructs, Diagnostics = diagnostics },
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = model },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),

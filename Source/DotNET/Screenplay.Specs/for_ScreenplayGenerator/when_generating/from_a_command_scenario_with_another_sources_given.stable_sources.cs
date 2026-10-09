@@ -61,7 +61,10 @@ public partial class from_a_command_scenario_with_another_sources_given
             }
             """;
         GenerateScenario(Slice, scenario);
-        AssertOmitted();
+        Result.Source.ShouldNotContain("specification");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification &&
+            diagnostic.Message.Contains("ShouldNotBeAuthorized", StringComparison.Ordinal)).ShouldBeTrue();
+        AssertDocument();
     }
 
     [Fact] void should_omit_two_distinct_sources_without_an_identifier()

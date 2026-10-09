@@ -212,7 +212,7 @@ public static class IntegrationTesting
                 {
                 }
 
-                public static void ShouldNotBeSuccessful(this Cratis.Arc.Testing.Commands.Result result)
+                public static void ShouldHaveValidationErrors(this Cratis.Arc.Testing.Commands.Result result)
                 {
                 }
 

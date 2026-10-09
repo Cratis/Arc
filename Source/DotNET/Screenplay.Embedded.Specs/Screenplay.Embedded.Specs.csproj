@@ -13,6 +13,7 @@
         <ProjectReference Include="../Screenplay.Embedded.Generation/Screenplay.Embedded.Generation.csproj" />
         <ProjectReference Include="../Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" />
         <ProjectReference Include="Fixtures/Consumer/Consumer.csproj" />
+        <ProjectReference Include="Fixtures/Interceptors.Generator/Interceptors.Generator.csproj" />
         <PackageReference Include="Cratis.Fundamentals" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.Build.Framework" />

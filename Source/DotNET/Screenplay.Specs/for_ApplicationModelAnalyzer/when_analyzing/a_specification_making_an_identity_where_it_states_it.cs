@@ -47,7 +47,7 @@ public class a_specification_making_an_identity_where_it_states_it : Specificati
 
             async Task Because() => _result = await _scenario.Execute(new RegisterAuthor(Guid.NewGuid(), "Jane Austen"));
 
-            [Fact] void should_not_succeed() => _result.ShouldNotBeSuccessful();
+            [Fact] void should_not_succeed() => _result.ShouldHaveValidationErrors();
         }
         """;
 

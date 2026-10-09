@@ -46,8 +46,10 @@ public class a_read_model_exposing_queries : Specification
     [Fact] void should_take_the_required_parameter_as_the_one_identifying_an_instance() => Query("AuthorById").By!.Name.ShouldEqual("id");
     [Fact] void should_take_no_parameter_when_the_query_needs_none() => Query("AllAuthors").By.ShouldBeNull();
     [Fact] void should_narrow_with_the_remaining_parameters() => Query("AuthorsByName").Filters.Select(_ => _.Name).ShouldContainOnly(["take"]);
+    [Fact] void should_mark_the_defaulted_filter_optional() => Query("AuthorsByName").Filters.Single().Type.IsOptional.ShouldBeTrue();
+    [Fact] void should_report_the_unrepresented_non_null_default() => _analysis.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.UnmappableQuery).ShouldEqual(1);
     [Fact] void should_infer_a_state_view_slice() => _analysis.Slice().Kind.ShouldEqual(SliceKind.StateView);
-    [Fact] void should_say_the_host_pages_the_query_handing_back_a_queryable() => _analysis.Diagnostics.Single().Message.ShouldContain("'AuthorsByName'");
-    [Fact] void should_report_that_as_a_serving_concern() => _analysis.Diagnostics.Single().Code.ShouldEqual(ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart);
+    [Fact] void should_say_the_host_pages_the_query_handing_back_a_queryable() => _analysis.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart).Message.ShouldContain("'AuthorsByName'");
+    [Fact] void should_report_that_as_a_serving_concern() => _analysis.Diagnostics.Count(_ => _.Code == ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart).ShouldEqual(1);
     [Fact] void should_say_nothing_about_the_queries_handed_back_whole() => _analysis.Diagnostics.Count(_ => _.Message.Contains("'AllAuthors'", StringComparison.Ordinal) || _.Message.Contains("'AuthorById'", StringComparison.Ordinal)).ShouldEqual(0);
 }

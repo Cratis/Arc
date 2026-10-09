@@ -72,6 +72,7 @@ public class from_the_source_of_an_application_using_known_components : Specific
     CompilationResult<Cratis.Screenplay.Syntax.ApplicationSyntax> _compiled;
     string _reprinted;
     IEnumerable<string> _unread;
+    IEnumerable<string> _withheldQueries;
 
     void Because()
     {
@@ -80,6 +81,9 @@ public class from_the_source_of_an_application_using_known_components : Specific
         _compiled = new ScreenplayCompiler().Compile(_result.Source);
         _reprinted = _compiled.Value is null ? string.Empty : new Cratis.Screenplay.Printing.ScreenplayPrinter().Print(_compiled.Value);
         _unread = _result.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.ScreenStructureNotInferred).Select(_ => _.Message).ToList();
+        _withheldQueries = _result.Diagnostics
+            .Where(_ => _.Code == ScreenplayDiagnosticCodes.UnmappableQuery && _.Severity == ScreenplayDiagnosticSeverity.Information && _.Message.EndsWith("has a body; performer references are authoring-only, so enable ScreenplayOptions.AuthoringOnlyConstructs to include its implementation file", StringComparison.Ordinal))
+            .Select(_ => _.Message.Split('\'')[1]).Order().ToList();
     }
 
     bool Says(string text) => _result.Source.Contains(text, StringComparison.Ordinal);
@@ -110,6 +114,7 @@ public class from_the_source_of_an_application_using_known_components : Specific
     [Fact] void should_report_the_dialog_for_a_command_of_another_slice() => Reports("runs 'RegisterAuthor' from a <CommandDialog>, which is not a command its slice declares").ShouldBeTrue();
     [Fact] void should_report_each_unread_directive_on_its_own() => _unread.Count().ShouldEqual(5);
     [Fact] void should_report_nothing_for_a_screen_read_in_full() => _unread.Any(_ => _.StartsWith("The screen 'AddAuthor'", StringComparison.Ordinal)).ShouldBeFalse();
-    [Fact] void should_report_nothing_but_what_was_not_inferred() => _result.Diagnostics.Select(_ => _.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred]);
+    [Fact] void should_report_nothing_but_what_was_not_inferred_and_the_withheld_query_implementations() => _result.Diagnostics.Select(_ => _.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred, ScreenplayDiagnosticCodes.UnmappableQuery]);
+    [Fact] void should_report_the_withheld_implementation_of_each_query_with_a_body() => _withheldQueries.ShouldContainOnly(["AllAuthors", "AuthorById"]);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }
