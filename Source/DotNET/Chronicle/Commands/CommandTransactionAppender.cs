@@ -291,14 +291,18 @@ internal static class CommandTransactionAppender
         {
             if (routing.EventSource is not null)
             {
-                var wrappers = events.Select(@event => new EventForEventSourceId(eventSourceId, @event)
+                var eventSnapshot = events.ToArray();
+
+                // Chronicle's definition-routed plain batch applies every event type's static tags to every event.
+                var staticTags = eventSnapshot.SelectMany(@event => @event.GetType().GetTags()).Distinct().ToArray();
+                var wrappers = eventSnapshot.Select(@event => new EventForEventSourceId(eventSourceId, @event)
                 {
                     EventSource = routing.EventSource,
                     EventStream = routing.EventStream,
                     EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
                     NamedTags = tagSnapshot
                 });
-                return eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } });
+                return eventLog.AppendManyWithNamedTags(wrappers, [], tags: staticTags, concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } });
             }
 
             return eventLog.AppendManyWithNamedTags(eventSourceId, events, tagSnapshot, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
