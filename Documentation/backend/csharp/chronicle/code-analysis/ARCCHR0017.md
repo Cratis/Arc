@@ -32,7 +32,7 @@ Add a public `Period` property of a supported type, or write `{{Period}}` if you
 
 ## Not resolved outside commands
 
-Only Arc commands resolve templates. A reactor reads the same attribute as a literal constant, so a template there is reported by [ARCCHR0019](./ARCCHR0019.md).
+Only Arc commands resolve templates. A reactor reads the same attribute as a literal constant, so a template there is reported by [ARCCHR0018](./ARCCHR0018.md).
 
 ## See also
 

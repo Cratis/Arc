@@ -20,7 +20,7 @@ public class when_the_attribute_is_on_a_reactor
     public async Task should_warn_about_a_template(string template) =>
         await VerifyCS.VerifyAnalyzerAsync(
             Preamble + "[EventStreamId({|#0:\"" + template + "\"|})] public class R : IReactor;",
-            new ExpectedDiagnostic("ARCCHR0019", DiagnosticSeverity.Warning, "R", template));
+            new ExpectedDiagnostic("ARCCHR0018", DiagnosticSeverity.Warning, "R", template));
 
     [Theory]
     [InlineData("constant")]

@@ -216,22 +216,10 @@ static class DiagnosticDescriptors
         description: "A value with {Name} placeholders is resolved from the command at runtime. Each placeholder must name a public instance property of the command whose type converts to a string: a string, a primitive, decimal, Guid, enum, DateOnly, DateTime, DateTimeOffset, TimeOnly, TimeSpan, a ConceptAs<T> over one of these, or an EventSourceId. Braces must balance; write {{ and }} for literal braces. A value without placeholders is a constant stream id and is not checked.");
 
     /// <summary>
-    /// ARCCHR0018: A command declares its event stream id in two ways.
+    /// ARCCHR0018: An [EventStreamId] template on a type that is not an Arc command.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0018_AmbiguousEventStreamId = new(
+    public static readonly DiagnosticDescriptor ARCCHR0018_EventStreamIdTemplateOnlyResolvedForCommands = new(
         id: "ARCCHR0018",
-        title: "Command declares its event stream id twice",
-        messageFormat: "Command '{0}' has [EventStreamId] with a value and also implements ICanProvideEventStreamId. Keep one: remove the value from the attribute or stop implementing the interface.",
-        category: Category,
-        defaultSeverity: DiagnosticSeverity.Error,
-        isEnabledByDefault: true,
-        description: "Arc cannot pick between a stream id declared by [EventStreamId(value)] and one provided by ICanProvideEventStreamId, and rejects the command at runtime. Use the attribute for a constant or a {Property} template, or the interface for a computed id.");
-
-    /// <summary>
-    /// ARCCHR0019: An [EventStreamId] template on a type that is not an Arc command.
-    /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0019_EventStreamIdTemplateOnlyResolvedForCommands = new(
-        id: "ARCCHR0019",
         title: "Event stream id template is only resolved for commands",
         messageFormat: "Reactor '{0}' has [EventStreamId] with the template '{1}', but only Arc commands resolve {{Property}} placeholders. A reactor uses the value as a literal stream id.",
         category: Category,

@@ -1,32 +1,32 @@
 ---
-title: 'ARCCHR0018: Command declares its event stream id twice'
-description: A command has [EventStreamId] with a value and also implements ICanProvideEventStreamId.
+title: 'ARCCHR0018: Event stream id template is only resolved for commands'
+description: A reactor has an [EventStreamId] value with {Property} placeholders, but only Arc commands resolve them.
 ---
 
 ## Rule
 
-A command can declare its event stream id with `[EventStreamId(value)]` (a constant or a `{Property}` template) or with `ICanProvideEventStreamId`. Doing both is ambiguous, and Arc rejects the command at runtime with `AmbiguousEventStreamId`. This rule reports it at build time.
+Chronicle reactors read `[EventStreamId]` as a literal constant. Only Arc commands resolve `{Property}` placeholders against their properties. A reactor class (a type implementing `IReactor`) whose `[EventStreamId]` value contains a placeholder therefore appends its side-effect events to a stream literally named, for example, `{Period}`.
 
-`[EventStreamId]` without a value (or with `null`) does not declare an id and is not reported. This rule is separate from [ARCCHR0002](./index.md#arcchr0002-ambiguous-command-identity), which is about the event source id and does not look at stream ids.
+A constant value is not reported, nor is an escaped `{{`/`}}` pair. Types that are neither commands nor reactors are not inspected.
+
+This is a separate rule from [ARCCHR0017](./ARCCHR0017.md): ARCCHR0017 is an error about a template on a command that cannot be resolved, while this is a warning about a template that will not be resolved at all.
 
 ## Severity
 
-Error
+Warning
 
 ## Example
 
 ```csharp
-[Command]
-[EventStreamId("{Period}")] // ARCCHR0018
-public record CloseBooks(string Period) : ICanProvideEventStreamId
+[EventStreamId("{Period}")] // ARCCHR0018: used literally by the reactor
+public class PeriodReactor : IReactor
 {
-    public EventStreamId GetEventStreamId() => Period;
+    ...
 }
 ```
 
-Remove the value from the attribute or stop implementing the interface. Use the attribute for a constant or template, and the interface for an id that needs code.
+Use a constant stream id, or route the events explicitly.
 
 ## See also
 
-- [ARCCHR0017](./ARCCHR0017.md)
 - [Concurrency](../commands/concurrency.md)

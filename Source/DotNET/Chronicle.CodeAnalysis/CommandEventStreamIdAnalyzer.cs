@@ -15,7 +15,6 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 public class CommandEventStreamIdAnalyzer : DiagnosticAnalyzer
 {
     const string AttributeName = "Cratis.Chronicle.Events.EventStreamIdAttribute";
-    const string ProviderName = "Cratis.Chronicle.Events.ICanProvideEventStreamId";
     const string EventSourceIdName = "Cratis.Chronicle.Events.EventSourceId";
     const string ReactorName = "Cratis.Chronicle.Reactors.IReactor";
     const string ConceptName = "Cratis.Concepts.ConceptAs`1";
@@ -26,8 +25,7 @@ public class CommandEventStreamIdAnalyzer : DiagnosticAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
         DiagnosticDescriptors.ARCCHR0017_InvalidEventStreamIdTemplate,
-        DiagnosticDescriptors.ARCCHR0018_AmbiguousEventStreamId,
-        DiagnosticDescriptors.ARCCHR0019_EventStreamIdTemplateOnlyResolvedForCommands
+        DiagnosticDescriptors.ARCCHR0018_EventStreamIdTemplateOnlyResolvedForCommands
     ];
 
     /// <inheritdoc/>
@@ -61,14 +59,6 @@ public class CommandEventStreamIdAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        if (command.AllInterfaces.Any(_ => RawGuidResponseAnalysis.IsType(_, ProviderName, context.Compilation)))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(
-                DiagnosticDescriptors.ARCCHR0018_AmbiguousEventStreamId,
-                syntax.GetLocation(),
-                command.Name));
-        }
-
         var location = syntax.ArgumentList?.Arguments.FirstOrDefault()?.GetLocation() ?? syntax.GetLocation();
         foreach (var problem in Problems(value, command, context.Compilation))
         {
@@ -95,7 +85,7 @@ public class CommandEventStreamIdAnalyzer : DiagnosticAnalyzer
         }
 
         context.ReportDiagnostic(Diagnostic.Create(
-            DiagnosticDescriptors.ARCCHR0019_EventStreamIdTemplateOnlyResolvedForCommands,
+            DiagnosticDescriptors.ARCCHR0018_EventStreamIdTemplateOnlyResolvedForCommands,
             syntax.ArgumentList?.Arguments.FirstOrDefault()?.GetLocation() ?? syntax.GetLocation(),
             type.Name,
             value));

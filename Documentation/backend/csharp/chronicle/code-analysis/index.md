@@ -26,8 +26,9 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0015](./ARCCHR0015.md) | Warning | A model-bound command handler declares a nullable event, directly or in a supported awaitable/union branch. |
 | [ARCCHR0016](./ARCCHR0016.md) | Warning | `concurrency: true` on a stream-metadata attribute of a command whose `Handle()` returns `EventsWithConcurrencyScopes`. |
 | [ARCCHR0017](./ARCCHR0017.md) | Error | An `[EventStreamId]` template on a command names an unusable property or has malformed braces. |
-| [ARCCHR0018](./ARCCHR0018.md) | Error | A command has `[EventStreamId(value)]` and implements `ICanProvideEventStreamId`. |
-| [ARCCHR0019](./ARCCHR0019.md) | Warning | An `[EventStreamId]` template on a reactor, where it is used literally. |
+| [ARCCHR0018](./ARCCHR0018.md) | Warning | An `[EventStreamId]` template on a reactor, where it is used literally. |
+
+A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 
 ## ARCCHR0002: ambiguous command identity
 

@@ -30,7 +30,5 @@
   href: ARCCHR0016.md
 - name: ARCCHR0017 - Invalid [EventStreamId] template
   href: ARCCHR0017.md
-- name: ARCCHR0018 - Event stream id declared twice
+- name: ARCCHR0018 - Event stream id template only resolved for commands
   href: ARCCHR0018.md
-- name: ARCCHR0019 - Event stream id template only resolved for commands
-  href: ARCCHR0019.md
