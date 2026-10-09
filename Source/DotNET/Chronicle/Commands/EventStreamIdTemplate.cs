@@ -130,6 +130,8 @@ public static class EventStreamIdTemplate
             DateOnly date => date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             DateTime date => date.ToString("O", CultureInfo.InvariantCulture),
             DateTimeOffset date => date.ToString("O", CultureInfo.InvariantCulture),
+            TimeOnly time => time.ToString("O", CultureInfo.InvariantCulture),
+            TimeSpan duration => duration.ToString("c", CultureInfo.InvariantCulture),
             Enum enumeration => enumeration.ToString(),
             IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
             _ => value.ToString()

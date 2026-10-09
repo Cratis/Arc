@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
@@ -85,14 +86,33 @@ public static class CommandContextExtensions
             : null;
 
     /// <summary>
-    /// Gets the event stream id from the command context values, if present.
+    /// Gets the event stream id, resolving command templates on first use after validation.
     /// </summary>
     /// <param name="commandContext">The command context to get the event stream id from.</param>
     /// <returns>The event stream id, or null if not present.</returns>
-    public static EventStreamId? GetEventStreamId(this CommandContext commandContext) =>
-        commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventStreamId, out var value) && value is EventStreamId eventStreamId
-            ? eventStreamId
-            : null;
+    /// <exception cref="UnknownEventStreamIdTemplateProperty">A template property cannot be read.</exception>
+    /// <exception cref="EventStreamIdTemplatePartMissing">A template part is blank or the resolved id is a sentinel.</exception>
+    /// <exception cref="InvalidEventStreamIdTemplate">The template contains malformed braces.</exception>
+    /// <exception cref="AmbiguousEventStreamId">A template and provider interface are both declared.</exception>
+    public static EventStreamId? GetEventStreamId(this CommandContext commandContext)
+    {
+        if (commandContext.Values.TryGetValue(WellKnownCommandContextKeys.EventStreamId, out var value) && value is EventStreamId eventStreamId)
+        {
+            return eventStreamId;
+        }
+        var attribute = commandContext.Command.GetType().GetCustomAttribute<EventStreamIdAttribute>(false);
+        if (attribute is null || !EventStreamIdTemplate.IsTemplate(attribute.Value.Value))
+        {
+            return null;
+        }
+        var resolved = EventStreamIdTemplate.ResolveFor(commandContext.Command);
+        if (resolved is not null)
+        {
+            commandContext.Values[WellKnownCommandContextKeys.EventStreamId] = resolved;
+        }
+
+        return resolved;
+    }
 
     /// <summary>
     /// Gets the resolved event route shared by the command's reads and returned events.
