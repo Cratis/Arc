@@ -118,9 +118,9 @@ public static class ScopedApplicationModel
     static IEnumerable<string> ReadModelsDeclaredElsewhere(ApplicationModel model, IReadOnlyList<SliceModel> slices, HashSet<string> within, IReadOnlyList<SliceSyntax>? emitted)
     {
         var naming = new ScreenplayNaming();
-        var referencedReads = emitted?.SelectMany(slice => slice.Commands).SelectMany(command => command.Reads).Select(read => read.ReadModel).ToHashSet(StringComparer.Ordinal);
+        var referencedReads = emitted?.SelectMany(slice => slice.Commands).SelectMany(command => command.Reads ?? []).Select(read => read.ReadModel).ToHashSet(StringComparer.Ordinal);
         var reads = slices.SelectMany(_ => _.Commands).SelectMany(_ => _.Authoring?.Reads ?? [])
-            .Where(read => referencedReads is null || referencedReads.Contains(naming.ToDeclarationName(read.Name))).ToList();
+            .Where(read => referencedReads?.Contains(naming.ToDeclarationName(read.Name)) != false).ToList();
         var declared = emitted is null
             ? slices.SelectMany(_ => _.ReadModels).Select(_ => _.Name).ToHashSet(StringComparer.Ordinal)
             : emitted.SelectMany(slice => slice.ReadModels ?? []).Select(readModel => readModel.Name).ToHashSet(StringComparer.Ordinal);

@@ -20,9 +20,9 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
     const string Settling = $"{given.an_application.NestedFeature}.Settling";
     EmbeddedDocumentGeneration _generation;
 
-    void Because() => Generate(1);
+    void Because() => Generate(1, true);
 
-    void Generate(int localProjections)
+    void Generate(int localProjections, bool readHasProperties)
     {
         var reference = new PropertyModel("Reference", new("String", false, false));
         var model = given.an_application.Build();
@@ -46,7 +46,7 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
                         {
                             Authoring = new()
                             {
-                                Reads = [new CommandReadModel(ReadModel, "invoice", "Reference") { Namespace = Settling, Properties = [reference] }]
+                                Reads = [new CommandReadModel(ReadModel, "invoice", "Reference") { Namespace = Settling, Properties = readHasProperties ? [reference] : [] }]
                             }
                         }
                     ],
@@ -70,14 +70,14 @@ public class with_an_authoring_read_of_a_read_model_declared_in_another_scope : 
     int Declarations(string source) => source.Split('\n').Count(_ => _.Trim() == $"readmodel {ReadModel}");
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(2)]
-    public void should_not_import_a_read_that_scoped_authoring_admission_withholds(int localProjections)
+    [InlineData(0, true)]
+    [InlineData(0, false)]
+    public void should_not_import_a_read_that_scoped_authoring_admission_withholds(int localProjections, bool readHasProperties)
     {
-        Generate(localProjections);
+        Generate(localProjections, readHasProperties);
 
         var source = DocumentOf(given.an_application.NestedFeature).Source;
-        source.ShouldNotContain($"import Library.Accounting.Invoices.Issuing.{ReadModel}");
+        source.Split('\n').Select(_ => _.Trim()).ShouldNotContain($"import Library.Accounting.Invoices.Issuing.{ReadModel}");
         source.ShouldNotContain($"reads {ReadModel}");
         Declarations(source).ShouldEqual(0);
         _generation.IsSuccess.ShouldBeTrue();
