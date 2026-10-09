@@ -125,6 +125,11 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         _frames.Value = frame.Previous;
         if (owned is null)
         {
+            if (result.IsSuccess)
+            {
+                await CompleteStreams(frame, result);
+            }
+
             return;
         }
 
@@ -196,6 +201,18 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
                 };
                 result.MergeWith(mapped.ToCommandResult(result.CorrelationId));
             }
+
+            if (result.IsSuccess && frame.Completions.Count > 0)
+            {
+                if (observation.CompletionObserved || unitOfWork.TryGetLastCommittedEventSequenceNumber(out _))
+                {
+                    await CompleteStreams(frame, result);
+                }
+                else
+                {
+                    result.MergeWith(CommandResult.Error(context.CorrelationId, "Stream completion was not applied because the command's commit outcome is unknown."));
+                }
+            }
         }
         else if (!unitOfWork.IsCompleted)
         {
@@ -214,6 +231,44 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
 
             observation.CompletionObserved = true;
             observation.Disposition = CommandCommitDisposition.NotCommitted;
+        }
+    }
+
+    /// <summary>
+    /// Defers stream completion until the command transaction's owner succeeds.
+    /// </summary>
+    /// <param name="context">The current command context.</param>
+    /// <param name="completion">The resolved completion.</param>
+    /// <returns>Whether an active execution frame accepted the completion.</returns>
+    internal static bool EnrollCompletion(CommandContext context, PendingStreamCompletion completion)
+    {
+        var frame = ActiveFrame();
+        if (frame is null || !ReferenceEquals(frame.Values, context.Values))
+        {
+            return false;
+        }
+
+        // A nested command's returned events join its owner's unit of work. Its completions must wait for that
+        // owner's commit too, rather than closing a stream while the outer command still holds pending events.
+        var owner = frame;
+        while (owner.Owned is null && owner.Previous is { Completed: false } previous)
+        {
+            owner = previous;
+        }
+        owner.Completions.Add(completion);
+
+        return true;
+    }
+
+    static async Task CompleteStreams(TransactionFrame frame, CommandResult result)
+    {
+        foreach (var completion in frame.Completions.Distinct())
+        {
+            await completion.Complete(result);
+            if (!result.IsSuccess)
+            {
+                break;
+            }
         }
     }
 
@@ -242,6 +297,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public CommandContextValues Values { get; } = values;
         public TransactionFrame? Previous { get; } = previous;
         public OwnedTransaction? Owned { get; set; }
+        public List<PendingStreamCompletion> Completions { get; } = [];
         public bool Completed { get; set; }
     }
 
