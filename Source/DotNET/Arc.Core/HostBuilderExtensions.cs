@@ -87,6 +87,7 @@ public static class HostBuilderExtensions
 
         services.AddSingleton<ICorrelationIdAccessor, CorrelationIdAccessor>();
         services.TryAddSingleton<TimeProvider>(TimeProvider.System);
+        services.TryAddSingleton<IIdentitySource, IdentitySource>();
         services.TryAddSingleton<IOperationContextAccessor, OperationContextAccessor>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, TenancyOptionsValidator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<ArcOptions>, IntrospectionOptionsValidator>());

@@ -18,6 +18,7 @@ Import `Cratis.Arc.Testing.Commands` for both the scenario and result assertion 
 | Member                         | Contract                                                                                                                                         |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Services`                     | `IServiceCollection` for registrations made before initialization                                                                                |
+| `Generate(params Guid[] values)` | Appends deterministic identities to the scenario's FIFO queue; may also be called after execution |
 | `Context`                      | `IDictionary<string, object>` populated by extenders                                                                                             |
 | `Execute(TCommand command)`    | Returns `Task<CommandResult>`; runs filters, argument resolution (including `Provide()`), the handler, response processing, and execution scopes |
 | `Execute(TCommand command, CancellationToken cancellationToken)` | Runs the same real pipeline with explicit forward cancellation; compensation uses its own cleanup token |
@@ -50,6 +51,24 @@ _scenario.Services.AddLogging(logging => logging.AddConsole());
 
 <a id="validating-without-executing"></a>
 <a id="example-validation-spec"></a>
+
+## Pin generated identities
+
+Call `Generate(a, b)` to supply known GUIDs to `IIdentitySource.NewGuid()` calls in this scenario. The queue is shared by Arc's Chronicle event-source allocation and handlers that take `IIdentitySource`. For an unkeyed Chronicle command, allocation consumes `a` before a handler consumes `b`. Keyed commands and `ICanProvideEventSourceId` commands do not consume an identity for allocation.
+
+This setup fragment assumes `_scenario` is your command scenario and the handler uses the [injectable identity source](../commands/model-bound/index.md#generate-testable-identities):
+
+```csharp
+_scenario.Generate(
+    Guid.Parse("e365d9c9-44b8-4f2f-a5ea-7aac8e387cce"),
+    Guid.Parse("efee3d5e-864a-45f2-897c-827157d74954"));
+```
+
+`Validate` resolves the command's context the same way `Execute` does, so for an unkeyed Chronicle command it also consumes a queued identity for allocation. Queue one value per `Validate` or `Execute` call that allocates.
+
+Each `Generate` call appends values in order. You can append more after `Execute` or `Validate`; it updates the existing queue without rebuilding the provider. Each scenario has its own queue. Once it is empty, the source uses `Guid.NewGuid()`. An explicit `IIdentitySource` registration in `Services` overrides the scenario's source, so `Generate` does not control that replacement.
+
+`QueryScenario<TReadModel>` provides the same `Generate` method for query dependencies. Calling `Generate` on a disposed scenario throws `ObjectDisposedException`. Static calls such as `Guid.NewGuid()` or a concept's `New()` are not intercepted.
 
 ## Validate without executing
 

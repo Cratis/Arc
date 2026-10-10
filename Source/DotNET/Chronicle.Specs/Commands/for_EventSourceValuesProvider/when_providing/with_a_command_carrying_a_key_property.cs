@@ -15,10 +15,12 @@ public class with_a_command_carrying_a_key_property : Specification
     EventSourceValuesProvider _provider;
     CommandContextValues _result;
     Guid _id;
+    IIdentitySource _identities;
 
     void Establish()
     {
-        _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>());
+        _identities = Substitute.For<IIdentitySource>();
+        _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>(), _identities);
         _id = Guid.NewGuid();
     }
 
@@ -26,6 +28,8 @@ public class with_a_command_carrying_a_key_property : Specification
 
     [Fact] void should_resolve_the_event_source_id_from_the_property() =>
         ((EventSourceId)_result[WellKnownCommandContextKeys.EventSourceId]).Value.ShouldEqual(_id.ToString());
+
+    [Fact] void should_not_allocate_an_identity() => _identities.DidNotReceive().NewGuid();
 
     record CommandWithKeyProperty(EventSourceId<Guid> Id);
 }

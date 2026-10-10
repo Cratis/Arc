@@ -59,6 +59,7 @@ namespace Cratis.Arc.Testing.Commands;
 /// <typeparam name="TCommand">The type of command under test.</typeparam>
 public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
 {
+    readonly ScenarioIdentitySource _identities = new();
     IServiceProvider? _serviceProvider;
     ICommandPipeline? _pipeline;
     bool _disposed;
@@ -76,6 +77,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
         Services.AddOptions();
         Services.AddLogging();
         Services.Configure<ArcOptions>(_ => { });
+        Services.AddSingleton<IIdentitySource>(_identities);
 
         Context = new Dictionary<string, object>();
 
@@ -122,6 +124,21 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     /// A failed partial invocation appears with ExecutionCompleted false; never-started declarations do not appear.
     /// </summary>
     public IReadOnlyList<CommandOperationOutcome> Operations => LastResult?.OperationOutcomes ?? [];
+
+    /// <summary>
+    /// Queues generated identities for allocation and handlers in first-in, first-out order.
+    /// </summary>
+    /// <param name="values">The identities to append to this scenario's queue.</param>
+    /// <remarks>
+    /// May be called before or after execution. An exhausted queue falls back to <see cref="Guid.NewGuid"/>.
+    /// Uses the scenario's identity source; an explicit replacement in <see cref="Services"/> overrides it.
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">The scenario has been disposed.</exception>
+    public void Generate(params Guid[] values)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _identities.Enqueue(values);
+    }
 
     /// <summary>
     /// Executes the given <typeparamref name="TCommand"/> through the real Arc command pipeline.
