@@ -16,17 +16,19 @@ public class with_an_append_between_the_read_and_tail_fetch : given.an_aggregate
         var readForwarded = false;
         var tailForwarded = false;
         var streamType = new TestAggregateRoot().GetEventStreamType();
-        sequence.GetFromSequenceNumber(Arg.Any<EventSequenceNumber>(), Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<EventType>>())
+        sequence.GetForEventSourceIdAndEventTypes(Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<EventType>>(), Arg.Any<EventStreamType>(), Arg.Any<EventStreamId>(), Arg.Any<EventSourceType>())
             .Returns(async call =>
             {
                 if (tailForwarded)
                 {
                     await _scenario.EventSequence.Append(_eventSourceId, new Changed(), streamType);
                 }
-                var events = await _scenario.EventSequence.GetFromSequenceNumber(
-                    call.ArgAt<EventSequenceNumber>(0),
-                    call.ArgAt<EventSourceId>(1),
-                    call.ArgAt<IEnumerable<EventType>>(2));
+                var events = await _scenario.EventSequence.GetForEventSourceIdAndEventTypes(
+                    call.ArgAt<EventSourceId>(0),
+                    call.ArgAt<IEnumerable<EventType>>(1),
+                    call.ArgAt<EventStreamType>(2),
+                    call.ArgAt<EventStreamId>(3),
+                    call.ArgAt<EventSourceType>(4));
                 readForwarded = true;
                 return events;
             });

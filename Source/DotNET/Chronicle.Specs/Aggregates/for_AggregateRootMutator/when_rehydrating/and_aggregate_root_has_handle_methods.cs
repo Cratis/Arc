@@ -35,7 +35,7 @@ public class and_aggregate_root_has_handle_methods : given.an_aggregate_root_mut
 
         _eventHandlers.HasHandleMethods.Returns(true);
         _eventSequence
-            .GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, Arg.Any<IEnumerable<EventType>>())
+            .GetForEventSourceIdAndEventTypes(_eventSourceId, Arg.Any<IEnumerable<EventType>>(), _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId, _aggregateRootContext.EventSourceType)
             .Returns(_appendedEvents);
 
         _eventSequence
@@ -50,5 +50,5 @@ public class and_aggregate_root_has_handle_methods : given.an_aggregate_root_mut
     async Task Because() => await _mutator.Rehydrate();
 
     [Fact] void should_handle_events() => _eventHandlers.Received().Handle(_aggregateRoot, Arg.Is<IEnumerable<EventAndContext>>(arg => arg.Select(_ => _.Event).SequenceEqual(_events)), Arg.Any<Action<EventAndContext>>());
-    [Fact] void should_ask_if_there_are_events_for_the_event_source_id() => _eventSequence.Received(1).GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, _eventHandlers.EventTypes);
+    [Fact] void should_read_the_handled_events_in_the_aggregate_scope() => _eventSequence.Received(1).GetForEventSourceIdAndEventTypes(_eventSourceId, _eventHandlers.EventTypes, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId, _aggregateRootContext.EventSourceType);
 }

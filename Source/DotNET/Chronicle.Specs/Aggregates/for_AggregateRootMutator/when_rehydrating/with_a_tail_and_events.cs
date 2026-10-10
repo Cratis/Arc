@@ -10,7 +10,7 @@ public class with_a_tail_and_events : given.an_aggregate_root_mutator
 {
     void Establish()
     {
-        _eventSequence.GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, Arg.Any<IEnumerable<EventType>>())
+        _eventSequence.GetForEventSourceIdAndEventTypes(_eventSourceId, Arg.Any<IEnumerable<EventType>>(), _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId, _aggregateRootContext.EventSourceType)
             .Returns(ImmutableList<AppendedEvent>.Empty);
         _eventSequence.GetTailSequenceNumber(_eventSourceId, _aggregateRootContext.EventSourceType, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId)
             .Returns(EventSequenceNumber.First);
@@ -25,6 +25,11 @@ public class with_a_tail_and_events : given.an_aggregate_root_mutator
             _aggregateRootContext.EventSourceType,
             _aggregateRootContext.EventStreamType,
             _aggregateRootContext.EventStreamId);
-        _ = _eventSequence.GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, _eventHandlers.EventTypes);
+        _ = _eventSequence.GetForEventSourceIdAndEventTypes(
+            _eventSourceId,
+            _eventHandlers.EventTypes,
+            _aggregateRootContext.EventStreamType,
+            _aggregateRootContext.EventStreamId,
+            _aggregateRootContext.EventSourceType);
     });
 }

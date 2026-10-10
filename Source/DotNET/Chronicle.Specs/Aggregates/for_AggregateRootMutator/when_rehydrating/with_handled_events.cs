@@ -13,7 +13,7 @@ public class with_handled_events : given.an_aggregate_root_mutator
         var @event = AppendedEvent.EmptyWithEventSequenceNumber((EventSequenceNumber)42UL);
         _eventHandlers.HasHandleMethods.Returns(true);
         _eventSequence
-            .GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, Arg.Any<IEnumerable<EventType>>())
+            .GetForEventSourceIdAndEventTypes(_eventSourceId, Arg.Any<IEnumerable<EventType>>(), _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId, _aggregateRootContext.EventSourceType)
             .Returns(ImmutableList.Create(@event));
         _eventSequence.GetTailSequenceNumber(_eventSourceId, _aggregateRootContext.EventSourceType, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId).Returns((EventSequenceNumber)42UL);
         _eventHandlers

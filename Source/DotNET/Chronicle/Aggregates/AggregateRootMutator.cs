@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Collections.Immutable;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Execution;
@@ -33,16 +32,18 @@ public class AggregateRootMutator(
             aggregateRootContext.EventStreamType,
             aggregateRootContext.EventStreamId);
 
-        var events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
-        if (aggregateRootContext is IAggregateRootEventSourceContext { EventSource: not null })
-        {
-            // The Chronicle client has no stream-aware read, so an aggregate that declares its event source keeps only
-            // the events its commit scope guards (#2796): the same source type, stream type and stream id.
-            events = events.Where(_ =>
-                _.Context.EventSourceType == aggregateRootContext.EventSourceType &&
-                _.Context.EventStreamType == aggregateRootContext.EventStreamType &&
-                _.Context.EventStreamId == aggregateRootContext.EventStreamId).ToImmutableList();
-        }
+        // Read with the same source type, stream type and stream id the tail above and the commit's concurrency scope
+        // use, so Chronicle narrows all three with one predicate and no event outside the guarded scope changes state
+        // (#2796). Chronicle treats the default source type, the default stream id and the 'All' stream type as
+        // "any" in both places. This read starts at the first event, so skip what this context has already handled.
+        var events = (await aggregateRootContext.EventSequence.GetForEventSourceIdAndEventTypes(
+                aggregateRootContext.EventSourceId,
+                eventHandlers.EventTypes,
+                aggregateRootContext.EventStreamType,
+                aggregateRootContext.EventStreamId,
+                aggregateRootContext.EventSourceType))
+            .Where(_ => _.Context.SequenceNumber >= aggregateRootContext.NextSequenceNumber)
+            .ToArray();
 
         if (eventHandlers.HasHandleMethods)
         {
