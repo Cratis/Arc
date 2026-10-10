@@ -25,25 +25,38 @@ public class AggregateRootMutator(
     /// <inheritdoc/>
     public async Task Rehydrate()
     {
-        // Capture the scoped tail before reading events, so an append during the read cannot be accepted as seen.
+        // Capture the tail of the scope the commit guards before reading events, so an append during the read cannot
+        // be accepted as seen.
+        var scope = AggregateRootGuardedScope.For(aggregateRootContext);
         var tailSequenceNumber = await aggregateRootContext.EventSequence.GetTailSequenceNumber(
             aggregateRootContext.EventSourceId,
-            aggregateRootContext.EventSourceType,
-            aggregateRootContext.EventStreamType,
-            aggregateRootContext.EventStreamId);
+            scope.EventSourceType,
+            scope.EventStreamType,
+            scope.EventStreamId);
 
-        // Read with the same source type, stream type and stream id the tail above and the commit's concurrency scope
-        // use, so Chronicle narrows all three with one predicate and no event outside the guarded scope changes state
-        // (#2796). Chronicle treats the default source type, the default stream id and the 'All' stream type as
-        // "any" in both places. This read starts at the first event, so skip what this context has already handled.
-        var events = (await aggregateRootContext.EventSequence.GetForEventSourceIdAndEventTypes(
-                aggregateRootContext.EventSourceId,
-                eventHandlers.EventTypes,
-                aggregateRootContext.EventStreamType,
-                aggregateRootContext.EventStreamId,
-                aggregateRootContext.EventSourceType))
-            .Where(_ => _.Context.SequenceNumber >= aggregateRootContext.NextSequenceNumber)
-            .ToArray();
+        IEnumerable<AppendedEvent> events;
+        if (aggregateRootContext.HasDeclaredEventSource())
+        {
+            // A declared aggregate keeps only the events of its own source type, stream type and stream id (#2796).
+            // The read starts at the first event, so skip what this context has already handled.
+            events = (await aggregateRootContext.EventSequence.GetForEventSourceIdAndEventTypes(
+                    aggregateRootContext.EventSourceId,
+                    eventHandlers.EventTypes,
+                    aggregateRootContext.EventStreamType,
+                    aggregateRootContext.EventStreamId,
+                    aggregateRootContext.EventSourceType))
+                .Where(_ =>
+                    _.Context.SequenceNumber >= aggregateRootContext.NextSequenceNumber &&
+                    _.Context.EventSourceType == aggregateRootContext.EventSourceType &&
+                    _.Context.EventStreamType == aggregateRootContext.EventStreamType &&
+                    _.Context.EventStreamId == aggregateRootContext.EventStreamId)
+                .ToArray();
+        }
+        else
+        {
+            // Every handled event for the event source id, whatever stream it is in - the guarded scope covers it all.
+            events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
+        }
 
         if (eventHandlers.HasHandleMethods)
         {

@@ -12,6 +12,6 @@ public class and_the_aggregate_is_loaded_for_a_stream_id_and_source_type : given
 
     Task Because() => _mutator.Rehydrate();
 
-    [Fact] void should_apply_only_the_event_in_its_own_stream() => _handled.ShouldContainOnly(_inScope);
-    [Fact] void should_guard_the_event_it_applied() => _context.TailEventSequenceNumber.ShouldEqual(_inScope);
+    [Fact] void should_apply_every_handled_event_for_the_event_source_id() => _handled.ShouldContainOnly(_inScope, _inAnotherStreamId, _inAnotherSourceType, _withoutRouting, _inAnotherStreamType);
+    [Fact] void should_guard_the_last_event_it_applied() => _context.TailEventSequenceNumber.ShouldEqual(_inAnotherStreamType);
 }

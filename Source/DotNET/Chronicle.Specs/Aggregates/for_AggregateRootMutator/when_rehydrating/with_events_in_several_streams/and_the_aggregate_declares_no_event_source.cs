@@ -7,10 +7,6 @@ public class and_the_aggregate_declares_no_event_source : given.events_in_severa
 {
     Task Because() => _mutator.Rehydrate();
 
-    [Fact] void should_apply_the_event_in_its_own_stream() => _handled.ShouldContain(_inScope);
-    [Fact] void should_apply_the_event_in_another_stream_id_its_commit_guards() => _handled.ShouldContain(_inAnotherStreamId);
-    [Fact] void should_apply_the_event_for_another_source_type_its_commit_guards() => _handled.ShouldContain(_inAnotherSourceType);
-    [Fact] void should_not_apply_the_event_appended_without_routing() => _handled.ShouldNotContain(_withoutRouting);
-    [Fact] void should_not_apply_the_event_in_another_stream_type() => _handled.ShouldNotContain(_inAnotherStreamType);
-    [Fact] void should_guard_the_last_event_it_applied() => _context.TailEventSequenceNumber.ShouldEqual(_handled.Max());
+    [Fact] void should_apply_every_handled_event_for_the_event_source_id() => _handled.ShouldContainOnly(_inScope, _inAnotherStreamId, _inAnotherSourceType, _withoutRouting, _inAnotherStreamType);
+    [Fact] void should_guard_the_last_event_it_applied() => _context.TailEventSequenceNumber.ShouldEqual(_inAnotherStreamType);
 }

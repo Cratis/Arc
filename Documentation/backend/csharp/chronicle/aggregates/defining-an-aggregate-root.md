@@ -95,17 +95,15 @@ Arc rejects an aggregate that names a stream its definition does not declare, a 
 
 ## Which events rehydration reads
 
-An aggregate root appends to one scope: its event source id, event source type, event stream type and event stream id. Its commit checks for concurrent appends in that same scope, and rehydration reads the handled events of that scope only, so every event that shapes the aggregate's state is also one the commit protects.
+An aggregate root rebuilds its state from the events it handles, and its commit fails with a concurrency violation if an event arrived since it was loaded in any stream it read from. Whether it declares an event source decides how wide that is.
 
-| Dimension | Without `[EventSource<TSource>]` | With `[EventSource<TSource>]` |
+| | Without `[EventSource<TSource>]` | With `[EventSource<TSource>]` |
 | --- | --- | --- |
-| Event stream type | `[EventStreamType]`, or the aggregate's type name | the declared stream, `[EventStreamType]`, or the aggregate's type name |
-| Event source type | the one passed to `Get<T>`, otherwise any | the definition's |
-| Event stream id | the one passed to `Get<T>`, otherwise any | the one passed to `Get<T>`, otherwise any |
+| Rehydration applies | every handled event for the event source id, in any stream | handled events of its own event source type, event stream type and event stream id |
+| The commit rejects a concurrent append | to any stream for the event source id | to its event source type and event stream type, in the event stream id passed to `Get<T>` or else in any |
+| Its own events are appended with | its event stream type, event stream id and event source type | the same, plus the declared event source |
 
-Chronicle treats the default event source type, the default event stream id and the `All` event stream type as "any", for the read and the commit check alike.
-
-An event appended for the same event source id outside that scope does not change the aggregate's state. That includes an event appended without an event stream type, for example straight to the event log, because Chronicle stores it under `All` rather than the aggregate's stream type. Append the events an aggregate decides on through the aggregate itself, or with its event stream type.
+An aggregate without a declaration therefore picks up events appended for its id anywhere, for example straight to the event log or by another aggregate type, and its commit protects all of them. The trade-off is more conflicts: its commit now fails with a concurrency violation when another stream for the same event source id received an event after the aggregate was loaded, where it used to go through unnoticed. Declare an event source when the aggregate owns one stream and other streams for the same id should neither shape its state nor block its commit.
 
 ## Event handler signatures
 

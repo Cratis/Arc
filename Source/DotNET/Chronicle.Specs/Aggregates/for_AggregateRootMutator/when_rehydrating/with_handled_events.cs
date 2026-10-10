@@ -13,9 +13,9 @@ public class with_handled_events : given.an_aggregate_root_mutator
         var @event = AppendedEvent.EmptyWithEventSequenceNumber((EventSequenceNumber)42UL);
         _eventHandlers.HasHandleMethods.Returns(true);
         _eventSequence
-            .GetForEventSourceIdAndEventTypes(_eventSourceId, Arg.Any<IEnumerable<EventType>>(), _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId, _aggregateRootContext.EventSourceType)
+            .GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, Arg.Any<IEnumerable<EventType>>())
             .Returns(ImmutableList.Create(@event));
-        _eventSequence.GetTailSequenceNumber(_eventSourceId, _aggregateRootContext.EventSourceType, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId).Returns((EventSequenceNumber)42UL);
+        _eventSequence.GetTailSequenceNumber(_eventSourceId, EventSourceType.Default, EventStreamType.All, EventStreamId.Default).Returns((EventSequenceNumber)42UL);
         _eventHandlers
             .When(_ => _.Handle(_aggregateRoot, Arg.Any<IEnumerable<EventAndContext>>(), Arg.Any<Action<EventAndContext>>()))
             .Do(call => call.Arg<Action<EventAndContext>>()(new EventAndContext(new object(), @event.Context)));

@@ -10,9 +10,9 @@ public class with_a_tail_and_events : given.an_aggregate_root_mutator
 {
     void Establish()
     {
-        _eventSequence.GetForEventSourceIdAndEventTypes(_eventSourceId, Arg.Any<IEnumerable<EventType>>(), _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId, _aggregateRootContext.EventSourceType)
+        _eventSequence.GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, Arg.Any<IEnumerable<EventType>>())
             .Returns(ImmutableList<AppendedEvent>.Empty);
-        _eventSequence.GetTailSequenceNumber(_eventSourceId, _aggregateRootContext.EventSourceType, _aggregateRootContext.EventStreamType, _aggregateRootContext.EventStreamId)
+        _eventSequence.GetTailSequenceNumber(_eventSourceId, EventSourceType.Default, EventStreamType.All, EventStreamId.Default)
             .Returns(EventSequenceNumber.First);
     }
 
@@ -22,14 +22,9 @@ public class with_a_tail_and_events : given.an_aggregate_root_mutator
     {
         _ = _eventSequence.GetTailSequenceNumber(
             _eventSourceId,
-            _aggregateRootContext.EventSourceType,
-            _aggregateRootContext.EventStreamType,
-            _aggregateRootContext.EventStreamId);
-        _ = _eventSequence.GetForEventSourceIdAndEventTypes(
-            _eventSourceId,
-            _eventHandlers.EventTypes,
-            _aggregateRootContext.EventStreamType,
-            _aggregateRootContext.EventStreamId,
-            _aggregateRootContext.EventSourceType);
+            EventSourceType.Default,
+            EventStreamType.All,
+            EventStreamId.Default);
+        _ = _eventSequence.GetFromSequenceNumber(EventSequenceNumber.First, _eventSourceId, _eventHandlers.EventTypes);
     });
 }

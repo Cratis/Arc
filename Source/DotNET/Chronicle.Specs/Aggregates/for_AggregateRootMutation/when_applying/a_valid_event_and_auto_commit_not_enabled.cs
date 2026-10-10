@@ -45,10 +45,10 @@ public class a_valid_event_and_auto_commit_not_enabled : given.an_aggregate_muta
     [Fact] void should_set_aggregate_root_type_causation() => _causationResult.Properties[AggregateRootMutation.AggregateRootCausationTypeProperty].ShouldEqual(_aggregateRoot.GetType().AssemblyQualifiedName);
     [Fact] void should_set_event_sequence_id_causation() => _causationResult.Properties[AggregateRootMutation.CausationEventSequenceIdProperty].ShouldEqual(_eventSequenceId.Value);
     [Fact]
-    void should_set_concurrency_scope() => _concurrencyScopeResult.ShouldEqual(new ConcurrencyScope(
+    void should_guard_every_stream_for_the_event_source_id() => _concurrencyScopeResult.ShouldEqual(new ConcurrencyScope(
         _aggregateRootContext.TailEventSequenceNumber,
         _eventSourceId,
-        _eventStreamType,
-        _eventStreamId,
-        _eventSourceType));
+        EventStreamType.All,
+        EventStreamId.Default,
+        EventSourceType.Default));
 }

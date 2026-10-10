@@ -48,7 +48,7 @@ public class events_in_several_streams : Specification
         _inAnotherStreamId = await Append(EventStreamType, OtherEventStreamId, EventSourceType);
         _inAnotherSourceType = await Append(EventStreamType, EventStreamId, OtherEventSourceType);
 
-        // Appended last, so reading either of these would move the aggregate past the tail its commit guards.
+        // Appended last, so the tail an aggregate captures shows whether its scope guards these.
         _withoutRouting = (await _scenario.EventSequence.Append(_eventSourceId, new Changed())).SequenceNumber;
         _inAnotherStreamType = await Append(OtherEventStreamType, EventStreamId, EventSourceType);
 
