@@ -10,6 +10,7 @@ public class known_admission_limits : Specification
 {
     [Theory]
     [InlineData("Command 'Register' handler requires a constrained implementation attachment.")]
+    [InlineData("Query reference 'All' is ambiguous across slices in the current ESM v1 binder.")]
     [InlineData("Concept 'AuthorName' compliance attributes require portable data-subject semantics.")]
     [InlineData("Read model 'Author' must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes.")]
     [InlineData("Query 'All' uses filtering, scope, or implementation behavior outside the admitted ESM query shapes.")]
@@ -48,7 +49,7 @@ public class known_admission_limits : Specification
     [InlineData("Condition property 'other' must have the same scalar type as 'role'.")]
     [InlineData("Event reference 'Registered' is ambiguous across slices in the current ESM v1 binder.")]
     [InlineData("Read model reference 'Author' is ambiguous across slices in the current ESM v1 binder.")]
-    [InlineData("Query reference 'ById' is ambiguous across slices in the current ESM v1 binder.")]
+    [InlineData("Query reference 'ById' is ambiguous within a slice in the current ESM v1 binder.")]
     [InlineData("Projection 'Author' declares a parent key outside a children block, where Chronicle never reads it.")]
     [InlineData("Query 'All' uses an unknown delivery shape.")]
     [InlineData("Reaction refusal handling and redelivery are not admitted by any supported executable model (ESM) version yet (#433).")]

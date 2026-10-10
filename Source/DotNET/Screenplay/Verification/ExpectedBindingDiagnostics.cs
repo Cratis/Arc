@@ -46,7 +46,9 @@ public static class ExpectedBindingDiagnostics
 
         var query = Reason(message, "Query");
 
-        return Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
+        // Screenplay#624: same-named queries in different slices hit a binder limit. Remove this tolerance when its fix ships.
+        return Reason(message, "Query reference") == " is ambiguous across slices in the current ESM v1 binder." ||
+            Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
             Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
             Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
             query == " uses filtering, scope, or implementation behavior outside the admitted ESM query shapes." ||
