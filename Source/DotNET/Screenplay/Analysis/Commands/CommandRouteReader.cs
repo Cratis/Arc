@@ -45,7 +45,6 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
         var identity = command.DeclaredProperties().FirstOrDefault(property => property.Name == identifier);
         if (stream is null)
         {
-            Report("The source declaration is readable, but command routing without a selected stream has no grammar counterpart", location);
             return new(source, null, identity is null ? null : types.Resolve(identity.Type), null, null);
         }
 
@@ -72,6 +71,12 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
         }
         else if (command.GetAttribute(WellKnownTypeNames.EventStreamIdAttribute)?.GetArgument(0) is string streamIdValue)
         {
+            var property = command.DeclaredProperties().FirstOrDefault(property => streamIdValue == $"{{{property.Name}}}" && PortableStreamId(property.Type));
+            if (property is not null)
+            {
+                return new(source, stream, identity is null ? null : types.Resolve(identity.Type), types.Resolve(property.Type), property.Name);
+            }
+
             if (ConcurrencyReader.IsTemplate(streamIdValue))
             {
                 Report("A template stream id is property-derived but has no portable route mapping; its stream id mapping was left in code", location);

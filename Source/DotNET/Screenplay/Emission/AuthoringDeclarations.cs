@@ -147,6 +147,15 @@ public static class AuthoringDeclarations
                 route = null;
             }
 
+            if (route is { Stream: null })
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': the source declaration is readable, but command routing without a selected stream has no grammar counterpart", slice.Namespace);
+                if (!authoringOnlyConstructs)
+                {
+                    route = null;
+                }
+            }
+
             if (route is not null && CommandRouteAdmission.Failure(route, command, application, authoringOnlyConstructs) is { } failure)
             {
                 diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': {failure}; its entire route was left out", slice.Namespace);
