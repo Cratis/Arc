@@ -7,6 +7,7 @@ using Cratis.Chronicle.Connections;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.EventStoreSubscriptions;
 using Cratis.Chronicle.ExternalServices;
 using Cratis.Chronicle.Identities;
@@ -53,6 +54,9 @@ internal sealed class EventStoreForScenario(EventScenario eventScenario, IReadMo
 
     /// <inheritdoc/>
     public IEventTypes EventTypes => Defaults.Instance.EventTypes;
+
+    /// <inheritdoc/>
+    public IEventSources EventSources => Defaults.Instance.EventStore.EventSources;
 
     /// <inheritdoc/>
     /// <remarks>

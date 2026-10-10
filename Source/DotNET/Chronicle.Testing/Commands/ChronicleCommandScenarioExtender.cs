@@ -6,6 +6,7 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.Events;
@@ -76,6 +77,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         services.AddSingleton<IReadModels>(readModels);
         services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
         services.AddSingleton<IEventStore>(eventStore);
+
+        // Resolve from the current store so opting into decision reads uses that store's discovered definitions.
+        services.TryAddSingleton<IEventSources>(provider => provider.GetRequiredService<IEventStore>().EventSources);
         services.AddSingleton<IUnitOfWorkManager>(unitOfWorkManager);
 
         // The harness's IEventLog is a pure pass-through — appends behave exactly like production: immediate through
