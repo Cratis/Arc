@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 
@@ -14,32 +15,17 @@ public class EventStreamIdValuesProvider : ICommandContextValuesProvider
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
-        var commandType = command.GetType();
-        var attribute = commandType.GetCustomAttributes(typeof(EventStreamIdAttribute), false).FirstOrDefault() as EventStreamIdAttribute;
-        var implementsInterface = command is ICanProvideEventStreamId;
-
-        if (attribute is not null && attribute.Value != EventStreamId.NotSet && implementsInterface)
+        var attribute = command.GetType().GetCustomAttribute<EventStreamIdAttribute>(false);
+        if (command is not ICanProvideEventStreamId && attribute is not null && EventStreamIdTemplate.IsTemplate(attribute.Value.Value))
         {
-            throw new AmbiguousEventStreamId(commandType);
+            // Template parts may be missing until validation succeeds. Resolve them when the route is needed.
+            return [];
         }
+        var id = EventStreamIdTemplate.ResolveFor(command);
 
-        if (implementsInterface)
+        return id is null ? [] : new CommandContextValues
         {
-            var provider = (ICanProvideEventStreamId)command;
-            return new CommandContextValues
-            {
-                { WellKnownCommandContextKeys.EventStreamId, provider.GetEventStreamId() }
-            };
-        }
-
-        if (attribute is not null && attribute.Value != EventStreamId.NotSet)
-        {
-            return new CommandContextValues
-            {
-                { WellKnownCommandContextKeys.EventStreamId, attribute.Value }
-            };
-        }
-
-        return [];
+            { WellKnownCommandContextKeys.EventStreamId, id }
+        };
     }
 }

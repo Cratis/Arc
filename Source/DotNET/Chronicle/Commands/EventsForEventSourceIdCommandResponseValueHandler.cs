@@ -3,6 +3,7 @@
 
 using System.Collections;
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -78,7 +79,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
         // Resolve every event's routing and guard first. Events for one event source id share one scope, so guards that
         // cannot be shared are rejected here, before the first event is enrolled or appended.
-        var targets = new List<(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing)>();
+        var targets = new List<(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing, IEnumerable<NamedTag> NamedTags)>();
         var derivedGuards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
         foreach (var item in ((IEnumerable)value).Cast<object>())
         {
@@ -88,7 +89,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 ? (wrapper.EventSourceId, wrapper.Event, wrapper.SuppliedTags(), wrapper.Occurred)
                 : (commandContext.GetEventSourceId(), item, null, null);
             var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext);
-            targets.Add((eventSourceId, @event, tags, occurred, routing));
+            targets.Add((eventSourceId, @event, tags, occurred, routing, CommandTransactionAppender.MergeEventTags(commandContext, wrapper?.NamedTags)));
 
             // The caller's own choice is resolved once per id, however many events it takes.
             var derived = derivedGuards.Find(_ => _.EventSourceId == eventSourceId && _.Derived.Origin == DerivedConcurrencyScopeOrigin.Explicit).Derived
@@ -100,11 +101,11 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
         var concurrencyScopesByEventSourceId = CommandConcurrencyScopes.Resolve(derivedGuards);
 
-        foreach (var (eventSourceId, @event, tags, occurred, routing) in targets)
+        foreach (var (eventSourceId, @event, tags, occurred, routing, namedTags) in targets)
         {
             var concurrencyScope = concurrencyScopesByEventSourceId[eventSourceId];
 
-            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred, routing))
+            if (eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, tags, occurred, routing, namedTags))
             {
                 continue;
             }
@@ -115,7 +116,8 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 routing,
                 concurrencyScope,
                 tags,
-                occurred);
+                occurred,
+                namedTags);
 
             if (!result.IsSuccess)
             {

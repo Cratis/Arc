@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
 
@@ -14,6 +15,7 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
 {
     readonly CommandScenario<TCommand> _scenario;
     readonly EventSourceId _eventSourceId;
+    EventRoute? _route;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CommandScenarioSourceGivenBuilder{TCommand}"/> class.
@@ -27,16 +29,33 @@ public sealed class CommandScenarioSourceGivenBuilder<TCommand>
     }
 
     /// <summary>
+    /// Selects the route used to seed prior events.
+    /// </summary>
+    /// <param name="route">The route to seed.</param>
+    /// <returns>The builder for seeding events on that route.</returns>
+    public CommandScenarioSourceGivenBuilder<TCommand> OnRoute(EventRoute route)
+    {
+        _route = route;
+
+        return this;
+    }
+
+    /// <summary>
     /// Seeds the events that happened for the event source. Any read model a command injects for this source is
     /// materialized from these events through its own reducer or projection — no read model type is named here.
     /// </summary>
     /// <param name="events">The events that happened, in order.</param>
+    /// <exception cref="RoutedEventSeedingRequiresDecisionReads">Routed seeding was requested without decision mode.</exception>
     public void Events(params object[] events)
     {
         if (_scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
         {
-            ((DecisionCommandScenario)decision).Seed(_eventSourceId, events).GetAwaiter().GetResult();
+            ((DecisionCommandScenario)decision).Seed(_eventSourceId, events, _route).GetAwaiter().GetResult();
             return;
+        }
+        if (_route is not null)
+        {
+            throw new RoutedEventSeedingRequiresDecisionReads();
         }
         ReadModels().SeedEvents(_eventSourceId, events);
     }

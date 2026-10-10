@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Testing.Events;
@@ -13,7 +14,7 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// </summary>
 internal sealed class DecisionCommandScenario
 {
-    readonly Queue<(EventSourceId Source, object[] Events)> _competitors = new();
+    readonly Queue<(EventSourceId Source, object[] Events, EventRoute? Route)> _competitors = new();
     readonly List<AppendedEventWithResult> _commandEvents;
     readonly HashSet<EventSequenceNumber> _excludedSequenceNumbers = [];
     bool _setupOrCompeting;
@@ -63,15 +64,16 @@ internal sealed class DecisionCommandScenario
     /// </summary>
     /// <param name="source">The competitor's source.</param>
     /// <param name="events">The competing facts.</param>
+    /// <param name="route">The competitor's route, if declared.</param>
     /// <exception cref="CompetingEventsMustBeQueuedBeforeExecution">Execution already started.</exception>
-    public void QueueCompetingAppend(EventSourceId source, object[] events)
+    public void QueueCompetingAppend(EventSourceId source, object[] events, EventRoute? route = default)
     {
         if (_executionDepth > 0)
         {
             throw new CompetingEventsMustBeQueuedBeforeExecution();
         }
 
-        _competitors.Enqueue((source, events));
+        _competitors.Enqueue((source, events, route));
     }
 
     /// <summary>
@@ -79,10 +81,11 @@ internal sealed class DecisionCommandScenario
     /// </summary>
     /// <param name="source">The source of the facts.</param>
     /// <param name="events">The prior facts.</param>
+    /// <param name="route">The route to seed, if declared.</param>
     /// <returns>The seed operation.</returns>
     /// <exception cref="EventsMustBeSeededBeforeExecution">Execution already started.</exception>
     /// <exception cref="PriorEventCouldNotBeSeeded">A prior event was not appended.</exception>
-    public async Task Seed(EventSourceId source, object[] events)
+    public async Task Seed(EventSourceId source, object[] events, EventRoute? route = default)
     {
         if (_executionDepth > 0)
         {
@@ -94,7 +97,9 @@ internal sealed class DecisionCommandScenario
         {
             foreach (var @event in events)
             {
-                var result = await Store.EventLog.Append(source, @event);
+                var result = route?.EventSource is { } definition
+                    ? await Store.EventLog.Append(definition, source, @event, route.EventStream, route.EventStreamId)
+                    : await Store.EventLog.Append(source, @event, eventStreamType: route?.EventStreamType, eventStreamId: route?.EventStreamId, eventSourceType: route?.EventSourceType);
                 Exclude(result.SequenceNumber);
                 if (!result.IsSuccess)
                 {
@@ -130,7 +135,9 @@ internal sealed class DecisionCommandScenario
                 {
                     // A competitor is not an immediate append by the owner command. Its distinct correlation
                     // keeps the owner's commit observation eligible for operation compensation on conflict.
-                    var result = await Store.EventLog.Append(batch.Source, @event, correlationId: CorrelationId.New());
+                    var result = batch.Route?.EventSource is { } definition
+                        ? await Store.EventLog.Append(definition, batch.Source, @event, batch.Route.EventStream, batch.Route.EventStreamId, correlationId: CorrelationId.New())
+                        : await Store.EventLog.Append(batch.Source, @event, eventStreamType: batch.Route?.EventStreamType, eventStreamId: batch.Route?.EventStreamId, eventSourceType: batch.Route?.EventSourceType, correlationId: CorrelationId.New());
                     Exclude(result.SequenceNumber);
                     if (!result.IsSuccess)
                     {

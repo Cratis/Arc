@@ -37,6 +37,9 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
     const string DefaultEventLogId = "event-log";
     const string AppendMethodPrefix = "Append";
     const string TransactionalPropertyName = "Transactional";
+    const string CompleteStreamMethodName = "CompleteStream";
+    const string ReturnEventsAdvice = "Return the events from the handler method — a single event, an IEnumerable<object>, or EventForEventSourceId wrappers — instead of appending directly";
+    const string ReturnCompleteStreamAdvice = "Return CompleteStream from the handler method to close the stream instead of calling CompleteStream on the event log (see the completing streams documentation)";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [DiagnosticDescriptors.ARCCHR0003_ReactorMustNotReachEventLog];
@@ -68,7 +71,8 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
                     DiagnosticDescriptors.ARCCHR0003_ReactorMustNotReachEventLog,
                     parameter.Locations[0],
                     namedTypeSymbol.Name,
-                    parameter.Name));
+                    parameter.Name,
+                    ReturnEventsAdvice));
             }
         }
     }
@@ -105,7 +109,8 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
 
     static void ReportWhenAppendingInsideReactor(SyntaxNodeAnalysisContext context, ExpressionSyntax eventLogAccess)
     {
-        if (!IsAppendedTo(context.SemanticModel, eventLogAccess) || !IsTheReactorsOwnEventStore(context.SemanticModel, eventLogAccess))
+        var member = WrittenWith(context.SemanticModel, eventLogAccess);
+        if (member is null || !IsTheReactorsOwnEventStore(context.SemanticModel, eventLogAccess))
         {
             return;
         }
@@ -120,41 +125,48 @@ public class ReactorEventLogAccessAnalyzer : DiagnosticAnalyzer
             DiagnosticDescriptors.ARCCHR0003_ReactorMustNotReachEventLog,
             eventLogAccess.GetLocation(),
             containingType.Name,
-            MemberAccessChain.Describe(eventLogAccess)));
+            MemberAccessChain.Describe(eventLogAccess),
+            member == CompleteStreamMethodName ? ReturnCompleteStreamAdvice : ReturnEventsAdvice));
     }
 
     /// <summary>
-    /// Determines whether the sequence is appended to, following the chain past members that hand back the
-    /// same sequence.
+    /// Determines whether the sequence is written to — appended to or its stream completed — following the chain
+    /// past members that hand back the same sequence.
     /// </summary>
     /// <param name="semanticModel">The <see cref="SemanticModel"/> to resolve symbols with.</param>
     /// <param name="eventLogAccess">The event log or event sequence access to inspect.</param>
-    /// <returns>True if the sequence is appended to, false otherwise.</returns>
+    /// <returns>The written-with member kind: the append method name prefix, <c>CompleteStream</c>, or null when the sequence is only read.</returns>
     /// <remarks>
     /// <c>Transactional</c> hands back the very same sequence enlisted in a unit of work, so
     /// <c>EventLog.Transactional.Append(...)</c> is the identical write with one more member in the chain — the
     /// shape Chronicle steers authors toward, and the one this rule has to see.
     /// </remarks>
-    static bool IsAppendedTo(SemanticModel semanticModel, ExpressionSyntax eventLogAccess)
+    static string? WrittenWith(SemanticModel semanticModel, ExpressionSyntax eventLogAccess)
     {
         var current = eventLogAccess;
 
         while (MemberAccessChain.Next(current) is { } next)
         {
-            if (MemberAccessChain.NameOf(next)!.Identifier.ValueText.StartsWith(AppendMethodPrefix, StringComparison.Ordinal))
+            var name = MemberAccessChain.NameOf(next)!.Identifier.ValueText;
+            if (name.StartsWith(AppendMethodPrefix, StringComparison.Ordinal))
             {
-                return next.Parent is InvocationExpressionSyntax;
+                return next.Parent is InvocationExpressionSyntax ? AppendMethodPrefix : null;
+            }
+
+            if (name == CompleteStreamMethodName)
+            {
+                return next.Parent is InvocationExpressionSyntax ? CompleteStreamMethodName : null;
             }
 
             if (!IsTransactionalEventSequence(semanticModel, next))
             {
-                return false;
+                return null;
             }
 
             current = next;
         }
 
-        return false;
+        return null;
     }
 
     static bool IsTransactionalEventSequence(SemanticModel semanticModel, ExpressionSyntax access) =>
