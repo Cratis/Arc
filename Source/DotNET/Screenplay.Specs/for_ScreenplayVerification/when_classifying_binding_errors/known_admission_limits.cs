@@ -52,6 +52,7 @@ public class known_admission_limits : Specification
     [InlineData("Projection 'Author' declares a parent key outside a children block, where Chronicle never reads it.")]
     [InlineData("Query 'All' uses an unknown delivery shape.")]
     [InlineData("Reaction refusal handling and redelivery are not admitted by any supported executable model (ESM) version yet (#433).")]
+    [InlineData("Reaction command identity ('runs as') is not admitted by any supported executable model (ESM) version yet (#383).")]
     [InlineData("Explicit no-event assertions are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Unknown future admission message.")]
     [InlineData("Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302).")]

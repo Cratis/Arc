@@ -9,7 +9,7 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// Identifies the executable admission limits deliberately retained in generated authoring documents.
 /// </summary>
 /// <remarks>
-/// Screenplay 4.121.0 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
+/// Screenplay 4.124.1 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
 /// so these exact message shapes follow SemanticModelBinder.Commands, ReadModels, Concepts, and CommandProductions at that
 /// version. A changed or unknown message fails closed as SP0056 rather than silently acquiring an exemption.
 /// </remarks>
