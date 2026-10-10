@@ -192,7 +192,7 @@ A read model is left undeclared, with Information diagnostic `SP0057`, when no d
 - a value it holds, at any depth, has a type the document cannot declare, is a collection whose elements may be null (`optional` on a collection says only that the collection may be absent), or shares its declaration name with a different type the document already declares, with another type the read model holds, or with a read model;
 - no slice refers to it.
 
-Whatever builds or reads it still names it, and none of the concepts or types it holds are declared on its behalf.
+Queries and projections referring to an omitted read model are withheld too, as are dependent screen data, tables and scenarios, with Information diagnostic `SP0030`. Authoring reads and their dependent requirements, mappings and operations are withheld with `SP0055` or `SP0053`. None of the concepts or types it holds are declared on its behalf.
 
 ## Query descriptions and implementations
 
@@ -232,9 +232,9 @@ The cap also withholds v7 command values and responses when `AuthoringOnlyConstr
 
 ## Event sources and streams
 
-A route tells you where a command's facts land, not just which event type it produces. Default output includes readable `eventsource` and source-owned `stream` declarations, command routes, and specification routes. These constructs select ESM v8. A command routed this way no longer repeats its route dimensions in a legacy `concurrency` block. Concurrency-only commands keep that block, with Information diagnostic `SP0044` describing its non-executable legacy meaning.
+A route tells you where a command's facts land, not just which event type it produces. Default output includes readable `eventsource` and source-owned `stream` declarations, command routes, and specification routes. These constructs select ESM v8. A command routed this way no longer emits a legacy `concurrency` block. When it also opts into concurrency, Information diagnostic `SP0044` names the omitted concurrency dimensions: the route does not enforce them, and ESM v8 has no executable concurrency syntax. Concurrency-only commands keep that block, with `SP0044` describing its non-executable legacy meaning.
 
-Command stream ids can come from a direct required scalar command property or a portable literal attribute. Explicitly typed composite parts in an application model are emitted together, in declaration order. C# formatting templates are not assumed to have Screenplay's escaped composite encoding: an unproven template remains in code with `SP0054`, rather than becoming a different stream id.
+Command stream ids can come from a direct required scalar command property or a portable literal attribute. A template containing exactly one property placeholder and no surrounding text, such as `[EventStreamId("{Name}")]`, maps that direct required portable property. Explicitly typed composite parts in an application model are emitted together, in declaration order. Other C# formatting templates are not assumed to have Screenplay's escaped composite encoding: an unproven template remains in code with `SP0054`, rather than becoming a different stream id.
 
 Property-path mappings and routes on handler commands remain authoring-only (`PLAY0268`). Generated-property mappings, incompatible source or stream declarations, and the reserved source name `Default` cannot be emitted faithfully (`PLAY0273`); `SP0054` identifies the reason and the complete route is withheld. No partial stream-id mapping or orphan source declaration is emitted.
 
