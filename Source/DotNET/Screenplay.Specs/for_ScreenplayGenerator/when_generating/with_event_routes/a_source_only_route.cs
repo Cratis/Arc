@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
+using Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating.with_authoring_only_constructs;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating.with_event_routes;
 

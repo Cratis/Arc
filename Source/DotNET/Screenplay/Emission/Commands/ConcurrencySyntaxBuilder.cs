@@ -55,8 +55,10 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             dimensions.Add($"stream id '{streamId}'");
         }
         dimensions.AddRange(concurrency.EventTypes.Select(eventType => $"event type '{eventType}'"));
-        diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
-            $"The command's route is stated, but concurrency dimensions [{string.Join(", ", dimensions)}] were left out; ESM v8 has no executable concurrency syntax (PLAY0271)", location);
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
+            $"The command's route is stated, but concurrency dimensions [{string.Join(", ", dimensions)}] were left out; ESM v8 has no executable concurrency syntax (PLAY0271)",
+            location);
     }
 
     /// <summary>
