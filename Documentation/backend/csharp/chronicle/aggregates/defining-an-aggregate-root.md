@@ -89,9 +89,21 @@ public class AccountAggregate : AggregateRoot
 }
 ```
 
-Rehydration then reads only the events in the scope the commit guards: the declared event source type, stream type and the stream id the aggregate was loaded with. An event for the same event source id in another stream no longer changes the aggregate's state without the commit check protecting it. The Chronicle client has no stream-aware read yet, so Arc filters what it reads; an aggregate without the declaration reads as before.
+Rehydration then reads the events of the declared event source type and stream type, as described in [Which events rehydration reads](#which-events-rehydration-reads).
 
 Arc rejects an aggregate that names a stream its definition does not declare, a `Get<T>` call asking for a different event source type, or an `[EventStreamType]` that contradicts the declared stream. The legacy attributes keep working for aggregates that do not declare a definition.
+
+## Which events rehydration reads
+
+An aggregate root rebuilds its state from the events it handles, and its commit fails with a concurrency violation if an event arrived since it was loaded in any stream it read from. Whether it declares an event source decides how wide that is.
+
+| | Without `[EventSource<TSource>]` | With `[EventSource<TSource>]` |
+| --- | --- | --- |
+| Rehydration applies | every handled event for the event source id, in any stream | handled events of its own event source type, event stream type and event stream id |
+| The commit rejects a concurrent append | to any stream for the event source id | to its event source type and event stream type, in the event stream id passed to `Get<T>` or else in any |
+| Its own events are appended with | its event stream type, event stream id and event source type | the same, plus the declared event source |
+
+An aggregate without a declaration therefore picks up events appended for its id anywhere, for example straight to the event log or by another aggregate type, and its commit protects all of them. The trade-off is more conflicts: its commit now fails with a concurrency violation when another stream for the same event source id received an event after the aggregate was loaded, where it used to go through unnoticed. Declare an event source when the aggregate owns one stream and other streams for the same id should neither shape its state nor block its commit.
 
 ## Event handler signatures
 

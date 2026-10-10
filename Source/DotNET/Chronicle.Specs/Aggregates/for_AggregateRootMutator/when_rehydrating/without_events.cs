@@ -9,9 +9,9 @@ public class without_events : given.an_aggregate_root_mutator
 {
     void Establish() => _eventSequence.GetTailSequenceNumber(
         _eventSourceId,
-        _aggregateRootContext.EventSourceType,
-        _aggregateRootContext.EventStreamType,
-        _aggregateRootContext.EventStreamId).Returns(EventSequenceNumber.Unavailable);
+        EventSourceType.Default,
+        EventStreamType.All,
+        EventStreamId.Default).Returns(EventSequenceNumber.Unavailable);
 
     async Task Because() => await _mutator.Rehydrate();
 

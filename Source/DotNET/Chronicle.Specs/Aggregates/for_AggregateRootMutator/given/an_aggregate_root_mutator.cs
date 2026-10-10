@@ -42,6 +42,11 @@ public class an_aggregate_root_mutator : Specification
             EventSequenceNumber.First,
             EventSequenceNumber.BeforeFirst);
 
+        // No event in any scope unless a spec says otherwise.
+        _eventSequence
+            .GetTailSequenceNumber(Arg.Any<EventSourceId?>(), Arg.Any<EventSourceType?>(), Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<IEnumerable<EventType>?>())
+            .Returns(EventSequenceNumber.Unavailable);
+
         _eventSerializer = Substitute.For<IEventSerializer>();
         _eventHandlers = Substitute.For<IAggregateRootEventHandlers>();
         _correlationIdAccessor = Substitute.For<ICorrelationIdAccessor>();

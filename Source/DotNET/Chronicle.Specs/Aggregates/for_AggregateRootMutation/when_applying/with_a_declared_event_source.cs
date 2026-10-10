@@ -66,4 +66,6 @@ public class with_a_declared_event_source : Specification
     [Fact] void should_keep_the_aggregate_stream_id() => _appended.Single().EventStreamId.ShouldEqual(_eventStreamId);
     [Fact] void should_keep_the_aggregate_event_source_type() => _appended.Single().EventSourceType.ShouldEqual(_eventSourceType);
     [Fact] void should_guard_the_aggregate_scope() => _scopes[_eventSourceId].EventSourceType.ShouldEqual(_eventSourceType);
+    [Fact] void should_guard_the_aggregate_stream_type() => _scopes[_eventSourceId].EventStreamType.ShouldEqual(_eventStreamType);
+    [Fact] void should_guard_the_aggregate_stream_id() => _scopes[_eventSourceId].EventStreamId.ShouldEqual(_eventStreamId);
 }

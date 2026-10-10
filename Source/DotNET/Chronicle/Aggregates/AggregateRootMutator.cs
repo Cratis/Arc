@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Collections.Immutable;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Execution;
@@ -26,22 +25,47 @@ public class AggregateRootMutator(
     /// <inheritdoc/>
     public async Task Rehydrate()
     {
-        // Capture the scoped tail before reading events, so an append during the read cannot be accepted as seen.
+        // Capture the tail of the scope the commit guards before reading events, so an append during the read cannot
+        // be accepted as seen.
+        var scope = AggregateRootGuardedScope.For(aggregateRootContext);
         var tailSequenceNumber = await aggregateRootContext.EventSequence.GetTailSequenceNumber(
             aggregateRootContext.EventSourceId,
-            aggregateRootContext.EventSourceType,
-            aggregateRootContext.EventStreamType,
-            aggregateRootContext.EventStreamId);
+            scope.EventSourceType,
+            scope.EventStreamType,
+            scope.EventStreamId);
 
-        var events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
-        if (aggregateRootContext is IAggregateRootEventSourceContext { EventSource: not null })
+        // Whether the aggregate already exists is still decided by its own stream, not by every stream the commit
+        // guards, so an event for the same id elsewhere does not make an undeclared aggregate stop being new.
+        var ownTailSequenceNumber = scope.IsOwnStreamOf(aggregateRootContext)
+            ? tailSequenceNumber
+            : await aggregateRootContext.EventSequence.GetTailSequenceNumber(
+                aggregateRootContext.EventSourceId,
+                aggregateRootContext.EventSourceType,
+                aggregateRootContext.EventStreamType,
+                aggregateRootContext.EventStreamId);
+
+        IEnumerable<AppendedEvent> events;
+        if (aggregateRootContext.HasDeclaredEventSource())
         {
-            // The Chronicle client has no stream-aware read, so an aggregate that declares its event source keeps only
-            // the events its commit scope guards (#2796): the same source type, stream type and stream id.
-            events = events.Where(_ =>
-                _.Context.EventSourceType == aggregateRootContext.EventSourceType &&
-                _.Context.EventStreamType == aggregateRootContext.EventStreamType &&
-                _.Context.EventStreamId == aggregateRootContext.EventStreamId).ToImmutableList();
+            // A declared aggregate keeps only the events of its own source type, stream type and stream id (#2796).
+            // The read starts at the first event, so skip what this context has already handled.
+            events = (await aggregateRootContext.EventSequence.GetForEventSourceIdAndEventTypes(
+                    aggregateRootContext.EventSourceId,
+                    eventHandlers.EventTypes,
+                    aggregateRootContext.EventStreamType,
+                    aggregateRootContext.EventStreamId,
+                    aggregateRootContext.EventSourceType))
+                .Where(_ =>
+                    _.Context.SequenceNumber >= aggregateRootContext.NextSequenceNumber &&
+                    _.Context.EventSourceType == aggregateRootContext.EventSourceType &&
+                    _.Context.EventStreamType == aggregateRootContext.EventStreamType &&
+                    _.Context.EventStreamId == aggregateRootContext.EventStreamId)
+                .ToArray();
+        }
+        else
+        {
+            // Every handled event for the event source id, whatever stream it is in - the guarded scope covers it all.
+            events = await aggregateRootContext.EventSequence.GetFromSequenceNumber(aggregateRootContext.NextSequenceNumber, aggregateRootContext.EventSourceId, eventHandlers.EventTypes);
         }
 
         if (eventHandlers.HasHandleMethods)
@@ -73,6 +97,10 @@ public class AggregateRootMutator(
         if (tailSequenceNumber.IsActualValue)
         {
             aggregateRootContext.TailEventSequenceNumber = tailSequenceNumber;
+        }
+
+        if (ownTailSequenceNumber.IsActualValue)
+        {
             aggregateRootContext.HasEvents = true;
         }
     }

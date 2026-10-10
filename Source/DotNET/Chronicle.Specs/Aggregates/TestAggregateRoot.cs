@@ -23,6 +23,8 @@ public class TestAggregateRoot : AggregateRoot
 
     public int OnActivateCount;
 
+    public bool IsNewAggregate => IsNew;
+
     public void ReportFailed(string message, ValidationResultSeverity severity = ValidationResultSeverity.Error) =>
         Failed(message, severity);
 
