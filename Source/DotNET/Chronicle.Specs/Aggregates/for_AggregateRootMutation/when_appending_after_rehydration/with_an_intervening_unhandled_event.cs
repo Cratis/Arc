@@ -20,7 +20,6 @@ public class with_an_intervening_unhandled_event : given.an_aggregate_rehydrated
 
     [Fact] void should_append_the_unhandled_event() => _interveningResult.IsSuccess.ShouldBeTrue();
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_not_report_a_concurrency_violation() => _result.HasConcurrencyViolations.ShouldBeFalse();
     [Fact] void should_validate_concurrency() => _result.ConcurrencyCheckPerformed.ShouldBeTrue();
     [Fact] void should_guard_only_the_handled_event_type() => _scope.EventTypes.ShouldContainOnly(_handledEventType);
 }

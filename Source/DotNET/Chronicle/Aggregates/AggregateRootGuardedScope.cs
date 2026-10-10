@@ -23,8 +23,9 @@ internal record AggregateRootGuardedScope(EventSourceType EventSourceType, Event
     /// An aggregate root that declares its event source rehydrates only from its own stream, so the scope is that
     /// stream. One that does not rehydrates from every handled event for its event source id, whatever stream it was
     /// appended to, so the scope uses the values Chronicle treats as "any" (#2796). Its mutation narrows the guard
-    /// to handled event types when the mutator exposes a nonempty set, while rehydration captures the unfiltered
-    /// tail as the expected sequence number. The events the aggregate appends keep their own routing either way.
+    /// to handled event types only when rehydration found its own stream already existed and the handled set is
+    /// nonempty. A new aggregate guards every event type. Rehydration captures the unfiltered tail as the expected
+    /// sequence number. The events the aggregate appends keep their own routing either way.
     /// </remarks>
     public static AggregateRootGuardedScope For(IAggregateRootContext context) =>
         context.HasDeclaredEventSource()

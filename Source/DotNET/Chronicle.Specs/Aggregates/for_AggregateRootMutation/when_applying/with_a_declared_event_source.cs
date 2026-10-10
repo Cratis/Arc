@@ -47,6 +47,7 @@ public class with_a_declared_event_source : Specification
         var declared = (IAggregateRootEventSourceContext)context;
         context.EventSourceId.Returns(_eventSourceId);
         context.AggregateRoot.Returns(new TestAggregateRoot());
+        context.EventSequence.Returns(_eventSequence);
         context.UnitOfWOrk.Returns(unitOfWork);
         context.EventStreamType.Returns(_eventStreamType);
         context.EventStreamId.Returns(_eventStreamId);
@@ -58,6 +59,9 @@ public class with_a_declared_event_source : Specification
         var handlers = Substitute.For<IAggregateRootEventHandlers>();
         handlers.EventTypes.Returns([eventType]);
         var mutator = new AggregateRootMutator(context, eventStore, Substitute.For<IEventSerializer>(), handlers, Substitute.For<ICorrelationIdAccessor>());
+        _eventSequence.GetTailSequenceNumber(_eventSourceId, _eventSourceType, _eventStreamType, _eventStreamId)
+            .Returns(EventSequenceNumber.First);
+        await mutator.Rehydrate();
         var mutation = new AggregateRootMutation(context, mutator, _eventSequence);
         await mutation.Apply(new DeclaredSourceEvent());
         await unitOfWork.Commit();

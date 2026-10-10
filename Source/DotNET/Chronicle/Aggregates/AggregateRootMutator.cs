@@ -21,10 +21,12 @@ public class AggregateRootMutator(
     IEventStore eventStore,
     IEventSerializer eventSerializer,
     IAggregateRootEventHandlers eventHandlers,
-    ICorrelationIdAccessor correlationIdAccessor) : IAggregateRootMutator, IAggregateRootHandledEventTypes
+    ICorrelationIdAccessor correlationIdAccessor) : IAggregateRootMutator, IAggregateRootRehydratedScope
 {
+    IImmutableList<EventType>? _guardedEventTypes;
+
     /// <inheritdoc/>
-    IImmutableList<EventType> IAggregateRootHandledEventTypes.EventTypes => eventHandlers.EventTypes;
+    IImmutableList<EventType>? IAggregateRootRehydratedScope.GuardedEventTypes => _guardedEventTypes;
 
     /// <inheritdoc/>
     public async Task Rehydrate()
@@ -102,6 +104,12 @@ public class AggregateRootMutator(
         {
             aggregateRootContext.TailEventSequenceNumber = tailSequenceNumber;
         }
+
+        // Existence is decided over every event type in the aggregate's own stream. Keep that creation guard
+        // when it was new, even if Mutate later sets HasEvents while staging events in this unit of work.
+        _guardedEventTypes = ownTailSequenceNumber.IsActualValue && eventHandlers.EventTypes.Count > 0
+            ? eventHandlers.EventTypes
+            : null;
 
         if (ownTailSequenceNumber.IsActualValue)
         {

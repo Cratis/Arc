@@ -100,10 +100,10 @@ An aggregate root rebuilds its state from the events it handles, and its commit 
 | | Without `[EventSource<TSource>]` | With `[EventSource<TSource>]` |
 | --- | --- | --- |
 | Rehydration applies | every handled event for the event source id, in any stream | handled events of its own event source type, event stream type and event stream id |
-| The commit rejects a concurrent append | of a handled event type to any stream for the event source id (any event type if it has no handlers) | to its event source type and event stream type, in the event stream id passed to `Get<T>` or else in any |
+| The commit rejects a concurrent append | to any stream for the event source id: handled event types for an existing aggregate, any event type for a new aggregate or one without handlers | to its event source type and event stream type, in the event stream id passed to `Get<T>` or else in any |
 | Its own events are appended with | its event stream type, event stream id and event source type | the same, plus the declared event source |
 
-An aggregate without a declaration therefore picks up handled events appended for its id anywhere, for example straight to the event log or by another aggregate type, and its commit protects all of them. For an aggregate with handlers, only a handled event type appended for the same id after loading causes a concurrency violation; unrelated event types do not block its commit. Declare an event source when the aggregate owns one stream and other streams for the same id should neither shape its state nor block its commit.
+An aggregate without a declaration therefore picks up handled events appended for its id anywhere, for example straight to the event log or by another aggregate type, and its commit protects all of them. For an aggregate that already existed when loaded and has handlers, only a handled event type appended for the same id after loading causes a concurrency violation; a new aggregate keeps the any-event-type guard so a competing creation cannot succeed twice. Declare an event source when the aggregate owns one stream and other streams for the same id should neither shape its state nor block its commit.
 
 ## Event handler signatures
 

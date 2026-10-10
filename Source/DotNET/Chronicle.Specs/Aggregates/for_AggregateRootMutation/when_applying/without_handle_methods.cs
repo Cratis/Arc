@@ -17,8 +17,13 @@ public class without_handle_methods : given.an_aggregate_mutation
 
     ConcurrencyScope _scope;
 
-    void Establish()
+    async Task Establish()
     {
+        _aggregateRootContext.EventSequence.Returns(_eventSequence);
+        _eventSequence.GetTailSequenceNumber(_eventSourceId, _eventSourceType, _eventStreamType, _eventStreamId)
+            .Returns(EventSequenceNumber.First);
+        _eventSequence.GetTailSequenceNumber(_eventSourceId, EventSourceType.Default, EventStreamType.All, EventStreamId.Default)
+            .Returns(EventSequenceNumber.First);
         var handlers = Substitute.For<IAggregateRootEventHandlers>();
         handlers.EventTypes.Returns(ImmutableList<EventType>.Empty);
         var mutator = new AggregateRootMutator(
@@ -27,6 +32,7 @@ public class without_handle_methods : given.an_aggregate_mutation
             Substitute.For<IEventSerializer>(),
             handlers,
             Substitute.For<ICorrelationIdAccessor>());
+        await mutator.Rehydrate();
         _mutation = new AggregateRootMutation(_aggregateRootContext, mutator, _eventSequence);
         _unitOfWork.When(_ => _.AddEvent(
                 _eventSequenceId,
