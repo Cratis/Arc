@@ -47,7 +47,7 @@ public class CommandAuthoringSyntaxBuilder(IScreenplayNaming naming, TypeReferen
             Response = Response(authoring),
             Reads = authoringOnlyConstructs ? authoring.Reads.Select(Read).ToList() : syntax.Reads,
             Validations = requirements.Count == 0 ? syntax.Validations : syntax.Validations.Append(new DeclarativeValidateSyntax([], SourceLocation.Start, requirements)).ToList(),
-            Stream = authoringOnlyConstructs && authoring.Route is { Stream: not null } route ? Route(route) : syntax.Stream
+            Stream = authoring.Route is { Stream: not null } route ? Route(route) : syntax.Stream
         };
     }
 
@@ -60,7 +60,9 @@ public class CommandAuthoringSyntaxBuilder(IScreenplayNaming naming, TypeReferen
 
     CommandStreamSyntax Route(CommandRouteModel route) => new(route.Source, route.Stream!, SourceLocation.Start)
     {
-        StreamId = route.StreamId is null ? null : new PropertyMappingSyntax("streamId", new PathExpressionSyntax(naming.ToPropertyPath(route.StreamId), SourceLocation.Start), SourceLocation.Start)
+        StreamId = route.StreamIdLiteral is { } literal ? new("streamId", _sources.Convert(literal), SourceLocation.Start) :
+            route.StreamId is null ? null : new PropertyMappingSyntax("streamId", new PathExpressionSyntax(naming.ToPropertyPath(route.StreamId), SourceLocation.Start), SourceLocation.Start),
+        StreamIdParts = route.StreamIdParts.Select(part => new PropertyMappingSyntax(naming.ToPropertyName(part.Name), _sources.Convert(part.Value), SourceLocation.Start)).ToList()
     };
 
     CommandResponseSyntax? Response(CommandAuthoringModel authoring) => authoring.Response is { } source

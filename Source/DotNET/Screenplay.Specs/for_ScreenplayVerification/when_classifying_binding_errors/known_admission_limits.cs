@@ -25,8 +25,7 @@ public class known_admission_limits : Specification
 
     [Theory]
     [InlineData("Operations and systems are not admitted by any supported executable model (ESM) version yet (#301).")]
-    [InlineData("Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302).")]
-    [InlineData("Specification event routes are not admitted by any supported executable model (ESM) version yet (#457).")]
+    [InlineData("Stream id mapping 'address.month' on command 'Register' reads a property path; only direct command inputs are admitted by event routes.")]
     void should_accept_additional_authoring_constructs_only_when_requested(string message)
     {
         var verified = WithError("PLAY0268", message);
@@ -35,7 +34,6 @@ public class known_admission_limits : Specification
     }
 
     [Theory]
-    [InlineData("Command 'Register' reads 'Author' with legacy semantics that cannot imply decision consistency.")]
     [InlineData("Command 'Register' concurrency metadata keeps its legacy meaning and cannot bind to ESM v1.")]
     void should_preserve_documented_legacy_consistency_diagnostics(string message)
     {
@@ -56,6 +54,9 @@ public class known_admission_limits : Specification
     [InlineData("Reaction refusal handling and redelivery are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Explicit no-event assertions are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Unknown future admission message.")]
+    [InlineData("Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302).")]
+    [InlineData("Specification event routes are not admitted by any supported executable model (ESM) version yet (#457).")]
+    [InlineData("Stream id mapping 'address.month' on command 'Register' reads an unknown future mapping shape.")]
     [InlineData("Read model 'Author' must have one unambiguous keyed query to identify instances in the first ESM v1 vertical.")]
     [InlineData("Query 'All' uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical.")]
     [InlineData("Query 'All' must declare one caller-supplied 'by' argument in the first ESM v1 vertical.")]
@@ -65,6 +66,14 @@ public class known_admission_limits : Specification
         var verified = WithError("PLAY0268", message);
         verified.UnexpectedBindingErrors().Count.ShouldEqual(1);
         verified.UnexpectedBindingErrors(true).Count.ShouldEqual(1);
+    }
+
+    [Fact]
+    void should_accept_legacy_reads_only_in_authoring_mode()
+    {
+        var verified = WithError("PLAY0271", "Command 'Register' reads 'Author' with legacy semantics that cannot imply decision consistency.");
+        verified.UnexpectedBindingErrors().Count.ShouldEqual(1);
+        verified.UnexpectedBindingErrors(true).ShouldBeEmpty();
     }
 
     [Fact]

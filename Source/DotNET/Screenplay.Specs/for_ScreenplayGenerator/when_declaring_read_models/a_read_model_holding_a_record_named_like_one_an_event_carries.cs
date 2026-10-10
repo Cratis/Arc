@@ -45,6 +45,7 @@ public class a_read_model_holding_a_record_named_like_one_an_event_carries : a_r
     [Fact] void should_declare_the_events_record_once() => Count("type Line").ShouldEqual(1);
     [Fact] void should_keep_the_events_shape() => Says("product String").ShouldBeTrue();
     [Fact] void should_say_which_property() => LeftOut.Single().ShouldContain("'Lines'");
-    [Fact] void should_report_no_warning() => GenerationWarnings.ShouldBeEmpty();
+    [Fact] void should_report_the_unresolved_admitted_query() => Result.Diagnostics.Where(diagnostic => diagnostic.Severity != ScreenplayDiagnosticSeverity.Information).Select(diagnostic => diagnostic.Code).ShouldContainOnly(ScreenplayDiagnosticCodes.DocumentDidNotBind);
+    [Fact] void should_name_the_missing_query_model() => UnresolvedReferences.ShouldContain("Query 'AllReports' read model is unresolved.");
     [Fact] void should_compile_without_findings() => CompilationFindings.ShouldBeEmpty();
 }

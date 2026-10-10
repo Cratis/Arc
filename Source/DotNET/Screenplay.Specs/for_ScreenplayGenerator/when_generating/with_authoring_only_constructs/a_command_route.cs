@@ -25,9 +25,10 @@ public class a_command_route : an_authoring_document
     [Fact] void should_map_the_stream_id() => Result.Source.ShouldContain("streamId = month");
     [Fact] void should_keep_the_grammar_supported_source_flag() => Result.Source.ShouldContain("sourceType Account");
     [Fact] void should_keep_the_grammar_supported_stream_flag() => Result.Source.ShouldContain("streamType Transactions");
-    [Fact] void should_compile_and_reject_only_executable_admission() => AssertAuthoringDocument();
-    [Fact] void should_omit_routing_when_disabled() => Off.Source.Contains("eventsource Account", StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_preserve_only_authoring_legacy_concurrency() => Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Code).ShouldContainOnly("PLAY0271");
+    [Fact] void should_state_routing_by_default() => Off.Source.ShouldContain("eventsource Account");
+    [Fact] void should_state_the_default_route_instead_of_legacy_concurrency() => Off.Source.ShouldNotContain("concurrency");
     [Fact] void should_not_add_build_warnings_in_default_mode() => Off.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning).ShouldBeEmpty();
-    [Fact] void should_report_omitted_routing_as_information() => Off.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
-    [Fact] void should_report_the_opt_in_when_disabled() => Off.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).Message.ShouldContain("AuthoringOnlyConstructs");
+    [Fact] void should_not_report_admitted_routing_as_omitted() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).ShouldBeFalse();
+    [Fact] void should_bind_the_default_document() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeFalse();
 }

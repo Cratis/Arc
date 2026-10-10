@@ -136,6 +136,7 @@ public class ArtifactReaders
                 Diagnostics = diagnostics,
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
                 {
+                    ExecutableRoutes = whole.ExecutableRoutes,
                     ValidatedTypes = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
                         .Select(ValidationReader.ValidatedTypeOf).OfType<ITypeSymbol>().Select(type => type.ToDisplayString()).ToHashSet(StringComparer.Ordinal)
                 }

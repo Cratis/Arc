@@ -20,6 +20,17 @@ namespace Cratis.Arc.Screenplay.Emission.Commands;
 public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
 {
     /// <summary>
+    /// Gets whether executable event routing is admitted by the requested cap.
+    /// </summary>
+    public bool ExecutableRoutes { get; init; }
+
+    /// <summary>
+    /// Reports a concurrency-only command whose legacy scope has no executable route counterpart.
+    /// </summary>
+    /// <param name="location">The command's diagnostic location.</param>
+    public void ReportLegacyScope(string location) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, "The command has only legacy concurrency metadata, with no admitted event route counterpart; its concurrency block retains its legacy meaning (PLAY0271)", location);
+
+    /// <summary>
     /// Builds the concurrency block a command declares.
     /// </summary>
     /// <param name="concurrency">The scope to build for, if the command declares one.</param>
@@ -85,7 +96,7 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         }
 
         var command = commandName is null ? "The command" : $"The command '{commandName}'";
-        var message = authoringOnlyConstructs
+        var message = authoringOnlyConstructs || ExecutableRoutes
             ? $"{command} appends through event source '{eventSource.Source}'{stream}, but no unambiguous readable route could be stated; only the existing concurrency dimensions are emitted"
             : $"{command} appends through event source '{eventSource.Source}'{stream}; source and stream declarations are authoring-only and can be enabled with ScreenplayOptions.AuthoringOnlyConstructs; only the existing concurrency dimensions are emitted";
         if (authoringOnlyConstructs)
@@ -113,7 +124,7 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <summary>Reports legacy classification attributes omitted for a named command.</summary>
     /// <param name="location">The diagnostic location.</param>
     /// <param name="commandName">The routed command, when it is known.</param>
-    public void ReportLegacyRoute(string location, string? commandName) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, $"Event source and stream routing{(commandName is null ? string.Empty : $" for command '{commandName}'")} are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable routes", location);
+    public void ReportLegacyRoute(string location, string? commandName) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, ExecutableRoutes ? $"Event source and stream routing{(commandName is null ? string.Empty : $" for command '{commandName}'")} has no unambiguous admitted route; only the existing concurrency dimensions are emitted" : $"Event source and stream routing{(commandName is null ? string.Empty : $" for command '{commandName}'")} are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable routes", location);
 
     /// <summary>Reports a dynamic concurrency flag that the current grammar cannot state without a value.</summary>
     /// <param name="location">The diagnostic location.</param>

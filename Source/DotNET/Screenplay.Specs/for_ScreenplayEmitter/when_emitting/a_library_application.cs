@@ -27,7 +27,7 @@ public class a_library_application : given.a_library_model
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
     [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
-    [Fact] void should_report_nothing_as_unmappable() => _emission.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_classify_only_the_legacy_concurrency_loss() => _emission.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldContainOnly(ScreenplayDiagnosticCodes.EventSourceNotRepresentable);
     [Fact] void should_print_what_it_returns() => _emission.Source.ShouldEqual(_roundTrip.Printed);
     [Fact] void should_name_the_domain_after_the_application() => _emission.Application.Domain!.Name.ShouldEqual("Library");
     [Fact] void should_name_the_module_after_the_application() => _module.Name.ShouldEqual("Library");

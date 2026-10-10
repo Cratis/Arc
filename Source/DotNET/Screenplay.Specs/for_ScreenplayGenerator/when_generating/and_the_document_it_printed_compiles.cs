@@ -28,7 +28,7 @@ public class and_the_document_it_printed_compiles : given.a_compilation
     [Fact] void should_be_generating_a_document_that_really_does_compile() => _compiled.Success.ShouldBeTrue();
     [Fact] void should_be_generating_the_whole_application() => _result.Source.Contains("slice StateChange Registration", StringComparison.Ordinal).ShouldBeTrue();
     [Fact] void should_not_report_that_the_document_did_not_compile() => _result.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotCompile);
-    [Fact] void should_report_only_binding_defects() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldEqual([ScreenplayDiagnosticCodes.DocumentDidNotBind]);
-    [Fact] void should_report_each_binding_defect() => _result.Diagnostics.Count.ShouldEqual(4);
+    [Fact] void should_report_binding_defects_and_legacy_concurrency_loss() => _result.Diagnostics.Select(diagnostic => diagnostic.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.DocumentDidNotBind, ScreenplayDiagnosticCodes.EventSourceNotRepresentable]);
+    [Fact] void should_report_each_binding_defect() => _result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldEqual(6);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

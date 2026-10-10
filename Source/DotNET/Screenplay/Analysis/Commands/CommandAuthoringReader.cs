@@ -26,6 +26,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     public AuthoringSources Sources { get; private set; } = new();
 
     /// <summary>
+    /// Gets whether executable event routes are admitted.
+    /// </summary>
+    public bool ExecutableRoutes { get; init; }
+
+    /// <summary>
     /// Gets the types with concept validators, including unreadable rules.
     /// </summary>
     public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
@@ -61,7 +66,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         Sources = new();
         var reads = new CommandReadsReader(models, types, diagnostics, enabled).Read(command, identifier, Sources, location);
         var result = new CommandAuthoringModel { Reads = reads.Reads, Requirements = reads.Requirements };
-        var route = new CommandRouteReader(models, types, diagnostics, enabled).Read(command, identifier, location);
+        var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
 
         if (!enabled)

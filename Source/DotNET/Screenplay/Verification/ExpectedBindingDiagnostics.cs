@@ -29,7 +29,7 @@ public static class ExpectedBindingDiagnostics
             var command = Reason(message, "Command");
 
             return command == " concurrency metadata keeps its legacy meaning and cannot bind to ESM v1." ||
-                (command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
+                (authoringOnlyConstructs && command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
         }
 
         if (diagnostic.Code != "PLAY0268")
@@ -39,8 +39,7 @@ public static class ExpectedBindingDiagnostics
 
         if (authoringOnlyConstructs &&
             (message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
-            message == "Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302)." ||
-            message == "Specification event routes are not admitted by any supported executable model (ESM) version yet (#457)."))
+            Reason(Reason(message, "Stream id mapping") ?? string.Empty, " on command") == " reads a property path; only direct command inputs are admitted by event routes."))
         {
             return true;
         }

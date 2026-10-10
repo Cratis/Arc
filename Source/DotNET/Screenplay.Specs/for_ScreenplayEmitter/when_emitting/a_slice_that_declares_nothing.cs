@@ -31,8 +31,8 @@ public class a_slice_that_declares_nothing : given.an_emitter
     }
 
     [Fact] void should_leave_the_slice_out() => _emission.Source.Contains("Archiving", StringComparison.Ordinal).ShouldBeFalse();
-    [Fact] void should_report_the_slice_as_dropped() => _emission.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.EmptySlice]);
-    [Fact] void should_locate_the_report_at_the_slice() => _emission.Diagnostics.Single().Location.ShouldEqual("Library.Lending.Archiving");
-    [Fact] void should_report_it_as_a_warning() => _emission.Diagnostics.Single().Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
+    [Fact] void should_report_the_slice_as_dropped() => _emission.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.EmptySlice, ScreenplayDiagnosticCodes.EventSourceNotRepresentable]);
+    [Fact] void should_locate_the_report_at_the_slice() => _emission.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EmptySlice).Location.ShouldEqual("Library.Lending.Archiving");
+    [Fact] void should_report_it_as_a_warning() => _emission.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EmptySlice).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
     [Fact] void should_still_compile() => _roundTrip.Errors.ShouldBeEmpty();
 }

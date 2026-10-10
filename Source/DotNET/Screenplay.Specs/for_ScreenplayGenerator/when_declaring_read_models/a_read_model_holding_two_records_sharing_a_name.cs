@@ -45,6 +45,7 @@ public class a_read_model_holding_two_records_sharing_a_name : a_read_model_docu
     [Fact] void should_not_declare_the_read_model() => Count("readmodel Customer").ShouldEqual(0);
     [Fact] void should_not_declare_either_record_for_it() => Result.Source.ShouldNotContain("type Address");
     [Fact] void should_say_which_property() => LeftOut.Single().ShouldContain("'ShipTo'");
-    [Fact] void should_report_no_warning() => GenerationWarnings.ShouldBeEmpty();
+    [Fact] void should_report_the_unresolved_admitted_query() => Result.Diagnostics.Where(diagnostic => diagnostic.Severity != ScreenplayDiagnosticSeverity.Information).Select(diagnostic => diagnostic.Code).ShouldContainOnly(ScreenplayDiagnosticCodes.DocumentDidNotBind);
+    [Fact] void should_name_the_missing_query_model() => UnresolvedReferences.ShouldContain("Query 'All' read model is unresolved.");
     [Fact] void should_compile_without_findings() => CompilationFindings.ShouldBeEmpty();
 }

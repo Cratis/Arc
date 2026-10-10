@@ -10,6 +10,7 @@ using Cratis.Arc.Screenplay.Analysis.Specifications;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Semantics;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.Analysis;
@@ -51,7 +52,8 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         var whole = new WholeApplication(ordered, new ScreenplayDiagnostics())
         {
             Files = userInterfaceFiles,
-            AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
+            AuthoringOnlyConstructs = options.AuthoringOnlyConstructs,
+            ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8)
         };
         var diagnostics = whole.Diagnostics;
 

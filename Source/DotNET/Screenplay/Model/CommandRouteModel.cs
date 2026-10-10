@@ -9,4 +9,15 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="IdentifierType">The command identity's type, if known.</param>
 /// <param name="StreamIdType">The dynamic stream id's type, if known.</param>
 /// <param name="StreamId">The property supplying the stream id.</param>
-public record CommandRouteModel(string Source, string? Stream, TypeReferenceModel? IdentifierType, TypeReferenceModel? StreamIdType, string? StreamId);
+public record CommandRouteModel(string Source, string? Stream, TypeReferenceModel? IdentifierType, TypeReferenceModel? StreamIdType, string? StreamId)
+{
+    /// <summary>
+    /// Gets the concrete scalar stream id, when the route uses a literal instead of a command property.
+    /// </summary>
+    public LiteralSource? StreamIdLiteral { get; init; }
+
+    /// <summary>
+    /// Gets the explicitly typed composite parts, in declaration order.
+    /// </summary>
+    public IReadOnlyList<CommandStreamIdPartModel> StreamIdParts { get; init; } = [];
+}

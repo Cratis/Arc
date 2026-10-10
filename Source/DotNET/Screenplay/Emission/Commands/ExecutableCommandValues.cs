@@ -134,7 +134,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Response = legacy || (authoring.Response is { } response && blocked.Contains(response)) ? null : authoring.Response,
             ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
             Operations = authoringOnlyConstructs ? authoring.Operations : [],
-            Route = authoringOnlyConstructs ? authoring.Route : null,
+            Route = authoringOnlyConstructs || maximumVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8) ? authoring.Route : null,
             Reads = authoringOnlyConstructs ? authoring.Reads : [],
             Requirements = authoringOnlyConstructs ? authoring.Requirements : []
         };
@@ -172,6 +172,16 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
                 CanInline = production.CanInline && !legacy && mappings.Count == production.Mappings.Count(),
                 UsesCommandContext = production.UsesCommandContext && !(authoring.Identifier is not null && retained.Identifier is null)
             });
+        }
+
+        if (!authoringOnlyConstructs && retained.Route is { } route)
+        {
+            var reason = CommandRouteAdmission.Failure(route, command with { Produces = productions }, model, authoring: false);
+            if (reason is not null)
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': {reason}; its entire route was left out", $"{location}.{command.Name}");
+                retained = retained with { Route = null };
+            }
         }
 
         return command with

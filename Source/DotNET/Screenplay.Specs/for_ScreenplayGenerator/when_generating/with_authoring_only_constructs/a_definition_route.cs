@@ -21,7 +21,7 @@ public class a_definition_route : an_authoring_document
 
     [Fact] void should_declare_the_definition_name() => Result.Source.ShouldContain("eventsource Author");
     [Fact] void should_route_to_the_declared_stream() => Result.Source.ShouldContain("stream Author.Registration");
-    [Fact] void should_compile_and_reject_only_executable_admission() => AssertAuthoringDocument();
-    [Fact] void should_keep_the_existing_routing_diagnostic_when_disabled() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).ShouldBeTrue();
-    [Fact] void should_not_emit_definition_routes_by_default() => Off.Source.Contains("eventsource Author", StringComparison.Ordinal).ShouldBeFalse();
+    [Fact] void should_bind_the_authoring_route() => Bound.Success.ShouldBeTrue();
+    [Fact] void should_not_report_admitted_routing_as_omitted() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).ShouldBeFalse();
+    [Fact] void should_emit_definition_routes_by_default() => Off.Source.ShouldContain("eventsource Author");
 }

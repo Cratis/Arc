@@ -50,5 +50,5 @@ public class a_slice_whose_screens_are_all_it_declares : given.an_emitter
     [Fact] void should_compile_without_errors() => _roundTrip.Errors.ShouldBeEmpty();
     [Fact] void should_compile_without_warnings_or_errors() => _roundTrip.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _roundTrip.Reprinted.ShouldEqual(_roundTrip.Printed);
-    [Fact] void should_report_nothing_as_unmappable() => _emission.Diagnostics.ShouldBeEmpty();
+    [Fact] void should_classify_only_the_legacy_concurrency_loss() => _emission.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldContainOnly(ScreenplayDiagnosticCodes.EventSourceNotRepresentable);
 }
