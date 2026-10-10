@@ -31,7 +31,12 @@ public class a_routed_command_scenario : Specification
     }
 
     [EventSource<ScenarioLedger>("entries")]
-    public class LedgerAggregate : AggregateRoot;
+    public class LedgerAggregate : AggregateRoot
+    {
+        public string Description { get; private set; } = string.Empty;
+
+        void On(EntryRecorded entry) => Description = entry.Description;
+    }
 
     [Command]
     public record RecordAggregateEntry(EventSourceId Id, string StreamId, string Description)

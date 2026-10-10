@@ -8,7 +8,6 @@ using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.Testing.EventSequences;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
@@ -97,8 +96,6 @@ public static class CommandScenarioChronicleExtensions
             }
 
             ChronicleCommandScenarioExtender.EnableDecisionReads(scenario.Services, scenario.Context);
-            var decision = (DecisionCommandScenario)scenario.Context[ChronicleCommandScenarioExtender.DecisionScenarioKey];
-            scenario.Services.TryAddSingleton(decision.Store.EventSources);
             return scenario;
         }
 
