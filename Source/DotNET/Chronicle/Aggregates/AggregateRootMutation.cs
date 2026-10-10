@@ -58,15 +58,20 @@ public class AggregateRootMutation(
             { CausationEventSequenceIdProperty, eventSequence.Id }
         });
 
-        // Guard what rehydration read, which for an aggregate without a declared event source is every stream for
-        // the event source id; the event itself keeps the aggregate's own routing below.
+        // An undeclared aggregate guards its handled event types across every stream for the event source id.
+        // Keep the unfiltered tail captured before rehydration as the expected sequence number, and leave the
+        // declared-source and legacy-mutator guards unchanged. The event keeps the aggregate's own routing below.
+        var eventTypes = !aggregateRootContext.HasDeclaredEventSource()
+            ? (mutator as IAggregateRootHandledEventTypes)?.EventTypes
+            : null;
         var scope = AggregateRootGuardedScope.For(aggregateRootContext);
         var concurrencyScope = new ConcurrencyScope(
             aggregateRootContext.TailEventSequenceNumber,
             EventSourceId,
             scope.EventStreamType,
             scope.EventStreamId,
-            scope.EventSourceType);
+            scope.EventSourceType,
+            eventTypes is { Count: > 0 } ? eventTypes : null);
 
         var declared = aggregateRootContext as IAggregateRootEventSourceContext;
         if (declared?.EventSource is null)

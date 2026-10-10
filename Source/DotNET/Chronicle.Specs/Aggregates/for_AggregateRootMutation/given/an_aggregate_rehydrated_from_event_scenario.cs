@@ -19,6 +19,7 @@ public class an_aggregate_rehydrated_from_event_scenario : Specification
 
     protected EventScenario _scenario;
     protected EventSourceId _eventSourceId;
+    protected EventType _handledEventType;
     protected AggregateRootContext _context;
     protected ConcurrencyScope _scope;
     protected AggregateRootMutation _mutation;
@@ -32,16 +33,16 @@ public class an_aggregate_rehydrated_from_event_scenario : Specification
         await _scenario.EventSequence.Append(_eventSourceId, new Changed(), streamType);
         await _scenario.EventSequence.Append(_eventSourceId, new Changed(), streamType);
 
-        var eventType = new EventType((EventTypeId)"65120bce-09fb-40be-bd09-120d4fa2985e", (EventTypeGeneration)1, false);
+        _handledEventType = new EventType((EventTypeId)"65120bce-09fb-40be-bd09-120d4fa2985e", (EventTypeGeneration)1, false);
         var handlers = Substitute.For<IAggregateRootEventHandlers>();
         handlers.HasHandleMethods.Returns(true);
-        handlers.EventTypes.Returns([eventType]);
+        handlers.EventTypes.Returns([_handledEventType]);
         handlers.When(_ => _.Handle(Arg.Any<IAggregateRoot>(), Arg.Any<IEnumerable<EventAndContext>>(), Arg.Any<Action<EventAndContext>>()))
             .Do(call =>
             {
                 foreach (var @event in call.Arg<IEnumerable<EventAndContext>>())
                 {
-                    call.Arg<Action<EventAndContext>>()(@event);
+                    call.Arg<Action<EventAndContext>>()?.Invoke(@event);
                 }
             });
 
@@ -68,10 +69,14 @@ public class an_aggregate_rehydrated_from_event_scenario : Specification
             EventSequenceNumber.First);
         var serializer = Substitute.For<IEventSerializer>();
         serializer.Deserialize(Arg.Any<AppendedEvent>()).Returns(new Changed());
+        var eventStore = Substitute.For<IEventStore>();
+        eventStore.Name.Returns(new EventStoreName("aggregate-specs"));
+        eventStore.Namespace.Returns(EventStoreNamespaceName.Default);
+        eventStore.EventTypes.GetEventTypeFor(typeof(Changed)).Returns(_handledEventType);
         var mutator = new AggregateRootMutator(
-            _context, Substitute.For<IEventStore>(), serializer, handlers, Substitute.For<ICorrelationIdAccessor>());
+            _context, eventStore, serializer, handlers, Substitute.For<ICorrelationIdAccessor>());
         await mutator.Rehydrate();
-        _mutation = new AggregateRootMutation(_context, Substitute.For<IAggregateRootMutator>(), _scenario.EventSequence);
+        _mutation = new AggregateRootMutation(_context, mutator, _scenario.EventSequence);
     }
 
     protected virtual Task<IEventSequence> GetRehydrationEventSequence() => Task.FromResult<IEventSequence>(_scenario.EventSequence);

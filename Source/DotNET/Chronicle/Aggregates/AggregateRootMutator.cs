@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Execution;
@@ -20,8 +21,11 @@ public class AggregateRootMutator(
     IEventStore eventStore,
     IEventSerializer eventSerializer,
     IAggregateRootEventHandlers eventHandlers,
-    ICorrelationIdAccessor correlationIdAccessor) : IAggregateRootMutator
+    ICorrelationIdAccessor correlationIdAccessor) : IAggregateRootMutator, IAggregateRootHandledEventTypes
 {
+    /// <inheritdoc/>
+    IImmutableList<EventType> IAggregateRootHandledEventTypes.EventTypes => eventHandlers.EventTypes;
+
     /// <inheritdoc/>
     public async Task Rehydrate()
     {

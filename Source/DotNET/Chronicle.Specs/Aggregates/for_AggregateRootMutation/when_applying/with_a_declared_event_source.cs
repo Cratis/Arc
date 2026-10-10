@@ -54,7 +54,11 @@ public class with_a_declared_event_source : Specification
         declared.EventSource.Returns(typeof(TestAggregateRoot));
         declared.EventStream.Returns("transactions");
 
-        var mutation = new AggregateRootMutation(context, Substitute.For<IAggregateRootMutator>(), _eventSequence);
+        var eventType = new EventType((EventTypeId)Guid.NewGuid().ToString(), EventTypeGeneration.First, false);
+        var handlers = Substitute.For<IAggregateRootEventHandlers>();
+        handlers.EventTypes.Returns([eventType]);
+        var mutator = new AggregateRootMutator(context, eventStore, Substitute.For<IEventSerializer>(), handlers, Substitute.For<ICorrelationIdAccessor>());
+        var mutation = new AggregateRootMutation(context, mutator, _eventSequence);
         await mutation.Apply(new DeclaredSourceEvent());
         await unitOfWork.Commit();
     }
@@ -68,4 +72,5 @@ public class with_a_declared_event_source : Specification
     [Fact] void should_guard_the_aggregate_scope() => _scopes[_eventSourceId].EventSourceType.ShouldEqual(_eventSourceType);
     [Fact] void should_guard_the_aggregate_stream_type() => _scopes[_eventSourceId].EventStreamType.ShouldEqual(_eventStreamType);
     [Fact] void should_guard_the_aggregate_stream_id() => _scopes[_eventSourceId].EventStreamId.ShouldEqual(_eventStreamId);
+    [Fact] void should_not_narrow_the_guard_to_handled_event_types() => _scopes[_eventSourceId].EventTypes.ShouldBeNull();
 }
