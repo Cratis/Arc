@@ -5,7 +5,9 @@ using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle;
+using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.Events;
@@ -57,6 +59,11 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// </summary>
     internal const string DecisionScenarioKey = "Chronicle.DecisionScenario";
 
+    /// <summary>
+    /// The context key for the serializer registration owned by this extender.
+    /// </summary>
+    internal const string EventSerializerRegistrationKey = "Chronicle.EventSerializerRegistration";
+
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
     {
@@ -71,17 +78,24 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
 
         eventScenario.EventLog.AppendOperations.Subscribe(appendedEvents.AddRange);
 
+        var eventSerializerRegistration = ServiceDescriptor.Singleton(Defaults.Instance.EventSerializer);
+        services.TryAdd(eventSerializerRegistration);
+
         services.AddSingleton(Defaults.Instance.EventTypes);
         services.AddSingleton(eventScenario.EventSequence);
         services.AddSingleton<IReadModels>(readModels);
         services.AddReadModels(Defaults.Instance.ClientArtifactsProvider);
         services.AddSingleton<IEventStore>(eventStore);
+
+        // Resolve from the current store so opting into decision reads uses that store's discovered definitions.
+        services.TryAddSingleton<IEventSources>(provider => provider.GetRequiredService<IEventStore>().EventSources);
         services.AddSingleton<IUnitOfWorkManager>(unitOfWorkManager);
 
         // The harness's IEventLog is a pure pass-through — appends behave exactly like production: immediate through
         // the in-memory kernel, with the explicit transactional style enrolling in the command's unit of work.
         services.AddSingleton<IEventLog>(new EventLogForScenario(eventScenario.EventLog, unitOfWorkManager));
 
+        context[EventSerializerRegistrationKey] = eventSerializerRegistration;
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
         context[ReadModelsKey] = readModels;
@@ -111,11 +125,23 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         {
             throw new DecisionScenarioCannotOrderCustomExecutionScopes();
         }
-        var store = new EventStoreForTesting(serviceProvider: null, clientArtifactsProvider: Defaults.Instance.ClientArtifactsProvider);
+
+        // Defaults exposes the serializer paired with its testing store; the store's serializer is internal.
+        var decisionDefaults = new Defaults(Defaults.Instance.ClientArtifactsProvider);
+        var store = (EventStoreForTesting)decisionDefaults.EventStore;
         var commandEvents = new List<AppendedEventWithResult>();
         var scenario = new DecisionCommandScenario(store, commandEvents);
         services.Replace(ServiceDescriptor.Singleton<IEventStore>(store));
         services.Replace(ServiceDescriptor.Singleton<IUnitOfWorkManager>(store.UnitOfWorkManager));
+
+        // The IEventSources factory follows the replaced store. IEventStore does not expose a serializer,
+        // so replace only our own registration in place, retaining the precedence of explicit overrides.
+        var serializerRegistration = (ServiceDescriptor)context[EventSerializerRegistrationKey];
+        var serializerIndex = services.IndexOf(serializerRegistration);
+        if (serializerIndex >= 0)
+        {
+            services[serializerIndex] = ServiceDescriptor.Singleton<IEventSerializer>(decisionDefaults.EventSerializer);
+        }
 
         // Non-decision reads (IReadModels, injected read models and an [Unprotected] command's DecisionRead<T>) resolve a
         // pinned instance or materialize from the same log the protected decision reads fold.
