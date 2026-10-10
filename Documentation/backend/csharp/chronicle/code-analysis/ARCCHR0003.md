@@ -17,6 +17,8 @@ This rule fires on every way of reaching it:
 | Enlisted in a unit of work | `eventStore.EventLog.Transactional.Append(...)` |
 | Reached with a null-conditional | `eventStore?.EventLog.Append(...)` |
 
+Completing a stream through the event log (`eventStore.EventLog.CompleteStream(...)`) is reported too. The message then tells you to return [`CompleteStream`](../commands/completing-streams.md) from the handler instead. Only an injected event store chain is inspected for this; an `IEventLog` constructor parameter is reported without knowing how it is used.
+
 `Transactional` hands back the same sequence enlisted in a unit of work, so the write is identical — the chain is one member longer. Every `Append*` overload counts, `AppendMany` included, and `?.` anywhere in the chain changes nothing.
 
 ## Severity

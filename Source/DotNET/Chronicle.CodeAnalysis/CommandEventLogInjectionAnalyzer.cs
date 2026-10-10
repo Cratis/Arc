@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
@@ -16,6 +17,8 @@ public class CommandEventLogInjectionAnalyzer : DiagnosticAnalyzer
     const string CommandAttributeName = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
     const string EventLogInterfaceName = "IEventLog";
     const string EventSequencesNamespace = "Cratis.Chronicle.EventSequences";
+    const string ReturnEventsAdvice = "Express every append through the handler return type, not IEventLog";
+    const string ReturnCompleteStreamAdvice = "Express every append through the handler return type, and close a stream by returning CompleteStream (see the completing streams documentation), not by calling IEventLog.CompleteStream";
     static readonly string[] _handlerMethodNames = ["Handle", "Provide"];
 
     /// <inheritdoc/>
@@ -53,10 +56,18 @@ public class CommandEventLogInjectionAnalyzer : DiagnosticAnalyzer
                     parameter.Locations[0],
                     namedTypeSymbol.Name,
                     method.Name,
-                    parameter.Name));
+                    parameter.Name,
+                    CompletesStream(context, method, parameter) ? ReturnCompleteStreamAdvice : ReturnEventsAdvice));
             }
         }
     }
+
+    static bool CompletesStream(SymbolAnalysisContext context, IMethodSymbol method, IParameterSymbol parameter) =>
+        method.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax(context.CancellationToken).DescendantNodes().OfType<MemberAccessExpressionSyntax>().Any(access =>
+                access.Name.Identifier.ValueText == "CompleteStream" &&
+                access.Expression is IdentifierNameSyntax receiver &&
+                receiver.Identifier.ValueText == parameter.Name));
 
     static bool IsCommand(INamedTypeSymbol typeSymbol) =>
         typeSymbol.GetAttributes().Any(attribute =>

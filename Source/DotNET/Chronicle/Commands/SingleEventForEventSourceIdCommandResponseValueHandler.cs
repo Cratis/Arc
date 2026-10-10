@@ -43,7 +43,8 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
                 concurrencyScope,
                 eventForEventSourceId.SuppliedTags(),
                 eventForEventSourceId.Occurred,
-                routing))
+                routing,
+                eventForEventSourceId.NamedTags))
         {
             var result = await eventLog.AppendForCommand(
                 eventForEventSourceId.EventSourceId,
@@ -51,7 +52,8 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
                 routing,
                 concurrencyScope,
                 eventForEventSourceId.SuppliedTags(),
-                eventForEventSourceId.Occurred);
+                eventForEventSourceId.Occurred,
+                CommandTransactionAppender.MergeEventTags(commandContext, eventForEventSourceId.NamedTags));
 
             if (!result.IsSuccess)
             {

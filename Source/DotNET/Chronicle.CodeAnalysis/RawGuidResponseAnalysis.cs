@@ -140,9 +140,22 @@ static class RawGuidResponseAnalysis
     internal static bool HasAttribute(ISymbol symbol, string metadataName, Compilation compilation) =>
         symbol.GetAttributes().Any(attribute => IsType(attribute.AttributeClass, metadataName, compilation));
 
-    static bool IsGuid(ITypeSymbol? type, Compilation compilation) => IsType(type, "System.Guid", compilation);
+    /// <summary>
+    /// Checks a type's identity against a framework metadata name, ignoring generic arguments.
+    /// </summary>
+    /// <param name="type">The type to check.</param>
+    /// <param name="metadataName">The metadata name to compare with.</param>
+    /// <param name="compilation">The compilation containing framework identities.</param>
+    /// <returns>Whether the type is the named type.</returns>
+    internal static bool IsType(ITypeSymbol? type, string metadataName, Compilation compilation) =>
+        type is not null && SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, compilation.GetTypeByMetadataName(metadataName));
 
-    static IEnumerable<IPropertySymbol> PublicProperties(INamedTypeSymbol command)
+    /// <summary>
+    /// Finds the public properties reflection would report for the command, honoring hiding and overriding.
+    /// </summary>
+    /// <param name="command">The command type.</param>
+    /// <returns>The visible public properties.</returns>
+    internal static IEnumerable<IPropertySymbol> PublicProperties(INamedTypeSymbol command)
     {
         var seen = new List<IPropertySymbol>();
         for (var type = command; type is not null; type = type.BaseType)
@@ -167,6 +180,8 @@ static class RawGuidResponseAnalysis
             }
         }
     }
+
+    static bool IsGuid(ITypeSymbol? type, Compilation compilation) => IsType(type, "System.Guid", compilation);
 
     static bool Overrides(IPropertySymbol derived, IPropertySymbol property)
     {
@@ -239,7 +254,4 @@ static class RawGuidResponseAnalysis
 
         return false;
     }
-
-    static bool IsType(ITypeSymbol? type, string metadataName, Compilation compilation) =>
-        type is not null && SymbolEqualityComparer.Default.Equals(type.OriginalDefinition, compilation.GetTypeByMetadataName(metadataName));
 }

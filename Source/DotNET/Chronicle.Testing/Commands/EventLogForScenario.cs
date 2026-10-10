@@ -22,6 +22,11 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// <param name="unitOfWorkManager">The harness's real <see cref="IUnitOfWorkManager"/>.</param>
 internal sealed class EventLogForScenario(IEventLog inner, IUnitOfWorkManager unitOfWorkManager) : IEventLog
 {
+    /// <summary>
+    /// Gets the successful completions recorded by this log.
+    /// </summary>
+    public List<(EventStreamType EventStreamType, EventStreamId EventStreamId)> CompletedStreams { get; } = [];
+
     /// <inheritdoc/>
     public EventSequenceId Id => inner.Id;
 
@@ -86,5 +91,14 @@ internal sealed class EventLogForScenario(IEventLog inner, IUnitOfWorkManager un
     public Task Redact(EventSourceId eventSourceId, RedactionReason reason, params Type[] clrEventTypes) => inner.Redact(eventSourceId, reason, clrEventTypes);
 
     /// <inheritdoc/>
-    public Task<Result<EventSequenceNumber, CompleteStreamError>> CompleteStream(EventStreamType eventStreamType, EventStreamId eventStreamId) => inner.CompleteStream(eventStreamType, eventStreamId);
+    public async Task<Result<EventSequenceNumber, CompleteStreamError>> CompleteStream(EventStreamType eventStreamType, EventStreamId eventStreamId)
+    {
+        var result = await inner.CompleteStream(eventStreamType, eventStreamId);
+        if (result.IsSuccess || (result.TryGetError(out var error) && error == CompleteStreamError.AlreadyCompleted))
+        {
+            CompletedStreams.Add((eventStreamType, eventStreamId));
+        }
+
+        return result;
+    }
 }

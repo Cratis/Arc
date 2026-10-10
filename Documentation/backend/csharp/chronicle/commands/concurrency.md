@@ -159,6 +159,44 @@ public record MonthlyReportGenerated(string MonthKey);
 
 > **Note**: If both a non-empty `[EventStreamId]` value and `ICanProvideEventStreamId` are present on the same command, Chronicle throws an `AmbiguousEventStreamId` exception. Choose one approach, or set the attribute value to `null` to defer to the interface.
 
+## Template Event Stream Ids
+
+When a stream id combines command properties, use a template instead of implementing `ICanProvideEventStreamId`. Templates are resolved for **Arc commands only**. On a Chronicle reactor, the same `[EventStreamId]` value is used literally; it does not interpolate reactor properties.
+
+```csharp
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+
+[Command]
+[EventStreamType("Reporting")]
+[EventStreamId("{ReportingScopeId}:{Period}")]
+public record GenerateReport(EventSourceId AccountId, string ReportingScopeId, DateOnly Period)
+{
+    public ReportGenerated Handle() => new(Period);
+}
+
+[EventType]
+public record ReportGenerated(DateOnly Period);
+```
+
+`{Name}` selects a readable public instance property. Each part is formatted as follows:
+
+| Part type | Format |
+| --- | --- |
+| Concept | Its underlying value, using the rules below |
+| `string` | Unchanged |
+| Enum | Its name |
+| `DateOnly` | `yyyy-MM-dd` |
+| `DateTime`, `DateTimeOffset`, `TimeOnly` | Round-trip `O`, preserving seconds and fractional ticks |
+| `TimeSpan` | Invariant `c` |
+| Other `IFormattable` values, including numbers and `Guid` | Default format with invariant culture |
+| Other values | `ToString()` |
+
+`{{` and `}}` escape literal braces within a template. Unknown properties, null or blank parts, malformed braces, and a resolved id equal to `Default` or empty are refused. Arc resolves template parts on first route use after authorization and validation, so a validator can reject a missing part without a template exception. Constant values and `ICanProvideEventStreamId` keep their existing behavior.
+
+`EventStreamIdTemplate.Resolve("{ReportingScopeId}:{Period}", command)` resolves a template outside the pipeline. `EventStreamIdTemplate.ResolveFor(command)` resolves the command's attribute or provider interface exactly as the pipeline does, and returns null when neither declares an id. Use the same function for a read or seed route instead of repeating the join. An attribute with a value and `ICanProvideEventStreamId` still raises `AmbiguousEventStreamId`.
+
 ## Event Source Id
 
 The event source id used when appending is resolved from the command by convention — not from the concurrency scope. See [Event Source Id Resolution](./events.md#event-source-id-resolution) for the full resolution order, including `ICanProvideEventSourceId`.
@@ -178,4 +216,12 @@ With an opted-in concurrency attribute, automatic optimistic concurrency resolve
 
 When that newer tail would invalidate the decision, capture the revision during the read and return it in `EventsWithConcurrencyScopes`. Arc passes it unchanged into the same command transaction as the ordered events. Interference after the read then produces a concurrency validation failure at commit, with no partial append.
 
+For a decision over stream facts, [`IStreamReads`](./stream-decisions.md) captures the tail before reading the events and returns a `StreamDecision`. Its `Append(...)` routes the facts and builds the exact scope, including the empty-stream first-append check.
+
 This is opt-in. Returning ordinary events or `EventForEventSourceId` values keeps the automatic strategy and its existing behavior. For an empty read, explicitly convert `Unavailable` to `BeforeFirst` as shown in the [exact-scope example](./events.md#events-with-exact-concurrency-scopes), and deploy a compatible server. A scope watching one event type cannot enforce a rule over changes outside that narrowing.
+
+## Exact scopes replace automatic capture
+
+When `Handle()` returns `EventsWithConcurrencyScopes`, its supplied scopes replace automatic capture. Remove `concurrency: true` from `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` on that command, but keep their routing values. A later automatically captured tail would defeat the purpose of guarding the revision used by the decision.
+
+For `[EventSource<TSource>(stream)]`, keep the concurrency dimensions on the shared definition. The exact returned scope intentionally takes precedence for this command without changing the policy for other commands using the same definition. Chronicle carries one scope per event source id per command, so two stream decisions for the same source cannot supply independent guards.
