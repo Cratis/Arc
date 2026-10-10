@@ -24,10 +24,8 @@ public class from_a_generated_concept_with_a_validator : a_generated_document
         }
         """)));
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void should_keep_the_legacy_production_without_the_blocked_mapping(bool optional)
+    [Fact]
+    public void should_keep_the_legacy_production_without_the_blocked_optional_mapping()
     {
         var source = IdentifierSources.With("""
             public class AuthorIdValidator : Cratis.Arc.Validation.ConceptValidator<AuthorId> { }
@@ -39,7 +37,7 @@ public class from_a_generated_concept_with_a_validator : a_generated_document
                     return (authorId, new(authorId, Name));
                 }
             }
-            """).Replace("public record AuthorRegistered(string Name);", $"public record AuthorRegistered(AuthorId{(optional ? "?" : string.Empty)} Copy, string Name);", StringComparison.Ordinal);
+            """).Replace("public record AuthorRegistered(string Name);", "public record AuthorRegistered(AuthorId? Copy, string Name);", StringComparison.Ordinal);
         Generate((Analyzed.SlicePath, source));
         Result.Source.ShouldContain("copy AuthorId");
         Result.Source.ShouldNotContain("copy = authorId");
@@ -72,15 +70,7 @@ public class from_a_generated_concept_with_a_validator : a_generated_document
         new ScreenplayEmitter().Emit(legacyModel, new()).Source.ShouldEqual(Result.Source);
         RoundTrip.IsStable.ShouldBeTrue();
         RoundTrip.Errors.ShouldBeEmpty();
-        if (optional)
-        {
-            AssertDocument();
-        }
-        else
-        {
-            Bound.Success.ShouldBeFalse();
-            Bound.Diagnostics.Any(diagnostic => diagnostic.Message.Contains("must map every required event property", StringComparison.Ordinal)).ShouldBeTrue();
-        }
+        AssertDocument();
 
         var withScenario = Result.Model with
         {

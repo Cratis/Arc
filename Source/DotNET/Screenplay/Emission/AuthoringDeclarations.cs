@@ -37,7 +37,7 @@ public static class AuthoringDeclarations
             Slices = model.Slices.Select(slice => ResolveSlice(slice, systems, conflictingSources, readOwners, model, diagnostics, authoringOnlyConstructs)).ToList()
         };
 
-        return RemoveOrphans(model, resolved);
+        return RemoveOrphans(model, CommandProductionPruning.Complete(model, resolved, diagnostics));
     }
 
     /// <summary>Removes declarations used only by authoring intent that was withheld.</summary>
@@ -61,11 +61,12 @@ public static class AuthoringDeclarations
     /// Withholds reads of omitted declarations and every authoring mapping depending on them.
     /// </summary>
     /// <param name="command">The command referencing read models.</param>
+    /// <param name="application">The event declarations typing required payloads.</param>
     /// <param name="omitted">The omitted declaration names.</param>
     /// <param name="diagnostics">The loss reports.</param>
     /// <param name="location">The command's slice.</param>
     /// <returns>The command without unavailable read dependencies.</returns>
-    internal static CommandModel WithoutReadModels(CommandModel command, IReadOnlySet<string> omitted, ScreenplayDiagnostics diagnostics, string location)
+    internal static CommandModel WithoutReadModels(CommandModel command, ApplicationModel application, IReadOnlySet<string> omitted, ScreenplayDiagnostics diagnostics, string location)
     {
         if (command.Authoring is not { } authoring)
         {
@@ -79,7 +80,7 @@ public static class AuthoringDeclarations
 
         diagnostics.Information(
             ScreenplayDiagnosticCodes.UnreadableCommandProvisioning,
-            $"Command '{command.Name}': an omitted read model cannot be read; its dependency, requirements and mappings were left in code",
+            $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code",
             location);
         var operations = authoring.Operations.Where(operation =>
         {
@@ -98,10 +99,7 @@ public static class AuthoringDeclarations
 
         return command with
         {
-            Produces = command.Produces.Select(production => production with
-            {
-                Mappings = production.Mappings.Where(mapping => mapping.Source is not PropertyPathSource path || !ReferencesRead(path.Path, unavailable)).ToList()
-            }).ToList(),
+            Produces = PruneReadProductions(command, application, unavailable, diagnostics, location),
             Authoring = authoring with
             {
                 Reads = authoring.Reads.Where(read => !omitted.Contains(read.Name)).ToList(),
@@ -144,6 +142,22 @@ public static class AuthoringDeclarations
             .Select(property => property.Type.Name).Prepend(query.ReturnType.Name)))
         .Concat(model.Slices.SelectMany(slice => slice.Screens).SelectMany(screen => screen.Data).Select(data => data.Type.Name))
         .Concat(model.Slices.SelectMany(slice => slice.ReadModels).SelectMany(readModel => readModel.Properties).Select(property => property.Type.Name));
+
+    static List<ProducesModel> PruneReadProductions(CommandModel command, ApplicationModel application, HashSet<string> unavailable, ScreenplayDiagnostics diagnostics, string location) => command.Produces.Select(production =>
+    {
+        if (production.When is { } condition && ReferencesRead(condition, unavailable))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnmappableCommandProduction,
+                $"Production '{production.EventName}' was left out because its condition depends on an unavailable read",
+                $"{location}.{command.Name}");
+
+            return null;
+        }
+        var omitted = production.Mappings.Where(mapping => mapping.Source is PropertyPathSource path && ReferencesRead(path.Path, unavailable)).ToList();
+
+        return CommandProductionPruning.WithoutMappings(production, omitted, application, diagnostics, $"{location}.{command.Name}");
+    }).OfType<ProducesModel>().ToList();
 
     static bool ReferencesRead(string path, HashSet<string> aliases) => aliases.Contains(path.Split('.')[0]);
 
@@ -224,10 +238,7 @@ public static class AuthoringDeclarations
             var keptReads = authoring.Reads.Where(read => readOwners.ContainsKey(read.Name)).Select(read => read with { Namespace = readOwners[read.Name] }).ToList();
             return command with
             {
-                Produces = command.Produces.Select(production => production with
-                {
-                    Mappings = production.Mappings.Where(mapping => mapping.Source is not PropertyPathSource path || !ReferencesRead(path.Path, unavailableReads)).ToList()
-                }).ToList(),
+                Produces = PruneReadProductions(command, application, unavailableReads, diagnostics, slice.Namespace),
                 Authoring = authoring with
                 {
                     Operations = operations,

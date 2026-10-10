@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Emission.Slices;
@@ -26,13 +27,16 @@ internal static class ReadModelReferences
             return model;
         }
 
-        return model with
-        {
-            Slices = model.Slices.Select(slice => Resolve(slice, omitted, diagnostics)).ToList()
-        };
+        return CommandProductionPruning.Complete(
+            model,
+            model with
+            {
+                Slices = model.Slices.Select(slice => Resolve(slice, model, omitted, diagnostics)).ToList()
+            },
+            diagnostics);
     }
 
-    static SliceModel Resolve(SliceModel slice, HashSet<string> omitted, ScreenplayDiagnostics diagnostics)
+    static SliceModel Resolve(SliceModel slice, ApplicationModel application, HashSet<string> omitted, ScreenplayDiagnostics diagnostics)
     {
         bool Keep(string readModel, string reference)
         {
@@ -59,7 +63,7 @@ internal static class ReadModelReferences
 
         return slice with
         {
-            Commands = slice.Commands.Select(command => AuthoringDeclarations.WithoutReadModels(command, omitted, diagnostics, slice.Namespace)).ToList(),
+            Commands = slice.Commands.Select(command => AuthoringDeclarations.WithoutReadModels(command, application, omitted, diagnostics, slice.Namespace)).ToList(),
             Queries = queries,
             Screens = screens,
             Projections = slice.Projections.Where(projection => Keep(projection.ReadModel, $"Projection '{projection.Identifier}'")).ToList(),
