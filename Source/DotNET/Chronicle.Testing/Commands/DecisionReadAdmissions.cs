@@ -21,7 +21,7 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// </para>
 /// <para>
 /// Only <see cref="DecisionRead{T}"/> parameters of the <c>Handle</c> and <c>Provide</c> methods of <c>[ProtectedDecision]</c>
-/// commands, including those inherited from a base type, are checked. Explicit <see cref="IDecisionReads.Get{T}"/> calls
+/// commands, including those inherited from a base type, are checked. Explicit <see cref="IDecisionReads.Get{T}(ReadModelKey, CancellationToken)"/> calls
 /// inside a method body are not statically visible. Projections compiled into the test run (for example spec-local projections for a production read model) take part in discovery, and can make a
 /// read model ambiguous here that is admitted in production.
 /// </para>
