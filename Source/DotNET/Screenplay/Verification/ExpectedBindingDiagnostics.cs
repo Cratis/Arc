@@ -9,7 +9,7 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// Identifies the executable admission limits deliberately retained in generated authoring documents.
 /// </summary>
 /// <remarks>
-/// Screenplay 4.98.0 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
+/// Screenplay 4.124.1 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
 /// so these exact message shapes follow SemanticModelBinder.Commands, ReadModels, Concepts, and CommandProductions at that
 /// version. A changed or unknown message fails closed as SP0056 rather than silently acquiring an exemption.
 /// </remarks>
@@ -29,7 +29,7 @@ public static class ExpectedBindingDiagnostics
             var command = Reason(message, "Command");
 
             return command == " concurrency metadata keeps its legacy meaning and cannot bind to ESM v1." ||
-                (command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
+                (authoringOnlyConstructs && command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
         }
 
         if (diagnostic.Code != "PLAY0268")
@@ -39,20 +39,22 @@ public static class ExpectedBindingDiagnostics
 
         if (authoringOnlyConstructs &&
             (message == "Operations and systems are not admitted by any supported executable model (ESM) version yet (#301)." ||
-            message == "Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302)." ||
-            message == "Specification event routes are not admitted by any supported executable model (ESM) version yet (#457)."))
+            Reason(Reason(message, "Stream id mapping") ?? string.Empty, " on command") == " reads a property path; only direct command inputs are admitted by event routes."))
         {
             return true;
         }
 
         var query = Reason(message, "Query");
 
-        return Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
-            Reason(message, "Read model") == " must have one unambiguous keyed query to identify instances in the first ESM v1 vertical." ||
+        // Screenplay#624: same-named queries in different slices hit a binder limit. Remove this tolerance when its fix ships.
+        return Reason(message, "Query reference") == " is ambiguous across slices in the current ESM v1 binder." ||
+            Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
+            Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
             Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
-            query == " uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical." ||
-            query == " must declare one caller-supplied 'by' argument in the first ESM v1 vertical." ||
-            query == " must return one optional read model in the first ESM v1 vertical.";
+            query == " uses filtering, scope, or implementation behavior outside the admitted ESM query shapes." ||
+            query == " must use caller-supplied 'by' arguments in the admitted ESM query shapes." ||
+            query == " without a 'by' argument must return a read-model collection in the admitted ESM query shapes." ||
+            query == " must return an optional read model or a read-model collection in the admitted ESM query shapes.";
     }
 
     /// <summary>

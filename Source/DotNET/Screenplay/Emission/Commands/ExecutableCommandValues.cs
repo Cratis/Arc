@@ -28,13 +28,16 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
     /// <param name="maximumVersion">The executable model version cap, or null for the latest constructs.</param>
     /// <param name="authoringOnlyConstructs">Whether to retain additional authoring-only constructs.</param>
     /// <returns>The model used consistently by command, event, and specification emission.</returns>
-    public ApplicationModel Apply(ApplicationModel model, SemanticVersion? maximumVersion, bool authoringOnlyConstructs = false) => model with
-    {
-        Slices = model.Slices.Select(slice => slice with
+    public ApplicationModel Apply(ApplicationModel model, SemanticVersion? maximumVersion, bool authoringOnlyConstructs = false) => CommandProductionPruning.Complete(
+        model,
+        model with
         {
-            Commands = slice.Commands.Select(command => Admit(command, model, slice.Namespace, maximumVersion, authoringOnlyConstructs)).ToList()
-        }).ToList()
-    };
+            Slices = model.Slices.Select(slice => slice with
+            {
+                Commands = slice.Commands.Select(command => Admit(command, model, slice.Namespace, maximumVersion, authoringOnlyConstructs)).ToList()
+            }).ToList()
+        },
+        diagnostics);
 
     static bool CanGenerate(PropertyModel property, CommandAuthoringModel authoring, ApplicationModel model) =>
         !property.Type.IsOptional && !property.Type.IsCollection &&
@@ -54,6 +57,10 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
 
     CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
+        if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent)
+        {
+            command = AuthoringDeclarations.WithoutReadModels(command, model, readIntent.Reads.Select(read => read.Name).ToHashSet(StringComparer.Ordinal), diagnostics, location);
+        }
         if (command.Authoring is not { } authoring)
         {
             return command;
@@ -120,7 +127,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var legacy = capped || protectedValues.Count > 0 || requiredMapping || preserveScenarios || preserveExplicitSources;
         if (requiredMapping)
         {
-            Report(command, location, "A required event payload mapping needs an unadmitted generated value; generated values and responses were left in code and the command retains its legacy productions without unreadable mappings");
+            Report(command, location, "A required event payload mapping needs an unadmitted generated value; generated values and responses were left in code, and dependent productions were withheld rather than emitted incomplete");
         }
         if (legacy)
         {
@@ -134,7 +141,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Response = legacy || (authoring.Response is { } response && blocked.Contains(response)) ? null : authoring.Response,
             ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
             Operations = authoringOnlyConstructs ? authoring.Operations : [],
-            Route = authoringOnlyConstructs ? authoring.Route : null,
+            Route = authoringOnlyConstructs || maximumVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8) ? authoring.Route : null,
             Reads = authoringOnlyConstructs ? authoring.Reads : [],
             Requirements = authoringOnlyConstructs ? authoring.Requirements : []
         };
@@ -156,6 +163,12 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             }
 
             var omitted = production.Mappings.Where(mapping => mapping.Source is PropertyPathSource source && blocked.Any(name => Reads(source, name))).ToList();
+            var pruned = CommandProductionPruning.WithoutMappings(production, omitted, model, diagnostics, $"{location}.{command.Name}");
+            if (pruned is null)
+            {
+                continue;
+            }
+
             foreach (var mapping in omitted)
             {
                 diagnostics.Warning(
@@ -164,14 +177,24 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
                     $"{location}.{command.Name}");
             }
 
-            var mappings = production.Mappings.Except(omitted).ToList();
+            var mappings = pruned.Mappings.ToList();
 
-            productions.Add(production with
+            productions.Add(pruned with
             {
                 Mappings = mappings,
                 CanInline = production.CanInline && !legacy && mappings.Count == production.Mappings.Count(),
                 UsesCommandContext = production.UsesCommandContext && !(authoring.Identifier is not null && retained.Identifier is null)
             });
+        }
+
+        if (!authoringOnlyConstructs && retained.Route is { } route)
+        {
+            var reason = CommandRouteAdmission.Failure(route, command with { Produces = productions }, model, authoring: false);
+            if (reason is not null)
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': {reason}; its entire route was left out", $"{location}.{command.Name}");
+                retained = retained with { Route = null };
+            }
         }
 
         return command with

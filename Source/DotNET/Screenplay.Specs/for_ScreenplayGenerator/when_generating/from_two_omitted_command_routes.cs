@@ -29,7 +29,7 @@ public class from_two_omitted_command_routes : a_generated_document
     }
 
     [Fact]
-    public void should_identify_each_event_source_definition_route()
+    public void should_state_each_event_source_definition_route()
     {
         Generate((Analyzed.SlicePath, IdentifierSources.With("""
             [Cratis.Chronicle.EventSources.EventSource]
@@ -46,7 +46,8 @@ public class from_two_omitted_command_routes : a_generated_document
                 public AuthorRegistered Handle() => new(Name);
             }
             """)));
-        AssertRoutes(Result.Diagnostics, ScreenplayDiagnosticCodes.EventSourceNotRepresentable);
+        Result.Source.Split("stream Author.Registration", StringSplitOptions.None).Length.ShouldEqual(3);
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).ShouldBeFalse();
         AssertDocument();
     }
 

@@ -37,6 +37,11 @@ public record WholeApplication(IReadOnlyList<Compilation> Compilations, Screenpl
     public bool AuthoringOnlyConstructs { get; init; }
 
     /// <summary>
+    /// Gets whether executable event routes are admitted by the requested model version.
+    /// </summary>
+    public bool ExecutableRoutes { get; init; }
+
+    /// <summary>
     /// Gets the models every syntax tree of the application is read through.
     /// </summary>
     public SemanticModels Models { get; } = new(Compilations);

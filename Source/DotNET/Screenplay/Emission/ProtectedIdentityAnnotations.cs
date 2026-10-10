@@ -23,7 +23,7 @@ public static class ProtectedIdentityAnnotations
                 .Where(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))
                 .Select(property => property.Type.Name))
             .Concat(commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
-                .SelectMany(route => new[] { route.IdentifierType?.Name, route.StreamIdType?.Name }.OfType<string>()))
+                .SelectMany(route => new[] { route.IdentifierType?.Name, route.StreamIdType?.Name }.OfType<string>().Concat(route.StreamIdParts.Select(part => part.Type.Name))))
             .ToHashSet(StringComparer.Ordinal);
 
         return model with

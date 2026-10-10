@@ -4,6 +4,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
+using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Reactors;
@@ -43,9 +44,16 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public bool AuthoringOnlyConstructs { get; init; }
 
     /// <summary>
+    /// Gets whether specification event routes are admitted by the executable version cap.
+    /// </summary>
+    public bool ExecutableRoutes { get; init; }
+
+    /// <summary>
     /// Gets where routed occurrences from retained specifications are collected for source declarations.
     /// </summary>
     public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
+
+    bool EventRoutes => AuthoringOnlyConstructs || ExecutableRoutes;
 
     /// <summary>
     /// Builds the specifications of a slice.
@@ -96,13 +104,14 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
 
-        if (AuthoringOnlyConstructs && command?.Authoring?.Route is { Stream: not null } commandRoute &&
+        if (EventRoutes && command?.Authoring?.Route is { Stream: not null } commandRoute &&
             command.Produces.All(production => production.UsesCommandContext))
         {
             var streamId = commandRoute.StreamId is { } property
                 ? specification.When!.Values.SingleOrDefault(mapping => mapping.Property == property)?.Source as LiteralSource
-                : null;
-            if (commandRoute.StreamId is not null && streamId is null)
+                : commandRoute.StreamIdLiteral;
+            var streamIdParts = commandRoute.StreamIdParts.Select(part => new PropertyMappingModel(part.Name, part.Value is LiteralSource literal ? literal : part.Value is PropertyPathSource path ? specification.When!.Values.SingleOrDefault(mapping => mapping.Property == path.Path)?.Source ?? new LiteralSource(null) : new LiteralSource(null))).ToList();
+            if ((commandRoute.StreamIdType is not null && streamId is null) || streamIdParts.Exists(part => part.Source is not LiteralSource { Value: not null }))
             {
                 Diagnostics?.Warning(
                     ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -114,7 +123,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             specification = specification with
             {
                 Then = specification.Then.Select(state => state.Kind == SpecificationStateKind.Event && state.For is null
-                    ? state with { Route = new(commandRoute.Source, commandRoute.Stream, streamId) }
+                    ? state with { Route = new(commandRoute.Source, commandRoute.Stream, streamId) { StreamIdParts = streamIdParts } }
                     : state).ToList()
             };
         }
@@ -150,7 +159,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
 
-        if (!AuthoringOnlyConstructs && specification.Given.Concat(specification.Then)
+        if (!EventRoutes && specification.Given.Concat(specification.Then)
             .Concat(specification.When is { } statedAction ? [statedAction] : []).Any(state => state.Route is { Source: not null }))
         {
             Diagnostics?.Information(
@@ -165,7 +174,13 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             .Where(state => state.Kind == SpecificationStateKind.Event).ToList();
         var requiresLiteralRoute = specification.Given.Concat(specification.When is { } appendedAction ? [appendedAction] : [])
             .Any(state => state.Route is { Source: not null } && state.For is null);
-        if (AuthoringOnlyConstructs && (requiresLiteralRoute || occurrences.Exists(state => !CanStateRoute(state, occurrences))))
+        if (EventRoutes && occurrences.Exists(state => state.Route?.Source == "Default"))
+        {
+            Diagnostics?.Information(ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable, $"The scenario '{specification.Name}' was left out because source 'Default' has a reserved stored name (PLAY0273); no partial route was emitted", location);
+            return null;
+        }
+
+        if (EventRoutes && (requiresLiteralRoute || occurrences.Exists(state => !CanStateRoute(state, occurrences))))
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -309,9 +324,22 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
     bool CanStateRoute(SpecificationStateModel state, IEnumerable<SpecificationStateModel> occurrences)
     {
-        if (state.Route is not { Source: not null, Stream: not null } route)
+        if (state.Route is not { } route)
         {
             return true;
+        }
+        if (route.Source is null && route.Stream is null)
+        {
+            return route.StreamId is null && route.StreamIdParts.Count == 0;
+        }
+        if (route.Source is null || route.Stream is null)
+        {
+            return false;
+        }
+
+        if (route.Source == "Default")
+        {
+            return false;
         }
 
         var declarations = Application is { } application
@@ -321,7 +349,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             : [];
         var streamDeclarations = declarations.Where(candidate => candidate.Stream == route.Stream).ToList();
         if (declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().Distinct().Count() > 1 ||
-            streamDeclarations.Select(candidate => candidate.StreamIdType).Distinct().Count() > 1)
+            streamDeclarations.Exists(candidate => !CommandRouteAdmission.SameStream(streamDeclarations[0], candidate)))
         {
             return false;
         }
@@ -339,27 +367,39 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         }
 
         var streamIdType = declared is not null ? declared.StreamIdType : route.StreamId is not null ? new TypeReferenceModel("String", false, false) : null;
+        if (declared?.StreamIdParts.Count > 0)
+        {
+            return streamIdType is null && route.StreamId is null && route.StreamIdParts.Count == declared.StreamIdParts.Count &&
+                route.StreamIdParts.Zip(declared.StreamIdParts).All(pair => pair.First.Property == pair.Second.Name &&
+                    pair.First.Source is LiteralSource part && CanStateStreamId(part, pair.Second.Type));
+        }
         if (streamIdType is null)
         {
-            return route.StreamId is null;
+            return route.StreamId is null && route.StreamIdParts.Count == 0;
         }
 
-        return route.StreamId is { } id && CanStateLiteral(id, streamIdType) &&
+        return route.StreamIdParts.Count == 0 && route.StreamId is { } id && CanStateStreamId(id, streamIdType);
+    }
+
+    bool CanStateStreamId(LiteralSource id, TypeReferenceModel type) => CanStateLiteral(id, type) &&
             (id.Value is not string text || (text.Length > 0 && text.IsNormalized() && naming.ToStringLiteral(text) == text)) &&
             (id.Value is not long number || number is >= -9007199254740991 and <= 9007199254740991);
-    }
 
     bool CanStateSource(SpecificationStateModel state)
     {
         var producers = Application?.Slices.SelectMany(slice => slice.Commands)
             .Where(command => command.Produces.Any(produced => naming.ToDeclarationName(produced.EventName) == naming.ToDeclarationName(state.Name)))
             .ToList() ?? [];
-        if (AuthoringOnlyConstructs && state.Route is { Source: not null } route)
+        if (EventRoutes && state.Route is { Source: not null } route)
         {
             var declaredType = Application?.Slices.SelectMany(slice => slice.Commands)
                 .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
                 .FirstOrDefault(candidate => candidate.Source == route.Source)?.IdentifierType;
-            if (declaredType is null && producers.Count == 0)
+            if (declaredType is not null)
+            {
+                return CanStateLiteral(state.For!, declaredType);
+            }
+            if (producers.Count == 0)
             {
                 return state.For!.Value is string;
             }
@@ -477,7 +517,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
 
     SpecificationEventSyntax Event(SpecificationStateModel state, bool expected = false)
     {
-        if (AuthoringOnlyConstructs && !expected && state.Route is { Source: null, Stream: null })
+        if (EventRoutes && !expected && state.Route is { Source: null, Stream: null })
         {
             Diagnostics?.Information(
                 ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable,
@@ -488,13 +528,14 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return new(naming.ToDeclarationName(state.Name), [.. Values(state)], SourceLocation.Start)
         {
             For = SourceOf(state),
-            Stream = AuthoringOnlyConstructs && state.Route is { Source: not null, Stream: not null } route
+            Stream = EventRoutes && state.Route is { Source: not null, Stream: not null } route
                 ? new(route.Source, route.Stream, SourceLocation.Start)
                 {
-                    StreamId = route.StreamId is { } id ? new("streamId", _sources.Convert(id), SourceLocation.Start) : null
+                    StreamId = route.StreamId is { } id ? new("streamId", _sources.Convert(id), SourceLocation.Start) : null,
+                    StreamIdParts = route.StreamIdParts.Select(part => new PropertyMappingSyntax(naming.ToPropertyName(part.Property), _sources.Convert(part.Source), SourceLocation.Start)).ToList()
                 }
                 : null,
-            NoStream = AuthoringOnlyConstructs && expected && state.Route is { Source: null, Stream: null } ? new(SourceLocation.Start) : null
+            NoStream = EventRoutes && expected && state.Route is { Source: null, Stream: null } ? new(SourceLocation.Start) : null
         };
     }
 

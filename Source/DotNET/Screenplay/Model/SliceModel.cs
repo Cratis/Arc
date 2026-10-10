@@ -63,6 +63,11 @@ public record SliceModel(
     public IEnumerable<ReadModelModel> ReadModels { get; init; } = [];
 
     /// <summary>
+    /// Gets read models analysis could not place faithfully, retained only to withhold their references during emission.
+    /// </summary>
+    public IReadOnlyList<ReadModelModel> OmittedReadModels { get; init; } = [];
+
+    /// <summary>
     /// Creates a slice that declares nothing, for use as a starting point.
     /// </summary>
     /// <param name="namespace">The full namespace the slice lives in.</param>

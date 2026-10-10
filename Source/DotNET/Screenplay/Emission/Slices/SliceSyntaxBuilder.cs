@@ -115,8 +115,8 @@ public class SliceSyntaxBuilder(
     /// <returns>The read models, ordered by name.</returns>
     /// <remarks>
     /// A read model placed in the slice is declared when the document declares it at all (see
-    /// <see cref="DeclaredReadModels"/>). One the document leaves out is named by whatever builds or reads it exactly
-    /// as it was before read models were declared. A read model an authoring-only <c>reads</c> needs, that the
+    /// <see cref="DeclaredReadModels"/>). References to a placed read model the document leaves out are withheld
+    /// together by <see cref="ReadModelReferences"/>. A read model an authoring-only <c>reads</c> needs, that the
     /// document declares nowhere, is declared in the slice of the projection building it.
     /// </remarks>
     IEnumerable<ReadModelSyntax> BuildReadModels(SliceModel slice)

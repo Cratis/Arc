@@ -46,5 +46,8 @@ public class a_read_model_holding_two_records_sharing_a_name : a_read_model_docu
     [Fact] void should_not_declare_either_record_for_it() => Result.Source.ShouldNotContain("type Address");
     [Fact] void should_say_which_property() => LeftOut.Single().ShouldContain("'ShipTo'");
     [Fact] void should_report_no_warning() => GenerationWarnings.ShouldBeEmpty();
+    [Fact] void should_leave_out_the_query() => Result.Source.ShouldNotContain("query All");
+    [Fact] void should_report_the_omitted_query_as_information() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableTypeReference && diagnostic.Message.Contains("Query 'All'", StringComparison.Ordinal)).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+    [Fact] void should_not_leave_unresolved_references() => UnresolvedReferences.ShouldBeEmpty();
     [Fact] void should_compile_without_findings() => CompilationFindings.ShouldBeEmpty();
 }

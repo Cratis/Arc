@@ -15,4 +15,9 @@ public record SpecificationEventRouteModel(string? Source, string? Stream, Liter
     /// Gets the route of an occurrence appended without source or stream metadata.
     /// </summary>
     public static readonly SpecificationEventRouteModel NoStream = new(null, null, null);
+
+    /// <summary>
+    /// Gets the concrete composite stream-id parts, in declaration order.
+    /// </summary>
+    public IReadOnlyList<PropertyMappingModel> StreamIdParts { get; init; } = [];
 }

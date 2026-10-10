@@ -73,7 +73,8 @@ public class ambiguous_authoring_declarations : Specification
         kept.Authoring!.Reads.ShouldBeEmpty();
         kept.Authoring.Requirements.ShouldBeEmpty();
         kept.Authoring.Operations.ShouldBeEmpty();
-        kept.Produces.Single().Mappings.ShouldBeEmpty();
+        kept.Produces.ShouldBeEmpty();
+        diagnostics.All.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableCommandProduction).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         resolved.Concepts.ShouldBeEmpty();
         diagnostics.All.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandOperation).Message.ShouldContain("Command 'Register': operation 'Notify' depends on an unavailable read");
         diagnostics.All.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandProvisioning && diagnostic.Message.Contains("Command 'Register'", StringComparison.Ordinal)).Location.ShouldEqual("Library.Authors");

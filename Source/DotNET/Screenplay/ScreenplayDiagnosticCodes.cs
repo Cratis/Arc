@@ -522,7 +522,7 @@ public static class ScreenplayDiagnosticCodes
     /// document declares. When two read models share a simple name, when the name is already taken by a concept or a
     /// type, when a property is typed by something the document cannot declare, or when no slice refers to it, any
     /// declaration written would describe a shape the application does not have. The read model is left out instead,
-    /// so whatever builds or reads it names it exactly as it did before read models were declared at all.
+    /// and references to it are withheld too, with their own Information diagnostics.
     /// </remarks>
     public const string UndeclarableReadModel = "SP0057";
 

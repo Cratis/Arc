@@ -10,11 +10,13 @@ public class known_admission_limits : Specification
 {
     [Theory]
     [InlineData("Command 'Register' handler requires a constrained implementation attachment.")]
+    [InlineData("Query reference 'All' is ambiguous across slices in the current ESM v1 binder.")]
     [InlineData("Concept 'AuthorName' compliance attributes require portable data-subject semantics.")]
-    [InlineData("Read model 'Author' must have one unambiguous keyed query to identify instances in the first ESM v1 vertical.")]
-    [InlineData("Query 'All' uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical.")]
-    [InlineData("Query 'All' must declare one caller-supplied 'by' argument in the first ESM v1 vertical.")]
-    [InlineData("Query 'All' must return one optional read model in the first ESM v1 vertical.")]
+    [InlineData("Read model 'Author' must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes.")]
+    [InlineData("Query 'All' uses filtering, scope, or implementation behavior outside the admitted ESM query shapes.")]
+    [InlineData("Query 'All' must use caller-supplied 'by' arguments in the admitted ESM query shapes.")]
+    [InlineData("Query 'All' without a 'by' argument must return a read-model collection in the admitted ESM query shapes.")]
+    [InlineData("Query 'All' must return an optional read model or a read-model collection in the admitted ESM query shapes.")]
     void should_accept_the_known_fallback_in_both_modes(string message)
     {
         var verified = WithError("PLAY0268", message);
@@ -24,8 +26,7 @@ public class known_admission_limits : Specification
 
     [Theory]
     [InlineData("Operations and systems are not admitted by any supported executable model (ESM) version yet (#301).")]
-    [InlineData("Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302).")]
-    [InlineData("Specification event routes are not admitted by any supported executable model (ESM) version yet (#457).")]
+    [InlineData("Stream id mapping 'address.month' on command 'Register' reads a property path; only direct command inputs are admitted by event routes.")]
     void should_accept_additional_authoring_constructs_only_when_requested(string message)
     {
         var verified = WithError("PLAY0268", message);
@@ -34,7 +35,6 @@ public class known_admission_limits : Specification
     }
 
     [Theory]
-    [InlineData("Command 'Register' reads 'Author' with legacy semantics that cannot imply decision consistency.")]
     [InlineData("Command 'Register' concurrency metadata keeps its legacy meaning and cannot bind to ESM v1.")]
     void should_preserve_documented_legacy_consistency_diagnostics(string message)
     {
@@ -49,17 +49,33 @@ public class known_admission_limits : Specification
     [InlineData("Condition property 'other' must have the same scalar type as 'role'.")]
     [InlineData("Event reference 'Registered' is ambiguous across slices in the current ESM v1 binder.")]
     [InlineData("Read model reference 'Author' is ambiguous across slices in the current ESM v1 binder.")]
-    [InlineData("Query reference 'ById' is ambiguous across slices in the current ESM v1 binder.")]
+    [InlineData("Query reference 'ById' is ambiguous within a slice in the current ESM v1 binder.")]
     [InlineData("Projection 'Author' declares a parent key outside a children block, where Chronicle never reads it.")]
     [InlineData("Query 'All' uses an unknown delivery shape.")]
     [InlineData("Reaction refusal handling and redelivery are not admitted by any supported executable model (ESM) version yet (#433).")]
+    [InlineData("Reaction command identity ('runs as') is not admitted by any supported executable model (ESM) version yet (#383).")]
     [InlineData("Explicit no-event assertions are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Unknown future admission message.")]
+    [InlineData("Event sources, streams and routes are not admitted by any supported executable model (ESM) version yet (#302).")]
+    [InlineData("Specification event routes are not admitted by any supported executable model (ESM) version yet (#457).")]
+    [InlineData("Stream id mapping 'address.month' on command 'Register' reads an unknown future mapping shape.")]
+    [InlineData("Read model 'Author' must have one unambiguous keyed query to identify instances in the first ESM v1 vertical.")]
+    [InlineData("Query 'All' uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical.")]
+    [InlineData("Query 'All' must declare one caller-supplied 'by' argument in the first ESM v1 vertical.")]
+    [InlineData("Query 'All' must return one optional read model in the first ESM v1 vertical.")]
     void should_not_exempt_malformed_or_unknown_play0268_bindings(string message)
     {
         var verified = WithError("PLAY0268", message);
         verified.UnexpectedBindingErrors().Count.ShouldEqual(1);
         verified.UnexpectedBindingErrors(true).Count.ShouldEqual(1);
+    }
+
+    [Fact]
+    void should_accept_legacy_reads_only_in_authoring_mode()
+    {
+        var verified = WithError("PLAY0271", "Command 'Register' reads 'Author' with legacy semantics that cannot imply decision consistency.");
+        verified.UnexpectedBindingErrors().Count.ShouldEqual(1);
+        verified.UnexpectedBindingErrors(true).ShouldBeEmpty();
     }
 
     [Fact]

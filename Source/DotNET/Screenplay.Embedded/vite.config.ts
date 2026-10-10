@@ -42,8 +42,11 @@ export default defineConfig({
                         { name: 'monaco', test: /node_modules[/]monaco-editor[/]/ },
                         { name: 'pixi-rendering', test: /node_modules[/]pixi.js[/]lib[/]rendering[/]/ },
                         { name: 'pixi', test: /node_modules[/]pixi.js[/]/ },
-                        { name: 'screenplay-language-shared', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/]chunk-/ },
-                        { name: 'screenplay-language-entry', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/](index|sub-languages[/].*)\.js$/ }
+                        // The language ships one module per source file. Its compiler only imports the bundler
+                        // runtime under _virtual, so grouping the two keeps the chunk graph free of cycles.
+                        { name: 'screenplay-language-compiler', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/](compiler|_virtual)[/]/ },
+                        { name: 'screenplay-language-entry', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/](index|sub-languages[/].*)\.js$/ },
+                        { name: 'screenplay-language-shared', test: /node_modules[/]@cratis[/]screenplay-language[/]dist[/]bundles[/]/ }
                     ]
                 }
             }

@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 using Cratis.Arc.Screenplay.Verification;
+using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
@@ -46,7 +47,7 @@ public class with_specification_event_routes : a_generated_document
         """);
 
     [Fact]
-    public void should_state_given_and_then_routes_only_in_authoring_mode()
+    public void should_state_given_and_then_routes_in_authoring_mode()
     {
         GenerateScenario(true, Scenario);
 
@@ -59,12 +60,23 @@ public class with_specification_event_routes : a_generated_document
     }
 
     [Fact]
-    public void should_withhold_a_routed_scenario_in_default_output()
+    public void should_state_a_routed_scenario_in_default_output()
     {
         GenerateScenario(false, Scenario);
 
+        Result.Source.ShouldContain("specification WhenRegisteringAndItSucceeds");
+        Result.Source.ShouldContain("stream Account.Transactions");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable).ShouldBeFalse();
+        AssertDocument();
+    }
+
+    [Fact]
+    public void should_preserve_the_legacy_route_loss_below_v8()
+    {
+        GenerateScenario(false, Scenario, cap: SemanticVersion.V7);
+
         Result.Source.ShouldNotContain("specification WhenRegisteringAndItSucceeds");
-        Result.Source.ShouldNotContain("stream Account.Transactions");
+        Result.Source.ShouldNotContain("eventsource Account");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.SpecificationRouteNotRepresentable).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         AssertDocument();
     }
@@ -127,8 +139,8 @@ public class with_specification_event_routes : a_generated_document
         AssertAuthoringRoutes();
     }
 
-    void GenerateScenario(bool authoring, string scenario, string? command = null) => Generate(
-        new ScreenplayOptions { AuthoringOnlyConstructs = authoring },
+    void GenerateScenario(bool authoring, string scenario, string? command = null, SemanticVersion? cap = null) => Generate(
+        new ScreenplayOptions { AuthoringOnlyConstructs = authoring, MaximumExecutableModelVersion = cap },
         (Analyzed.SlicePath, command ?? Command),
         ("Library/Feature/Slice/when_registering/and_it_succeeds.cs", scenario),
         (IntegrationTesting.Path, IntegrationTesting.Source));

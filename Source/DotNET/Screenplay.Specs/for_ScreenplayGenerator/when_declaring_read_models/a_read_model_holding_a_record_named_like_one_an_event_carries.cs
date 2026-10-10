@@ -46,5 +46,8 @@ public class a_read_model_holding_a_record_named_like_one_an_event_carries : a_r
     [Fact] void should_keep_the_events_shape() => Says("product String").ShouldBeTrue();
     [Fact] void should_say_which_property() => LeftOut.Single().ShouldContain("'Lines'");
     [Fact] void should_report_no_warning() => GenerationWarnings.ShouldBeEmpty();
+    [Fact] void should_leave_out_the_query() => Result.Source.ShouldNotContain("query AllReports");
+    [Fact] void should_report_the_omitted_query_as_information() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableTypeReference && diagnostic.Message.Contains("Query 'AllReports'", StringComparison.Ordinal)).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
+    [Fact] void should_not_leave_unresolved_references() => UnresolvedReferences.ShouldBeEmpty();
     [Fact] void should_compile_without_findings() => CompilationFindings.ShouldBeEmpty();
 }

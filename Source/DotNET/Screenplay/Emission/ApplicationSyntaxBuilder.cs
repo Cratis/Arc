@@ -53,18 +53,27 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
+        var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
         if (options.AuthoringOnlyConstructs)
         {
             if (options.MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V7))
             {
                 model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, cap, authoringOnlyConstructs: true));
             }
-
-            model = AuthoringDeclarations.Resolve(model, diagnostics);
         }
         else
         {
+            if (eventRoutes)
+            {
+                model = AuthoringDeclarations.Resolve(model, diagnostics, authoringOnlyConstructs: false);
+            }
+
             model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion));
+        }
+
+        if (options.AuthoringOnlyConstructs)
+        {
+            model = AuthoringDeclarations.Resolve(model, diagnostics, options.AuthoringOnlyConstructs);
         }
 
         model = ProtectedIdentityAnnotations.Apply(model, diagnostics);
@@ -73,8 +82,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var domain = ToName(model.Domain, options.Domain);
         var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
+        var declaredReadModels = new ReadModelDeclarations(naming, _types, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], diagnostics).Of(model.Slices);
+        var originalSlices = model.Slices;
+        model = ReadModelReferences.Apply(model, declaredReadModels, diagnostics);
+        var omittedReferenceSlices = originalSlices.Zip(model.Slices)
+            .Where(pair => pair.First.Queries.Count() != pair.Second.Queries.Count() || pair.First.Projections.Count() != pair.Second.Projections.Count() || pair.First.Specifications.Count() != pair.Second.Specifications.Count())
+            .Select(pair => (pair.Second.Namespace, pair.Second.Name)).ToHashSet();
         var routedOccurrences = new List<SpecificationStateModel>();
-        var modules = BuildModules(model, options, domain, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], routedOccurrences).ToList();
+        var modules = BuildModules(model, options, domain, declaredReadModels, omittedReferenceSlices, routedOccurrences).ToList();
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
         return new(
@@ -89,7 +104,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
                 .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
-            EventSources = options.AuthoringOnlyConstructs ? BuildEventSources(model, routedOccurrences) : []
+            EventSources = eventRoutes ? BuildEventSources(model, routedOccurrences) : []
         };
     }
 
@@ -119,7 +134,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 route.Stream,
                 declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
                 existing is not null ? existing.StreamIdType : route.StreamId is not null ? new("String", false, false) : null,
-                null);
+                null)
+            {
+                StreamIdParts = existing?.StreamIdParts ?? route.StreamIdParts.Select(part => new CommandStreamIdPartModel(part.Property, new("String", false, false), part.Source)).ToList()
+            };
         }
     }
 
@@ -155,12 +173,13 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <param name="model">The model to build from.</param>
     /// <param name="options">The options to build with, already resolved.</param>
     /// <param name="domain">The name of the domain, which a slice with no namespace left is gathered under.</param>
-    /// <param name="declared">The names of the concepts and types the document declares.</param>
+    /// <param name="declaredReadModels">The read models the document declares.</param>
+    /// <param name="omittedReferenceSlices">The slices whose read-model dependents were withheld.</param>
     /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
     /// <returns>The modules.</returns>
-    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlyList<string> declared, ICollection<SpecificationStateModel> routedOccurrences)
+    IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlySet<ReadModelModel> declaredReadModels, HashSet<(string Namespace, string Name)> omittedReferenceSlices, ICollection<SpecificationStateModel> routedOccurrences)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options.AuthoringOnlyConstructs, declared, routedOccurrences);
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options, declaredReadModels, routedOccurrences);
         if (options.AuthoringOnlyConstructs)
         {
             sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
@@ -175,10 +194,20 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             var built = sliceBuilder.Build(slice);
             if (SliceContent.IsEmpty(built))
             {
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.EmptySlice,
-                    $"The slice '{slice.Name}' declares nothing that can be expressed and was left out",
-                    slice.Namespace);
+                if (slice.OmittedReadModels.Any() || !slice.ReadModels.All(declaredReadModels.Contains) || omittedReferenceSlices.Contains((slice.Namespace, slice.Name)))
+                {
+                    diagnostics.Information(
+                        ScreenplayDiagnosticCodes.EmptySlice,
+                        $"The slice '{slice.Name}' became empty because its read-model dependents were withheld and was left out",
+                        slice.Namespace);
+                }
+                else
+                {
+                    diagnostics.Warning(
+                        ScreenplayDiagnosticCodes.EmptySlice,
+                        $"The slice '{slice.Name}' declares nothing that can be expressed and was left out",
+                        slice.Namespace);
+                }
                 continue;
             }
 
@@ -197,11 +226,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </summary>
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
     /// <param name="model">The full application used to type specification destinations.</param>
-    /// <param name="authoringOnlyConstructs">Whether optional authoring constructs are emitted.</param>
-    /// <param name="declared">The names of the concepts and types the document declares.</param>
+    /// <param name="options">The construct admission options.</param>
+    /// <param name="declaredReadModels">The read models the document declares.</param>
     /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, bool authoringOnlyConstructs, IReadOnlyList<string> declared, ICollection<SpecificationStateModel> routedOccurrences) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, ScreenplayOptions options, IReadOnlySet<ReadModelModel> declaredReadModels, ICollection<SpecificationStateModel> routedOccurrences) =>
         new(
             naming,
             _types,
@@ -216,21 +245,21 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                     Events = new EventSyntaxBuilder(naming, _types, _names),
                     Diagnostics = diagnostics
                 },
-                new ConcurrencySyntaxBuilder(naming, diagnostics),
+                new ConcurrencySyntaxBuilder(naming, diagnostics) { ExecutableRoutes = options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8) },
                 _names)
             {
-                AuthoringOnlyConstructs = authoringOnlyConstructs
+                AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
             },
             new EventSyntaxBuilder(naming, _types, _names),
-            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = authoringOnlyConstructs, Diagnostics = diagnostics },
+            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, Diagnostics = diagnostics },
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = model },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = authoringOnlyConstructs, RoutedOccurrences = routedOccurrences })
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
         {
             InlineEvents = inlineEvents,
-            DeclaredReadModels = new ReadModelDeclarations(naming, _types, declared, diagnostics).Of(model.Slices)
+            DeclaredReadModels = declaredReadModels
         };
 
     List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences) => model.Slices.SelectMany(slice => slice.Commands)
@@ -242,7 +271,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             Streams = source.Where(route => route.Stream is not null).GroupBy(route => route.Stream!, StringComparer.Ordinal).OrderBy(group => group.Key, StringComparer.Ordinal)
                 .Select(stream => new EventStreamSyntax(stream.Key, SourceLocation.Start)
                 {
-                    StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null
+                    StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null,
+                    StreamIdParts = stream.First().StreamIdParts.Select(part => new EventStreamIdPartSyntax(naming.ToPropertyName(part.Name), _types.Convert(part.Type), SourceLocation.Start)).ToList()
                 }).ToList()
         }).ToList();
 

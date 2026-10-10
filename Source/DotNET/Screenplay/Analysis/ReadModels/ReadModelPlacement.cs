@@ -27,8 +27,8 @@ namespace Cratis.Arc.Screenplay.Analysis.ReadModels;
 /// holds: when its declaration name is shared with another read model, or with another type a query or a command
 /// reads; when nothing in any slice refers to it and none of the slices is its namespace; when its name is one a concept
 /// or a type is declared under; and when a value it holds cannot be typed faithfully (see
-/// <see cref="DeclarableShapes"/>). Whatever builds or reads such a read model names it exactly as it did before read
-/// models were declared at all.
+/// <see cref="DeclarableShapes"/>). Omitted shapes are retained as metadata so emission can withhold their references
+/// instead of writing a document referring to an undeclared read model.
 /// </remarks>
 public static class ReadModelPlacement
 {
@@ -125,7 +125,15 @@ public static class ReadModelPlacement
             declared.Add(shape with { Properties = [.. properties.Read(type)] });
         }
 
-        return [.. slices.Select(slice => placed.TryGetValue(slice, out var declared) ? slice with { ReadModels = declared } : slice)];
+        var declaredNames = placed.Values.SelectMany(readModels => readModels).Select(readModel => readModel.FullName).ToHashSet(StringComparer.Ordinal);
+        var omitted = candidates.Where(candidate => !declaredNames.Contains(candidate.Shape.FullName))
+            .Select(candidate => (Slice: SliceOf(candidate.Shape, ordered), candidate.Shape)).ToList();
+
+        return [.. slices.Select(slice => slice with
+        {
+            ReadModels = placed.GetValueOrDefault(slice) ?? [],
+            OmittedReadModels = omitted.Where(candidate => ReferenceEquals(candidate.Slice, slice)).Select(candidate => candidate.Shape).ToList()
+        })];
     }
 
     /// <summary>
