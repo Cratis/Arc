@@ -8,12 +8,12 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 public class with_operational_secrets : a_generated_document
 {
     [Theory]
-    [InlineData("[Encrypted, NotAudited]", "@sensitive", false)]
-    [InlineData("[PII, Encrypted, NotAudited]", "@pii @sensitive", false)]
+    [InlineData("[Encrypted, NotAudited]", "secret", false)]
+    [InlineData("[PII, Encrypted, NotAudited]", "pii secret", false)]
     [InlineData("[Encrypted]", "", true)]
     [InlineData("[NotAudited]", "", true)]
-    [InlineData("[PII, Encrypted]", "@pii", true)]
-    [InlineData("[PII, NotAudited]", "@pii", true)]
+    [InlineData("[PII, Encrypted]", "pii", true)]
+    [InlineData("[PII, NotAudited]", "pii", true)]
     public void should_map_only_the_complete_secret_contract(string attributes, string annotation, bool partial)
     {
         GenerateSecret(attributes, string.Empty, false);
@@ -31,7 +31,7 @@ public class with_operational_secrets : a_generated_document
         GenerateSecret(string.Empty, attributes, false);
 
         Result.Source.ShouldContain("concept Secret : String");
-        Result.Source.ShouldNotContain("@sensitive");
+        Result.Source.ShouldNotContain("concept Secret : String secret");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         AssertCompiles();
     }
@@ -67,7 +67,7 @@ public class with_operational_secrets : a_generated_document
             public record SecretSet(Secret Secret);
             """));
 
-        Result.Source.ShouldNotContain("@sensitive");
+        Result.Source.ShouldNotContain("concept Secret : String secret");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         AssertCompiles();
     }
@@ -93,7 +93,7 @@ public class with_operational_secrets : a_generated_document
             public record SecretSet(string Secret);
             """));
 
-        Result.Source.ShouldNotContain("@sensitive");
+        Result.Source.ShouldNotContain("concept Secret : String secret");
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PartialSecretMarking).ShouldBeEmpty();
         AssertCompiles();
     }
@@ -107,8 +107,8 @@ public class with_operational_secrets : a_generated_document
         GenerateSecret(attributes, string.Empty, true);
 
         Result.Source.ShouldContain("secret Secret identifier");
-        Result.Source.ShouldNotContain("@pii");
-        Result.Source.ShouldNotContain("@sensitive");
+        Result.Source.ShouldNotContain("concept Secret : String pii");
+        Result.Source.ShouldNotContain("concept Secret : String secret");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ProtectedIdentityAnnotation).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         AssertDocument();
     }
@@ -145,8 +145,8 @@ public class with_operational_secrets : a_generated_document
 
         Result.Source.ShouldContain("streamId Secret");
         Result.Source.ShouldContain("streamId = secret");
-        Result.Source.ShouldNotContain("@pii");
-        Result.Source.ShouldNotContain("@sensitive");
+        Result.Source.ShouldNotContain("concept Secret : String pii");
+        Result.Source.ShouldNotContain("concept Secret : String secret");
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ProtectedIdentityAnnotation).ShouldBeTrue();
         AssertCompiles();
     }

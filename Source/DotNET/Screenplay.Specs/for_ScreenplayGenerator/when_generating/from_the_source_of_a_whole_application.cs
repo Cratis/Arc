@@ -43,7 +43,7 @@ public class from_the_source_of_a_whole_application : Specification
     [Fact] void should_produce_a_document_without_warnings_or_errors() => _compiled.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_name_the_domain_after_the_compilation() => Says("domain Library").ShouldBeTrue();
-    [Fact] void should_declare_the_concepts_the_application_refers_to() => Says("concept AuthorName : String @pii").ShouldBeTrue();
+    [Fact] void should_declare_the_concepts_the_application_refers_to() => Says("concept AuthorName : String pii").ShouldBeTrue();
     [Fact] void should_arrange_the_slices_into_features() => Says("feature Authors").ShouldBeTrue();
     [Fact] void should_declare_the_command() => Says("command RegisterAuthor").ShouldBeTrue();
     [Fact] void should_state_what_the_command_produces() => Says("produces AuthorRegistered").ShouldBeTrue();
