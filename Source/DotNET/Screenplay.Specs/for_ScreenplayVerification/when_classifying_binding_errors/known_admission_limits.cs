@@ -11,10 +11,11 @@ public class known_admission_limits : Specification
     [Theory]
     [InlineData("Command 'Register' handler requires a constrained implementation attachment.")]
     [InlineData("Concept 'AuthorName' compliance attributes require portable data-subject semantics.")]
-    [InlineData("Read model 'Author' must have one unambiguous keyed query to identify instances in the first ESM v1 vertical.")]
-    [InlineData("Query 'All' uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical.")]
-    [InlineData("Query 'All' must declare one caller-supplied 'by' argument in the first ESM v1 vertical.")]
-    [InlineData("Query 'All' must return one optional read model in the first ESM v1 vertical.")]
+    [InlineData("Read model 'Author' must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes.")]
+    [InlineData("Query 'All' uses filtering, scope, or implementation behavior outside the admitted ESM query shapes.")]
+    [InlineData("Query 'All' must use caller-supplied 'by' arguments in the admitted ESM query shapes.")]
+    [InlineData("Query 'All' without a 'by' argument must return a read-model collection in the admitted ESM query shapes.")]
+    [InlineData("Query 'All' must return an optional read model or a read-model collection in the admitted ESM query shapes.")]
     void should_accept_the_known_fallback_in_both_modes(string message)
     {
         var verified = WithError("PLAY0268", message);
@@ -55,6 +56,10 @@ public class known_admission_limits : Specification
     [InlineData("Reaction refusal handling and redelivery are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Explicit no-event assertions are not admitted by any supported executable model (ESM) version yet (#433).")]
     [InlineData("Unknown future admission message.")]
+    [InlineData("Read model 'Author' must have one unambiguous keyed query to identify instances in the first ESM v1 vertical.")]
+    [InlineData("Query 'All' uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical.")]
+    [InlineData("Query 'All' must declare one caller-supplied 'by' argument in the first ESM v1 vertical.")]
+    [InlineData("Query 'All' must return one optional read model in the first ESM v1 vertical.")]
     void should_not_exempt_malformed_or_unknown_play0268_bindings(string message)
     {
         var verified = WithError("PLAY0268", message);

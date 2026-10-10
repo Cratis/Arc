@@ -9,7 +9,7 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// Identifies the executable admission limits deliberately retained in generated authoring documents.
 /// </summary>
 /// <remarks>
-/// Screenplay 4.98.0 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
+/// Screenplay 4.121.0 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
 /// so these exact message shapes follow SemanticModelBinder.Commands, ReadModels, Concepts, and CommandProductions at that
 /// version. A changed or unknown message fails closed as SP0056 rather than silently acquiring an exemption.
 /// </remarks>
@@ -48,11 +48,12 @@ public static class ExpectedBindingDiagnostics
         var query = Reason(message, "Query");
 
         return Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
-            Reason(message, "Read model") == " must have one unambiguous keyed query to identify instances in the first ESM v1 vertical." ||
+            Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
             Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
-            query == " uses delivery, filtering, scope, or implementation behavior outside the first ESM v1 vertical." ||
-            query == " must declare one caller-supplied 'by' argument in the first ESM v1 vertical." ||
-            query == " must return one optional read model in the first ESM v1 vertical.";
+            query == " uses filtering, scope, or implementation behavior outside the admitted ESM query shapes." ||
+            query == " must use caller-supplied 'by' arguments in the admitted ESM query shapes." ||
+            query == " without a 'by' argument must return a read-model collection in the admitted ESM query shapes." ||
+            query == " must return an optional read model or a read-model collection in the admitted ESM query shapes.";
     }
 
     /// <summary>
