@@ -29,4 +29,14 @@ internal record AggregateRootGuardedScope(EventSourceType EventSourceType, Event
         context.HasDeclaredEventSource()
             ? new(context.EventSourceType, context.EventStreamType, context.EventStreamId)
             : new(EventSourceType.Default, EventStreamType.All, EventStreamId.Default);
+
+    /// <summary>
+    /// Check whether this scope is exactly the aggregate root's own stream.
+    /// </summary>
+    /// <param name="context">The <see cref="IAggregateRootContext"/> to check against.</param>
+    /// <returns>True if the scope is the context's own stream, false if not.</returns>
+    public bool IsOwnStreamOf(IAggregateRootContext context) =>
+        EventSourceType == context.EventSourceType &&
+        EventStreamType == context.EventStreamType &&
+        EventStreamId == context.EventStreamId;
 }

@@ -34,6 +34,16 @@ public class AggregateRootMutator(
             scope.EventStreamType,
             scope.EventStreamId);
 
+        // Whether the aggregate already exists is still decided by its own stream, not by every stream the commit
+        // guards, so an event for the same id elsewhere does not make an undeclared aggregate stop being new.
+        var ownTailSequenceNumber = scope.IsOwnStreamOf(aggregateRootContext)
+            ? tailSequenceNumber
+            : await aggregateRootContext.EventSequence.GetTailSequenceNumber(
+                aggregateRootContext.EventSourceId,
+                aggregateRootContext.EventSourceType,
+                aggregateRootContext.EventStreamType,
+                aggregateRootContext.EventStreamId);
+
         IEnumerable<AppendedEvent> events;
         if (aggregateRootContext.HasDeclaredEventSource())
         {
@@ -87,6 +97,10 @@ public class AggregateRootMutator(
         if (tailSequenceNumber.IsActualValue)
         {
             aggregateRootContext.TailEventSequenceNumber = tailSequenceNumber;
+        }
+
+        if (ownTailSequenceNumber.IsActualValue)
+        {
             aggregateRootContext.HasEvents = true;
         }
     }
