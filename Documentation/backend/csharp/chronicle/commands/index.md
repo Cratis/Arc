@@ -30,6 +30,7 @@ Return events for durable facts and [command operations](../../commands/operatio
 | Tuple containing events and command operations | Events enroll in the command transaction; operations execute before completion. At most one additional ordinary value may be the response. |
 | Tuple containing `EventSourceId` and an event, in either order | The `EventSourceId` sets the stream; the event is appended. See [Returning EventSourceId](./returning-event-source-id.md). |
 | Tuple `(Guid, event)` on a keyless command | The `Guid` is only the response. Chronicle generates a different event source id; [ARCCHR0010](../code-analysis/ARCCHR0010.md) asks whether the Guid was intended as stream identity. |
+| Tuple `(event, EventTags)` | The tags attach to every returned event, not the response. See [Event tags](./event-tags.md). |
 | Tuple `(event, Subject)` | The event is appended; the `Subject` is attached as [compliance metadata](./subject.md), not returned. |
 | `Result<TResult, TError>` (e.g. `Result<TEvent, ValidationResult>`) | A failure rejects pending transactional events; a success is unwrapped. Earlier immediate or explicit commits remain. |
 
@@ -40,6 +41,7 @@ The rule of thumb: **return the fact that happened.** The event source id (see [
 | Topic | Description |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | [Events](./events.md) | Returning events from commands and how Chronicle appends them automatically, including stream metadata. |
+| [Event tags](./event-tags.md) | Attaching structured named tags from command properties, handler results, and application-wide conventions. |
 | [Setting Subject](./subject.md) | Supplying a compliance subject on the command or by returning it from `Handle()`. |
 | [Returning EventSourceId](./returning-event-source-id.md) | Explicitly deciding the event source id by returning it from a command tuple. |
 | [Transactional commands](./transactional-commands.md) | Atomic enrollment, immediate appends, nested commands, and aggregate commit boundaries. |

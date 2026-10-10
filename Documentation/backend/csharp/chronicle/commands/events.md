@@ -52,6 +52,10 @@ public record CustomerEmailChanged(string Email);
 
 Chronicle uses the command context to resolve the event source identity and event stream metadata before appending events.
 
+## Event tags
+
+Attach structured named tags to every returned event using `[EventTag]`, `ICanProvideEventTags`, a returned `EventTags` value, or application-wide `ICanProvideCommandEventTags` providers. Command tags form a union with each wrapper's `NamedTags`; the same name with different values keeps both values. See [Event tags](./event-tags.md) for examples and merge rules.
+
 ## Event Source Id Resolution
 
 Chronicle resolves the event source id for commands using a small set of conventions. This value is stored in the command context and is required for event appending.
@@ -282,6 +286,10 @@ The response contains two values:
 
 - the `EventForEventSourceId` values, in append order; and
 - the exact concurrency scopes the decision depended on, keyed by labels you choose.
+
+### Exact scopes replace derived scopes
+
+When `Handle()` returns `EventsWithConcurrencyScopes`, the returned scopes replace every scope Arc would otherwise derive for the command: the ones from `concurrency: true` on `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]`, and the ones from an event source definition's concurrency dimensions. A `concurrency: true` flag on the command's attributes is therefore dead and [ARCCHR0016](../code-analysis/ARCCHR0016.md) warns about it with a quick fix that removes it. The definition is not reported, because it stays the policy for every other writer.
 
 ### Per-event routing
 

@@ -36,9 +36,10 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
         else
         {
             CommandTransaction.RefuseImmediateAppend();
-            var result = await eventLog.AppendMany(
-                events,
-                concurrencyScopes: response.ConcurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value));
+            var concurrencyScopes = response.ConcurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value);
+            var result = events.Any(_ => _.NamedTags.Any())
+                ? await eventLog.AppendManyWithNamedTags(events, [], concurrencyScopes: concurrencyScopes)
+                : await eventLog.AppendMany(events, concurrencyScopes: concurrencyScopes);
 
             if (!result.IsSuccess)
             {

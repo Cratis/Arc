@@ -47,4 +47,9 @@ public static class WellKnownCommandContextKeys
     /// The key for the subject in the command context values.
     /// </summary>
     public const string Subject = "subject";
+
+    /// <summary>
+    /// The key for named event tags returned by the command handler.
+    /// </summary>
+    public const string EventTags = "eventTags";
 }
