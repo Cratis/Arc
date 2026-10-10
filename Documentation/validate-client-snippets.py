@@ -370,6 +370,18 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
     "scenarios/vertical-slices/translator/hr-integration": SnippetContext(kind="file", project=LIBRARY_APPLICATION),
     "testing-with-cratis/register-author": SnippetContext(kind="file", project=TESTING_WITH_CRATIS),
     "testing-with-cratis/register-author-spec": SnippetContext(kind="file", project=TESTING_WITH_CRATIS),
+    # The cratis.io Concepts guides. A later snippet on a page uses a type the page declared in
+    # an earlier one, so the prelude restates that type here.
+    "site-concepts/cqrs/register-author-state": SnippetContext(
+        prelude="public record Author(Guid Id, string Name);",
+    ),
+    "site-concepts/event-driven-architecture/borrow-book": SnippetContext(
+        usings=("using Cratis.Chronicle.Events;",),
+        prelude="[EventType] public record BookBorrowed(string MemberEmail, DateOnly DueDate);",
+    ),
+    "site-concepts/event-modeling/book-availability": SnippetContext(
+        prelude="[EventType] public record BookReserved(string Member);",
+    ),
     "scenarios/chat/in-memory/backend": SnippetContext(kind="file", project=CHAT_IN_MEMORY),
     "scenarios/chat/rabbitmq/backend": SnippetContext(kind="file", project=CHAT_RABBITMQ),
     # The Camel Casing page's host, the same shape as the capstone host.
