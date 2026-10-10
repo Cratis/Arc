@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_declaring_read_mode
 /// <summary>
 /// A read model holding a value the document has no type for. A declaration would have to either leave the value
 /// out, describing a shape the application does not have, or name a type nothing declares - so the read model is not
-/// declared, and the projection building it names it exactly as it did before read models were declared at all.
+/// declared, and the projection building it is withheld rather than naming an undeclared read model.
 /// </summary>
 public class a_read_model_holding_a_value_the_document_cannot_type : a_read_model_document
 {
@@ -31,8 +31,9 @@ public class a_read_model_holding_a_value_the_document_cannot_type : a_read_mode
     void Because() => GenerateSlice(Source);
 
     [Fact] void should_not_declare_the_read_model() => Result.Source.ShouldNotContain("readmodel Tally");
-    [Fact] void should_still_build_it() => Result.Source.ShouldContain("=> Tally");
+    [Fact] void should_leave_out_the_projection() => Result.Source.ShouldNotContain("=> Tally");
     [Fact] void should_say_why() => Result.Diagnostics.Where(_ => _.Code == ScreenplayDiagnosticCodes.UndeclarableReadModel).Select(_ => _.Message).Single().ShouldContain("'Counts'");
-    [Fact] void should_not_report_the_type_it_never_wrote() => Result.Diagnostics.Select(_ => _.Code).ShouldNotContain(ScreenplayDiagnosticCodes.UnmappableTypeReference);
+    [Fact] void should_report_the_omitted_projection() => Result.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnmappableTypeReference).Message.ShouldContain("omitted read model 'Tally'");
+    [Fact] void should_report_no_warning() => GenerationWarnings.ShouldBeEmpty();
     [Fact] void should_compile_without_findings() => CompilationFindings.ShouldBeEmpty();
 }

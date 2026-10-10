@@ -172,7 +172,13 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <returns>The modules.</returns>
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlyList<string> declared, ICollection<SpecificationStateModel> routedOccurrences)
     {
-        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options, declared, routedOccurrences);
+        var declaredReadModels = new ReadModelDeclarations(naming, _types, declared, diagnostics).Of(model.Slices);
+        var originalSlices = model.Slices;
+        model = ReadModelReferences.Apply(model, declaredReadModels, diagnostics);
+        var omittedReferenceSlices = originalSlices.Zip(model.Slices)
+            .Where(pair => pair.First.Queries.Count() != pair.Second.Queries.Count() || pair.First.Projections.Count() != pair.Second.Projections.Count() || pair.First.Specifications.Count() != pair.Second.Specifications.Count())
+            .Select(pair => (pair.Second.Namespace, pair.Second.Name)).ToHashSet();
+        var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options, declaredReadModels, routedOccurrences);
         if (options.AuthoringOnlyConstructs)
         {
             sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
@@ -187,10 +193,13 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             var built = sliceBuilder.Build(slice);
             if (SliceContent.IsEmpty(built))
             {
-                diagnostics.Warning(
-                    ScreenplayDiagnosticCodes.EmptySlice,
-                    $"The slice '{slice.Name}' declares nothing that can be expressed and was left out",
-                    slice.Namespace);
+                if (!slice.OmittedReadModels.Any() && slice.ReadModels.All(declaredReadModels.Contains) && !omittedReferenceSlices.Contains((slice.Namespace, slice.Name)))
+                {
+                    diagnostics.Warning(
+                        ScreenplayDiagnosticCodes.EmptySlice,
+                        $"The slice '{slice.Name}' declares nothing that can be expressed and was left out",
+                        slice.Namespace);
+                }
                 continue;
             }
 
@@ -210,10 +219,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// <param name="inlineEvents">The inline eligibility decisions shared by declaration and production emission.</param>
     /// <param name="model">The full application used to type specification destinations.</param>
     /// <param name="options">The construct admission options.</param>
-    /// <param name="declared">The names of the concepts and types the document declares.</param>
+    /// <param name="declaredReadModels">The read models the document declares.</param>
     /// <param name="routedOccurrences">The routed occurrences from specifications retained in the document.</param>
     /// <returns>The <see cref="SliceSyntaxBuilder"/>.</returns>
-    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, ScreenplayOptions options, IReadOnlyList<string> declared, ICollection<SpecificationStateModel> routedOccurrences) =>
+    SliceSyntaxBuilder CreateSliceBuilder(InlineEvents inlineEvents, ApplicationModel model, ScreenplayOptions options, IReadOnlySet<ReadModelModel> declaredReadModels, ICollection<SpecificationStateModel> routedOccurrences) =>
         new(
             naming,
             _types,
@@ -242,7 +251,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
         {
             InlineEvents = inlineEvents,
-            DeclaredReadModels = new ReadModelDeclarations(naming, _types, declared, diagnostics).Of(model.Slices)
+            DeclaredReadModels = declaredReadModels
         };
 
     List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences) => model.Slices.SelectMany(slice => slice.Commands)

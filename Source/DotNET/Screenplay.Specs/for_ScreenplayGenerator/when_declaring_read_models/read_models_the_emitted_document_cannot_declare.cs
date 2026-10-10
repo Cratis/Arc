@@ -8,8 +8,8 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_declaring_read_mode
 
 /// <summary>
 /// What the emitter does with a placed read model it cannot declare faithfully - a model handed over by a host
-/// rather than one analysis just produced. It leaves the read model out of every slice, says so, and an
-/// authoring-only <c>reads</c> needing it declares it exactly as it did before read models were placed.
+/// rather than one analysis just produced. It leaves the read model out of every slice, says so, and withholds
+/// authoring-only reads of that omitted declaration too.
 /// </summary>
 public class read_models_the_emitted_document_cannot_declare : Specification
 {
@@ -41,7 +41,7 @@ public class read_models_the_emitted_document_cannot_declare : Specification
     }
 
     [Fact]
-    void should_declare_an_authoring_read_of_one_it_leaves_out()
+    void should_withhold_an_authoring_read_of_one_it_leaves_out()
     {
         var read = new CommandReadModel("AuthorState", "state", "Id")
         {
@@ -57,8 +57,9 @@ public class read_models_the_emitted_document_cannot_declare : Specification
 
         var result = new ScreenplayEmitter().Emit(model, new() { AuthoringOnlyConstructs = true });
 
-        result.Source.Split('\n').Count(_ => _.Trim() == "readmodel AuthorState").ShouldEqual(1);
-        result.Source.ShouldContain("name String");
+        result.Source.ShouldNotContain("readmodel AuthorState");
+        result.Source.ShouldNotContain("reads AuthorState");
+        result.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UnreadableCommandProvisioning).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         result.Diagnostics.Single(_ => _.Code == ScreenplayDiagnosticCodes.UndeclarableReadModel).Message.ShouldContain("'Mystery'");
     }
 

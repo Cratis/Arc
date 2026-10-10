@@ -57,6 +57,60 @@ public static class AuthoringDeclarations
         };
     }
 
+    /// <summary>
+    /// Withholds reads of omitted declarations and every authoring mapping depending on them.
+    /// </summary>
+    /// <param name="command">The command referencing read models.</param>
+    /// <param name="omitted">The omitted declaration names.</param>
+    /// <param name="diagnostics">The loss reports.</param>
+    /// <param name="location">The command's slice.</param>
+    /// <returns>The command without unavailable read dependencies.</returns>
+    internal static CommandModel WithoutReadModels(CommandModel command, IReadOnlySet<string> omitted, ScreenplayDiagnostics diagnostics, string location)
+    {
+        if (command.Authoring is not { } authoring)
+        {
+            return command;
+        }
+        var unavailable = authoring.Reads.Where(read => omitted.Contains(read.Name)).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal);
+        if (unavailable.Count == 0)
+        {
+            return command;
+        }
+
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.UnreadableCommandProvisioning,
+            $"Command '{command.Name}': an omitted read model cannot be read; its dependency, requirements and mappings were left in code",
+            location);
+        var operations = authoring.Operations.Where(operation =>
+        {
+            if (!operation.Mappings.Any(mapping => mapping.Source is PropertyPathSource path && ReferencesRead(path.Path, unavailable)))
+            {
+                return true;
+            }
+
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnreadableCommandOperation,
+                $"Command '{command.Name}': operation '{operation.Name}' depends on an omitted read model and was left out",
+                location);
+
+            return false;
+        }).ToList();
+
+        return command with
+        {
+            Produces = command.Produces.Select(production => production with
+            {
+                Mappings = production.Mappings.Where(mapping => mapping.Source is not PropertyPathSource path || !ReferencesRead(path.Path, unavailable)).ToList()
+            }).ToList(),
+            Authoring = authoring with
+            {
+                Reads = authoring.Reads.Where(read => !omitted.Contains(read.Name)).ToList(),
+                Requirements = authoring.Requirements.Where(requirement => !ReferencesRead(requirement.Condition, unavailable)).ToList(),
+                Operations = operations
+            }
+        };
+    }
+
     static HashSet<string> ReachableTypes(IEnumerable<string> roots, ApplicationModel model)
     {
         var reached = roots.ToHashSet(StringComparer.Ordinal);
