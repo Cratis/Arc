@@ -7,7 +7,6 @@ using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
-using Cratis.Arc.Testing.Commands;
 using Cratis.Arc.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -25,7 +24,6 @@ namespace Cratis.Arc.Testing.Queries;
 /// <typeparam name="TReadModel">The read model containing the static query methods.</typeparam>
 public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
 {
-    readonly ScenarioIdentitySource _identities = new();
     IServiceProvider? _serviceProvider;
     QueryPipeline? _pipeline;
     bool _disposed;
@@ -39,7 +37,6 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         Services.AddOptions();
         Services.AddLogging();
         Services.Configure<ArcOptions>(_ => { });
-        Services.AddSingleton<IIdentitySource>(_identities);
         Context = new Dictionary<string, object>();
 
         foreach (var extender in TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<IQueryScenarioExtender>()
@@ -59,21 +56,6 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
     /// Gets context values supplied by scenario extenders.
     /// </summary>
     public IDictionary<string, object> Context { get; }
-
-    /// <summary>
-    /// Queues generated identities for query dependencies in first-in, first-out order.
-    /// </summary>
-    /// <param name="values">The identities to append to this scenario's queue.</param>
-    /// <remarks>
-    /// May be called before or after a query. An exhausted queue falls back to <see cref="Guid.NewGuid"/>.
-    /// Uses the scenario's identity source; an explicit replacement in <see cref="Services"/> overrides it.
-    /// </remarks>
-    /// <exception cref="ObjectDisposedException">The scenario has been disposed.</exception>
-    public void Generate(params Guid[] values)
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-        _identities.Enqueue(values);
-    }
 
     /// <summary>
     /// Runs a static snapshot method on <typeparamref name="TReadModel"/> through argument conversion, filters, and hosted authorization.

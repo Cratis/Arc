@@ -14,22 +14,13 @@ public class with_a_command_without_a_key : Specification
 {
     EventSourceValuesProvider _provider;
     CommandContextValues _result;
-    IIdentitySource _identities;
-    Guid _id;
 
-    void Establish()
-    {
-        _id = Guid.NewGuid();
-        _identities = Substitute.For<IIdentitySource>();
-        _identities.NewGuid().Returns(_id);
-        _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>(), _identities);
-    }
+    void Establish() => _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>());
 
     void Because() => _result = _provider.Provide(new CommandWithoutKey("something"));
 
     [Fact] void should_provide_a_new_event_source_id() =>
-        ((EventSourceId)_result[WellKnownCommandContextKeys.EventSourceId]).Value.ShouldEqual(_id.ToString());
-    [Fact] void should_allocate_exactly_one_identity() => _identities.Received(1).NewGuid();
+        ((EventSourceId)_result[WellKnownCommandContextKeys.EventSourceId]).ShouldNotEqual(EventSourceId.Unspecified);
 
     record CommandWithoutKey(string Name);
 }

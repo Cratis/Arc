@@ -15,20 +15,13 @@ public class with_a_command_that_provides_its_key : Specification
 
     EventSourceValuesProvider _provider;
     CommandContextValues _result;
-    IIdentitySource _identities;
 
-    void Establish()
-    {
-        _identities = Substitute.For<IIdentitySource>();
-        _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>(), _identities);
-    }
+    void Establish() => _provider = new EventSourceValuesProvider(new RecordingLogger<EventSourceValuesProvider>());
 
     void Because() => _result = _provider.Provide(new CommandThatProvidesItsKey());
 
     [Fact] void should_provide_the_event_source_id_the_command_composed() =>
         ((EventSourceId)_result[WellKnownCommandContextKeys.EventSourceId]).Value.ShouldEqual(TheKey);
-
-    [Fact] void should_not_allocate_an_identity() => _identities.DidNotReceive().NewGuid();
 
     record CommandThatProvidesItsKey : ICanProvideEventSourceId
     {

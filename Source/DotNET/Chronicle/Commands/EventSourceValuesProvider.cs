@@ -14,18 +14,9 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// Represents an implementation of <see cref="ICommandContextValuesProvider"/> that provides values for the event source id.
 /// </summary>
 /// <param name="logger">The <see cref="ILogger"/> to use for logging.</param>
-/// <param name="identities">The identity source used for unkeyed commands.</param>
-public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger, IIdentitySource identities) : ICommandContextValuesProvider
+public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger) : ICommandContextValuesProvider
 {
     static readonly ConcurrentDictionary<Type, string> _keyTypeNames = new();
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="EventSourceValuesProvider"/> class with the default identity source.
-    /// </summary>
-    /// <param name="logger">The <see cref="ILogger"/> to use for logging.</param>
-    public EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger) : this(logger, new IdentitySource())
-    {
-    }
 
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
@@ -133,12 +124,13 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
             return provided;
         }
 
+        var eventSourceId = EventSourceId.New();
         if (command.HasEventSourceId())
         {
-            return command.GetEventSourceIdWithDeclaredType(out declaredType);
+            eventSourceId = command.GetEventSourceIdWithDeclaredType(out declaredType);
         }
 
-        return new EventSourceId(identities.NewGuid());
+        return eventSourceId;
     }
 
     /// <summary>
