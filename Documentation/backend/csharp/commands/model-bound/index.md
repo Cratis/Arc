@@ -125,6 +125,25 @@ Arc resolves `Handle()` service parameters from the command's service scope. A `
 
 For the full `Provide()` contract, including its distinct validation control values, see [provide data to a command](../../../../scenarios/provide-data-to-a-command.mdx).
 
+## Generate testable identities
+
+If a handler creates an identity, taking `IIdentitySource` lets a spec choose the value instead of asserting around a random GUID. Arc registers a default source that uses `Guid.NewGuid()`; no application registration is required. This declaration reuses `CartLineId` from above and illustrates identity allocation only, not saving a cart line:
+
+```csharp
+using Cratis.Arc;
+using Cratis.Arc.Commands.ModelBound;
+
+[Command]
+public record AllocateCartLine
+{
+    public CartLineId Handle(IIdentitySource identities) => identities.NewGuid();
+}
+```
+
+Arc resolves `identities` from the command's service scope, just like any other handler dependency. In a [command scenario](../../testing/command-scenario.md#pin-generated-identities), `Generate(...)` supplies the next values. With Chronicle, the same source allocates the event source id of an unkeyed command before the handler runs.
+
+Existing calls such as `CartLineId.New()` remain valid when you do not need to pin the result, but `Generate` cannot intercept those static calls. Register your own `IIdentitySource` before adding Arc services if the application needs a different generator.
+
 ## Frontend integration
 
 The [proxy generator](../../proxy-generation/index.md) uses the command type name for the generated TypeScript command. It generates typed properties, supported validation rules, and response handling. Build the backend before consuming the proxy; use [commands in React](../../../../frontend/react/commands/index.mdx) to call it.
