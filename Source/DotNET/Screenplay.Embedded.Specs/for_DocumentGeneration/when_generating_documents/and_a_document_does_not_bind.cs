@@ -31,6 +31,6 @@ public class and_a_document_does_not_bind : Specification
     [Fact] void should_report_only_the_whole_application_binding_error() => _generation.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldEqual(1);
     [Fact] void should_report_only_information_to_preserve_consumer_builds() => _generation.Diagnostics.All(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Information).ShouldBeTrue();
     [Fact] void should_identify_the_whole_application_scope() => _generation.Diagnostics.Single().Location.ShouldEqual(given.an_application.RootNamespace);
-    [Fact] void should_include_the_binder_message() => _generation.Diagnostics.All(diagnostic => diagnostic.Message.Contains("read model or key property is unresolved", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_include_the_binder_message() => _generation.Diagnostics.All(diagnostic => diagnostic.Message.Contains("read model is unresolved", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_still_return_every_document() => _generation.Documents.Count.ShouldEqual(5);
 }
