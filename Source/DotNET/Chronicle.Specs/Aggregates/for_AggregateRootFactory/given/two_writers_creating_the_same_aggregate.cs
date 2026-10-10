@@ -47,6 +47,16 @@ public class two_writers_creating_the_same_aggregate : Specification
             EventSourceType.Default,
             concurrencyScope: scope);
 
+    protected virtual IAggregateRootEventHandlers CreateEventHandlers()
+    {
+        var handlers = Substitute.For<IAggregateRootEventHandlers>();
+        handlers.HasHandleMethods.Returns(false);
+        handlers.EventTypes.Returns([]);
+        return handlers;
+    }
+
+    protected virtual Task StageEvents(TestAggregateRoot aggregateRoot) => aggregateRoot._mutation.Apply(new Created());
+
     void Destroy() => _scenario.Dispose();
 
     async Task<ConcurrencyScope> StageCreation()
@@ -66,10 +76,12 @@ public class two_writers_creating_the_same_aggregate : Specification
 
         var eventStore = Substitute.For<IEventStore>();
         eventStore.GetEventSequence(Arg.Any<EventSequenceId>()).Returns(_scenario.EventSequence);
+        eventStore.Name.Returns(new EventStoreName("aggregate-specs"));
+        eventStore.Namespace.Returns(EventStoreNamespaceName.Default);
+        eventStore.EventTypes.GetEventTypeFor(typeof(Created)).Returns(new EventType(
+            (EventTypeId)"0b0c7b40-86a4-4a0b-a5b6-1c6d6e0e8c11", EventTypeGeneration.First, false));
 
-        var handlers = Substitute.For<IAggregateRootEventHandlers>();
-        handlers.HasHandleMethods.Returns(false);
-        handlers.EventTypes.Returns([]);
+        var handlers = CreateEventHandlers();
 
         var mutatorFactory = Substitute.For<IAggregateRootMutatorFactory>();
         mutatorFactory
@@ -89,7 +101,7 @@ public class two_writers_creating_the_same_aggregate : Specification
         var aggregateRoot = await factory.Get<TestAggregateRoot>(_eventSourceId);
 
         // The new aggregate has not done anything yet, so the scope is what staging its first event would carry.
-        await aggregateRoot._mutation.Apply(new Created());
+        await StageEvents(aggregateRoot);
         return captured;
     }
 }
