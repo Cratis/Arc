@@ -64,6 +64,8 @@ _scenario.Generate(
     Guid.Parse("efee3d5e-864a-45f2-897c-827157d74954"));
 ```
 
+`Validate` resolves the command's context the same way `Execute` does, so for an unkeyed Chronicle command it also consumes a queued identity for allocation. Queue one value per `Validate` or `Execute` call that allocates.
+
 Each `Generate` call appends values in order. You can append more after `Execute` or `Validate`; it updates the existing queue without rebuilding the provider. Each scenario has its own queue. Once it is empty, the source uses `Guid.NewGuid()`. An explicit `IIdentitySource` registration in `Services` overrides the scenario's source, so `Generate` does not control that replacement.
 
 `QueryScenario<TReadModel>` provides the same `Generate` method for query dependencies. Calling `Generate` on a disposed scenario throws `ObjectDisposedException`. Static calls such as `Guid.NewGuid()` or a concept's `New()` are not intercepted.
