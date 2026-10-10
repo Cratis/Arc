@@ -44,7 +44,7 @@ public record ScreenplayVerification(
              (!authoringOnlyConstructs && diagnostic.Code == "PLAY0271" && NamesRoutedCommand(diagnostic))))];
 
     bool NamesRoutedCommand(Diagnostic diagnostic) => Application?.Modules.SelectMany(module => module.Features).SelectMany(Commands)
-        .Any(command => command.Stream is not null && diagnostic.Message == $"Command '{command.Name}' concurrency metadata keeps its legacy meaning and cannot bind to ESM v1.") == true;
+        .Any(command => command.Stream is not null && (command.Location.Line == diagnostic.Location.Line || command.Concurrency?.Location.Line == diagnostic.Location.Line) && diagnostic.Message == $"Command '{command.Name}' concurrency metadata keeps its legacy meaning and cannot bind to ESM v1.") == true;
 
     static IEnumerable<CommandSyntax> Commands(FeatureSyntax feature) => feature.Slices.SelectMany(slice => slice.Commands)
         .Concat(feature.Features.SelectMany(Commands));
