@@ -82,7 +82,7 @@ public static class QueryExtensions
         }
 
         var parameters = method.GetQueryParameterDescriptors();
-        var properties = method.GetQueryPropertyDescriptors();
+        var properties = responseModel.Type.GetPropertyDescriptors();
 
         var parameterWithComplexTypes = parameters.Where(_ => !_.OriginalType.IsKnownType());
         typesInvolved.AddRange(parameterWithComplexTypes.Select(_ => _.OriginalType));
@@ -134,7 +134,7 @@ public static class QueryExtensions
         var parametersNeedingImportStatements = parameters.Where(_ => _.OriginalType.HasModule()).ToList();
         imports.AddRange(parametersNeedingImportStatements.Select(_ => _.OriginalType.GetImportStatement(targetPath, relativePath, segmentsToSkip)));
 
-        foreach (var property in responseModel.Type.GetPropertyDescriptors())
+        foreach (var property in properties)
         {
             property.CollectTypesInvolved(additionalTypesInvolved);
         }
@@ -262,16 +262,6 @@ public static class QueryExtensions
     {
         // Everything that is not a query argument is assumed to be a dependency.
         return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToQueryRequestParameterDescriptor());
-    }
-
-    /// <summary>
-    /// Get query property descriptors from a method - primitives, concepts and enumerables of primitives/concepts are included.
-    /// </summary>
-    /// <param name="method">Method to get properties for.</param>
-    /// <returns>Collection of <see cref="PropertyDescriptor"/>.</returns>
-    static IEnumerable<PropertyDescriptor> GetQueryPropertyDescriptors(this MethodInfo method)
-    {
-        return method.GetParameters().Where(IsQueryParameter).Select(p => p.ToPropertyDescriptor());
     }
 
     /// <summary>
