@@ -71,6 +71,11 @@ public class CommandSyntaxBuilder(
             concurrency.ReportStreamIdFlag(location);
         }
 
+        if (!AuthoringOnlyConstructs && authoring?.Route is { Stream: not null } && command.Concurrency is { } omittedScope)
+        {
+            concurrency.ReportOmittedScope(omittedScope, $"{location}.{command.Name}");
+        }
+
         if (!AuthoringOnlyConstructs && concurrency.ExecutableRoutes && authoring?.Route is null && command.Concurrency is not null && command.EventSource is null && !command.HasAuthoringRoute)
         {
             concurrency.ReportLegacyScope($"{location}.{command.Name}");

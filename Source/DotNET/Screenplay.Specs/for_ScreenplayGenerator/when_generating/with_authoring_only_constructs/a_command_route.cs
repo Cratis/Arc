@@ -29,6 +29,6 @@ public class a_command_route : an_authoring_document
     [Fact] void should_state_routing_by_default() => Off.Source.ShouldContain("eventsource Account");
     [Fact] void should_state_the_default_route_instead_of_legacy_concurrency() => Off.Source.ShouldNotContain("concurrency");
     [Fact] void should_not_add_build_warnings_in_default_mode() => Off.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning).ShouldBeEmpty();
-    [Fact] void should_not_report_admitted_routing_as_omitted() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).ShouldBeFalse();
+    [Fact] void should_report_the_omitted_concurrency_dimensions() => Off.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EventSourceNotRepresentable).Message.ShouldContain("concurrency dimensions [source type 'Account', stream type 'Transactions']");
     [Fact] void should_bind_the_default_document() => Off.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeFalse();
 }

@@ -31,6 +31,35 @@ public class ConcurrencySyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     public void ReportLegacyScope(string location) => diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable, "The command has only legacy concurrency metadata, with no admitted event route counterpart; its concurrency block retains its legacy meaning (PLAY0271)", location);
 
     /// <summary>
+    /// Reports the concurrency dimensions omitted when a command states an executable route.
+    /// </summary>
+    /// <param name="concurrency">The omitted scope.</param>
+    /// <param name="location">The command's diagnostic location.</param>
+    public void ReportOmittedScope(ConcurrencyModel concurrency, string location)
+    {
+        var dimensions = new List<string>();
+        if (concurrency.EventSource)
+        {
+            dimensions.Add("event source id");
+        }
+        if (concurrency.SourceType is { } source)
+        {
+            dimensions.Add($"source type '{source}'");
+        }
+        if (concurrency.StreamType is { } stream)
+        {
+            dimensions.Add($"stream type '{stream}'");
+        }
+        if (concurrency.StreamId is { } streamId)
+        {
+            dimensions.Add($"stream id '{streamId}'");
+        }
+        dimensions.AddRange(concurrency.EventTypes.Select(eventType => $"event type '{eventType}'"));
+        diagnostics.Information(ScreenplayDiagnosticCodes.EventSourceNotRepresentable,
+            $"The command's route is stated, but concurrency dimensions [{string.Join(", ", dimensions)}] were left out; ESM v8 has no executable concurrency syntax (PLAY0271)", location);
+    }
+
+    /// <summary>
     /// Builds the concurrency block a command declares.
     /// </summary>
     /// <param name="concurrency">The scope to build for, if the command declares one.</param>
