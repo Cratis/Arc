@@ -38,7 +38,7 @@ public class when_generated_metadata_changes_between_containers : Specification
 
     [Fact] void should_not_change_the_first_containers_performers() => _first.Performers.Count().ShouldEqual(1);
     [Fact] void should_include_new_metadata_in_the_next_container() => _second.Performers.Count().ShouldEqual(2);
-    [Fact] void should_not_scan_reflection_types() => _ = _types.DidNotReceive().All;
+    [Fact] void should_check_the_type_universe_for_uncovered_assemblies() => _ = _types.Received(2).All;
 
     QueryPerformerProvider Create() => new(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 }
