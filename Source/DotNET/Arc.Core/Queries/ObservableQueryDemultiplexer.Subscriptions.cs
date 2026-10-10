@@ -275,7 +275,21 @@ public partial class ObservableQueryDemultiplexer
             BuildPaging(request),
             BuildSorting(request));
 
-        var queryResult = await PerformSubscriptionQuery(query, queryServiceProvider, token);
+        // Run through the full query pipeline (including authorization filters). The call stays inline: a custom
+        // pipeline may set the query context (AsyncLocal) synchronously, and an async helper would restore it on return.
+        QueryResult queryResult;
+        if (queryPipeline is QueryPipeline builtInPipeline)
+        {
+            queryResult = await builtInPipeline.PerformHosted(query.Name, query.Arguments, query.Paging, query.Sorting, queryServiceProvider, token);
+        }
+        else
+        {
+            EnsureAuthorizationDoesNotRequireAsynchronousEvaluation(query.Name, queryServiceProvider);
+
+            using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
+            queryResult = await queryPipeline.Perform(query.Name, query.Arguments, query.Paging, query.Sorting, queryServiceProvider, token);
+        }
+
         var ownedScope = queryResult.OwnedScope;
         try
         {
@@ -327,20 +341,6 @@ public partial class ObservableQueryDemultiplexer
         {
             ownedScope?.Dispose();
         }
-    }
-
-    async Task<QueryResult> PerformSubscriptionQuery(SubscriptionQuery query, IServiceProvider queryServiceProvider, CancellationToken token)
-    {
-        // Run through the full query pipeline (including authorization filters)
-        if (queryPipeline is QueryPipeline builtInPipeline)
-        {
-            return await builtInPipeline.PerformHosted(query.Name, query.Arguments, query.Paging, query.Sorting, queryServiceProvider, token);
-        }
-
-        EnsureAuthorizationDoesNotRequireAsynchronousEvaluation(query.Name, queryServiceProvider);
-
-        using var forwardedReceipt = OperationContextScope.ForwardTransportReceipt();
-        return await queryPipeline.Perform(query.Name, query.Arguments, query.Paging, query.Sorting, queryServiceProvider, token);
     }
 
     /// <summary>
