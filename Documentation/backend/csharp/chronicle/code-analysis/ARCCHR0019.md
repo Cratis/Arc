@@ -1,22 +1,25 @@
 ---
-title: ARCCHR0019 — Read-model creator may be exposed as a query
-description: Keep an unrecognized fold creator out of Arc query discovery.
+title: ARCCHR0019 - Read-model fold may be exposed as a query
+description: Preview explicit endpoint selection when a conventional query resembles a fold.
 ---
 
-## What triggers it
+<!-- Copyright (c) Cratis. All rights reserved. -->
+<!-- Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
 
-This warning reports a public or internal static `Create` on an Arc `[ReadModel]` when it returns that read model, `Task<T>`, or `ValueTask<T>`, has one or two parameters, and its first parameter is a non-primitive, non-concept class or interface.
+## When this warning appears
 
-There is no warning when the method has `[NotAQuery]`, a parameter is Chronicle's `EventContext`, or the first parameter's type or a base type has `[EventType]`. Arc already excludes those creators automatically.
+A conventional `[ReadModel]` has a public/internal static `Create(event[, context])` or `Reduce(event, nullable current[, EventContext])` returning its model or `Task` of the model. The first parameter resembles an event: a class or interface other than a string or concept. This is a heuristic, not proof of event registration, and it does not change query discovery.
 
-## How to fix it
+In `RequireQueryAttribute = true` mode, unmarked helpers produce no query diagnostics, including this warning. Arc does not globally reserve fold or callback names.
 
-If this is a fold creator, mark it `[NotAQuery]` from `Cratis.Arc.Queries.ModelBound`, or add an `EventContext` parameter. This is useful for unmarked, explicitly registered events and polymorphic interface event parameters that query discovery cannot identify as events.
+## Choose the endpoint surface
 
-A real `Create` query taking a concrete service can also match this heuristic. Keep that query and suppress ARCCHR0019 with a justification instead of adding `[NotAQuery]`.
+If the method is a helper, [opt the read model into explicit query selection](../../queries/model-bound/static-methods.md#choose-endpoints-explicitly-when-a-model-has-helpers). Add `[Query]` to intended queries, not to the fold. Preserve endpoint paths, HTTP methods, arguments, and authorization.
 
-See [static query methods](../../queries/model-bound/static-methods.md#not-a-query) for the full discovery rule.
+If the method is an intentional query, keep it and suppress this heuristic with a justification. Adding an event attribute or context parameter does not exclude it from conventional discovery.
 
 ## Quick fix
 
-**Add [NotAQuery]** adds the method-level opt-out without changing its signature or body. It removes the method from HTTP query discovery, generated query metadata and TypeScript proxies, query diagnostics, Screenplay query extraction, and `QueryScenario`. Direct C# calls are unchanged.
+**Require [Query] and mark existing queries (preview endpoints)** changes the whole read model, including its partial declarations. It opts the type into explicit selection and marks eligible existing methods other than recognized fold-like shapes. Preview the complete endpoint diff: return shapes cannot distinguish an intentional query from every other helper. The fix is not offered for already-invalid explicit query declarations, and it has no unattended Fix All.
+
+This warning does not implement Chronicle static reducers or complete fold/query role-conflict validation.

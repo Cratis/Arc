@@ -7,7 +7,7 @@ Arc's Core Roslyn analyzers check command, query, validation, and concept declar
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0025 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0026 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -36,6 +36,7 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0023](ARC0023.md) | Generated value declared outside a command Handle method | Error | `GeneratedValueAnalyzer` |
 | [ARC0024](ARC0024.md) | Generated value names must be non-empty and unique | Error | `GeneratedValueAnalyzer` |
 | [ARC0025](ARC0025.md) | Provide supplies a generated value type | Warning | `GeneratedValueAnalyzer` |
+| [ARC0026](ARC0026.md) | Invalid explicit query declaration | Error | `ReadModelAnalyzer` and query metadata generation |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -84,11 +85,11 @@ Reports a FluentValidation `RuleFor` selector that dereferences a member of a co
 
 ## ARC0014: Generic query methods
 
-Reports public or internal static generic methods on a `[ReadModel]` whose return type has an accepted query shape. Query invocation cannot close the method's type parameters. Make the query non-generic, or move a generic composition helper off the read model. A valid return type alone does not make a generic method invocable.
+Reports public or internal static generic methods on a `[ReadModel]` whose return type has an accepted query shape. Query invocation cannot close the method's type parameters. Make the query non-generic, move a generic composition helper off the read model, or opt into explicit query selection and leave the helper unmarked. A valid return type alone does not make a generic method invocable.
 
 ## ARC0015: Concept query parameters
 
-Reports `string`, `Guid`, or nullable `Guid` parameters converted to a `ConceptAs<T>`-derived type inside a public or internal static non-void method on a `[ReadModel]`. The analyzer recognizes conversion operations (including implicit conversions), not every possible manual construction or data-flow pattern.
+Reports `string`, `Guid`, or nullable `Guid` parameters converted to a `ConceptAs<T>`-derived type inside a public or internal static non-void method on a `[ReadModel]`. In explicit mode only selected queries are analyzed; unmarked helpers are ignored. The analyzer recognizes conversion operations (including implicit conversions), not every possible manual construction or data-flow pattern.
 
 Declare the parameter as the concept when you want Arc's query pipeline to validate that concept before invoking the method. Preserve null-aware handling for omitted input. For free-text search whose accepted values intentionally differ from an identifier concept's rules, review the model or suppress this warning locally with a reason. Direct static calls still bypass the query pipeline.
 

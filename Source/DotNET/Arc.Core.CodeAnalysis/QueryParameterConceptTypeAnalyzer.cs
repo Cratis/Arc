@@ -78,8 +78,9 @@ public class QueryParameterConceptTypeAnalyzer : DiagnosticAnalyzer
         method.IsStatic &&
         method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
         !method.ReturnsVoid &&
-        !ModelBoundQueryMethodSymbols.IsExcluded(method) &&
-        method.ContainingType?.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == ReadModelAttributeName) == true;
+        ModelBoundQueryMethodSymbols.IsSelected(method) &&
+        (method.ContainingType?.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == ReadModelAttributeName) == true ||
+            ModelBoundQueryMethodSymbols.RequiresQueryAttribute(method.ContainingType!));
 
     /// <summary>
     /// Whether the parameter is declared as one of the raw types a concept is usually backed by.

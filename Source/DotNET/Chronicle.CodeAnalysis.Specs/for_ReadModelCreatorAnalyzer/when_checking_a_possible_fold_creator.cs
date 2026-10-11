@@ -7,44 +7,32 @@ using VerifyCS = Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.AnalyzerVerifie
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.for_ReadModelCreatorAnalyzer;
 
+#pragma warning disable MA0136 // Compiler fixture behavior is independent of line endings.
+
 public class when_checking_a_possible_fold_creator
 {
     [Theory]
-    [InlineData("Unmarked", "", true)]
-    [InlineData("IOrderEvent", "", true)]
-    [InlineData("DerivedUnmarked", "", true)]
-    [InlineData("Placed", "", false)]
-    [InlineData("Derived", "", false)]
-    [InlineData("Unmarked", "[NotAQuery]", false)]
-    [InlineData("string", "", false)]
-    [InlineData("int", "", false)]
-    [InlineData("object", "", true)]
-    [InlineData("OrderId", "", false)]
-    [InlineData("EventContext", "", false)]
-    public async Task should_warn_only_for_unrecognized_event_parameters(string parameter, string attribute, bool expected)
-    {
-        var source = Source($"{attribute} public static Order {{|#0:Create|}}({parameter} e) => new();");
-        await VerifyCS.VerifyAnalyzerAsync(source, expected ? [Warning()] : []);
-    }
+    [InlineData("public static Order {|#0:Create|}(Unmarked e) => new();", "Create")]
+    [InlineData("public static Order {|#0:Create|}(Placed e) => new();", "Create")]
+    [InlineData("internal static Task<Order> {|#0:Create|}(Placed e) => Task.FromResult(new Order());", "Create")]
+    [InlineData("public static Order? {|#0:Reduce|}(Placed e, Order? current) => current;", "Reduce")]
+    [InlineData("public static Task<Order?> {|#0:Reduce|}(Placed e, Order? current, EventContext context) => Task.FromResult(current);", "Reduce")]
+    public async Task should_warn_without_changing_selection(string method, string name) => await VerifyCS.VerifyAnalyzerAsync(Source(method), Warning(name));
 
     [Theory]
-    [InlineData("public static Order From(Unmarked e) => new();")]
-    [InlineData("public static Order Create(Unmarked e, EventContext context) => new();")]
-    [InlineData("public static Order Create(Unmarked e, EventContext? context) => new();")]
-    [InlineData("public static Order Create(Unmarked e, int a, int b) => new();")]
-    [InlineData("public static string Create(Unmarked e) => string.Empty;")]
+    [InlineData("public static Order Create(string id) => new();")]
+    [InlineData("public static Order Create(OrderId id) => new();")]
+    [InlineData("public static Order Reduce(Placed e, Order current) => current;")]
+    [InlineData("public static Task BeginReplay(object service) => Task.CompletedTask;")]
+    [InlineData("public static Order From(Placed e) => new();")]
     [InlineData("private static Order Create(Unmarked e) => new();")]
-    [InlineData("public Order Create(Unmarked e) => new();")]
-    public async Task should_ignore_methods_without_the_unexcluded_creator_shape(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method));
+    public async Task should_ignore_other_shapes(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method));
 
-    [Theory]
-    [InlineData("internal static Order {|#0:Create|}(Unmarked e) => new();")]
-    [InlineData("public static Task<Order> {|#0:Create|}(Unmarked e) => Task.FromResult(new Order());")]
-    [InlineData("public static ValueTask<Order> {|#0:Create|}(IOrderEvent e) => ValueTask.FromResult(new Order());")]
-    public async Task should_warn_for_internal_and_awaitable_creators(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method), Warning());
+    [Fact]
+    public async Task should_ignore_helpers_in_explicit_mode() => await VerifyCS.VerifyAnalyzerAsync(Source("public static Order Create(Placed e) => new();").Replace("[ReadModel]", "[ReadModel(RequireQueryAttribute = true)]", StringComparison.Ordinal));
 
-#pragma warning disable MA0136 // Compiler fixture behavior is independent of line endings.
     internal static string Source(string method) => $$"""
+        #nullable enable
         using System.Threading.Tasks;
         using Cratis.Arc.Queries.ModelBound;
         using Cratis.Chronicle.Events;
@@ -52,10 +40,7 @@ public class when_checking_a_possible_fold_creator
         namespace TestApp
         {
             [EventType] public record Placed;
-            public record Derived : Placed;
             public record Unmarked;
-            public record DerivedUnmarked : Unmarked;
-            public interface IOrderEvent { }
             public record OrderId(string Value) : ConceptAs<string>(Value);
             [ReadModel]
             public record Order
@@ -64,8 +49,7 @@ public class when_checking_a_possible_fold_creator
             }
         }
         """;
-#pragma warning restore MA0136
 
-    internal static Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.ExpectedDiagnostic Warning() =>
-        VerifyCS.Diagnostic("ARCCHR0019").WithSeverity(DiagnosticSeverity.Warning).WithLocation(0).WithArguments("Order");
+    internal static Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing.ExpectedDiagnostic Warning(string name = "Create") =>
+        VerifyCS.Diagnostic("ARCCHR0019").WithSeverity(DiagnosticSeverity.Warning).WithLocation(0).WithArguments("Order", name);
 }

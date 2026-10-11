@@ -17,7 +17,8 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
             DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
-            DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric
+            DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric,
+            ModelBoundQueryMethodSymbols.InvalidDeclaration
         ];
 
     /// <inheritdoc/>
@@ -31,6 +32,11 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
     static void AnalyzeNamedType(SymbolAnalysisContext context)
     {
         var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
+
+        foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(namedTypeSymbol))
+        {
+            context.ReportDiagnostic(diagnostic);
+        }
 
         if (namedTypeSymbol.TypeKind != TypeKind.Class)
         {
@@ -50,14 +56,17 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var hasReadModelAttribute = HasAttribute(namedTypeSymbol, "Cratis.Arc.Queries.ModelBound.ReadModelAttribute");
+        var hasReadModelAttribute = HasAttribute(namedTypeSymbol, "Cratis.Arc.Queries.ModelBound.ReadModelAttribute") || ModelBoundQueryMethodSymbols.RequiresQueryAttribute(namedTypeSymbol);
         var queryMethods = FindPotentialQueryMethods(namedTypeSymbol);
 
         if (hasReadModelAttribute)
         {
             foreach (var method in queryMethods)
             {
-                if (!IsValidQueryMethodSignature(method, namedTypeSymbol))
+                var valid = ModelBoundQueryMethodSymbols.RequiresQueryAttribute(namedTypeSymbol)
+                    ? ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method)
+                    : IsValidQueryMethodSignature(method, namedTypeSymbol);
+                if (!valid)
                 {
                     var diagnostic = Diagnostic.Create(
                         DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
@@ -95,7 +104,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
                        m.IsStatic &&
                        m.DeclaredAccessibility == Accessibility.Public &&
                        !m.ReturnsVoid &&
-                       !ModelBoundQueryMethodSymbols.IsExcluded(m));
+                       ModelBoundQueryMethodSymbols.IsSelected(m));
     }
 
     /// <summary>
@@ -116,7 +125,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
                        m.IsStatic &&
                        m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
                        m.TypeParameters.Length > 0 &&
-                       !ModelBoundQueryMethodSymbols.IsExcluded(m) &&
+                       ModelBoundQueryMethodSymbols.IsSelected(m) &&
                        IsValidQueryMethodSignature(m, typeSymbol));
     }
 

@@ -18,11 +18,18 @@ public static class GeneratorTestHelper
     /// </summary>
     /// <param name="source">C# source code to compile and pass to the generator.</param>
     /// <returns>The <see cref="GeneratorDriverRunResult"/>.</returns>
-    public static GeneratorDriverRunResult RunGenerator(string source)
+    public static GeneratorDriverRunResult RunGenerator(string source) => RunGenerator([source]);
+
+    /// <summary>
+    /// Runs query metadata generation across separate source files.
+    /// </summary>
+    /// <param name="sources">The source files.</param>
+    /// <returns>The generator result.</returns>
+    public static GeneratorDriverRunResult RunGenerator(string[] sources)
     {
         var compilation = CSharpCompilation.Create(
             "TestAssembly",
-            [CSharpSyntaxTree.ParseText(source)],
+            sources.Select(source => CSharpSyntaxTree.ParseText(source)),
             GetMetadataReferences(),
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
 
@@ -63,6 +70,7 @@ public static class GeneratorTestHelper
             MetadataReference.CreateFromFile(systemRuntime.Location),
             MetadataReference.CreateFromFile(typeof(Cratis.Arc.Queries.ModelBound.ReadModelAttribute).Assembly.Location),
             MetadataReference.CreateFromFile(typeof(Cratis.Concepts.ConceptAs<>).Assembly.Location),
+            MetadataReference.CreateFromFile(typeof(System.Reactive.Subjects.ISubject<>).Assembly.Location),
         ];
     }
 }

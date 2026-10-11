@@ -63,8 +63,11 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     {
         var generatedMetadata = queryMetadataRegistry.All;
         var generatedQueries = _generatedQueries.GetValue(generatedMetadata, _ => new GeneratedQueryDiscovery()).GetQueries(generatedMetadata);
-        var coveredAssemblies = generatedQueries.Select(query => query.ReadModelType.Assembly).ToHashSet();
-        var scannedQueries = _queriesByUniverse.GetValue(types, _ => new QueryDiscovery()).GetQueries(types, coveredAssemblies);
+        var coveredAssemblies = generatedQueries.Where(query => !ModelBoundQueryMethod.RequiresQueryAttribute(query.ReadModelType))
+            .Select(query => query.ReadModelType.Assembly).ToHashSet();
+        var coveredTypes = generatedQueries.Where(query => ModelBoundQueryMethod.RequiresQueryAttribute(query.ReadModelType))
+            .Select(query => query.ReadModelType).ToHashSet();
+        var scannedQueries = _queriesByUniverse.GetValue(types, _ => new QueryDiscovery()).GetQueries(types, coveredAssemblies, coveredTypes);
 
         _performers = generatedQueries.Concat(scannedQueries)
             .Select(query => createPerformer(query.ReadModelType, query.ReadModelTypeName, query.Method))
@@ -85,22 +88,29 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     {
         readonly object _gate = new();
         Type[] _types = [];
+        Type[] _validationTypes = [];
         DiscoveredQuery[] _queries = [];
         bool _initialized;
 
-        public DiscoveredQuery[] GetQueries(ITypes universe, HashSet<Assembly> coveredAssemblies)
+        public DiscoveredQuery[] GetQueries(ITypes universe, HashSet<Assembly> coveredAssemblies, HashSet<Type> coveredTypes)
         {
-            var types = universe.All.Where(type => !coveredAssemblies.Contains(type.Assembly)).ToArray();
+            var all = universe.All.ToArray();
+            var types = all.Where(type => (!coveredAssemblies.Contains(type.Assembly) || ModelBoundQueryMethod.RequiresQueryAttribute(type)) && !coveredTypes.Contains(type)).ToArray();
             lock (_gate)
             {
-                if (!_initialized || !types.SequenceEqual(_types))
+                if (!_initialized || !types.SequenceEqual(_types) || !all.SequenceEqual(_validationTypes))
                 {
+                    foreach (var type in all)
+                    {
+                        ModelBoundQueryMethod.Validate(type);
+                    }
+
                     _queries = types.Where(t => t.IsReadModel())
-                        .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                            .Where(m => ModelBoundQueryMethod.IsCandidate(m) && m.IsValidQueryFor(t))
+                        .SelectMany(t => ModelBoundQueryMethod.GetMethods(t, m => m.IsValidQueryFor(t))
                             .Select(m => new DiscoveredQuery(t, t.FullName ?? t.Name, m)))
                         .ToArray();
                     _types = types;
+                    _validationTypes = all;
                     _initialized = true;
                 }
 
@@ -142,9 +152,8 @@ public class QueryPerformerProvider : IQueryPerformerProvider
 
                 var readModelTypeName = fullyQualifiedQueryName[..lastDotIndex];
                 var queryMethodName = fullyQualifiedQueryName[(lastDotIndex + 1)..];
-                var method = readModelType
-                    .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-                    .FirstOrDefault(m => m.Name == queryMethodName && ModelBoundQueryMethod.IsCandidate(m) && m.IsValidQueryFor(readModelType));
+                var method = ModelBoundQueryMethod.GetMethods(readModelType, m => m.IsValidQueryFor(readModelType))
+                    .FirstOrDefault(m => m.Name == queryMethodName);
 
                 if (method is not null)
                 {
