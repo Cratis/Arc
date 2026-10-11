@@ -30,15 +30,16 @@ internal static class ModelBoundQueryMethod
         method.IsStatic &&
         !method.IsSpecialName &&
         !method.Name.Contains('<') &&
-        !method.GetCustomAttributesData().Any(_ => _.AttributeType.Name == "CompilerGeneratedAttribute");
+        !(method.Module.Assembly.ReflectionOnly
+            ? MetadataQueryAttributes.Find(method, "CompilerGeneratedAttribute", matchFullName: false) is not null
+            : method.GetCustomAttributesData().Any(_ => _.AttributeType.Name == "CompilerGeneratedAttribute"));
 
     /// <summary>
     /// Reads the Arc marker by its full metadata name.
     /// </summary>
     /// <param name="method">The method.</param>
     /// <returns>Whether the method is marked.</returns>
-    internal static bool IsMarked(MethodInfo method) =>
-        method.GetCustomAttributesData().Any(_ => _.AttributeType.FullName == QueryName);
+    internal static bool IsMarked(MethodInfo method) => AttributeOf(method, QueryName) is not null;
 
     /// <summary>
     /// Reads the nearest owner declaration, including a direct default-mode reset.
@@ -49,7 +50,7 @@ internal static class ModelBoundQueryMethod
     {
         for (var current = type; current is not null; current = current.BaseType)
         {
-            var attribute = current.GetCustomAttributesData().FirstOrDefault(_ => _.AttributeType.FullName == ReadModelName);
+            var attribute = AttributeOf(current, ReadModelName);
             if (attribute is not null)
             {
                 return attribute;
@@ -126,6 +127,10 @@ internal static class ModelBoundQueryMethod
         IsCandidate(method) && !method.ContainsGenericParameters &&
         !method.ReturnType.IsByRef && method.GetParameters().All(_ => !_.ParameterType.IsByRef) &&
         IsSupportedReturn(method.ReturnType, owner);
+
+    static CustomAttributeData? AttributeOf(MemberInfo member, string fullName) => member.Module.Assembly.ReflectionOnly
+        ? MetadataQueryAttributes.Find(member, fullName)
+        : member.GetCustomAttributesData().FirstOrDefault(_ => _.AttributeType.FullName == fullName);
 
     static bool IsSupportedReturn(Type type, Type owner)
     {

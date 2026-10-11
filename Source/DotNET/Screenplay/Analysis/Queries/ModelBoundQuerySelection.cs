@@ -21,13 +21,19 @@ internal static class ModelBoundQuerySelection
         (type is INamedTypeSymbol named && ModelBoundQueryMethodSymbols.RequiresQueryAttribute(named));
 
     /// <summary>
+    /// Validates query intent even on types that owner filtering would discard.
+    /// </summary>
+    /// <param name="type">The catalogued type.</param>
+    internal static void Validate(INamedTypeSymbol type) => ModelBoundQueryMethodSymbols.EnsureValid(type);
+
+    /// <summary>
     /// Validates intent before selecting and ordering query methods.
     /// </summary>
     /// <param name="type">The owner.</param>
     /// <returns>The selected methods.</returns>
     internal static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type)
     {
-        ModelBoundQueryMethodSymbols.EnsureValid(type);
+        Validate(type);
         return ModelBoundQueryMethodSymbols.GetMethods(type, method => IsConventionalQueryFor(method, type))
             .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
     }

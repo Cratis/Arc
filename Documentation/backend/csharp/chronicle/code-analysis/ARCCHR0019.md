@@ -20,6 +20,6 @@ If the method is an intentional query, keep it and suppress this heuristic with 
 
 ## Quick fix
 
-**Require [Query] and mark existing queries (preview endpoints)** changes the whole read model, including its partial declarations. It opts the type into explicit selection and marks eligible existing methods other than recognized fold-like shapes. Preview the complete endpoint diff: return shapes cannot distinguish an intentional query from every other helper. The fix is not offered for already-invalid explicit query declarations, and it has no unattended Fix All.
+**Require [Query] and mark existing queries (preview endpoints)** changes the whole read model, including its partial declarations. It opts the type into explicit selection and marks eligible existing methods other than recognized fold-like shapes. Preview the complete endpoint diff: return shapes cannot distinguish an intentional query from every other helper. Partial query methods receive one marker across their definition and implementation. The fix is not offered for already-invalid explicit query declarations, declarations in generated or otherwise uneditable documents, or a migration that introduces compiler errors. It has no unattended Fix All.
 
 This warning does not implement Chronicle static reducers or complete fold/query role-conflict validation.

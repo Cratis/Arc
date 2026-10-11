@@ -57,14 +57,14 @@ public static partial class TypeExtensions
             dependencyContext.RuntimeLibraries.Where(_ => _.Type.Equals("project")),
             assemblyFolder,
             assemblyFile);
-        string[] paths = [.. runtimeAssemblies, .. aspNetCoreAssemblies, .. managedAppAssemblyPaths];
+        string[] paths = [.. managedAppAssemblyPaths, .. runtimeAssemblies, .. aspNetCoreAssemblies];
 
         if (FindFundamentalsAssemblyPath(dependencyContext) is { } fundamentalsPath)
         {
             paths = [.. paths, fundamentalsPath];
         }
 
-        CreateMetadataLoadContext(paths.Distinct(new FileNameComparer()).ToArray());
+        CreateMetadataLoadContext(paths);
 
         try
         {
@@ -149,22 +149,8 @@ public static partial class TypeExtensions
         }
     }
 
-    static Assembly LoadMetadataAssembly(string assemblyPath)
-    {
-        var normalizedPath = Path.GetFullPath(assemblyPath);
-        var loadedAssembly = _metadataLoadContext!.GetAssemblies()
-            .FirstOrDefault(_ => string.Equals(Path.GetFullPath(_.Location), normalizedPath, StringComparison.OrdinalIgnoreCase));
-        if (loadedAssembly is not null)
-        {
-            return loadedAssembly;
-        }
-
-        var assemblyName = AssemblyName.GetAssemblyName(normalizedPath);
-        loadedAssembly = _metadataLoadContext.GetAssemblies()
-            .FirstOrDefault(_ => string.Equals(_.FullName, assemblyName.FullName, StringComparison.Ordinal));
-
-        return loadedAssembly ?? _metadataLoadContext.LoadFromAssemblyPath(normalizedPath);
-    }
+    static Assembly LoadMetadataAssembly(string assemblyPath) =>
+        _assemblyResolver!.Load(_metadataLoadContext!, assemblyPath);
 
     static Assembly LoadRuntimeAssembly(string assemblyPath)
     {
@@ -266,7 +252,7 @@ public static partial class TypeExtensions
 
     static void CreateMetadataLoadContext(string[] assemblyPaths)
     {
-        _assemblyResolver = new PathAssemblyResolver(assemblyPaths);
+        _assemblyResolver = new CanonicalAssemblyResolver(assemblyPaths);
 #pragma warning disable CA2000 // Dispose objects before losing scope
         _metadataLoadContext = new MetadataLoadContext(_assemblyResolver);
 #pragma warning restore CA2000 // Dispose objects before losing scope
@@ -304,7 +290,7 @@ public static partial class TypeExtensions
             .Select(_ => Path.Join(assemblyFolder, _))
             .Append(assemblyFile)
             .Where(File.Exists)
-            .Distinct(new FileNameComparer())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
     static string? FindFundamentalsAssemblyPath(DependencyContext dependencyContext)

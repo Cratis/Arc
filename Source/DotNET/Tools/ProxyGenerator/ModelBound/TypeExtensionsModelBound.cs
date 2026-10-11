@@ -44,7 +44,7 @@ public static class TypeExtensionsModelBound
         return type.IsClass && (!type.IsAbstract || ModelBoundQueryMethod.RequiresQueryAttribute(type)) &&
             (ModelBoundQueryMethod.RequiresQueryAttribute(type)
                 ? ModelBoundQueryMethod.ReadModel(type) is not null
-                : type.GetCustomAttributesData().Any(_ => _.AttributeType.Name == WellKnownTypes.ReadModelAttribute)) &&
+                : HasConventionalReadModelAttribute(type)) &&
             type.HasQueryMethods();
     }
 
@@ -134,6 +134,10 @@ public static class TypeExtensionsModelBound
     /// <returns>Collection of public or internal static methods.</returns>
     public static IEnumerable<MethodInfo> GetQueryMethods(this Type type) =>
         ModelBoundQueryMethod.GetMethods(type, method => method.IsValidQueryFor(type));
+
+    static bool HasConventionalReadModelAttribute(Type type) => type.Assembly.ReflectionOnly
+        ? MetadataQueryAttributes.Find(type, WellKnownTypes.ReadModelAttribute, matchFullName: false) is not null
+        : type.GetCustomAttributesData().Any(_ => _.AttributeType.Name == WellKnownTypes.ReadModelAttribute);
 
     static bool IsCollectionOfType(Type type, Type elementType)
     {

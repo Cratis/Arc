@@ -49,10 +49,25 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
             return;
         }
 
+        var solution = context.Document.Project.Solution;
+        if (symbol.ContainingType.DeclaringSyntaxReferences.Any(_ =>
+            solution.GetDocument(_.SyntaxTree) is not { } document || !document.Project.DocumentIds.Contains(document.Id)))
+        {
+            return;
+        }
+
+        var migrated = await Migrate(solution, symbol.ContainingType, context.CancellationToken).ConfigureAwait(false);
+        var compilation = (await context.Document.Project.GetCompilationAsync(context.CancellationToken).ConfigureAwait(false))!;
+        var updated = (await migrated.GetProject(context.Document.Project.Id)!.GetCompilationAsync(context.CancellationToken).ConfigureAwait(false))!;
+        if (IntroducesErrors(compilation, updated, context.CancellationToken))
+        {
+            return;
+        }
+
         context.RegisterCodeFix(
             CodeAction.Create(
                 Title,
-                cancellationToken => Migrate(context.Document.Project.Solution, symbol.ContainingType, cancellationToken),
+                _ => Task.FromResult(migrated),
                 Title),
             context.Diagnostics[0]);
     }
@@ -74,19 +89,32 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
     static bool ShouldRetainAsQuery(IMethodSymbol method) =>
         ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && !ReadModelCreatorAnalyzer.IsPossibleFold(method);
 
-    static bool NeedsQueryMarker(IMethodSymbol method) => ShouldRetainAsQuery(method) && !ModelBoundQueryMethodSymbols.IsMarked(method);
+    static bool NeedsQueryMarker(IMethodSymbol method) => ShouldRetainAsQuery(method) &&
+        !ModelBoundQueryMethodSymbols.IsMarked(method) &&
+        (method.PartialImplementationPart is not { } implementation || !ModelBoundQueryMethodSymbols.IsMarked(implementation));
+
+    static bool IntroducesErrors(Compilation original, Compilation updated, CancellationToken cancellationToken)
+    {
+        var existing = original.GetDiagnostics(cancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error)
+            .GroupBy(_ => (_.Id, Message: _.GetMessage())).ToDictionary(_ => _.Key, _ => _.Count());
+        return updated.GetDiagnostics(cancellationToken).Where(_ => _.Severity == DiagnosticSeverity.Error)
+            .GroupBy(_ => (_.Id, Message: _.GetMessage())).Any(_ => !existing.TryGetValue(_.Key, out var count) || _.Count() > count);
+    }
 
     static async Task<Solution> Migrate(Solution solution, INamedTypeSymbol type, CancellationToken cancellationToken)
     {
         var readModel = type.GetAttributes().FirstOrDefault(_ => _.AttributeClass?.ToDisplayString() == ModelBoundQueryMethodSymbols.ReadModelName)?.ApplicationSyntaxReference;
         var declarations = type.DeclaringSyntaxReferences;
+        var markers = type.GetMembers().OfType<IMethodSymbol>()
+            .Select(_ => _.PartialDefinitionPart ?? _).Distinct(SymbolEqualityComparer.Default).OfType<IMethodSymbol>()
+            .Where(NeedsQueryMarker).SelectMany(_ => _.DeclaringSyntaxReferences.Take(1)).ToArray();
+        var originalSolution = solution;
         foreach (var group in declarations.GroupBy(_ => _.SyntaxTree))
         {
-            var document = solution.GetDocument(group.Key)!;
+            var document = originalSolution.GetDocument(group.Key)!;
             var root = (await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false))!;
-            var semanticModel = (await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false))!;
             var nodes = group.Select(_ => root.FindNode(_.Span)).OfType<TypeDeclarationSyntax>().ToArray();
-            var migration = new MigrationContext(semanticModel, readModel, declarations[0], cancellationToken);
+            var migration = new MigrationContext(markers, readModel, declarations[0]);
             var rewritten = root.ReplaceNodes(nodes, (original, _) => RewriteDeclaration(original, migration));
             solution = solution.WithDocumentSyntaxRoot(document.Id, rewritten);
         }
@@ -113,8 +141,7 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
 
     static MethodDeclarationSyntax MarkQuery(MethodDeclarationSyntax method, MigrationContext migration)
     {
-        var symbol = migration.SymbolOf(method);
-        if (!NeedsQueryMarker(symbol))
+        if (!migration.NeedsMarker(method))
         {
             return method;
         }
@@ -142,7 +169,7 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
     static AttributeListSyntax Marker(string name) => AttributeList(SingletonSeparatedList(
         Attribute(ParseName($"global::Cratis.Arc.Queries.ModelBound.{name}").WithAdditionalAnnotations(Simplifier.Annotation))));
 
-    sealed class MigrationContext(SemanticModel semanticModel, SyntaxReference? readModel, SyntaxReference firstDeclaration, CancellationToken cancellationToken)
+    sealed class MigrationContext(SyntaxReference[] markers, SyntaxReference? readModel, SyntaxReference firstDeclaration)
     {
         /// <summary>
         /// Gets the directly declared owner attribute, when present.
@@ -173,12 +200,12 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
         public bool NeedsReadModel(TypeDeclarationSyntax declaration) => readModel is null && IsFirstDeclaration(declaration);
 
         /// <summary>
-        /// Resolves a method in this document's semantic model.
+        /// Checks whether this declaration is the chosen part of a logical query method.
         /// </summary>
         /// <param name="method">The method declaration.</param>
-        /// <returns>The method symbol.</returns>
-        public IMethodSymbol SymbolOf(MethodDeclarationSyntax method) =>
-            (IMethodSymbol)semanticModel.GetDeclaredSymbol(method, cancellationToken)!;
+        /// <returns>Whether one marker must be added here.</returns>
+        public bool NeedsMarker(MethodDeclarationSyntax method) =>
+            markers.Any(_ => _.SyntaxTree == method.SyntaxTree && _.Span == method.Span);
 
         bool IsFirstDeclaration(TypeDeclarationSyntax declaration) =>
             declaration.SyntaxTree == firstDeclaration.SyntaxTree && declaration.Span == firstDeclaration.Span;
