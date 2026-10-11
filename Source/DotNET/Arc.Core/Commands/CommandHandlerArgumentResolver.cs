@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Validation;
 using Cratis.DependencyInjection;
@@ -62,11 +63,11 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
 
         // Non-blocking control values (for example warnings) are dropped here, just as the pipeline drops
         // them when filtering by severity, so the resolution reports a clean success.
-        var arguments = BuildArguments(handler, candidates, context, serviceProvider);
+        var arguments = await BuildArguments(handler, candidates, context, serviceProvider);
         return new CommandHandlerArgumentResolution(arguments, CommandResult.Success(context.CorrelationId));
     }
 
-    static object?[] BuildArguments(
+    static async Task<object?[]> BuildArguments(
         ICommandHandler handler,
         List<object> candidates,
         CommandContext context,
@@ -79,7 +80,11 @@ public class CommandHandlerArgumentResolver(ICommandProvideInvoker provideInvoke
             var parameter = parameters[i];
             var parameterType = parameter.ParameterType;
 
-            if (parameterType == typeof(CancellationToken))
+            if (parameter.IsDefined(typeof(GeneratedValueAttribute), inherit: false))
+            {
+                arguments[i] = await GeneratedValueResolution.Resolve(handler.CommandType, parameter, context, serviceProvider);
+            }
+            else if (parameterType == typeof(CancellationToken))
             {
                 arguments[i] = context.CancellationToken;
             }

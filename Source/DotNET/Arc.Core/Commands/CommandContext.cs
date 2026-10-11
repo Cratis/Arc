@@ -63,6 +63,11 @@ public record CommandContext(
     public DateTimeOffset ReceivedAt { get; init; }
 
     /// <summary>
+    /// Gets the validated generated values captured in resolution order. Values must not be logged or traced.
+    /// </summary>
+    public GeneratedValues GeneratedValues { get; init; } = new();
+
+    /// <summary>
     /// Gets the principal selected by scheme authentication for the rest of this command execution.
     /// </summary>
     public ClaimsPrincipal? AuthorizedPrincipal { get; internal set; }
