@@ -16,26 +16,7 @@ public static class MethodInfoExtensions
     /// </summary>
     /// <param name="method">Method to inspect.</param>
     /// <returns>Tuple indicating if there is a response and the response model.</returns>
-    public static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseModel(this MethodInfo method)
-    {
-        var hasResponse = false;
-        var responseModel = ModelDescriptor.Empty;
-
-        if (method.ReturnType.IsGenericType && (method.ReturnType.IsAssignableTo<Task>() ||
-            method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.Task`1" ||
-            method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.ValueTask`1"))
-        {
-            var responseType = method.ReturnType.GetGenericArguments()[0];
-            (hasResponse, responseModel) = GetResponseFromType(responseType);
-        }
-        else if (method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType &&
-            method.ReturnType.FullName != "System.Threading.Tasks.ValueTask")
-        {
-            (hasResponse, responseModel) = GetResponseFromType(method.ReturnType);
-        }
-
-        return (hasResponse, responseModel);
-    }
+    public static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseModel(this MethodInfo method) => method.GetResponseModel(true);
 
     /// <summary>
     /// Get the command type from a method's parameters.
@@ -96,6 +77,33 @@ public static class MethodInfoExtensions
         return GetRolesFromAttributesData(type.GetCustomAttributesData()).Distinct();
     }
 
+    /// <summary>
+    /// Get the response model according to the command's execution path.
+    /// </summary>
+    /// <param name="method">Method to inspect.</param>
+    /// <param name="appliesResponseValueHandlers">True for model-bound execution; false for MVC action outputs.</param>
+    /// <returns>Whether there is a response and its model.</returns>
+    internal static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseModel(this MethodInfo method, bool appliesResponseValueHandlers)
+    {
+        var hasResponse = false;
+        var responseModel = ModelDescriptor.Empty;
+
+        if (method.ReturnType.IsGenericType && (method.ReturnType.IsAssignableTo<Task>() ||
+            method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.Task`1" ||
+            method.ReturnType.GetGenericTypeDefinition().FullName == "System.Threading.Tasks.ValueTask`1"))
+        {
+            var responseType = method.ReturnType.GetGenericArguments()[0];
+            (hasResponse, responseModel) = GetResponseFromType(responseType, appliesResponseValueHandlers);
+        }
+        else if (method.ReturnType != TypeExtensions._voidType && method.ReturnType != TypeExtensions._taskType &&
+            method.ReturnType.FullName != "System.Threading.Tasks.ValueTask")
+        {
+            (hasResponse, responseModel) = GetResponseFromType(method.ReturnType, appliesResponseValueHandlers);
+        }
+
+        return (hasResponse, responseModel);
+    }
+
     static IEnumerable<string> GetRolesFromAttributesData(IEnumerable<CustomAttributeData> attributes)
     {
         foreach (var attr in attributes)
@@ -130,37 +138,34 @@ public static class MethodInfoExtensions
         }
     }
 
-    static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type)
+    static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromType(Type type, bool appliesResponseValueHandlers)
     {
-        if (type.ContainsBareCommandOperationCollection())
+        if (appliesResponseValueHandlers)
         {
-            throw new UnsupportedCommandOperationCollection(type);
-        }
+            if (type.ContainsBareCommandOperationCollection())
+            {
+                throw new UnsupportedCommandOperationCollection(type);
+            }
 
-        if (type.IsServerHandledCommandResponseValue())
-        {
-            return (false, ModelDescriptor.Empty);
+            if (type.IsServerHandledCommandResponseValue())
+            {
+                return (false, ModelDescriptor.Empty);
+            }
         }
 
         if (type.IsGenericType && type.FullName!.StartsWith("System.ValueTuple"))
         {
-            var bestType = type.GetBestTupleType();
-            return bestType is null
-                ? (false, ModelDescriptor.Empty)
-                : (true, bestType.ToModelDescriptor());
+            return GetResponseFromCandidate(type.GetBestTupleType(appliesResponseValueHandlers));
         }
 
         if (type.IsOneOf())
         {
-            var bestType = type.GetBestOneOfResponseType();
-            if (bestType is not null)
-            {
-                return (true, bestType.ToModelDescriptor());
-            }
-
-            return (false, ModelDescriptor.Empty);
+            return GetResponseFromCandidate(type.GetBestOneOfResponseType(appliesResponseValueHandlers));
         }
 
         return (true, type.ToModelDescriptor());
     }
+
+    static (bool HasResponse, ModelDescriptor ResponseModel) GetResponseFromCandidate(Type? type) =>
+        type is null ? (false, ModelDescriptor.Empty) : (true, type.ToModelDescriptor());
 }

@@ -24,6 +24,6 @@ public static class CommandExtensions
         var arguments = method.GetParameterDescriptors();
         var route = method.GetRoute(arguments);
 
-        return method.ToCommandDescriptor(method.Name, properties, arguments, route, targetPath, segmentsToSkip);
+        return method.ToCommandDescriptor(method.Name, properties, arguments, route, targetPath, segmentsToSkip, appliesResponseValueHandlers: false);
     }
 }
