@@ -2,18 +2,20 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using Cratis.Arc.ProxyGenerator.Specs.ActualDependency;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.ProxyGenerator.ModelBound.for_TypeExtensionsModelBound;
 
-#pragma warning disable ARC0026 // Intentionally invalid owner used to test metadata validation.
-
 public class when_probing_metadata_markers : Specification
 {
+    const string InvalidOwnerName = "MetadataFixtures.InvalidOwner";
     MetadataLoadContext _context;
     Assembly _assembly;
+    Assembly _invalidOwnerAssembly;
+    string _fixtureDirectory;
 
     void Establish()
     {
@@ -23,9 +25,15 @@ public class when_probing_metadata_markers : Specification
             .Concat(Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll"));
         _context = new MetadataLoadContext(new CanonicalAssemblyResolver(paths));
         _assembly = _context.LoadFromAssemblyPath(file);
+        _fixtureDirectory = Directory.CreateDirectory(Path.Combine(".ai-work", "3163", "metadata-marker-specs", Guid.NewGuid().ToString("N"))).FullName;
+        _invalidOwnerAssembly = _context.LoadFromAssemblyPath(CreateInvalidOwnerImage());
     }
 
-    void Destroy() => _context.Dispose();
+    void Destroy()
+    {
+        _context.Dispose();
+        Directory.Delete(_fixtureDirectory, recursive: true);
+    }
 
     [Fact]
     void should_not_resolve_an_unrelated_attribute_on_an_unowned_type()
@@ -36,7 +44,7 @@ public class when_probing_metadata_markers : Specification
 
     [Fact]
     void should_still_reject_an_actual_query_on_an_unowned_type() =>
-        Catch.Exception(() => _assembly.GetType(typeof(InvalidOwner).FullName!)!.IsQuery()).GetType().FullName.ShouldEqual("Cratis.Arc.Queries.ModelBound.ModelBoundQueryMethod+InvalidQueryDeclaration");
+        Catch.Exception(() => _invalidOwnerAssembly.GetType(InvalidOwnerName)!.IsQuery()).GetType().FullName.ShouldEqual("Cratis.Arc.Queries.ModelBound.ModelBoundQueryMethod+InvalidQueryDeclaration");
 
     [Fact]
     void should_read_an_explicit_owner_and_query_after_unrelated_attributes() =>
@@ -64,11 +72,24 @@ public class when_probing_metadata_markers : Specification
         public static string Helper() => string.Empty;
     }
 
-    [Unrelated]
-    public sealed class InvalidOwner
+    string CreateInvalidOwnerImage()
     {
-        [Unrelated, Query]
-        public static InvalidOwner All() => new();
+        // Persist the negative fixture without loading it into runtime discovery. A file-backed image
+        // also preserves marker probing with the unrelated attribute dependency absent from the resolver.
+        var assembly = new PersistedAssemblyBuilder(new AssemblyName("InvalidMetadataQueryFixture"), typeof(object).Assembly);
+        var type = assembly.DefineDynamicModule("Queries").DefineType(InvalidOwnerName, TypeAttributes.Public | TypeAttributes.Sealed);
+        var unrelated = new CustomAttributeBuilder(typeof(UnrelatedAttribute).GetConstructor(Type.EmptyTypes)!, []);
+        type.SetCustomAttribute(unrelated);
+        var method = type.DefineMethod("All", MethodAttributes.Public | MethodAttributes.Static, type, Type.EmptyTypes);
+        method.SetCustomAttribute(unrelated);
+        method.SetCustomAttribute(new CustomAttributeBuilder(typeof(QueryAttribute).GetConstructor(Type.EmptyTypes)!, []));
+        var body = method.GetILGenerator();
+        body.Emit(OpCodes.Ldnull);
+        body.Emit(OpCodes.Ret);
+        type.CreateType();
+        var file = Path.Combine(_fixtureDirectory, "InvalidMetadataQueryFixture.dll");
+        assembly.Save(file);
+        return file;
     }
 
     [Unrelated, Cratis.Arc.Queries.ModelBound.ReadModel(RequireQueryAttribute = true)]
