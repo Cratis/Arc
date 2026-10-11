@@ -5,6 +5,8 @@ using System.Security.Claims;
 using Cratis.Arc.Http;
 using Cratis.Execution;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries.for_ObservableQueryHttp.given;
 
@@ -19,6 +21,8 @@ public class a_request : Specification
     protected ObservableQueryHttpResponse _response;
     protected TaskCompletionSource _guardEntered;
     protected List<ObservableQueryEmissionContext> _guardContexts;
+    protected ArcOptions _arcOptions;
+    protected ILogger _logger;
 
     void Establish()
     {
@@ -37,7 +41,14 @@ public class a_request : Specification
             return Task.FromResult(ObservableQueryEmissionVerdict.Allow);
         });
         _accessor = new HttpRequestContextAccessor();
+        _arcOptions = new ArcOptions { ExposeExceptionDetails = false };
+        _logger = Substitute.For<ILogger>();
+        _logger.IsEnabled(LogLevel.Error).Returns(true);
+        var loggerFactory = Substitute.For<ILoggerFactory>();
+        loggerFactory.CreateLogger(Arg.Any<string>()).Returns(_logger);
         _services = new ServiceCollection()
+            .AddSingleton(Options.Create(_arcOptions))
+            .AddSingleton(loggerFactory)
             .AddSingleton(_interceptors)
             .AddSingleton(_guards)
             .AddSingleton(_accessor)

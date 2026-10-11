@@ -6,6 +6,8 @@ using Cratis.Execution;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries.for_ControllerObservableQueryAdapter.given;
 
@@ -15,6 +17,8 @@ public class a_request_with_emission_processing : a_controller_observable_query_
     protected ObjectResult _result;
     protected IReadModelInterceptors _interceptors;
     protected IObservableQueryEmissionGuards _guards;
+    protected ArcOptions _arcOptions;
+    protected ILogger _emissionLogger;
 
     void Establish()
     {
@@ -24,7 +28,13 @@ public class a_request_with_emission_processing : a_controller_observable_query_
         _guards = Substitute.For<IObservableQueryEmissionGuards>();
         _guards.HasGuards.Returns(true);
         _guards.Guard(Arg.Any<ObservableQueryEmissionContext>()).Returns(Task.FromResult(ObservableQueryEmissionVerdict.Allow));
+        _arcOptions = new ArcOptions { ExposeExceptionDetails = false };
+        _emissionLogger = Substitute.For<ILogger>();
+        _emissionLogger.IsEnabled(LogLevel.Error).Returns(true);
+        var loggerFactory = Substitute.For<ILoggerFactory>();
+        loggerFactory.CreateLogger(Arg.Any<string>()).Returns(_emissionLogger);
         _services = new ServiceCollection().AddSingleton(_interceptors).AddSingleton(_guards)
+            .AddSingleton(Options.Create(_arcOptions)).AddSingleton(loggerFactory)
             .AddSingleton<IHttpRequestContextAccessor, HttpRequestContextAccessor>().BuildServiceProvider();
         _httpContext.RequestServices = _services;
         _queryContextManager.Current.Returns(new QueryContext("Controller.Observe", CorrelationId.New(), Paging.NotPaged, Sorting.None));

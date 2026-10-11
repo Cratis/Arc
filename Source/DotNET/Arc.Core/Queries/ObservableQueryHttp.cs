@@ -8,6 +8,9 @@ using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Cratis.Arc.Queries;
 
@@ -95,10 +98,15 @@ public static class ObservableQueryHttp
         var elementType = ObservableQueryElementOperations.FindElementType(streamingData.GetType(), typeof(IObservable<>)) ??
             ObservableQueryElementOperations.FindElementType(streamingData.GetType(), typeof(IAsyncEnumerable<>));
 
-        return elementType is null
-            ? new(CreateSuccessResult(queryContext, streamingData), HttpStatusCode.OK)
+        var response = elementType is null
+            ? new ObservableQueryHttpResponse(CreateSuccessResult(queryContext, streamingData), HttpStatusCode.OK)
             : await ObservableQueryElementOperations.For(elementType).CreateHttpResponse(
                 queryContext, streamingData, options, requestContext, requestContext.RequestAborted);
+        var services = requestContext.RequestServices;
+        var exposeExceptionDetails = services.GetService<IOptions<ArcOptions>>()?.Value.ExposeExceptionDetails ?? false;
+        ExceptionDetailRedactor.Redact(response.Result, exposeExceptionDetails, GetLogger(services));
+
+        return response;
     }
 
     /// <summary>
@@ -181,11 +189,11 @@ public static class ObservableQueryHttp
         // Only this request's consumer invokes scoped collaborators. Producer callbacks merely enqueue values,
         // so their ambient identity cannot leak into interception and no asynchronous callback outlives the scope.
         var services = context.RequestServices;
-        var tenant = queryContext.EmissionTenant ?? services.GetService<TenantIdAccessor>()?.Current;
-        var nativeRequest = queryContext.NativeEmissionRequest ??
-            (services.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?.CaptureLiveRequest(services);
         try
         {
+            var tenant = queryContext.EmissionTenant ?? services.GetService<TenantIdAccessor>()?.Current;
+            var nativeRequest = queryContext.NativeEmissionRequest ??
+                (services.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?.CaptureLiveRequest(services);
             using var identity = ObservableEmissionIdentity.Begin(context, services, queryContext.AuthorizedPrincipal ?? context.User, tenant, nativeRequest);
             var interceptors = services.GetRequiredService<IReadModelInterceptors>();
             var guards = services.GetRequiredService<IObservableQueryEmissionGuards>();
@@ -207,6 +215,7 @@ public static class ObservableQueryHttp
         }
         catch (Exception error) when (!IsFatal(error))
         {
+            GetLogger(services).ObservableHttpQueryFailed(error, queryContext.CorrelationId);
             return new(QueryResult.Error(queryContext.CorrelationId, error), HttpStatusCode.InternalServerError);
         }
     }
@@ -324,6 +333,9 @@ public static class ObservableQueryHttp
                 SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
             })
             : Task.FromResult(ObservableQueryEmissionVerdict.Allow);
+
+    static ILogger GetLogger(IServiceProvider services) =>
+        services.GetService<ILoggerFactory>()?.CreateLogger(typeof(ObservableQueryHttp).FullName!) ?? NullLogger.Instance;
 
     static bool IsFatal(Exception error) => error is OutOfMemoryException or StackOverflowException or
         AccessViolationException or AppDomainUnloadedException or BadImageFormatException or
