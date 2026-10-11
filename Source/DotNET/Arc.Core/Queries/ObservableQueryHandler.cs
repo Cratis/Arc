@@ -132,7 +132,7 @@ public class ObservableQueryHandler(
 #pragma warning restore IDE0060
     {
         var options = ObservableQueryHttp.GetOptions(context.Query);
-        var response = await ObservableQueryHttp.CreateResponse(queryContextManager.Current, streamingData, options, context.RequestAborted);
+        var response = await ObservableQueryHttp.CreateResponse(queryContextManager.Current, streamingData, options, context);
         context.SetStatusCode((int)response.StatusCode);
         await context.WriteResponseAsJson(response.Result, typeof(QueryResult), context.RequestAborted);
     }

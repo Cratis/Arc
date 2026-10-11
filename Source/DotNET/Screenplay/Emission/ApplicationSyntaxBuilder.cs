@@ -80,7 +80,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         model = new ExecutableValidationRules(diagnostics).Apply(model);
 
         var domain = ToName(model.Domain, options.Domain);
-        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names).Build(model.Concepts).ToList();
+        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs }.Build(model.Concepts).ToList();
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
         var declaredReadModels = new ReadModelDeclarations(naming, _types, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], diagnostics).Of(model.Slices);
         var originalSlices = model.Slices;

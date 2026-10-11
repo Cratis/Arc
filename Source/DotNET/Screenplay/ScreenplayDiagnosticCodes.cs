@@ -540,4 +540,19 @@ public static class ScreenplayDiagnosticCodes
     /// A specification event route requires the authoring-only option or has no syntax at its occurrence position.
     /// </summary>
     public const string SpecificationRouteNotRepresentable = "SP0060";
+
+    /// <summary>
+    /// A non-default encryption scope was not stated in executable-mode output.
+    /// </summary>
+    public const string EncryptionScopeNotRepresentable = "SP0061";
+
+    /// <summary>
+    /// A member's personal-data marking cannot classify its non-concept type.
+    /// </summary>
+    public const string MemberPiiNotRepresentable = "SP0062";
+
+    /// <summary>
+    /// A member's personal-data marking promotes a concept's unmarked uses too.
+    /// </summary>
+    public const string ConceptPiiPromotion = "SP0063";
 }

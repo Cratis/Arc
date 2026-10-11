@@ -14,11 +14,11 @@ An interceptor lets you apply a cross-cutting transformation without repeating i
 | Ordinary model-bound query data | Applied after rendering |
 | Ordinary Arc-wrapped MVC GET data | Applied after rendering |
 | Supported direct WebSocket/SSE streams and multiplexed hub emissions | Applied per emission |
-| **Observable HTTP snapshot**, including `waitForFirstResult=true` | **Not currently applied by `ObservableQueryHttp`** |
+| Observable HTTP snapshot, including `waitForFirstResult=true` | Applied before the first allowed result is returned |
 | MVC `[AspNetResult]` | Opts out of the Arc result-processing path |
 
 > [!WARNING]
-> Do not rely on an interceptor as universal masking or decryption policy. A caller can request an observable's HTTP snapshot instead of its stream. Ensure the query/provider returns only fields and rows that caller may receive on **every** exposed path. Snapshot interception would require a runtime change; this page does not imply a configuration switch fixes that gap.
+> Interception transforms data; it does not authorize access. Ensure the query/provider selects only rows and fields the caller may receive on **every** exposed path. MVC `[AspNetResult]` still opts out of Arc result processing.
 
 ```mermaid
 flowchart LR
@@ -27,9 +27,9 @@ flowchart LR
     Query --> Stream[Stream wrapper]
     Stream --> Emission[Streaming emission]
     Emission --> Interceptor
-    Stream --> Snapshot[HTTP snapshot: current exception]
+    Stream --> Snapshot[HTTP snapshot]
+    Snapshot --> Interceptor
     Interceptor --> Client[Client]
-    Snapshot --> Client
 ```
 
 ## Implement an interceptor
@@ -61,6 +61,6 @@ The returned instance is served to the caller. Prefer a `with` copy over mutatin
 
 Interceptors run in discovery order. Avoid making security depend on an undocumented ordering between implementations. Collections are processed item by item; streaming paths process each emitted model before delivery.
 
-The pipeline skips stream wrappers because a wrapper is not a model instance. The supported streaming transports intercept emissions instead; the HTTP snapshot path currently has no corresponding interception step. Test ordinary GET, observable snapshot GET, direct SSE/WebSocket, and hub delivery separately for any transformation the application depends on.
+The pipeline skips stream wrappers because a wrapper is not a model instance. Streaming transports and observable HTTP snapshots intercept the emitted values instead, using the requesting subscriber's identity and scoped services. Interception runs before [emission guards](observable-query-emission-guards.md); a failing interceptor returns an error, never the raw value. Test ordinary GET, observable snapshot GET, direct SSE/WebSocket, and hub delivery separately for any transformation the application depends on.
 
 Continue with [observable queries](model-bound/observable-queries.md) for lifetime rules and [emission guards](observable-query-emission-guards.md) for per-emission access decisions.

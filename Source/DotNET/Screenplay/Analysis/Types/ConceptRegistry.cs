@@ -163,6 +163,18 @@ public class ConceptRegistry
         [.. type.GetMembers().OfType<IFieldSymbol>().Where(_ => _.HasConstantValue).Select(_ => _.Name)];
 
     /// <summary>
+    /// Reads the non-default encryption scope from a concept's attribute.
+    /// </summary>
+    /// <param name="type">The concept type.</param>
+    /// <returns>The scope, or null for Subject scope.</returns>
+    static string? ScopeOf(ITypeSymbol type) => type.GetAttribute(WellKnownTypeNames.EncryptedAttribute)?.GetArgument(0) switch
+    {
+        1 => "namespace",
+        2 => "global",
+        _ => null
+    };
+
+    /// <summary>
     /// Builds the concept a type backed by <c>ConceptAs</c> declares.
     /// </summary>
     /// <param name="type">The concept type.</param>
@@ -173,18 +185,19 @@ public class ConceptRegistry
         var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
         var encrypted = type.HasAttribute(WellKnownTypeNames.EncryptedAttribute);
         var notAudited = type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute);
+        var scope = ScopeOf(type);
         MarkSecret(type, encrypted, notAudited);
 
         if (backing.TypeKind == TypeKind.Enum)
         {
-            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []) { IsSensitive = encrypted && notAudited };
+            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []) { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
         }
 
         var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
             ? primitive
             : ScreenplayPrimitive.String;
 
-        return new(type.Name, resolved, pii, [], []) { IsSensitive = encrypted && notAudited };
+        return new(type.Name, resolved, pii, [], []) { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
     }
 
     /// <summary>

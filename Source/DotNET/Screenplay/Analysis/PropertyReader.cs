@@ -34,10 +34,7 @@ public class PropertyReader(TypeRegistry types)
 
         foreach (var property in type.DeclaredProperties())
         {
-            if (MemberAttributes.Has(property, WellKnownTypeNames.PiiAttribute))
-            {
-                types.MarkAsPii(property.Type);
-            }
+            types.RecordPiiUse(property);
 
             var carried = UnderlyingTypes.Of(property.Type);
             types.MarkSecret(

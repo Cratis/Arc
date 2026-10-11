@@ -280,7 +280,7 @@ public partial class ObservableQueryDemultiplexer(
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
         {
             var lifetime = new StreamingQuerySubscription(token);
-            var guardScope = CreateGuardScope(lifetime);
+            var guardScope = CreateEmissionScope(lifetime);
 
             if (lifetime.TryEnter())
             {
@@ -324,13 +324,9 @@ public partial class ObservableQueryDemultiplexer(
         return null;
     }
 
-    IServiceScope? CreateGuardScope(StreamingQuerySubscription lifetime)
+    IServiceScope? CreateEmissionScope(StreamingQuerySubscription lifetime)
     {
-        if (!emissionGuards.HasGuards)
-        {
-            return null;
-        }
-
+        // Interceptors also resolve scoped collaborators, even if no emission guards are installed.
         var ownedScope = (IServiceScope?)serviceProvider.CreateScope();
         try
         {
@@ -588,8 +584,8 @@ public partial class ObservableQueryDemultiplexer(
 
         try
         {
-            using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                context, guardServiceProvider ?? serviceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            var emissionServices = guardServiceProvider ?? serviceProvider;
+            using var emissionIdentity = BeginEnumerableEmissionIdentity(context, identity, emissionServices);
             await foreach (var item in enumerable.WithCancellation(token))
             {
                 if (token.IsCancellationRequested)
@@ -597,8 +593,10 @@ public partial class ObservableQueryDemultiplexer(
                     break;
                 }
 
+                var intercepted = await readModelInterceptors.InterceptEmission(typeof(T), item, emissionServices);
+                token.ThrowIfCancellationRequested();
                 var outcome = await EvaluateGuard(
-                    new GuardRequest(queryId, identity, correlationId, guardServiceProvider, !hasDeliveredEmission),
+                    new GuardRequest(queryId, identity, correlationId, emissionGuards.HasGuards ? guardServiceProvider : null, !hasDeliveredEmission),
                     onUnauthorized,
                     token);
                 if (outcome == GuardOutcome.Stop)
@@ -611,7 +609,7 @@ public partial class ObservableQueryDemultiplexer(
                     continue;
                 }
 
-                var result = CreateDeliverableResult(correlationId, item!, paging);
+                var result = CreateDeliverableResult(correlationId, intercepted, paging);
 
                 token.ThrowIfCancellationRequested();
                 await onNext(result, token);
@@ -633,6 +631,13 @@ public partial class ObservableQueryDemultiplexer(
             httpRequestContextAccessor.Current = previousContext;
         }
     }
+
+    IDisposable BeginEnumerableEmissionIdentity(
+        IHttpRequestContext context,
+        ObservableQuerySubscriptionIdentity identity,
+        IServiceProvider emissionServices) =>
+        ObservableEmissionIdentity.Begin(
+            context, emissionServices, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
 
     void ReleaseWriteLock(SemaphoreSlim writeLock, CancellationToken token)
     {
