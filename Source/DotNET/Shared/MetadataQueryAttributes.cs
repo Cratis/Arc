@@ -35,15 +35,8 @@ internal static class MetadataQueryAttributes
         var index = 0;
         foreach (var handle in reader.GetCustomAttributes(MetadataTokens.EntityHandle(member.MetadataToken)))
         {
-            var constructor = reader.GetCustomAttribute(handle).Constructor;
-            var type = constructor.Kind switch
-            {
-                HandleKind.MemberReference => reader.GetMemberReference((MemberReferenceHandle)constructor).Parent,
-                HandleKind.MethodDefinition => reader.GetMethodDefinition((MethodDefinitionHandle)constructor).GetDeclaringType(),
-                _ => default
-            };
-            var name = TypeName(reader, type);
-            if (name is not null && (matchFullName ? name == fullName : name[(name.LastIndexOfAny(['.', '+']) + 1)..] == fullName))
+            var name = TypeName(reader, AttributeType(reader, handle));
+            if (Matches(name, fullName, matchFullName))
             {
                 // MetadataLoadContext exposes custom attributes in the image's metadata order. Only the
                 // matching entry is resolved; unrelated constructors and AttributeType values stay untouched.
@@ -54,6 +47,28 @@ internal static class MetadataQueryAttributes
         }
 
         return null;
+    }
+
+    static EntityHandle AttributeType(MetadataReader reader, CustomAttributeHandle attribute)
+    {
+        var constructor = reader.GetCustomAttribute(attribute).Constructor;
+        return constructor.Kind switch
+        {
+            HandleKind.MemberReference => reader.GetMemberReference((MemberReferenceHandle)constructor).Parent,
+            HandleKind.MethodDefinition => reader.GetMethodDefinition((MethodDefinitionHandle)constructor).GetDeclaringType(),
+            _ => default
+        };
+    }
+
+    static bool Matches(string? name, string expected, bool fullName)
+    {
+        if (name is null)
+        {
+            return false;
+        }
+
+        var candidate = fullName ? name : name[(name.LastIndexOfAny(['.', '+']) + 1)..];
+        return candidate == expected;
     }
 
     static string? TypeName(MetadataReader reader, EntityHandle handle) => handle.Kind switch
