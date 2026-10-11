@@ -49,6 +49,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public bool ExecutableRoutes { get; init; }
 
     /// <summary>
+    /// Gets whether ESM v10 reaction metadata is admitted.
+    /// </summary>
+    public bool ReactionMetadataEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets where routed occurrences from retained specifications are collected for source declarations.
     /// </summary>
     public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
@@ -233,7 +238,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return specification;
         }
 
-        var reactions = new DeclarativeReactions(naming, Application);
+        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled };
         var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
             Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         var reason = specification.Reactor is { } reactor
@@ -270,6 +275,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             reactions.For(model, action.Name) is not { } reaction)
         {
             return $"the reaction of '{reactor}' to '{action.Name}' is not stated declaratively in the document";
+        }
+
+        if (model.EventSource is not null || model.ObservationFailure is not null)
+        {
+            return "its reactor observation filter requires a routed occurrence fixture that was not recovered; no unrestricted append was substituted";
         }
 
         if (reactors.Exists(other => !ReferenceEquals(other, model) && other.ObservedEvents.Any(observed => naming.ToDeclarationName(observed) == appended)))

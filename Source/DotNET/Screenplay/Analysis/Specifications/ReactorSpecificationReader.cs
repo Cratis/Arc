@@ -60,6 +60,11 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
     /// <returns>The reason, or <see langword="null"/> when the scenario has a counterpart.</returns>
     public string? WithoutCounterpart(INamedTypeSymbol type, INamedTypeSymbol reactor)
     {
+        if (ReactorMetadataReader.HasObservationFilter(reactor))
+        {
+            return $"of '{reactor.Name}', whose observation filter needs a routed occurrence fixture this reader cannot recover";
+        }
+
         if (!ReactorReader.ReactionsOf(reactor, models).Any())
         {
             return $"of '{reactor.Name}', whose handlers are code rather than declarative reactions";
@@ -290,7 +295,8 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
             var state = new SpecificationStateModel(
                 @event.Name,
                 SpecificationStateKind.Event,
-                [.. values.Read(construction.Creation, construction.SemanticModel, @event, name, location, draft)]) { For = source };
+                [.. values.Read(construction.Creation, construction.SemanticModel, @event, name, location, draft)])
+            { For = source };
             if (!SpecificationEventCompleteness.StatesEveryValue(state, @event, draft))
             {
                 return null;

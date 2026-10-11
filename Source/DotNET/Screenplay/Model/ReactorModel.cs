@@ -39,6 +39,39 @@ public record ReactorModel(
     public IEnumerable<ReactionModel> Reactions { get; init; } = [];
 
     /// <summary>
+    /// Gets the exact roles for returned commands executed as the system; null means no system identity declaration.
+    /// </summary>
+    /// <remarks>
+    /// An empty collection declares an authenticated system identity with no roles.
+    /// </remarks>
+    public IEnumerable<string>? SystemRoles { get; init; }
+
+    /// <summary>
+    /// Gets genuine source definitions available to observation admission.
+    /// </summary>
+    internal IEnumerable<ReactorSourceDefinition> ObservationDefinitions { get; init; } = [];
+
+    /// <summary>
+    /// Gets the reason identity metadata cannot bind.
+    /// </summary>
+    internal string? IdentityFailure { get; init; }
+
+    /// <summary>
+    /// Gets the reason observation metadata cannot bind.
+    /// </summary>
+    internal string? ObservationFailure { get; init; }
+
+    /// <summary>
+    /// Gets whether returned events require unsupported append routing.
+    /// </summary>
+    internal bool HasUnrepresentableAppendRoute { get; init; }
+
+    /// <summary>
+    /// Gets the declaring type for located metadata refusals.
+    /// </summary>
+    internal string? MetadataLocation { get; init; }
+
+    /// <summary>
     /// Deconstructs the reactor into the members it had before it could be filtered to an event source, so existing deconstruction keeps compiling.
     /// </summary>
     /// <param name="name">The name of the reactor.</param>

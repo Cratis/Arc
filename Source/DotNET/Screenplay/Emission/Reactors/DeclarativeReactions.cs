@@ -26,6 +26,11 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     static readonly HashSet<string> _reserved = new(StringComparer.Ordinal) { "for", "tag", "when" };
 
     /// <summary>
+    /// Gets whether ESM v10 reaction identity and observation metadata are admitted.
+    /// </summary>
+    public bool MetadataEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets every declarative reaction the document states, with the reactor stating it.
     /// </summary>
     /// <returns>The reactions.</returns>
@@ -47,7 +52,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     {
         var name = naming.ToDeclarationName(@event);
         var reactions = reactor.Reactions.Where(_ => naming.ToDeclarationName(_.EventName) == name).ToList();
-        if (reactor.EventSource is not null || reactions is not [var reaction])
+        if (!new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor) || reactions is not [var reaction])
         {
             return null;
         }

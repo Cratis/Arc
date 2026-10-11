@@ -146,7 +146,10 @@ public class ArtifactReaders
             new ModelBoundProjectionReader(diagnostics),
             new FluentProjectionReader(models, diagnostics),
             new ReducerReader(diagnostics),
-            new ReactorReader(models, paths),
+            new ReactorReader(models, paths)
+            {
+                Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
+            },
             new ConstraintReader(models, paths, diagnostics),
             new ReadModelReader(paths, whole.ReadModels));
     }
