@@ -231,7 +231,7 @@ public static class ObservableQueryHttp
         if (!processing.Http.Options.WaitForFirstResult)
         {
             return TryGetCurrentValue(streamingData, out var currentValue)
-                ? await ProcessEmission<T>(processing, currentValue, true)
+                ? await ProcessEmission<T>(processing, currentValue)
                 : new(QueryResult.NotReady(queryContext.CorrelationId), HttpStatusCode.Accepted);
         }
 
@@ -249,7 +249,7 @@ public static class ObservableQueryHttp
 
         await foreach (var value in emissions.Reader.ReadAllAsync(processing.Token))
         {
-            var response = await ProcessEmission<T>(processing, value, true);
+            var response = await ProcessEmission<T>(processing, value);
             if (response.StatusCode != HttpStatusCode.Accepted)
             {
                 return response;
@@ -268,20 +268,20 @@ public static class ObservableQueryHttp
         // not replay (including a completed BehaviorSubject), so process their cache if no value was queued.
         if (!emissions.TryPeek(out _) && TryGetCurrentValue(streamingData, out var cached))
         {
-            return await ProcessEmission<T>(processing, cached, true);
+            return await ProcessEmission<T>(processing, cached);
         }
 
         return null;
     }
 
-    static async Task<ObservableQueryHttpResponse> ProcessEmission<T>(EmissionProcessingContext processing, object? value, bool isFirstEmission)
+    static async Task<ObservableQueryHttpResponse> ProcessEmission<T>(EmissionProcessingContext processing, object? value)
     {
         var queryContext = processing.Http.Query;
         var token = processing.Token;
         token.ThrowIfCancellationRequested();
         var data = await processing.Interceptors.InterceptEmission(typeof(T), value, processing.Http.Request!.RequestServices);
         token.ThrowIfCancellationRequested();
-        var verdict = await Guard(processing, isFirstEmission);
+        var verdict = await Guard(processing);
         token.ThrowIfCancellationRequested();
 
         return verdict switch
@@ -297,7 +297,7 @@ public static class ObservableQueryHttp
         var values = new List<object>();
         await foreach (var value in enumerable.WithCancellation(processing.Token))
         {
-            var response = await ProcessEmission<T>(processing, value, values.Count == 0);
+            var response = await ProcessEmission<T>(processing with { IsFirstEmission = values.Count == 0 }, value);
             if (response.StatusCode == HttpStatusCode.Forbidden)
             {
                 return response;
@@ -312,7 +312,7 @@ public static class ObservableQueryHttp
         return new(CreateSuccessResult(processing.Http.Query, values), HttpStatusCode.OK);
     }
 
-    static Task<ObservableQueryEmissionVerdict> Guard(EmissionProcessingContext processing, bool isFirstEmission)
+    static Task<ObservableQueryEmissionVerdict> Guard(EmissionProcessingContext processing)
     {
         var queryContext = processing.Http.Query;
         var request = processing.Http.Request!;
@@ -324,7 +324,7 @@ public static class ObservableQueryHttp
                 queryContext.AuthorizedPrincipal ?? request.User,
                 queryContext.CorrelationId,
                 request.RequestServices,
-                isFirstEmission,
+                processing.IsFirstEmission,
                 processing.Token)
             {
                 SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
@@ -412,5 +412,11 @@ public static class ObservableQueryHttp
         ObservableQueryHttpContext Http,
         IReadModelInterceptors Interceptors,
         IObservableQueryEmissionGuards Guards,
-        CancellationToken Token);
+        CancellationToken Token)
+    {
+        /// <summary>
+        /// Gets whether this emission precedes the first delivered result.
+        /// </summary>
+        public bool IsFirstEmission { get; init; } = true;
+    }
 }
