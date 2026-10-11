@@ -89,12 +89,14 @@ internal abstract class ObservableQueryElementOperations
     /// <param name="queryContext">The <see cref="QueryContext"/> for the current request.</param>
     /// <param name="observable">The observable.</param>
     /// <param name="options">The <see cref="ObservableQueryHttpOptions"/>.</param>
+    /// <param name="requestContext">The current request for interception and guards, if supplied.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> for the request.</param>
     /// <returns>The <see cref="ObservableQueryHttpResponse"/> to send.</returns>
     public abstract Task<ObservableQueryHttpResponse> CreateHttpResponse(
         QueryContext queryContext,
         object observable,
         ObservableQueryHttpOptions options,
+        IHttpRequestContext? requestContext,
         CancellationToken cancellationToken);
 
     /// <summary>

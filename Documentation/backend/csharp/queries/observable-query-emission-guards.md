@@ -1,6 +1,6 @@
 ---
 title: Observable query emission guards
-description: Re-check access before live emissions without treating snapshots as guarded streams.
+description: Re-check access before observable query emissions and HTTP snapshots.
 ---
 <!-- Copyright (c) Cratis. All rights reserved.
 Licensed under the MIT license. See LICENSE file in the project root for full license information. -->
@@ -9,7 +9,7 @@ Authorization for an observable query runs when the subscription is established.
 
 That is fine for most applications. Subscriptions end when the user navigates away, the tab closes, or the server shuts down. But a subscription has no other reason to end: nothing terminates it when a token expires, a session is signed out, or a role is revoked. Keep-alive pings deliberately stop proxies from culling an idle connection, and the client reconnects and re-subscribes on its own.
 
-An **emission guard** closes that gap. Implement `IGuardObservableQueryEmission` and Arc consults it for every emission an observable query is about to write, on every transport — the multiplexed hub and the direct WebSocket/SSE connections alike.
+An **emission guard** closes that gap. Implement `IGuardObservableQueryEmission` and Arc consults it for every emission an observable query is about to write, on every transport — the multiplexed hub, direct WebSocket/SSE connections, and plain-HTTP observable snapshots alike. Read-model interception runs before the guard.
 
 ## Writing a guard
 
@@ -125,6 +125,8 @@ For example, a subscription established while membership is `former` captures `f
 | `Suppress` | This one emission is withheld. The subscription stays live and the next emission is evaluated again. |
 | `DenyAndTerminate` | Nothing is written, the client is told it is unauthorized, and this subscription is torn down. |
 
+For an HTTP observable snapshot, `Allow` returns intercepted data with **200 OK** and `DenyAndTerminate` returns **403 Forbidden** without data. `Suppress` returns **202 Accepted** without data if you did not request waiting. With `waitForFirstResult=true`, Arc keeps evaluating emissions until one is allowed, the query is denied, or the original deadline expires with **408 Request Timeout**. Suppression does not restart the deadline; every candidate for this snapshot carries `IsFirstEmission=true`.
+
 `Suppress` does **not** move the delta baseline. The client never saw the withheld emission, so the next delivered `ChangeSet` is still computed against the last state it actually received — nothing goes missing.
 
 `DenyAndTerminate` ends only the subscription it was given. Every sibling subscription on the same multiplexed connection keeps streaming. On the hub the client receives an `Unauthorized` message for that query id and the subscription is deleted; on a direct connection it receives a final `QueryResult` with `IsAuthorized` false and the stream closes. In both cases the Arc client latches the denial and stops reconnecting — a reconnect would only be denied again, and on a direct SSE connection the browser would otherwise re-establish the stream every few seconds and re-run the whole query for each attempt.
@@ -159,7 +161,7 @@ Resolve collaborators through the constructor. They come from the subscription's
 
 ## Where it does not help
 
-These guards protect streaming **emissions**, not the ordinary HTTP snapshot path through `ObservableQueryHttp`. Do not assume `waitForFirstResult=true` opts a snapshot into streaming interception or emission guards. Apply subscription-time authorization and safe data selection to every query; see [snapshot interception limitations](read-model-interception.md).
+Guards protect emitted values, including observable HTTP snapshots; they do not replace subscription-time authorization or safe data selection. Ordinary non-observable queries do not invoke emission guards. Apply query authorization to every query and keep [read-model interception's opt-out boundaries](read-model-interception.md) in mind.
 
 On a WebSocket the principal is frozen at the handshake — the protocol offers no way to present fresh credentials on an established connection. The identity a guard receives on a WebSocket subscription is the one captured when the socket was upgraded, and it does not change for the life of that connection.
 

@@ -41,8 +41,9 @@ internal sealed class ObservableQueryElementOperationsFor<TElement> : Observable
         QueryContext queryContext,
         object observable,
         ObservableQueryHttpOptions options,
+        IHttpRequestContext? requestContext,
         CancellationToken cancellationToken) =>
-        ObservableQueryHttp.CreateResponseForObservable<TElement>(queryContext, observable, options, cancellationToken);
+        ObservableQueryHttp.CreateResponseForObservable<TElement>(queryContext, observable, options, requestContext, cancellationToken);
 
     /// <inheritdoc/>
     public override IDisposable SubscribeToSubject(

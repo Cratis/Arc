@@ -280,7 +280,7 @@ public partial class ObservableQueryDemultiplexer(
         if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
         {
             var lifetime = new StreamingQuerySubscription(token);
-            var guardScope = CreateGuardScope(lifetime);
+            var guardScope = CreateEmissionScope(lifetime);
 
             if (lifetime.TryEnter())
             {
@@ -324,13 +324,9 @@ public partial class ObservableQueryDemultiplexer(
         return null;
     }
 
-    IServiceScope? CreateGuardScope(StreamingQuerySubscription lifetime)
+    IServiceScope? CreateEmissionScope(StreamingQuerySubscription lifetime)
     {
-        if (!emissionGuards.HasGuards)
-        {
-            return null;
-        }
-
+        // Interceptors also resolve scoped collaborators, even if no emission guards are installed.
         var ownedScope = (IServiceScope?)serviceProvider.CreateScope();
         try
         {
@@ -597,8 +593,10 @@ public partial class ObservableQueryDemultiplexer(
                     break;
                 }
 
+                var intercepted = await readModelInterceptors.InterceptEmission(typeof(T), item, guardServiceProvider ?? serviceProvider);
+                token.ThrowIfCancellationRequested();
                 var outcome = await EvaluateGuard(
-                    new GuardRequest(queryId, identity, correlationId, guardServiceProvider, !hasDeliveredEmission),
+                    new GuardRequest(queryId, identity, correlationId, emissionGuards.HasGuards ? guardServiceProvider : null, !hasDeliveredEmission),
                     onUnauthorized,
                     token);
                 if (outcome == GuardOutcome.Stop)
@@ -611,7 +609,7 @@ public partial class ObservableQueryDemultiplexer(
                     continue;
                 }
 
-                var result = CreateDeliverableResult(correlationId, item!, paging);
+                var result = CreateDeliverableResult(correlationId, intercepted, paging);
 
                 token.ThrowIfCancellationRequested();
                 await onNext(result, token);

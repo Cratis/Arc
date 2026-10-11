@@ -82,13 +82,12 @@ public class ControllerObservableQueryAdapter(
         ControllerActionDescriptor controllerActionDescriptor)
     {
         logger.ClientObservableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
-        var clientObservable = ObservableQueryExtensions.CreateClientObservableFrom(
-            context.HttpContext.RequestServices,
-            objectResult,
-            queryContextManager);
-
         if (ShouldHandleAsWebSocket(context))
         {
+            var clientObservable = ObservableQueryExtensions.CreateClientObservableFrom(
+                context.HttpContext.RequestServices,
+                objectResult,
+                queryContextManager);
             logger.RequestIsWebSocket();
             var httpRequestContext = new AspNetCoreHttpRequestContext(context.HttpContext);
             await clientObservable.HandleConnection(httpRequestContext);
@@ -118,7 +117,7 @@ public class ControllerObservableQueryAdapter(
                 queryContextManager.Current,
                 objectResult.Value!,
                 context.HttpContext.GetObservableQueryHttpOptions(),
-                context.HttpContext.RequestAborted);
+                new AspNetCoreHttpRequestContext(context.HttpContext));
 
             if (callResult?.Result is ObjectResult objResult)
             {
@@ -139,12 +138,11 @@ public class ControllerObservableQueryAdapter(
         ControllerActionDescriptor controllerActionDescriptor)
     {
         logger.AsyncEnumerableReturnValue(controllerActionDescriptor.ControllerName, controllerActionDescriptor.ActionName);
-        var clientEnumerableObservable = ObservableQueryExtensions.CreateClientEnumerableObservableFrom(
-            context.HttpContext.RequestServices,
-            objectResult);
-
         if (ShouldHandleAsWebSocket(context))
         {
+            var clientEnumerableObservable = ObservableQueryExtensions.CreateClientEnumerableObservableFrom(
+                context.HttpContext.RequestServices,
+                objectResult);
             logger.RequestIsWebSocket();
             var httpRequestContext = new AspNetCoreHttpRequestContext(context.HttpContext);
             await clientEnumerableObservable.HandleConnection(httpRequestContext);
@@ -161,13 +159,23 @@ public class ControllerObservableQueryAdapter(
         else
         {
             logger.RequestIsHttp();
+            var response = await ObservableQueryHttp.CreateResponse(
+                queryContextManager.Current,
+                objectResult.Value!,
+                context.HttpContext.GetObservableQueryHttpOptions(),
+                new AspNetCoreHttpRequestContext(context.HttpContext));
+
+            // MVC async-enumerable actions have always returned a raw array, not a QueryResult envelope.
+            // Preserve that success shape; failures carry Arc's error/unauthorized result instead of any data.
+            var value = response.Result.IsSuccess ? response.Result.Data : response.Result;
             if (callResult?.Result is ObjectResult objResult)
             {
-                objResult.Value = objectResult.Value;
+                objResult.Value = value;
+                objResult.StatusCode = (int)response.StatusCode;
             }
             else if (callResult is not null)
             {
-                callResult.Result = new ObjectResult(objectResult.Value);
+                callResult.Result = new ObjectResult(value) { StatusCode = (int)response.StatusCode };
             }
         }
     }

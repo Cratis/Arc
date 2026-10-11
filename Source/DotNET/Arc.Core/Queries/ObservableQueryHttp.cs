@@ -3,6 +3,11 @@
 
 using System.Globalization;
 using System.Net;
+using System.Threading.Channels;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Http;
+using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Queries;
 
@@ -70,7 +75,30 @@ public static class ObservableQueryHttp
             return new(CreateSuccessResult(queryContext, streamingData), HttpStatusCode.OK);
         }
 
-        return await ObservableQueryElementOperations.For(elementType).CreateHttpResponse(queryContext, streamingData, options, cancellationToken);
+        return await ObservableQueryElementOperations.For(elementType).CreateHttpResponse(queryContext, streamingData, options, null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates an HTTP response after request-scoped interception and emission guards.
+    /// </summary>
+    /// <param name="queryContext">The query context.</param>
+    /// <param name="streamingData">The observable or async enumerable result.</param>
+    /// <param name="options">The snapshot wait options.</param>
+    /// <param name="requestContext">The current request.</param>
+    /// <returns>The HTTP response to send.</returns>
+    internal static async Task<ObservableQueryHttpResponse> CreateResponse(
+        QueryContext queryContext,
+        object streamingData,
+        ObservableQueryHttpOptions options,
+        IHttpRequestContext requestContext)
+    {
+        var elementType = ObservableQueryElementOperations.FindElementType(streamingData.GetType(), typeof(IObservable<>)) ??
+            ObservableQueryElementOperations.FindElementType(streamingData.GetType(), typeof(IAsyncEnumerable<>));
+
+        return elementType is null
+            ? new(CreateSuccessResult(queryContext, streamingData), HttpStatusCode.OK)
+            : await ObservableQueryElementOperations.For(elementType).CreateHttpResponse(
+                queryContext, streamingData, options, requestContext, requestContext.RequestAborted);
     }
 
     /// <summary>
@@ -80,14 +108,21 @@ public static class ObservableQueryHttp
     /// <param name="queryContext">The <see cref="QueryContext"/> for the current request.</param>
     /// <param name="streamingData">The observable query result.</param>
     /// <param name="options">The <see cref="ObservableQueryHttpOptions"/>.</param>
+    /// <param name="requestContext">The request context for interception and guards, if supplied.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/> for the request.</param>
     /// <returns>The <see cref="ObservableQueryHttpResponse"/> to send.</returns>
     internal static async Task<ObservableQueryHttpResponse> CreateResponseForObservable<T>(
         QueryContext queryContext,
         object streamingData,
         ObservableQueryHttpOptions options,
+        IHttpRequestContext? requestContext,
         CancellationToken cancellationToken)
     {
+        if (requestContext is not null)
+        {
+            return await CreateRequestResponse<T>(queryContext, streamingData, options, requestContext);
+        }
+
         if (TryGetCurrentValue(streamingData, out var currentValue))
         {
             return new(CreateSuccessResult(queryContext, currentValue), HttpStatusCode.OK);
@@ -130,6 +165,169 @@ public static class ObservableQueryHttp
             return new(QueryResult.Error(queryContext.CorrelationId, exception), HttpStatusCode.InternalServerError);
         }
     }
+
+    static async Task<ObservableQueryHttpResponse> CreateRequestResponse<T>(
+        QueryContext queryContext,
+        object streamingData,
+        ObservableQueryHttpOptions options,
+        IHttpRequestContext context)
+    {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        if (options.WaitForFirstResult && streamingData is IObservable<T>)
+        {
+            deadline.CancelAfter(options.WaitForFirstResultTimeout);
+        }
+
+        // Only this request's consumer invokes scoped collaborators. Producer callbacks merely enqueue values,
+        // so their ambient identity cannot leak into interception and no asynchronous callback outlives the scope.
+        var services = context.RequestServices;
+        var tenant = queryContext.EmissionTenant ?? services.GetService<TenantIdAccessor>()?.Current;
+        var nativeRequest = queryContext.NativeEmissionRequest ??
+            (services.GetService<IAuthorizationPolicyRuntime>() as IAuthorizationEmissionRuntime)?.CaptureLiveRequest(services);
+        try
+        {
+            using var identity = ObservableEmissionIdentity.Begin(context, services, queryContext.AuthorizedPrincipal ?? context.User, tenant, nativeRequest);
+            var interceptors = services.GetRequiredService<IReadModelInterceptors>();
+            var guards = services.GetRequiredService<IObservableQueryEmissionGuards>();
+            return streamingData is IAsyncEnumerable<T> enumerable
+                ? await CreateEnumerableResponse(queryContext, enumerable, context, interceptors, guards, deadline.Token)
+                : await CreateObservableResponse<T>(queryContext, streamingData, options, context, interceptors, guards, deadline.Token);
+        }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            return new(
+                QueryResult.Error(
+                    queryContext.CorrelationId,
+                    $"Timed out waiting {options.WaitForFirstResultTimeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)} seconds for the first observable query result."),
+                HttpStatusCode.RequestTimeout);
+        }
+        catch (Exception error) when (!IsFatal(error))
+        {
+            return new(QueryResult.Error(queryContext.CorrelationId, error), HttpStatusCode.InternalServerError);
+        }
+    }
+
+    static async Task<ObservableQueryHttpResponse> CreateObservableResponse<T>(
+        QueryContext queryContext,
+        object streamingData,
+        ObservableQueryHttpOptions options,
+        IHttpRequestContext context,
+        IReadModelInterceptors interceptors,
+        IObservableQueryEmissionGuards guards,
+        CancellationToken token)
+    {
+        if (!options.WaitForFirstResult)
+        {
+            return TryGetCurrentValue(streamingData, out var currentValue)
+                ? await ProcessEmission<T>(queryContext, currentValue, context, interceptors, guards, true, token)
+                : new(QueryResult.NotReady(queryContext.CorrelationId), HttpStatusCode.Accepted);
+        }
+
+        var emissions = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true, AllowSynchronousContinuations = false });
+        using var subscription = ((IObservable<T>)streamingData).Subscribe(System.Reactive.Observer.Create<T>(
+            value => emissions.Writer.TryWrite(value),
+            error => emissions.Writer.TryComplete(error),
+            () => emissions.Writer.TryComplete()));
+
+        // Replay subjects supply their current value while subscribing. Other Value-bearing observables may
+        // not replay (including a completed BehaviorSubject), so process their cache if no value was queued.
+        if (!emissions.Reader.TryPeek(out _) && TryGetCurrentValue(streamingData, out var cached))
+        {
+            var cachedResponse = await ProcessEmission<T>(queryContext, cached, context, interceptors, guards, true, token);
+            if (cachedResponse.StatusCode != HttpStatusCode.Accepted)
+            {
+                return cachedResponse;
+            }
+        }
+
+        await foreach (var value in emissions.Reader.ReadAllAsync(token))
+        {
+            var response = await ProcessEmission<T>(queryContext, value, context, interceptors, guards, true, token);
+            if (response.StatusCode != HttpStatusCode.Accepted)
+            {
+                return response;
+            }
+        }
+
+        return new(QueryResult.Error(queryContext.CorrelationId, "Observable query completed before producing its first result."), HttpStatusCode.InternalServerError);
+    }
+
+    static async Task<ObservableQueryHttpResponse> ProcessEmission<T>(
+        QueryContext queryContext,
+        object? value,
+        IHttpRequestContext context,
+        IReadModelInterceptors interceptors,
+        IObservableQueryEmissionGuards guards,
+        bool isFirstEmission,
+        CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var data = await interceptors.InterceptEmission(typeof(T), value, context.RequestServices);
+        token.ThrowIfCancellationRequested();
+        var verdict = await Guard(queryContext, context, guards, isFirstEmission, token);
+        token.ThrowIfCancellationRequested();
+
+        return verdict switch
+        {
+            ObservableQueryEmissionVerdict.Suppress => new(QueryResult.NotReady(queryContext.CorrelationId), HttpStatusCode.Accepted),
+            ObservableQueryEmissionVerdict.DenyAndTerminate => new(QueryResult.Unauthorized(queryContext.CorrelationId), HttpStatusCode.Forbidden),
+            _ => new(CreateSuccessResult(queryContext, data), HttpStatusCode.OK)
+        };
+    }
+
+    static async Task<ObservableQueryHttpResponse> CreateEnumerableResponse<T>(
+        QueryContext queryContext,
+        IAsyncEnumerable<T> enumerable,
+        IHttpRequestContext context,
+        IReadModelInterceptors interceptors,
+        IObservableQueryEmissionGuards guards,
+        CancellationToken token)
+    {
+        var values = new List<object>();
+        await foreach (var value in enumerable.WithCancellation(token))
+        {
+            var response = await ProcessEmission<T>(queryContext, value, context, interceptors, guards, values.Count == 0, token);
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+            {
+                return response;
+            }
+
+            if (response.StatusCode == HttpStatusCode.OK)
+            {
+                values.Add(response.Result.Data);
+            }
+        }
+
+        return new(CreateSuccessResult(queryContext, values), HttpStatusCode.OK);
+    }
+
+    static Task<ObservableQueryEmissionVerdict> Guard(
+        QueryContext queryContext,
+        IHttpRequestContext context,
+        IObservableQueryEmissionGuards guards,
+        bool isFirstEmission,
+        CancellationToken token) =>
+        guards.HasGuards
+            ? guards.Guard(new ObservableQueryEmissionContext(
+                queryContext.Name,
+                queryContext.Arguments ?? QueryArguments.Empty,
+                queryContext.AuthorizedPrincipal ?? context.User,
+                queryContext.CorrelationId,
+                context.RequestServices,
+                isFirstEmission,
+                token)
+            {
+                SubscriptionScopeSnapshot = queryContext.SubscriptionScopeSnapshot
+            })
+            : Task.FromResult(ObservableQueryEmissionVerdict.Allow);
+
+    static bool IsFatal(Exception error) => error is OutOfMemoryException or StackOverflowException or
+        AccessViolationException or AppDomainUnloadedException or BadImageFormatException or
+        CannotUnloadAppDomainException or InvalidProgramException;
 
     static async Task<ObservableWaitResult<T>> WaitForFirstResult<T>(
         IObservable<T> observable,

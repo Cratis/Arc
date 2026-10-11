@@ -9,8 +9,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 Use a running Arc application's actual observable query URL. The commands below target the explicit `/api/accounts/observe` path from the [model-bound example](model-bound/observable-queries.md); the same direct-HTTP options work for [MVC GET observable actions](controller-based/observable-queries.md). Replace the origin and provide your application's normal credentials. These are runnable client checkpoints against that configured host, not commands that create a backend.
 
-> [!WARNING]
-> Observable HTTP snapshots currently bypass [read-model interception](read-model-interception.md). Never assume streaming-only masking protects this snapshot route.
+Observable HTTP snapshots apply [read-model interception](read-model-interception.md) and [emission guards](observable-query-emission-guards.md) before returning data. These do not replace query authorization or safe data selection.
 
 ## Get the current snapshot
 
@@ -24,7 +23,7 @@ Use the wait option for this MongoDB endpoint: Arc subscribes to receive a first
 > [!WARNING]
 > MongoDB's `LifetimeAwareSubject` has no readable `Value` property, even after buffering a result. An ordinary no-wait GET therefore returns **202 Accepted** with `isReady: false`, rather than reading that replayed value. The provider starts its watcher eagerly, but this HTTP branch neither subscribes nor disposes the subject and can leave the watcher running. Do not use no-wait snapshots for this provider.
 
-For other producers, no-wait GET returns 200 only when Arc can read a current `Value`; otherwise it returns 202. Use that mode only with a readable current value and verified cleanup when no subscription is created.
+For other producers, no-wait GET returns 200 only when Arc can read a current `Value` and the emission guards allow it; a suppressed value or no readable value returns 202. A denied value returns 403 without data. Use that mode only with a readable current value and verified cleanup when no subscription is created.
 
 ## Wait for the first payload
 
@@ -33,9 +32,11 @@ curl --include --max-time 15 \
   'https://localhost:5001/api/accounts/observe?waitForFirstResult=true&waitForFirstResultTimeout=10'
 ```
 
-The server waits for the first emission for up to 10 seconds; the default is 30 seconds. A positive timeout override is measured in seconds. `--max-time` bounds the client separately.
+The server waits for the first allowed emission for up to 10 seconds; the default is 30 seconds. Suppressed emissions do not restart that deadline. A positive timeout override is measured in seconds. `--max-time` bounds the client separately.
 
-- A first emission returns 200 with data, including a legitimately empty collection.
+- An allowed emission returns 200 with intercepted data, including a legitimately empty collection.
+- Without waiting, a suppressed or unavailable value returns 202 without data.
+- An emission guard denial or failure returns 403 without data.
 - A wait timeout returns 408 with an error result.
 - Completion before any emission returns 500 with an error result.
 - An authorization/validation failure is not made successful by waiting.
