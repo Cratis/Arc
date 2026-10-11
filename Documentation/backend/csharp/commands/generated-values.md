@@ -86,7 +86,7 @@ context in this phase.
 
 ## Testing
 
-You can inspect captures through the [command context](command-context.md), and use the
-[command scenario](../testing/command-scenario.md) for normal command execution tests.
-Named scenario pinning and its dedicated generated-values testing guide arrive in the next
-phase; no public pinning API is included here yet.
+Inspect captures through the [command context](command-context.md), or
+[pin generated values in command specs](../testing/generated-values.md) with
+`CommandScenario<TCommand>`. Scenarios require named pins by default; use `AllowGeneration()`
+when the exact value is irrelevant.
