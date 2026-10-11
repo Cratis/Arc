@@ -116,9 +116,8 @@ public partial class ObservableQueryDemultiplexer
             serviceProvider,
             operation.Token);
 
-        var wasUnauthorized = await EstablishSubscription(new SubscriptionSession
+        var session = new SubscriptionSession
         {
-            Context = context,
             SubscriptionContext = subscriptionContext,
             Subscriptions = state.Subscriptions,
             ConnectionId = body.ConnectionId,
@@ -127,7 +126,8 @@ public partial class ObservableQueryDemultiplexer
             Operation = operation,
             Protocol = "SSE",
             Send = (message, operationToken) => SendSseMessage(state, message, operationToken)
-        });
+        };
+        var wasUnauthorized = await EstablishSubscription(session, context.RequestServices);
 
         context.SetStatusCode(wasUnauthorized ? 401 : 200);
     }

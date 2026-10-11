@@ -171,9 +171,8 @@ public partial class ObservableQueryDemultiplexer
         logger.ClientSubscribed(request.QueryName, queryId);
         var subscriptionContext = new ObservableQuerySubscriptionHttpRequestContext(context, context, serviceProvider, operation.Token);
 
-        await EstablishSubscription(new SubscriptionSession
+        var session = new SubscriptionSession
         {
-            Context = context,
             SubscriptionContext = subscriptionContext,
             Subscriptions = connection.Subscriptions,
             ConnectionId = connection.ConnectionId,
@@ -182,7 +181,8 @@ public partial class ObservableQueryDemultiplexer
             Operation = operation,
             Protocol = "WebSocket",
             Send = (outgoing, operationToken) => SendWebSocketMessage(connection, outgoing, operationToken)
-        });
+        };
+        await EstablishSubscription(session, context.RequestServices);
     }
 
     void HandleWebSocketUnsubscribe(

@@ -138,8 +138,9 @@ public partial class ObservableQueryDemultiplexer
     /// Creates the subscription for a reserved operation and wires it to the transport, registering it for health tracking.
     /// </summary>
     /// <param name="session">The <see cref="SubscriptionSession"/> describing the reserved operation and its transport.</param>
+    /// <param name="requestServices">The admission request's services; not retained by the session.</param>
     /// <returns>True when the subscription ended because the caller was not authorized; otherwise false.</returns>
-    async Task<bool> EstablishSubscription(SubscriptionSession session)
+    async Task<bool> EstablishSubscription(SubscriptionSession session, IServiceProvider requestServices)
     {
         var operation = session.Operation;
         var previousContext = httpRequestContextAccessor.Current;
@@ -151,7 +152,7 @@ public partial class ObservableQueryDemultiplexer
             var subscription = await CreateSubscription(
                 new SubscriptionTarget(
                     session.SubscriptionContext,
-                    session.Context.RequestServices,
+                    requestServices,
                     session.SubscriptionContext.GetPrincipal(),
                     session.QueryId,
                     session.Request),
@@ -451,7 +452,6 @@ public partial class ObservableQueryDemultiplexer
 
     sealed class SubscriptionSession
     {
-        public required IHttpRequestContext Context { get; init; }
         public required ObservableQuerySubscriptionHttpRequestContext SubscriptionContext { get; init; }
         public required ObservableQuerySubscriptionStates Subscriptions { get; init; }
         public required string ConnectionId { get; init; }
