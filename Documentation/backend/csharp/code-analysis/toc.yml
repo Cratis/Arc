@@ -12,3 +12,11 @@
   href: ARC0005.md
 - name: ARC0006 - Command-scoped read model can be missing
   href: ARC0006.md
+- name: ARC0022 - Invalid generated value parameter type
+  href: ARC0022.md
+- name: ARC0023 - Generated value declared outside a command Handle method
+  href: ARC0023.md
+- name: ARC0024 - Generated value names must be non-empty and unique
+  href: ARC0024.md
+- name: ARC0025 - Provide supplies a generated value type
+  href: ARC0025.md

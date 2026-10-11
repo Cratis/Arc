@@ -7,7 +7,7 @@ Arc's Core Roslyn analyzers check command, query, validation, and concept declar
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0021 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0025 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -32,6 +32,10 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0019](#arc0019-conflicting-authorization) | [AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration | Warning | `AuthorizationAttributeAnalyzer` |
 | [ARC0020](#arc0020-aspnet-core-authorization-attributes) | ASP.NET Core authorization attribute is not enforced without Arc's ASP.NET Core integration | Warning | `AuthorizationAttributeAnalyzer` |
 | [ARC0021](#arc0021-unevaluated-authorization-settings) | Authentication scheme requires the ASP.NET Core host | Warning | `AuthorizationAttributeAnalyzer` |
+| [ARC0022](ARC0022.md) | Invalid generated value parameter type | Error | `GeneratedValueAnalyzer` |
+| [ARC0023](ARC0023.md) | Generated value declared outside a command Handle method | Error | `GeneratedValueAnalyzer` |
+| [ARC0024](ARC0024.md) | Generated value names must be non-empty and unique | Error | `GeneratedValueAnalyzer` |
+| [ARC0025](ARC0025.md) | Provide supplies a generated value type | Warning | `GeneratedValueAnalyzer` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 

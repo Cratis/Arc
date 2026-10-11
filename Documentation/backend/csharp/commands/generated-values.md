@@ -84,6 +84,15 @@ Only non-nullable types implementing `IGeneratable<TSelf>` for themselves are va
 at handler construction. Generation has no freshness guard or tenant, clock, or pattern
 context in this phase.
 
+## Analyzers
+
+Arc checks generated declarations in the IDE and at compile time:
+[ARC0022](../code-analysis/ARC0022.md) rejects invalid or nullable types,
+[ARC0023](../code-analysis/ARC0023.md) rejects attributes outside command Handle parameters,
+[ARC0024](../code-analysis/ARC0024.md) rejects empty or duplicate names, and
+[ARC0025](../code-analysis/ARC0025.md) warns when `Provide()` supplies a generated type.
+Startup validation remains in place for commands compiled without the analyzers.
+
 ## Testing
 
 Inspect captures through the [command context](command-context.md), or
