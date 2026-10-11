@@ -287,6 +287,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return $"'{action.Name}' also sets off another reactor, whose effects the scenario does not state";
         }
 
+        return ReactionOutcomeGap(specification, reaction, reactions);
+    }
+
+    string? ReactionOutcomeGap(SpecificationModel specification, ReactionModel reaction, DeclarativeReactions reactions)
+    {
         var observed = reactions.Observed();
         if (reaction.Produces.Any(produced => observed.Contains(naming.ToDeclarationName(produced.EventName))))
         {

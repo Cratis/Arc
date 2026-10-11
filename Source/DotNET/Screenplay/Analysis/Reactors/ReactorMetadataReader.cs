@@ -62,61 +62,98 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
     /// <returns>The reactor with recovered metadata and explicit refusal evidence.</returns>
     internal ReactorModel Read(INamedTypeSymbol type, ReactorModel reactor)
     {
-        var identity = Nearest(type, WellKnownTypeNames.ExecuteCommandsAsSystemAttribute);
-        var roles = RolesOf(identity);
-        var typed = type.GetAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT);
-        var observed = EventSourceReader.ReadObserved(type);
-        if (observed is { StreamDeclared: true } declared && string.Equals(declared.Stream, "All", StringComparison.Ordinal))
-        {
-            observed = observed with { Stream = null };
-        }
-        var known = definitions.Concat(typed?.AttributeClass is { TypeArguments: [INamedTypeSymbol definition] } ? [definition] : [])
-            .Where(IsDefinition).Select(Describe).DistinctBy(item => item.Identity, StringComparer.Ordinal).ToList();
-        string? failure = null;
-        if (typed is not null && observed is null)
-        {
-            failure = "its typed observation definition could not be resolved";
-        }
-        else if (typed is null)
-        {
-            (observed, failure) = ReadRawObservation(type, known);
-        }
+        var identity = ReadIdentity(type);
+        var known = DefinitionsFor(type);
+        var observation = ReadObservation(type, known);
 
         return reactor with
         {
-            EventSource = observed,
-            SystemRoles = roles,
-            IdentityFailure = identity?.AttributeClass is not null && (roles is not { } validRoles || validRoles.Exists(string.IsNullOrWhiteSpace) || validRoles.Distinct(StringComparer.Ordinal).Count() != validRoles.Count)
-                ? "system roles must be non-null, non-blank, distinct text; no roles were sanitized" : null,
-            ObservationFailure = failure,
+            EventSource = observation.Filter,
+            SystemRoles = identity.Roles,
+            IdentityFailure = identity.Failure,
+            ObservationFailure = observation.Failure,
             ObservationDefinitions = known,
             HasUnrepresentableAppendRoute = RoutesAppends(type),
             MetadataLocation = type.ToDisplayString()
         };
     }
 
-    static (ObservedEventSourceModel? Filter, string? Failure) ReadRawObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known)
+    static RecoveredIdentity ReadIdentity(INamedTypeSymbol type)
     {
-        var sourceAttribute = Nearest(type, WellKnownTypeNames.EventSourceTypeAttribute);
-        var streamAttribute = Nearest(type, WellKnownTypeNames.EventStreamTypeAttribute);
-        if ((sourceAttribute?.GetArgument(0) is not string && sourceAttribute is not null) ||
-            (streamAttribute?.GetArgument(0) is not string && streamAttribute is not null))
+        var attribute = Nearest(type, WellKnownTypeNames.ExecuteCommandsAsSystemAttribute);
+        var roles = RolesOf(attribute);
+        var failure = attribute?.AttributeClass is null ? null : IdentityFailure(roles);
+
+        return new(roles, failure);
+    }
+
+    static string? IdentityFailure(List<string>? roles)
+    {
+        const string Failure = "system roles must be non-null, non-blank, distinct text; no roles were sanitized";
+        if (roles is null)
         {
-            return (null, "its raw observation filter is not constant text");
+            return Failure;
+        }
+        if (roles.Exists(string.IsNullOrWhiteSpace))
+        {
+            return Failure;
         }
 
-        var source = sourceAttribute?.GetArgument(0) as string ?? string.Empty;
-        var stream = streamAttribute?.GetArgument(0) as string ?? "All";
+        return roles.Distinct(StringComparer.Ordinal).Count() != roles.Count ? Failure : null;
+    }
+
+    static RecoveredObservation ReadObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known)
+    {
+        if (!type.HasAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT))
+        {
+            return ReadRawObservation(type, known);
+        }
+
+        return EventSourceReader.ReadObserved(type) is { } observed
+            ? new(NormalizeTypedObservation(observed), null)
+            : new(null, "its typed observation definition could not be resolved");
+    }
+
+    static ObservedEventSourceModel NormalizeTypedObservation(ObservedEventSourceModel observed)
+    {
+        if (!observed.StreamDeclared)
+        {
+            return observed;
+        }
+
+        return string.Equals(observed.Stream, "All", StringComparison.Ordinal) ? observed with { Stream = null } : observed;
+    }
+
+    static RecoveredObservation ReadRawObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known)
+    {
+        var source = AttributeText(Nearest(type, WellKnownTypeNames.EventSourceTypeAttribute), string.Empty);
+        var stream = AttributeText(Nearest(type, WellKnownTypeNames.EventStreamTypeAttribute), "All");
+        if (source is null)
+        {
+            return new(null, "its raw observation filter is not constant text");
+        }
+        if (stream is null)
+        {
+            return new(null, "its raw observation filter is not constant text");
+        }
         if (source.Length == 0)
         {
-            return (null, stream == "All" ? null : "a fixed stream with an unrestricted source has no observer-filter counterpart");
+            return new(null, stream == "All" ? null : "a fixed stream with an unrestricted source has no observer-filter counterpart");
         }
 
-        var matches = known.Where(item => item.Source == source).ToList();
-        var declared = stream == "All" || (matches is [var match] && match.Streams.Contains(stream, StringComparer.Ordinal));
+        var selectedStream = stream == "All" ? null : stream;
+        var declared = selectedStream is null || DeclaresStream(known, source, selectedStream);
 
-        return (new(source, stream == "All" ? null : stream, declared), null);
+        return new(new(source, selectedStream, declared), null);
     }
+
+    static string? AttributeText(AttributeData? attribute, string fallback) => attribute is null ? fallback : attribute.GetArgument(0) as string;
+
+    static bool DeclaresStream(List<ReactorSourceDefinition> known, string source, string stream) =>
+        known.Where(item => item.Source == source).ToList() is [var definition] && definition.Streams.Contains(stream, StringComparer.Ordinal);
+
+    static IEnumerable<INamedTypeSymbol> TypedDefinition(INamedTypeSymbol type) =>
+        type.GetAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT)?.AttributeClass is { TypeArguments: [INamedTypeSymbol definition] } ? [definition] : [];
 
     static List<string>? RolesOf(AttributeData? identity) => identity?.ConstructorArguments is [{ Kind: TypedConstantKind.Array, IsNull: false } argument] &&
         argument.Values.All(value => value.Value is string)
@@ -129,4 +166,21 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
         $"{definition.ContainingAssembly.Identity}:{definition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
         EventSourceReader.SourceNameOf(definition),
         definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute).Select(attribute => attribute.GetArgument(0) as string ?? string.Empty).ToList());
+
+    List<ReactorSourceDefinition> DefinitionsFor(INamedTypeSymbol type) => definitions.Concat(TypedDefinition(type))
+        .Where(IsDefinition).Select(Describe).DistinctBy(item => item.Identity, StringComparer.Ordinal).ToList();
+
+    /// <summary>
+    /// Carries identity presence and refusal evidence without changing role text.
+    /// </summary>
+    /// <param name="Roles">The exact roles, or null when unavailable or absent.</param>
+    /// <param name="Failure">The reason a present identity cannot be represented.</param>
+    sealed record RecoveredIdentity(List<string>? Roles, string? Failure);
+
+    /// <summary>
+    /// Carries observation recovery independently of append routing.
+    /// </summary>
+    /// <param name="Filter">The recovered source and stream filter.</param>
+    /// <param name="Failure">The reason observation cannot be represented.</param>
+    sealed record RecoveredObservation(ObservedEventSourceModel? Filter, string? Failure);
 }

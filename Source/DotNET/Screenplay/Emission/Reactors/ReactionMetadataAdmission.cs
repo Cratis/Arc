@@ -16,30 +16,71 @@ namespace Cratis.Arc.Screenplay.Emission.Reactors;
 internal class ReactionMetadataAdmission(ApplicationModel? application, bool enabled = true)
 {
     /// <summary>
+    /// Distinguishes absence of a filter from admission and refusal of a declared filter.
+    /// </summary>
+    enum ObservationState
+    {
+        Unrestricted = 0,
+        Admitted = 1,
+        Refused = 2
+    }
+
+    /// <summary>
     /// Checks roles without sanitizing or removing them.
     /// </summary>
     /// <param name="reactor">The reactor.</param>
     /// <returns>Whether its identity can bind.</returns>
-    internal static bool ValidIdentity(ReactorModel reactor) => reactor.IdentityFailure is null &&
-        (reactor.SystemRoles is null || (reactor.SystemRoles.All(role => !string.IsNullOrWhiteSpace(role)) &&
-            reactor.SystemRoles.Distinct(StringComparer.Ordinal).Count() == reactor.SystemRoles.Count()));
+    internal static bool ValidIdentity(ReactorModel reactor)
+    {
+        if (reactor.IdentityFailure is not null)
+        {
+            return false;
+        }
+        if (reactor.SystemRoles is not { } roles)
+        {
+            return true;
+        }
+
+        return roles.All(role => !string.IsNullOrWhiteSpace(role)) && roles.Distinct(StringComparer.Ordinal).Count() == roles.Count();
+    }
 
     /// <summary>
     /// Prevents execution when metadata would be discarded.
     /// </summary>
     /// <param name="reactor">The reactor.</param>
     /// <returns>Whether declarative effects retain their identity and scope.</returns>
-    internal bool CanExecute(ReactorModel reactor) => ValidIdentity(reactor) && reactor.ObservationFailure is null &&
-        (reactor.EventSource is null || SourceOf(reactor) is not null) &&
-        (enabled || (reactor.SystemRoles is null && reactor.EventSource is null));
+    internal bool CanExecute(ReactorModel reactor)
+    {
+        if (!ValidIdentity(reactor))
+        {
+            return false;
+        }
+        if (ObservationOf(reactor) == ObservationState.Refused)
+        {
+            return false;
+        }
+
+        return !IsCapped(reactor);
+    }
 
     /// <summary>
     /// Builds the representable filter independently of the body.
     /// </summary>
     /// <param name="reactor">The reactor.</param>
     /// <returns>The filter, or null when it cannot be represented.</returns>
-    internal ObserverFilterSyntax? FilterOf(ReactorModel reactor) => enabled && SourceOf(reactor) is not null && reactor.EventSource is { } observed
-        ? new(observed.Source, observed.Stream, SourceLocation.Start) : null;
+    internal ObserverFilterSyntax? FilterOf(ReactorModel reactor)
+    {
+        if (!enabled)
+        {
+            return null;
+        }
+        if (reactor.EventSource is not { } observed)
+        {
+            return null;
+        }
+
+        return SourceOf(reactor) is not null ? new(observed.Source, observed.Stream, SourceLocation.Start) : null;
+    }
 
     /// <summary>
     /// Resolves a unique definition without inventing identifier or stream-key types.
@@ -48,33 +89,44 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
     /// <returns>The exact definition, or null.</returns>
     internal ReactorSourceDefinition? SourceOf(ReactorModel reactor)
     {
-        if (reactor.ObservationFailure is not null || reactor.EventSource is not { StreamDeclared: true } observed || !ValidName(observed.Source) ||
-            observed.Source == "Default" || (observed.Stream is not null && !ValidName(observed.Stream)))
+        if (EligibleFilter(reactor) is not { } observed)
+        {
+            return null;
+        }
+        if (UniqueSource(reactor, observed.Source) is not { } definition)
+        {
+            return null;
+        }
+        if (!ValidStreams(definition))
+        {
+            return null;
+        }
+        if (!ObservesDeclaredStream(observed, definition))
         {
             return null;
         }
 
-        var definitions = (application?.Slices.SelectMany(slice => slice.Reactors).SelectMany(item => item.ObservationDefinitions) ?? reactor.ObservationDefinitions)
-            .DistinctBy(item => item.Identity, StringComparer.Ordinal).Where(item => item.Source == observed.Source).ToList();
-        if (definitions is not [var definition] || definition.Streams.Any(stream => !ValidName(stream)) ||
-            definition.Streams.Distinct(StringComparer.Ordinal).Count() != definition.Streams.Count ||
-            (observed.Stream is not null && !definition.Streams.Contains(observed.Stream, StringComparer.Ordinal)))
-        {
-            return null;
-        }
-
-        var routes = application?.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route)
-            .OfType<CommandRouteModel>().Where(route => route.Source == observed.Source) ?? [];
-
-        return routes.Any(route => route.Stream is not null && !definition.Streams.Contains(route.Stream, StringComparer.Ordinal)) ? null : definition;
+        return RoutesUseDeclaredStreams(definition) ? definition : null;
     }
 
     /// <summary>
     /// Collects admitted observer-only declarations.
     /// </summary>
     /// <returns>The unique source definitions.</returns>
-    internal IEnumerable<ReactorSourceDefinition> Sources() => !enabled || application is null ? [] : application.Slices.SelectMany(slice => slice.Reactors)
-        .Select(SourceOf).OfType<ReactorSourceDefinition>().DistinctBy(item => item.Source, StringComparer.Ordinal);
+    internal IEnumerable<ReactorSourceDefinition> Sources()
+    {
+        if (!enabled)
+        {
+            return [];
+        }
+        if (application is null)
+        {
+            return [];
+        }
+
+        return application.Slices.SelectMany(slice => slice.Reactors)
+            .Select(SourceOf).OfType<ReactorSourceDefinition>().DistinctBy(item => item.Source, StringComparer.Ordinal);
+    }
 
     /// <summary>
     /// Reports metadata refusals while retaining the implementation source.
@@ -84,26 +136,80 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
     /// <param name="location">The declaring type or slice location.</param>
     internal void Report(ReactorModel reactor, ScreenplayDiagnostics diagnostics, string location)
     {
+        ReportIdentity(reactor, diagnostics, location);
+        ReportObservation(reactor, diagnostics, location);
+        ReportAppendRoute(reactor, diagnostics, location);
+        ReportVersionCap(reactor, diagnostics, location);
+    }
+
+    static void ReportIdentity(ReactorModel reactor, ScreenplayDiagnostics diagnostics, string location)
+    {
         if (!ValidIdentity(reactor))
         {
             diagnostics.Warning(ScreenplayDiagnosticCodes.UnrepresentableReactionIdentity, $"The reactor '{reactor.Name}' retains its source because {reactor.IdentityFailure ?? "its system roles are not non-blank distinct text"}", location);
         }
-        if ((reactor.EventSource is not null && SourceOf(reactor) is null) || reactor.ObservationFailure is not null)
-        {
-            ReportObservation(reactor, diagnostics, location);
-        }
+    }
+
+    static void ReportAppendRoute(ReactorModel reactor, ScreenplayDiagnostics diagnostics, string location)
+    {
         if (reactor.HasUnrepresentableAppendRoute)
         {
             diagnostics.Warning(ScreenplayDiagnosticCodes.UnrepresentableReactionAppendRoute, $"Any events returned by reactor '{reactor.Name}' retain their source implementation: append routing or providers cannot bind as routed reaction productions; observation metadata does not select an append route", location);
         }
-        if (!enabled && (reactor.SystemRoles is not null || reactor.EventSource is not null))
+    }
+
+    static bool ValidName(string name) => ScreenplayIdentifier.IsBareIdentifier(name) && !name.Any(char.IsWhiteSpace);
+
+    static bool ValidFilter(ObservedEventSourceModel observed)
+    {
+        if (observed.Source == "Default")
+        {
+            return false;
+        }
+        if (!ValidName(observed.Source))
+        {
+            return false;
+        }
+
+        return observed.Stream is null || ValidName(observed.Stream);
+    }
+
+    static ObservedEventSourceModel? EligibleFilter(ReactorModel reactor)
+    {
+        if (reactor.ObservationFailure is not null)
+        {
+            return null;
+        }
+        if (reactor.EventSource is not { StreamDeclared: true } observed)
+        {
+            return null;
+        }
+
+        return ValidFilter(observed) ? observed : null;
+    }
+
+    static bool ValidStreams(ReactorSourceDefinition definition) => definition.Streams.All(ValidName) &&
+        definition.Streams.Distinct(StringComparer.Ordinal).Count() == definition.Streams.Count;
+
+    static bool ObservesDeclaredStream(ObservedEventSourceModel observed, ReactorSourceDefinition definition) =>
+        observed.Stream is null || definition.Streams.Contains(observed.Stream, StringComparer.Ordinal);
+
+    static bool HasMetadata(ReactorModel reactor) => reactor.SystemRoles is not null || reactor.EventSource is not null;
+
+    void ReportVersionCap(ReactorModel reactor, ScreenplayDiagnostics diagnostics, string location)
+    {
+        if (IsCapped(reactor))
         {
             diagnostics.Warning(ScreenplayDiagnosticCodes.ReactionMetadataVersionCap, $"The reactor '{reactor.Name}' retains its source because runs as and from require ESM v10; no unauthorized or unfiltered executable effect was substituted", location);
         }
     }
 
-    static void ReportObservation(ReactorModel reactor, ScreenplayDiagnostics diagnostics, string location)
+    void ReportObservation(ReactorModel reactor, ScreenplayDiagnostics diagnostics, string location)
     {
+        if (ObservationOf(reactor) != ObservationState.Refused)
+        {
+            return;
+        }
         if (reactor.EventSource is not null)
         {
             new ObservedEventSourceReport(diagnostics).Report("reactor", reactor.Name, reactor.EventSource, location);
@@ -114,5 +220,33 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
         }
     }
 
-    static bool ValidName(string name) => ScreenplayIdentifier.IsBareIdentifier(name) && !name.Any(char.IsWhiteSpace);
+    bool IsCapped(ReactorModel reactor) => !enabled && HasMetadata(reactor);
+
+    ObservationState ObservationOf(ReactorModel reactor)
+    {
+        if (reactor.ObservationFailure is not null)
+        {
+            return ObservationState.Refused;
+        }
+        if (reactor.EventSource is null)
+        {
+            return ObservationState.Unrestricted;
+        }
+
+        return SourceOf(reactor) is null ? ObservationState.Refused : ObservationState.Admitted;
+    }
+
+    ReactorSourceDefinition? UniqueSource(ReactorModel reactor, string source) => DefinitionsOf(reactor)
+        .DistinctBy(item => item.Identity, StringComparer.Ordinal).Where(item => item.Source == source).ToList() is [var definition] ? definition : null;
+
+    IEnumerable<ReactorSourceDefinition> DefinitionsOf(ReactorModel reactor) => application is null
+        ? reactor.ObservationDefinitions
+        : application.Slices.SelectMany(slice => slice.Reactors).SelectMany(item => item.ObservationDefinitions);
+
+    bool RoutesUseDeclaredStreams(ReactorSourceDefinition definition) => DeclaredRoutes()
+        .Where(route => route.Source == definition.Source).Select(route => route.Stream).OfType<string>()
+        .All(stream => definition.Streams.Contains(stream, StringComparer.Ordinal));
+
+    IEnumerable<CommandRouteModel> DeclaredRoutes() => application is null ? [] : application.Slices.SelectMany(slice => slice.Commands)
+        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>();
 }
