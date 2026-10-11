@@ -2,7 +2,9 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using System.Reflection.Emit;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using Cratis.Arc.ProxyGenerator.Specs.ActualDependency;
 using Cratis.Arc.Queries.ModelBound;
@@ -74,22 +76,65 @@ public class when_probing_metadata_markers : Specification
 
     string CreateInvalidOwnerImage()
     {
-        // Persist the negative fixture without loading it into runtime discovery. A file-backed image
-        // also preserves marker probing with the unrelated attribute dependency absent from the resolver.
-        var assembly = new PersistedAssemblyBuilder(new AssemblyName("InvalidMetadataQueryFixture"), typeof(object).Assembly);
-        var type = assembly.DefineDynamicModule("Queries").DefineType(InvalidOwnerName, TypeAttributes.Public | TypeAttributes.Sealed);
-        var unrelated = new CustomAttributeBuilder(typeof(UnrelatedAttribute).GetConstructor(Type.EmptyTypes)!, []);
-        type.SetCustomAttribute(unrelated);
-        var method = type.DefineMethod("All", MethodAttributes.Public | MethodAttributes.Static, type, Type.EmptyTypes);
-        method.SetCustomAttribute(unrelated);
-        method.SetCustomAttribute(new CustomAttributeBuilder(typeof(QueryAttribute).GetConstructor(Type.EmptyTypes)!, []));
-        var body = method.GetILGenerator();
-        body.Emit(OpCodes.Ldnull);
-        body.Emit(OpCodes.Ret);
-        type.CreateType();
+        // Write the negative fixture without loading it into runtime discovery, including on .NET 8.
+        // Keep the unrelated attribute reference even though its dependency is absent from the resolver.
+        var metadata = new MetadataBuilder();
+        metadata.AddModule(0, metadata.GetOrAddString("InvalidMetadataQueryFixture.dll"), metadata.GetOrAddGuid(Guid.NewGuid()), default, default);
+        metadata.AddAssembly(metadata.GetOrAddString("InvalidMetadataQueryFixture"), new Version(1, 0, 0, 0), default, default, default, AssemblyHashAlgorithm.None);
+        metadata.AddTypeDefinition(TypeAttributes.NotPublic, default, metadata.GetOrAddString("<Module>"), default, MetadataTokens.FieldDefinitionHandle(1), MetadataTokens.MethodDefinitionHandle(1));
+        var type = metadata.AddTypeDefinition(
+            TypeAttributes.Public | TypeAttributes.Sealed,
+            metadata.GetOrAddString("MetadataFixtures"),
+            metadata.GetOrAddString("InvalidOwner"),
+            AddTypeReference(metadata, typeof(object)),
+            MetadataTokens.FieldDefinitionHandle(1),
+            MetadataTokens.MethodDefinitionHandle(1));
+        var signature = new BlobBuilder();
+        new BlobEncoder(signature).MethodSignature().Parameters(0, _ => _.Type().Type(type, isValueType: false), _ => { });
+        var instructions = new BlobBuilder();
+        var body = new InstructionEncoder(instructions);
+        body.OpCode(ILOpCode.Ldnull);
+        body.OpCode(ILOpCode.Ret);
+        var bodies = new BlobBuilder();
+        var bodyOffset = new MethodBodyStreamEncoder(bodies).AddMethodBody(body);
+        var method = metadata.AddMethodDefinition(
+            MethodAttributes.Public | MethodAttributes.Static,
+            MethodImplAttributes.IL,
+            metadata.GetOrAddString("All"),
+            metadata.GetOrAddBlob(signature),
+            bodyOffset,
+            MetadataTokens.ParameterHandle(1));
+        var unrelated = AddAttributeConstructor(metadata, typeof(UnrelatedAttribute));
+        var attributeValue = metadata.GetOrAddBlob(new byte[] { 1, 0, 0, 0 });
+        metadata.AddCustomAttribute(type, unrelated, attributeValue);
+        metadata.AddCustomAttribute(method, unrelated, attributeValue);
+        metadata.AddCustomAttribute(method, AddAttributeConstructor(metadata, typeof(QueryAttribute)), attributeValue);
+        var image = new ManagedPEBuilder(new PEHeaderBuilder(imageCharacteristics: Characteristics.Dll), new MetadataRootBuilder(metadata), bodies);
+        var blob = new BlobBuilder();
+        image.Serialize(blob);
         var file = Path.Combine(_fixtureDirectory, "InvalidMetadataQueryFixture.dll");
-        assembly.Save(file);
+        File.WriteAllBytes(file, blob.ToArray());
         return file;
+    }
+
+    static TypeReferenceHandle AddTypeReference(MetadataBuilder metadata, Type type)
+    {
+        var name = type.Assembly.GetName();
+        var assembly = metadata.AddAssemblyReference(
+            metadata.GetOrAddString(name.Name!),
+            name.Version!,
+            default,
+            metadata.GetOrAddBlob(name.GetPublicKeyToken()!),
+            default,
+            default);
+        return metadata.AddTypeReference(assembly, metadata.GetOrAddString(type.Namespace!), metadata.GetOrAddString(type.Name));
+    }
+
+    static MemberReferenceHandle AddAttributeConstructor(MetadataBuilder metadata, Type type)
+    {
+        var signature = new BlobBuilder();
+        new BlobEncoder(signature).MethodSignature(isInstanceMethod: true).Parameters(0, _ => _.Void(), _ => { });
+        return metadata.AddMemberReference(AddTypeReference(metadata, type), metadata.GetOrAddString(".ctor"), metadata.GetOrAddBlob(signature));
     }
 
     [Unrelated, Cratis.Arc.Queries.ModelBound.ReadModel(RequireQueryAttribute = true)]
