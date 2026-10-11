@@ -26,4 +26,14 @@ public record ConceptModel(
     /// Gets whether the value is encrypted and withheld from command auditing.
     /// </summary>
     public bool IsSensitive { get; init; }
+
+    /// <summary>
+    /// Gets the non-default encryption scope, or null for Subject scope.
+    /// </summary>
+    internal string? EncryptionScope { get; init; }
+
+    /// <summary>
+    /// Gets the analyzed unmarked uses affected by member-level personal-data promotion.
+    /// </summary>
+    internal IReadOnlyList<string> UnmarkedPiiUses { get; init; } = [];
 }
