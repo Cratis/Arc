@@ -48,7 +48,7 @@ This policy applies to the additive Arc change approved by woksin on 2026-10-11 
 
 ## Verification
 
-- **Done when:** default endpoint sets and diagnostics are unchanged, every explicit-mode reader selects the same eligible marked methods, invalid markers and duplicate selected names fail, and migration documentation explains endpoint preview.
+- **Done when:** default endpoint sets and diagnostics are unchanged, every explicit-mode reader selects the eligible marked methods that pass its existing conventional return predicate, invalid markers and duplicate selected names fail, and migration documentation explains endpoint preview.
 - **Verify by:** run affected runtime, generator, analyzer, proxy, Screenplay, and query-scenario specifications and the repository documentation gates, followed by the parent session's full release gates and independent review. This record accepts the policy; its stage is not a claim that those gates have passed.
 
 ## Consequences
