@@ -14,6 +14,8 @@ description: Configure and execute standalone command scenarios, and assert prec
 Use `Cratis.Arc.Testing` for standalone Arc tests, plus `Cratis.Specifications.XUnit` when writing Specifications. Chronicle is not required. The optional `Cratis.Testing` meta-package also brings Chronicle support; it is not the minimal standalone choice.
 
 Import `Cratis.Arc.Testing.Commands` for both the scenario and result assertion extensions.
+For commands with `[GeneratedValue]` Handle parameters, [pin generated values](generated-values.md)
+before execution or opt into normal generation with `AllowGeneration()`.
 
 | Member                         | Contract                                                                                                                                         |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
