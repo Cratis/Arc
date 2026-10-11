@@ -37,13 +37,8 @@ internal sealed class ObservableQueryElementOperationsFor<TElement> : Observable
         ActivatorUtilities.CreateInstance<ClientEnumerableObservableSSE<TElement>>(serviceProvider, queryContext, enumerable);
 
     /// <inheritdoc/>
-    public override Task<ObservableQueryHttpResponse> CreateHttpResponse(
-        QueryContext queryContext,
-        object observable,
-        ObservableQueryHttpOptions options,
-        IHttpRequestContext? requestContext,
-        CancellationToken cancellationToken) =>
-        ObservableQueryHttp.CreateResponseForObservable<TElement>(queryContext, observable, options, requestContext, cancellationToken);
+    public override Task<ObservableQueryHttpResponse> CreateHttpResponse(ObservableQueryHttpContext context, object observable) =>
+        ObservableQueryHttp.CreateResponseForObservable<TElement>(context, observable);
 
     /// <inheritdoc/>
     public override IDisposable SubscribeToSubject(

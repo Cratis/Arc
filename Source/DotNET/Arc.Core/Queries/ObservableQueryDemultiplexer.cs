@@ -584,8 +584,8 @@ public partial class ObservableQueryDemultiplexer(
 
         try
         {
-            using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                context, guardServiceProvider ?? serviceProvider, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            var emissionServices = guardServiceProvider ?? serviceProvider;
+            using var emissionIdentity = BeginEnumerableEmissionIdentity(context, identity, emissionServices);
             await foreach (var item in enumerable.WithCancellation(token))
             {
                 if (token.IsCancellationRequested)
@@ -593,7 +593,7 @@ public partial class ObservableQueryDemultiplexer(
                     break;
                 }
 
-                var intercepted = await readModelInterceptors.InterceptEmission(typeof(T), item, guardServiceProvider ?? serviceProvider);
+                var intercepted = await readModelInterceptors.InterceptEmission(typeof(T), item, emissionServices);
                 token.ThrowIfCancellationRequested();
                 var outcome = await EvaluateGuard(
                     new GuardRequest(queryId, identity, correlationId, emissionGuards.HasGuards ? guardServiceProvider : null, !hasDeliveredEmission),
@@ -631,6 +631,13 @@ public partial class ObservableQueryDemultiplexer(
             httpRequestContextAccessor.Current = previousContext;
         }
     }
+
+    IDisposable BeginEnumerableEmissionIdentity(
+        IHttpRequestContext context,
+        ObservableQuerySubscriptionIdentity identity,
+        IServiceProvider emissionServices) =>
+        ObservableEmissionIdentity.Begin(
+            context, emissionServices, identity.Principal ?? context.User, identity.AuthorizedTenant, accessor: httpRequestContextAccessor);
 
     void ReleaseWriteLock(SemaphoreSlim writeLock, CancellationToken token)
     {
