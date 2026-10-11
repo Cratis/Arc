@@ -26,4 +26,9 @@ public record ConceptModel(
     /// Gets whether the value is encrypted and withheld from command auditing.
     /// </summary>
     public bool IsSensitive { get; init; }
+
+    /// <summary>
+    /// Gets the non-default encryption scope, or null for Subject scope.
+    /// </summary>
+    public string? EncryptionScope { get; init; }
 }

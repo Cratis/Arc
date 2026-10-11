@@ -173,18 +173,24 @@ public class ConceptRegistry
         var pii = type.HasAttribute(WellKnownTypeNames.PiiAttribute);
         var encrypted = type.HasAttribute(WellKnownTypeNames.EncryptedAttribute);
         var notAudited = type.HasAttribute(WellKnownTypeNames.NotAuditedAttribute);
+        var scope = type.GetAttribute(WellKnownTypeNames.EncryptedAttribute)?.GetArgument(0) switch
+        {
+            1 => "namespace",
+            2 => "global",
+            _ => null
+        };
         MarkSecret(type, encrypted, notAudited);
 
         if (backing.TypeKind == TypeKind.Enum)
         {
-            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []) { IsSensitive = encrypted && notAudited };
+            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []) { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
         }
 
         var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
             ? primitive
             : ScreenplayPrimitive.String;
 
-        return new(type.Name, resolved, pii, [], []) { IsSensitive = encrypted && notAudited };
+        return new(type.Name, resolved, pii, [], []) { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
     }
 
     /// <summary>

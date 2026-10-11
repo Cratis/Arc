@@ -301,9 +301,13 @@ A message genuinely put together in code — `string.Format`, an interpolation �
 
 ## Operational secrets
 
-A concept carrying both `[Encrypted]` and `[NotAudited]` becomes `@sensitive`: encrypted at rest and withheld from the command's causation chain. With `[PII]` as well, it becomes `@pii @sensitive`. Markings on a property or its positional constructor parameter are read too. Encryption or audit suppression alone is not that contract; `SP0058` (Information) reports the partial marking without adding `@sensitive`. An existing `[PII]` marking is retained.
+A concept carrying both `[Encrypted]` and `[NotAudited]` becomes `secret`: encrypted at rest and withheld from the command's causation chain. With `[PII]` as well, it becomes `pii secret`; Screenplay's C# providers render only `[PII]` for that combination, and Chronicle rejects `[PII]` combined with `[Encrypted]`. Encryption or audit suppression alone is not the secret contract; `SP0058` (Information) reports partial or member-specific markings without adding `secret`. An existing `[PII]` marking is retained.
 
-Screenplay rejects `@pii` and `@sensitive` concepts as command identifiers, event-source identifiers, destinations, and stream ids (`PLAY0515`). When a concept is used in one of those positions, the generator leaves its compliance annotations off and reports `SP0059` (Information). Its identity and route remain stated; the diagnostic identifies the compliance meaning the document cannot carry.
+Subject encryption scope, whether omitted or explicit, stays implicit as bare `secret`. For Namespace or Global scope, default output retains `secret` and reports `SP0061` (Information): the requested scope is not stated, so the document implies Subject scope. Set `ScreenplayOptions.AuthoringOnlyConstructs` to emit `secret scope namespace` or `secret scope global` in the concept body. These details are syntax-only and do not raise the ESM version. No scope is emitted for `pii secret`, because providers ignore it. Changing encryption scope for persisted events requires a new event generation.
+
+Member `[PII]` markings are read from properties and positional constructor parameters. Screenplay classifies only concepts, so `[PII] string Email` cannot be stated; `SP0062` (Information) names the member and suggests a personal-data concept. The generator does not invent one. A member marking on an existing concept promotes the whole concept to `pii`. If the concept itself lacks `[PII]` and other analyzed uses are unmarked, `SP0063` (Information) lists those uses, which the document now also classifies as personal data. When every analyzed use is marked, no promotion diagnostic is reported.
+
+Screenplay rejects `pii` and `secret` concepts as command identifiers, event-source identifiers, destinations, and stream ids (`PLAY0515`). When a concept is used in one of those positions, the generator leaves its compliance annotations off and reports `SP0059` (Information). Its identity and route remain stated; the diagnostic identifies the compliance meaning the document cannot carry.
 
 ## Identifiers, event documentation, and named rules
 
@@ -581,7 +585,7 @@ These are part of the language, but nothing in C# says them, so a generated docu
 | `persona`                                                                                                      | Who uses the system is a product decision, not a code artifact.                                                                                         |
 | `seed`                                                                                                         | Sample data is a modeling concern, not something the source states.                                                                                     |
 | The rest of the body of a `screen` — `section`, `summary`, `navigate to`, `layout`, and structure outside known Cratis Components | What a screen _shows and does_ is JSX. Its `file`, its `data` bindings and what known Cratis Components state are generated; the rest would be a guess — see [Screens](#screens). |
-| `@sensitive`                                                                                                   | `@pii` is the one of the two concept attributes with a counterpart — `[PII]`. Nothing in Arc or Chronicle says `@sensitive`.                            |
+| Compliance reasons and personal-data qualifiers | Bare `pii` and `secret` are recovered from `[PII]` and concept-level `[Encrypted]` plus `[NotAudited]`. The generator does not infer reasons, special categories, or criminal-data classification. Non-default secret scope is emitted only in authoring mode; otherwise `SP0061` reports its omission. |
 
 ### Detail Screenplay cannot represent
 
@@ -608,6 +612,9 @@ These details can remain outside the document because the language has no counte
 | Event-source definition routes | Readable source and stream routes are emitted by default at ESM v8. `SP0044` describes an unavailable route or preserved legacy concurrency; a cap below v8 retains the previous default output. |
 | Unreadable source or stream routes | Computed stream ids, unproven formatting templates, generated mappings, conflicting declarations, and the reserved source name `Default` cannot be stated without guessing. The entire route is withheld with Information diagnostic `SP0054`. Property-path mappings and handler-command routes remain authoring-only. |
 | Unreadable reads or provisioning | Reads and requirements are authoring-only. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`. |
+| Namespace or Global encryption scope in default output | Bare `secret` implies Subject scope. Information diagnostic `SP0061` names the concept and omitted scope. Enable `ScreenplayOptions.AuthoringOnlyConstructs` to state it. |
+| Member `[PII]` on a non-concept type | Screenplay classifies only concepts. Information diagnostic `SP0062` names `Type.Member` and suggests a personal-data concept; none is invented. |
+| Member `[PII]` promoting unmarked concept uses | The concept remains `pii` everywhere. Information diagnostic `SP0063` names the concept and lists unmarked analyzed uses that acquire this classification. No diagnostic is reported if the concept itself is marked or every analyzed use is marked. |
 | Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.

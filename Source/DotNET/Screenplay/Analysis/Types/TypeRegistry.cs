@@ -27,6 +27,7 @@ public class TypeRegistry
 {
     readonly ConceptRegistry _concepts = new();
     readonly ShapeRegistry _shapes = new();
+    readonly PersonalDataMarkings _personalData = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -122,6 +123,11 @@ public class TypeRegistry
 
         if (CarriedTypes.IsRecord(carried))
         {
+            foreach (var property in carried.DeclaredProperties())
+            {
+                RecordPiiUse(property);
+            }
+
             _shapes.Register(carried, ResolveCarried);
         }
 
@@ -133,6 +139,24 @@ public class TypeRegistry
     /// </summary>
     /// <param name="type">The type of the value.</param>
     public void MarkAsPii(ITypeSymbol type) => _concepts.MarkAsPii(type);
+
+    /// <summary>
+    /// Records an analyzed property's personal-data marking and any unmarked concept use.
+    /// </summary>
+    /// <param name="property">The property to record.</param>
+    public void RecordPiiUse(IPropertySymbol property)
+    {
+        if (_personalData.Record(property))
+        {
+            MarkAsPii(property.Type);
+        }
+    }
+
+    /// <summary>
+    /// Reports member classification lost or widened by concept-level annotations.
+    /// </summary>
+    /// <param name="diagnostics">Where the findings are reported.</param>
+    public void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics) => _personalData.Report(diagnostics);
 
     /// <summary>
     /// Records the encryption and audit suppression applying to one value.

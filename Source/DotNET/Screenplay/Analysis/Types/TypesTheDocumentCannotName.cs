@@ -27,11 +27,13 @@ public static class TypesTheDocumentCannotName
     /// </remarks>
     public static void Report(TypeRegistry types, ScreenplayDiagnostics diagnostics, string? location)
     {
+        types.ReportPersonalDataMarkings(diagnostics);
+
         foreach (var type in types.PartialSecrets)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.PartialSecretMarking,
-                $"'{type}' has encryption or audit suppression markings that do not establish both on the concept itself; the partial or member-specific marking was not mapped to @sensitive",
+                $"'{type}' has encryption or audit suppression markings that do not establish both on the concept itself; the partial or member-specific marking was not mapped to secret",
                 location);
         }
 
