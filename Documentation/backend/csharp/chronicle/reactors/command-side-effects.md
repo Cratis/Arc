@@ -102,6 +102,35 @@ public IEnumerable<object> BookRemoved(BookRemovedFromCatalog @event, EventConte
 
 `IEnumerable<object>` is a supported synchronous discovery shape. Commands run sequentially in one service scope; execution stops on the first unsuccessful result. There is no transaction across the collection: each command has its own [transactional scope](../commands/transactional-commands.md). Earlier successes remain if a later one fails and may run again on retry.
 
+## Return events and commands together
+
+When indexing also needs a recorded request, return a stable `IEnumerable<object>`, `object[]`, or `List<object>` containing both registered events and `[Command]` records. A `Task` returning one of these collections works too. This fragment replaces `CatalogIndexer` above and reuses its domain types. Import `System.Collections.Generic` and `Cratis.Chronicle.EventSequences`:
+
+```csharp
+[EventType]
+public record BookIndexingRequested(BookTitle Title);
+
+public class CatalogIndexer : IReactor
+{
+    [OnceOnly]
+    public IEnumerable<object> BookAdded(BookAddedToCatalog @event, EventContext context)
+    {
+        BookId bookId = Guid.Parse(context.EventSourceId.Value);
+        return
+        [
+            new EventForEventSourceId(context.EventSourceId, new BookIndexingRequested(@event.Title)),
+            new CreateSearchIndex(bookId, @event.Title)
+        ];
+    }
+}
+```
+
+Arc appends **all events as one batch first**, in their relative order, then executes the commands in their relative order. Interleaving commands with events in the returned collection does not interleave execution. Bare events use the reactor's resolved event-source, stream, source-type, and subject metadata; `EventForEventSourceId` keeps its explicit destination, tags, named tags, and other append metadata.
+
+If append fails, no command runs. If a command fails, later commands stop, but the appended batch and earlier successful commands remain committed. There is no transaction or compensation across events and commands. A retry can append the events again and repeat commands that already succeeded, so make both effects safe to repeat.
+
+Return an array or list whose contents stay stable. Chronicle's discovery and dispatch can enumerate the sequence more than once; do not produce effects while enumerating it. Each element must be a registered event, an envelope containing a registered event, or a command, never both an event and a command. Nulls, unknown values, and `CompleteStream` are not accepted in the mixed collection. `[ExecuteCommandsAsSystem]` applies only while executing the command partition, not while appending the event partition.
+
 ## Failure and manual execution
 
 An unsuccessful returned command becomes a reactor side-effect failure. Chronicle's observer failure/recovery policy then applies; do not assume failure means all previously completed side effects were undone.
@@ -133,7 +162,7 @@ An asynchronous handler can perform manual work and then return supported side e
 
 ## Complete the observed stream
 
-Return `CompleteStream` from `Cratis.Arc.Chronicle.Streams` (or `Task<CompleteStream>`) to close a stream without injecting the event log. Omitted stream parts use the observed event's stream type and id; redelivery of an already completed stream succeeds. This completion cannot be mixed with events in a reactor tuple or collection. Return a command when you need final events followed by completion. See [completing streams](../commands/completing-streams.md) for the event-log-wide scope and non-atomic append/completion boundary.
+Return `CompleteStream` from `Cratis.Arc.Chronicle.Streams` (or `Task<CompleteStream>`) to close a stream without injecting the event log. Omitted stream parts use the observed event's stream type and id; redelivery of an already completed stream succeeds. This completion cannot be mixed with events or commands in a returned collection. Return a command when you need final events followed by completion. See [completing streams](../commands/completing-streams.md) for the event-log-wide scope and non-atomic append/completion boundary.
 
 ## See also
 
