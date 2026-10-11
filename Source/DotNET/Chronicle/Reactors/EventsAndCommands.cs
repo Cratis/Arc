@@ -39,9 +39,7 @@ internal record EventsAndCommands(IEnumerable<object> Events, IEnumerable<object
         }
 
         var items = sequence.Select(item => (Value: item, Kind: Classify(eventTypes, item))).ToArray();
-        if (items.Any(item => item.Kind == EffectKind.Invalid) ||
-            !items.Any(item => item.Kind == EffectKind.Event) ||
-            !items.Any(item => item.Kind == EffectKind.Command))
+        if (!items.Select(item => item.Kind).ToHashSet().SetEquals([EffectKind.Event, EffectKind.Command]))
         {
             return false;
         }
