@@ -16,7 +16,7 @@ public class when_performing_a_stream : Specification
     {
         try
         {
-            await _scenario.Perform(nameof(ScenarioReadModel.Stream));
+            await _scenario.Perform(nameof(ScenarioReadModel.AsyncStream));
         }
         catch (StreamingQueryNotSupported exception)
         {
@@ -24,7 +24,7 @@ public class when_performing_a_stream : Specification
         }
     }
 
-    [Fact] void should_reject_streaming_with_a_clear_message() => _exception!.Message.ShouldContain("snapshot queries only");
+    [Fact] void should_reject_streaming_with_a_clear_message() => _exception!.Message.ShouldContain("use QueryScenario.Observe");
     [Fact] void should_not_invoke_the_query() => ScenarioReadModel.StreamInvocations.ShouldEqual(0);
 
     void Destroy() => _scenario.Dispose();
