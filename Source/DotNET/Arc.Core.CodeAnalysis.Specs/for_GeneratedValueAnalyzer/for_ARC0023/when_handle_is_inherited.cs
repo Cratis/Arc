@@ -29,8 +29,8 @@ public class when_handle_is_inherited : given.a_generated_value_analyzer
 
     [Fact] async Task should_reject_a_hidden_base_handle_not_used_by_any_command() => await VerifyDiagnostic(
         @"
-        public record Parent { public void Handle([{|#0:GeneratedValue|}] CartId value) { } }
-        [Command] public record Allocate : Parent { public new void Handle(CartId value) { } }",
+        internal record Parent { public void Handle([{|#0:GeneratedValue|}] CartId value) { } }
+        [Command] internal record Allocate : Parent { public new void Handle(CartId value) { } }",
         "ARC0023",
         "value");
 }

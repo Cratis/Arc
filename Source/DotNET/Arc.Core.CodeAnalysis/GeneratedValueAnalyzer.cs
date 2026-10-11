@@ -179,6 +179,7 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
     {
         readonly ConcurrentDictionary<IParameterSymbol, AttributeData> _declarations = new(SymbolEqualityComparer.Default);
         readonly ConcurrentDictionary<IMethodSymbol, byte> _handles = new(SymbolEqualityComparer.Default);
+        readonly ConcurrentDictionary<IParameterSymbol, ConcurrentDictionary<string, byte>> _reported = new(SymbolEqualityComparer.Default);
 
         internal void CollectDeclaration(SyntaxNodeAnalysisContext context)
         {
@@ -216,7 +217,8 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
         internal void ReportUnusedDeclarations(CompilationAnalysisContext context)
         {
             foreach (var declaration in _declarations.Where(declaration =>
-                declaration.Key.ContainingSymbol is not IMethodSymbol method || !_handles.ContainsKey(method.OriginalDefinition)))
+                declaration.Key.ContainingSymbol is not IMethodSymbol method ||
+                (!_handles.ContainsKey(method.OriginalDefinition) && !CouldBeExternalHandle(method))))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
                     DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
@@ -236,18 +238,37 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             var location = LocationOf(parameter, attribute, context.CancellationToken);
             if (!IsGeneratable(parameter) || HasNullableReadState(parameter))
             {
-                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
+                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
             }
 
             var name = NameFor(parameter, attribute);
             if (string.IsNullOrWhiteSpace(name) || !names.Add(name))
             {
-                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0024_InvalidGeneratedValueName, location, parameter.Name, command.Name));
+                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0024_InvalidGeneratedValueName, location, parameter.Name, command.Name));
             }
 
             if (providedTypes.Any(type => IsAssignableTo(type, parameter.Type)))
             {
-                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0025_ProvidedGeneratedValue, location, parameter.Name, parameter.Type.Name, command.Name));
+                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0025_ProvidedGeneratedValue, location, parameter.Name, parameter.Type.Name, command.Name));
+            }
+        }
+
+        static bool CouldBeExternalHandle(IMethodSymbol method) =>
+            method is { MethodKind: MethodKind.Ordinary, IsStatic: false, Name: "Handle" } &&
+            method.DeclaredAccessibility != Accessibility.Private &&
+            method.ContainingType is { TypeKind: TypeKind.Class, IsSealed: false, IsFileLocal: false } type &&
+            IsPubliclyAccessible(type);
+
+        static bool IsPubliclyAccessible(INamedTypeSymbol type) =>
+            type.DeclaredAccessibility == Accessibility.Public &&
+            (type.ContainingType is null || IsPubliclyAccessible(type.ContainingType));
+
+        void ReportOnce(SymbolAnalysisContext context, IParameterSymbol parameter, Diagnostic diagnostic)
+        {
+            var reported = _reported.GetOrAdd(parameter.OriginalDefinition, static _ => new(StringComparer.Ordinal));
+            if (reported.TryAdd(diagnostic.Id, 0))
+            {
+                context.ReportDiagnostic(diagnostic);
             }
         }
 

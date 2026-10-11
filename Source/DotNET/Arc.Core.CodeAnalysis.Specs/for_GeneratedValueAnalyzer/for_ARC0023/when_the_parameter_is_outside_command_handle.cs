@@ -16,7 +16,7 @@ public class when_the_parameter_is_outside_command_handle : given.a_generated_va
     public async Task should_report_unsupported_method_parameters(string attribute, string method) => await VerifyDiagnostic(
         $@"
         {attribute}
-        public record Example
+        public sealed record Example
         {{
             {method}
         }}",
