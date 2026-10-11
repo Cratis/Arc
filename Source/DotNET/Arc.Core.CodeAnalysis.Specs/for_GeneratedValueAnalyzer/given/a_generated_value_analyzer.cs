@@ -1,7 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.CodeAnalysis.Specs.Testing;
+using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Microsoft.CodeAnalysis;
 
 using Verify = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.GeneratedValueAnalyzer>;
@@ -33,6 +36,27 @@ public class a_generated_value_analyzer
             .WithLocation(0).WithArguments(arguments));
 
     protected static Task VerifyValid(string source) => VerifySource(source);
+
+    protected static async Task VerifyRuntimeParity(string source)
+    {
+        var fullSource = $"{Types}\n{source}";
+        var compilation = await TestProject.CreateProject(SourceMarker.Parse(fullSource).Source).GetCompilationAsync();
+        await using var output = new MemoryStream();
+        var emitted = compilation!.Emit(output);
+        emitted.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
+            .Select(diagnostic => diagnostic.ToString()).ShouldBeEmpty();
+        var command = Assembly.Load(output.ToArray()).GetType("Allocate")!;
+        var error = Catch.Exception(() => _ = new ModelBoundCommandHandler(command, command.GetHandleMethod()));
+        if (error is InvalidGeneratedValueParameter)
+        {
+            await VerifyDiagnostic(source, "ARC0022", "value");
+        }
+        else
+        {
+            error.ShouldBeNull();
+            await VerifyValid(source);
+        }
+    }
 
     static async Task VerifySource(string source, params ExpectedDiagnostic[] expected)
     {

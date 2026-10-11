@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -15,10 +16,6 @@ namespace Cratis.Arc.CodeAnalysis;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class GeneratedValueAnalyzer : DiagnosticAnalyzer
 {
-    const string GeneratedAttribute = "Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute";
-    const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
-    const string GeneratableInterface = "Cratis.Concepts.IGeneratable`1";
-
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
@@ -33,79 +30,76 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeParameter, SyntaxKind.Parameter);
+        context.RegisterCompilationStartAction(start =>
+        {
+            var generatedAttribute = start.Compilation.GetTypeByMetadataName("Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute");
+            var commandAttribute = start.Compilation.GetTypeByMetadataName("Cratis.Arc.Commands.ModelBound.CommandAttribute");
+            var generatable = start.Compilation.GetTypeByMetadataName("Cratis.Concepts.IGeneratable`1");
+            if (generatedAttribute is null || commandAttribute is null || generatable is null)
+            {
+                return;
+            }
+
+            var analysis = new CompilationAnalysis(generatedAttribute, commandAttribute, generatable);
+            start.RegisterSymbolAction(analysis.AnalyzeCommand, SymbolKind.NamedType);
+            start.RegisterSyntaxNodeAction(analysis.CollectDeclaration, SyntaxKind.Attribute);
+            start.RegisterCompilationEndAction(analysis.ReportUnusedDeclarations);
+        });
     }
 
-    static void AnalyzeParameter(SyntaxNodeAnalysisContext context)
+    static IMethodSymbol? FindMethod(INamedTypeSymbol type, string name)
     {
-        var syntax = (ParameterSyntax)context.Node;
-        if (context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol parameter ||
-            GeneratedAttributeOf(parameter) is not { } attribute)
+        var methods = new List<IMethodSymbol>();
+        for (var candidate = type; candidate is not null; candidate = candidate.BaseType)
         {
-            return;
+            foreach (var method in candidate.GetMembers(name).OfType<IMethodSymbol>().Where(method =>
+                method.MethodKind == MethodKind.Ordinary && !method.IsStatic &&
+                (SymbolEqualityComparer.Default.Equals(candidate, type) || method.DeclaredAccessibility != Accessibility.Private)))
+            {
+                if (!methods.Exists(derived => SameSignature(derived, method)))
+                {
+                    methods.Add(method);
+                }
+            }
         }
 
-        var location = attribute.ApplicationSyntaxReference?.GetSyntax(context.CancellationToken).GetLocation() ?? syntax.GetLocation();
-        if (parameter.ContainingSymbol is not IMethodSymbol { MethodKind: MethodKind.Ordinary, IsStatic: false, Name: "Handle" } method ||
-            !IsCommand(method.ContainingType))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle, location, parameter.Name));
-            return;
-        }
-
-        if (!IsGeneratable(parameter, context.Compilation))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
-        }
-
-        var name = NameFor(parameter, attribute);
-        if (string.IsNullOrWhiteSpace(name) || method.Parameters.Take(parameter.Ordinal)
-            .Any(previous => GeneratedAttributeOf(previous) is { } previousAttribute &&
-                string.Equals(NameFor(previous, previousAttribute), name, StringComparison.Ordinal)))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0024_InvalidGeneratedValueName, location, parameter.Name, method.ContainingType.Name));
-        }
-
-        if (FindProvide(method.ContainingType) is { } provide &&
-            ProducedTypes(provide.ReturnType).Any(type => !IsControlType(type) && IsAssignableTo(type, parameter.Type)))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0025_ProvidedGeneratedValue, location, parameter.Name, parameter.Type.Name, method.ContainingType.Name));
-        }
+        // Reflection's name-only GetMethod is ambiguous when more than one signature remains.
+        return methods.Count == 1 ? methods[0] : null;
     }
 
-    static bool IsGeneratable(IParameterSymbol parameter, Compilation compilation) =>
-        parameter.RefKind == RefKind.None &&
-        parameter.NullableAnnotation != NullableAnnotation.Annotated &&
-        parameter.Type is not INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } &&
-        parameter.Type.AllInterfaces.Any(contract =>
-            SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, compilation.GetTypeByMetadataName(GeneratableInterface)) &&
-            SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], parameter.Type));
+    static bool SameSignature(IMethodSymbol first, IMethodSymbol second) =>
+        first.Arity == second.Arity && first.Parameters.Length == second.Parameters.Length &&
+        first.Parameters.Zip(second.Parameters, (left, right) =>
+            IsByReference(left) == IsByReference(right) &&
+            SymbolEqualityComparer.Default.Equals(left.Type, right.Type)).All(equal => equal);
 
-    static AttributeData? GeneratedAttributeOf(IParameterSymbol parameter) =>
-        parameter.GetAttributes().FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == GeneratedAttribute);
+    static bool IsByReference(IParameterSymbol parameter) => parameter.RefKind != RefKind.None;
+
+    static bool HasNullableReadState(IParameterSymbol parameter)
+    {
+        if (parameter.Type.IsValueType)
+        {
+            return parameter.Type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+        }
+
+        var attributes = parameter.GetAttributes().Where(attribute => attribute.AttributeClass is { } type && Namespace(type) == "System.Diagnostics.CodeAnalysis")
+            .Select(attribute => attribute.AttributeClass!.Name).ToArray();
+        if (attributes.Contains("NotNullAttribute", StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        return attributes.Contains("MaybeNullAttribute", StringComparer.Ordinal) ||
+            attributes.Contains("MaybeNullWhenAttribute", StringComparer.Ordinal) ||
+            (parameter.OriginalDefinition.NullableAnnotation != NullableAnnotation.None &&
+                parameter.NullableAnnotation == NullableAnnotation.Annotated);
+    }
 
     static string NameFor(IParameterSymbol parameter, AttributeData attribute) =>
         attribute.ConstructorArguments.FirstOrDefault().Value as string ?? parameter.Name;
 
-    static bool IsCommand(INamedTypeSymbol type) =>
-        type.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == CommandAttribute) ||
-        (type.BaseType is not null && IsCommand(type.BaseType));
-
-    static IMethodSymbol? FindProvide(INamedTypeSymbol type)
-    {
-        for (var candidate = type; candidate is not null; candidate = candidate.BaseType)
-        {
-            var method = candidate.GetMembers("Provide").OfType<IMethodSymbol>().FirstOrDefault(method =>
-                method.MethodKind == MethodKind.Ordinary && !method.IsStatic &&
-                (SymbolEqualityComparer.Default.Equals(candidate, type) || method.DeclaredAccessibility != Accessibility.Private));
-            if (method is not null)
-            {
-                return method;
-            }
-        }
-
-        return null;
-    }
+    static Location LocationOf(IParameterSymbol parameter, AttributeData attribute, CancellationToken cancellationToken) =>
+        attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? parameter.Locations.FirstOrDefault() ?? Location.None;
 
     static IEnumerable<ITypeSymbol> ProducedTypes(ITypeSymbol type)
     {
@@ -141,6 +135,12 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
 
     static IEnumerable<ITypeSymbol> UnwrapAlternatives(ITypeSymbol type)
     {
+        // A non-null Nullable<T> is boxed as T before the runtime unwraps or flattens it.
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+        {
+            return UnwrapAlternatives(nullable.TypeArguments[0]);
+        }
+
         if (type is not INamedTypeSymbol named || !named.AllInterfaces.Any(contract => contract.Name == "IOneOf" && Namespace(contract) == "OneOf"))
         {
             return [type];
@@ -159,6 +159,8 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
 
     static bool IsAssignableTo(ITypeSymbol source, ITypeSymbol destination) =>
         SymbolEqualityComparer.Default.Equals(source, destination) ||
+        (source is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable &&
+            IsAssignableTo(nullable.TypeArguments[0], destination)) ||
         source.AllInterfaces.Any(contract => SymbolEqualityComparer.Default.Equals(contract, destination)) ||
         (source.BaseType is not null && IsAssignableTo(source.BaseType, destination));
 
@@ -172,4 +174,93 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
     static bool IsNamed(ITypeSymbol type, string @namespace, string name) => type.Name == name && Namespace(type) == @namespace;
 
     static string Namespace(ITypeSymbol type) => type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
+
+    sealed class CompilationAnalysis(INamedTypeSymbol generatedAttribute, INamedTypeSymbol commandAttribute, INamedTypeSymbol generatable)
+    {
+        readonly ConcurrentDictionary<IParameterSymbol, AttributeData> _declarations = new(SymbolEqualityComparer.Default);
+        readonly ConcurrentDictionary<IMethodSymbol, byte> _handles = new(SymbolEqualityComparer.Default);
+
+        internal void CollectDeclaration(SyntaxNodeAnalysisContext context)
+        {
+            var syntax = (AttributeSyntax)context.Node;
+            if (syntax.Parent?.Parent is ParameterSyntax parameterSyntax &&
+                context.SemanticModel.GetSymbolInfo(syntax, context.CancellationToken).Symbol is IMethodSymbol constructor &&
+                SymbolEqualityComparer.Default.Equals(constructor.ContainingType, generatedAttribute) &&
+                context.SemanticModel.GetDeclaredSymbol(parameterSyntax, context.CancellationToken) is IParameterSymbol parameter &&
+                AttributeOf(parameter) is { } attribute)
+            {
+                _declarations.TryAdd(parameter, attribute);
+            }
+        }
+
+        internal void AnalyzeCommand(SymbolAnalysisContext context)
+        {
+            var command = (INamedTypeSymbol)context.Symbol;
+            if (!IsCommand(command) || FindMethod(command, "Handle") is not { } handle)
+            {
+                return;
+            }
+
+            _handles.TryAdd(handle.OriginalDefinition, 0);
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            var providedTypes = FindMethod(command, "Provide") is { } provide
+                ? ProducedTypes(provide.ReturnType).Where(type => !IsControlType(type)).ToArray()
+                : [];
+            foreach (var declaration in handle.Parameters.Select(parameter => (Parameter: parameter, Attribute: AttributeOf(parameter)))
+                .Where(declaration => declaration.Attribute is not null))
+            {
+                AnalyzeParameter(context, command, declaration.Parameter, declaration.Attribute!, names, providedTypes);
+            }
+        }
+
+        internal void ReportUnusedDeclarations(CompilationAnalysisContext context)
+        {
+            foreach (var declaration in _declarations.Where(declaration =>
+                declaration.Key.ContainingSymbol is not IMethodSymbol method || !_handles.ContainsKey(method.OriginalDefinition)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
+                    LocationOf(declaration.Key, declaration.Value, context.CancellationToken),
+                    declaration.Key.Name));
+            }
+        }
+
+        void AnalyzeParameter(
+            SymbolAnalysisContext context,
+            INamedTypeSymbol command,
+            IParameterSymbol parameter,
+            AttributeData attribute,
+            HashSet<string> names,
+            ITypeSymbol[] providedTypes)
+        {
+            var location = LocationOf(parameter, attribute, context.CancellationToken);
+            if (!IsGeneratable(parameter) || HasNullableReadState(parameter))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
+            }
+
+            var name = NameFor(parameter, attribute);
+            if (string.IsNullOrWhiteSpace(name) || !names.Add(name))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0024_InvalidGeneratedValueName, location, parameter.Name, command.Name));
+            }
+
+            if (providedTypes.Any(type => IsAssignableTo(type, parameter.Type)))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0025_ProvidedGeneratedValue, location, parameter.Name, parameter.Type.Name, command.Name));
+            }
+        }
+
+        bool IsGeneratable(IParameterSymbol parameter) =>
+            parameter.RefKind == RefKind.None && parameter.Type.AllInterfaces.Any(contract =>
+                SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, generatable) &&
+                SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], parameter.Type));
+
+        AttributeData? AttributeOf(IParameterSymbol parameter) =>
+            parameter.GetAttributes().FirstOrDefault(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, generatedAttribute));
+
+        bool IsCommand(INamedTypeSymbol type) =>
+            type.GetAttributes().Any(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, commandAttribute)) ||
+            (type.BaseType is not null && IsCommand(type.BaseType));
+    }
 }

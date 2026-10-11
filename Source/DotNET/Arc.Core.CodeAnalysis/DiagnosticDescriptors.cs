@@ -236,7 +236,7 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Generated Handle parameters must implement IGeneratable<TSelf> with their own type as TSelf. Nullable and by-reference parameters cannot be generated.");
+        description: "Generated Handle parameters must implement IGeneratable<TSelf> with their own type as TSelf. Parameters whose runtime nullable read state is Nullable, and by-reference parameters, cannot be generated.");
 
     /// <summary>
     /// ARC0023: Generated value declared outside a command Handle method.
@@ -244,11 +244,12 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0023_GeneratedValueOutsideHandle = new(
         id: "ARC0023",
         title: "Generated value declared outside a command Handle method",
-        messageFormat: "Parameter '{0}' uses [GeneratedValue] outside an instance Handle() method on a [Command] type. Move the generated parameter to the command's Handle() method or remove [GeneratedValue].",
+        messageFormat: "Parameter '{0}' uses [GeneratedValue] outside the effective instance Handle() method of a [Command] type. Move the generated parameter to the command's Handle() method or remove [GeneratedValue].",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Only model-bound command Handle parameters participate in generated value resolution. Provide parameters, query parameters, controller actions, constructors, and other methods cannot declare generated values.");
+        description: "Only parameters of a model-bound command's effective Handle method, including an inherited method, participate in generated value resolution. Provide parameters, query parameters, controller actions, constructors, and other methods cannot declare generated values.",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
     /// ARC0024: Generated value names must be non-empty and unique.
