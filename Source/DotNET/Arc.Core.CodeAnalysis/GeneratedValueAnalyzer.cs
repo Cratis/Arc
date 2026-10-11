@@ -224,7 +224,7 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             var providedTypes = FindMethod(command, "Provide") is { } provide
                 ? ProducedTypes(provide.ReturnType).Where(type => !IsControlType(type)).ToArray()
                 : [];
-            foreach (var declaration in handle.Parameters.Select(parameter => (Parameter: parameter, Attribute: AttributeOf(parameter)))
+            foreach (var declaration in handle.Parameters.Select(parameter => (Parameter: parameter, Attribute: EffectiveAttributeOf(parameter)))
                 .Where(declaration => declaration.Attribute is not null))
             {
                 AnalyzeParameter(context, command, declaration.Parameter, declaration.Attribute!, names, providedTypes);
@@ -239,8 +239,10 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             HashSet<string> names,
             ITypeSymbol[] providedTypes)
         {
-            var location = LocationOf(parameter, attribute, context.CancellationToken);
-            if (!IsGeneratable(parameter) || HasNullableReadState(parameter))
+            var location = parameter.ContainingSymbol is IMethodSymbol { IsOverride: true }
+                ? parameter.Locations.FirstOrDefault() ?? Location.None
+                : LocationOf(parameter, attribute, context.CancellationToken);
+            if (parameter.Type is not ITypeParameterSymbol && (!IsGeneratable(parameter) || HasNullableReadState(parameter)))
             {
                 ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
             }
@@ -275,6 +277,12 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             parameter.RefKind == RefKind.None && parameter.Type.AllInterfaces.Any(contract =>
                 SymbolEqualityComparer.Default.Equals(contract.OriginalDefinition, generatable) &&
                 SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], parameter.Type));
+
+        AttributeData? EffectiveAttributeOf(IParameterSymbol parameter) =>
+            AttributeOf(parameter) ??
+            (parameter.ContainingSymbol is IMethodSymbol { OverriddenMethod: { } overridden }
+                ? EffectiveAttributeOf(overridden.Parameters[parameter.Ordinal])
+                : null);
 
         AttributeData? AttributeOf(IParameterSymbol parameter) =>
             parameter.GetAttributes().FirstOrDefault(attribute => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, generatedAttribute));
