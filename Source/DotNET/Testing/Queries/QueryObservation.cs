@@ -27,7 +27,7 @@ public sealed class QueryObservation : IDisposable, IAsyncDisposable
     /// <summary>
     /// Gets the first emission or the pipeline's rejection.
     /// </summary>
-    public QueryResult Initial { get; }
+    public QueryResult Initial { get; private set; }
 
     /// <summary>
     /// Reads the next emission, not necessarily the next distinct value.
@@ -76,4 +76,13 @@ public sealed class QueryObservation : IDisposable, IAsyncDisposable
             await _emissions.DisposeAsync().ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// Waits for the first emission after the scenario has taken ownership of this observation.
+    /// </summary>
+    /// <param name="timeout">The first-emission deadline.</param>
+    /// <param name="cancellationToken">Cancellation for the initial wait.</param>
+    /// <returns>The initialization operation.</returns>
+    internal async Task ReadInitial(TimeSpan timeout, CancellationToken cancellationToken) =>
+        Initial = await _emissions!.Read(timeout, cancellationToken);
 }

@@ -124,7 +124,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
     /// <param name="paging">Optional paging.</param>
     /// <param name="sorting">Optional sorting.</param>
     /// <param name="timeout">The first-emission deadline; defaults to five seconds.</param>
-    /// <param name="cancellationToken">Execution and first-emission cancellation.</param>
+    /// <param name="cancellationToken">Cancellation for waiting for the first emission, not the observation's lifetime.</param>
     /// <returns>An observation owned by this scenario.</returns>
     /// <exception cref="ObjectDisposedException">The scenario has been disposed.</exception>
     /// <exception cref="TimeoutException">No first emission arrives before the deadline.</exception>
@@ -139,11 +139,9 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
         var name = new FullyQualifiedQueryName($"{typeof(TReadModel).FullName ?? typeof(TReadModel).Name}.{methodName}");
-        var result = await _pipeline!.PerformHosted(name, arguments ?? QueryArguments.Empty, paging ?? Paging.NotPaged, sorting ?? Sorting.None, _serviceProvider!, cancellationToken);
-        var observation = await CreateObservation(result, timeout ?? TimeSpan.FromSeconds(5), false, cancellationToken);
-        _observations.Add(observation);
+        var result = await _pipeline!.PerformHosted(name, arguments ?? QueryArguments.Empty, paging ?? Paging.NotPaged, sorting ?? Sorting.None, _serviceProvider!, CancellationToken.None);
 
-        return observation;
+        return await CreateObservation(result, timeout ?? TimeSpan.FromSeconds(5), false, cancellationToken);
     }
 
     /// <summary>
@@ -252,12 +250,13 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         if (!result.IsSuccess)
         {
             result.OwnedScope?.Dispose();
-            return new(result);
+            return RegisterObservation(new(result), !timeoutAsResult);
         }
 
         var emissions = new ObservedQueryEmissions(result, data => data is IEnumerable sequence and not string
             ? sequence.Cast<TReadModel>().ToList()
             : data);
+        var observation = RegisterObservation(new(result, emissions), !timeoutAsResult);
         try
         {
             switch (result.Data)
@@ -276,24 +275,35 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
                     {
                         result.Data = sequence.Cast<TReadModel>().ToList();
                     }
-                    await emissions.DisposeAsync();
-                    return new(result);
+                    await observation.DisposeAsync();
+                    return observation;
             }
 
-            return new(await emissions.Read(timeout, cancellationToken), emissions);
+            await observation.ReadInitial(timeout, cancellationToken);
+            return observation;
         }
         catch (TimeoutException) when (timeoutAsResult)
         {
-            await emissions.DisposeAsync();
+            await observation.DisposeAsync();
             return new(QueryResult.Error(
                 result.CorrelationId,
                 $"Timed out waiting {timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)} seconds for the first observable query result."));
         }
         catch
         {
-            await emissions.DisposeAsync();
+            await observation.DisposeAsync();
             throw;
         }
+    }
+
+    QueryObservation RegisterObservation(QueryObservation observation, bool track)
+    {
+        if (track)
+        {
+            _observations.Add(observation);
+        }
+
+        return observation;
     }
 
     void EnsureInitialized()
