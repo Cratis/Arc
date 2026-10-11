@@ -10,13 +10,13 @@ public class when_performing_a_stream : Specification
     readonly QueryScenario<ScenarioReadModel> _scenario = new();
     Exception? _exception;
 
-    void Establish() => ScenarioReadModel.StreamInvocations = 0;
+    void Establish() => ScenarioReadModel.RejectedStreamInvocations = 0;
 
     async Task Because()
     {
         try
         {
-            await _scenario.Perform(nameof(ScenarioReadModel.AsyncStream));
+            await _scenario.Perform(nameof(ScenarioReadModel.RejectedAsyncStream));
         }
         catch (StreamingQueryNotSupported exception)
         {
@@ -25,7 +25,7 @@ public class when_performing_a_stream : Specification
     }
 
     [Fact] void should_reject_streaming_with_a_clear_message() => _exception!.Message.ShouldContain("use QueryScenario.Observe");
-    [Fact] void should_not_invoke_the_query() => ScenarioReadModel.StreamInvocations.ShouldEqual(0);
+    [Fact] void should_not_invoke_the_query() => ScenarioReadModel.RejectedStreamInvocations.ShouldEqual(0);
 
     void Destroy() => _scenario.Dispose();
 }

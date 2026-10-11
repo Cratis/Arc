@@ -46,6 +46,16 @@ public record ScenarioReadModel(string Name)
         yield return new("Second");
     }
 
+    public static int RejectedStreamInvocations;
+
+    [AllowAnonymous]
+    public static async IAsyncEnumerable<ScenarioReadModel> RejectedAsyncStream()
+    {
+        Interlocked.Increment(ref RejectedStreamInvocations);
+        await Task.CompletedTask;
+        yield return new("Rejected");
+    }
+
     [Authorize(Policy = "CanRead")]
     public static IEnumerable<ScenarioReadModel> Lazy(TrackedQueryScope scope)
     {
