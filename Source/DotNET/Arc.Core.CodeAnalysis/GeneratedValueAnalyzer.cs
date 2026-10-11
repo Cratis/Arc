@@ -16,6 +16,13 @@ namespace Cratis.Arc.CodeAnalysis;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class GeneratedValueAnalyzer : DiagnosticAnalyzer
 {
+    static readonly string[] _artifactAttributeNames =
+    [
+        "Cratis.Arc.Queries.ModelBound.ReadModelAttribute",
+        "Microsoft.AspNetCore.Mvc.ApiControllerAttribute",
+        "Microsoft.AspNetCore.Mvc.ControllerAttribute"
+    ];
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
     [
@@ -40,10 +47,11 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
-            var analysis = new CompilationAnalysis(generatedAttribute, commandAttribute, generatable);
+            var controllerBase = start.Compilation.GetTypeByMetadataName("Microsoft.AspNetCore.Mvc.ControllerBase");
+            var artifactAttributes = _artifactAttributeNames.Select(start.Compilation.GetTypeByMetadataName).OfType<INamedTypeSymbol>().ToImmutableArray();
+            var analysis = new CompilationAnalysis(generatedAttribute, commandAttribute, generatable, controllerBase, artifactAttributes);
             start.RegisterSymbolAction(analysis.AnalyzeCommand, SymbolKind.NamedType);
-            start.RegisterSyntaxNodeAction(analysis.CollectDeclaration, SyntaxKind.Attribute);
-            start.RegisterCompilationEndAction(analysis.ReportUnusedDeclarations);
+            start.RegisterSyntaxNodeAction(analysis.AnalyzeDeclaration, SyntaxKind.Attribute);
         });
     }
 
@@ -175,13 +183,16 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
 
     static string Namespace(ITypeSymbol type) => type.ContainingNamespace?.ToDisplayString() ?? string.Empty;
 
-    sealed class CompilationAnalysis(INamedTypeSymbol generatedAttribute, INamedTypeSymbol commandAttribute, INamedTypeSymbol generatable)
+    sealed class CompilationAnalysis(
+        INamedTypeSymbol generatedAttribute,
+        INamedTypeSymbol commandAttribute,
+        INamedTypeSymbol generatable,
+        INamedTypeSymbol? controllerBase,
+        ImmutableArray<INamedTypeSymbol> artifactAttributes)
     {
-        readonly ConcurrentDictionary<IParameterSymbol, AttributeData> _declarations = new(SymbolEqualityComparer.Default);
-        readonly ConcurrentDictionary<IMethodSymbol, byte> _handles = new(SymbolEqualityComparer.Default);
         readonly ConcurrentDictionary<IParameterSymbol, ConcurrentDictionary<string, byte>> _reported = new(SymbolEqualityComparer.Default);
 
-        internal void CollectDeclaration(SyntaxNodeAnalysisContext context)
+        internal void AnalyzeDeclaration(SyntaxNodeAnalysisContext context)
         {
             var syntax = (AttributeSyntax)context.Node;
             if (syntax.Parent?.Parent is ParameterSyntax parameterSyntax &&
@@ -190,7 +201,14 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
                 context.SemanticModel.GetDeclaredSymbol(parameterSyntax, context.CancellationToken) is IParameterSymbol parameter &&
                 AttributeOf(parameter) is { } attribute)
             {
-                _declarations.TryAdd(parameter, attribute);
+                if (parameter.ContainingSymbol is not IMethodSymbol method || method.Name != "Handle" || method.IsStatic ||
+                    IsUnsupportedArtifact(method.ContainingType))
+                {
+                    context.ReportDiagnostic(Diagnostic.Create(
+                        DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
+                        LocationOf(parameter, attribute, context.CancellationToken),
+                        parameter.Name));
+                }
             }
         }
 
@@ -202,7 +220,6 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
                 return;
             }
 
-            _handles.TryAdd(handle.OriginalDefinition, 0);
             var names = new HashSet<string>(StringComparer.Ordinal);
             var providedTypes = FindMethod(command, "Provide") is { } provide
                 ? ProducedTypes(provide.ReturnType).Where(type => !IsControlType(type)).ToArray()
@@ -211,19 +228,6 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
                 .Where(declaration => declaration.Attribute is not null))
             {
                 AnalyzeParameter(context, command, declaration.Parameter, declaration.Attribute!, names, providedTypes);
-            }
-        }
-
-        internal void ReportUnusedDeclarations(CompilationAnalysisContext context)
-        {
-            foreach (var declaration in _declarations.Where(declaration =>
-                declaration.Key.ContainingSymbol is not IMethodSymbol method ||
-                (!_handles.ContainsKey(method.OriginalDefinition) && !CouldBeExternalHandle(method))))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
-                    LocationOf(declaration.Key, declaration.Value, context.CancellationToken),
-                    declaration.Key.Name));
             }
         }
 
@@ -253,15 +257,10 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             }
         }
 
-        static bool CouldBeExternalHandle(IMethodSymbol method) =>
-            method is { MethodKind: MethodKind.Ordinary, IsStatic: false, Name: "Handle" } &&
-            method.DeclaredAccessibility != Accessibility.Private &&
-            method.ContainingType is { TypeKind: TypeKind.Class, IsSealed: false, IsFileLocal: false } type &&
-            IsPubliclyAccessible(type);
-
-        static bool IsPubliclyAccessible(INamedTypeSymbol type) =>
-            type.DeclaredAccessibility == Accessibility.Public &&
-            (type.ContainingType is null || IsPubliclyAccessible(type.ContainingType));
+        bool IsUnsupportedArtifact(INamedTypeSymbol type) =>
+            SymbolEqualityComparer.Default.Equals(type, controllerBase) ||
+            type.GetAttributes().Any(attribute => artifactAttributes.Any(expected => SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, expected))) ||
+            (type.BaseType is not null && IsUnsupportedArtifact(type.BaseType));
 
         void ReportOnce(SymbolAnalysisContext context, IParameterSymbol parameter, Diagnostic diagnostic)
         {
