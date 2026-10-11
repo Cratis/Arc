@@ -25,7 +25,7 @@ public class ModelBoundCommandHandler(Type commandType, MethodInfo handleMethod)
     public IEnumerable<Type> Dependencies { get; } = handleMethod.GetParameters().Select(p => p.ParameterType);
 
     /// <inheritdoc/>
-    public IEnumerable<ParameterInfo> Parameters { get; } = handleMethod.GetParameters();
+    public IEnumerable<ParameterInfo> Parameters { get; } = GeneratedValueParameters.Describe(commandType, handleMethod);
 
     /// <inheritdoc/>
     public bool AllowsAnonymousAccess { get; } = commandType.IsAnonymousAllowed();

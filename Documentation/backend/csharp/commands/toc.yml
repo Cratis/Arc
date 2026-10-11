@@ -2,6 +2,8 @@
   href: index.md
 - name: Model-bound commands
   href: model-bound/toc.yml
+- name: Generated values
+  href: generated-values.md
 - name: Controller-based commands
   href: controller-based.md
 - name: Validation
