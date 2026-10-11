@@ -226,5 +226,53 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Named policies are supported on both Arc hosts. AuthenticationSchemes requires the ASP.NET Core host's authentication service; the standalone Arc host rejects explicit schemes at startup. Use Arc's ASP.NET Core integration for scheme-specific authentication.");
 
+    /// <summary>
+    /// ARC0022: Invalid generated value parameter type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0022_InvalidGeneratedValueType = new(
+        id: "ARC0022",
+        title: "Invalid generated value parameter type",
+        messageFormat: "Generated parameter '{0}' of type '{1}' must be non-nullable and implement Cratis.Concepts.IGeneratable<TSelf> for itself. Use a non-nullable generatable type.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Generated Handle parameters must implement IGeneratable<TSelf> with their own type as TSelf. Parameters whose runtime nullable read state is Nullable, and by-reference parameters, cannot be generated.");
+
+    /// <summary>
+    /// ARC0023: Generated value declared outside a command Handle method.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0023_GeneratedValueOutsideHandle = new(
+        id: "ARC0023",
+        title: "Generated value declared outside a command Handle method",
+        messageFormat: "Parameter '{0}' uses [GeneratedValue] on a method other than a non-static Handle(), or on a read-model or controller method. Move the generated parameter to a command's Handle() method or remove [GeneratedValue].",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "GeneratedValue is invalid on methods not named Handle, static methods, read-model methods, and controller methods. Unused instance Handle declarations are not reported; the runtime never reads them.");
+
+    /// <summary>
+    /// ARC0024: Generated value names must be non-empty and unique.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0024_InvalidGeneratedValueName = new(
+        id: "ARC0024",
+        title: "Generated value names must be non-empty and unique",
+        messageFormat: "Generated parameter '{0}' on command '{1}' has an empty or duplicate generated value name. Use a non-empty name unique within Handle(); names are case-sensitive.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "The explicit GeneratedValue name, or the parameter name when no explicit name is supplied, must be non-empty and unique within the command using ordinal comparison.");
+
+    /// <summary>
+    /// ARC0025: Provide supplies a generated value type.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0025_ProvidedGeneratedValue = new(
+        id: "ARC0025",
+        title: "Provide supplies a generated value type",
+        messageFormat: "Provide() on command '{2}' supplies type '{1}', but generated parameter '{0}' always uses generation instead. Remove the redundant provided value, or remove [GeneratedValue] if Provide should supply this parameter.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Generated parameters are resolved before matching Provide values, so Provide cannot override them. Other unmarked Handle parameters can still consume provided values of the same type.");
+
     const string Category = "Arc";
 }

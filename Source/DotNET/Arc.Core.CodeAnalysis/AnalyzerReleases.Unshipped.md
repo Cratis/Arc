@@ -22,3 +22,7 @@ ARC0018|Arc|Error|Operation cannot have a generated invoker
 ARC0019|Arc|Warning|[AllowAnonymous] conflicts with [Authorize] or [Roles] on the same declaration
 ARC0020|Arc|Warning|ASP.NET Core authorization attribute is not enforced without Arc's ASP.NET Core integration
 ARC0021|Arc|Warning|Authorization setting is not evaluated on a model-bound Arc artifact
+ARC0022|Arc|Error|Invalid generated value parameter type
+ARC0023|Arc|Error|Generated value declared outside a command Handle method
+ARC0024|Arc|Error|Generated value names must be non-empty and unique
+ARC0025|Arc|Warning|Provide supplies a generated value type
