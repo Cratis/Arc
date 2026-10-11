@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -52,9 +53,9 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <returns>The methods, ordered so that the same read model always reads the same way.</returns>
     /// <remarks>
     /// Arc exposes a static method on a read model as a query when it returns that read model - one of it or many of
-    /// it, however the return type dresses that up - and its accessibility never enters into it. Both halves of that
+    /// it, however the return type dresses that up - and it is public or internal. Both halves of that
     /// matter: a read model routinely carries static helpers returning something else, and stating them as endpoints
-    /// would put routes in the document that no application serves, while a query that happens not to be public is a
+    /// would put routes in the document that no application serves, while a query that happens to be internal is a
     /// route the application really does serve.
     /// </remarks>
     public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type)
@@ -63,8 +64,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             .OfType<IMethodSymbol>()
             .Where(method =>
             {
-                if (method is not { MethodKind: MethodKind.Ordinary, IsStatic: true } ||
-                    method.ReturnsVoid || method.TypeParameters.Length != 0)
+                if (!ModelBoundQueryMethodSymbols.IsCandidate(method) || method.ReturnsVoid)
                 {
                     return false;
                 }

@@ -227,5 +227,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Chronicle reactors read [EventStreamId] as a constant, so the braces in a template stay in the stream id of the side-effect events the reactor appends. Only commands are resolved against their properties. Use a constant stream id here, or return the events with an explicit route.");
 
+    /// <summary>
+    /// ARCCHR0019: A possible fold creator is exposed as a query.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0019_ReadModelCreatorNeedsNotAQuery = new(
+        id: "ARCCHR0019",
+        title: "Read-model creator may be exposed as a query",
+        messageFormat: "Read model '{0}' has a static Create method with an unrecognized event parameter. If this is a fold creator, add [NotAQuery] or an EventContext parameter to keep it out of query discovery.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A public or internal static Create returning its read model, Task of that model, or ValueTask of that model, with one or two parameters and a non-primitive, non-concept class or interface as its first parameter, may be a fold creator. When neither [EventType] nor EventContext identifies it, Arc exposes it as a query. Mark it [NotAQuery] or add EventContext if it is a creator. Intentional queries can suppress this heuristic with a justification.");
+
     const string Category = "Arc.Chronicle";
 }

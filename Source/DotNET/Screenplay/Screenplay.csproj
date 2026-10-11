@@ -16,5 +16,6 @@
         <PackageReference Include="Cratis.Screenplay.Generation.Contracts" />
         <PackageReference Include="Cratis.Screenplay.Generation.DotNet" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+        <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
     </ItemGroup>
 </Project>

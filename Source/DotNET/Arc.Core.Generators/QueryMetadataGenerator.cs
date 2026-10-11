@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Text;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -130,11 +131,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         var queryMethods = typeSymbol.GetMembers()
             .OfType<IMethodSymbol>()
             .Where(m =>
-                m.MethodKind == MethodKind.Ordinary &&
-                m.IsStatic &&
-                m.TypeParameters.Length == 0 &&
-                m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
-                !m.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute") &&
+                ModelBoundQueryMethodSymbols.IsCandidate(m) &&
                 IsValidQueryMethod(m, typeSymbol))
             .Select(m => m.Name)
             .ToList();

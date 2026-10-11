@@ -35,6 +35,7 @@
     <ItemGroup>
         <Compile Remove="$(MSBuildThisFileDirectory)../../GlobalUsings.Specs.cs" />
         <Compile Remove="TestArtifacts/**/*.cs" />
+        <Compile Include="../../Arc.Core.Specs/Queries/ModelBound/for_ModelBoundQueryMethod/given/*.cs" Link="ModelBound/for_TypeExtensionsModelBound/FoldFixtures/%(Filename)%(Extension)" />
     </ItemGroup>
     <ItemGroup>
         <EmbeddedResource Include="Scenarios\Infrastructure\arc-bootstrap.js" Condition="Exists('Scenarios\Infrastructure\arc-bootstrap.js')" />

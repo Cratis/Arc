@@ -9,5 +9,6 @@
     </PropertyGroup>
     <ItemGroup>
         <ProjectReference Include="../Testing/Testing.csproj" />
+        <Compile Include="../Arc.Core.Specs/Queries/ModelBound/for_ModelBoundQueryMethod/given/*.cs" Link="Queries/for_QueryScenario/FoldFixtures/%(Filename)%(Extension)" />
     </ItemGroup>
 </Project>

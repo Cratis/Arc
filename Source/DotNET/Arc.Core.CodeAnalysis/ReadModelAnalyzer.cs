@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -93,7 +94,8 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
             .Where(m => m.MethodKind == MethodKind.Ordinary &&
                        m.IsStatic &&
                        m.DeclaredAccessibility == Accessibility.Public &&
-                       !m.ReturnsVoid);
+                       !m.ReturnsVoid &&
+                       !ModelBoundQueryMethodSymbols.IsExcluded(m));
     }
 
     /// <summary>
@@ -114,6 +116,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
                        m.IsStatic &&
                        m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
                        m.TypeParameters.Length > 0 &&
+                       !ModelBoundQueryMethodSymbols.IsExcluded(m) &&
                        IsValidQueryMethodSignature(m, typeSymbol));
     }
 

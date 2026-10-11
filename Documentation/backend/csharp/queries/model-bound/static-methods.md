@@ -12,6 +12,31 @@ Declare queries as non-generic **public or internal static** methods on a `[Read
 
 Dependencies are resolved by type, not by parameter position. C# still requires optional parameters to follow required parameters, including required service parameters.
 
+## Not a query
+
+Mark a static helper with `[NotAQuery]` to keep it out of HTTP query discovery, generated metadata and TypeScript proxies, query diagnostics, Screenplay query extraction, and `QueryScenario`:
+
+```csharp
+using Cratis.Arc.Queries.ModelBound;
+
+namespace Banking.Accounts;
+
+[ReadModel]
+public record AccountSummary(string Name)
+{
+    [NotAQuery]
+    public static AccountSummary Create(string name) => new(name);
+
+    public static AccountSummary ByName(string name) => new(name);
+}
+```
+
+Only `ByName` is a query. The opt-out works for public and internal methods and does not affect calling a helper directly from C#.
+
+Arc also excludes a recognizable Chronicle fold creator automatically: a static method named `Create`, returning its declaring read model or `Task<T>`/`ValueTask<T>`, with one or two parameters, where either a parameter is `Cratis.Chronicle.Events.EventContext` or the first parameter's type (including its base types) carries `[EventType]`. Nullable parameter types are unwrapped for this check. A method with another name, a collection return type, or more than two parameters is not excluded by this rule. A `Create` query taking a concept remains a query.
+
+An unmarked, explicitly registered event or an interface event parameter cannot be recognized from that signature alone. Add `[NotAQuery]` or an `EventContext` parameter to a creator in that situation. The optional Chronicle integration analyzer [ARCCHR0019](../../chronicle/code-analysis/ARCCHR0019.md) warns about these possible creators and offers the attribute as a quick fix. If the method is intentionally a query taking a concrete service, suppress that heuristic with a justification rather than opting the query out.
+
 ## Async methods
 
 This alternative declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and an Arc host with the MongoDB provider configured:
