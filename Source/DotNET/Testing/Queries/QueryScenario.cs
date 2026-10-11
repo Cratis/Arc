@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections;
-using System.Reactive.Subjects;
+using System.Globalization;
 using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 namespace Cratis.Arc.Testing.Queries;
 
 /// <summary>
-/// Runs snapshot queries on a read model through the hosted Arc query pipeline without an HTTP server.
+/// Runs snapshot and observable queries on a read model through the hosted Arc query pipeline without an HTTP server.
 /// </summary>
 /// <remarks>
 /// Register services before the first call to <see cref="Perform(string, QueryArguments?, Paging?, Sorting?, CancellationToken)"/>.
@@ -24,6 +24,7 @@ namespace Cratis.Arc.Testing.Queries;
 /// <typeparam name="TReadModel">The read model containing the static query methods.</typeparam>
 public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
 {
+    readonly List<QueryObservation> _observations = [];
     IServiceProvider? _serviceProvider;
     QueryPipeline? _pipeline;
     bool _disposed;
@@ -58,7 +59,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
     public IDictionary<string, object> Context { get; }
 
     /// <summary>
-    /// Runs a static snapshot method on <typeparamref name="TReadModel"/> through argument conversion, filters, and hosted authorization.
+    /// Runs a static query method on <typeparamref name="TReadModel"/> through argument conversion, filters, and hosted authorization.
     /// </summary>
     /// <param name="methodName">The query method name, not a fully qualified query name.</param>
     /// <param name="arguments">The query's named arguments.</param>
@@ -67,7 +68,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
     /// <param name="cancellationToken">Execution cancellation.</param>
     /// <returns>The query result after its owned execution scope has been released.</returns>
     /// <exception cref="ObjectDisposedException">The scenario has been disposed.</exception>
-    /// <exception cref="StreamingQueryNotSupported">The query returns an observable or asynchronous stream.</exception>
+    /// <exception cref="StreamingQueryNotSupported">The query returns an asynchronous stream; use Observe instead.</exception>
     /// <exception cref="QueryScenarioRequiresArcQueryPipeline">The configured query pipeline is not Arc's hosted pipeline.</exception>
     public async Task<QueryResult> Perform(string methodName, QueryArguments? arguments = null, Paging? paging = null, Sorting? sorting = null, CancellationToken cancellationToken = default)
     {
@@ -76,16 +77,22 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
 
         var method = typeof(TReadModel).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
             .FirstOrDefault(candidate => candidate.Name == methodName && ModelBoundQueryMethod.IsCandidate(candidate) && candidate.IsValidQueryFor(typeof(TReadModel)));
-        if (method is not null && IsStreamingType(UnwrapTask(method.ReturnType)))
+        if (method is not null && IsAsyncEnumerable(UnwrapTask(method.ReturnType)))
         {
             throw new StreamingQueryNotSupported(methodName);
         }
 
         var name = new FullyQualifiedQueryName($"{typeof(TReadModel).FullName ?? typeof(TReadModel).Name}.{methodName}");
         var result = await _pipeline!.PerformHosted(name, arguments ?? QueryArguments.Empty, paging ?? Paging.NotPaged, sorting ?? Sorting.None, _serviceProvider!, cancellationToken);
+        if (result.IsSuccess && result.Data is IObservable<TReadModel> or IObservable<IEnumerable<TReadModel>>)
+        {
+            await using var observation = await CreateObservation(result, ObservableQueryHttp.DefaultWaitForFirstResultTimeout, true, cancellationToken);
+            return observation.Initial;
+        }
+
         using (result.OwnedScope)
         {
-            if (result.IsSuccess && result.Data is { } data && IsStreamingType(data.GetType()))
+            if (result.IsSuccess && result.Data is { } data && IsAsyncEnumerable(data.GetType()))
             {
                 switch (data)
                 {
@@ -110,7 +117,37 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Releases the provider and disposable extender context values.
+    /// Observes a query's first result and subsequent emissions through the hosted pipeline.
+    /// </summary>
+    /// <param name="methodName">The query method name.</param>
+    /// <param name="arguments">The query's named arguments.</param>
+    /// <param name="paging">Optional paging.</param>
+    /// <param name="sorting">Optional sorting.</param>
+    /// <param name="timeout">The first-emission deadline; defaults to five seconds.</param>
+    /// <param name="cancellationToken">Execution and first-emission cancellation.</param>
+    /// <returns>An observation owned by this scenario.</returns>
+    /// <exception cref="ObjectDisposedException">The scenario has been disposed.</exception>
+    /// <exception cref="TimeoutException">No first emission arrives before the deadline.</exception>
+    public async Task<QueryObservation> Observe(
+        string methodName,
+        QueryArguments? arguments = null,
+        Paging? paging = null,
+        Sorting? sorting = null,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureInitialized();
+        var name = new FullyQualifiedQueryName($"{typeof(TReadModel).FullName ?? typeof(TReadModel).Name}.{methodName}");
+        var result = await _pipeline!.PerformHosted(name, arguments ?? QueryArguments.Empty, paging ?? Paging.NotPaged, sorting ?? Sorting.None, _serviceProvider!, cancellationToken);
+        var observation = await CreateObservation(result, timeout ?? TimeSpan.FromSeconds(5), false, cancellationToken);
+        _observations.Add(observation);
+
+        return observation;
+    }
+
+    /// <summary>
+    /// Releases observations, the provider and disposable extender context values.
     /// </summary>
     /// <remarks>Safe to call multiple times; subsequent calls to <see cref="Perform(string, QueryArguments?, Paging?, Sorting?, CancellationToken)"/> throw.</remarks>
     public void Dispose()
@@ -144,6 +181,10 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
 
         if (disposing)
         {
+            foreach (var observation in _observations)
+            {
+                observation.Dispose();
+            }
             (_serviceProvider as IDisposable)?.Dispose();
             foreach (var value in Context.Values.Distinct().OfType<IDisposable>())
             {
@@ -165,6 +206,11 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         if (_disposed)
         {
             return;
+        }
+
+        foreach (var observation in _observations)
+        {
+            await observation.DisposeAsync().ConfigureAwait(false);
         }
 
         if (_serviceProvider is IAsyncDisposable asyncProvider)
@@ -197,10 +243,58 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         ? type.GetGenericArguments()[0]
         : type;
 
-    static bool IsStreamingType(Type type) =>
+    static bool IsAsyncEnumerable(Type type) =>
         type.GetInterfaces().Append(type).Any(candidate => candidate.IsGenericType &&
-            (candidate.GetGenericTypeDefinition() == typeof(ISubject<>) ||
-             candidate.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>)));
+            candidate.GetGenericTypeDefinition() == typeof(IAsyncEnumerable<>));
+
+    async Task<QueryObservation> CreateObservation(QueryResult result, TimeSpan timeout, bool timeoutAsResult, CancellationToken cancellationToken)
+    {
+        if (!result.IsSuccess)
+        {
+            result.OwnedScope?.Dispose();
+            return new(result);
+        }
+
+        var emissions = new ObservedQueryEmissions(result, data => data is IEnumerable sequence and not string
+            ? sequence.Cast<TReadModel>().ToList()
+            : data);
+        try
+        {
+            switch (result.Data)
+            {
+                case IObservable<TReadModel> single:
+                    emissions.Subscribe(single);
+                    break;
+                case IObservable<IEnumerable<TReadModel>> collection:
+                    emissions.Subscribe(collection);
+                    break;
+                case IAsyncEnumerable<TReadModel> enumerable:
+                    emissions.Enumerate(enumerable);
+                    break;
+                default:
+                    if (result.OwnedScope is not null && result.Data is IEnumerable sequence and not ICollection)
+                    {
+                        result.Data = sequence.Cast<TReadModel>().ToList();
+                    }
+                    await emissions.DisposeAsync();
+                    return new(result);
+            }
+
+            return new(await emissions.Read(timeout, cancellationToken), emissions);
+        }
+        catch (TimeoutException) when (timeoutAsResult)
+        {
+            await emissions.DisposeAsync();
+            return new(QueryResult.Error(
+                result.CorrelationId,
+                $"Timed out waiting {timeout.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture)} seconds for the first observable query result."));
+        }
+        catch
+        {
+            await emissions.DisposeAsync();
+            throw;
+        }
+    }
 
     void EnsureInitialized()
     {
