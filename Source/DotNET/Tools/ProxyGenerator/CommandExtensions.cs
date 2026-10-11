@@ -33,9 +33,36 @@ public static class CommandExtensions
         string targetPath,
         int segmentsToSkip,
         string? overrideDocumentation = null,
+        IEnumerable<PropertyValidationDescriptor>? validationRules = null) =>
+        method.ToCommandDescriptor(commandName, properties, parameters, route, targetPath, segmentsToSkip, true, overrideDocumentation, validationRules);
+
+    /// <summary>
+    /// Convert a command method using its execution path's response handling contract.
+    /// </summary>
+    /// <param name="method">Method to convert.</param>
+    /// <param name="commandName">Name of the command.</param>
+    /// <param name="properties">Properties of the command.</param>
+    /// <param name="parameters">Parameters for the command.</param>
+    /// <param name="route">Route of the command.</param>
+    /// <param name="targetPath">The target path the proxies are generated to.</param>
+    /// <param name="segmentsToSkip">Number of namespace segments to skip.</param>
+    /// <param name="appliesResponseValueHandlers">True for model-bound execution; false for MVC actions that return their values directly.</param>
+    /// <param name="overrideDocumentation">Optional command documentation.</param>
+    /// <param name="validationRules">Optional command validation rules.</param>
+    /// <returns>The command descriptor.</returns>
+    internal static CommandDescriptor ToCommandDescriptor(
+        this MethodInfo method,
+        string commandName,
+        IEnumerable<PropertyDescriptor> properties,
+        IEnumerable<RequestParameterDescriptor> parameters,
+        string route,
+        string targetPath,
+        int segmentsToSkip,
+        bool appliesResponseValueHandlers,
+        string? overrideDocumentation = null,
         IEnumerable<PropertyValidationDescriptor>? validationRules = null)
     {
-        var (hasResponse, responseModel) = method.GetResponseModel();
+        var (hasResponse, responseModel) = method.GetResponseModel(appliesResponseValueHandlers);
         var typesInvolved = new List<Type>();
 
         if (!(responseModel.Type?.IsKnownType() ?? true))

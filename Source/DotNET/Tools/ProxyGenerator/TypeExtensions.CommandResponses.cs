@@ -8,6 +8,8 @@ namespace Cratis.Arc.ProxyGenerator;
 public static partial class TypeExtensions
 {
     const string CommandResponseValueHandlerTypeName = "Cratis.Arc.Commands.ICommandResponseValueHandler`1";
+    const string AttributedCommandResponseValueHandlerTypeName = "Cratis.Arc.Commands.ICommandResponseValueHandlerForAttributed`1";
+    const string AttributedEnumerableCommandResponseValueHandlerTypeName = "Cratis.Arc.Commands.ICommandResponseValueHandlerForAttributedEnumerable`1";
     const string RuntimeCommandResponseValueHandlerTypeName = "Cratis.Arc.Commands.ICommandResponseValueHandler";
     const string CommandResponseValueHandlerContractsAssemblyName = "Cratis.Arc.Core";
 
@@ -36,8 +38,18 @@ public static partial class TypeExtensions
             ? _serverHandledCommandResponseValueTypeNames ?? []
             : FindRuntimeServerHandledCommandResponseValueTypeNames();
 
+        var handledAttributeIdentities = isFromCurrentMetadataContext
+            ? _serverHandledCommandResponseValueAttributeTypeNames ?? []
+            : FindRuntimeServerHandledCommandResponseValueTypeNames(AttributedCommandResponseValueHandlerTypeName);
+
+        var handledEnumerableAttributeIdentities = isFromCurrentMetadataContext
+            ? _serverHandledCommandResponseValueEnumerableAttributeTypeNames ?? []
+            : FindRuntimeServerHandledCommandResponseValueTypeNames(AttributedEnumerableCommandResponseValueHandlerTypeName);
+
         return EnumerateTypeAndContracts(type).Any(_ =>
-            _.AssemblyQualifiedName is not null && handledTypeIdentities.Contains(_.AssemblyQualifiedName));
+                   _.AssemblyQualifiedName is not null && handledTypeIdentities.Contains(_.AssemblyQualifiedName)) ||
+               HasServerHandledAttribute(type, handledAttributeIdentities) ||
+               IsServerHandledAttributedEnumerable(type, handledEnumerableAttributeIdentities);
     }
 
     /// <summary>
@@ -66,7 +78,23 @@ public static partial class TypeExtensions
     /// </summary>
     /// <param name="type">Tuple <see cref="Type"/> to inspect.</param>
     /// <returns>The best type found, the original non-tuple type, or null when every tuple value is server-handled.</returns>
-    public static Type? GetBestTupleType(this Type type)
+    public static Type? GetBestTupleType(this Type type) => type.GetBestTupleType(true);
+
+    /// <summary>
+    /// Get the best response type from a OneOf type by examining all alternatives.
+    /// If an alternative is a tuple, applies tuple type extraction logic.
+    /// </summary>
+    /// <param name="type">OneOf <see cref="Type"/> to inspect.</param>
+    /// <returns>The best response type found, or null if no suitable type is found.</returns>
+    public static Type? GetBestOneOfResponseType(this Type type) => type.GetBestOneOfResponseType(true);
+
+    /// <summary>
+    /// Select a tuple response candidate using the command's execution path.
+    /// </summary>
+    /// <param name="type">Tuple type to inspect.</param>
+    /// <param name="appliesResponseValueHandlers">True for model-bound execution; false for MVC action outputs.</param>
+    /// <returns>The selected response candidate, or null if none remains.</returns>
+    internal static Type? GetBestTupleType(this Type type, bool appliesResponseValueHandlers)
     {
         if (!type.IsGenericType || !(type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
@@ -74,8 +102,8 @@ public static partial class TypeExtensions
         }
 
         var genericArguments = type.GetGenericArguments()
-            .Select(UnwrapType)
-            .Where(_ => _?.IsServerHandledCommandResponseValue() == false)
+            .Select(_ => UnwrapType(_, appliesResponseValueHandlers))
+            .Where(_ => _ is not null)
             .Cast<Type>()
             .ToArray();
         if (genericArguments.Length == 0)
@@ -94,12 +122,12 @@ public static partial class TypeExtensions
     }
 
     /// <summary>
-    /// Get the best response type from a OneOf type by examining all alternatives.
-    /// If an alternative is a tuple, applies tuple type extraction logic.
+    /// Select a union response candidate using the command's execution path.
     /// </summary>
-    /// <param name="type">OneOf <see cref="Type"/> to inspect.</param>
-    /// <returns>The best response type found, or null if no suitable type is found.</returns>
-    public static Type? GetBestOneOfResponseType(this Type type)
+    /// <param name="type">Union type to inspect.</param>
+    /// <param name="appliesResponseValueHandlers">True for model-bound execution; false for MVC action outputs.</param>
+    /// <returns>The selected response candidate, or null if none remains.</returns>
+    internal static Type? GetBestOneOfResponseType(this Type type, bool appliesResponseValueHandlers)
     {
         if (!type.IsOneOf())
         {
@@ -111,8 +139,8 @@ public static partial class TypeExtensions
 
         foreach (var arg in genericArguments)
         {
-            var unwrappedType = UnwrapType(arg);
-            if (unwrappedType?.IsServerHandledCommandResponseValue() == false)
+            var unwrappedType = UnwrapType(arg, appliesResponseValueHandlers);
+            if (unwrappedType is not null)
             {
                 candidateTypes.Add(unwrappedType);
             }
@@ -134,6 +162,7 @@ public static partial class TypeExtensions
     /// <param name="assemblies">Assemblies to inspect.</param>
     /// <param name="commandResponseValueHandlerContractsAssembly">The assembly defining the genuine handler contracts.</param>
     /// <param name="errorMessage">Callback for outputting error messages.</param>
+    /// <param name="declarationTypeName">The full name of the generic marker declaring handled values or attributes.</param>
     /// <returns>The assembly qualified names of the declared types.</returns>
     /// <remarks>
     /// Only assemblies that reference the contracts assembly are inspected. Declaring a handler requires implementing
@@ -143,7 +172,8 @@ public static partial class TypeExtensions
     internal static HashSet<string> FindServerHandledCommandResponseValueTypeNames(
         IEnumerable<Assembly> assemblies,
         Assembly? commandResponseValueHandlerContractsAssembly,
-        Action<string> errorMessage) =>
+        Action<string> errorMessage,
+        string declarationTypeName = CommandResponseValueHandlerTypeName) =>
         commandResponseValueHandlerContractsAssembly is null
             ? []
             : assemblies
@@ -151,7 +181,7 @@ public static partial class TypeExtensions
                 .SelectMany(_ => GetLoadableTypes(_, errorMessage))
                 .Where(_ => !_.IsAbstract && !_.IsInterface)
                 .Select(_ => GetLoadableInterfaces(_, errorMessage))
-                .SelectMany(_ => GetServerHandledCommandResponseValueTypeNames(_, commandResponseValueHandlerContractsAssembly))
+                .SelectMany(_ => GetServerHandledCommandResponseValueTypeNames(_, commandResponseValueHandlerContractsAssembly, declarationTypeName))
                 .ToHashSet(StringComparer.Ordinal);
 
     /// <summary>
@@ -168,6 +198,7 @@ public static partial class TypeExtensions
     /// </summary>
     /// <param name="interfaces">The interfaces implemented by the candidate handler.</param>
     /// <param name="commandResponseValueHandlerContractsAssembly">The assembly defining the genuine handler contracts.</param>
+    /// <param name="declarationTypeName">The full name of the generic marker declaring handled values or attributes.</param>
     /// <returns>The assembly qualified names of the declared types.</returns>
     /// <remarks>
     /// Both contracts are matched on assembly identity rather than name, so a dependency shipping look-alike
@@ -175,7 +206,8 @@ public static partial class TypeExtensions
     /// </remarks>
     internal static IEnumerable<string> GetServerHandledCommandResponseValueTypeNames(
         Type[] interfaces,
-        Assembly? commandResponseValueHandlerContractsAssembly)
+        Assembly? commandResponseValueHandlerContractsAssembly,
+        string declarationTypeName = CommandResponseValueHandlerTypeName)
     {
         if (commandResponseValueHandlerContractsAssembly is null ||
             !ImplementsRuntimeHandlerContract(interfaces, commandResponseValueHandlerContractsAssembly))
@@ -185,11 +217,89 @@ public static partial class TypeExtensions
 
         return interfaces
             .Where(_ => _.IsGenericType &&
-                        _.GetGenericTypeDefinition().FullName == CommandResponseValueHandlerTypeName &&
+                        _.GetGenericTypeDefinition().FullName == declarationTypeName &&
                         ReferenceEquals(_.Assembly, commandResponseValueHandlerContractsAssembly))
             .Select(_ => _.GetGenericArguments()[0].AssemblyQualifiedName)
             .Where(_ => _ is not null)
             .Cast<string>();
+    }
+
+    static bool HasServerHandledAttribute(Type type, HashSet<string> handledAttributeIdentities)
+    {
+        if (handledAttributeIdentities.Count == 0)
+        {
+            return false;
+        }
+
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.GetCustomAttributesData().Any(_ => IsHandledAttribute(_, current, type, handledAttributeIdentities)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    static bool IsHandledAttributeIdentity(Type attributeType, HashSet<string> handledAttributeIdentities) =>
+        attributeType.AssemblyQualifiedName is not null && handledAttributeIdentities.Contains(attributeType.AssemblyQualifiedName);
+
+    static bool IsHandledAttribute(CustomAttributeData attribute, Type declaringType, Type valueType, HashSet<string> handledAttributeIdentities)
+    {
+        if (!IsHandledAttributeIdentity(attribute.AttributeType, handledAttributeIdentities))
+        {
+            return false;
+        }
+
+        return declaringType == valueType || IsAttributeInherited(attribute.AttributeType);
+    }
+
+    static bool IsAttributeInherited(Type attributeType)
+    {
+        for (var current = attributeType; current is not null; current = current.BaseType)
+        {
+            var usage = current.GetCustomAttributesData().FirstOrDefault(_ =>
+                _.AttributeType.AssemblyQualifiedName == typeof(AttributeUsageAttribute).AssemblyQualifiedName);
+            if (usage is not null)
+            {
+                return !usage.NamedArguments.Any(_ =>
+                    _.MemberName == nameof(AttributeUsageAttribute.Inherited) && _.TypedValue.Value is false);
+            }
+        }
+
+        return true;
+    }
+
+    static bool IsServerHandledAttributedEnumerable(Type type, HashSet<string> handledAttributeIdentities)
+    {
+        if (handledAttributeIdentities.Count == 0)
+        {
+            return false;
+        }
+
+        if (!SupportsReferenceEnumerableShape(type))
+        {
+            return false;
+        }
+
+        // Covariance makes IEnumerable<T> compatible with IEnumerable<object> only for reference elements.
+        // Compare identities rather than runtime Type instances so this also works in MetadataLoadContext.
+        return type.GetInterfaces().Append(type).Any(_ =>
+            IsReferenceEnumerableContract(_) && HasServerHandledAttribute(_.GetGenericArguments()[0], handledAttributeIdentities));
+    }
+
+    static bool SupportsReferenceEnumerableShape(Type type) => !type.IsArray || type.IsSZArray;
+
+    static bool IsReferenceEnumerableContract(Type type)
+    {
+        if (!type.IsGenericType)
+        {
+            return false;
+        }
+
+        return type.GetGenericTypeDefinition().AssemblyQualifiedName == typeof(IEnumerable<>).AssemblyQualifiedName &&
+               !type.GetGenericArguments()[0].IsValueType;
     }
 
     static bool ImplementsRuntimeHandlerContract(Type[] interfaces, Assembly contractsAssembly) =>
@@ -224,22 +334,23 @@ public static partial class TypeExtensions
     /// Handles tuples and OneOf types recursively.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to unwrap.</param>
+    /// <param name="appliesResponseValueHandlers">Whether server-handled values are excluded for model-bound execution.</param>
     /// <returns>The unwrapped type, or null if the type should be skipped.</returns>
-    static Type? UnwrapType(Type type)
+    static Type? UnwrapType(Type type, bool appliesResponseValueHandlers)
     {
-        if (type.IsServerHandledCommandResponseValue())
+        if (appliesResponseValueHandlers && type.IsServerHandledCommandResponseValue())
         {
             return null;
         }
 
         if (type.IsGenericType && (type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
-            return type.GetBestTupleType();
+            return type.GetBestTupleType(appliesResponseValueHandlers);
         }
 
         if (type.IsOneOf())
         {
-            return type.GetBestOneOfResponseType();
+            return type.GetBestOneOfResponseType(appliesResponseValueHandlers);
         }
 
         return type;
@@ -248,19 +359,21 @@ public static partial class TypeExtensions
     /// <summary>
     /// Find the declared server-handled response value identities from the assemblies loaded into the runtime.
     /// </summary>
+    /// <param name="declarationTypeName">The full name of the generic marker declaring handled values or attributes.</param>
     /// <returns>The assembly qualified names of the declared types.</returns>
     /// <remarks>
     /// Used for types outside the current metadata graph. More than one copy of the contracts assembly can be loaded
     /// when the generator is hosted rather than run as a tool; picking the first only narrows what is recognized as
     /// server-handled, which leaves the response generated rather than wrongly suppressed.
     /// </remarks>
-    static HashSet<string> FindRuntimeServerHandledCommandResponseValueTypeNames()
+    static HashSet<string> FindRuntimeServerHandledCommandResponseValueTypeNames(string declarationTypeName = CommandResponseValueHandlerTypeName)
     {
         var runtimeAssemblies = AppDomain.CurrentDomain.GetAssemblies().Where(_ => !_.IsDynamic).ToArray();
         return FindServerHandledCommandResponseValueTypeNames(
             runtimeAssemblies,
             Array.Find(runtimeAssemblies, _ => _.GetName().Name == CommandResponseValueHandlerContractsAssemblyName),
-            _ => { });
+            _ => { },
+            declarationTypeName);
     }
 
     static IEnumerable<Type> GetLoadableTypes(Assembly assembly, Action<string> errorMessage)

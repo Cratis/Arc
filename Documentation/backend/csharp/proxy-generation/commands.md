@@ -53,9 +53,23 @@ For each command, the generator creates:
 2. **Class**: A `CommandName` class extending `Command<ICommandName>`, or `Command<ICommandName, TResponse>` for a response-bearing command
 3. **Route**: The HTTP route derived from the controller route or model-bound configuration
 
+## Model-bound Chronicle events stay on the server
+
+For model-bound commands, the Chronicle integration declares `[EventType]` values as server-handled, so the generator excludes them from the typed client response. It recognizes inherited attributes when the attribute permits inheritance, and typed reference-element event collections compatible with `IEnumerable<object>`, such as `IEnumerable<ProjectRegistered>`, `ProjectRegistered[]`, and `List<ProjectRegistered>`. Rectangular arrays and collections of attributed structs do not match that enumerable declaration and remain responses.
+
+This is a static declaration of supported return shapes, not a guarantee for arbitrary runtime values. Chronicle's `CanHandle` still requires registered event types and event-source routing; event collections also require non-null registered elements. Keep those runtime requirements aligned with the declared command signature.
+
+An event-only command produces `Command<IRegisterProject>` with no response payload. Returning `(ProjectRegistered, ProjectSummary)` produces `Command<IRegisterProject, ProjectSummary>`; returning an identifier alongside an event, an `EventForEventSourceId` wrapper, or command operations exposes only the identifier.
+
+Return a typed event collection or use `EventForEventSourceId` for explicit event-source targeting. An `IEnumerable<object>` signature cannot prove that its elements are events, so the generator conservatively keeps it as a response collection. Chronicle may consume those values at runtime; do not rely on that broad signature to describe an event-only client contract.
+
+Controller actions do not run response value handlers: Arc places the action's returned value directly in `CommandResult.Response`. The generator therefore retains controller response types even when a handler declares them as server-handled, including `[EventType]` values and typed event collections. Server-handled declarations also do not remove candidates from controller tuple or union response selection.
+
+Integration authors can declare attributed server-handled values for model-bound commands through the [response value handler marker](../commands/response-value-handlers.md#declaring-attributed-values).
+
 ## Command operations stay on the server
 
-[Command operations](../commands/operations/index.md) declare inline work rather than response DTOs. The generator excludes `ICommandOperation` implementations and `CommandOperations` batches from the caller's response, including supported tuple and result alternatives. A tuple containing a response and operations produces a response-bearing proxy for the response alone; an operation-only command has no response payload.
+[Command operations](../commands/operations/index.md) declare inline work rather than response DTOs. For model-bound commands, the generator excludes `ICommandOperation` implementations and `CommandOperations` batches from the caller's response, including supported tuple and result alternatives. A tuple containing a response and operations produces a response-bearing proxy for the response alone; an operation-only command has no response payload.
 
 No operation execution or compensation code is generated for the frontend. Backend recovery observations are also excluded from HTTP JSON. Clients continue to use the existing `CommandResult` contract.
 

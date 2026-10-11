@@ -13,3 +13,17 @@ public interface ICommandResponseValueHandler;
 /// </summary>
 /// <typeparam name="TValue">The allegedly handled value.</typeparam>
 public interface ICommandResponseValueHandler<TValue>;
+
+/// <summary>
+/// Counterfeit attributed response handler declaration with the same full name as the Arc declaration.
+/// </summary>
+/// <typeparam name="TAttribute">The allegedly consumed attribute.</typeparam>
+public interface ICommandResponseValueHandlerForAttributed<TAttribute>
+    where TAttribute : Attribute;
+
+/// <summary>
+/// Counterfeit attributed enumerable declaration with the same full name as the Arc declaration.
+/// </summary>
+/// <typeparam name="TAttribute">The allegedly consumed element attribute.</typeparam>
+public interface ICommandResponseValueHandlerForAttributedEnumerable<TAttribute>
+    where TAttribute : Attribute;

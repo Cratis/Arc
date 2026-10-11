@@ -108,6 +108,8 @@ public static partial class TypeExtensions
     static MetadataLoadContext? _metadataLoadContext;
     static Func<AssemblyLoadContext, AssemblyName, Assembly?>? _assemblyResolvingHandler;
     static HashSet<string>? _serverHandledCommandResponseValueTypeNames;
+    static HashSet<string>? _serverHandledCommandResponseValueAttributeTypeNames;
+    static HashSet<string>? _serverHandledCommandResponseValueEnumerableAttributeTypeNames;
 
     /// <summary>
     /// Gets all assemblies gathered from the <see cref="InitializeProjectAssemblies(string, Action{string}, Action{string})"/> method.

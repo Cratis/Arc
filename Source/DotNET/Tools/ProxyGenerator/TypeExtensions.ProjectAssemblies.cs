@@ -21,6 +21,8 @@ public static partial class TypeExtensions
     {
         DetachProjectAssemblies(disposeMetadataLoadContext: true);
         _serverHandledCommandResponseValueTypeNames = [];
+        _serverHandledCommandResponseValueAttributeTypeNames = [];
+        _serverHandledCommandResponseValueEnumerableAttributeTypeNames = [];
         message($"  Gather all project referenced assemblies for {assemblyFile}");
         var assemblyFolder = Path.GetDirectoryName(assemblyFile)!;
 
@@ -74,12 +76,16 @@ public static partial class TypeExtensions
             errorMessage($"Could not load a managed project dependency for '{assemblyFile}': {ex.Message}");
             DisposeUnpublishedMetadataLoadContext();
             _serverHandledCommandResponseValueTypeNames = [];
+            _serverHandledCommandResponseValueAttributeTypeNames = [];
+            _serverHandledCommandResponseValueEnumerableAttributeTypeNames = [];
             return false;
         }
         catch
         {
             DisposeUnpublishedMetadataLoadContext();
             _serverHandledCommandResponseValueTypeNames = [];
+            _serverHandledCommandResponseValueAttributeTypeNames = [];
+            _serverHandledCommandResponseValueEnumerableAttributeTypeNames = [];
             throw;
         }
 
@@ -196,6 +202,8 @@ public static partial class TypeExtensions
         ValidatorTypes.SetWarningLogger(_ => { });
         _assembliesByName.Clear();
         _serverHandledCommandResponseValueTypeNames = null;
+        _serverHandledCommandResponseValueAttributeTypeNames = null;
+        _serverHandledCommandResponseValueEnumerableAttributeTypeNames = null;
         ResetWellKnownTypes();
 
         if (_assemblyResolvingHandler is not null)
@@ -334,6 +342,10 @@ public static partial class TypeExtensions
             .SingleOrDefault();
         _serverHandledCommandResponseValueTypeNames = FindServerHandledCommandResponseValueTypeNames(
             managedAppAssemblyPaths.Select(LoadMetadataAssembly), commandResponseValueHandlerContractsAssembly, errorMessage);
+        _serverHandledCommandResponseValueAttributeTypeNames = FindServerHandledCommandResponseValueTypeNames(
+            managedAppAssemblyPaths.Select(LoadMetadataAssembly), commandResponseValueHandlerContractsAssembly, errorMessage, AttributedCommandResponseValueHandlerTypeName);
+        _serverHandledCommandResponseValueEnumerableAttributeTypeNames = FindServerHandledCommandResponseValueTypeNames(
+            managedAppAssemblyPaths.Select(LoadMetadataAssembly), commandResponseValueHandlerContractsAssembly, errorMessage, AttributedEnumerableCommandResponseValueHandlerTypeName);
 
         foreach (var loadedAssembly in _metadataLoadContext!.GetAssemblies())
         {

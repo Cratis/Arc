@@ -11,6 +11,8 @@ Use [command operations](./operations/index.md) to declare inline service work w
 
 ## Automatic response handling
 
+Response value handlers apply to model-bound commands. Controller actions bypass this classification: Arc places the action's returned value directly in `CommandResult.Response`. Generated controller proxies therefore do not suppress values declared as server-handled by typed or attributed handler markers, or by command operation contracts.
+
 After awaiting `Handle()`, the model-bound pipeline classifies its return value. `ICommandOperation` values and `CommandOperations` batches are reserved for the [operation phase](./operations/reference.md#execution-and-failure-ordering); ordinary response-value handlers do not execute them a second time. For other values:
 
 1. A simple value matching `ICommandResponseValueHandler.CanHandle` is processed by every matching handler. Their `CommandResult` outcomes are merged.
@@ -90,6 +92,30 @@ var result = await pipeline.Execute<Guid>(new AllocateIdentifier("invoice"));
 On success, the log handler runs and `result.Response` contains the allocated `Guid`. On an empty label, Arc's singular validation handler adds the rejection; `result.IsValid` is false and the typed response is `default(Guid)`.
 
 Implementing only `ICommandResponseValueHandler<TValue>` does not supply a runtime handler. For dynamically accepted types, implement the runtime interface without an overly broad marker such as `object`, which would misdescribe the client contract. Typed declarations are discovered in referenced assemblies that reference `Cratis.Arc.Core`; the interfaces must have the actual Arc assembly identity, not just matching names.
+
+## Declaring attributed values
+
+For an integration that consumes model-bound return values identified by an attribute, declare the supported shapes alongside `ICommandResponseValueHandler`. Both markers require `TAttribute` to derive from `Attribute`:
+
+- `ICommandResponseValueHandlerForAttributed<TAttribute>` excludes values whose own type carries the attribute. It does not imply collection handling.
+- `ICommandResponseValueHandlerForAttributedEnumerable<TAttribute>` excludes enumerables compatible with `IEnumerable<object>` whose declared reference element type carries the attribute. It does not imply scalar handling. Rectangular arrays and value-type element collections remain responses.
+
+Direct attributes always qualify. Attributes declared on base types qualify only when their effective `AttributeUsage.Inherited` permits inheritance (the default is `true`).
+
+For example, the Chronicle single-event handler declares this marker in its class declaration (excerpt; the handler also implements the runtime `CanHandle` and `Handle` methods):
+
+```csharp
+public class SingleEventCommandResponseValueHandler(
+    IEventLog eventLog,
+    IEventTypes eventTypes,
+    IConcurrencyScopeStrategies concurrencyScopeStrategies) :
+    ICommandResponseValueHandler,
+    ICommandResponseValueHandlerForAttributed<EventTypeAttribute>
+```
+
+These types come from `Cratis.Arc.Commands`, `Cratis.Chronicle.Events`, `Cratis.Chronicle.EventSequences`, and `Cratis.Chronicle.EventSequences.Concurrency`. Chronicle's multiple-event handler declares only `ICommandResponseValueHandlerForAttributedEnumerable<EventTypeAttribute>`. Neither handler declares `object` or `IEnumerable<object>` as universally consumed: build-time tooling cannot infer event elements from an object collection.
+
+These markers describe supported static shapes; they do not register a runtime handler or change `CanHandle`. Keep declarations consistent with the values your integration actually consumes. Chronicle still needs registered event types and event-source routing, and its enumerable handler requires non-null registered elements. The static declaration cannot prove those value- and context-dependent conditions. As with the typed-value marker, tooling requires the genuine Arc.Core contracts and matches the attribute's full name and defining assembly identity; a same-named attribute in another assembly does not qualify.
 
 ## Response object availability
 
