@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
@@ -33,7 +34,9 @@ public class when_loading_canonical_metadata_images : Specification
         File.WriteAllBytes(framework, bytes);
         AssemblyName.GetAssemblyName(application).FullName.ShouldEqual(AssemblyName.GetAssemblyName(framework).FullName);
 
-        var resolver = new CanonicalAssemblyResolver([application, framework, typeof(Attributed).Assembly.Location, .. Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll")]);
+        var resolver = new CanonicalAssemblyResolver(
+            [framework, .. Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll")],
+            [application, typeof(Attributed).Assembly.Location]);
         using var context = new MetadataLoadContext(resolver);
         var preloaded = resolver.Load(context, application);
         var owner = context.LoadFromAssemblyPath(typeof(Attributed).Assembly.Location).GetType(typeof(Attributed).FullName!)!;
@@ -63,6 +66,55 @@ public class when_loading_canonical_metadata_images : Specification
         context.LoadFromAssemblyName(AssemblyName.GetAssemblyName(framework)).Location.ShouldEqual(framework);
     }
 
+    [Fact]
+    void should_skip_a_valid_native_framework_image_before_reading_assembly_identity()
+    {
+        var native = NativeImage();
+        using var stream = File.OpenRead(native);
+        using var image = new PEReader(stream);
+        image.PEHeaders.PEHeader.ShouldNotBeNull();
+        image.PEHeaders.CorHeader.ShouldBeNull();
+        image.HasMetadata.ShouldBeFalse();
+        image.PEHeaders.SectionHeaders.Single().Name.ShouldEqual(".text");
+        var framework = Image("framework", new Version(1, 0, 0, 0));
+        var resolver = new CanonicalAssemblyResolver([native, framework, .. Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll")]);
+        using var context = new MetadataLoadContext(resolver);
+        context.LoadFromAssemblyName(AssemblyName.GetAssemblyName(framework)).Location.ShouldEqual(framework);
+    }
+
+    [Fact]
+    void should_reject_a_native_image_declared_as_a_required_managed_dependency() =>
+        Catch.Exception(() => _ = new CanonicalAssemblyResolver([], [NativeImage()])).ShouldBeOfExactType<BadImageFormatException>();
+
+    [Fact]
+    void should_fail_when_a_required_managed_dependency_is_missing() =>
+        Catch.Exception(() => _ = new CanonicalAssemblyResolver([], [Path.Combine(_directory, "Missing.dll")])).ShouldBeOfExactType<FileNotFoundException>();
+
+    [Fact]
+    void should_fail_when_a_required_managed_dependency_is_corrupt()
+    {
+        var file = Path.Combine(_directory, "Corrupt.dll");
+        File.WriteAllText(file, "not a portable executable");
+        Catch.Exception(() => _ = new CanonicalAssemblyResolver([], [file])).ShouldBeOfExactType<BadImageFormatException>();
+    }
+
+    [Fact]
+    void should_not_silently_skip_a_corrupt_directory_candidate()
+    {
+        var file = Path.Combine(_directory, "Corrupt.dll");
+        File.WriteAllText(file, "not a portable executable");
+        Catch.Exception(() => _ = new CanonicalAssemblyResolver([file])).ShouldBeOfExactType<BadImageFormatException>();
+    }
+
+    string NativeImage()
+    {
+        var file = Path.Combine(_directory, "NativeDependency.dll");
+        var blob = new BlobBuilder();
+        new NativeImageBuilder().Serialize(blob);
+        File.WriteAllBytes(file, blob.ToArray());
+        return file;
+    }
+
     string Image(string folder, Version version)
     {
         var file = Path.Combine(Directory.CreateDirectory(Path.Combine(_directory, folder)).FullName, "IdentityFixture.dll");
@@ -79,4 +131,18 @@ public class when_loading_canonical_metadata_images : Specification
 
     [Unrelated]
     public class Attributed;
+
+    sealed class NativeImageBuilder() : PEBuilder(new PEHeaderBuilder(machine: Machine.Amd64, imageCharacteristics: Characteristics.ExecutableImage | Characteristics.Dll), deterministicIdProvider: null)
+    {
+        protected override ImmutableArray<Section> CreateSections() => [new(".text", SectionCharacteristics.ContainsCode | SectionCharacteristics.MemExecute | SectionCharacteristics.MemRead)];
+
+        protected override PEDirectoriesBuilder GetDirectories() => new();
+
+        protected override BlobBuilder SerializeSection(string name, SectionLocation location)
+        {
+            var blob = new BlobBuilder();
+            blob.WriteByte(0xc3); // Native x64 ret instruction; no CLR directory or metadata is emitted.
+            return blob;
+        }
+    }
 }

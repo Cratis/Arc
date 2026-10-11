@@ -2,16 +2,19 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 
 namespace Cratis.Arc.ProxyGenerator;
 
 /// <summary>
 /// Chooses one physical image per full identity for both eager and on-demand metadata loading.
 /// </summary>
-/// <param name="assemblyPaths">Assembly paths ordered by preference, with application images first.</param>
-internal sealed class CanonicalAssemblyResolver(IEnumerable<string> assemblyPaths) : MetadataAssemblyResolver
+/// <param name="assemblyPaths">Optional directory candidates, ordered by preference.</param>
+/// <param name="requiredAssemblyPaths">Inventoried managed application paths and the required root, preferred over directory candidates.</param>
+internal sealed class CanonicalAssemblyResolver(IEnumerable<string> assemblyPaths, IEnumerable<string>? requiredAssemblyPaths = null) : MetadataAssemblyResolver
 {
-    readonly Dictionary<string, string> _paths = CanonicalPaths(assemblyPaths);
+    readonly Dictionary<string, string> _paths = CanonicalPaths(assemblyPaths, requiredAssemblyPaths ?? []);
     PathAssemblyResolver? _fallback;
 
     /// <inheritdoc/>
@@ -40,15 +43,27 @@ internal sealed class CanonicalAssemblyResolver(IEnumerable<string> assemblyPath
     /// <returns>The canonical assembly.</returns>
     internal Assembly Load(MetadataLoadContext context, string path) => Resolve(context, AssemblyName.GetAssemblyName(path))!;
 
-    static Dictionary<string, string> CanonicalPaths(IEnumerable<string> assemblyPaths)
+    static Dictionary<string, string> CanonicalPaths(IEnumerable<string> assemblyPaths, IEnumerable<string> requiredAssemblyPaths)
     {
         var paths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in assemblyPaths)
+        foreach (var path in requiredAssemblyPaths)
         {
             var normalized = Path.GetFullPath(path);
             paths.TryAdd(AssemblyName.GetAssemblyName(normalized).FullName, normalized);
         }
 
+        foreach (var normalized in assemblyPaths.Select(Path.GetFullPath).Where(IsManagedAssembly))
+        {
+            paths.TryAdd(AssemblyName.GetAssemblyName(normalized).FullName, normalized);
+        }
+
         return paths;
+    }
+
+    static bool IsManagedAssembly(string path)
+    {
+        using var stream = File.OpenRead(path);
+        using var image = new PEReader(stream);
+        return image.HasMetadata && image.GetMetadataReader().IsAssembly;
     }
 }

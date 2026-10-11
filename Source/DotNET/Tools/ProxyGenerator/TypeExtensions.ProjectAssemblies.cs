@@ -57,17 +57,16 @@ public static partial class TypeExtensions
             dependencyContext.RuntimeLibraries.Where(_ => _.Type.Equals("project")),
             assemblyFolder,
             assemblyFile);
-        string[] paths = [.. managedAppAssemblyPaths, .. runtimeAssemblies, .. aspNetCoreAssemblies];
+        string[] requiredPaths = [.. managedAppAssemblyPaths];
 
         if (FindFundamentalsAssemblyPath(dependencyContext) is { } fundamentalsPath)
         {
-            paths = [.. paths, fundamentalsPath];
+            requiredPaths = [.. requiredPaths, fundamentalsPath];
         }
-
-        CreateMetadataLoadContext(paths);
 
         try
         {
+            CreateMetadataLoadContext([.. runtimeAssemblies, .. aspNetCoreAssemblies], requiredPaths);
             LoadProjectAssemblies(managedProjectAssemblyPaths, managedAppAssemblyPaths, message, errorMessage);
         }
         catch (Exception ex) when (ex is BadImageFormatException or FileLoadException or FileNotFoundException)
@@ -250,9 +249,9 @@ public static partial class TypeExtensions
             .LoadFromAssemblyName(runtimeType.Assembly.GetName())
             .GetType(runtimeType.FullName!)!;
 
-    static void CreateMetadataLoadContext(string[] assemblyPaths)
+    static void CreateMetadataLoadContext(string[] assemblyPaths, string[] requiredAssemblyPaths)
     {
-        _assemblyResolver = new CanonicalAssemblyResolver(assemblyPaths);
+        _assemblyResolver = new CanonicalAssemblyResolver(assemblyPaths, requiredAssemblyPaths);
 #pragma warning disable CA2000 // Dispose objects before losing scope
         _metadataLoadContext = new MetadataLoadContext(_assemblyResolver);
 #pragma warning restore CA2000 // Dispose objects before losing scope
@@ -288,8 +287,8 @@ public static partial class TypeExtensions
             .Select(Path.GetFileName)
             .Where(_ => !string.IsNullOrEmpty(_))
             .Select(_ => Path.Join(assemblyFolder, _))
-            .Append(assemblyFile)
             .Where(File.Exists)
+            .Append(assemblyFile)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
