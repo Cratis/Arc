@@ -153,6 +153,11 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
         }
     }
 
+    static bool CanReport(Exception error, CancellationToken token) =>
+        error is not (OutOfMemoryException or StackOverflowException or AccessViolationException or
+            AppDomainUnloadedException or BadImageFormatException or CannotUnloadAppDomainException or InvalidProgramException) &&
+        (error is not OperationCanceledException || !token.IsCancellationRequested);
+
     CancellationTokenSource EnterRead(CancellationToken cancellationToken)
     {
         lock (_lifecycleGate)
@@ -263,7 +268,12 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
             ReleaseResources();
             completion.TrySetResult();
         }
-        catch (Exception error)
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            SetDisposed();
+            completion.TrySetCanceled();
+        }
+        catch (Exception error) when (CanReport(error, _lifetime.Token))
         {
             SetDisposed();
             completion.TrySetException(error);
@@ -338,7 +348,7 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
         {
             throw;
         }
-        catch (Exception error)
+        catch (Exception error) when (CanReport(error, _lifetime.Token))
         {
             return End(QueryResult.Error(admitted.CorrelationId, error));
         }
@@ -432,7 +442,12 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
                 false,
                 null));
         }
-        catch (Exception error)
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            // Disposal ended this callback; cancellation is not an observable error.
+            _emissions.Writer.TryComplete();
+        }
+        catch (Exception error) when (CanReport(error, _lifetime.Token))
         {
             Complete(error);
         }
@@ -475,7 +490,7 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
             // Disposal or a terminal guard verdict cancels enumeration; it is not a stream failure.
             _emissions.Writer.TryComplete();
         }
-        catch (Exception error)
+        catch (Exception error) when (CanReport(error, _enumeration.Token))
         {
             Complete(error);
         }

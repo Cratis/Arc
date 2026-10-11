@@ -86,16 +86,10 @@ internal abstract class ObservableQueryElementOperations
     /// <summary>
     /// Creates the HTTP response for an observable.
     /// </summary>
-    /// <param name="queryContext">The <see cref="QueryContext"/> for the current request.</param>
+    /// <param name="context">The query and request state for the HTTP response.</param>
     /// <param name="observable">The observable.</param>
-    /// <param name="options">The <see cref="ObservableQueryHttpOptions"/>.</param>
-    /// <param name="cancellationToken">The <see cref="CancellationToken"/> for the request.</param>
     /// <returns>The <see cref="ObservableQueryHttpResponse"/> to send.</returns>
-    public abstract Task<ObservableQueryHttpResponse> CreateHttpResponse(
-        QueryContext queryContext,
-        object observable,
-        ObservableQueryHttpOptions options,
-        CancellationToken cancellationToken);
+    public abstract Task<ObservableQueryHttpResponse> CreateHttpResponse(ObservableQueryHttpContext context, object observable);
 
     /// <summary>
     /// Subscribes a demultiplexed connection to a subject.
