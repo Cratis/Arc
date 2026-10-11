@@ -37,7 +37,7 @@ public static class ProtectedIdentityAnnotations
 
                 diagnostics.Information(
                     ScreenplayDiagnosticCodes.ProtectedIdentityAnnotation,
-                    $"Concept '{concept.Name}' is used as an identifier, destination or stream id; its @pii/@sensitive annotations were left off because Screenplay rejects protected identities (PLAY0515)",
+                    $"Concept '{concept.Name}' is used as an identifier, destination or stream id; its pii/secret annotations were left off because Screenplay rejects protected identities (PLAY0515)",
                     concept.Name);
 
                 return concept with { IsPii = false, IsSensitive = false };

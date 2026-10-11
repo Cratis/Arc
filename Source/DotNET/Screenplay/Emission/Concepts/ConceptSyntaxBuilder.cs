@@ -29,6 +29,11 @@ public class ConceptSyntaxBuilder(
     public const string PersonallyIdentifiableInformation = ConceptAttributeSyntax.Pii;
 
     /// <summary>
+    /// Gets whether syntax-only compliance details may be emitted.
+    /// </summary>
+    public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
     /// Builds every concept the document declares.
     /// </summary>
     /// <param name="concepts">The concepts to build.</param>
@@ -59,7 +64,7 @@ public class ConceptSyntaxBuilder(
             declared[name] = new(
                 name,
                 ScreenplayPrimitiveTypes.GetName(concept.Primitive),
-                Attributes(concept),
+                [.. Attributes(concept)],
                 values,
                 SourceLocation.Start,
                 [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)]);
@@ -77,13 +82,43 @@ public class ConceptSyntaxBuilder(
     {
         if (concept.IsPii)
         {
+            ReportPiiPromotion(concept);
             yield return new(PersonallyIdentifiableInformation, SourceLocation.Start);
         }
 
         if (concept.IsSensitive)
         {
-            yield return new(ConceptAttributeSyntax.Sensitive, SourceLocation.Start);
+            var scope = concept.IsPii ? null : concept.EncryptionScope;
+            if (scope is not null && !AuthoringOnlyConstructs)
+            {
+                diagnostics.Information(
+                    ScreenplayDiagnosticCodes.EncryptionScopeNotRepresentable,
+                    $"Concept '{concept.Name}' has encryption scope '{scope}', which is not stated; bare secret implies Subject scope. Enable ScreenplayOptions.AuthoringOnlyConstructs to state the scope",
+                    concept.Name);
+            }
+
+            yield return new(ConceptAttributeSyntax.Sensitive, SourceLocation.Start)
+            {
+                Scope = AuthoringOnlyConstructs ? scope : null
+            };
         }
+    }
+
+    /// <summary>
+    /// Reports widened classification only for a concept that retains its pii annotation.
+    /// </summary>
+    /// <param name="concept">The emitted concept.</param>
+    void ReportPiiPromotion(ConceptModel concept)
+    {
+        if (concept.UnmarkedPiiUses.Count == 0)
+        {
+            return;
+        }
+
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.ConceptPiiPromotion,
+            $"Concept '{concept.Name}' is promoted to pii by member [PII] markings; the document also classifies these unmarked uses as pii: {string.Join(", ", concept.UnmarkedPiiUses)}",
+            concept.Name);
     }
 
     /// <summary>

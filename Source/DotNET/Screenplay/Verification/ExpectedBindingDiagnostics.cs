@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Frozen;
+using Cratis.Screenplay;
 using Cratis.Screenplay.Diagnostics;
 
 namespace Cratis.Arc.Screenplay.Verification;
@@ -9,22 +11,53 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// Identifies the executable admission limits deliberately retained in generated authoring documents.
 /// </summary>
 /// <remarks>
-/// Screenplay 4.124.1 reports malformed bindings under PLAY0268 too. Its diagnostics carry no structured reason,
-/// so these exact message shapes follow SemanticModelBinder.Commands, ReadModels, Concepts, and CommandProductions at that
-/// version. A changed or unknown message fails closed as SP0056 rather than silently acquiring an exemption.
+/// Screenplay 4.135.0 reports malformed bindings under PLAY0268 too. Its compiler contract lists codes, titles and
+/// severities, not structured reasons, so these exact message shapes follow SemanticModelBinder.Commands, ReadModels,
+/// Concepts, and CommandProductions at that version. A changed or unknown message, or a code that is no longer an active
+/// error in the loaded compiler's contract, fails closed as SP0056 rather than silently acquiring an exemption.
 /// </remarks>
 public static class ExpectedBindingDiagnostics
 {
+    const string AdmissionLimitCode = "PLAY0268";
+    const string LegacyConsistencyCode = "PLAY0271";
+
+    static readonly FrozenSet<string> _activeErrorCodes = ActiveErrorCodes(CompilerContractCatalog.Diagnostics);
+
+    /// <summary>
+    /// Gets the codes with known admission or legacy-consistency message shapes.
+    /// </summary>
+    internal static IReadOnlyList<string> AcceptedCodes { get; } = [AdmissionLimitCode, LegacyConsistencyCode];
+
     /// <summary>
     /// Determines whether a binding diagnostic describes a known admission limit rather than malformed output.
     /// </summary>
     /// <param name="diagnostic">The diagnostic from the language's semantic binder.</param>
     /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
     /// <returns>True only for the documented admission and preserved legacy-consistency messages.</returns>
-    public static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs)
+    public static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs) => IsExpected(diagnostic, authoringOnlyConstructs, _activeErrorCodes);
+
+    /// <summary>
+    /// Determines whether a known message remains expected under the supplied compiler contract.
+    /// </summary>
+    /// <param name="diagnostic">The diagnostic from the language's semantic binder.</param>
+    /// <param name="authoringOnlyConstructs">Whether additional authoring-only constructs were requested.</param>
+    /// <param name="catalog">The diagnostic facts from the compiler contract.</param>
+    /// <returns>True only for a known message whose code is an active error in the contract.</returns>
+    internal static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs, IEnumerable<CompilerContractCatalog.DiagnosticFact> catalog) =>
+        IsExpected(diagnostic, authoringOnlyConstructs, ActiveErrorCodes(catalog));
+
+    static FrozenSet<string> ActiveErrorCodes(IEnumerable<CompilerContractCatalog.DiagnosticFact> catalog) => catalog
+        .Where(fact => !fact.Retired && !fact.Reserved && fact.Severities.Contains(DiagnosticSeverity.Error))
+        .Select(fact => fact.Code)
+        .ToFrozenSet(StringComparer.Ordinal);
+
+    static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs, FrozenSet<string> activeErrorCodes) =>
+        activeErrorCodes.Contains(diagnostic.Code) && HasKnownMessageShape(diagnostic, authoringOnlyConstructs);
+
+    static bool HasKnownMessageShape(Diagnostic diagnostic, bool authoringOnlyConstructs)
     {
         var message = diagnostic.Message;
-        if (diagnostic.Code == "PLAY0271")
+        if (diagnostic.Code == LegacyConsistencyCode)
         {
             var command = Reason(message, "Command");
 
@@ -32,7 +65,7 @@ public static class ExpectedBindingDiagnostics
                 (authoringOnlyConstructs && command is not null && Reason(command, " reads") == " with legacy semantics that cannot imply decision consistency.");
         }
 
-        if (diagnostic.Code != "PLAY0268")
+        if (diagnostic.Code != AdmissionLimitCode)
         {
             return false;
         }
