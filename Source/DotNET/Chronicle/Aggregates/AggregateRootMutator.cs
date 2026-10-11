@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Immutable;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Execution;
@@ -20,8 +21,13 @@ public class AggregateRootMutator(
     IEventStore eventStore,
     IEventSerializer eventSerializer,
     IAggregateRootEventHandlers eventHandlers,
-    ICorrelationIdAccessor correlationIdAccessor) : IAggregateRootMutator
+    ICorrelationIdAccessor correlationIdAccessor) : IAggregateRootMutator, IAggregateRootRehydratedScope
 {
+    IImmutableList<EventType>? _guardedEventTypes;
+
+    /// <inheritdoc/>
+    IImmutableList<EventType>? IAggregateRootRehydratedScope.GuardedEventTypes => _guardedEventTypes;
+
     /// <inheritdoc/>
     public async Task Rehydrate()
     {
@@ -98,6 +104,12 @@ public class AggregateRootMutator(
         {
             aggregateRootContext.TailEventSequenceNumber = tailSequenceNumber;
         }
+
+        // Existence is decided over every event type in the aggregate's own stream. Keep that creation guard
+        // when it was new, even if Mutate later sets HasEvents while staging events in this unit of work.
+        _guardedEventTypes = ownTailSequenceNumber.IsActualValue && eventHandlers.EventTypes.Count > 0
+            ? eventHandlers.EventTypes
+            : null;
 
         if (ownTailSequenceNumber.IsActualValue)
         {

@@ -20,7 +20,7 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// Parameters of other methods are never injected, so they are not decision reads.
 /// </para>
 /// <para>
-/// Only parameters are statically visible. Explicit <see cref="IDecisionReads.Get{T}"/> calls inside a method body are not.
+/// Only parameters are statically visible. Explicit <see cref="IDecisionReads.Get{T}(ReadModelKey, CancellationToken)"/> calls inside a method body are not.
 /// </para>
 /// </remarks>
 internal static class ProtectedDecisionReadParameters
