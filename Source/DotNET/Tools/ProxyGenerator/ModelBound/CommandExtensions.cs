@@ -75,7 +75,7 @@ public static class CommandExtensions
             throw new InvalidCommandValidationSeverity(commandType, severity.Value);
         }
 
-        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, documentation, validationRules) with
+        return handleMethod.ToCommandDescriptor(commandType.Name, properties, [], route, targetPath, segmentsToSkip, true, documentation, validationRules) with
         {
             BlockOnValidationSeverity = severity
         };

@@ -78,7 +78,23 @@ public static partial class TypeExtensions
     /// </summary>
     /// <param name="type">Tuple <see cref="Type"/> to inspect.</param>
     /// <returns>The best type found, the original non-tuple type, or null when every tuple value is server-handled.</returns>
-    public static Type? GetBestTupleType(this Type type)
+    public static Type? GetBestTupleType(this Type type) => type.GetBestTupleType(true);
+
+    /// <summary>
+    /// Get the best response type from a OneOf type by examining all alternatives.
+    /// If an alternative is a tuple, applies tuple type extraction logic.
+    /// </summary>
+    /// <param name="type">OneOf <see cref="Type"/> to inspect.</param>
+    /// <returns>The best response type found, or null if no suitable type is found.</returns>
+    public static Type? GetBestOneOfResponseType(this Type type) => type.GetBestOneOfResponseType(true);
+
+    /// <summary>
+    /// Select a tuple response candidate using the command's execution path.
+    /// </summary>
+    /// <param name="type">Tuple type to inspect.</param>
+    /// <param name="appliesResponseValueHandlers">True for model-bound execution; false for MVC action outputs.</param>
+    /// <returns>The selected response candidate, or null if none remains.</returns>
+    internal static Type? GetBestTupleType(this Type type, bool appliesResponseValueHandlers)
     {
         if (!type.IsGenericType || !(type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
@@ -86,8 +102,8 @@ public static partial class TypeExtensions
         }
 
         var genericArguments = type.GetGenericArguments()
-            .Select(UnwrapType)
-            .Where(_ => _?.IsServerHandledCommandResponseValue() == false)
+            .Select(_ => UnwrapType(_, appliesResponseValueHandlers))
+            .Where(_ => _ is not null)
             .Cast<Type>()
             .ToArray();
         if (genericArguments.Length == 0)
@@ -106,12 +122,12 @@ public static partial class TypeExtensions
     }
 
     /// <summary>
-    /// Get the best response type from a OneOf type by examining all alternatives.
-    /// If an alternative is a tuple, applies tuple type extraction logic.
+    /// Select a union response candidate using the command's execution path.
     /// </summary>
-    /// <param name="type">OneOf <see cref="Type"/> to inspect.</param>
-    /// <returns>The best response type found, or null if no suitable type is found.</returns>
-    public static Type? GetBestOneOfResponseType(this Type type)
+    /// <param name="type">Union type to inspect.</param>
+    /// <param name="appliesResponseValueHandlers">True for model-bound execution; false for MVC action outputs.</param>
+    /// <returns>The selected response candidate, or null if none remains.</returns>
+    internal static Type? GetBestOneOfResponseType(this Type type, bool appliesResponseValueHandlers)
     {
         if (!type.IsOneOf())
         {
@@ -123,8 +139,8 @@ public static partial class TypeExtensions
 
         foreach (var arg in genericArguments)
         {
-            var unwrappedType = UnwrapType(arg);
-            if (unwrappedType?.IsServerHandledCommandResponseValue() == false)
+            var unwrappedType = UnwrapType(arg, appliesResponseValueHandlers);
+            if (unwrappedType is not null)
             {
                 candidateTypes.Add(unwrappedType);
             }
@@ -318,22 +334,23 @@ public static partial class TypeExtensions
     /// Handles tuples and OneOf types recursively.
     /// </summary>
     /// <param name="type"><see cref="Type"/> to unwrap.</param>
+    /// <param name="appliesResponseValueHandlers">Whether server-handled values are excluded for model-bound execution.</param>
     /// <returns>The unwrapped type, or null if the type should be skipped.</returns>
-    static Type? UnwrapType(Type type)
+    static Type? UnwrapType(Type type, bool appliesResponseValueHandlers)
     {
-        if (type.IsServerHandledCommandResponseValue())
+        if (appliesResponseValueHandlers && type.IsServerHandledCommandResponseValue())
         {
             return null;
         }
 
         if (type.IsGenericType && (type.FullName?.StartsWith("System.ValueTuple") ?? false))
         {
-            return type.GetBestTupleType();
+            return type.GetBestTupleType(appliesResponseValueHandlers);
         }
 
         if (type.IsOneOf())
         {
-            return type.GetBestOneOfResponseType();
+            return type.GetBestOneOfResponseType(appliesResponseValueHandlers);
         }
 
         return type;

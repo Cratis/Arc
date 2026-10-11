@@ -11,6 +11,8 @@ Use [command operations](./operations/index.md) to declare inline service work w
 
 ## Automatic response handling
 
+Response value handlers apply to model-bound commands. Controller actions bypass this classification: Arc places the action's returned value directly in `CommandResult.Response`. Generated controller proxies therefore do not suppress values declared as server-handled by typed or attributed handler markers, or by command operation contracts.
+
 After awaiting `Handle()`, the model-bound pipeline classifies its return value. `ICommandOperation` values and `CommandOperations` batches are reserved for the [operation phase](./operations/reference.md#execution-and-failure-ordering); ordinary response-value handlers do not execute them a second time. For other values:
 
 1. A simple value matching `ICommandResponseValueHandler.CanHandle` is processed by every matching handler. Their `CommandResult` outcomes are merged.
@@ -93,7 +95,7 @@ Implementing only `ICommandResponseValueHandler<TValue>` does not supply a runti
 
 ## Declaring attributed values
 
-For an integration that consumes types identified by an attribute, declare the supported shapes alongside `ICommandResponseValueHandler`. Both markers require `TAttribute` to derive from `Attribute`:
+For an integration that consumes model-bound return values identified by an attribute, declare the supported shapes alongside `ICommandResponseValueHandler`. Both markers require `TAttribute` to derive from `Attribute`:
 
 - `ICommandResponseValueHandlerForAttributed<TAttribute>` excludes values whose own type carries the attribute. It does not imply collection handling.
 - `ICommandResponseValueHandlerForAttributedEnumerable<TAttribute>` excludes enumerables compatible with `IEnumerable<object>` whose declared reference element type carries the attribute. It does not imply scalar handling. Rectangular arrays and value-type element collections remain responses.
