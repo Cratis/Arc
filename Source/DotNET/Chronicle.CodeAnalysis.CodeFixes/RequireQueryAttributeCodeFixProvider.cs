@@ -34,9 +34,17 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         var semanticModel = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
         var method = root?.FindNode(context.Diagnostics[0].Location.SourceSpan).FirstAncestorOrSelf<MethodDeclarationSyntax>();
-        if (method is null || semanticModel?.GetDeclaredSymbol(method, context.CancellationToken) is not IMethodSymbol symbol ||
-            ModelBoundQueryMethodSymbols.IsMarked(symbol) || ModelBoundQueryMethodSymbols.Validate(symbol.ContainingType).Any() ||
-            WouldSelectOverloads(symbol.ContainingType))
+        if (method is null)
+        {
+            return;
+        }
+
+        if (semanticModel?.GetDeclaredSymbol(method, context.CancellationToken) is not IMethodSymbol symbol)
+        {
+            return;
+        }
+
+        if (!CanMigrate(symbol))
         {
             return;
         }
@@ -49,10 +57,24 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
             context.Diagnostics[0]);
     }
 
+    static bool CanMigrate(IMethodSymbol method)
+    {
+        if (ModelBoundQueryMethodSymbols.IsMarked(method))
+        {
+            return false;
+        }
+
+        return !ModelBoundQueryMethodSymbols.Validate(method.ContainingType).Any() && !WouldSelectOverloads(method.ContainingType);
+    }
+
     static bool WouldSelectOverloads(INamedTypeSymbol type) => type.GetMembers().OfType<IMethodSymbol>()
-        .Where(method => ModelBoundQueryMethodSymbols.IsMarked(method) ||
-            (ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && !ReadModelCreatorAnalyzer.IsPossibleFold(method)))
+        .Where(method => ModelBoundQueryMethodSymbols.IsMarked(method) || ShouldRetainAsQuery(method))
         .GroupBy(_ => _.Name).Any(_ => _.Count() > 1);
+
+    static bool ShouldRetainAsQuery(IMethodSymbol method) =>
+        ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && !ReadModelCreatorAnalyzer.IsPossibleFold(method);
+
+    static bool NeedsQueryMarker(IMethodSymbol method) => ShouldRetainAsQuery(method) && !ModelBoundQueryMethodSymbols.IsMarked(method);
 
     static async Task<Solution> Migrate(Solution solution, INamedTypeSymbol type, CancellationToken cancellationToken)
     {
@@ -64,34 +86,35 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
             var root = (await document.GetSyntaxRootAsync(cancellationToken).ConfigureAwait(false))!;
             var semanticModel = (await document.GetSemanticModelAsync(cancellationToken).ConfigureAwait(false))!;
             var nodes = group.Select(_ => root.FindNode(_.Span)).OfType<TypeDeclarationSyntax>().ToArray();
-            var rewritten = root.ReplaceNodes(nodes, (original, _) => RewriteDeclaration(original, semanticModel, readModel, declarations[0], cancellationToken));
+            var migration = new MigrationContext(semanticModel, readModel, declarations[0], cancellationToken);
+            var rewritten = root.ReplaceNodes(nodes, (original, _) => RewriteDeclaration(original, migration));
             solution = solution.WithDocumentSyntaxRoot(document.Id, rewritten);
         }
 
         return solution;
     }
 
-    static TypeDeclarationSyntax RewriteDeclaration(TypeDeclarationSyntax original, SemanticModel semanticModel, SyntaxReference? readModel, SyntaxReference first, CancellationToken cancellationToken)
+    static TypeDeclarationSyntax RewriteDeclaration(TypeDeclarationSyntax original, MigrationContext migration)
     {
         var result = original.ReplaceNodes(
             original.Members.OfType<MethodDeclarationSyntax>(),
-            (method, _) => MarkQuery(method, semanticModel, cancellationToken));
-        if (readModel is not null && readModel.SyntaxTree == original.SyntaxTree && original.Span.Contains(readModel.Span))
+            (method, _) => MarkQuery(method, migration));
+        if (migration.DeclaresReadModel(original))
         {
-            return RequireExistingAttribute(original, result, readModel);
+            return RequireExistingAttribute(original, result, migration.ReadModel!);
         }
 
-        return readModel is null && original.SyntaxTree == first.SyntaxTree && original.Span == first.Span
-            ? result.AddAttributeLists(AttributeList(SingletonSeparatedList(
-                Attribute(ParseName("global::Cratis.Arc.Queries.ModelBound.ReadModel").WithAdditionalAnnotations(Simplifier.Annotation))
-                    .AddArgumentListArguments(RequireArgument())))).WithAdditionalAnnotations(Formatter.Annotation)
-            : result;
+        return migration.NeedsReadModel(original) ? AddReadModelAttribute(result) : result;
     }
 
-    static MethodDeclarationSyntax MarkQuery(MethodDeclarationSyntax method, SemanticModel semanticModel, CancellationToken cancellationToken)
+    static TypeDeclarationSyntax AddReadModelAttribute(TypeDeclarationSyntax type) => type.AddAttributeLists(AttributeList(SingletonSeparatedList(
+        Attribute(ParseName("global::Cratis.Arc.Queries.ModelBound.ReadModel").WithAdditionalAnnotations(Simplifier.Annotation))
+            .AddArgumentListArguments(RequireArgument())))).WithAdditionalAnnotations(Formatter.Annotation);
+
+    static MethodDeclarationSyntax MarkQuery(MethodDeclarationSyntax method, MigrationContext migration)
     {
-        var symbol = (IMethodSymbol)semanticModel.GetDeclaredSymbol(method, cancellationToken)!;
-        if (!ModelBoundQueryMethodSymbols.IsValidExplicitQuery(symbol) || ModelBoundQueryMethodSymbols.IsMarked(symbol) || ReadModelCreatorAnalyzer.IsPossibleFold(symbol))
+        var symbol = migration.SymbolOf(method);
+        if (!NeedsQueryMarker(symbol))
         {
             return method;
         }
@@ -118,4 +141,46 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
 
     static AttributeListSyntax Marker(string name) => AttributeList(SingletonSeparatedList(
         Attribute(ParseName($"global::Cratis.Arc.Queries.ModelBound.{name}").WithAdditionalAnnotations(Simplifier.Annotation))));
+
+    sealed class MigrationContext(SemanticModel semanticModel, SyntaxReference? readModel, SyntaxReference firstDeclaration, CancellationToken cancellationToken)
+    {
+        /// <summary>
+        /// Gets the directly declared owner attribute, when present.
+        /// </summary>
+        public SyntaxReference? ReadModel => readModel;
+
+        /// <summary>
+        /// Checks whether this partial declaration contains the owner attribute.
+        /// </summary>
+        /// <param name="declaration">The partial declaration.</param>
+        /// <returns>Whether the attribute must be updated here.</returns>
+        public bool DeclaresReadModel(TypeDeclarationSyntax declaration)
+        {
+            var attribute = readModel;
+            if (attribute is null)
+            {
+                return false;
+            }
+
+            return attribute.SyntaxTree == declaration.SyntaxTree && declaration.Span.Contains(attribute.Span);
+        }
+
+        /// <summary>
+        /// Checks whether the first partial needs a direct opt-in declaration.
+        /// </summary>
+        /// <param name="declaration">The partial declaration.</param>
+        /// <returns>Whether an owner attribute must be added here.</returns>
+        public bool NeedsReadModel(TypeDeclarationSyntax declaration) => readModel is null && IsFirstDeclaration(declaration);
+
+        /// <summary>
+        /// Resolves a method in this document's semantic model.
+        /// </summary>
+        /// <param name="method">The method declaration.</param>
+        /// <returns>The method symbol.</returns>
+        public IMethodSymbol SymbolOf(MethodDeclarationSyntax method) =>
+            (IMethodSymbol)semanticModel.GetDeclaredSymbol(method, cancellationToken)!;
+
+        bool IsFirstDeclaration(TypeDeclarationSyntax declaration) =>
+            declaration.SyntaxTree == firstDeclaration.SyntaxTree && declaration.Span == firstDeclaration.Span;
+    }
 }

@@ -29,6 +29,7 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
+        <Compile Include="../Shared/ModelBoundQueryReturnTypes.cs" Link="ModelBoundQueryReturnTypes.cs" />
         <Compile Include="../Shared/QuerySelectionPolicy.cs" Link="QuerySelectionPolicy.cs" />
     </ItemGroup>
 

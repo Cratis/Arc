@@ -98,31 +98,9 @@ internal static class ModelBoundQueryMethodSymbols
     internal static IEnumerable<Diagnostic> Validate(INamedTypeSymbol type)
     {
         var methods = type.GetMembers().OfType<IMethodSymbol>().ToArray();
-        foreach (var method in methods.Where(IsMarked))
+        foreach (var diagnostic in InvalidMarkers(type, methods).Concat(DuplicateSelectedNames(type, methods)))
         {
-            if (ReadModel(type) is null || !IsValidExplicitQuery(method))
-            {
-                yield return Diagnostic.Create(
-                    InvalidDeclaration,
-                    method.Locations.FirstOrDefault(),
-                    method.Name,
-                    "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]");
-            }
-        }
-
-        if (RequiresQueryAttribute(type))
-        {
-            foreach (var duplicate in methods.Where(method => IsMarked(method) && IsValidExplicitQuery(method)).GroupBy(_ => _.Name).Where(_ => _.Count() > 1))
-            {
-                foreach (var method in duplicate)
-                {
-                    yield return Diagnostic.Create(
-                        InvalidDeclaration,
-                        method.Locations.FirstOrDefault(),
-                        method.Name,
-                        "only one selected query per method name is supported; rename a query or remove its [Query] marker");
-                }
-            }
+            yield return diagnostic;
         }
     }
 
@@ -147,29 +125,36 @@ internal static class ModelBoundQueryMethodSymbols
     /// <returns>Whether it is eligible in explicit mode.</returns>
     internal static bool IsValidExplicitQuery(IMethodSymbol method) =>
         IsCandidate(method) && !IsOpen(method.ContainingType) && !method.ReturnsByRef && !method.ReturnsByRefReadonly &&
-        method.Parameters.All(_ => _.RefKind == RefKind.None) && IsSupportedReturn(method.ReturnType, method.ContainingType);
+        method.Parameters.All(_ => _.RefKind == RefKind.None) && ModelBoundQueryReturnTypes.IsSupported(method.ReturnType, method.ContainingType);
 
-    static bool IsOpen(INamedTypeSymbol type) => type.TypeParameters.Length > 0 || (type.ContainingType is { } parent && IsOpen(parent));
+    static IEnumerable<Diagnostic> InvalidMarkers(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods) => methods
+        .Where(method => IsMarked(method) && HasInvalidDeclaration(type, method))
+        .Select(method => DeclarationError(
+            method,
+            "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]"));
 
-    static bool IsSupportedReturn(ITypeSymbol type, INamedTypeSymbol owner)
+    static bool HasInvalidDeclaration(INamedTypeSymbol type, IMethodSymbol method) =>
+        ReadModel(type) is null || !IsValidExplicitQuery(method);
+
+    static IEnumerable<Diagnostic> DuplicateSelectedNames(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods)
     {
-        if (IsGeneric(type, "System.Threading.Tasks.Task`1") && type is INamedTypeSymbol task)
+        if (!RequiresQueryAttribute(type))
         {
-            type = task.TypeArguments[0];
+            return [];
         }
 
-        return SymbolEqualityComparer.Default.Equals(type, owner) || IsCollection(type, owner) ||
-            (IsGeneric(type, "System.Collections.Generic.IAsyncEnumerable`1") && type is INamedTypeSymbol stream && SymbolEqualityComparer.Default.Equals(stream.TypeArguments[0], owner)) ||
-            (IsGeneric(type, "System.Reactive.Subjects.ISubject`1") && type is INamedTypeSymbol subject &&
-                (SymbolEqualityComparer.Default.Equals(subject.TypeArguments[0], owner) || IsCollection(subject.TypeArguments[0], owner)));
+        return methods.Where(method => IsMarked(method) && IsValidExplicitQuery(method))
+            .GroupBy(method => method.Name)
+            .Where(group => group.Count() > 1)
+            .SelectMany(group => group.Select(method => DeclarationError(
+                method,
+                "only one selected query per method name is supported; rename a query or remove its [Query] marker")));
     }
 
-    static bool IsCollection(ITypeSymbol type, INamedTypeSymbol owner) =>
-        (type is IArrayTypeSymbol array && SymbolEqualityComparer.Default.Equals(array.ElementType, owner)) ||
-        (type is INamedTypeSymbol named && new[] { named }.Concat(named.AllInterfaces)
-            .Any(_ => IsGeneric(_, "System.Collections.Generic.IEnumerable`1") && SymbolEqualityComparer.Default.Equals(_.TypeArguments[0], owner)));
+    static Diagnostic DeclarationError(IMethodSymbol method, string reason) =>
+        Diagnostic.Create(InvalidDeclaration, method.Locations.FirstOrDefault(), method.Name, reason);
 
-    static bool IsGeneric(ITypeSymbol type, string name) => type is INamedTypeSymbol named && $"{named.ContainingNamespace.ToDisplayString()}.{named.MetadataName}" == name;
+    static bool IsOpen(INamedTypeSymbol type) => type.TypeParameters.Length > 0 || (type.ContainingType is { } parent && IsOpen(parent));
 
     /// <summary>
     /// The exception that is thrown when source tooling encounters invalid explicit query intent.

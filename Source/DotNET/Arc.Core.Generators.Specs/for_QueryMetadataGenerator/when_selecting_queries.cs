@@ -59,6 +59,14 @@ public class when_selecting_queries
         result.Diagnostics.Count(_ => _.Id == "ARC0026").ShouldEqual(2);
     }
 
+    [Fact]
+    public void should_report_invalid_markers_before_selected_name_collisions()
+    {
+        var result = GeneratorTestHelper.RunGenerator(Source("[Query] private static Order Helper() => new(); [Query] public static Order ById(int id) => new();", true));
+        result.Diagnostics.Length.ShouldEqual(3);
+        result.Diagnostics[0].GetMessage().ShouldContain("Query 'Helper'");
+    }
+
     [Theory]
     [InlineData(false, true, 2)]
     [InlineData(true, true, 1)]

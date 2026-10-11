@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
@@ -44,8 +43,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>True when the type is a read model.</returns>
-    public static bool IsReadModel(ITypeSymbol type) => type.HasAttribute(WellKnownTypeNames.ReadModelAttribute) ||
-        (type is INamedTypeSymbol named && ModelBoundQueryMethodSymbols.RequiresQueryAttribute(named));
+    public static bool IsReadModel(ITypeSymbol type) => ModelBoundQuerySelection.IsReadModel(type);
 
     /// <summary>
     /// Gets the static methods a read model exposes as queries.
@@ -59,22 +57,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// would put routes in the document that no application serves, while a query that happens not to be public is a
     /// route the application really does serve.
     /// </remarks>
-    public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type)
-    {
-        ModelBoundQueryMethodSymbols.EnsureValid(type);
-        return ModelBoundQueryMethodSymbols.GetMethods(type, method =>
-            {
-                if (method is not { MethodKind: MethodKind.Ordinary, IsStatic: true } ||
-                    method.ReturnsVoid || method.TypeParameters.Length != 0)
-                {
-                    return false;
-                }
-
-                var collection = false;
-                return SymbolEqualityComparer.Default.Equals(UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection)), type);
-            })
-            .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
-    }
+    public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type) => ModelBoundQuerySelection.MethodsOf(type);
 
     /// <summary>
     /// Determines whether a parameter is part of what a caller sends.

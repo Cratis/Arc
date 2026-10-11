@@ -35,6 +35,9 @@ public class when_selecting_queries
     [InlineData("[Query] public static Task {|#0:Helper|}() => Task.CompletedTask;")]
     [InlineData("[Query] public static string {|#0:Helper|}() => string.Empty;")]
     [InlineData("[Query] public static Order {|#0:Helper|}(ref int value) => new();")]
+    [InlineData("[Query] public static ISubject<Task<Order>> {|#0:Helper|}() => null!;")]
+    [InlineData("[Query] public static Task<ISubject<Task<Order>>> {|#0:Helper|}() => null!;")]
+    [InlineData("[Query] public static Task<Task<Order>> {|#0:Helper|}() => null!;")]
     public async Task should_reject_invalid_marked_methods(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method), Invalid("Helper"));
 
     [Fact]

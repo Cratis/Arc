@@ -30,33 +30,44 @@ public class ReadModelCreatorAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="method">The method.</param>
     /// <returns>Whether the method resembles a fold.</returns>
-    internal static bool IsPossibleFold(IMethodSymbol method)
-    {
-        var result = method.ReturnType;
-        if (result is INamedTypeSymbol { TypeArguments.Length: 1 } task && task.Name == "Task" && task.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks")
-        {
-            result = task.TypeArguments[0];
-        }
+    internal static bool IsPossibleFold(IMethodSymbol method) => HasFoldInputs(method) &&
+        (IsCreatorShape(method) || IsReducerShape(method));
 
-        if (!ModelBoundQueryMethodSymbols.IsCandidate(method) ||
-            !SymbolEqualityComparer.Default.Equals(result, method.ContainingType) ||
-            method.Parameters.Length == 0 || !IsPossibleEvent(method.Parameters[0].Type))
-        {
-            return false;
-        }
+    static bool HasFoldInputs(IMethodSymbol method) => ModelBoundQueryMethodSymbols.IsCandidate(method) &&
+        ReturnsModel(method) && HasPossibleEventParameter(method);
 
-        return (method.Name == "Create" && method.Parameters.Length is 1 or 2) ||
-            (method.Name == "Reduce" && method.Parameters.Length is 2 or 3 &&
-                SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, method.ContainingType) &&
-                method.Parameters[1].NullableAnnotation == NullableAnnotation.Annotated &&
-                (method.Parameters.Length == 2 || method.Parameters[2].Type.ToDisplayString().TrimEnd('?') == "Cratis.Chronicle.Events.EventContext"));
-    }
+    static bool ReturnsModel(IMethodSymbol method) =>
+        SymbolEqualityComparer.Default.Equals(UnwrapResult(method.ReturnType), method.ContainingType);
+
+    static ITypeSymbol UnwrapResult(ITypeSymbol type) =>
+        type is INamedTypeSymbol { TypeArguments.Length: 1 } task && task.Name == "Task" && task.ContainingNamespace.ToDisplayString() == "System.Threading.Tasks"
+            ? task.TypeArguments[0]
+            : type;
+
+    static bool HasPossibleEventParameter(IMethodSymbol method) =>
+        method.Parameters.Length > 0 && IsPossibleEvent(method.Parameters[0].Type);
+
+    static bool IsCreatorShape(IMethodSymbol method) => method.Name == "Create" && method.Parameters.Length is 1 or 2;
+
+    static bool IsReducerShape(IMethodSymbol method) => method.Name == "Reduce" && HasReducerParameters(method);
+
+    static bool HasReducerParameters(IMethodSymbol method) => method.Parameters.Length is 2 or 3 &&
+        HasNullableCurrentModel(method) && HasOptionalContext(method);
+
+    static bool HasNullableCurrentModel(IMethodSymbol method) =>
+        SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, method.ContainingType) &&
+        method.Parameters[1].NullableAnnotation == NullableAnnotation.Annotated;
+
+    static bool HasOptionalContext(IMethodSymbol method) => method.Parameters.Length == 2 ||
+        method.Parameters[2].Type.ToDisplayString().TrimEnd('?') == "Cratis.Chronicle.Events.EventContext";
+
+    static bool RequiresWarning(IMethodSymbol method) => ModelBoundQueryMethodSymbols.ReadModel(method.ContainingType) is not null &&
+        !ModelBoundQueryMethodSymbols.RequiresQueryAttribute(method.ContainingType) && IsPossibleFold(method);
 
     static void AnalyzeMethod(SymbolAnalysisContext context)
     {
         var method = (IMethodSymbol)context.Symbol;
-        if (ModelBoundQueryMethodSymbols.ReadModel(method.ContainingType) is null ||
-            ModelBoundQueryMethodSymbols.RequiresQueryAttribute(method.ContainingType) || !IsPossibleFold(method))
+        if (!RequiresWarning(method))
         {
             return;
         }

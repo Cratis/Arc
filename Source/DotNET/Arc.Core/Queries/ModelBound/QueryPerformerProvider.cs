@@ -95,10 +95,10 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         public DiscoveredQuery[] GetQueries(ITypes universe, HashSet<Assembly> coveredAssemblies, HashSet<Type> coveredTypes)
         {
             var all = universe.All.ToArray();
-            var types = all.Where(type => (!coveredAssemblies.Contains(type.Assembly) || ModelBoundQueryMethod.RequiresQueryAttribute(type)) && !coveredTypes.Contains(type)).ToArray();
+            var types = all.Where(type => ShouldScan(type, coveredAssemblies, coveredTypes)).ToArray();
             lock (_gate)
             {
-                if (!_initialized || !types.SequenceEqual(_types) || !all.SequenceEqual(_validationTypes))
+                if (NeedsRefresh(types, all))
                 {
                     foreach (var type in all)
                     {
@@ -117,6 +117,15 @@ public class QueryPerformerProvider : IQueryPerformerProvider
                 return _queries;
             }
         }
+
+        static bool ShouldScan(Type type, HashSet<Assembly> coveredAssemblies, HashSet<Type> coveredTypes) =>
+            NeedsAssemblyScan(type, coveredAssemblies) && !coveredTypes.Contains(type);
+
+        static bool NeedsAssemblyScan(Type type, HashSet<Assembly> coveredAssemblies) =>
+            !coveredAssemblies.Contains(type.Assembly) || ModelBoundQueryMethod.RequiresQueryAttribute(type);
+
+        bool NeedsRefresh(Type[] scanTypes, Type[] validationTypes) =>
+            !_initialized || !scanTypes.SequenceEqual(_types) || !validationTypes.SequenceEqual(_validationTypes);
     }
 
     sealed class GeneratedQueryDiscovery
