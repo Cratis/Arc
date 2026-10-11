@@ -62,12 +62,13 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         Func<Type, string, MethodInfo, ModelBoundQueryPerformer> createPerformer)
     {
         var generatedMetadata = queryMetadataRegistry.All;
-        var queries = generatedMetadata.Count > 0
-            ? _generatedQueries.GetValue(generatedMetadata, _ => new GeneratedQueryDiscovery()).GetQueries(generatedMetadata)
-            : _queriesByUniverse.GetValue(types, _ => new QueryDiscovery()).GetQueries(types);
+        var generatedQueries = _generatedQueries.GetValue(generatedMetadata, _ => new GeneratedQueryDiscovery()).GetQueries(generatedMetadata);
+        var coveredAssemblies = generatedQueries.Select(query => query.ReadModelType.Assembly).ToHashSet();
+        var scannedQueries = _queriesByUniverse.GetValue(types, _ => new QueryDiscovery()).GetQueries(types, coveredAssemblies);
 
-        _performers = queries
+        _performers = generatedQueries.Concat(scannedQueries)
             .Select(query => createPerformer(query.ReadModelType, query.ReadModelTypeName, query.Method))
+            .DistinctBy(p => p.FullyQualifiedName)
             .ToDictionary(p => p.FullyQualifiedName, p => (IQueryPerformer)p);
     }
 
@@ -87,9 +88,9 @@ public class QueryPerformerProvider : IQueryPerformerProvider
         DiscoveredQuery[] _queries = [];
         bool _initialized;
 
-        public DiscoveredQuery[] GetQueries(ITypes universe)
+        public DiscoveredQuery[] GetQueries(ITypes universe, HashSet<Assembly> coveredAssemblies)
         {
-            var types = universe.All.ToArray();
+            var types = universe.All.Where(type => !coveredAssemblies.Contains(type.Assembly)).ToArray();
             lock (_gate)
             {
                 if (!_initialized || !types.SequenceEqual(_types))

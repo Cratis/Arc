@@ -20,6 +20,7 @@ public class when_initializing_with_generated_metadata : Specification
     void Establish()
     {
         _types = Substitute.For<ITypes>();
+        _types.All.Returns([typeof(PublicReadModelWithValidQuery), typeof(PublicReadModelWithInternalQuery)]);
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
 
@@ -36,5 +37,5 @@ public class when_initializing_with_generated_metadata : Specification
     [Fact] void should_have_one_performer() => _provider.Performers.Count().ShouldEqual(1);
     [Fact] void should_use_the_generated_metadata_type_name_for_the_fully_qualified_name() => _provider.Performers.Single().FullyQualifiedName.Value.ShouldEqual(MetadataQueryName);
     [Fact] void should_make_the_performer_addressable_by_the_generated_metadata_name() => _provider.TryGetPerformerFor(MetadataQueryName, out _).ShouldBeTrue();
-    [Fact] void should_not_use_reflection_types() => _ = _types.DidNotReceive().All;
+    [Fact] void should_not_scan_other_read_models_in_the_covered_assembly() => _provider.TryGetPerformerFor($"{typeof(PublicReadModelWithInternalQuery).FullName}.Query", out _).ShouldBeFalse();
 }
