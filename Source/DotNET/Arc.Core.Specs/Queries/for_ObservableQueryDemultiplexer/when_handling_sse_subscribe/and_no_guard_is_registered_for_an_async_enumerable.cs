@@ -4,8 +4,8 @@
 namespace Cratis.Arc.Queries.for_ObservableQueryDemultiplexer.when_handling_sse_subscribe;
 
 /// <summary>
-/// The async-enumerable path pays for a guard twice over — a per-subscription service scope at subscribe time and a
-/// dispatch per item — so it needs its own proof that an application without a guard is charged for neither.
+/// Async-enumerable interception needs a per-subscription scope even without guards. Guard dispatch remains
+/// opt-in: an application without guards does not evaluate an emission guard for each item.
 /// </summary>
 public class and_no_guard_is_registered_for_an_async_enumerable : given.a_guarded_sse_connection
 {
