@@ -80,7 +80,7 @@ For commands requiring an authenticated system actor, opt in on the reactor clas
 [ExecuteCommandsAsSystem("catalog-writer")]
 ```
 
-The attribute establishes system execution for **returned command side effects**. It does not automatically authorize manual `ICommandPipeline.Execute` calls inside the handler. Such calls need their own deliberate execution context. Do not confuse compliance subject or event causation with authorization credentials.
+The attribute establishes system execution for **returned command side effects**. Arc keeps that actor within the command execution's asynchronous lifetime, including service-scope creation and pipeline resolution. The caller's identity remains unchanged on success, command rejection, exceptions, and setup failures. It does not automatically authorize manual `ICommandPipeline.Execute` calls inside the handler. Such calls need their own deliberate execution context. Do not confuse compliance subject or event causation with authorization credentials.
 
 ## Return several commands
 

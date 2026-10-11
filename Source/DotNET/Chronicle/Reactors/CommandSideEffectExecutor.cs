@@ -26,7 +26,7 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
 
     /// <inheritdoc/>
     public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType) =>
-        ExecuteWithinScope(commands, EstablishSystemExecution(reactorType));
+        ExecuteWithinScope(commands, reactorType);
 
     static ReactorSideEffectFailure CreateFailure(object command, CommandResult result) =>
         new([new AppendFailure([], false, DescribeFailure(command.GetType(), result), [])]);
@@ -50,20 +50,18 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
         }
     }
 
-    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, IDisposable? systemExecutionScope)
+    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, Type? reactorType)
     {
+        using var systemExecutionScope = reactorType is not null ? EstablishSystemExecution(reactorType) : null;
         using var scope = serviceScopeFactory.CreateScope();
         var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
 
-        using (systemExecutionScope)
+        foreach (var command in commands)
         {
-            foreach (var command in commands)
+            var result = await commandPipeline.Execute(command, scope.ServiceProvider);
+            if (!result.IsSuccess)
             {
-                var result = await commandPipeline.Execute(command, scope.ServiceProvider);
-                if (!result.IsSuccess)
-                {
-                    return Result.Failed(CreateFailure(command, result));
-                }
+                return Result.Failed(CreateFailure(command, result));
             }
         }
 
