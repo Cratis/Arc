@@ -34,7 +34,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
         {
             foreach (var type in types.OfType<INamedTypeSymbol>().Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
             {
-                foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type))
+                foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type, method => IsValidQueryMethod(method, type)))
                 {
                     output.ReportDiagnostic(diagnostic);
                 }

@@ -8,6 +8,7 @@
         <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
         <NoWarn>$(NoWarn);NU5118</NoWarn>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);METADATA_QUERY_ATTRIBUTES</DefineConstants>
         <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
     </PropertyGroup>
 

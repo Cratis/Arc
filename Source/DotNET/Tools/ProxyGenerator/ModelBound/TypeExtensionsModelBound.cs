@@ -40,7 +40,7 @@ public static class TypeExtensionsModelBound
     /// <returns>True if the type is a model bound read model, false otherwise.</returns>
     public static bool IsQuery(this Type type)
     {
-        ModelBoundQueryMethod.Validate(type);
+        ModelBoundQueryMethod.Validate(type, method => method.IsValidQueryFor(type));
         return type.IsClass && (!type.IsAbstract || ModelBoundQueryMethod.RequiresQueryAttribute(type)) &&
             (ModelBoundQueryMethod.RequiresQueryAttribute(type)
                 ? ModelBoundQueryMethod.ReadModel(type) is not null

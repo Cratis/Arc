@@ -22,6 +22,8 @@ public class when_selecting_queries
     [InlineData(true, "[Query] public static Order? Helper() => null;", true)]
     [InlineData(true, "[Query] internal static Task<Order> Helper() => Task.FromResult(new Order());", true)]
     [InlineData(true, "[Query] public static ISubject<IEnumerable<Order>> Helper() => null!;", true)]
+    [InlineData(false, "public static Task<ISubject<IEnumerable<Order>>> Helper() => null!;", true)]
+    [InlineData(true, "[Query] public static Task<ISubject<IEnumerable<Order>>> Helper() => null!;", true)]
     public void should_preserve_defaults_and_select_only_marked_explicit_queries(bool explicitMode, string method, bool expected)
     {
         var result = GeneratorTestHelper.RunGenerator(Source(method, explicitMode));
@@ -42,6 +44,17 @@ public class when_selecting_queries
     {
         var result = GeneratorTestHelper.RunGenerator(Source(method, true));
         result.Diagnostics.Any(_ => _.Id == "ARC0026").ShouldBeTrue();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void should_keep_the_conventional_return_name_rule_when_marked(bool explicitMode)
+    {
+        var method = $"{(explicitMode ? "[Query]" : string.Empty)} public static Custom.IEnumerable<Order> Helper() => null!;";
+        var result = GeneratorTestHelper.RunGenerator([Source(method, explicitMode), "namespace Custom { public interface IEnumerable<T> { } }"]);
+        result.Diagnostics.ShouldBeEmpty();
+        GeneratorTestHelper.GetGeneratedSourceByHintName(result, "GeneratedQueryMetadata.g.cs").ShouldContain("TestApp.Order.Helper");
     }
 
     [Fact]

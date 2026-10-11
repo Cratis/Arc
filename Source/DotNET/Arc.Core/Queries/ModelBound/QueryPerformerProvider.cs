@@ -82,6 +82,9 @@ public class QueryPerformerProvider : IQueryPerformerProvider
     public bool TryGetPerformerFor(FullyQualifiedQueryName query, [NotNullWhen(true)] out IQueryPerformer? performer) =>
         _performers.TryGetValue(query, out performer);
 
+    static MethodInfo[] MethodsOf(Type owner) =>
+        owner.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+
     readonly record struct DiscoveredQuery(Type ReadModelType, string ReadModelTypeName, MethodInfo Method);
 
     sealed class QueryDiscovery
@@ -102,11 +105,11 @@ public class QueryPerformerProvider : IQueryPerformerProvider
                 {
                     foreach (var type in all)
                     {
-                        ModelBoundQueryMethod.Validate(type);
+                        ModelBoundQueryMethod.Validate(type, MethodsOf(type), method => method.IsValidQueryFor(type));
                     }
 
                     _queries = types.Where(t => t.IsReadModel())
-                        .SelectMany(t => ModelBoundQueryMethod.GetMethods(t, m => m.IsValidQueryFor(t))
+                        .SelectMany(t => ModelBoundQueryMethod.GetMethods(t, MethodsOf(t), m => m.IsValidQueryFor(t))
                             .Select(m => new DiscoveredQuery(t, t.FullName ?? t.Name, m)))
                         .ToArray();
                     _types = types;
@@ -161,7 +164,7 @@ public class QueryPerformerProvider : IQueryPerformerProvider
 
                 var readModelTypeName = fullyQualifiedQueryName[..lastDotIndex];
                 var queryMethodName = fullyQualifiedQueryName[(lastDotIndex + 1)..];
-                var method = ModelBoundQueryMethod.GetMethods(readModelType, m => m.IsValidQueryFor(readModelType))
+                var method = ModelBoundQueryMethod.GetMethods(readModelType, MethodsOf(readModelType), m => m.IsValidQueryFor(readModelType))
                     .FirstOrDefault(m => m.Name == queryMethodName);
 
                 if (method is not null)

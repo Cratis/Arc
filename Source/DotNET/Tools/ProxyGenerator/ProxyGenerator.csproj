@@ -4,6 +4,7 @@
         <AssemblyName>Cratis.Arc.ProxyGenerator</AssemblyName>
         <RootNamespace>Cratis.Arc.ProxyGenerator</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
+        <DefineConstants>$(DefineConstants);METADATA_QUERY_ATTRIBUTES</DefineConstants>
         <Nullable>enable</Nullable>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>proxygenerator</ToolCommandName>

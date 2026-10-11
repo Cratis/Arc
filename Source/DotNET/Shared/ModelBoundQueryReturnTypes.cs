@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis;
 namespace Cratis.Arc.Queries.ModelBound;
 
 /// <summary>
-/// Recognizes the existing strict explicit-query return shapes for Roslyn readers.
+/// Recognizes conventional return shapes for the whole-type query migration code fix.
 /// </summary>
 internal static class ModelBoundQueryReturnTypes
 {

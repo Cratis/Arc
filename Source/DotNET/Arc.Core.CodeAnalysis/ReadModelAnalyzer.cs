@@ -34,7 +34,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
     static void AnalyzeNamedType(SymbolAnalysisContext context)
     {
         var type = (INamedTypeSymbol)context.Symbol;
-        foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type))
+        foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type, method => IsValidQueryMethodSignature(method, type)))
         {
             context.ReportDiagnostic(diagnostic);
         }
@@ -74,7 +74,7 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
     }
 
     static bool HasValidSelectedSignature(IMethodSymbol method, INamedTypeSymbol type, bool explicitMode) => explicitMode
-        ? ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method)
+        ? ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && IsValidQueryMethodSignature(method, type)
         : IsValidQueryMethodSignature(method, type);
 
     static void ReportGenericQueries(SymbolAnalysisContext context, INamedTypeSymbol type)
@@ -123,7 +123,8 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
         .Where(IsSelectedStaticMethod);
 
     static bool IsSelectedStaticMethod(IMethodSymbol method) =>
-        method is { MethodKind: MethodKind.Ordinary, IsStatic: true } && ModelBoundQueryMethodSymbols.IsSelected(method);
+        method is { MethodKind: MethodKind.Ordinary, IsStatic: true } && ModelBoundQueryMethodSymbols.IsSelected(method) &&
+        (!ModelBoundQueryMethodSymbols.RequiresQueryAttribute(method.ContainingType) || IsValidQueryMethodSignature(method, method.ContainingType));
 
     static bool IsValidQueryMethodSignature(IMethodSymbol method, INamedTypeSymbol readModelType)
     {

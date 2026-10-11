@@ -24,7 +24,7 @@ internal static class ModelBoundQuerySelection
     /// Validates query intent even on types that owner filtering would discard.
     /// </summary>
     /// <param name="type">The catalogued type.</param>
-    internal static void Validate(INamedTypeSymbol type) => ModelBoundQueryMethodSymbols.EnsureValid(type);
+    internal static void Validate(INamedTypeSymbol type) => ModelBoundQueryMethodSymbols.EnsureValid(type, method => IsConventionalQueryFor(method, type));
 
     /// <summary>
     /// Validates intent before selecting and ordering query methods.

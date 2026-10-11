@@ -15,6 +15,8 @@ public class when_selecting_queries
     [InlineData(true, "public static Task BeginReplay(object service) => Task.CompletedTask;", false)]
     [InlineData(true, "[Query] internal static Task<Order> Helper() => Task.FromResult(new Order());", true)]
     [InlineData(true, "[Query] public static Order? Helper() => null;", true)]
+    [InlineData(false, "public static ValueTask<Order> Helper() => new(new Order());", true)]
+    [InlineData(true, "[Query] public static ValueTask<Order> Helper() => new(new Order());", true)]
     public void should_preserve_legacy_rules_and_select_explicit_queries(bool explicitMode, string method, bool expected)
     {
         var type = TypeOf(method, explicitMode);

@@ -25,7 +25,6 @@ public class when_selecting_queries
     [InlineData("[Query] public static Order? Helper() => null;")]
     [InlineData("[Query] internal static Task<Order> Helper() => Task.FromResult(new Order());")]
     [InlineData("[Query] public static ISubject<IEnumerable<Order>> Helper() => null!;")]
-    [InlineData("[Query] public static Task<ISubject<IEnumerable<Order>>> Helper() => null!;")]
     public async Task should_ignore_unmarked_helpers_without_query_diagnostics(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method));
 
     [Theory]
@@ -37,6 +36,7 @@ public class when_selecting_queries
     [InlineData("[Query] public static Order {|#0:Helper|}(ref int value) => new();")]
     [InlineData("[Query] public static ISubject<Task<Order>> {|#0:Helper|}() => null!;")]
     [InlineData("[Query] public static Task<ISubject<Task<Order>>> {|#0:Helper|}() => null!;")]
+    [InlineData("[Query] public static Task<ISubject<IEnumerable<Order>>> {|#0:Helper|}() => null!;")]
     [InlineData("[Query] public static Task<Task<Order>> {|#0:Helper|}() => null!;")]
     public async Task should_reject_invalid_marked_methods(string method) => await VerifyCS.VerifyAnalyzerAsync(Source(method), Invalid("Helper"));
 
@@ -50,6 +50,20 @@ public class when_selecting_queries
 
     [Fact]
     public async Task should_not_treat_the_grpc_marker_as_an_arc_query() => await VerifyCS.VerifyAnalyzerAsync(Source("[Cratis.Chronicle.Infrastructure.Grpc.Query] public static string Helper() => string.Empty;") + "\nnamespace Cratis.Chronicle.Infrastructure.Grpc { public class QueryAttribute : System.Attribute { } }");
+
+    [Theory]
+    [InlineData("Order")]
+    [InlineData("Task<Order>")]
+    [InlineData("IEnumerable<Order>")]
+    [InlineData("Task<IEnumerable<Order>>")]
+    [InlineData("ISubject<IEnumerable<Order>>")]
+    [InlineData("IAsyncEnumerable<Order>")]
+    public async Task should_keep_valid_conventional_returns_valid_when_marked(string returnType)
+    {
+        var method = $"public static {returnType} Helper() => null!;";
+        await VerifyCS.VerifyAnalyzerAsync(Source(method, "[ReadModel]"));
+        await VerifyCS.VerifyAnalyzerAsync(Source($"[Query] {method}"));
+    }
 
     internal static string Source(string method, string attribute = "[ReadModel(RequireQueryAttribute = true)]") => $$"""
         #nullable enable

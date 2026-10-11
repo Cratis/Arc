@@ -88,17 +88,18 @@ internal static class ModelBoundQueryMethodSymbols
     /// <returns>The selected queries.</returns>
     internal static IEnumerable<IMethodSymbol> GetMethods(INamedTypeSymbol type, Func<IMethodSymbol, bool> legacyPredicate) =>
         type.GetMembers().OfType<IMethodSymbol>()
-            .Where(method => RequiresQueryAttribute(type) ? IsSelected(method) : legacyPredicate(method));
+            .Where(method => IsSelected(method) && legacyPredicate(method));
 
     /// <summary>
     /// Validates markers before discovery and rejects ambiguous selected names.
     /// </summary>
     /// <param name="type">The owner.</param>
+    /// <param name="legacyPredicate">The surface's conventional return predicate.</param>
     /// <returns>Actionable declaration errors.</returns>
-    internal static IEnumerable<Diagnostic> Validate(INamedTypeSymbol type)
+    internal static IEnumerable<Diagnostic> Validate(INamedTypeSymbol type, Func<IMethodSymbol, bool> legacyPredicate)
     {
         var methods = type.GetMembers().OfType<IMethodSymbol>().ToArray();
-        foreach (var diagnostic in InvalidMarkers(type, methods).Concat(DuplicateSelectedNames(type, methods)))
+        foreach (var diagnostic in InvalidMarkers(type, methods, legacyPredicate).Concat(DuplicateSelectedNames(type, methods, legacyPredicate)))
         {
             yield return diagnostic;
         }
@@ -108,10 +109,11 @@ internal static class ModelBoundQueryMethodSymbols
     /// Rejects invalid intent when a tooling reader cannot emit compiler diagnostics.
     /// </summary>
     /// <param name="type">The owner.</param>
+    /// <param name="legacyPredicate">The surface's conventional return predicate.</param>
     /// <exception cref="InvalidQueryDeclaration">Explicit query intent is invalid or ambiguous.</exception>
-    internal static void EnsureValid(INamedTypeSymbol type)
+    internal static void EnsureValid(INamedTypeSymbol type, Func<IMethodSymbol, bool> legacyPredicate)
     {
-        var diagnostics = Validate(type).ToArray();
+        var diagnostics = Validate(type, legacyPredicate).ToArray();
         if (diagnostics.Length > 0)
         {
             throw new InvalidQueryDeclaration(string.Join(" | ", diagnostics.Select(_ => _.GetMessage())));
@@ -119,31 +121,31 @@ internal static class ModelBoundQueryMethodSymbols
     }
 
     /// <summary>
-    /// Validates the complete explicit query shape.
+    /// Validates structural explicit query rules independently of the surface's conventional return predicate.
     /// </summary>
     /// <param name="method">The method.</param>
     /// <returns>Whether it is eligible in explicit mode.</returns>
     internal static bool IsValidExplicitQuery(IMethodSymbol method) =>
         IsCandidate(method) && !IsOpen(method.ContainingType) && !method.ReturnsByRef && !method.ReturnsByRefReadonly &&
-        method.Parameters.All(_ => _.RefKind == RefKind.None) && ModelBoundQueryReturnTypes.IsSupported(method.ReturnType, method.ContainingType);
+        method.Parameters.All(_ => _.RefKind == RefKind.None);
 
-    static IEnumerable<Diagnostic> InvalidMarkers(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods) => methods
-        .Where(method => IsMarked(method) && HasInvalidDeclaration(type, method))
+    static IEnumerable<Diagnostic> InvalidMarkers(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods, Func<IMethodSymbol, bool> legacyPredicate) => methods
+        .Where(method => IsMarked(method) && HasInvalidDeclaration(type, method, legacyPredicate))
         .Select(method => DeclarationError(
             method,
             "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]"));
 
-    static bool HasInvalidDeclaration(INamedTypeSymbol type, IMethodSymbol method) =>
-        ReadModel(type) is null || !IsValidExplicitQuery(method);
+    static bool HasInvalidDeclaration(INamedTypeSymbol type, IMethodSymbol method, Func<IMethodSymbol, bool> legacyPredicate) =>
+        ReadModel(type) is null || !IsValidExplicitQuery(method) || !legacyPredicate(method);
 
-    static IEnumerable<Diagnostic> DuplicateSelectedNames(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods)
+    static IEnumerable<Diagnostic> DuplicateSelectedNames(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods, Func<IMethodSymbol, bool> legacyPredicate)
     {
         if (!RequiresQueryAttribute(type))
         {
             return [];
         }
 
-        return methods.Where(method => IsMarked(method) && IsValidExplicitQuery(method))
+        return methods.Where(method => IsMarked(method) && IsValidExplicitQuery(method) && legacyPredicate(method))
             .GroupBy(method => method.Name)
             .Where(group => group.Count() > 1)
             .SelectMany(group => group.Select(method => DeclarationError(

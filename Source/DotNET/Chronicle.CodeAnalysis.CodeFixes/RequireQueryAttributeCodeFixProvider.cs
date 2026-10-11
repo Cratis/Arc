@@ -79,15 +79,18 @@ public class RequireQueryAttributeCodeFixProvider : CodeFixProvider
             return false;
         }
 
-        return !ModelBoundQueryMethodSymbols.Validate(method.ContainingType).Any() && !WouldSelectOverloads(method.ContainingType);
+        return !ModelBoundQueryMethodSymbols.Validate(method.ContainingType, IsConventionalQuery).Any() && !WouldSelectOverloads(method.ContainingType);
     }
 
     static bool WouldSelectOverloads(INamedTypeSymbol type) => type.GetMembers().OfType<IMethodSymbol>()
         .Where(method => ModelBoundQueryMethodSymbols.IsMarked(method) || ShouldRetainAsQuery(method))
         .GroupBy(_ => _.Name).Any(_ => _.Count() > 1);
 
+    static bool IsConventionalQuery(IMethodSymbol method) =>
+        ModelBoundQueryReturnTypes.IsSupported(method.ReturnType, method.ContainingType);
+
     static bool ShouldRetainAsQuery(IMethodSymbol method) =>
-        ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && !ReadModelCreatorAnalyzer.IsPossibleFold(method);
+        ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && IsConventionalQuery(method) && !ReadModelCreatorAnalyzer.IsPossibleFold(method);
 
     static bool NeedsQueryMarker(IMethodSymbol method) => ShouldRetainAsQuery(method) &&
         !ModelBoundQueryMethodSymbols.IsMarked(method) &&
