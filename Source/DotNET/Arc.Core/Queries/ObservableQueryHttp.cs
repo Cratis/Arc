@@ -186,7 +186,7 @@ public static class ObservableQueryHttp
                 deadline.Token);
             return streamingData is IAsyncEnumerable<T> enumerable
                 ? await CreateEnumerableResponse(processing, enumerable)
-                : await CreateObservableResponse<T>(processing, streamingData);
+                : await CreateObservableResponse(processing, (IObservable<T>)streamingData);
         }
         catch (OperationCanceledException) when (context.Request.RequestAborted.IsCancellationRequested)
         {
@@ -225,7 +225,7 @@ public static class ObservableQueryHttp
         return ObservableEmissionIdentity.Begin(request, services, context.Query.AuthorizedPrincipal ?? request.User, tenant, nativeRequest);
     }
 
-    static async Task<ObservableQueryHttpResponse> CreateObservableResponse<T>(EmissionProcessingContext processing, object streamingData)
+    static async Task<ObservableQueryHttpResponse> CreateObservableResponse<T>(EmissionProcessingContext processing, IObservable<T> streamingData)
     {
         var queryContext = processing.Http.Query;
         if (!processing.Http.Options.WaitForFirstResult)
@@ -236,7 +236,7 @@ public static class ObservableQueryHttp
         }
 
         var emissions = Channel.CreateUnbounded<T>(new UnboundedChannelOptions { SingleReader = true, AllowSynchronousContinuations = false });
-        using var subscription = ((IObservable<T>)streamingData).Subscribe(System.Reactive.Observer.Create<T>(
+        using var subscription = streamingData.Subscribe(System.Reactive.Observer.Create<T>(
             value => emissions.Writer.TryWrite(value),
             error => emissions.Writer.TryComplete(error),
             () => emissions.Writer.TryComplete()));
@@ -261,7 +261,7 @@ public static class ObservableQueryHttp
 
     static async Task<ObservableQueryHttpResponse?> ProcessUnreplayedCache<T>(
         EmissionProcessingContext processing,
-        object streamingData,
+        IObservable<T> streamingData,
         ChannelReader<T> emissions)
     {
         // Replay subjects supply their current value while subscribing. Other Value-bearing observables may
