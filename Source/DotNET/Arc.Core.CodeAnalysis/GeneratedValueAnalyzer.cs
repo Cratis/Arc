@@ -242,7 +242,7 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             var location = parameter.ContainingSymbol is IMethodSymbol { IsOverride: true }
                 ? parameter.Locations.FirstOrDefault() ?? Location.None
                 : LocationOf(parameter, attribute, context.CancellationToken);
-            if (parameter.Type is not ITypeParameterSymbol && (!IsGeneratable(parameter) || HasNullableReadState(parameter)))
+            if (parameter.Type is not ITypeParameterSymbol { TypeParameterKind: TypeParameterKind.Type } && (!IsGeneratable(parameter) || HasNullableReadState(parameter)))
             {
                 ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
             }

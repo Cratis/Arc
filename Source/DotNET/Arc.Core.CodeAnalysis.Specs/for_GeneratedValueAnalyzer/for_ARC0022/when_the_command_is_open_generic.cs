@@ -21,6 +21,16 @@ public class when_the_command_is_open_generic : given.a_generated_value_analyzer
             public override void Handle(T value) { }
         }");
 
+    [Fact] async Task should_report_a_method_type_parameter() => await VerifyDiagnostic(
+        @"
+        [Command] public record Allocate
+        {
+            public void Handle<TValue>([{|#0:GeneratedValue|}] TValue value) { }
+        }",
+        "ARC0022",
+        "value",
+        "TValue");
+
     [Fact] async Task should_still_report_an_invalid_concrete_parameter_type() => await VerifyDiagnostic(
         @"
         [Command] public record Allocate<T>
