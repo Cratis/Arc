@@ -30,5 +30,10 @@ public record ConceptModel(
     /// <summary>
     /// Gets the non-default encryption scope, or null for Subject scope.
     /// </summary>
-    public string? EncryptionScope { get; init; }
+    internal string? EncryptionScope { get; init; }
+
+    /// <summary>
+    /// Gets the analyzed unmarked uses affected by member-level personal-data promotion.
+    /// </summary>
+    internal IReadOnlyList<string> UnmarkedPiiUses { get; init; } = [];
 }

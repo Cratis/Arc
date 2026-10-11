@@ -82,6 +82,7 @@ public class ConceptSyntaxBuilder(
     {
         if (concept.IsPii)
         {
+            ReportPiiPromotion(concept);
             yield return new(PersonallyIdentifiableInformation, SourceLocation.Start);
         }
 
@@ -101,6 +102,23 @@ public class ConceptSyntaxBuilder(
                 Scope = AuthoringOnlyConstructs ? scope : null
             };
         }
+    }
+
+    /// <summary>
+    /// Reports widened classification only for a concept that retains its pii annotation.
+    /// </summary>
+    /// <param name="concept">The emitted concept.</param>
+    void ReportPiiPromotion(ConceptModel concept)
+    {
+        if (concept.UnmarkedPiiUses.Count == 0)
+        {
+            return;
+        }
+
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.ConceptPiiPromotion,
+            $"Concept '{concept.Name}' is promoted to pii by member [PII] markings; the document also classifies these unmarked uses as pii: {string.Join(", ", concept.UnmarkedPiiUses)}",
+            concept.Name);
     }
 
     /// <summary>

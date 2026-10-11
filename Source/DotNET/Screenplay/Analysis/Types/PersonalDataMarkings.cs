@@ -8,7 +8,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 /// <summary>
 /// Tracks member-level personal-data classification and the concept-wide meaning it acquires in Screenplay.
 /// </summary>
-public class PersonalDataMarkings
+internal class PersonalDataMarkings
 {
     readonly HashSet<string> _nonConceptMembers = new(StringComparer.Ordinal);
     readonly HashSet<string> _promoted = new(StringComparer.Ordinal);
@@ -26,10 +26,7 @@ public class PersonalDataMarkings
         var member = $"{property.ContainingType.ToDisplayString()}.{property.Name}";
         if (carried.TypeKind != TypeKind.Enum && carried.FindBase(WellKnownTypeNames.ConceptAs) is null)
         {
-            if (marked)
-            {
-                _nonConceptMembers.Add(member);
-            }
+            RecordNonConceptMember(member, marked);
 
             return false;
         }
@@ -42,23 +39,17 @@ public class PersonalDataMarkings
         if (marked)
         {
             _promoted.Add(carried.Name);
-        }
-        else
-        {
-            if (!_unmarked.TryGetValue(carried.Name, out var uses))
-            {
-                uses = new(StringComparer.Ordinal);
-                _unmarked[carried.Name] = uses;
-            }
 
-            uses.Add(member);
+            return true;
         }
 
-        return marked;
+        RecordUnmarkedUse(carried.Name, member);
+
+        return false;
     }
 
     /// <summary>
-    /// Reports classification the document cannot state faithfully.
+    /// Reports member classification the document cannot state.
     /// </summary>
     /// <param name="diagnostics">Where the loss or promotion is reported.</param>
     public void Report(ScreenplayDiagnostics diagnostics)
@@ -70,13 +61,32 @@ public class PersonalDataMarkings
                 $"Member '{member}' has [PII] on a non-concept type; Screenplay classifies only concepts, so the marking is not stated. Use a personal-data concept to preserve the classification",
                 member);
         }
+    }
 
-        foreach (var concept in _promoted.Where(_unmarked.ContainsKey).Order(StringComparer.Ordinal))
+    /// <summary>
+    /// Gets the unmarked uses affected if a promoted concept is emitted as pii.
+    /// </summary>
+    /// <param name="concept">The concept name.</param>
+    /// <returns>The analyzed uses, without duplicates and in stable order.</returns>
+    public IReadOnlyList<string> UnmarkedUses(string concept) =>
+        _promoted.Contains(concept) && _unmarked.TryGetValue(concept, out var uses) ? [.. uses.Order(StringComparer.Ordinal)] : [];
+
+    void RecordNonConceptMember(string member, bool marked)
+    {
+        if (marked)
         {
-            diagnostics.Information(
-                ScreenplayDiagnosticCodes.ConceptPiiPromotion,
-                $"Concept '{concept}' is promoted to pii by member [PII] markings; the document also classifies these unmarked uses as pii: {string.Join(", ", _unmarked[concept].Order(StringComparer.Ordinal))}",
-                concept);
+            _nonConceptMembers.Add(member);
         }
+    }
+
+    void RecordUnmarkedUse(string concept, string member)
+    {
+        if (!_unmarked.TryGetValue(concept, out var uses))
+        {
+            uses = new(StringComparer.Ordinal);
+            _unmarked[concept] = uses;
+        }
+
+        uses.Add(member);
     }
 }

@@ -53,7 +53,10 @@ public class TypeRegistry
     /// <summary>
     /// Gets every concept referenced by the application, ordered by name.
     /// </summary>
-    public IEnumerable<ConceptModel> Concepts => _concepts.Concepts;
+    public IEnumerable<ConceptModel> Concepts => _concepts.Concepts.Select(concept => concept with
+    {
+        UnmarkedPiiUses = _personalData.UnmarkedUses(concept.Name)
+    });
 
     /// <summary>
     /// Gets the types whose partial secret marking cannot be represented.
@@ -141,24 +144,6 @@ public class TypeRegistry
     public void MarkAsPii(ITypeSymbol type) => _concepts.MarkAsPii(type);
 
     /// <summary>
-    /// Records an analyzed property's personal-data marking and any unmarked concept use.
-    /// </summary>
-    /// <param name="property">The property to record.</param>
-    public void RecordPiiUse(IPropertySymbol property)
-    {
-        if (_personalData.Record(property))
-        {
-            MarkAsPii(property.Type);
-        }
-    }
-
-    /// <summary>
-    /// Reports member classification lost or widened by concept-level annotations.
-    /// </summary>
-    /// <param name="diagnostics">Where the findings are reported.</param>
-    public void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics) => _personalData.Report(diagnostics);
-
-    /// <summary>
     /// Records the encryption and audit suppression applying to one value.
     /// </summary>
     /// <param name="type">The type of the value.</param>
@@ -173,6 +158,24 @@ public class TypeRegistry
     /// <param name="rules">The rules to record.</param>
     public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules) =>
         _concepts.AddValidations(conceptName, rules);
+
+    /// <summary>
+    /// Records an analyzed property's personal-data marking and any unmarked concept use.
+    /// </summary>
+    /// <param name="property">The property to record.</param>
+    internal void RecordPiiUse(IPropertySymbol property)
+    {
+        if (_personalData.Record(property))
+        {
+            MarkAsPii(property.Type);
+        }
+    }
+
+    /// <summary>
+    /// Reports member classification lost by concept-level annotations.
+    /// </summary>
+    /// <param name="diagnostics">Where the findings are reported.</param>
+    internal void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics) => _personalData.Report(diagnostics);
 
     /// <summary>
     /// Determines whether a type says what implements it rather than what it holds.
