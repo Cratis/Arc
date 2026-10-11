@@ -102,6 +102,10 @@ Use a trusted local certificate and your application's normal authentication for
 > [!WARNING]
 > Observable HTTP snapshots currently bypass [read-model interception](../read-model-interception.md). Produce only data the caller is allowed to receive; do not depend on streaming-only masking to protect a snapshot endpoint.
 
+## Testing observable queries
+
+Use [query scenarios](../../testing/query-scenario.md#observable-queries) to check a subject's first value with `Perform`, or its initial and subsequent emissions with `Observe` and `QueryObservation.Next`. The scenario applies per-emission interception and guards without a hosted transport. MongoDB observation still requires a real MongoDB provider; use hosted integration specs for SSE/WebSocket delivery and database watcher behavior.
+
 ## Authorization and frontend integration
 
 [Authorization](authorization.md) runs when subscribing. Use [emission guards](../observable-query-emission-guards.md) when permissions must be rechecked during delivery. Generated proxies and [React observable hooks](../../../../frontend/react/queries/observable-queries.md) manage client subscriptions; reconnecting creates a new subscription, not a durable event-log replay.

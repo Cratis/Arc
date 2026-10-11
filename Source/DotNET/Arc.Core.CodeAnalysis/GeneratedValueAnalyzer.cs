@@ -60,15 +60,10 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
         var methods = new List<IMethodSymbol>();
         for (var candidate = type; candidate is not null; candidate = candidate.BaseType)
         {
-            foreach (var method in candidate.GetMembers(name).OfType<IMethodSymbol>().Where(method =>
+            methods.AddRange(candidate.GetMembers(name).OfType<IMethodSymbol>().Where(method =>
                 method.MethodKind == MethodKind.Ordinary && !method.IsStatic &&
-                (SymbolEqualityComparer.Default.Equals(candidate, type) || method.DeclaredAccessibility != Accessibility.Private)))
-            {
-                if (!methods.Exists(derived => SameSignature(derived, method)))
-                {
-                    methods.Add(method);
-                }
-            }
+                (SymbolEqualityComparer.Default.Equals(candidate, type) || method.DeclaredAccessibility != Accessibility.Private) &&
+                !methods.Exists(derived => SameSignature(derived, method))));
         }
 
         // Reflection's name-only GetMethod is ambiguous when more than one signature remains.
@@ -199,16 +194,14 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
                 context.SemanticModel.GetSymbolInfo(syntax, context.CancellationToken).Symbol is IMethodSymbol constructor &&
                 SymbolEqualityComparer.Default.Equals(constructor.ContainingType, generatedAttribute) &&
                 context.SemanticModel.GetDeclaredSymbol(parameterSyntax, context.CancellationToken) is IParameterSymbol parameter &&
-                AttributeOf(parameter) is { } attribute)
+                AttributeOf(parameter) is { } attribute &&
+                (parameter.ContainingSymbol is not IMethodSymbol method || method.Name != "Handle" || method.IsStatic ||
+                    IsUnsupportedArtifact(method.ContainingType)))
             {
-                if (parameter.ContainingSymbol is not IMethodSymbol method || method.Name != "Handle" || method.IsStatic ||
-                    IsUnsupportedArtifact(method.ContainingType))
-                {
-                    context.ReportDiagnostic(Diagnostic.Create(
-                        DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
-                        LocationOf(parameter, attribute, context.CancellationToken),
-                        parameter.Name));
-                }
+                context.ReportDiagnostic(Diagnostic.Create(
+                    DiagnosticDescriptors.ARC0023_GeneratedValueOutsideHandle,
+                    LocationOf(parameter, attribute, context.CancellationToken),
+                    parameter.Name));
             }
         }
 

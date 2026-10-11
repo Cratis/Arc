@@ -4,8 +4,8 @@
 namespace Cratis.Arc.Testing.Queries;
 
 /// <summary>
-/// The exception that is thrown when a query scenario executes a streaming query instead of a snapshot query.
+/// The exception that is thrown when a query scenario executes an asynchronous stream through Perform instead of Observe.
 /// </summary>
 /// <param name="methodName">The name of the streaming query.</param>
 public sealed class StreamingQueryNotSupported(string methodName)
-    : Exception($"Query scenario '{methodName}' supports snapshot queries only; streaming subscriptions require a hosted transport.");
+    : Exception($"Query scenario '{methodName}' returns an asynchronous stream; use QueryScenario.Observe to read its emissions.");

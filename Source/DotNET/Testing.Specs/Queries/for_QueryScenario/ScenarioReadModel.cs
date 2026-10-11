@@ -37,6 +37,15 @@ public record ScenarioReadModel(string Name)
         return new Subject<ScenarioReadModel>();
     }
 
+    [AllowAnonymous]
+    public static async IAsyncEnumerable<ScenarioReadModel> AsyncStream()
+    {
+        Interlocked.Increment(ref StreamInvocations);
+        await Task.CompletedTask;
+        yield return new("First");
+        yield return new("Second");
+    }
+
     [Authorize(Policy = "CanRead")]
     public static IEnumerable<ScenarioReadModel> Lazy(TrackedQueryScope scope)
     {
