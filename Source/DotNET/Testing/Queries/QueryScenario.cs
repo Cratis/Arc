@@ -253,32 +253,26 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
             return RegisterObservation(new(result), !timeoutAsResult);
         }
 
+        if (result.Data is not IObservable<TReadModel> and not IObservable<IEnumerable<TReadModel>> and not IAsyncEnumerable<TReadModel>)
+        {
+            using (result.OwnedScope)
+            {
+                if (result.OwnedScope is not null && result.Data is IEnumerable sequence and not ICollection)
+                {
+                    result.Data = sequence.Cast<TReadModel>().ToList();
+                }
+            }
+
+            return RegisterObservation(new(result), !timeoutAsResult);
+        }
+
         var emissions = new ObservedQueryEmissions(result, data => data is IEnumerable sequence and not string
             ? sequence.Cast<TReadModel>().ToList()
             : data);
         var observation = RegisterObservation(new(result, emissions), !timeoutAsResult);
         try
         {
-            switch (result.Data)
-            {
-                case IObservable<TReadModel> single:
-                    emissions.Subscribe(single);
-                    break;
-                case IObservable<IEnumerable<TReadModel>> collection:
-                    emissions.Subscribe(collection);
-                    break;
-                case IAsyncEnumerable<TReadModel> enumerable:
-                    emissions.Enumerate(enumerable);
-                    break;
-                default:
-                    if (result.OwnedScope is not null && result.Data is IEnumerable sequence and not ICollection)
-                    {
-                        result.Data = sequence.Cast<TReadModel>().ToList();
-                    }
-                    await observation.DisposeAsync();
-                    return observation;
-            }
-
+            emissions.Start<TReadModel>();
             await observation.ReadInitial(timeout, cancellationToken);
             return observation;
         }

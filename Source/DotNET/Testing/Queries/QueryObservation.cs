@@ -10,8 +10,7 @@ namespace Cratis.Arc.Testing.Queries;
 /// </summary>
 public sealed class QueryObservation : IDisposable, IAsyncDisposable
 {
-    readonly ObservedQueryEmissions? _emissions;
-    bool _disposed;
+    readonly ObservedQueryEmissions _emissions;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="QueryObservation"/> class.
@@ -21,7 +20,7 @@ public sealed class QueryObservation : IDisposable, IAsyncDisposable
     internal QueryObservation(QueryResult initial, ObservedQueryEmissions? emissions = null)
     {
         Initial = initial;
-        _emissions = emissions;
+        _emissions = emissions ?? ObservedQueryEmissions.Idle(initial);
     }
 
     /// <summary>
@@ -39,43 +38,21 @@ public sealed class QueryObservation : IDisposable, IAsyncDisposable
     /// <exception cref="ObjectDisposedException">The observation has been disposed.</exception>
     public Task<QueryResult> Next(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
         cancellationToken.ThrowIfCancellationRequested();
 
-        return _emissions?.Read(timeout ?? TimeSpan.FromSeconds(5), cancellationToken) ?? Task.FromResult(Initial);
+        return _emissions.Read(timeout ?? TimeSpan.FromSeconds(5), cancellationToken);
     }
 
     /// <summary>
     /// Releases the subscription and its owned scope without disposing the subject.
     /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        _emissions?.Dispose();
-    }
+    public void Dispose() => _emissions.Dispose();
 
     /// <summary>
     /// Asynchronously releases enumeration and its owned scope without disposing the subject.
     /// </summary>
     /// <returns>The disposal operation.</returns>
-    public async ValueTask DisposeAsync()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        if (_emissions is not null)
-        {
-            await _emissions.DisposeAsync().ConfigureAwait(false);
-        }
-    }
+    public ValueTask DisposeAsync() => _emissions.DisposeAsync();
 
     /// <summary>
     /// Waits for the first emission after the scenario has taken ownership of this observation.
@@ -84,5 +61,5 @@ public sealed class QueryObservation : IDisposable, IAsyncDisposable
     /// <param name="cancellationToken">Cancellation for the initial wait.</param>
     /// <returns>The initialization operation.</returns>
     internal async Task ReadInitial(TimeSpan timeout, CancellationToken cancellationToken) =>
-        Initial = await _emissions!.Read(timeout, cancellationToken);
+        Initial = await _emissions.Read(timeout, cancellationToken);
 }

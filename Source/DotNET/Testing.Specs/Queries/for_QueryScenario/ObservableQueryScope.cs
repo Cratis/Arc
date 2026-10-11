@@ -9,10 +9,17 @@ public sealed class ObservableQueryScope(ObservableScenarioState state) : IDispo
 {
     public bool Disposed { get; private set; }
     public bool HadObserversAtDisposal { get; private set; }
+    public int DisposalCount { get; private set; }
 
     public void Dispose()
     {
-        HadObserversAtDisposal = ((BehaviorSubject<ObservableScenarioReadModel>)state.Subject).HasObservers;
+        HadObserversAtDisposal = state.Subject switch
+        {
+            BehaviorSubject<ObservableScenarioReadModel> subject => subject.HasObservers,
+            StartupBlockingSubject subject => subject.HasObservers,
+            _ => false
+        };
+        DisposalCount++;
         Disposed = true;
     }
 }

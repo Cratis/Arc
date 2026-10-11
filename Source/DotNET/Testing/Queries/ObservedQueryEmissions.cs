@@ -11,103 +11,100 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Cratis.Arc.Testing.Queries;
 
 /// <summary>
-/// Buffers producer-side snapshots and processes emissions sequentially on the reader side.
+/// Owns startup, buffered emissions and the shared disposal operation for a query observation.
 /// </summary>
 /// <param name="admitted">The admitted query and its owned execution scope.</param>
 /// <param name="materialize">Materializes collections before their producing scope can change.</param>
-internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?, object?> materialize) : IDisposable, IAsyncDisposable
+/// <param name="ownsScope">Whether this observation owns the admitted execution scope.</param>
+internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?, object?> materialize, bool ownsScope = true) : IDisposable, IAsyncDisposable
 {
-    readonly object _callbackGate = new();
+    readonly object _lifecycleGate = new();
     readonly Channel<Emission> _emissions = Channel.CreateUnbounded<Emission>();
     readonly CancellationTokenSource _lifetime = new();
     readonly CancellationTokenSource _enumeration = new();
     readonly SemaphoreSlim _readGate = new(1, 1);
+    readonly TaskCompletionSource _startup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource _callbacksDrained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly TaskCompletionSource _readsDrained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly IServiceScope? _scope = ownsScope ? admitted.OwnedScope : null;
+    Lifecycle _state = Lifecycle.Starting;
+    TaskCompletionSource? _disposal;
     IDisposable? _subscription;
     Task? _producer;
     Task<QueryResult?>? _pending;
     QueryResult? _terminal;
     bool _delivered;
     bool _callbacksStopped;
-    int _disposed;
+    int _callbacks;
+    int _reads;
+
+    enum Lifecycle
+    {
+        Starting = 0,
+        Running = 1,
+        Disposing = 2,
+        Disposed = 3
+    }
 
     QueryContext Context => admitted.AuthorizedQueryContext!;
-    IServiceProvider Services => admitted.OwnedScope?.ServiceProvider ?? Context.ServiceProvider!;
+    IServiceProvider Services => _scope?.ServiceProvider ?? Context.ServiceProvider!;
 
     /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
-        {
-            return;
-        }
+    public void Dispose() => BeginDisposal().GetAwaiter().GetResult();
 
-        _lifetime.Cancel();
-        Stop();
-        _producer?.GetAwaiter().GetResult();
-        _readGate.Wait();
-        try
-        {
-            DrainProcessing().GetAwaiter().GetResult();
-            admitted.OwnedScope?.Dispose();
-        }
-        finally
-        {
-            ReleaseResources();
-        }
+    /// <inheritdoc/>
+    public ValueTask DisposeAsync() => new(BeginDisposal());
+
+    /// <summary>
+    /// Creates a live observation with no producer or execution scope.
+    /// </summary>
+    /// <param name="initial">The snapshot or pipeline rejection.</param>
+    /// <returns>The idle emission owner.</returns>
+    internal static ObservedQueryEmissions Idle(QueryResult initial)
+    {
+        var owner = new ObservedQueryEmissions(initial, data => data, ownsScope: false);
+        owner.FinishStartup();
+
+        return owner;
     }
 
-    /// <inheritdoc/>
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Starts the admitted producer, settling startup even if subscription fails or disposal has begun.
+    /// </summary>
+    /// <typeparam name="TReadModel">The read model type.</typeparam>
+    internal void Start<TReadModel>()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0)
-        {
-            return;
-        }
-
-        await _lifetime.CancelAsync().ConfigureAwait(false);
-        Stop();
-        if (_producer is not null)
-        {
-            await _producer.ConfigureAwait(false);
-        }
-        await _readGate.WaitAsync().ConfigureAwait(false);
         try
         {
-            await DrainProcessing().ConfigureAwait(false);
-            if (admitted.OwnedScope is IAsyncDisposable asyncScope)
+            lock (_lifecycleGate)
             {
-                await asyncScope.DisposeAsync().ConfigureAwait(false);
+                if (_state != Lifecycle.Starting)
+                {
+                    return;
+                }
             }
-            else
+
+            switch (admitted.Data)
             {
-                admitted.OwnedScope?.Dispose();
+                case IObservable<TReadModel> single:
+                    Subscribe(single);
+                    break;
+                case IObservable<IEnumerable<TReadModel>> collection:
+                    Subscribe(collection);
+                    break;
+                case IAsyncEnumerable<TReadModel> enumerable:
+                    _producer = Produce(enumerable);
+                    break;
             }
         }
         finally
         {
-            ReleaseResources();
+            FinishStartup();
         }
     }
 
     /// <summary>
-    /// Subscribes without running asynchronous work on the producer's thread.
-    /// </summary>
-    /// <typeparam name="T">The emitted value type.</typeparam>
-    /// <param name="observable">The query's observable.</param>
-    internal void Subscribe<T>(IObservable<T> observable) => _subscription = observable.Subscribe(Observer.Create<T>(
-        value => Write(value),
-        error => Complete(error),
-        () => Complete()));
-
-    /// <summary>
-    /// Starts buffering an asynchronous query enumeration.
-    /// </summary>
-    /// <typeparam name="T">The emitted value type.</typeparam>
-    /// <param name="enumerable">The query's asynchronous stream.</param>
-    internal void Enumerate<T>(IAsyncEnumerable<T> enumerable) => _producer = Produce(enumerable);
-
-    /// <summary>
-    /// Reads and intercepts the next non-suppressed emission.
+    /// Reads and intercepts the next non-suppressed emission without transferring processing ownership to the reader.
     /// </summary>
     /// <param name="timeout">The read deadline.</param>
     /// <param name="cancellationToken">Cancellation for this read.</param>
@@ -115,13 +112,13 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
     /// <exception cref="TimeoutException">No emission arrives before the deadline.</exception>
     internal async Task<QueryResult> Read(TimeSpan timeout, CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-        deadline.CancelAfter(timeout);
+        using var deadline = EnterRead(cancellationToken);
         var entered = false;
         try
         {
-            await _readGate.WaitAsync(deadline.Token);
+            deadline.CancelAfter(timeout);
+            await _startup.Task.WaitAsync(deadline.Token).ConfigureAwait(false);
+            await _readGate.WaitAsync(deadline.Token).ConfigureAwait(false);
             entered = true;
             if (_terminal is not null)
             {
@@ -130,8 +127,8 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
 
             while (true)
             {
-                _pending ??= Process(await _emissions.Reader.ReadAsync(deadline.Token));
-                var result = await _pending.WaitAsync(deadline.Token);
+                _pending ??= Process(await _emissions.Reader.ReadAsync(deadline.Token).ConfigureAwait(false));
+                var result = await _pending.WaitAsync(deadline.Token).ConfigureAwait(false);
                 _pending = null;
                 if (result is null)
                 {
@@ -146,16 +143,159 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
         {
             throw new TimeoutException($"Timed out waiting {timeout.TotalSeconds:0.###} seconds for the next query emission.");
         }
-        catch (Exception error) when (error is not OperationCanceledException)
-        {
-            return End(QueryResult.Error(admitted.CorrelationId, error));
-        }
         finally
         {
             if (entered)
             {
                 _readGate.Release();
             }
+            ExitRead();
+        }
+    }
+
+    CancellationTokenSource EnterRead(CancellationToken cancellationToken)
+    {
+        lock (_lifecycleGate)
+        {
+            ObjectDisposedException.ThrowIf(_state is Lifecycle.Disposing or Lifecycle.Disposed, this);
+            var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+            _reads++;
+
+            return deadline;
+        }
+    }
+
+    void ExitRead()
+    {
+        lock (_lifecycleGate)
+        {
+            _reads--;
+            if (_state == Lifecycle.Disposing && _reads == 0)
+            {
+                _readsDrained.TrySetResult();
+            }
+        }
+    }
+
+    void FinishStartup()
+    {
+        lock (_lifecycleGate)
+        {
+            if (_state == Lifecycle.Starting)
+            {
+                _state = Lifecycle.Running;
+            }
+        }
+        _startup.TrySetResult();
+    }
+
+    void Subscribe<T>(IObservable<T> observable)
+    {
+        var subscription = observable.Subscribe(Observer.Create<T>(Write, Complete, () => Complete()));
+        var dispose = false;
+        lock (_lifecycleGate)
+        {
+            if (_state is Lifecycle.Disposing or Lifecycle.Disposed || _callbacksStopped)
+            {
+                dispose = true;
+            }
+            else
+            {
+                _subscription = subscription;
+            }
+        }
+        if (dispose)
+        {
+            subscription.Dispose();
+        }
+    }
+
+    Task BeginDisposal()
+    {
+        TaskCompletionSource completion;
+        lock (_lifecycleGate)
+        {
+            if (_disposal is not null)
+            {
+                return _disposal.Task;
+            }
+
+            completion = _disposal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _state = Lifecycle.Disposing;
+            _callbacksStopped = true;
+            if (_callbacks == 0)
+            {
+                _callbacksDrained.TrySetResult();
+            }
+            if (_reads == 0)
+            {
+                _readsDrained.TrySetResult();
+            }
+        }
+
+        _ = CompleteDisposal(completion);
+        return completion.Task;
+    }
+
+    async Task CompleteDisposal(TaskCompletionSource completion)
+    {
+        try
+        {
+            await _lifetime.CancelAsync().ConfigureAwait(false);
+            await _startup.Task.ConfigureAwait(false);
+            TakeSubscription()?.Dispose();
+            await _enumeration.CancelAsync().ConfigureAwait(false);
+            await _callbacksDrained.Task.ConfigureAwait(false);
+            if (_producer is not null)
+            {
+                await _producer.ConfigureAwait(false);
+            }
+            await _readsDrained.Task.ConfigureAwait(false);
+            await DrainProcessing().ConfigureAwait(false);
+            if (_scope is IAsyncDisposable asyncScope)
+            {
+                await asyncScope.DisposeAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                _scope?.Dispose();
+            }
+
+            ReleaseResources();
+            completion.TrySetResult();
+        }
+        catch (Exception error)
+        {
+            SetDisposed();
+            completion.TrySetException(error);
+        }
+    }
+
+    void SetDisposed()
+    {
+        lock (_lifecycleGate)
+        {
+            _state = Lifecycle.Disposed;
+        }
+    }
+
+    void ReleaseResources()
+    {
+        _readGate.Dispose();
+        _lifetime.Dispose();
+        _enumeration.Dispose();
+        SetDisposed();
+    }
+
+    IDisposable? TakeSubscription()
+    {
+        lock (_lifecycleGate)
+        {
+            _callbacksStopped = true;
+            var subscription = _subscription;
+            _subscription = null;
+
+            return subscription;
         }
     }
 
@@ -174,8 +314,8 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
             using var identity = Services.GetRequiredService<CurrentPrincipalAccessor>().UseAuthorizationPrincipal(principal, Services);
             using var hostIdentity = Services.GetRequiredService<IAuthorizationPolicyRuntime>().BeginPrincipalScope(principal, Services);
             var data = await Services.GetRequiredService<IReadModelInterceptors>()
-                .InterceptEmission(emission.Type!, emission.Data, Services);
-            var verdict = await Guard(_lifetime.Token);
+                .InterceptEmission(emission.Type!, emission.Data, Services).ConfigureAwait(false);
+            var verdict = await Guard(_lifetime.Token).ConfigureAwait(false);
 
             return verdict switch
             {
@@ -233,71 +373,85 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
             cancellationToken)
         {
             SubscriptionScopeSnapshot = Context.SubscriptionScopeSnapshot
-        });
+        }).ConfigureAwait(false);
     }
 
     QueryResult End(QueryResult result)
     {
         _terminal = result;
-        Stop();
+        _enumeration.Cancel();
+        TakeSubscription()?.Dispose();
 
         return result;
     }
 
-    void ReleaseResources()
+    bool EnterCallback()
     {
-        _readGate.Release();
-        _readGate.Dispose();
-        _lifetime.Dispose();
-        _enumeration.Dispose();
+        lock (_lifecycleGate)
+        {
+            if (_callbacksStopped || _state is Lifecycle.Disposing or Lifecycle.Disposed)
+            {
+                return false;
+            }
+
+            _callbacks++;
+            return true;
+        }
     }
 
-    void Stop()
+    void ExitCallback()
     {
-        _enumeration.Cancel();
-        _subscription?.Dispose();
-        lock (_callbackGate)
+        lock (_lifecycleGate)
         {
-            _callbacksStopped = true;
+            _callbacks--;
+            if (_state == Lifecycle.Disposing && _callbacks == 0)
+            {
+                _callbacksDrained.TrySetResult();
+            }
         }
     }
 
     void Write<T>(T value)
     {
-        lock (_callbackGate)
+        if (!EnterCallback())
         {
-            if (_callbacksStopped || Volatile.Read(ref _disposed) != 0)
-            {
-                return;
-            }
+            return;
+        }
 
-            try
-            {
-                _emissions.Writer.TryWrite(new(
-                    materialize(value),
-                    typeof(T),
-                    new PagingInfo(Context.Paging.Page, Context.Paging.Size, Context.TotalItems),
-                    false,
-                    null));
-            }
-            catch (Exception error)
-            {
-                Complete(error);
-            }
+        try
+        {
+            _emissions.Writer.TryWrite(new(
+                materialize(value),
+                typeof(T),
+                new PagingInfo(Context.Paging.Page, Context.Paging.Size, Context.TotalItems),
+                false,
+                null));
+        }
+        catch (Exception error)
+        {
+            Complete(error);
+        }
+        finally
+        {
+            ExitCallback();
         }
     }
 
     void Complete(Exception? error = null)
     {
-        lock (_callbackGate)
+        if (!EnterCallback())
         {
-            if (_callbacksStopped || Volatile.Read(ref _disposed) != 0)
-            {
-                return;
-            }
+            return;
+        }
 
+        try
+        {
             _emissions.Writer.TryWrite(new(null, null, null, true, error));
             _emissions.Writer.TryComplete();
+        }
+        finally
+        {
+            ExitCallback();
         }
     }
 
