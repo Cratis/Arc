@@ -15,14 +15,13 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="eventTypes">The event types.</param>
 /// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
 /// <remarks>
-/// This handler intentionally has no typed response declaration. Its event-type registry decides at runtime whether
-/// an arbitrary value is a domain event; declaring <see cref="object"/> would incorrectly hide every client response
-/// type from generated proxies.
+/// The attribute declaration excludes statically identifiable events from generated client responses.
+/// The event-type registry still decides at runtime whether an arbitrary value is a domain event.
 /// </remarks>
 public class SingleEventCommandResponseValueHandler(
     IEventLog eventLog,
     IEventTypes eventTypes,
-    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler
+    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler, ICommandResponseValueHandlerForAttributed<EventTypeAttribute>
 {
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>
