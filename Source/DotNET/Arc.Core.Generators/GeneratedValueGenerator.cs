@@ -49,7 +49,7 @@ public class GeneratedValueGenerator : IIncrementalGenerator
     static string? TypeFor(GeneratorAttributeSyntaxContext syntax)
     {
         if (syntax.TargetSymbol is not IParameterSymbol { RefKind: RefKind.None, ContainingSymbol: IMethodSymbol method } parameter ||
-            method.Name != "Handle" || method.IsStatic || method.DeclaredAccessibility != Accessibility.Public ||
+            method.Name != "Handle" || method.IsStatic ||
             !method.ContainingType.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == CommandAttributeName) ||
             parameter.NullableAnnotation == NullableAnnotation.Annotated || !CanReference(parameter.Type) ||
             !parameter.Type.AllInterfaces.Any(contract => contract.OriginalDefinition.ToDisplayString() == GeneratableName &&

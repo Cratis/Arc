@@ -39,7 +39,7 @@ public class a_generated_value_compilation : Specification
     protected object Create(string commandName)
     {
         var commandType = _assembly.GetType(commandName)!;
-        var parameters = GeneratedValueParameters.Describe(commandType, commandType.GetMethod("Handle")!, dynamicCodeSupported: false);
+        var parameters = GeneratedValueParameters.Describe(commandType, commandType.GetHandleMethod(), dynamicCodeSupported: false);
         return GeneratedValueFactories.Create(commandType, parameters.Single());
     }
 }
