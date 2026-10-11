@@ -44,8 +44,11 @@ public sealed class QueryObservation : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
-    /// Releases the subscription and its owned scope without disposing the subject.
+    /// Starts disposal of the subscription and its owned scope without disposing the subject.
     /// </summary>
+    /// <remarks>
+    /// Dispose starts disposal; use <see cref="DisposeAsync"/> or dispose the scenario to wait for cleanup.
+    /// </remarks>
     public void Dispose() => _emissions.Dispose();
 
     /// <summary>

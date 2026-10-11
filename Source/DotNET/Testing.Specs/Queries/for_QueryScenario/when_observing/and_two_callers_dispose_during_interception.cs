@@ -49,6 +49,7 @@ public class and_two_callers_dispose_during_interception : given.an_observable_q
             await _entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             await cancellation.CancelAsync();
             _exception = await Catch.Exception(() => next);
+            await Task.Run(observation.Dispose).WaitAsync(TimeSpan.FromSeconds(5));
             var first = observation.DisposeAsync().AsTask();
             var second = _scenario.DisposeAsync().AsTask();
             _sharedDisposal = ReferenceEquals(first, observation.DisposeAsync().AsTask());

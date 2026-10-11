@@ -17,6 +17,7 @@ public sealed class ObservableQueryScope(ObservableScenarioState state) : IDispo
         {
             BehaviorSubject<ObservableScenarioReadModel> subject => subject.HasObservers,
             StartupBlockingSubject subject => subject.HasObservers,
+            DisposingObservationSubject subject => subject.HasObservers,
             _ => false
         };
         DisposalCount++;

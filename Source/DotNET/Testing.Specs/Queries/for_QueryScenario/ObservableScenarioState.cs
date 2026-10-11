@@ -11,6 +11,7 @@ public sealed class ObservableScenarioState
     public ISubject<ObservableScenarioReadModel> Subject { get; set; } = new BehaviorSubject<ObservableScenarioReadModel>(new("Initial"));
     public BehaviorSubject<IEnumerable<ObservableScenarioReadModel>> Collection { get; } = new([new("First"), new("Second")]);
     public ObservableScenarioChanges Changes { get; } = new();
+    public IAsyncEnumerable<ObservableScenarioReadModel> Enumerable { get; set; } = default!;
     public QueryContext Context { get; set; } = QueryContext.NotSet;
     public ObservableQueryScope Scope { get; set; } = default!;
 }

@@ -181,7 +181,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         {
             foreach (var observation in _observations)
             {
-                observation.Dispose();
+                observation.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
             (_serviceProvider as IDisposable)?.Dispose();
             foreach (var value in Context.Values.Distinct().OfType<IDisposable>())

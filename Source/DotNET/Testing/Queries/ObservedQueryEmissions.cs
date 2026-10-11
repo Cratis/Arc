@@ -50,7 +50,7 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
     IServiceProvider Services => _scope?.ServiceProvider ?? Context.ServiceProvider!;
 
     /// <inheritdoc/>
-    public void Dispose() => BeginDisposal().GetAwaiter().GetResult();
+    public void Dispose() => _ = BeginDisposal();
 
     /// <inheritdoc/>
     public ValueTask DisposeAsync() => new(BeginDisposal());
@@ -241,10 +241,9 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
     {
         try
         {
-            await _lifetime.CancelAsync().ConfigureAwait(false);
-            await _startup.Task.ConfigureAwait(false);
+            RequestCancellation();
             TakeSubscription()?.Dispose();
-            await _enumeration.CancelAsync().ConfigureAwait(false);
+            await _startup.Task.ConfigureAwait(false);
             await _callbacksDrained.Task.ConfigureAwait(false);
             if (_producer is not null)
             {
@@ -269,6 +268,12 @@ internal sealed class ObservedQueryEmissions(QueryResult admitted, Func<object?,
             SetDisposed();
             completion.TrySetException(error);
         }
+    }
+
+    void RequestCancellation()
+    {
+        _lifetime.Cancel();
+        _enumeration.Cancel();
     }
 
     void SetDisposed()

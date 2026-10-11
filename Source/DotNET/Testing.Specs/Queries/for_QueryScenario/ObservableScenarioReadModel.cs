@@ -30,6 +30,13 @@ public record ObservableScenarioReadModel(string Name)
     public static IAsyncEnumerable<ObservableScenarioReadModel> Async(ObservableScenarioState state) => state.Changes.Read();
 
     [Authorize(Policy = "CanRead")]
+    public static IAsyncEnumerable<ObservableScenarioReadModel> ScopedAsync(ObservableScenarioState state, ObservableQueryScope scope)
+    {
+        state.Scope = scope;
+        return state.Enumerable;
+    }
+
+    [Authorize(Policy = "CanRead")]
     public static ISubject<ObservableScenarioReadModel> Restricted(ObservableScenarioState state) => state.Subject;
 
     [Authorize(Policy = "CanRead")]
