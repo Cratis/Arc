@@ -22,3 +22,7 @@
   href: ARC0025.md
 - name: ARC0026 - Invalid explicit query declaration
   href: ARC0026.md
+- name: ARC0027 - Generated value implements both generation contracts
+  href: ARC0027.md
+- name: ARC0028 - Move inline generation to a generated parameter
+  href: ARC0028.md

@@ -263,5 +263,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Legacy strings keep their routing behavior but omit the event source definition and its concurrency dimensions. Use typed routing to retain them.");
 
+    /// <summary>
+    /// ARCCHR0022: Command-key aggregate accompanies events for a generated source.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0022_AggregateOnGeneratedTarget = new(
+        id: "ARCCHR0022",
+        title: "Command-key aggregate on a generated append target",
+        messageFormat: "Aggregate parameter '{0}' resolves using the command's event source id, but returned events target generated parameter '{1}'. Resolve the aggregate explicitly for the intended source, or use the command's source for the events.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Automatically injected aggregates use the command's event source id, not a generated append target. Commands with Provide or custom id providers are excluded because their aggregate resolution cannot be proven statically.");
+
     const string Category = "Arc.Chronicle";
 }
