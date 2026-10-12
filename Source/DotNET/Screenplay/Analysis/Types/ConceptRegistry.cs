@@ -156,7 +156,18 @@ public class ConceptRegistry
         existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal) &&
         existing.IsPii == concept.IsPii &&
         existing.IsSensitive == concept.IsSensitive &&
-        existing.EncryptionScope == concept.EncryptionScope;
+        StatedScopeOf(existing) == StatedScopeOf(concept);
+
+    /// <summary>
+    /// Gets the encryption scope a concept's declaration can state.
+    /// </summary>
+    /// <param name="concept">The concept.</param>
+    /// <returns>The scope of a secret that is not personal data, otherwise <see langword="null"/>.</returns>
+    /// <remarks>
+    /// Only a secret states a scope, and a personal-data concept is always Subject scoped, so a scope recorded on any
+    /// other concept says nothing the declaration could disagree about.
+    /// </remarks>
+    static string? StatedScopeOf(ConceptModel concept) => concept.IsSensitive && !concept.IsPii ? concept.EncryptionScope : null;
 
     /// <summary>
     /// Gets the values of an enumeration, in declaration order.
