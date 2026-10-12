@@ -133,9 +133,16 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
+        var caller = ReadCaller(draft, steps);
         var specification = new GeneratedValuePins(models, _held).Read(
             steps,
-            new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse, Returns = draft.Returns });
+            new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors])
+            {
+                AssertsResponse = draft.AssertsResponse,
+                Returns = draft.Returns,
+                Caller = caller.Caller,
+                CallerFailure = caller.Reason
+            });
         RegisterEvidence(type, specification, draft, stated);
 
         return specification;
@@ -208,6 +215,17 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var state = new SpecificationStateModel(readModel.Name, SpecificationStateKind.ReadModel, values);
         draft.AddThen(state, readModel, source);
     }
+
+    /// <summary>
+    /// Reads the caller a command scenario sets up.
+    /// </summary>
+    /// <param name="draft">The scenario read so far.</param>
+    /// <param name="steps">The type the steps are written on.</param>
+    /// <returns>The recovered caller, or why it could not be recovered; empty when the scenario issues no command.</returns>
+    SpecificationCallerRecovery ReadCaller(SpecificationDraft draft, INamedTypeSymbol steps) =>
+        draft.When?.Kind == SpecificationStateKind.Command
+            ? new SpecificationCallerReader(models, _held).Read(steps)
+            : new SpecificationCallerRecovery(null, null);
 
     /// <summary>
     /// Determines whether the steps of a specification drive a slice rather than exercise a part of one.

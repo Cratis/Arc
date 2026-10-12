@@ -606,4 +606,14 @@ public static class ScreenplayDiagnosticCodes
     /// A generated parameter's strategy cannot be recovered as a proven UUID v4 factory.
     /// </summary>
     public const string GenerationNotRecoverable = "SP0073";
+
+    /// <summary>
+    /// An open command scenario was kept without its unsupported caller setup.
+    /// </summary>
+    public const string SpecificationCallerNotRepresentable = "SP0075";
+
+    /// <summary>
+    /// A parameterized theory scenario cannot yet be stated as a case table.
+    /// </summary>
+    public const string SpecificationCasesNotFolded = "SP0076";
 }
