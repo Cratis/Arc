@@ -14,4 +14,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// or a collection of either, and every value it gives them is read from the triggering event, its occurrence time or
 /// a constant. Any other handler is code, and the reactor keeps pointing at the file it is written in for that event.
 /// </remarks>
-public record ReactionModel(string EventName, IEnumerable<ProducesModel> Produces, IEnumerable<InvocationModel> Invokes);
+public record ReactionModel(string EventName, IEnumerable<ProducesModel> Produces, IEnumerable<InvocationModel> Invokes)
+{
+    /// <summary>
+    /// Gets why the returned batch cannot be proven equivalent to per-fact reaction appends.
+    /// </summary>
+    internal string? UnprovenBatch { get; init; }
+}

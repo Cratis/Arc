@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Commands;
+using Cratis.Arc.Screenplay.Analysis.Constraints;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
@@ -49,6 +50,11 @@ public class ReactionReader(SemanticModels models)
 
     const string TaskType = "System.Threading.Tasks.Task`1";
     const string FromResultMethod = "FromResult";
+
+    /// <summary>
+    /// Gets coverage used to prove returned event batches equivalent to sequential appends.
+    /// </summary>
+    internal ConstraintCoverage? Constraints { get; init; }
 
     /// <summary>
     /// Reads the declarative reactions of a reactor.
@@ -334,6 +340,9 @@ public class ReactionReader(SemanticModels models)
             }
         }
 
-        return new(trigger.Type.Name, produces, invokes);
+        return new(trigger.Type.Name, produces, invokes)
+        {
+            UnprovenBatch = Constraints?.UnprovenBatch([.. creations.Where(_ => EventReader.IsEvent(_.Type)).Select(_ => _.Type)])
+        };
     }
 }

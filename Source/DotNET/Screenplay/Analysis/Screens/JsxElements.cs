@@ -6,287 +6,160 @@ using System.Text.RegularExpressions;
 namespace Cratis.Arc.Screenplay.Analysis.Screens;
 
 /// <summary>
-/// Finds the JSX elements written with a given tag, and reads their attributes and children.
+/// Finds JSX elements using scanned boundaries, and reads their attributes and children.
 /// </summary>
-/// <remarks>
-/// This is not a TypeScript parser and does not try to be one. It reads exactly one shape - an element written with
-/// a known tag, whose attributes are quoted strings, expressions between braces or bare names - and anything else is
-/// marked unreadable rather than read approximately. A reader that knows it has not understood something is what lets
-/// the caller leave it out and say so, instead of writing something the component does not say.
-/// </remarks>
 public static partial class JsxElements
 {
     /// <summary>
-    /// Finds every element written with a tag, outermost first and in the order the text writes them.
+    /// Finds every outermost element with a tag, in source order.
     /// </summary>
-    /// <param name="text">The text to look in, with comments already removed.</param>
-    /// <param name="tag">The tag, exactly as the file writes it - <c>DataPage</c>, <c>DataPage.MenuItem</c>.</param>
-    /// <returns>The elements. One nested in another of the same tag is part of the outer one's children.</returns>
-    public static IEnumerable<JsxElement> Named(string text, string tag)
+    /// <param name="text">The JSX markup to look in.</param>
+    /// <param name="tag">The tag exactly as written.</param>
+    /// <returns>The elements, including unreadable ones.</returns>
+    public static IEnumerable<JsxElement> Named(string text, string tag) => Named(TsxSource.ScanMarkup(text), tag);
+
+    /// <summary>
+    /// Reads outermost named elements from a scanned module.
+    /// </summary>
+    /// <param name="source">The scanned module.</param>
+    /// <param name="tag">The tag to find.</param>
+    /// <returns>The elements in source order.</returns>
+    internal static IEnumerable<JsxElement> Named(TsxSource source, string tag) => Named(source, tag, 0, source.Code.Length);
+
+    /// <summary>
+    /// Reads named descendants without scanning the children again.
+    /// </summary>
+    /// <param name="parent">The containing element.</param>
+    /// <param name="tag">The tag to find.</param>
+    /// <returns>The outermost named descendants.</returns>
+    internal static IEnumerable<JsxElement> Named(JsxElement parent, string tag) => parent.Source is { } source
+        ? Named(source, tag, parent.ChildrenStart, parent.ChildrenEnd)
+        : Named(parent.Children, tag);
+
+    static IEnumerable<JsxElement> Named(TsxSource source, string name, int start, int end)
     {
-        var position = 0;
-        while (Opening(text, tag, position) is { } start)
+        var next = start;
+        foreach (var tag in source.Tags.Where(_ => _.Name == name))
         {
-            var element = Read(text, tag, start, out var end);
-            yield return element;
-            position = end;
+            if (tag.Start < next || tag.Start >= end)
+            {
+                continue;
+            }
+
+            yield return Read(source, tag);
+            next = Math.Max(tag.Start + 1, tag.End);
         }
     }
 
-    static int? Opening(string text, string tag, int from)
+    static JsxElement Read(TsxSource source, JsxTag tag)
     {
-        var match = TagRegex(tag).Match(text, from);
-        while (match.Success && match.Groups["closing"].Success)
-        {
-            match = match.NextMatch();
-        }
-
-        return match.Success ? match.Index : null;
-    }
-
-    static JsxElement Read(string text, string tag, int start, out int end)
-    {
+        var code = source.Code;
         var attributes = new Dictionary<string, JsxValue>(StringComparer.Ordinal);
-        var opening = ReadOpening(text, start + 1 + tag.Length, attributes, out var readable, out var selfClosing);
-        if (opening < 0)
-        {
-            end = start + 1 + tag.Length;
-            return new(tag, start, new Dictionary<string, JsxValue>(), string.Empty, false);
-        }
+        var readable = tag.IsComplete && ReadAttributes(source, code, tag, attributes);
+        var childrenEnd = tag.SelfClosing ? tag.OpeningEnd : tag.ChildrenEnd;
+        var children = tag.IsComplete ? code[tag.OpeningEnd..childrenEnd] : string.Empty;
 
-        if (selfClosing)
+        return new(tag.Name, tag.Start, attributes, children, readable)
         {
-            end = opening;
-            return new(tag, start, attributes, string.Empty, readable);
-        }
-
-        if (Closing(text, tag, opening) is not { } closing)
-        {
-            end = opening;
-            return new(tag, start, attributes, string.Empty, false);
-        }
-
-        end = closing.End;
-        return new(tag, start, attributes, text[opening..closing.Start], readable);
+            Source = source,
+            End = tag.End,
+            ChildrenStart = tag.OpeningEnd,
+            ChildrenEnd = childrenEnd
+        };
     }
 
-    static int ReadOpening(string text, int position, Dictionary<string, JsxValue> attributes, out bool readable, out bool selfClosing)
+    static bool ReadAttributes(TsxSource source, string code, JsxTag tag, Dictionary<string, JsxValue> attributes)
     {
-        readable = true;
-        selfClosing = false;
-
-        // An element can carry type arguments - <Column<Issue> ... /> - which say nothing the document needs.
-        if (position < text.Length && text[position] == '<')
+        var position = tag.AttributesStart;
+        if (At(code, position, '<'))
         {
-            position = SkipTypeArguments(text, position);
-            if (position < 0)
+            position = source.CloseOf(position);
+        }
+
+        var readable = true;
+        while (position < tag.OpeningEnd)
+        {
+            position = SkipWhitespace(code, position);
+            if (AtEnd(code, position))
             {
-                return -1;
+                return readable;
+            }
+
+            if (!ReadAttribute(source, code, attributes, ref position, ref readable))
+            {
+                return false;
             }
         }
 
-        while (true)
-        {
-            position = SkipWhitespace(text, position);
-            if (position >= text.Length)
-            {
-                return -1;
-            }
-
-            if (text[position] == '>')
-            {
-                return position + 1;
-            }
-
-            if (text[position] == '/' && position + 1 < text.Length && text[position + 1] == '>')
-            {
-                selfClosing = true;
-                return position + 2;
-            }
-
-            if (text[position] == '{')
-            {
-                var spreadEnd = Braced(text, position);
-                if (spreadEnd < 0 || !text[(position + 1)..(spreadEnd - 1)].TrimStart().StartsWith("...", StringComparison.Ordinal))
-                {
-                    return -1;
-                }
-
-                readable = false;
-                position = spreadEnd;
-                continue;
-            }
-
-            var name = AttributeNameRegex().Match(text, position);
-            if (!name.Success || name.Index != position)
-            {
-                return -1;
-            }
-
-            position = SkipWhitespace(text, position + name.Length);
-            if (position >= text.Length || text[position] != '=')
-            {
-                attributes[name.Value] = new("true", null);
-                continue;
-            }
-
-            position = SkipWhitespace(text, position + 1);
-            if (ReadValue(text, position, out var value) is not { } next)
-            {
-                return -1;
-            }
-
-            attributes[name.Value] = value;
-            position = next;
-        }
+        return false;
     }
 
-    static int? ReadValue(string text, int position, out JsxValue value)
+    static bool ReadAttribute(TsxSource source, string code, Dictionary<string, JsxValue> attributes, ref int position, ref bool readable)
+    {
+        if (At(code, position, '{'))
+        {
+            return ReadSpread(source, code, ref position, ref readable);
+        }
+
+        var name = AttributeNameRegex().Match(code, position);
+        if (!name.Success || name.Index != position)
+        {
+            return false;
+        }
+
+        position = SkipWhitespace(code, position + name.Length);
+        if (!At(code, position, '='))
+        {
+            attributes[name.Value] = new("true", null);
+            return true;
+        }
+
+        position = SkipWhitespace(code, position + 1);
+        if (ReadValue(source, code, position, out var value) is not { } next)
+        {
+            return false;
+        }
+
+        attributes[name.Value] = value;
+        position = next;
+
+        return true;
+    }
+
+    static bool ReadSpread(TsxSource source, string code, ref int position, ref bool readable)
+    {
+        var end = source.CloseOf(position);
+        if (end < 0 || !code[(position + 1)..(end - 1)].TrimStart().StartsWith("...", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        readable = false;
+        position = end;
+
+        return true;
+    }
+
+    static int? ReadValue(TsxSource source, string code, int position, out JsxValue value)
     {
         value = new(string.Empty, null);
-        if (position >= text.Length)
+        var end = source.CloseOf(position);
+        if (end < 0)
         {
             return null;
         }
 
-        var quote = text[position];
-        if (quote is '"' or '\'')
-        {
-            var close = text.IndexOf(quote, position + 1);
-            if (close < 0)
-            {
-                return null;
-            }
+        var written = code[(position + 1)..(end - 1)];
+        value = code[position] == '{' ? JsxValue.Expression(written) : JsxValue.Quoted(written);
 
-            value = JsxValue.Quoted(text[(position + 1)..close]);
-            return close + 1;
-        }
-
-        if (quote != '{' || Braced(text, position) is not (> 0 and var end))
-        {
-            return null;
-        }
-
-        value = JsxValue.Expression(text[(position + 1)..(end - 1)]);
         return end;
     }
 
-    static (int Start, int End)? Closing(string text, string tag, int from)
-    {
-        var depth = 1;
-        for (var match = TagRegex(tag).Match(text, from); match.Success; match = match.NextMatch())
-        {
-            if (match.Groups["closing"].Success)
-            {
-                var close = text.IndexOf('>', match.Index);
-                if (close < 0)
-                {
-                    return null;
-                }
+    static bool At(string code, int position, char character) => position >= 0 && IsAt(code, position, character);
 
-                if (--depth == 0)
-                {
-                    return (match.Index, close + 1);
-                }
+    static bool IsAt(string code, int position, char character) => position < code.Length && code[position] == character;
 
-                continue;
-            }
-
-            var nested = ReadOpening(text, match.Index + 1 + tag.Length, [], out _, out var selfClosing);
-            if (nested < 0)
-            {
-                return null;
-            }
-
-            depth += selfClosing ? 0 : 1;
-        }
-
-        return null;
-    }
-
-    static int SkipTypeArguments(string text, int open)
-    {
-        var depth = 0;
-        for (var position = open; position < text.Length; position++)
-        {
-            switch (text[position])
-            {
-                case '<':
-                    depth++;
-                    break;
-                case '>' when position > 0 && text[position - 1] == '=':
-                    break;
-                case '>':
-                    if (--depth == 0)
-                    {
-                        return position + 1;
-                    }
-
-                    break;
-                case '"' or '\'' or '`':
-                    position = EndOfString(text, position);
-                    if (position < 0)
-                    {
-                        return -1;
-                    }
-
-                    break;
-                case '{' or '}' or ';':
-                    return -1;
-            }
-        }
-
-        return -1;
-    }
-
-    static int Braced(string text, int open)
-    {
-        var depth = 0;
-        for (var position = open; position < text.Length; position++)
-        {
-            switch (text[position])
-            {
-                case '{':
-                    depth++;
-                    break;
-                case '}':
-                    depth--;
-                    if (depth == 0)
-                    {
-                        return position + 1;
-                    }
-
-                    break;
-                case '"' or '\'' or '`':
-                    position = EndOfString(text, position);
-                    if (position < 0)
-                    {
-                        return -1;
-                    }
-
-                    break;
-            }
-        }
-
-        return -1;
-    }
-
-    static int EndOfString(string text, int open)
-    {
-        for (var position = open + 1; position < text.Length; position++)
-        {
-            if (text[position] == '\\')
-            {
-                position++;
-            }
-            else if (text[position] == text[open])
-            {
-                return position;
-            }
-        }
-
-        return -1;
-    }
+    static bool AtEnd(string code, int position) => At(code, position, '>') || At(code, position, '/');
 
     static int SkipWhitespace(string text, int position)
     {
@@ -297,8 +170,6 @@ public static partial class JsxElements
 
         return position;
     }
-
-    static Regex TagRegex(string tag) => new($@"<(?<closing>/)?\s*{Regex.Escape(tag)}(?=[\s/>]|<)", RegexOptions.None, TimeSpan.FromSeconds(1));
 
     [GeneratedRegex(@"[A-Za-z_$][\w$\-:]*", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex AttributeNameRegex();
