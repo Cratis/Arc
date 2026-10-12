@@ -109,6 +109,11 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
     static Location LocationOf(IParameterSymbol parameter, AttributeData attribute, CancellationToken cancellationToken) =>
         attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken).GetLocation() ?? parameter.Locations.FirstOrDefault() ?? Location.None;
 
+    static Location ParameterLocation(IParameterSymbol parameter, AttributeData attribute, CancellationToken cancellationToken) =>
+        parameter.ContainingSymbol is IMethodSymbol { IsOverride: true }
+            ? parameter.Locations.FirstOrDefault() ?? Location.None
+            : LocationOf(parameter, attribute, cancellationToken);
+
     static IEnumerable<ITypeSymbol> ProducedTypes(ITypeSymbol type)
     {
         if (type is INamedTypeSymbol named && Namespace(named) == "System.Threading.Tasks" && (named.Name == "Task" || named.Name == "ValueTask"))
@@ -237,18 +242,8 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             HashSet<string> names,
             ITypeSymbol[] providedTypes)
         {
-            var location = parameter.ContainingSymbol is IMethodSymbol { IsOverride: true }
-                ? parameter.Locations.FirstOrDefault() ?? Location.None
-                : LocationOf(parameter, attribute, context.CancellationToken);
-            if (parameter.Type is not ITypeParameterSymbol { TypeParameterKind: TypeParameterKind.Type } && (!IsGeneratable(parameter) || HasNullableReadState(parameter)))
-            {
-                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
-            }
-
-            if (ContractCount(parameter.Type) == 2)
-            {
-                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0027_DualGeneratedValueContracts, parameter.Locations.FirstOrDefault() ?? Location.None, parameter.Name, parameter.Type.Name));
-            }
+            var location = ParameterLocation(parameter, attribute, context.CancellationToken);
+            AnalyzeGenerationContracts(context, parameter, location);
 
             var name = NameFor(parameter, attribute);
             if (string.IsNullOrWhiteSpace(name) || !names.Add(name))
@@ -260,6 +255,29 @@ public class GeneratedValueAnalyzer : DiagnosticAnalyzer
             {
                 ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0025_ProvidedGeneratedValue, location, parameter.Name, parameter.Type.Name, command.Name));
             }
+        }
+
+        void AnalyzeGenerationContracts(SymbolAnalysisContext context, IParameterSymbol parameter, Location location)
+        {
+            if (HasInvalidGenerationType(parameter))
+            {
+                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0022_InvalidGeneratedValueType, location, parameter.Name, parameter.Type.Name));
+            }
+
+            if (ContractCount(parameter.Type) == 2)
+            {
+                ReportOnce(context, parameter, Diagnostic.Create(DiagnosticDescriptors.ARC0027_DualGeneratedValueContracts, parameter.Locations.FirstOrDefault() ?? Location.None, parameter.Name, parameter.Type.Name));
+            }
+        }
+
+        bool HasInvalidGenerationType(IParameterSymbol parameter)
+        {
+            if (parameter.Type is ITypeParameterSymbol { TypeParameterKind: TypeParameterKind.Type })
+            {
+                return false;
+            }
+
+            return !IsGeneratable(parameter) || HasNullableReadState(parameter);
         }
 
         bool IsUnsupportedArtifact(INamedTypeSymbol type) =>

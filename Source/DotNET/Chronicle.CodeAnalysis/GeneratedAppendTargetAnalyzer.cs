@@ -77,15 +77,21 @@ public sealed class GeneratedAppendTargetAnalyzer : DiagnosticAnalyzer
 
     static IParameterSymbol? AppendTarget(InvocationExpressionSyntax expression, SemanticModel model)
     {
-        if (model.GetOperation(expression) is not Microsoft.CodeAnalysis.Operations.IInvocationOperation invocation ||
-            !invocation.TargetMethod.Name.StartsWith("Append", StringComparison.Ordinal) ||
-            invocation.TargetMethod.ContainingType.ToDisplayString() != "Cratis.Chronicle.EventSequences.IEventSequence")
+        if (model.GetOperation(expression) is not Microsoft.CodeAnalysis.Operations.IInvocationOperation invocation)
+        {
+            return null;
+        }
+
+        if (!IsSequenceAppend(invocation.TargetMethod))
         {
             return null;
         }
 
         return ParameterTarget(invocation.Arguments, model);
     }
+
+    static bool IsSequenceAppend(IMethodSymbol method) => method.Name.StartsWith("Append", StringComparison.Ordinal) &&
+        method.ContainingType.ToDisplayString() == "Cratis.Chronicle.EventSequences.IEventSequence";
 
     static IParameterSymbol? GeneratedTarget(ExpressionSyntax expression, SemanticModel model)
     {

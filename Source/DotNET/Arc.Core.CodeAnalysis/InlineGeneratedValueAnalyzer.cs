@@ -30,13 +30,35 @@ public sealed class InlineGeneratedValueAnalyzer : DiagnosticAnalyzer
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
         var method = invocation.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault();
-        if (method is null || !InlineGeneratedValue.IsCommandHandle(method, context.SemanticModel) ||
-            invocation.Ancestors().TakeWhile(node => node != method).Any(InlineGeneratedValue.IsNestedFunction) ||
-            InlineGeneratedValue.ExpressionFor(invocation, context.SemanticModel) is not { } expression || expression.Parent is ExpressionStatementSyntax)
+        if (method is null)
         {
             return;
         }
 
+        if (!IsHandleInvocation(invocation, method, context.SemanticModel))
+        {
+            return;
+        }
+
+        if (InlineGeneratedValue.ExpressionFor(invocation, context.SemanticModel) is not { } expression)
+        {
+            return;
+        }
+
+        if (expression.Parent is ExpressionStatementSyntax)
+        {
+            return;
+        }
+
+        Report(context, expression);
+    }
+
+    static bool IsHandleInvocation(InvocationExpressionSyntax invocation, MethodDeclarationSyntax method, SemanticModel model) =>
+        InlineGeneratedValue.IsCommandHandle(method, model) &&
+        !invocation.Ancestors().TakeWhile(node => node != method).Any(InlineGeneratedValue.IsNestedFunction);
+
+    static void Report(SyntaxNodeAnalysisContext context, ExpressionSyntax expression)
+    {
         var type = context.SemanticModel.GetTypeInfo(expression, context.CancellationToken);
         var concept = InlineGeneratedValue.IsConcept(type.Type) ? type.Type! : type.ConvertedType!;
         context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARC0028_InlineGeneratedValue, expression.GetLocation(), concept.Name));

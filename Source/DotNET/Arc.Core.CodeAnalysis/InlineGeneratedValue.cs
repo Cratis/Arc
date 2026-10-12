@@ -11,6 +11,13 @@ namespace Cratis.Arc.CodeAnalysis;
 /// </summary>
 internal static class InlineGeneratedValue
 {
+    static readonly string[] _unsupportedArtifactAttributes =
+    [
+        "Cratis.Arc.Queries.ModelBound.ReadModelAttribute",
+        "Microsoft.AspNetCore.Mvc.ApiControllerAttribute",
+        "Microsoft.AspNetCore.Mvc.ControllerAttribute"
+    ];
+
     /// <summary>
     /// Checks the supported model-bound Handle location.
     /// </summary>
@@ -26,10 +33,7 @@ internal static class InlineGeneratedValue
 
         var types = Hierarchy(method.ContainingType).ToArray();
 
-        return types.Any(type => HasAttribute(type, "Cratis.Arc.Commands.ModelBound.CommandAttribute")) &&
-            !types.Any(type => type.ToDisplayString() == "Microsoft.AspNetCore.Mvc.ControllerBase" ||
-                HasAttribute(type, "Cratis.Arc.Queries.ModelBound.ReadModelAttribute") || HasAttribute(type, "Microsoft.AspNetCore.Mvc.ApiControllerAttribute") ||
-                HasAttribute(type, "Microsoft.AspNetCore.Mvc.ControllerAttribute"));
+        return types.Any(type => HasAttribute(type, "Cratis.Arc.Commands.ModelBound.CommandAttribute")) && !types.Any(IsUnsupportedArtifact);
     }
 
     /// <summary>
@@ -45,8 +49,7 @@ internal static class InlineGeneratedValue
             return null;
         }
 
-        if (method.Name == "New" && invocation.ArgumentList.Arguments.Count == 0 && IsConcept(method.ReturnType) &&
-            SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType))
+        if (IsConceptFactory(invocation, method))
         {
             return invocation;
         }
@@ -56,10 +59,7 @@ internal static class InlineGeneratedValue
             return null;
         }
 
-        var expression = WrapperFor(invocation);
-        var type = model.GetTypeInfo(expression);
-
-        return IsConcept(type.Type) || IsConcept(type.ConvertedType) ? expression : null;
+        return ConceptExpression(WrapperFor(invocation), model);
     }
 
     /// <summary>
@@ -67,12 +67,15 @@ internal static class InlineGeneratedValue
     /// </summary>
     /// <param name="type">The candidate type.</param>
     /// <returns>Whether the type is a self-generatable concept.</returns>
-    internal static bool IsConcept(ITypeSymbol? type) => type is not null &&
-        Hierarchy(type).Any(candidate => candidate.OriginalDefinition.ToDisplayString() == "Cratis.Concepts.ConceptAs<T>") &&
-        type.AllInterfaces.Any(contract =>
-            (contract.OriginalDefinition.ToDisplayString() == "Cratis.Concepts.IGeneratable<TSelf>" ||
-                contract.OriginalDefinition.ToDisplayString() == "Cratis.Concepts.IGeneratableInContext<TSelf>") &&
-            SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type));
+    internal static bool IsConcept(ITypeSymbol? type)
+    {
+        if (type is null)
+        {
+            return false;
+        }
+
+        return HasConceptBase(type) && type.AllInterfaces.Any(contract => IsSelfGenerationContract(contract, type));
+    }
 
     /// <summary>
     /// Checks for a nested execution boundary.
@@ -89,8 +92,51 @@ internal static class InlineGeneratedValue
         _ => invocation
     };
 
-    static bool IsPrimitiveGeneration(IMethodSymbol method) => method.ContainingType.ToDisplayString() == "Cratis.Concepts.GenerateValue" ||
-        (method.ContainingType.SpecialType == SpecialType.None && method.ContainingType.ToDisplayString() == "System.Guid" && method.Name == "NewGuid");
+    static bool IsConceptFactory(InvocationExpressionSyntax invocation, IMethodSymbol method)
+    {
+        if (method.Name != "New" || invocation.ArgumentList.Arguments.Count != 0)
+        {
+            return false;
+        }
+
+        return IsConcept(method.ReturnType) && SymbolEqualityComparer.Default.Equals(method.ReturnType, method.ContainingType);
+    }
+
+    static ExpressionSyntax? ConceptExpression(ExpressionSyntax expression, SemanticModel model)
+    {
+        var type = model.GetTypeInfo(expression);
+        var isConcept = IsConcept(type.Type) || IsConcept(type.ConvertedType);
+
+        return isConcept ? expression : null;
+    }
+
+    static bool HasConceptBase(ITypeSymbol type) =>
+        Hierarchy(type).Any(candidate => candidate.OriginalDefinition.ToDisplayString() == "Cratis.Concepts.ConceptAs<T>");
+
+    static bool IsSelfGenerationContract(INamedTypeSymbol contract, ITypeSymbol type) =>
+        IsGenerationInterface(contract) && SymbolEqualityComparer.Default.Equals(contract.TypeArguments[0], type);
+
+    static bool IsGenerationInterface(INamedTypeSymbol contract) =>
+        contract.OriginalDefinition.ToDisplayString() == "Cratis.Concepts.IGeneratable<TSelf>" ||
+        contract.OriginalDefinition.ToDisplayString() == "Cratis.Concepts.IGeneratableInContext<TSelf>";
+
+    static bool IsUnsupportedArtifact(ITypeSymbol type) => type.ToDisplayString() == "Microsoft.AspNetCore.Mvc.ControllerBase" ||
+        type.GetAttributes().Any(IsUnsupportedAttribute);
+
+    static bool IsUnsupportedAttribute(AttributeData attribute) =>
+        _unsupportedArtifactAttributes.Contains(attribute.AttributeClass?.ToDisplayString() ?? string.Empty, StringComparer.Ordinal);
+
+    static bool IsPrimitiveGeneration(IMethodSymbol method) => method.ContainingType.ToDisplayString() == "Cratis.Concepts.GenerateValue" || IsGuidGeneration(method);
+
+    static bool IsGuidGeneration(IMethodSymbol method)
+    {
+        if (method.ContainingType.SpecialType != SpecialType.None)
+        {
+            return false;
+        }
+
+        return method.ContainingType.ToDisplayString() == "System.Guid" && method.Name == "NewGuid";
+    }
 
     static bool HasAttribute(ITypeSymbol type, string name) => type.GetAttributes().Any(attribute => attribute.AttributeClass?.ToDisplayString() == name);
 

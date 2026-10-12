@@ -33,8 +33,17 @@ public sealed class MoveToGeneratedValueCodeFixProvider : CodeFixProvider
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         var model = await context.Document.GetSemanticModelAsync(context.CancellationToken).ConfigureAwait(false);
         var diagnostic = context.Diagnostics[0];
-        if (root?.FindNode(diagnostic.Location.SourceSpan) is not ExpressionSyntax expression || model is null ||
-            expression.FirstAncestorOrSelf<MethodDeclarationSyntax>() is not { } method || !CanMove(expression, method, model))
+        if (root?.FindNode(diagnostic.Location.SourceSpan) is not ExpressionSyntax expression || model is null)
+        {
+            return;
+        }
+
+        if (expression.FirstAncestorOrSelf<MethodDeclarationSyntax>() is not { } method)
+        {
+            return;
+        }
+
+        if (!CanMove(expression, method, model))
         {
             return;
         }
@@ -44,10 +53,7 @@ public sealed class MoveToGeneratedValueCodeFixProvider : CodeFixProvider
 
     static bool CanMove(ExpressionSyntax expression, MethodDeclarationSyntax method, SemanticModel model)
     {
-        var info = model.GetTypeInfo(expression);
-        var type = InlineGeneratedValue.IsConcept(info.Type) ? info.Type : info.ConvertedType;
-        var symbol = model.GetDeclaredSymbol(method)!;
-        if (type?.NullableAnnotation == NullableAnnotation.Annotated || symbol.IsOverride || symbol.IsVirtual || method.ContainsDirectives || !InlineGeneratedValue.IsCommandHandle(method, model))
+        if (IsNullableConcept(expression, model) || !IsMovableMethod(method, model))
         {
             return false;
         }
@@ -55,11 +61,34 @@ public sealed class MoveToGeneratedValueCodeFixProvider : CodeFixProvider
         return IsMovableInvocation(expression, model) && !expression.Ancestors().TakeWhile(node => node != method).Any(IsConditionalExecution);
     }
 
+    static bool IsNullableConcept(ExpressionSyntax expression, SemanticModel model)
+    {
+        var info = model.GetTypeInfo(expression);
+        var type = InlineGeneratedValue.IsConcept(info.Type) ? info.Type : info.ConvertedType;
+
+        return type?.NullableAnnotation == NullableAnnotation.Annotated;
+    }
+
+    static bool IsMovableMethod(MethodDeclarationSyntax method, SemanticModel model)
+    {
+        var symbol = model.GetDeclaredSymbol(method)!;
+        if (symbol.IsOverride || symbol.IsVirtual)
+        {
+            return false;
+        }
+
+        return !method.ContainsDirectives && InlineGeneratedValue.IsCommandHandle(method, model);
+    }
+
     static bool IsMovableInvocation(ExpressionSyntax expression, SemanticModel model)
     {
         var invocations = expression.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().ToArray();
+        if (invocations.Length != 1)
+        {
+            return false;
+        }
 
-        return invocations.Length == 1 && InlineGeneratedValue.ExpressionFor(invocations[0], model) == expression &&
+        return InlineGeneratedValue.ExpressionFor(invocations[0], model) == expression &&
             invocations[0].ArgumentList.Arguments.All(argument => model.GetConstantValue(argument.Expression).HasValue);
     }
 
