@@ -14,7 +14,7 @@ public class with_a_scoped_refusal : given.a_pending_completion
     [InlineData(CompleteStreamError.ExpectedTailMismatch)]
     public async Task should_surface_the_error_without_an_unscoped_retry(CompleteStreamError error)
     {
-        _context.Values[WellKnownCommandContextKeys.EventSourceId] = (EventSourceId)"owner";
+        ResolveSource(new given.SourceCompletion("owner"));
         _eventLog = Substitute.For<EventLogWithNamedTags>();
         _handler = new(_eventLog);
         Result<EventSequenceNumber, CompleteStreamError> refused = error;
@@ -29,7 +29,7 @@ public class with_a_scoped_refusal : given.a_pending_completion
     [Fact]
     public async Task should_surface_an_unsupported_kernel_without_an_unscoped_retry()
     {
-        _context.Values[WellKnownCommandContextKeys.EventSourceId] = (EventSourceId)"owner";
+        ResolveSource(new given.SourceCompletion("owner"));
         _eventLog = Substitute.For<EventLogWithNamedTags>();
         _handler = new(_eventLog);
         _eventLog.CompleteStream(Arg.Any<ClosedStreamScope>()).Returns(Task.FromException<Result<EventSequenceNumber, CompleteStreamError>>(new ClosedStreamScopesNotSupported()));

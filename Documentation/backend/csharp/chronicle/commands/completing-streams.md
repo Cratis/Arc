@@ -42,9 +42,9 @@ A `Default` or unset stream id cannot be completed for any stream type through A
 
 ## Understand the completion boundary
 
-A command with a resolved event source id completes that source's stream, narrowed further by its resolved event source type when one is declared. You do not need an owner-qualified stream-id template just to keep another entity's stream open; templates remain useful for composing stream ids from command properties.
+A command with a declared key or a specified id from `ICanProvideEventSourceId` completes that source's stream, narrowed further by its resolved event source type when one is declared. An event source id supplied in the handler's response also scopes the completion. You do not need an owner-qualified stream-id template just to keep another entity's stream open; templates remain useful for composing stream ids from command properties.
 
-A command **without an event source id**, including `EventSourceId.Unspecified`, retains the all-sources behavior: it closes that stream type and id across the entire event log. Use that intentionally when closing a period for everyone. Per-event routing overrides do not change which event source owns the completion.
+A command **without a declared or response-supplied event source id**, including `EventSourceId.Unspecified`, retains the all-sources behavior: it closes that stream type and id across the entire event log. The id Arc generates internally for a keyless command does not scope its completion. Use that intentionally when closing a period for everyone. Per-event routing overrides do not change which event source owns the completion.
 
 Arc first commits the command's events, then calls Chronicle to complete the stream. If the append or commit fails, Arc does not complete it. Nested commands wait for the outer command's commit. Completing an already completed stream succeeds, making a repeated completion safe.
 

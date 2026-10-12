@@ -39,6 +39,11 @@ public class CompleteStreamCommandResponseValueHandler(IEventLog eventLog) : ICo
 
     static ClosedStreamScope? CompletionScope(CommandContext context, EventStreamType streamType, EventStreamId streamId)
     {
+        if (!HasCompletionSource(context))
+        {
+            return null;
+        }
+
         var sourceId = context.GetEventSourceIdOrDefault();
 
         return sourceId == EventSourceId.Unspecified ? null : new(
@@ -47,4 +52,9 @@ public class CompleteStreamCommandResponseValueHandler(IEventLog eventLog) : ICo
             EventStreamType: streamType,
             EventStreamId: streamId);
     }
+
+    static bool HasCompletionSource(CommandContext context) =>
+        EventSourceExtensions.IsEventSourceIdValue(context.Response) ||
+        context.Command is ICanProvideEventSourceId ||
+        context.Command.HasEventSourceId();
 }

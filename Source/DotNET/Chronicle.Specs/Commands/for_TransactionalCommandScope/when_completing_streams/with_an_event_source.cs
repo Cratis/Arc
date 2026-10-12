@@ -15,7 +15,7 @@ public class with_an_event_source : given.a_pending_completion
     {
         _eventLog = Substitute.For<EventLogWithNamedTags>();
         _handler = new(_eventLog);
-        _context.Values[WellKnownCommandContextKeys.EventSourceId] = (EventSourceId)"owner";
+        ResolveSource(new given.SourceCompletion("owner"));
         _context.Values[WellKnownCommandContextKeys.EventSourceType] = (EventSourceType)"reports";
         _completion = new("owner", "reports", "completion", "period");
         Result<EventSequenceNumber, CompleteStreamError> completed = EventSequenceNumber.First;
