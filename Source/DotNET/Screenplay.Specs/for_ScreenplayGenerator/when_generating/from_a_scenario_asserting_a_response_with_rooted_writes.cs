@@ -29,6 +29,10 @@ public class from_a_scenario_asserting_a_response_with_rooted_writes : a_generat
     [InlineData("Registration _alias = null!; void Copy() => _alias = " + Response + ".Items[0];")]
     [InlineData("void Copy() { foreach (var item in " + Response + ".Items) { } }")]
     [InlineData("void Copy() { if (" + Response + " is { Items: var items }) { } }")]
+    [InlineData("Registration Escape() { return " + Response + "; }")]
+    [InlineData("Registration Escape => " + Response + ";")]
+    [InlineData("System.Func<CommandResult> Escape() => () => _result;")]
+    [InlineData("System.Collections.Generic.IEnumerable<CommandResult> Escape() { yield return _result; }")]
     public void should_withhold_a_response_with_rooted_writes_or_aliases(string members)
     {
         GenerateScenario(members);

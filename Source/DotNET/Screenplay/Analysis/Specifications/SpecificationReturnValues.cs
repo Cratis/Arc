@@ -284,6 +284,10 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         {
             AssignmentExpressionSyntax assignment => assignment.Right,
             EqualsValueClauseSyntax initializer => initializer.Value,
+            ReturnStatementSyntax { Expression: { } returned } => returned,
+            YieldStatementSyntax { Expression: { } yielded } => yielded,
+            ArrowExpressionClauseSyntax arrow => arrow.Expression,
+            LambdaExpressionSyntax { ExpressionBody: { } body } => body,
             _ => null
         };
         return copied is not null && RootedAtResult(copied, result, semanticModel) &&
