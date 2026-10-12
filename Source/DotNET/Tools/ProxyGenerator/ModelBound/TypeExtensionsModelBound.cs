@@ -38,13 +38,15 @@ public static class TypeExtensionsModelBound
     /// </summary>
     /// <param name="type">Type to inspect.</param>
     /// <returns>True if the type is a model bound read model, false otherwise.</returns>
-    public static bool IsQuery(this Type type) =>
-        type.IsClass &&
-        !type.IsAbstract &&
-        type.GetCustomAttributesData()
-            .Select(_ => _.AttributeType.Name)
-            .Any(_ => _ == WellKnownTypes.ReadModelAttribute) &&
-        type.HasQueryMethods();
+    public static bool IsQuery(this Type type)
+    {
+        ModelBoundQueryMethod.Validate(type, method => method.IsValidQueryFor(type));
+        return type.IsClass && (!type.IsAbstract || ModelBoundQueryMethod.RequiresQueryAttribute(type)) &&
+            (ModelBoundQueryMethod.RequiresQueryAttribute(type)
+                ? ModelBoundQueryMethod.ReadModel(type) is not null
+                : HasConventionalReadModelAttribute(type)) &&
+            type.HasQueryMethods();
+    }
 
     /// <summary>
     /// Determine if a type has a Handle method.
@@ -73,6 +75,11 @@ public static class TypeExtensionsModelBound
         // Mirrors the runtime predicate in Cratis.Arc.Queries.ModelBound.ReadModelExtensions: an open generic method
         // can never be invoked as a query, so emitting a client for it would promise a call that always fails.
         if (method.ContainsGenericParameters)
+        {
+            return false;
+        }
+
+        if (!ModelBoundQueryMethod.IsSelected(method, readModelType))
         {
             return false;
         }
@@ -126,8 +133,11 @@ public static class TypeExtensionsModelBound
     /// <param name="type">Type to inspect.</param>
     /// <returns>Collection of public or internal static methods.</returns>
     public static IEnumerable<MethodInfo> GetQueryMethods(this Type type) =>
-        type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            .Where(_ => ModelBoundQueryMethod.IsCandidate(_) && _.IsValidQueryFor(type));
+        ModelBoundQueryMethod.GetMethods(type, method => method.IsValidQueryFor(type));
+
+    static bool HasConventionalReadModelAttribute(Type type) => type.Assembly.ReflectionOnly
+        ? MetadataQueryAttributes.Find(type, WellKnownTypes.ReadModelAttribute, matchFullName: false) is not null
+        : type.GetCustomAttributesData().Any(_ => _.AttributeType.Name == WellKnownTypes.ReadModelAttribute);
 
     static bool IsCollectionOfType(Type type, Type elementType)
     {

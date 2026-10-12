@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Text;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -30,10 +31,11 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
             static (syntax, _) => syntax.TargetSymbol is INamedTypeSymbol command ? MetadataNameOf(command) : string.Empty)
             .Collect();
 
-        var readModels = context.SyntaxProvider.ForAttributeWithMetadataName(
-            ReadModelAttribute,
+        var readModels = context.SyntaxProvider.CreateSyntaxProvider(
             static (node, _) => node is TypeDeclarationSyntax,
-            static (syntax, _) => syntax.TargetSymbol is INamedTypeSymbol readModel ? MetadataNameOf(readModel) : string.Empty)
+            static (syntax, _) => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol readModel &&
+                (readModel.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == ReadModelAttribute) || ModelBoundQueryMethodSymbols.RequiresQueryAttribute(readModel))
+                    ? MetadataNameOf(readModel) : string.Empty)
             .Collect();
 
         var walkers = commands.Combine(readModels).Combine(context.CompilationProvider)
@@ -115,11 +117,9 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var readModel in readModels)
         {
-            var queries = readModel.GetMembers().OfType<IMethodSymbol>()
-                .Where(method => method.MethodKind == MethodKind.Ordinary && method.IsStatic && method.TypeParameters.Length == 0 &&
-                    method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
-                    !method.GetAttributes().Any(attribute => string.Equals(attribute.AttributeClass?.ToDisplayString(), "System.Runtime.CompilerServices.CompilerGeneratedAttribute", StringComparison.Ordinal)) &&
-                    QueryMetadataGenerator.IsValidQueryMethod(method, readModel));
+            var queries = ModelBoundQueryMethodSymbols.GetMethods(
+                readModel,
+                method => ModelBoundQueryMethodSymbols.IsCandidate(method) && QueryMetadataGenerator.IsValidQueryMethod(method, readModel));
             foreach (var query in queries)
             {
                 roots.AddRange(query.Parameters.Select(parameter => parameter.Type));

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Queries;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.Analysis;
@@ -40,6 +41,10 @@ public class ArtifactCatalog
     {
         var types = new List<INamedTypeSymbol>();
         Collect(compilation.Assembly.GlobalNamespace, types);
+        foreach (var type in types)
+        {
+            ModelBoundQuerySelection.Validate(type);
+        }
 
         return new([.. types.OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal)]);
     }

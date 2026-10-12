@@ -12,6 +12,46 @@ Declare queries as non-generic **public or internal static** methods on a `[Read
 
 Dependencies are resolved by type, not by parameter position. C# still requires optional parameters to follow required parameters, including required service parameters.
 
+## Choose endpoints explicitly when a model has helpers
+
+`[ReadModel]` uses conventional discovery by default. Adding `[Query]` to one method does **not** hide its siblings or change that mode. Keep convention for a model whose eligible static methods are all queries.
+
+Set `RequireQueryAttribute = true` when the same type also has factories, folds, or other helpers:
+
+```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Queries.ModelBound;
+
+namespace Banking.Accounts;
+
+[ReadModel(RequireQueryAttribute = true)]
+public record AccountSummary(string Name)
+{
+    public static AccountSummary Create(string name) => new(name);
+    public static Task Prepare(object service) => Task.CompletedTask;
+
+    [Query]
+    public static AccountSummary? ByName(string name) => new(name);
+}
+```
+
+Only `ByName` is an endpoint. Unmarked helpers can be public, internal, private, static, or instance methods, with any return type or service parameters. They receive no query-signature, generic-query, or concept-query-parameter diagnostics. Direct C# calls are unchanged. A type with no marked methods has no queries.
+
+A marked query must still be an ordinary public/internal static nongeneric method on a `[ReadModel]`, with value parameters and a supported return shape. Nullable model results, collections, `Task<T>` wrapping those shapes, `IAsyncEnumerable<T>`, and `ISubject<T>` of the model or its collection are supported in explicit mode. Plain `Task`, `ValueTask<T>`, private/instance methods, and by-reference parameters or results are not valid marked queries; [ARC0026](../../code-analysis/ARC0026.md) reports them. The Arc marker is `Cratis.Arc.Queries.ModelBound.QueryAttribute`, not Chronicle's gRPC marker.
+
+The nearest `[ReadModel]` declaration supplies the setting. A direct `[ReadModel]` on a derived type resets it to false. All partial declarations share the setting; a nested type does not inherit its enclosing type's setting. Arc does not start enumerating inherited static methods.
+
+In explicit mode a marked `ById(string)` can coexist with an unmarked `ById(int)` helper. Two selected methods with the same name are an error, because query identity contains the name rather than an overload signature. Conventional overload selection is unchanged.
+
+## Preview a migration
+
+1. List the currently exposed query names and routes, including every partial declaration.
+2. Set `RequireQueryAttribute = true` and mark every endpoint you intend to retain with `[Query]`.
+3. Compare runtime discovery, generated query metadata, TypeScript proxies, and Screenplay extraction with the intended endpoint list. Preserve each endpoint's `[Path]`, HTTP method, argument defaults, and authorization attributes.
+4. Exercise retained queries through the pipeline or `QueryScenario`, including observable queries, and confirm helpers are absent. `[Path]`, `[QueryHttpMethod]`, and authorization on an unmarked helper do not make it an endpoint.
+
+No method name is globally reserved. In conventional mode `Create`, `Reduce`, and lifecycle helpers remain subject to existing query discovery and diagnostics. The optional Chronicle integration warning [ARCCHR0019](../../chronicle/code-analysis/ARCCHR0019.md) flags some fold-like shapes without changing discovery. Its whole-type quick fix requires an endpoint preview; it cannot identify arbitrary runtime-registered events or prove which helpers you intended as queries. Chronicle's future static self-reducer lifecycle implementation and complete fold/query role-conflict validation are separate work.
+
 ## Async methods
 
 This alternative declaration uses the [shared `AccountId` and `AccountName` concepts](index.md#model-account-identities-and-names) and an Arc host with the MongoDB provider configured:

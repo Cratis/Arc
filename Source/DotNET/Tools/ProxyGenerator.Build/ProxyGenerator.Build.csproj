@@ -8,6 +8,7 @@
         <BuildOutputTargetFolder>tasks</BuildOutputTargetFolder>
         <NoWarn>$(NoWarn);NU5118</NoWarn>
         <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+        <DefineConstants>$(DefineConstants);METADATA_QUERY_ATTRIBUTES</DefineConstants>
         <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
     </PropertyGroup>
 
@@ -84,5 +85,7 @@
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/ModelBoundQueryMethod.cs" Link="Queries/ModelBound/ModelBoundQueryMethod.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/MetadataQueryAttributes.cs" Link="Queries/ModelBound/MetadataQueryAttributes.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
     </ItemGroup>
 </Project>

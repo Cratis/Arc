@@ -43,7 +43,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>True when the type is a read model.</returns>
-    public static bool IsReadModel(ITypeSymbol type) => type.HasAttribute(WellKnownTypeNames.ReadModelAttribute);
+    public static bool IsReadModel(ITypeSymbol type) => ModelBoundQuerySelection.IsReadModel(type);
 
     /// <summary>
     /// Gets the static methods a read model exposes as queries.
@@ -52,28 +52,12 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <returns>The methods, ordered so that the same read model always reads the same way.</returns>
     /// <remarks>
     /// Arc exposes a static method on a read model as a query when it returns that read model - one of it or many of
-    /// it, however the return type dresses that up - and its accessibility never enters into it. Both halves of that
+    /// it, however the return type dresses that up - using its legacy accessibility rules by default. Both halves of that
     /// matter: a read model routinely carries static helpers returning something else, and stating them as endpoints
     /// would put routes in the document that no application serves, while a query that happens not to be public is a
     /// route the application really does serve.
     /// </remarks>
-    public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type)
-    {
-        return type.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(method =>
-            {
-                if (method is not { MethodKind: MethodKind.Ordinary, IsStatic: true } ||
-                    method.ReturnsVoid || method.TypeParameters.Length != 0)
-                {
-                    return false;
-                }
-
-                var collection = false;
-                return SymbolEqualityComparer.Default.Equals(UnderlyingTypes.Of(QueryReturnTypes.Unwrap(method.ReturnType, ref collection)), type);
-            })
-            .OrderBy(_ => _.ToDisplayString(), StringComparer.Ordinal);
-    }
+    public static IEnumerable<IMethodSymbol> MethodsOf(INamedTypeSymbol type) => ModelBoundQuerySelection.MethodsOf(type);
 
     /// <summary>
     /// Determines whether a parameter is part of what a caller sends.
