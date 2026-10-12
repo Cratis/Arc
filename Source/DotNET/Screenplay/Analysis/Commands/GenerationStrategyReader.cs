@@ -10,7 +10,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// Proves the UUID v4 generation contract without guessing from a factory's name.
 /// </summary>
 /// <param name="models">The models resolving concept bodies.</param>
-public class GenerationStrategyReader(SemanticModels models)
+internal class GenerationStrategyReader(SemanticModels models)
 {
     readonly UuidGenerationForms _forms = new(models);
 
@@ -36,14 +36,6 @@ public class GenerationStrategyReader(SemanticModels models)
 
         return UnrecognizedStrategy(factory);
     }
-
-    /// <summary>
-    /// Proves a constructor forwards a UUID unchanged to the concept base.
-    /// </summary>
-    /// <param name="constructor">The constructor to follow.</param>
-    /// <param name="visited">Constructors already followed.</param>
-    /// <returns>Whether the UUID is preserved.</returns>
-    public bool ForwardsUuid(IMethodSymbol constructor, ISet<IMethodSymbol> visited) => new UuidConstructorForwarding(models).Read(constructor, visited);
 
     static bool IsRequiredScalar(IParameterSymbol parameter) => parameter.RefKind == RefKind.None && parameter.Type.NullableAnnotation != NullableAnnotation.Annotated;
 
