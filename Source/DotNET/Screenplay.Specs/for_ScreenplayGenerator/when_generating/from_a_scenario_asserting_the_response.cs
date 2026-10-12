@@ -43,9 +43,16 @@ public class from_a_scenario_asserting_the_response : a_generated_document
     [InlineData("((CommandResult<string>)_result).Response.ShouldEqual(\"Apollo\")")]
     [InlineData("((CommandResult<string>)_result).Response!.ShouldEqual(Expected)")]
     [InlineData("Assert.Equal(expected: \"Apollo\", actual: ((CommandResult<string>)_result).Response)")]
-    public void should_state_other_equality_assertions(string assertion)
+    [InlineData("((CommandResult<string>)_result!).Response.ShouldEqual(\"Apollo\")")]
+    [InlineData(EqualAssertion, "bool Read() => !_result.IsSuccess;")]
+    [InlineData(EqualAssertion, "string Read() => _result!.ToString()!;")]
+    [InlineData("{ Assert.NotNull(_result); Assert.Equal(\"Apollo\", ((CommandResult<string>)_result).Response); }")]
+    [InlineData(EqualAssertion, "void Read() => Observe(in _result); void Observe(in CommandResult result) { }")]
+    [InlineData(EqualAssertion, "void Read() { var name = ((CommandResult<string>)_result).Response; }")]
+    [InlineData(EqualAssertion, "void Read() { foreach (var message in _result.ExceptionMessages) { } }")]
+    public void should_state_other_equality_assertions(string assertion, string members = "")
     {
-        GenerateScenario(assertion);
+        GenerateScenario(new ScreenplayOptions(), assertion, members);
         Result.Source.ShouldContain("then returns \"Apollo\"");
         AssertDocument();
     }
@@ -59,6 +66,17 @@ public class from_a_scenario_asserting_the_response : a_generated_document
     [InlineData("{ try { Assert.Equal(\"Apollo\", ((CommandResult<string>)_result).Response); } catch (System.Exception) { } }")]
     [InlineData("((CommandResult<string>)_other).Response.ShouldEqual(\"Apollo\")")]
     [InlineData("((CommandResult<string>)_result).Response.ShouldEqual(\"Apollo\")", "void Reset() => _result = _other;")]
+    [InlineData("{ ((CommandResult<string>)_result).Response.ShouldEqual(\"Apollo\"); ((CommandResult<string>)_other).Response.ShouldEqual(\"Apollo\"); }")]
+    [InlineData(EqualAssertion, "void Reset() => ((CommandResult<string>)_result).Response = \"x\";")]
+    [InlineData(EqualAssertion, "void Reset() => ((CommandResult<string>)this._result).Response += \"x\";")]
+    [InlineData(EqualAssertion, "void Reset() => (_result as CommandResult<string>).Response ??= \"x\";")]
+    [InlineData(EqualAssertion, "void Reset() => _result?.IsAuthorized = false;")]
+    [InlineData(EqualAssertion, "void Copy() { var r = _result; }")]
+    [InlineData(EqualAssertion, "CommandResult _alias = null!; void Copy() => _alias = _result;")]
+    [InlineData(EqualAssertion, "void Copy() { var r = new Holder { Value = _result }; } class Holder { public CommandResult Value = null!; }")]
+    [InlineData(EqualAssertion, "void Copy() { if (_result is CommandResult<string> r) { } }")]
+    [InlineData(EqualAssertion, "void Copy() { switch (_result) { case CommandResult<string> r: break; } }")]
+    [InlineData(EqualAssertion, "object Copy() => _result switch { CommandResult<string> r => r, _ => new object() };")]
     public void should_leave_out_a_response_only_scenario_it_cannot_state(string assertion, string members = "")
     {
         GenerateScenario(new ScreenplayOptions(), assertion, members);

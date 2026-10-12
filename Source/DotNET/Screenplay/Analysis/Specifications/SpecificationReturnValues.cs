@@ -20,7 +20,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// a null check, a comparison with a value the scenario computes or reads from the run, or an assertion held to a
 /// condition or after an early exit - says something the document cannot state, so nothing is stated rather than
 /// part of it. The result whose response is read must be the one the scenario's own action produced: the variable
-/// the awaited <c>Execute</c> is assigned to, written nowhere else.
+/// the awaited <c>Execute</c> is assigned to, written nowhere else. Writes through its member or element chains
+/// (assignments, increments, decrements, <see langword="ref"/> and <see langword="out"/>) and aliases of it or reference values read through it
+/// also withhold the response. Null-forgiving operators and <see langword="in"/> arguments are reads. Mutation through ordinary
+/// method calls is outside this syntax-and-symbol proof.
 /// <para>
 /// Values a command generates inside <c>Handle()</c> cannot be compared with a literal at all: Arc offers no way
 /// for a scenario to choose them, so a scenario can only relate them to other values of the same run.
@@ -224,6 +227,81 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         return true;
     }
 
+    static bool IsResult(ExpressionSyntax expression, ISymbol result, SemanticModel semanticModel) =>
+        SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(Receiver(expression)).Symbol?.OriginalDefinition, result.OriginalDefinition);
+
+    static bool RootedAtResult(ExpressionSyntax expression, ISymbol result, SemanticModel semanticModel)
+    {
+        if (IsResult(expression, result, semanticModel))
+        {
+            return true;
+        }
+
+        expression = Receiver(expression);
+        var receiver = expression switch
+        {
+            MemberAccessExpressionSyntax member => member.Expression,
+            ElementAccessExpressionSyntax element => element.Expression,
+            ConditionalAccessExpressionSyntax conditional => conditional.Expression,
+            MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => expression.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault()?.Expression,
+            _ => null
+        };
+        return receiver is not null && RootedAtResult(receiver, result, semanticModel);
+    }
+
+    static bool WritesResult(SyntaxNode node, ISymbol result, InvocationExpressionSyntax action, SemanticModel semanticModel)
+    {
+        var target = node switch
+        {
+            AssignmentExpressionSyntax assignment when !(IsResult(assignment.Left, result, semanticModel) && assignment.Right.DescendantNodesAndSelf().Contains(action)) => assignment.Left,
+            ArgumentSyntax argument when argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword) || argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword) => argument.Expression,
+            RefExpressionSyntax reference => reference.Expression,
+            PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PreDecrementExpression } prefix => prefix.Operand,
+            PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.PostIncrementExpression or (int)SyntaxKind.PostDecrementExpression } postfix => postfix.Operand,
+            _ => null
+        };
+        return target is not null && WritesTarget(target, result, semanticModel);
+    }
+
+    static bool WritesTarget(ExpressionSyntax target, ISymbol result, SemanticModel semanticModel) =>
+        Receiver(target) is TupleExpressionSyntax tuple
+            ? tuple.Arguments.Any(argument => WritesTarget(argument.Expression, result, semanticModel))
+            : RootedAtResult(target, result, semanticModel);
+
+    static bool AliasesResult(SyntaxNode node, ISymbol result, SemanticModel semanticModel)
+    {
+        if (AliasesPattern(node, result, semanticModel))
+        {
+            return true;
+        }
+
+        if (node is CommonForEachStatementSyntax each)
+        {
+            return RootedAtResult(each.Expression, result, semanticModel) && IsReference(semanticModel.GetForEachStatementInfo(each).ElementType);
+        }
+
+        var copied = node switch
+        {
+            AssignmentExpressionSyntax assignment => assignment.Right,
+            EqualsValueClauseSyntax initializer => initializer.Value,
+            _ => null
+        };
+        return copied is not null && RootedAtResult(copied, result, semanticModel) &&
+            (IsResult(copied, result, semanticModel) || IsReference(semanticModel.GetTypeInfo(copied).Type));
+    }
+
+    static bool AliasesPattern(SyntaxNode node, ISymbol result, SemanticModel semanticModel) => node switch
+    {
+        IsPatternExpressionSyntax pattern => RootedAtResult(pattern.Expression, result, semanticModel) && DeclaresVariable(pattern.Pattern),
+        SwitchExpressionSyntax expression => RootedAtResult(expression.GoverningExpression, result, semanticModel) && expression.Arms.Any(arm => DeclaresVariable(arm.Pattern)),
+        SwitchStatementSyntax statement => RootedAtResult(statement.Expression, result, semanticModel) && statement.Sections.SelectMany(section => section.Labels).OfType<CasePatternSwitchLabelSyntax>().Any(label => DeclaresVariable(label.Pattern)),
+        _ => false
+    };
+
+    static bool DeclaresVariable(PatternSyntax pattern) => pattern.DescendantNodes().OfType<SingleVariableDesignationSyntax>().Any();
+
+    static bool IsReference(ITypeSymbol? type) => type is { IsReferenceType: true } && type.SpecialType != SpecialType.System_String;
+
     bool WrittenOnlyBy(ISymbol result, InvocationExpressionSyntax action, INamedTypeSymbol scenario)
     {
         var declarations = new List<SyntaxReference>();
@@ -233,24 +311,9 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         }
 
         declarations.AddRange(result.ContainingType?.DeclaringSyntaxReferences ?? []);
-        foreach (var node in declarations.Select(reference => reference.GetSyntax()).Distinct().SelectMany(declaration => declaration.DescendantNodes()))
-        {
-            var written = node switch
-            {
-                AssignmentExpressionSyntax assignment when !assignment.Right.DescendantNodesAndSelf().Contains(action) => assignment.Left,
-                ArgumentSyntax argument when !argument.RefKindKeyword.IsKind(SyntaxKind.None) => argument.Expression,
-                PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax => (node as PrefixUnaryExpressionSyntax)?.Operand ?? ((PostfixUnaryExpressionSyntax)node).Operand,
-                _ => null
-            };
-            ExpressionSyntax[] targets = written is TupleExpressionSyntax tuple ? [.. tuple.DescendantNodes().OfType<ExpressionSyntax>()] : written is null ? [] : [written];
-            if (targets.Length > 0 && models.For(node.SyntaxTree) is { } semanticModel &&
-                targets.Any(target => SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(target).Symbol?.OriginalDefinition, result.OriginalDefinition)))
-            {
-                return false;
-            }
-        }
-
-        return true;
+        var nodes = declarations.Select(reference => reference.GetSyntax()).Distinct().SelectMany(declaration => declaration.DescendantNodes());
+        return !nodes.Any(node => models.For(node.SyntaxTree) is { } semanticModel &&
+            (WritesResult(node, result, action, semanticModel) || AliasesResult(node, result, semanticModel)));
     }
 
     bool TryReadRecord(ExpressionSyntax expected, INamedTypeSymbol record, SemanticModel semanticModel, List<PropertyMappingModel> fields)
