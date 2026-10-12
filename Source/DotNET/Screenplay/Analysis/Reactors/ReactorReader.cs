@@ -206,14 +206,47 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     static bool IsDiscarded(InvocationExpressionSyntax invocation, SemanticModel model)
     {
         ExpressionSyntax expression = invocation;
-        while (expression.Parent is AwaitExpressionSyntax or ParenthesizedExpressionSyntax)
+        while (TransparentParentOf(expression, model) is { } parent)
         {
-            expression = (ExpressionSyntax)expression.Parent;
+            expression = parent;
         }
 
-        return expression.Parent is ExpressionStatementSyntax ||
-            (expression.Parent is AssignmentExpressionSyntax assignment && model.GetSymbolInfo(assignment.Left).Symbol is IDiscardSymbol);
+        return DiscardsDirectly(expression, model) || ReturnsWithoutOutcome(expression, model);
     }
+
+    static bool DiscardsDirectly(ExpressionSyntax expression, SemanticModel model) => expression.Parent switch
+    {
+        ExpressionStatementSyntax => true,
+        AssignmentExpressionSyntax assignment => model.GetSymbolInfo(assignment.Left).Symbol is IDiscardSymbol,
+        _ => false
+    };
+
+    static ExpressionSyntax? TransparentParentOf(ExpressionSyntax expression, SemanticModel model)
+    {
+        if (expression.Parent is AwaitExpressionSyntax or ParenthesizedExpressionSyntax)
+        {
+            return (ExpressionSyntax)expression.Parent;
+        }
+
+        return expression.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: BaseObjectCreationExpressionSyntax creation } }
+            ? ValueTaskWrapper(creation, model) : null;
+    }
+
+    static BaseObjectCreationExpressionSyntax? ValueTaskWrapper(BaseObjectCreationExpressionSyntax creation, SemanticModel model) =>
+        creation.ArgumentList?.Arguments.Count == 1 && model.GetTypeInfo(creation).Type.Is("System.Threading.Tasks.ValueTask") ? creation : null;
+
+    static bool ReturnsWithoutOutcome(ExpressionSyntax expression, SemanticModel model)
+    {
+        if (expression.Parent is not ReturnStatementSyntax and not ArrowExpressionClauseSyntax)
+        {
+            return false;
+        }
+
+        return model.GetEnclosingSymbol(expression.SpanStart) is IMethodSymbol method && IsOutcomeFreeTask(method.ReturnType);
+    }
+
+    static bool IsOutcomeFreeTask(ITypeSymbol type) =>
+        type.Is("System.Threading.Tasks.Task") || type.Is("System.Threading.Tasks.ValueTask");
 
     /// <summary>
     /// Determines whether a reactor turns what happened into something else that happens.

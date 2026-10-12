@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Events;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -14,13 +15,13 @@ internal sealed class ConstraintCoverage
     static readonly HashSet<string> _configuration = new(StringComparer.Ordinal)
     {
         "ForEventSequences", "ForEventLog", "WithName", "WithMessage", "WithMode", "IgnoreCasing",
-        "ForEventSourceType", "ForEventStreamType", "ForEventStreamId", "WithMessageProvider"
+        "PerEventSourceType", "PerEventStreamType", "PerEventStreamId", "PerEventSourceId", "EventStreamIdFrom", "ReopenedBy"
     };
 
     static readonly HashSet<string> _targetMethods = new(StringComparer.Ordinal) { "Unique", "On", "ClosesStreamOn", "RemovedWith" };
 
-    readonly Dictionary<ITypeSymbol, string> _targeted = new(SymbolEqualityComparer.Default);
-    readonly Dictionary<ITypeSymbol, string> _closing = new(SymbolEqualityComparer.Default);
+    readonly Dictionary<string, string> _targeted = new(StringComparer.Ordinal);
+    readonly Dictionary<string, string> _closing = new(StringComparer.Ordinal);
     string? _unknownReason;
 
     /// <summary>
@@ -72,25 +73,32 @@ internal sealed class ConstraintCoverage
         scope.GetMembers().OfType<INamespaceOrTypeSymbol>().SelectMany(member =>
             member is INamedTypeSymbol type ? TypesIn(type).Prepend(type) : TypesIn(member));
 
+    static bool IsBuilderUnique(IMethodSymbol method) => method.Name == "Unique" && !method.IsGenericMethod;
+
     static bool IsOpaqueUnique(IMethodSymbol method, InvocationExpressionSyntax invocation) =>
-        method.Name == "Unique" && !method.IsGenericMethod && !invocation.ArgumentList.Arguments.Any(_ => _.Expression is LambdaExpressionSyntax);
+        IsBuilderUnique(method) && !invocation.ArgumentList.Arguments.Any(_ => _.Expression is LambdaExpressionSyntax);
 
     static bool ReferencesChronicle(IAssemblySymbol assembly) =>
         assembly.Modules.Any(module => module.ReferencedAssemblies.Any(reference => reference.Name.StartsWith("Cratis.Chronicle", StringComparison.Ordinal)));
 
+    static string? AttributeConstraintOf(INamedTypeSymbol type) =>
+        type.GetAttribute(WellKnownTypeNames.UniqueAttribute) is { } attribute
+            ? attribute.GetArgument(0) as string ?? $"Unique{type.Name}"
+            : ConstraintReader.FromEvent(type).FirstOrDefault()?.Name;
+
+    static bool HasBody(MethodDeclarationSyntax method) => method.Body is not null || method.ExpressionBody is not null;
+
+    static bool IsReadableMethod(SyntaxNode declaration) => declaration is MethodDeclarationSyntax method && HasBody(method);
+
     string? RejectionReason(INamedTypeSymbol type)
     {
-        if (ConstraintReader.FromEvent(type).FirstOrDefault() is { } constraint)
-        {
-            return $"'{type.Name}' can be rejected by constraint '{constraint.Name}' after an earlier event";
-        }
+        var name = AttributeConstraintOf(type) ?? _targeted.GetValueOrDefault(EventProducers.IdentityOf(type));
 
-        return _targeted.TryGetValue(type, out var name)
-            ? $"'{type.Name}' can be rejected by constraint '{name}' after an earlier event" : null;
+        return name is not null ? $"'{type.Name}' can be rejected by constraint '{name}' after an earlier event" : null;
     }
 
     string? ClosingReason(INamedTypeSymbol type) =>
-        type.HasAttribute(WellKnownTypeNames.ClosesStreamAttribute) || _closing.ContainsKey(type)
+        type.HasAttribute(WellKnownTypeNames.ClosesStreamAttribute) || _closing.ContainsKey(EventProducers.IdentityOf(type))
             ? $"'{type.Name}' closes the stream before a later event" : null;
 
     void Unknown(INamedTypeSymbol type) => _unknownReason ??= $"constraint '{type.Name}' cannot be read";
@@ -114,7 +122,7 @@ internal sealed class ConstraintCoverage
 
     void ReadDeclaration(INamedTypeSymbol constraint, SyntaxNode declaration, SemanticModels models)
     {
-        if (models.For(declaration.SyntaxTree) is not { } model || declaration is not MethodDeclarationSyntax { Body: not null } and not MethodDeclarationSyntax { ExpressionBody: not null })
+        if (models.For(declaration.SyntaxTree) is not { } model || !IsReadableMethod(declaration))
         {
             Unknown(constraint);
             return;
@@ -128,6 +136,11 @@ internal sealed class ConstraintCoverage
 
     void ReadInvocation(INamedTypeSymbol constraint, InvocationExpressionSyntax invocation, SemanticModel model)
     {
+        if (model.GetConstantValue(invocation).HasValue)
+        {
+            return;
+        }
+
         if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method ||
             method.ContainingNamespace.ToDisplayString() != "Cratis.Chronicle.Events.Constraints")
         {
@@ -159,11 +172,11 @@ internal sealed class ConstraintCoverage
         {
             if (string.Equals(method.Name, "Unique", StringComparison.Ordinal) || string.Equals(method.Name, "On", StringComparison.Ordinal))
             {
-                _targeted.TryAdd(target, constraint.Name);
+                _targeted.TryAdd(EventProducers.IdentityOf(target), constraint.Name);
             }
             else if (method.Name == "ClosesStreamOn")
             {
-                _closing.TryAdd(target, constraint.Name);
+                _closing.TryAdd(EventProducers.IdentityOf(target), constraint.Name);
             }
 
             return;
