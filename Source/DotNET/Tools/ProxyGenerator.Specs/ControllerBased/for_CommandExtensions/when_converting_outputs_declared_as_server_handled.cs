@@ -41,7 +41,7 @@ public class when_converting_outputs_declared_as_server_handled : Specification
         descriptor.HasResponse.ShouldBeTrue();
         descriptor.ResponseType.Type.ShouldEqual(responseType);
         descriptor.ResponseType.IsEnumerable.ShouldEqual(enumerable);
-        _proxies[method].ShouldContain($"extends Command<I{method}, {responseType.Name}>");
+        _proxies[method].ShouldContain($"extends Command<I{method}, {responseType.Name}{(enumerable ? "[]" : string.Empty)}>");
         _proxies[method].ShouldContain($"super({responseType.Name}, {enumerable.ToString().ToLowerInvariant()})");
     }
 }
