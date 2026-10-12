@@ -30,10 +30,9 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 /// nothing but the event and its context, and every value it gives them has to be a property of the triggering event,
 /// the time it occurred, or a constant. Anything else is code, and the reaction keeps pointing at its file.
 /// <para>
-/// A reactor choosing the event source its events are appended to, observing a sequence other than the event log, or
-/// narrowed by tag, event source type, stream type or event source definition does something the reaction cannot say,
-/// so none of its handlers are read. A reactor executing its commands as the system keeps the handlers returning
-/// commands as code.
+/// Observation and returned-command identity are recovered separately from the body. Tag and non-event-log
+/// observation still prevent declarative recovery. A handler returning events with an explicit append route or an
+/// identity provider remains code: released reaction productions have no routed binding.
 /// </para>
 /// </remarks>
 public class ReactionReader(SemanticModels models)
@@ -59,36 +58,31 @@ public class ReactionReader(SemanticModels models)
     /// <returns>The reactions, one per observed event whose handler can be stated.</returns>
     public IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers)
     {
-        if (reactor.FindInterface(WellKnownTypeNames.CanProvideEventSourceId) is not null || IsNarrowed(reactor, handlers))
+        if (IsNarrowed(reactor, handlers))
         {
             return [];
         }
 
-        var asSystem = ExecutesCommandsAsSystem(reactor);
+        var routesAppends = ReactorMetadataReader.RoutesAppends(reactor);
 
         return handlers
             .GroupBy(_ => _.Parameters[0].Type, SymbolEqualityComparer.Default)
             .Where(_ => _.Count() == 1)
-            .Select(_ => Read(_.Single(), asSystem))
+            .Select(_ => Read(_.Single(), routesAppends))
             .OfType<ReactionModel>()
             .ToList();
     }
 
     /// <summary>
-    /// Determines whether Chronicle narrows which occurrences reach a reactor, or routes what it appends, in a way a
-    /// reaction cannot state.
+    /// Determines whether Chronicle narrows occurrences by tags or a non-event-log sequence.
     /// </summary>
     /// <param name="reactor">The type declaring the reactor.</param>
     /// <param name="handlers">The handlers of the reactor.</param>
-    /// <returns>True when the reactor is filtered, observes a sequence other than the event log, or routes its events.</returns>
+    /// <returns>True when the remaining observation semantics cannot be stated.</returns>
     /// <remarks>
-    /// Chronicle registers a reactor with the tags it filters by (<c>[FilterEventsByTag]</c>), the event source and
-    /// stream type it is filtered to (<c>[EventSourceType]</c>, <c>[EventStreamType]</c>, which also become the source
-    /// and stream type of what it appends), and the sequence it observes - named by <c>[EventSequence]</c>, an inbox
-    /// named by <c>[EventStore]</c> on the reactor, or an inbox inferred from <c>[EventStore]</c> on the events it
-    /// handles or on their assembly. A reaction triggered by an event states that it runs for every occurrence in the
-    /// event log, so a reactor narrowed by any of these keeps its file reference. Chronicle reads these attributes
-    /// inherited from base types, so the bases are asked as well.
+    /// Tags and inbox or other sequence observation remain opaque. Source and stream filters are handled separately
+    /// by metadata admission, and raw append routes are checked only for handlers returning events. Inherited
+    /// sequence and tag declarations still require asking the bases.
     /// </remarks>
     static bool IsNarrowed(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers)
     {
@@ -102,8 +96,6 @@ public class ReactionReader(SemanticModels models)
                 }
 
                 if (type.Is(WellKnownTypeNames.FilterEventsByTagAttribute) ||
-                    type.Is(WellKnownTypeNames.EventSourceTypeAttribute) ||
-                    type.Is(WellKnownTypeNames.EventStreamTypeAttribute) ||
                     type.Is(WellKnownTypeNames.EventStoreAttribute))
                 {
                     return true;
@@ -150,27 +142,6 @@ public class ReactionReader(SemanticModels models)
         (type.Is(WellKnownTypeNames.EventSequenceAttribute) &&
             attribute.ConstructorArguments is [{ Value: string sequence }] &&
             string.Equals(sequence, ReactorReader.EventLogSequence, StringComparison.Ordinal));
-
-    /// <summary>
-    /// Determines whether a reactor executes the commands it returns as the system.
-    /// </summary>
-    /// <param name="reactor">The type declaring the reactor.</param>
-    /// <returns>True when it or a type it derives from says so.</returns>
-    /// <remarks>
-    /// Arc reads the attribute the way reflection does, inherited from a base type, so the bases are asked as well.
-    /// </remarks>
-    static bool ExecutesCommandsAsSystem(INamedTypeSymbol reactor)
-    {
-        for (var current = reactor; current is not null; current = current.BaseType)
-        {
-            if (current.HasAttribute(WellKnownTypeNames.ExecuteCommandsAsSystemAttribute))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     /// <summary>
     /// Strips the parentheses around an expression, and nothing else.
@@ -267,7 +238,8 @@ public class ReactionReader(SemanticModels models)
     /// <remarks>
     /// Chronicle registers a synchronous handler only when it returns an event type or a sequence of events or of
     /// objects; a synchronous handler returning a command is rejected. Whatever a task completes with is handed to the
-    /// side effect handlers, and a value they do not all agree on - events mixed with commands - fails at run time.
+    /// side effect handlers. Mixed results have runtime support, but their complete routing envelope is not read
+    /// here, so only a homogeneous literal result is recovered.
     /// </remarks>
     static bool IsHandedOver(ITypeSymbol result, bool asynchronous, IReadOnlyList<INamedTypeSymbol> created, bool sequence)
     {
@@ -297,9 +269,9 @@ public class ReactionReader(SemanticModels models)
     /// Reads one handler.
     /// </summary>
     /// <param name="handler">The handler to read.</param>
-    /// <param name="asSystem">Whether the reactor executes the commands it returns as the system.</param>
+    /// <param name="routesAppends">Whether appended events require routing the reaction cannot state.</param>
     /// <returns>The <see cref="ReactionModel"/>, or <see langword="null"/> when the handler is code.</returns>
-    ReactionModel? Read(IMethodSymbol handler, bool asSystem)
+    ReactionModel? Read(IMethodSymbol handler, bool routesAppends)
     {
         if (handler.IsGenericMethod ||
             handler.ReturnsVoid ||
@@ -336,7 +308,7 @@ public class ReactionReader(SemanticModels models)
         }
 
         if (!IsHandedOver(result, asynchronous, [.. creations.Select(_ => _.Type)], sequence) ||
-            (asSystem && CommandReader.IsCommand(creations[0].Type)))
+            (routesAppends && creations.Exists(item => EventReader.IsEvent(item.Type))))
         {
             return null;
         }

@@ -126,6 +126,12 @@ public static class WellKnownTypeNames
     /// <summary>The interface a reactor implements to choose the event source its returned events are appended to.</summary>
     public const string CanProvideEventSourceId = "Cratis.Chronicle.Events.ICanProvideEventSourceId";
 
+    /// <summary>The interface choosing the stream identifier of appended reactor events.</summary>
+    public const string CanProvideEventStreamId = "Cratis.Chronicle.Events.ICanProvideEventStreamId";
+
+    /// <summary>The marker interface for registered event source definitions.</summary>
+    public const string EventSourceDefinition = "Cratis.Chronicle.EventSources.IEventSource";
+
     /// <summary>The attribute a reactor uses to execute the commands it returns as the system.</summary>
     public const string ExecuteCommandsAsSystemAttribute = "Cratis.Arc.Chronicle.Reactors.ExecuteCommandsAsSystemAttribute";
 

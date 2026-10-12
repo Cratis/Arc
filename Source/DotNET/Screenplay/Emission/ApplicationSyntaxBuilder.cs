@@ -104,7 +104,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
                 .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
-            EventSources = eventRoutes ? BuildEventSources(model, routedOccurrences) : []
+            EventSources = eventRoutes ? BuildEventSources(model, routedOccurrences, options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10)) : []
         };
         application = new EmittedIdentityCompliance(application).Apply(diagnostics);
         var retainedPii = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Pii)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
@@ -261,17 +261,20 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new EventSyntaxBuilder(naming, _types, _names),
             new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, Diagnostics = diagnostics },
             new ConstraintSyntaxBuilder(naming),
-            new ReactorSyntaxBuilder(naming, diagnostics) { Application = model },
+            new ReactorSyntaxBuilder(naming, diagnostics) { Application = model, MetadataEnabled = options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10) },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ReactionMetadataEnabled = options.MaximumExecutableModelVersion is not { } reactionCap || reactionCap.IsAtLeast(SemanticVersion.V10), ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
         {
             InlineEvents = inlineEvents,
             DeclaredReadModels = declaredReadModels
         };
 
-    List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences) => model.Slices.SelectMany(slice => slice.Commands)
+    List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences, bool reactionMetadataEnabled) => model.Slices.SelectMany(slice => slice.Commands)
         .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Concat(SpecificationRoutes(model, routedOccurrences))
+        .Concat(new ReactionMetadataAdmission(model, reactionMetadataEnabled).Sources().SelectMany(source =>
+            source.Streams.Count == 0 ? [new CommandRouteModel(source.Source, null, null, null, null)] :
+                source.Streams.Select(stream => new CommandRouteModel(source.Source, stream, null, null, null))))
         .GroupBy(route => route.Source, StringComparer.Ordinal)
         .OrderBy(group => group.Key, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key, SourceLocation.Start)
         {
