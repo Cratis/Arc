@@ -41,7 +41,7 @@ internal sealed class ConstraintCoverage
         var assemblies = types.Select(_ => _.ContainingAssembly.Identity).ToHashSet();
         var compilations = types.SelectMany(_ => _.DeclaringSyntaxReferences).Select(_ => models.For(_.SyntaxTree)?.Compilation).OfType<Compilation>().Distinct();
         var references = compilations.SelectMany(_ => _.SourceModule.ReferencedAssemblySymbols).Distinct<IAssemblySymbol>(SymbolEqualityComparer.Default);
-        foreach (var assembly in references.Where(_ => !assemblies.Contains(_.Identity)))
+        foreach (var assembly in references.Where(_ => !assemblies.Contains(_.Identity) && ReferencesChronicle(_)))
         {
             if (TypesIn(assembly.GlobalNamespace).FirstOrDefault(ConstraintReader.IsConstraint) is { } constraint)
             {
@@ -129,8 +129,7 @@ internal sealed class ConstraintCoverage
             return;
         }
 
-        if (method.Name == "Unique" && !method.IsGenericMethod &&
-            !invocation.ArgumentList.Arguments.Any(_ => _.Expression is LambdaExpressionSyntax))
+        if (IsOpaqueUnique(method, invocation))
         {
             Unknown(constraint);
             return;
@@ -147,6 +146,12 @@ internal sealed class ConstraintCoverage
             Unknown(constraint);
         }
     }
+
+    static bool IsOpaqueUnique(IMethodSymbol method, InvocationExpressionSyntax invocation) =>
+        method.Name == "Unique" && !method.IsGenericMethod && !invocation.ArgumentList.Arguments.Any(_ => _.Expression is LambdaExpressionSyntax);
+
+    static bool ReferencesChronicle(IAssemblySymbol assembly) =>
+        assembly.Modules.Any(module => module.ReferencedAssemblies.Any(reference => reference.Name.StartsWith("Cratis.Chronicle", StringComparison.Ordinal)));
 
     void ReadTarget(INamedTypeSymbol constraint, IMethodSymbol method)
     {
