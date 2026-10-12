@@ -16,9 +16,9 @@ public class with_sparse_enum_numbers_below_v12 : Specification, IDisposable
 
     void Establish()
     {
-        _directory = Path.Combine(Path.GetTempPath(), $"cratis-screenplay-enum-cap-{Guid.NewGuid():N}");
+        _directory = Path.Join(Path.GetTempPath(), $"cratis-screenplay-enum-cap-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_directory);
-        var source = Path.Combine(_directory, "PlaceOrder.cs");
+        var source = Path.Join(_directory, "PlaceOrder.cs");
         File.WriteAllText(source, "using Cratis.Arc.Commands.ModelBound;\nnamespace Library.Orders.Placing;\npublic enum Status { Draft = 1, Issued = 4 }\n[Command] public record PlaceOrder(Status Status) { public void Handle() {} }\n");
         _build = new();
         _task = new()
@@ -26,7 +26,7 @@ public class with_sparse_enum_numbers_below_v12 : Specification, IDisposable
             BuildEngine = _build,
             AssemblyName = "Library",
             MaximumExecutableModelVersion = "11.0",
-            OutputPath = Path.Combine(_directory, "generated"),
+            OutputPath = Path.Join(_directory, "generated"),
             Sources = [new TaskItem(source)],
             References = [.. ((string?)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") ?? string.Empty)
                 .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries).Select(path => (ITaskItem)new TaskItem(path))]

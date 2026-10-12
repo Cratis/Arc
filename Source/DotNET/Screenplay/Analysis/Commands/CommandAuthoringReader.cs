@@ -69,6 +69,9 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
 
+        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes };
+        var recoverableGeneration = parameters.ReadStrategies(handlers, location);
+
         if (!enabled)
         {
             if (HasProvide(command))
@@ -88,14 +91,21 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             return result;
         }
 
-        var returned = body is BlockSyntax block
-            ? block.Statements.LastOrDefault() is ReturnStatementSyntax statement ? statement.Expression : null
-            : body as ExpressionSyntax;
-        var straight = body is not BlockSyntax statements || (statements.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) &&
-            statements.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
-        var generated = new List<PropertyModel>();
-        var validatedGenerated = new List<string>();
-        foreach (var variable in body is BlockSyntax straightBody ? straightBody.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList() : [])
+        var returned = ReturnedBy(body);
+        var straight = IsStraight(body);
+        if (!recoverableGeneration)
+        {
+            return returned is null || !straight ? result : result with { Operations = ReturnedOperations(command, returned, model, location) };
+        }
+        if (!parameters.Bind(command, body, model))
+        {
+            Sources = new();
+            return result;
+        }
+        var generated = parameters.Generated.ToList();
+        var validatedGenerated = parameters.Validated.ToList();
+        result = result with { GeneratedParameters = parameters.HasParameters };
+        foreach (var variable in parameters.LegacyLocals(body))
         {
             if (variable.Initializer?.Value is not { } value || model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
             {
@@ -148,36 +158,18 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
+        if (parameters.WrapperIdentifier(returned, body, model, generated) is { } wrapperIdentity)
+        {
+            return result with { Identifier = wrapperIdentity };
+        }
         if (ResponseValueType(handler.ReturnType) is null)
         {
             return result;
         }
 
-        var parts = returned is TupleExpressionSyntax tuple ? tuple.Arguments.Select(argument => argument.Expression).ToArray() : [returned];
-        var responses = new List<ExpressionSyntax>();
-        var operations = new List<OperationModel>();
-        var operationReader = new CommandOperationReader(types, paths, diagnostics);
-        foreach (var part in parts)
-        {
-            var type = ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType);
-            if (type is null || OnlyEvents(part, model))
-            {
-                continue;
-            }
-
-            if (CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations"))
-            {
-                if (enabled)
-                {
-                    operations.AddRange(operationReader.Read(part, model, command, Sources, location));
-                }
-                continue;
-            }
-
-            responses.Add(part);
-        }
-
-        result = result with { Operations = operations };
+        var parts = ReadReturnedParts(command, returned, model, location);
+        var responses = parts.Responses;
+        result = result with { Operations = parts.Operations };
         if (responses.Count > 1)
         {
             Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "Several response values are returned without a response record; no response was inferred", location);
@@ -190,7 +182,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
-        if (responseType is not null && CreatesUuidConcept(response, responseType, model))
+        if (CreatesLegacyUuidConcept(response, responseType, model, parameters.HasParameters))
         {
             var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
             if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
@@ -314,6 +306,22 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         };
     }
 
+    static ExpressionSyntax? ReturnedBy(SyntaxNode body) => body switch
+    {
+        BlockSyntax block => (block.Statements.LastOrDefault() as ReturnStatementSyntax)?.Expression,
+        ExpressionSyntax expression => expression,
+        _ => null
+    };
+
+    static ExpressionSyntax[] ReturnedExpressions(ExpressionSyntax returned) => returned is TupleExpressionSyntax tuple
+        ? tuple.Arguments.Select(argument => argument.Expression).ToArray()
+        : [returned];
+
+    static bool IsReturnedOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations");
+
+    static bool IsStraight(SyntaxNode body) => body is not BlockSyntax block ||
+        (block.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) && block.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
+
     static bool HasProvide(INamedTypeSymbol command)
     {
         for (var current = command; current is not null; current = current.BaseType)
@@ -341,6 +349,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         {
             IPropertySymbol property => property.Type,
             ILocalSymbol local => local.Type,
+            IParameterSymbol parameter => parameter.Type,
             _ => model.GetTypeInfo(expression).Type
         };
 
@@ -443,12 +452,31 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         return !collection && !underlying.HasAttribute(WellKnownTypeNames.ReadModelAttribute);
     }
 
+    ReturnedParts ReadReturnedParts(INamedTypeSymbol command, ExpressionSyntax returned, SemanticModel model, string location)
+    {
+        var responses = new List<ExpressionSyntax>();
+        var operations = new List<OperationModel>();
+        var operationReader = new CommandOperationReader(types, paths, diagnostics);
+        var parts = ReturnedExpressions(returned)
+            .Select(part => (Part: part, Type: ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType)))
+            .Where(_ => _.Type is not null && !OnlyEvents(_.Part, model))
+            .ToList();
+        responses.AddRange(parts.Where(_ => !IsReturnedOperation(_.Type!)).Select(_ => _.Part));
+        var returnedOperations = parts.Where(_ => enabled && IsReturnedOperation(_.Type!));
+        operations.AddRange(returnedOperations.SelectMany(_ => operationReader.Read(_.Part, model, command, Sources, location)));
+
+        return new(responses, operations);
+    }
+
+    IReadOnlyList<OperationModel> ReturnedOperations(INamedTypeSymbol command, ExpressionSyntax returned, SemanticModel model, string location) =>
+        ReadReturnedParts(command, returned, model, location).Operations;
+
     bool ContainsOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations") ||
         (type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsOperation));
 
     string? SourceOf(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command) =>
         MappingSourceReader.ReadPath(expression, model, command) ??
-        (model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol is ILocalSymbol || expression is BaseObjectCreationExpressionSyntax or InvocationExpressionSyntax
+        (model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol is ILocalSymbol or IParameterSymbol || expression is BaseObjectCreationExpressionSyntax or InvocationExpressionSyntax
             ? Sources.ReadPath(expression, model) : null);
 
     List<PropertyMappingModel>? ReadRecord(BaseObjectCreationExpressionSyntax creation, INamedTypeSymbol record, SemanticModel model, INamedTypeSymbol command)
@@ -476,6 +504,16 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         return fields.Count > 0 && fields.Count == record.DeclaredProperties().Count() ? fields : null;
+    }
+
+    bool CreatesLegacyUuidConcept(ExpressionSyntax expression, ITypeSymbol? type, SemanticModel model, bool explicitGeneration)
+    {
+        if (explicitGeneration)
+        {
+            return false;
+        }
+
+        return type is not null && CreatesUuidConcept(expression, type, model);
     }
 
     bool CreatesUuidConcept(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
@@ -517,4 +555,6 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     }
 
     void Report(string code, string message, string location) => diagnostics.Information(code, message, location);
+
+    sealed record ReturnedParts(IReadOnlyList<ExpressionSyntax> Responses, IReadOnlyList<OperationModel> Operations);
 }

@@ -8,13 +8,12 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_a_required_mapping_of_an_unadmitted_generated_value : a_generated_document
 {
-    void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
+    void Because() => Generate((Analyzed.SlicePath, GeneratedValueSources.With("""
         public class AuthorIdValidator : Cratis.Arc.Validation.ConceptValidator<AuthorId> { }
         [Command] public record RegisterAuthor(string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 return (authorId, new(authorId, Name));
             }
         }

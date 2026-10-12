@@ -603,6 +603,11 @@ public static class ScreenplayDiagnosticCodes
     public const string UnrepresentableReactionRedelivery = "SP0072";
 
     /// <summary>
+    /// A generated parameter's strategy cannot be recovered as a proven UUID v4 factory.
+    /// </summary>
+    public const string GenerationNotRecoverable = "SP0073";
+
+    /// <summary>
     /// An open command scenario was kept without its unsupported caller setup.
     /// </summary>
     public const string SpecificationCallerNotRepresentable = "SP0075";

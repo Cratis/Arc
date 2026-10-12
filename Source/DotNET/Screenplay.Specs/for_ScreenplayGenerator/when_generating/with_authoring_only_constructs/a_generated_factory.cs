@@ -9,17 +9,17 @@ public class a_generated_factory : an_authoring_document
         using System;
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Chronicle.Events;
+        using Cratis.Concepts;
         namespace Library.Authors.Registration;
-        public record AuthorId(Guid Value) : EventSourceId<Guid>(Value)
+        public record AuthorId(Guid Value) : EventSourceId<Guid>(Value), IGeneratable<AuthorId>
         {
             public static AuthorId New() => new(Guid.NewGuid());
         }
         [EventType] public record AuthorRegistered(string Name);
         [Command] public record RegisterAuthor(string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                var authorId = AuthorId.New();
                 return (authorId, new(Name));
             }
         }

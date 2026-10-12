@@ -51,6 +51,16 @@ public record SpecificationModel(
     public SpecificationReturnModel? Returns { get; init; }
 
     /// <summary>
+    /// Gets the concrete named generated values pinned before this scenario executes.
+    /// </summary>
+    public IReadOnlyList<PropertyMappingModel> GeneratedValues { get; init; } = [];
+
+    /// <summary>
+    /// Gets why a generation configuration cannot be stated faithfully.
+    /// </summary>
+    public string? GenerationFailure { get; init; }
+
+    /// <summary>
     /// Gets the exact principal recovered from the scenario setup.
     /// </summary>
     internal SpecificationCallerModel? Caller { get; init; }

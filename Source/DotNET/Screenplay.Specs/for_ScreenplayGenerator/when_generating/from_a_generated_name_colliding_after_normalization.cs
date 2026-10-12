@@ -7,12 +7,11 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_a_generated_name_colliding_after_normalization : a_generated_document
 {
-    void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
+    void Because() => Generate((Analyzed.SlicePath, GeneratedValueSources.With("""
         [Command] public record RegisterAuthor(string Id, string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId _id)
             {
-                AuthorId _id = new(Guid.NewGuid());
                 return (_id, new(Name));
             }
         }

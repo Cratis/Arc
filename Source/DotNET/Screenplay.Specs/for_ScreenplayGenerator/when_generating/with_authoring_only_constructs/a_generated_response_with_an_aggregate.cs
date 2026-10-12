@@ -11,8 +11,12 @@ public class a_generated_response_with_an_aggregate : an_authoring_document
         using Cratis.Arc.Chronicle.Aggregates;
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Chronicle.Events;
+        using Cratis.Concepts;
         namespace Library.Authors.Registration;
-        public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+        public record AuthorId(Guid Value) : EventSourceId<Guid>(Value), IGeneratable<AuthorId>
+        {
+            public static AuthorId New() => new(Guid.NewGuid());
+        }
         [EventType] public record AuthorRegistered(string Name);
         [EventType] public record ReceiptIssued;
         public class Author : AggregateRoot
@@ -26,9 +30,8 @@ public class a_generated_response_with_an_aggregate : an_authoring_document
         }
         [Command] public record RegisterAuthor(string Name)
         {
-            public async Task<(AuthorId, ReceiptIssued)> Handle(Author author)
+            public async Task<(AuthorId, ReceiptIssued)> Handle(Author author, [GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 var r = await author.Register(Name);
                 return (authorId, new ReceiptIssued());
             }

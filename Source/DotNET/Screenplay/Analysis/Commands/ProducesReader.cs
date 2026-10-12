@@ -167,7 +167,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             produces.Add(new(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
-                UsesCommandContext = usesCommandContext && ProductionDestinations.ThroughCommandContext(creation, body, semanticModel, behavior is not null, generatedIdentity),
+                UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
             });

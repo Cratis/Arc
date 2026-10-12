@@ -85,7 +85,7 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
             current = MappingSourceReader.Unwrap(member.Expression);
         }
 
-        return semanticModel.GetSymbolInfo(current).Symbol is IParameterSymbol;
+        return semanticModel.GetSymbolInfo(current).Symbol is IParameterSymbol parameter && !parameter.HasAttribute(WellKnownTypeNames.GeneratedValueAttribute);
     }
 
     /// <summary>
