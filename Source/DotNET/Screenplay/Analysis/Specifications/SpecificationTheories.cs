@@ -14,6 +14,9 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// <param name="diagnostics">The diagnostics receiving omissions.</param>
 internal sealed class SpecificationTheories(SemanticModels models, ScreenplayDiagnostics diagnostics)
 {
+    /// <summary>
+    /// The metadata name identifying a parameterized assertion.
+    /// </summary>
     const string TheoryAttribute = "Xunit.TheoryAttribute";
 
     /// <summary>
@@ -47,21 +50,61 @@ internal sealed class SpecificationTheories(SemanticModels models, ScreenplayDia
         return attributed || !SpecificationMembers.AssertionsIn(type).Any();
     }
 
+    /// <summary>
+    /// Determines whether either ordinary recognition or a held scenario identifies the type.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <param name="recognized">Whether the ordinary reader recognizes its action.</param>
+    /// <returns>Whether the type specifies scenario behavior.</returns>
     static bool IsScenario(INamedTypeSymbol type, bool recognized) => recognized || HoldsScenario(type);
 
+    /// <summary>
+    /// Determines whether the type holds a command or state-oriented scenario.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <returns>Whether a recognized scenario is held.</returns>
     static bool HoldsScenario(INamedTypeSymbol type) =>
         SpecificationMembers.HoldsAScenario(type) || HoldsStateScenario(type);
 
+    /// <summary>
+    /// Determines whether the type holds an event, read-model, or reactor scenario.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <returns>Whether a state-oriented scenario is held.</returns>
     static bool HoldsStateScenario(INamedTypeSymbol type) =>
-        SpecificationMembers.HoldsAnEventScenario(type) || SpecificationMembers.ReadModelOf(type) is not null;
+        SpecificationMembers.HoldsAnEventScenario(type) || HoldsReadModelOrReactor(type);
 
+    /// <summary>
+    /// Determines whether the type holds a read-model or reactor scenario.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <returns>Whether either scenario type is held.</returns>
+    static bool HoldsReadModelOrReactor(INamedTypeSymbol type) =>
+        SpecificationMembers.ReadModelOf(type) is not null || SpecificationMembers.ReactorOf(type) is not null;
+
+    /// <summary>
+    /// Determines whether a theory directly executes a recognized scenario action.
+    /// </summary>
+    /// <param name="method">The theory method.</param>
+    /// <returns>Whether its body drives a scenario.</returns>
     bool DrivesScenario(IMethodSymbol method) => HandlerBodies.Of(method)
         .SelectMany(body => body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
         .Any(IsScenarioCall);
 
+    /// <summary>
+    /// Recognizes a resolved scenario execution call.
+    /// </summary>
+    /// <param name="invocation">The source invocation.</param>
+    /// <returns>Whether the call executes a scenario action.</returns>
     bool IsScenarioCall(InvocationExpressionSyntax invocation) =>
         models.For(invocation.SyntaxTree)?.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && SpecificationCalls.IsExecution(method);
 
+    /// <summary>
+    /// Reports each attributed method and any class-level theory marking.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <param name="theories">The attributed theory methods.</param>
+    /// <param name="attributed">Whether the type itself carries theory metadata.</param>
     void Report(INamedTypeSymbol type, IEnumerable<IMethodSymbol> theories, bool attributed)
     {
         foreach (var theory in theories)
@@ -75,6 +118,10 @@ internal sealed class SpecificationTheories(SemanticModels models, ScreenplayDia
         }
     }
 
+    /// <summary>
+    /// Reports one omitted parameterized scenario.
+    /// </summary>
+    /// <param name="location">The scenario or theory symbol's display name.</param>
     void Report(string location) => diagnostics.Information(
         ScreenplayDiagnosticCodes.SpecificationCasesNotFolded,
         $"The scenario '{location}' is a parameterised [Theory] and is not stated; case tables are not generated yet",
