@@ -227,4 +227,9 @@ public static class WellKnownTypeNames
 
     /// <summary>The interface a query reads a read model through, and the collaborator a generated query specification substitutes.</summary>
     public const string ReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
+
+    /// <summary>
+    /// The attribute marking an event that closes its stream.
+    /// </summary>
+    internal const string ClosesStreamAttribute = "Cratis.Chronicle.Events.Constraints.ClosesStreamAttribute";
 }

@@ -59,7 +59,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             .Select(_ => (Event: _, Name: naming.ToDeclarationName(_)))
             .Where(_ => _.Name.Length > 1)
             .DistinctBy(_ => _.Name, StringComparer.Ordinal)
-            .Select(_ => Trigger(_.Name, declarative?.For(reactor, _.Event), file))
+            .Select(_ => BuildTrigger(reactor, _.Event, _.Name, declarative, file, @namespace))
             .ToList();
 
         if (triggers.Count == 0)
@@ -78,6 +78,20 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             RunsAs = MetadataEnabled && ReactionMetadataAdmission.ValidIdentity(reactor) && reactor.SystemRoles is { } roles
                 ? new("system", roles, SourceLocation.Start) : null
         };
+    }
+
+    ReactionTriggerSyntax BuildTrigger(ReactorModel reactor, string @event, string name, DeclarativeReactions? declarative, FileReferenceSyntax file, string location)
+    {
+        var reaction = declarative?.For(reactor, @event);
+        if (reactor.Reactions.FirstOrDefault(_ => _.EventName == @event && _.UnprovenBatch is not null) is { } batch)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnprovenReactionBatchConstraints,
+                $"The reaction of '{reactor.Name}' to '{@event}' keeps its file reference: Chronicle appends its {batch.Produces.Count()} returned events as one batch, but a Screenplay reaction appends each fact separately, and {batch.UnprovenBatch}",
+                reactor.MetadataLocation ?? location);
+        }
+
+        return Trigger(name, reaction, file);
     }
 
     /// <summary>

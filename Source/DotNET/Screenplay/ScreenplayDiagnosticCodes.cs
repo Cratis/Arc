@@ -568,4 +568,9 @@ public static class ScreenplayDiagnosticCodes
     /// A version cap below ESM v10 withholds executable reaction identity or observation metadata.
     /// </summary>
     public const string ReactionMetadataVersionCap = "SP0066";
+
+    /// <summary>
+    /// Returned event batch constraints cannot be proven equivalent to per-fact reaction appends.
+    /// </summary>
+    internal const string UnprovenReactionBatchConstraints = "SP0070";
 }

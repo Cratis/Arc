@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Commands;
+using Cratis.Arc.Screenplay.Analysis.Constraints;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -39,6 +40,8 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     /// The method a command pipeline is executed through.
     /// </summary>
     public const string ExecuteMethod = "Execute";
+
+    ConstraintCoverage? _constraintCoverage;
 
     /// <summary>
     /// Gets the source definition types discovered across the application.
@@ -95,7 +98,8 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             paths.Relative(type.SourceFilePath()),
             eventSource)
         {
-            Reactions = ObservesTheEventLog(type) ? new ReactionReader(models).Read(type, handlers) : [],
+            Reactions = ObservesTheEventLog(type)
+                ? new ReactionReader(models) { Constraints = _constraintCoverage ??= ConstraintCoverage.Read(Definitions, models) }.Read(type, handlers) : [],
             HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type) &&
                 handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
