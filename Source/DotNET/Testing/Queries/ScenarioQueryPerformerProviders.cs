@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
@@ -17,9 +16,9 @@ namespace Cratis.Arc.Testing.Queries;
 /// <param name="services">The scenario service provider.</param>
 internal sealed class ScenarioQueryPerformerProviders<TReadModel>(IServiceProvider services) : IQueryPerformerProviders
 {
-    readonly Dictionary<FullyQualifiedQueryName, IQueryPerformer> _performers = typeof(TReadModel)
-        .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-        .Where(method => typeof(TReadModel).IsReadModel() && ModelBoundQueryMethod.IsCandidate(method) && method.IsValidQueryFor(typeof(TReadModel)))
+    readonly Dictionary<FullyQualifiedQueryName, IQueryPerformer> _performers = ModelBoundQueryMethod
+        .GetMethods(typeof(TReadModel), method => method.IsValidQueryFor(typeof(TReadModel)))
+        .Where(_ => typeof(TReadModel).IsReadModel())
         .Select(method => new ModelBoundQueryPerformer(
             typeof(TReadModel),
             typeof(TReadModel).FullName ?? typeof(TReadModel).Name,

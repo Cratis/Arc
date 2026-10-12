@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 
@@ -13,10 +14,13 @@ namespace Cratis.Arc.CodeAnalysis;
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public class ReadModelAnalyzer : DiagnosticAnalyzer
 {
+    static readonly string[] _utilitySuffixes = ["Extensions", "Helper", "Helpers", "Builder", "Factory", "Result", "Message"];
+
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [
             DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
-            DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric
+            DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric,
+            ModelBoundQueryMethodSymbols.InvalidDeclaration
         ];
 
     /// <inheritdoc/>
@@ -29,54 +33,59 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
 
     static void AnalyzeNamedType(SymbolAnalysisContext context)
     {
-        var namedTypeSymbol = (INamedTypeSymbol)context.Symbol;
+        var type = (INamedTypeSymbol)context.Symbol;
+        foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type, method => IsValidQueryMethodSignature(method, type)))
+        {
+            context.ReportDiagnostic(diagnostic);
+        }
 
-        if (namedTypeSymbol.TypeKind != TypeKind.Class)
+        if (type.TypeKind != TypeKind.Class || IsUtilityType(type))
         {
             return;
         }
 
-        // Skip extension classes, utility classes, and types that are clearly not ReadModels
-        if (namedTypeSymbol.Name.EndsWith("Extensions", StringComparison.Ordinal) ||
-            namedTypeSymbol.Name.EndsWith("Helper", StringComparison.Ordinal) ||
-            namedTypeSymbol.Name.EndsWith("Helpers", StringComparison.Ordinal) ||
-            namedTypeSymbol.Name.EndsWith("Builder", StringComparison.Ordinal) ||
-            namedTypeSymbol.Name.EndsWith("Factory", StringComparison.Ordinal) ||
-            namedTypeSymbol.Name.EndsWith("Result", StringComparison.Ordinal) ||
-            namedTypeSymbol.Name.EndsWith("Message", StringComparison.Ordinal) ||
-            namedTypeSymbol.IsStatic)
+        if (!HasQueryDeclaration(type))
         {
             return;
         }
 
-        var hasReadModelAttribute = HasAttribute(namedTypeSymbol, "Cratis.Arc.Queries.ModelBound.ReadModelAttribute");
-        var queryMethods = FindPotentialQueryMethods(namedTypeSymbol);
+        ReportIncorrectSignatures(context, type);
+        ReportGenericQueries(context, type);
+    }
 
-        if (hasReadModelAttribute)
+    static bool IsUtilityType(INamedTypeSymbol type) => type.IsStatic ||
+        Array.Exists(_utilitySuffixes, suffix => type.Name.EndsWith(suffix, StringComparison.Ordinal));
+
+    static bool HasQueryDeclaration(INamedTypeSymbol type) =>
+        HasAttribute(type, "Cratis.Arc.Queries.ModelBound.ReadModelAttribute") || ModelBoundQueryMethodSymbols.RequiresQueryAttribute(type);
+
+    static void ReportIncorrectSignatures(SymbolAnalysisContext context, INamedTypeSymbol type)
+    {
+        var explicitMode = ModelBoundQueryMethodSymbols.RequiresQueryAttribute(type);
+        foreach (var method in FindPotentialQueryMethods(type).Where(method => !HasValidSelectedSignature(method, type, explicitMode)))
         {
-            foreach (var method in queryMethods)
-            {
-                if (!IsValidQueryMethodSignature(method, namedTypeSymbol))
-                {
-                    var diagnostic = Diagnostic.Create(
-                        DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
-                        method.Locations[0],
-                        method.Name,
-                        namedTypeSymbol.Name,
-                        method.ReturnType.ToDisplayString());
-                    context.ReportDiagnostic(diagnostic);
-                }
-            }
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ARC0001_IncorrectQueryMethodSignature,
+                method.Locations[0],
+                method.Name,
+                type.Name,
+                method.ReturnType.ToDisplayString()));
+        }
+    }
 
-            foreach (var method in FindGenericQueryShapedMethods(namedTypeSymbol))
-            {
-                var diagnostic = Diagnostic.Create(
-                    DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric,
-                    method.Locations[0],
-                    method.Name,
-                    namedTypeSymbol.Name);
-                context.ReportDiagnostic(diagnostic);
-            }
+    static bool HasValidSelectedSignature(IMethodSymbol method, INamedTypeSymbol type, bool explicitMode) => explicitMode
+        ? ModelBoundQueryMethodSymbols.IsValidExplicitQuery(method) && IsValidQueryMethodSignature(method, type)
+        : IsValidQueryMethodSignature(method, type);
+
+    static void ReportGenericQueries(SymbolAnalysisContext context, INamedTypeSymbol type)
+    {
+        foreach (var method in FindGenericQueryShapedMethods(type))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ARC0014_QueryMethodCannotBeGeneric,
+                method.Locations[0],
+                method.Name,
+                type.Name));
         }
     }
 
@@ -88,12 +97,8 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
 
     static IEnumerable<IMethodSymbol> FindPotentialQueryMethods(INamedTypeSymbol typeSymbol)
     {
-        return typeSymbol.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(m => m.MethodKind == MethodKind.Ordinary &&
-                       m.IsStatic &&
-                       m.DeclaredAccessibility == Accessibility.Public &&
-                       !m.ReturnsVoid);
+        return SelectedStaticMethods(typeSymbol)
+            .Where(m => m.DeclaredAccessibility == Accessibility.Public && !m.ReturnsVoid);
     }
 
     /// <summary>
@@ -108,14 +113,18 @@ public class ReadModelAnalyzer : DiagnosticAnalyzer
     /// </remarks>
     static IEnumerable<IMethodSymbol> FindGenericQueryShapedMethods(INamedTypeSymbol typeSymbol)
     {
-        return typeSymbol.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(m => m.MethodKind == MethodKind.Ordinary &&
-                       m.IsStatic &&
-                       m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
-                       m.TypeParameters.Length > 0 &&
-                       IsValidQueryMethodSignature(m, typeSymbol));
+        return SelectedStaticMethods(typeSymbol)
+            .Where(m => m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+                       m.TypeParameters.Length > 0 && IsValidQueryMethodSignature(m, typeSymbol));
     }
+
+    static IEnumerable<IMethodSymbol> SelectedStaticMethods(INamedTypeSymbol type) => type.GetMembers()
+        .OfType<IMethodSymbol>()
+        .Where(IsSelectedStaticMethod);
+
+    static bool IsSelectedStaticMethod(IMethodSymbol method) =>
+        method is { MethodKind: MethodKind.Ordinary, IsStatic: true } && ModelBoundQueryMethodSymbols.IsSelected(method) &&
+        (!ModelBoundQueryMethodSymbols.RequiresQueryAttribute(method.ContainingType) || IsValidQueryMethodSignature(method, method.ContainingType));
 
     static bool IsValidQueryMethodSignature(IMethodSymbol method, INamedTypeSymbol readModelType)
     {

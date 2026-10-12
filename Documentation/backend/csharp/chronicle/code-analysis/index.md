@@ -27,6 +27,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0016](./ARCCHR0016.md) | Warning | `concurrency: true` on a stream-metadata attribute of a command whose `Handle()` returns `EventsWithConcurrencyScopes`. |
 | [ARCCHR0017](./ARCCHR0017.md) | Error | An `[EventStreamId]` template on a command names an unusable property or has malformed braces. |
 | [ARCCHR0018](./ARCCHR0018.md) | Warning | An `[EventStreamId]` template on a reactor, where it is used literally. |
+| [ARCCHR0019](./ARCCHR0019.md) | Warning | A conventional query resembling a read-model fold; discovery is unchanged. |
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 
@@ -64,6 +65,7 @@ A direct `IEventLog.Append*` (also via `IEventStore.EventLog`) in a command that
 | [ARCCHR0010](./ARCCHR0010.md#quick-fix) | Compiler-checked local replacement with `EventSourceId<Guid>` for supported direct tuple syntax. |
 | [ARCCHR0015](./ARCCHR0015.md#quick-fix) | Compiler-checked replacement of a nullable event with an explicit event-or-validation result and rejection placeholders. |
 | [ARCCHR0016](./ARCCHR0016.md#quick-fix) | Remove `concurrency: true` from the attribute. |
+| [ARCCHR0019](./ARCCHR0019.md#quick-fix) | Preview whole-type explicit query selection, retaining intended endpoints. |
 
 The other rules have no automatic fix. A fix can change behavior: in particular ARCCHR0010 changes the persistence target when the Guid was an ordinary response.
 

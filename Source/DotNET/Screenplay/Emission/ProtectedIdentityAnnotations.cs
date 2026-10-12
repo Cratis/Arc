@@ -8,6 +8,12 @@ namespace Cratis.Arc.Screenplay.Emission;
 /// <summary>
 /// Withholds compliance annotations from concepts used as identities, which Screenplay cannot encrypt or erase.
 /// </summary>
+/// <remarks>
+/// The generator no longer uses this model-level pass: it withholds annotations only for concepts the generated
+/// document actually places in an identity position. This type is kept for compatibility and will be removed in a
+/// future major version.
+/// </remarks>
+[Obsolete("The Screenplay generator now withholds compliance annotations from the identity positions the generated document actually contains. This model-level pass will be removed in a future major version.")]
 public static class ProtectedIdentityAnnotations
 {
     /// <summary>

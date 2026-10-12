@@ -7,4 +7,11 @@ namespace Cratis.Arc.Queries.ModelBound;
 /// Attribute to mark a class as a read model.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
-public sealed class ReadModelAttribute : Attribute;
+public sealed class ReadModelAttribute : Attribute
+{
+    /// <summary>
+    /// Gets or sets whether only methods marked with <see cref="QueryAttribute"/> are exposed as queries.
+    /// </summary>
+    /// <remarks>The default is false, preserving conventional static-method discovery.</remarks>
+    public bool RequireQueryAttribute { get; set; }
+}

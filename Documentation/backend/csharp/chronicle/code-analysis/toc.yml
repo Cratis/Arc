@@ -32,3 +32,5 @@
   href: ARCCHR0017.md
 - name: ARCCHR0018 - Event stream id template only resolved for commands
   href: ARCCHR0018.md
+- name: ARCCHR0019 - Read-model fold may be exposed as a query
+  href: ARCCHR0019.md

@@ -95,7 +95,7 @@ public class ConceptRegistry
     /// <returns>True when it is a concept whose simple name is free or already declared with the same meaning.</returns>
     /// <remarks>
     /// Two concepts sharing a simple name are declared once, so the later one is only faithfully named when the
-    /// declaration already written says the same about it - the same primitive and the same values.
+    /// declaration already written says the same about it - the same primitive, values, and compliance claims.
     /// </remarks>
     public bool WouldResolveTo(ITypeSymbol type) =>
         ModelOf(type) is { } concept &&
@@ -152,7 +152,22 @@ public class ConceptRegistry
     /// <param name="concept">The concept arriving under the same name.</param>
     /// <returns>True when one declaration says what both are.</returns>
     static bool IsSameAs(ConceptModel existing, ConceptModel concept) =>
-        existing.Primitive == concept.Primitive && existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal);
+        existing.Primitive == concept.Primitive &&
+        existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal) &&
+        existing.IsPii == concept.IsPii &&
+        existing.IsSensitive == concept.IsSensitive &&
+        StatedScopeOf(existing) == StatedScopeOf(concept);
+
+    /// <summary>
+    /// Gets the encryption scope a concept's declaration can state.
+    /// </summary>
+    /// <param name="concept">The concept.</param>
+    /// <returns>The scope of a secret that is not personal data, otherwise <see langword="null"/>.</returns>
+    /// <remarks>
+    /// Only a secret states a scope, and a personal-data concept is always Subject scoped, so a scope recorded on any
+    /// other concept says nothing the declaration could disagree about.
+    /// </remarks>
+    static string? StatedScopeOf(ConceptModel concept) => concept.IsSensitive && !concept.IsPii ? concept.EncryptionScope : null;
 
     /// <summary>
     /// Gets the values of an enumeration, in declaration order.

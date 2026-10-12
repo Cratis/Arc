@@ -104,7 +104,7 @@ public static partial class TypeExtensions
     static List<string> _excludedNamespacePatterns = [];
     static List<(string Namespace, string Folder)> _namespaceRoots = [];
 
-    static MetadataAssemblyResolver? _assemblyResolver;
+    static CanonicalAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
     static Func<AssemblyLoadContext, AssemblyName, Assembly?>? _assemblyResolvingHandler;
     static HashSet<string>? _serverHandledCommandResponseValueTypeNames;

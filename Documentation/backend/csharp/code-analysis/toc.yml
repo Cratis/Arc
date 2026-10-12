@@ -20,3 +20,5 @@
   href: ARC0024.md
 - name: ARC0025 - Provide supplies a generated value type
   href: ARC0025.md
+- name: ARC0026 - Invalid explicit query declaration
+  href: ARC0026.md
