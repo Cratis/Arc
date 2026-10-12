@@ -52,7 +52,19 @@ public class from_a_scenario_pinning_a_literal_identifier : a_generated_document
         AssertDocument();
     }
 
-    void GeneratePinned(string pin, string members = "")
+    [Fact]
+    void should_explain_the_strategy_refusal_that_prevents_a_literal_pin()
+    {
+        GeneratePinned("_scenario.PinGeneratedValue(\"author\", _id)", factory: "public static AuthorId New() => new(Guid.CreateVersion7());");
+        Result.Source.ShouldNotContain("generated");
+        Result.Source.ShouldNotContain("specification WhenRegisteringAndAnAuthorIsRegistered");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("uuidv7");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification)
+            .Message.ShouldContain("the generation strategy of 'author' is not recoverable (SP0073)");
+        AssertDocument();
+    }
+
+    void GeneratePinned(string pin, string members = "", string factory = "public static AuthorId New() => new(Guid.NewGuid());")
     {
         var command = GeneratedValueSources.With("""
             public record OtherCommand;
@@ -60,7 +72,7 @@ public class from_a_scenario_pinning_a_literal_identifier : a_generated_document
             {
                 public (AuthorId, AuthorRegistered) Handle([GeneratedValue("author")] AuthorId authorId) => (authorId, new(Name));
             }
-            """);
+            """).Replace("public static AuthorId New() => new(Guid.NewGuid());", factory, StringComparison.Ordinal);
         var scenario = $$"""
             using System;
             using System.Threading.Tasks;

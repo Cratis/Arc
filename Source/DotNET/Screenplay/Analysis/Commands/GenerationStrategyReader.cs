@@ -25,6 +25,10 @@ internal class GenerationStrategyReader(SemanticModels models)
         {
             return "not a required scalar UUID concept";
         }
+        if (type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && !backing.Is("System.Guid"))
+        {
+            return $"backing type '{backing.ToDisplayString()}' is not UUID";
+        }
         if (FactoryBodyOf(type) is not { } factory)
         {
             return "New() has no readable IGeneratable<T> implementation";

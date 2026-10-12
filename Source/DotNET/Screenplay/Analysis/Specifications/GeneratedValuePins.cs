@@ -136,6 +136,10 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         }
 
         var name = NameOf(configuration);
+        if (StrategyFailureOf(command!, name) is { } failure)
+        {
+            return new(null, failure);
+        }
         var value = ReadValue(configuration, command!, name);
         if (value is null)
         {
@@ -147,6 +151,18 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         }
 
         return new(value, null);
+    }
+
+    string? StrategyFailureOf(ITypeSymbol command, string? name)
+    {
+        if (name is null || ParameterOf(command, name) is not { } parameter)
+        {
+            return null;
+        }
+
+        return new GenerationStrategyReader(models).Failure(parameter) is not null
+            ? $"the generation strategy of '{name}' is not recoverable ({ScreenplayDiagnosticCodes.GenerationNotRecoverable})"
+            : null;
     }
 
     PropertyMappingModel? ReadValue(ConfigurationCall configuration, ITypeSymbol command, string? name)
