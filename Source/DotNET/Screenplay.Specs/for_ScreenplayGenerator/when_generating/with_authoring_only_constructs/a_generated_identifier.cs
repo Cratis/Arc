@@ -9,13 +9,12 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating.with_aut
 
 public class a_generated_identifier : an_authoring_document
 {
-    void Because() => Generate(IdentifierSources.With("""
+    void Because() => Generate(GeneratedValueSources.With("""
         [Command]
         public record RegisterAuthor(string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 return (authorId, new(Name));
             }
         }
@@ -55,7 +54,7 @@ public class a_generated_identifier : an_authoring_document
     }
 
     [Fact]
-    void should_withhold_generation_to_keep_success_scenarios_without_fixtures()
+    void should_keep_generation_and_withhold_success_scenarios_without_pins()
     {
         var model = Result.Model with
         {
@@ -65,22 +64,12 @@ public class a_generated_identifier : an_authoring_document
             }).ToList()
         };
         var emitted = new ScreenplayEmitter().Emit(model, new());
-        emitted.Source.ShouldContain("specification RegisteringAnAuthor");
-        emitted.Source.ShouldNotContain("generated");
-        emitted.Source.ShouldNotContain("returns");
-        emitted.Source.ShouldContain("produces AuthorRegistered");
-        emitted.Source.ShouldNotContain("concept AuthorId");
-        var legacy = model with
-        {
-            Concepts = model.Concepts.Where(concept => concept.Name != "AuthorId").ToList(),
-            Slices = model.Slices.Select(slice => slice with
-            {
-                Commands = slice.Commands.Select(command => command with { Authoring = null }).ToList()
-            }).ToList()
-        };
-        emitted.Source.ShouldEqual(new ScreenplayEmitter().Emit(legacy, new()).Source);
-        emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).ShouldBeEmpty();
-        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).Message.ShouldContain("withheld to keep successful scenarios");
+        emitted.Source.ShouldNotContain("specification RegisteringAnAuthor");
+        emitted.Source.ShouldContain("authorId AuthorId generated identifier");
+        emitted.Source.ShouldContain("returns authorId");
+        emitted.Source.ShouldContain("produces event AuthorRegistered");
+        emitted.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification).Message.ShouldContain("PinGeneratedValue");
+        emitted.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeEmpty();
     }
 
     [Fact] void should_emit_the_generated_identifier() => Result.Source.ShouldContain("authorId AuthorId generated identifier");

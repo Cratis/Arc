@@ -8,6 +8,11 @@ namespace Cratis.Arc.Screenplay.Model;
 /// </summary>
 public record CommandAuthoringModel
 {
+    /// <summary>
+    /// Gets whether generation comes from explicit generated Handle parameters, rather than legacy local heuristics.
+    /// </summary>
+    public bool GeneratedParameters { get; init; }
+
     /// <summary>Gets the generated UUID concepts.</summary>
     public IReadOnlyList<PropertyModel> Generated { get; init; } = [];
 

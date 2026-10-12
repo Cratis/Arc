@@ -10,15 +10,14 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_a_generated_concept_with_a_validator : a_generated_document
 {
-    void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
+    void Because() => Generate((Analyzed.SlicePath, GeneratedValueSources.With("""
         public class AuthorIdValidator : Cratis.Arc.Validation.ConceptValidator<AuthorId>
         {
         }
         [Command] public record RegisterAuthor(string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 return (authorId, new(Name));
             }
         }
@@ -27,13 +26,12 @@ public class from_a_generated_concept_with_a_validator : a_generated_document
     [Fact]
     public void should_keep_the_legacy_production_without_the_blocked_optional_mapping()
     {
-        var source = IdentifierSources.With("""
+        var source = GeneratedValueSources.With("""
             public class AuthorIdValidator : Cratis.Arc.Validation.ConceptValidator<AuthorId> { }
             [Command] public record RegisterAuthor(string Name)
             {
-                public (AuthorId, AuthorRegistered) Handle()
+                public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
                 {
-                    AuthorId authorId = new(Guid.NewGuid());
                     return (authorId, new(authorId, Name));
                 }
             }

@@ -12,14 +12,17 @@ public class from_a_generated_concept_member_mapping : a_generated_document
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Chronicle.Events;
         using Cratis.Chronicle.Keys;
+        using Cratis.Concepts;
         namespace Library.Authors.Registration;
-        public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+        public record AuthorId(Guid Value) : EventSourceId<Guid>(Value), IGeneratable<AuthorId>
+        {
+            public static AuthorId New() => new(Guid.NewGuid());
+        }
         [EventType] public record AuthorRegistered(string Name, Guid? Copy);
         [Command] public record RegisterAuthor(string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 return (authorId, new(Name, authorId.Value));
             }
         }
@@ -42,14 +45,17 @@ public class from_a_generated_concept_member_mapping : a_generated_document
             using Cratis.Arc.Commands.ModelBound;
             using Cratis.Chronicle.Events;
             using Cratis.Chronicle.Keys;
+            using Cratis.Concepts;
             namespace Library.Authors.Registration;
-            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);
+            public record AuthorId(Guid Value) : EventSourceId<Guid>(Value), IGeneratable<AuthorId>
+            {
+                public static AuthorId New() => new(Guid.NewGuid());
+            }
             [EventType] public record AuthorRegistered(string Name, Guid? Copy);
             [Command] public record RegisterAuthor(string Name)
             {
-                public (AuthorId, AuthorRegistered) Handle()
+                public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
                 {
-                    AuthorId authorId = new(Guid.NewGuid());
                     return (authorId, new(Name, {{value}}));
                 }
             }

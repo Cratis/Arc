@@ -9,12 +9,11 @@ public class from_a_generated_identifier_with_a_rejection_given : a_generated_do
 {
     void Because()
     {
-        var command = IdentifierSources.With("""
+        var command = GeneratedValueSources.With("""
             [Command] public record RegisterAuthor(string Name)
             {
-                public (AuthorId, AuthorRegistered) Handle()
+                public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
                 {
-                    AuthorId authorId = new(Guid.NewGuid());
                     return (authorId, new(Name));
                 }
             }
@@ -47,13 +46,10 @@ public class from_a_generated_identifier_with_a_rejection_given : a_generated_do
     }
 
     [Fact] void should_omit_the_scenario_whose_given_is_not_on_the_commands_allocated_source() => Result.Source.ShouldNotContain("specification WhenRegisteringAndTheNameIsClaimed");
-    [Fact] void should_keep_the_legacy_production() => Result.Source.ShouldContain("produces AuthorRegistered");
-    [Fact] void should_withhold_generation() => Result.Source.ShouldNotContain("generated");
-    [Fact] void should_withhold_the_identifier() => Result.Source.ShouldNotContain("identifier");
-    [Fact] void should_withhold_the_response() => Result.Source.ShouldNotContain("returns");
-    [Fact] void should_explain_why_the_sources_cannot_be_stated_faithfully() => Result.Diagnostics.Any(diagnostic =>
-        diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification && diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning &&
-        diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_explain_why_generation_was_withheld() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("RegisterAuthor", StringComparison.Ordinal) && diagnostic.Message.Contains("explicit given event sources", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_keep_the_inline_production() => Result.Source.ShouldContain("produces event AuthorRegistered");
+    [Fact] void should_keep_generation() => Result.Source.ShouldContain("generated identifier");
+    [Fact] void should_keep_the_response() => Result.Source.ShouldContain("returns authorId");
+    [Fact] void should_explain_why_the_sources_cannot_be_stated_faithfully() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification && diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning && diagnostic.Message.Contains("event sources cannot be stated faithfully", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_not_withhold_the_explicit_generation_contract() => Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse).ShouldBeEmpty();
     [Fact] void should_bind_and_round_trip() => AssertDocument();
 }
