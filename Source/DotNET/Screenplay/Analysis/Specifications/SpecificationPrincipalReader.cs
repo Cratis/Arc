@@ -159,7 +159,7 @@ internal static class SpecificationPrincipalReader
     }
 
     static bool IsPlainConstruction(IObjectCreationOperation? creation, string type) =>
-        creation?.Type.Is(type) == true && creation.Initializer is null;
+        creation is { Initializer: null } construction && construction.Type.Is(type);
 
     static List<NamedArgument> ExplicitArguments(IObjectCreationOperation creation) =>
         creation.Arguments.Where(argument => !argument.IsImplicit).Select(argument =>

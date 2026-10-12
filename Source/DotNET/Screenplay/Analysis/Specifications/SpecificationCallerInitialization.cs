@@ -51,7 +51,7 @@ internal static class SpecificationCallerInitialization
     /// <param name="method">The resolved method.</param>
     /// <returns>Whether the method initializes a command scenario.</returns>
     static bool IsInitializing(IMethodSymbol? method) =>
-        method?.ContainingType.Is(WellKnownTypeNames.CommandScenario) == true && IsInitializingName(method.Name);
+        method is { } initializing && initializing.ContainingType.Is(WellKnownTypeNames.CommandScenario) && IsInitializingName(initializing.Name);
 
     /// <summary>
     /// Recognizes the two command-scenario initialization entry points.

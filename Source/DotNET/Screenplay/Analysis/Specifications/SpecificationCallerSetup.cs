@@ -139,7 +139,8 @@ internal sealed class SpecificationCallerSetup(SemanticModels models, HeldValues
         factory.InEstablish || factory.Syntax.FirstAncestorOrSelf<MemberDeclarationSyntax>() is FieldDeclarationSyntax;
 
     static bool IsScenarioServices(MemberAccessExpressionSyntax? services, SemanticModel model) =>
-        services?.Name.Identifier.ValueText == "Services" && model.GetTypeInfo(services.Expression).Type.Is(WellKnownTypeNames.CommandScenario);
+        services is { } access && string.Equals(access.Name.Identifier.ValueText, "Services", StringComparison.Ordinal) &&
+        model.GetTypeInfo(access.Expression).Type.Is(WellKnownTypeNames.CommandScenario);
 
     bool IsOtherUse(IdentifierNameSyntax reference, ISymbol accessor, IReadOnlyList<InvocationExpressionSyntax> allowed) =>
         SymbolEqualityComparer.Default.Equals(models.For(reference.SyntaxTree)?.GetSymbolInfo(reference).Symbol, accessor) && !IsAllowed(reference, allowed);
