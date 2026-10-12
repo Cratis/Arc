@@ -112,7 +112,7 @@ public static class EnumConstants
     /// from rather than anything about the source. Ordering the candidates by name and taking the first is what makes
     /// the same compilation produce the same document, which is the whole point of a document worth committing.
     /// </remarks>
-    static string? MemberOf(ITypeSymbol type, object value) =>
+    internal static string? MemberOf(ITypeSymbol type, object value) =>
         Normalize(value) is not { } wanted
             ? null
             : type.GetMembers()
@@ -132,7 +132,7 @@ public static class EnumConstants
     /// behind a cast or written bare is an <see cref="int"/> - so <c>(ByteEnum)1</c> and the member declared with
     /// <c>1</c> are the same value held as different types, and comparing them as objects never matches.
     /// </remarks>
-    static BigInteger? Normalize(object? value) => value switch
+    internal static BigInteger? Normalize(object? value) => value switch
     {
         sbyte number => number,
         byte number => number,
