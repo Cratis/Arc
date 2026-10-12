@@ -249,9 +249,12 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         MemberAccessExpressionSyntax member => member.Expression,
         ElementAccessExpressionSyntax element => element.Expression,
         ConditionalAccessExpressionSyntax conditional => conditional.Expression,
-        MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => expression.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault()?.Expression,
+        MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => BoundBy(expression)?.Expression,
         _ => null
     };
+
+    static ConditionalAccessExpressionSyntax? BoundBy(ExpressionSyntax binding) =>
+        binding.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault(access => access.WhenNotNull.Span.Contains(binding.Span));
 
     static bool WritesResult(SyntaxNode node, ISymbol result, InvocationExpressionSyntax action, SemanticModel semanticModel) =>
         WriteTarget(node) is { } target && !AssignsAction(node, result, action, semanticModel) && WritesTarget(target, result, semanticModel);
@@ -283,8 +286,24 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         IsReference(semanticModel.GetForEachStatementInfo(each).ElementType);
 
     static bool CopiesResult(SyntaxNode node, ISymbol result, SemanticModel semanticModel) =>
-        Copied(node) is { } copied && RootedAtResult(copied, result, semanticModel) &&
-        (IsResult(copied, result, semanticModel) || IsReference(semanticModel.GetTypeInfo(copied).Type));
+        Copied(node) is { } copied && Flowing(copied).Any(value => RootedAtResult(value, result, semanticModel) &&
+            (IsResult(value, result, semanticModel) || IsReference(semanticModel.GetTypeInfo(value).Type)));
+
+    static IEnumerable<ExpressionSyntax> Flowing(ExpressionSyntax expression)
+    {
+        var value = Receiver(expression);
+        return Branches(value) is { } branches ? [value, .. branches.SelectMany(Flowing)] : [value];
+    }
+
+    static IEnumerable<ExpressionSyntax>? Branches(ExpressionSyntax value) => value switch
+    {
+        ConditionalExpressionSyntax conditional => [conditional.WhenTrue, conditional.WhenFalse],
+        BinaryExpressionSyntax { RawKind: (int)SyntaxKind.CoalesceExpression } coalesce => [coalesce.Left, coalesce.Right],
+        TupleExpressionSyntax tuple => tuple.Arguments.Select(argument => argument.Expression),
+        CollectionExpressionSyntax collection => collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression),
+        SwitchExpressionSyntax switched => switched.Arms.Select(arm => arm.Expression),
+        _ => null
+    };
 
     static ExpressionSyntax? Copied(SyntaxNode node) => node switch
     {
