@@ -5,6 +5,7 @@ using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandResponseValueHandler.given;
@@ -14,6 +15,7 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
     protected EventsForEventSourceIdCommandResponseValueHandler _handler;
     protected IEventLog _eventLog;
     protected IEventTypes _eventTypes;
+    protected IEventSources _eventSources;
     protected CommandContext _commandContext;
     protected CorrelationId _correlationId;
     protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
@@ -23,11 +25,12 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
     {
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
+        _eventSources = Substitute.For<IEventSources>();
         _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
         _concurrencyScopeStrategy = Substitute.For<IConcurrencyScopeStrategy>();
         _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(_concurrencyScopeStrategy);
         _concurrencyScopeStrategy.StandInForAnOptimisticStrategy();
-        _handler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
+        _handler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies, _eventSources);
 
         _correlationId = Guid.NewGuid();
         var command = new TestCommand();

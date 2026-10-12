@@ -9,6 +9,7 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.Transactions;
 using Cratis.Execution;
 
@@ -18,6 +19,7 @@ public class an_events_with_concurrency_scopes_command_response_value_handler : 
 {
     protected EventsWithConcurrencyScopesCommandResponseValueHandler _handler;
     protected IEventLog _eventLog;
+    protected IEventSources _eventSources;
     protected RecordingUnitOfWork _unitOfWork;
     protected CommandContext _commandContext;
     protected CorrelationId _correlationId;
@@ -28,7 +30,8 @@ public class an_events_with_concurrency_scopes_command_response_value_handler : 
         _eventLog = Substitute.For<IEventLog>();
         _eventLog.Id.Returns(EventSequenceId.Log);
         _unitOfWork = new();
-        _handler = new(_eventLog);
+        _eventSources = Substitute.For<IEventSources>();
+        _handler = new(_eventLog, _eventSources);
         _commandContext = new(
             _correlationId,
             typeof(TestCommand),

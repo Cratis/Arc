@@ -295,6 +295,43 @@ When `Handle()` returns `EventsWithConcurrencyScopes`, the returned scopes repla
 
 A routing value set on an `EventForEventSourceId` wins over the command context. This applies to every return that carries wrappers: a single wrapper, a collection, a mixed collection, a tuple such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. One event can override its event source type or stream while the others keep the command's metadata. A plain, unwrapped event always uses the command context. A value counts as set when it differs from its default: `EventSourceType.Default`, `EventStreamType.All`, `EventStreamId.Default`, or a non-null `Subject`. A value left at its default falls back to the command context.
 
+Prefer typed overrides (`EventSource = typeof(Definition)` and `EventStream = "stream"`) when the target has an event source definition. Choosing another declared stream or another definition is supported; a different route is not itself a mistake. A stream-only typed override uses the command's definition.
+
+Use `IEventRoutes` to resolve a definition route once and stamp returned events without repeating legacy strings:
+
+```csharp
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.Streams;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
+
+[EventSource]
+[EventStream("Transactions")]
+[EventStream("Adjustments")]
+public class AccountEventSource : IEventSource;
+
+[Command]
+[EventSource<AccountEventSource>("Transactions")]
+public record AdjustAccount(EventSourceId AccountId, decimal Amount)
+{
+    public EventForEventSourceId Handle(IEventRoutes routes) =>
+        routes.For<AccountEventSource>("Adjustments").Route(AccountId, new BalanceAdjusted(Amount));
+}
+
+[EventType]
+public record BalanceAdjusted(decimal Amount);
+```
+
+This event uses the `Adjustments` stream and retains `AccountEventSource` and its concurrency policy, even though the command declares `Transactions`.
+
+Legacy string overrides remain supported, but they append by strings and drop the definition from `EventContext.EventSource`; they also omit the selected definition's concurrency policy. [ARCCHR0021](../code-analysis/ARCCHR0021.md) suggests typed routing when literal strings name a declared stream, and calls an override redundant when it repeats the command route. Its quick fix retains the definition, so review the concurrency change before applying it.
+
+[ARCCHR0020](../code-analysis/ARCCHR0020.md) warns when a literal wrapper route names a known definition and an undeclared stream. At runtime, a **definition-routed command** rejects a legacy wrapper route with `EventStreamDoesNotBelongToEventSource` when its resolved source matches a registered definition but its resolved stream is undeclared. Arc checks each wrapper before enrolling or appending it, including wrappers in mixed collections, tuples, and `EventsWithConcurrencyScopes`. Collections and exact-scope responses are resolved before their first event is enrolled or appended. Computed strings get the same runtime check. Unknown source names, unset stream sentinels, and commands without a definition keep their legacy behavior. Valid legacy strings are not silently converted to typed routes.
+
+The framework resolves response handlers through their constructors taking `IEventSources`. Their obsolete legacy constructors remain available for manually constructed handlers, but do not validate per-event routing against the registry; migrate manual construction to the new constructors to get this check.
+
 An empty response with **no events and no concurrency scopes** is a successful no-op: Arc neither appends an empty batch nor enrolls one in the active command transaction. This is useful when an equivalent declaration already exists. If scopes are supplied, Arc still forwards them through the normal append or transaction path; an empty event list never silently discards a required concurrency check.
 
 A label can name an event target, but it does not have to. An independent label lets a command protect a broader fact — for example, the tail of all active-administrator events — while writing to member and invitation streams.

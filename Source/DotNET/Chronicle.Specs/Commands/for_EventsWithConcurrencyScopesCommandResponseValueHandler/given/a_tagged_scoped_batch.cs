@@ -3,11 +3,12 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
 
 namespace Cratis.Arc.Chronicle.Commands.for_EventsWithConcurrencyScopesCommandResponseValueHandler.given;
 
 public abstract class a_tagged_scoped_batch : Commands.given.a_named_tag_append
 {
-    protected override ICommandResponseValueHandler CreateHandler() => new EventsWithConcurrencyScopesCommandResponseValueHandler(_eventLog);
+    protected override ICommandResponseValueHandler CreateHandler() => new EventsWithConcurrencyScopesCommandResponseValueHandler(_eventLog, Substitute.For<IEventSources>());
     protected override object CreateValue() => new EventsWithConcurrencyScopes([Wrapper()], []);
 }

@@ -4,6 +4,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using static Cratis.Arc.Chronicle.CodeAnalysis.EventSourceDefinitionSymbols;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
 
@@ -20,7 +21,6 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 public sealed class ObservedEventStreamAnalyzer : DiagnosticAnalyzer
 {
     const string FromEventSourceAttribute = "Cratis.Chronicle.EventSources.FromEventSourceAttribute`1";
-    const string EventStreamDefinitionAttribute = "Cratis.Chronicle.EventSources.EventStreamAttribute";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -60,12 +60,4 @@ public sealed class ObservedEventStreamAnalyzer : DiagnosticAnalyzer
                 definition.Name));
         }
     }
-
-    static bool DeclaresStream(INamedTypeSymbol definition, string stream) =>
-        definition.GetAttributes().Any(_ =>
-            FullName(_.AttributeClass) == EventStreamDefinitionAttribute &&
-            _.ConstructorArguments.Length > 0 &&
-            (_.ConstructorArguments[0].Value as string) == stream);
-
-    static string FullName(INamedTypeSymbol? type) => type is null ? string.Empty : $"{type.ContainingNamespace.ToDisplayString()}.{type.MetadataName}";
 }
