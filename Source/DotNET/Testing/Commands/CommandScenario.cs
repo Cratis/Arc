@@ -291,7 +291,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
         var explicitlyRegisteredServiceTypes = Services.Select(_ => _.ServiceType).ToHashSet();
         var hasExplicitDiscoverableValidatorsRegistration = explicitlyRegisteredServiceTypes.Contains(typeof(IDiscoverableValidators));
 
-        Services.AddCratisArcCore();
+        Services.AddCratisArcCoreKeepingAuthorization();
         IServiceProvider? serviceProvider = null;
 
         // Validators are not registered here on purpose. The command pipeline constructs them on demand from the
