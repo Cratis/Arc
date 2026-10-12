@@ -573,4 +573,14 @@ public static class ScreenplayDiagnosticCodes
     /// Returned event batch constraints cannot be proven equivalent to per-fact reaction appends.
     /// </summary>
     internal const string UnprovenReactionBatchConstraints = "SP0070";
+
+    /// <summary>
+    /// Command outcome handling in a reactor cannot be stated as executable refusal handling.
+    /// </summary>
+    internal const string UnrepresentableReactionRefusalHandling = "SP0071";
+
+    /// <summary>
+    /// Receipt-based reactor redelivery handling cannot be stated executably.
+    /// </summary>
+    internal const string UnrepresentableReactionRedelivery = "SP0072";
 }

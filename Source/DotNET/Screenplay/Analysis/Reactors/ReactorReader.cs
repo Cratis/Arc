@@ -100,6 +100,9 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
         {
             Reactions = ObservesTheEventLog(type)
                 ? new ReactionReader(models) { Constraints = _constraintCoverage ??= ConstraintCoverage.Read(Definitions, models) }.Read(type, handlers) : [],
+            RefusalHandlingHandlers = [.. handlers.Where(HandlesACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
+            DiscardedCommandResultHandlers = [.. handlers.Where(DiscardsACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
+            RedeliveryHandlers = [.. handlers.Where(UsesDeliveryReceipts).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type) &&
                 handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
@@ -179,6 +182,39 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
         (method.ContainingType.Is(WellKnownTypeNames.CommandPipeline) ||
             method.ContainingType.FindInterface(WellKnownTypeNames.CommandPipeline) is not null);
 
+    static bool IsReceipt(ITypeSymbol? type) =>
+        type.Is(WellKnownTypeNames.ReactorDelivery) || type.Is(WellKnownTypeNames.DeliveryId);
+
+    static ExpressionSyntax? OutcomeExpressionOf(SyntaxNode node) => node switch
+    {
+        MemberAccessExpressionSyntax member => member.Expression,
+        ConditionalAccessExpressionSyntax access => access.Expression,
+        IsPatternExpressionSyntax pattern => pattern.Expression,
+        SwitchExpressionSyntax selection => selection.GoverningExpression,
+        SwitchStatementSyntax selection => selection.Expression,
+        _ => null
+    };
+
+    static bool InspectsAnOutcome(SyntaxNode node, SemanticModel model)
+    {
+        var expression = OutcomeExpressionOf(node);
+        var type = expression is null ? null : model.GetTypeInfo(expression).Type;
+
+        return type.Is(WellKnownTypeNames.CommandResult) || type.FindBase(WellKnownTypeNames.CommandResult) is not null;
+    }
+
+    static bool IsDiscarded(InvocationExpressionSyntax invocation, SemanticModel model)
+    {
+        ExpressionSyntax expression = invocation;
+        while (expression.Parent is AwaitExpressionSyntax or ParenthesizedExpressionSyntax)
+        {
+            expression = (ExpressionSyntax)expression.Parent;
+        }
+
+        return expression.Parent is ExpressionStatementSyntax ||
+            (expression.Parent is AssignmentExpressionSyntax assignment && model.GetSymbolInfo(assignment.Left).Symbol is IDiscardSymbol);
+    }
+
     /// <summary>
     /// Determines whether a reactor turns what happened into something else that happens.
     /// </summary>
@@ -195,6 +231,25 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
 
         return handlers.Any(ProducesFurtherEvents) || handlers.Any(ExecutesACommand);
     }
+
+    IEnumerable<(SyntaxNode Node, SemanticModel Model)> DeclarationsOf(IMethodSymbol handler) =>
+        handler.DeclaringSyntaxReferences.Select(_ => _.GetSyntax())
+            .Select(node => (Node: node, Model: models.For(node.SyntaxTree)))
+            .Where(_ => _.Model is not null)
+            .Select(_ => (_.Node, _.Model!));
+
+    bool HandlesACommandOutcome(IMethodSymbol handler) =>
+        ExecutesACommand(handler) && DeclarationsOf(handler).Any(declaration =>
+            declaration.Node.DescendantNodes().Any(node => InspectsAnOutcome(node, declaration.Model)));
+
+    bool DiscardsACommandOutcome(IMethodSymbol handler) =>
+        DeclarationsOf(handler).Any(declaration => declaration.Node.DescendantNodes().OfType<InvocationExpressionSyntax>()
+            .Any(invocation => IsPipelineExecution(invocation, declaration.Model) && IsDiscarded(invocation, declaration.Model)));
+
+    bool UsesDeliveryReceipts(IMethodSymbol handler) =>
+        handler.Parameters.Any(_ => _.Type.Is(WellKnownTypeNames.ReactorDelivery)) ||
+        DeclarationsOf(handler).Any(declaration => declaration.Node.DescendantNodes().OfType<ExpressionSyntax>()
+            .Any(expression => IsReceipt(declaration.Model.GetTypeInfo(expression).Type)));
 
     /// <summary>
     /// Determines whether a handler executes a command.

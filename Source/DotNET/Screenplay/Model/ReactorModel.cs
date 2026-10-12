@@ -47,6 +47,21 @@ public record ReactorModel(
     public IEnumerable<string>? SystemRoles { get; init; }
 
     /// <summary>
+    /// Gets the observed events whose handlers inspect an executed command's outcome.
+    /// </summary>
+    internal IReadOnlyList<string> RefusalHandlingHandlers { get; init; } = [];
+
+    /// <summary>
+    /// Gets the observed events whose handlers discard an executed command's outcome.
+    /// </summary>
+    internal IReadOnlyList<string> DiscardedCommandResultHandlers { get; init; } = [];
+
+    /// <summary>
+    /// Gets the observed events whose handlers use delivery receipts.
+    /// </summary>
+    internal IReadOnlyList<string> RedeliveryHandlers { get; init; } = [];
+
+    /// <summary>
     /// Gets genuine source definitions available to observation admission.
     /// </summary>
     internal IEnumerable<ReactorSourceDefinition> ObservationDefinitions { get; init; } = [];

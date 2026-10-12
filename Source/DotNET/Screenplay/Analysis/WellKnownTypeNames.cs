@@ -232,4 +232,19 @@ public static class WellKnownTypeNames
     /// The attribute marking an event that closes its stream.
     /// </summary>
     internal const string ClosesStreamAttribute = "Cratis.Chronicle.Events.Constraints.ClosesStreamAttribute";
+
+    /// <summary>
+    /// The result of executing a command through the pipeline.
+    /// </summary>
+    internal const string CommandResult = "Cratis.Arc.Commands.CommandResult";
+
+    /// <summary>
+    /// The stable receipt for a reactor delivery.
+    /// </summary>
+    internal const string ReactorDelivery = "Cratis.Chronicle.Reactors.ReactorDelivery";
+
+    /// <summary>
+    /// The identity of a reactor delivery receipt.
+    /// </summary>
+    internal const string DeliveryId = "Cratis.Chronicle.Reactors.DeliveryId";
 }

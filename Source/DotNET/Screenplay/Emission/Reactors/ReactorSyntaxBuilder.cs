@@ -91,7 +91,34 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
                 reactor.MetadataLocation ?? location);
         }
 
+        if (reaction is null)
+        {
+            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location);
+        }
+
         return Trigger(name, reaction, file);
+    }
+
+    void ReportCodeHandling(ReactorModel reactor, string @event, string location)
+    {
+        var handles = reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
+        var discards = reactor.DiscardedCommandResultHandlers.Contains(@event, StringComparer.Ordinal);
+        if (handles || discards)
+        {
+            var behavior = handles ? "handles the outcome of" : "discards the outcome of and acknowledges refusals from";
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnrepresentableReactionRefusalHandling,
+                $"'{reactor.Name}' {behavior} a command it executes for '{@event}' in code; 'on refused' is not admitted by any executable model (Screenplay#433, PLAY0268) and Arc cannot classify refusals in reactors yet (Arc#3058), so the trigger keeps its file reference",
+                location);
+        }
+
+        if (reactor.RedeliveryHandlers.Contains(@event, StringComparer.Ordinal))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnrepresentableReactionRedelivery,
+                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is not admitted by any executable model (Screenplay#433, PLAY0268), so the trigger keeps its file reference",
+                location);
+        }
     }
 
     /// <summary>
