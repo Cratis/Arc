@@ -61,7 +61,7 @@ public class and_controller_outputs_bypass_response_handlers : Specification
         response.HasResponse.ShouldBeTrue();
         response.Name.ShouldEqual(responseName);
         response.IsEnumerable.ShouldEqual(enumerable);
-        response.Proxy.ShouldContain($"extends Command<I{method}, {responseName}>");
+        response.Proxy.ShouldContain($"extends Command<I{method}, {responseName}{(enumerable ? "[]" : string.Empty)}>");
         response.Proxy.ShouldContain($"super({responseName}, {enumerable.ToString().ToLowerInvariant()})");
     }
 
