@@ -103,12 +103,13 @@ internal sealed class EmittedIdentityCompliance(ApplicationSyntax application)
         }
 
         // Use the language's event/operation discriminator, including inline operations and mixed-kind ambiguity.
-        foreach (var production in command.Produces.Where(production => _productions.IsEventProduction(production, slice)))
+        var destinations = command.Produces
+            .Where(production => _productions.IsEventProduction(production, slice))
+            .Select(production => (production.Event, Property: production.For is PathExpressionSyntax path ? Property(command.Properties, path.Path) : null))
+            .Where(destination => destination.Property is { IsIdentifier: false });
+        foreach (var (eventName, property) in destinations)
         {
-            if (production.For is PathExpressionSyntax path && Property(command.Properties, path.Path) is { IsIdentifier: false } property)
-            {
-                Add(property.Type, $"for destination of '{production.Event}' in command '{command.Name}'");
-            }
+            Add(property!.Type, $"for destination of '{eventName}' in command '{command.Name}'");
         }
     }
 
@@ -139,13 +140,13 @@ internal sealed class EmittedIdentityCompliance(ApplicationSyntax application)
             }
 
             var productions = (trigger.Produces ?? []).Concat((trigger.Invokes ?? []).SelectMany(invocation => invocation.OnRefused).SelectMany(branch => branch.Produces));
-            foreach (var production in productions.Where(production => _productions.IsEventProduction(production, slice)))
+            var destinations = productions
+                .Where(production => _productions.IsEventProduction(production, slice) && production.For is PathExpressionSyntax)
+                .Select(production => (production.Event, ((PathExpressionSyntax)production.For!).Path));
+            foreach (var (eventName, path) in destinations)
             {
-                if (production.For is PathExpressionSyntax path)
-                {
-                    var type = shapes.Select(properties => Property(properties, path.Path)?.Type).FirstOrDefault(type => type is not null && _protected.Contains(type.Name));
-                    Add(type, $"for destination of '{production.Event}' in reaction '{reaction.Name}' on '{name}'");
-                }
+                var type = shapes.Select(properties => Property(properties, path)?.Type).FirstOrDefault(type => type is not null && _protected.Contains(type.Name));
+                Add(type, $"for destination of '{eventName}' in reaction '{reaction.Name}' on '{name}'");
             }
         }
     }
