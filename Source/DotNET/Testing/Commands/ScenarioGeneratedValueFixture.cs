@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Testing.Commands;
 
@@ -13,6 +15,12 @@ internal sealed class ScenarioGeneratedValueFixture : IGeneratedValueFixture
     readonly Dictionary<(Type Command, string Name), object> _pins = [];
     bool _allowGeneration;
     bool _frozen;
+    TenantId? _tenant;
+
+    /// <summary>
+    /// Gets the scenario-local clock.
+    /// </summary>
+    internal ScenarioTimeProvider TimeProvider { get; } = new();
 
     /// <summary>
     /// Gets captures across the scenario's command executions.
@@ -66,6 +74,35 @@ internal sealed class ScenarioGeneratedValueFixture : IGeneratedValueFixture
         EnsureConfigurable();
         _allowGeneration = true;
     }
+
+    /// <summary>
+    /// Sets the scenario's fixed clock before execution.
+    /// </summary>
+    /// <param name="instant">The captured instant for every operation.</param>
+    /// <exception cref="GeneratedValuesMustBePinnedBeforeExecution">Execution has already begun.</exception>
+    internal void Clock(DateTimeOffset instant)
+    {
+        EnsureConfigurable();
+        TimeProvider.Instant = instant;
+    }
+
+    /// <summary>
+    /// Sets the scenario's tenant before execution.
+    /// </summary>
+    /// <param name="tenant">The tenant for every operation.</param>
+    /// <exception cref="GeneratedValuesMustBePinnedBeforeExecution">Execution has already begun.</exception>
+    internal void Tenant(TenantId tenant)
+    {
+        EnsureConfigurable();
+        _tenant = tenant;
+    }
+
+    /// <summary>
+    /// Scopes the configured tenant to the scenario's pipeline call.
+    /// </summary>
+    /// <param name="services">The scenario's service provider.</param>
+    /// <returns>A scope restoring the prior tenant, or null if no tenant is configured.</returns>
+    internal IDisposable? BeginTenant(IServiceProvider services) => _tenant is null ? null : services.GetRequiredService<ITenantScope>().Begin(_tenant);
 
     /// <summary>
     /// Makes all pins and generation policy immutable for execution.

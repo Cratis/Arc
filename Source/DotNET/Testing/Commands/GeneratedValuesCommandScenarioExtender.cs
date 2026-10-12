@@ -30,6 +30,7 @@ public sealed class GeneratedValuesCommandScenarioExtender : ICommandScenarioExt
     {
         var fixture = new ScenarioGeneratedValueFixture();
         services.AddSingleton<IGeneratedValueFixture>(fixture);
+        services.AddSingleton<TimeProvider>(fixture.TimeProvider);
         context[ContextKey] = fixture;
     }
 

@@ -117,12 +117,39 @@ the parent. Both commands' captures appear in `GeneratedValues`, ordered as they
 If several commands use the same name and declared type, `Last` and `All` combine those
 captures; choose distinct names when you need to distinguish them.
 
+## Fix the clock and tenant
+
+Context-dependent concepts receive the command's captured time and current tenant. To test
+those parts of the strategy, configure `Clock(DateTimeOffset)` and `Tenant(TenantId)`.
+This setup fragment uses `AllocateOrderId` and `OrderId` from
+[context-dependent generation](../commands/generated-values.md#generate-with-the-commands-time-and-tenant)
+and imports `System`, `Cratis.Arc.Tenancy`, and `Cratis.Arc.Testing.Commands`:
+
+```csharp
+var instant = new DateTimeOffset(2024, 6, 15, 12, 34, 56, TimeSpan.Zero);
+using var scenario = new CommandScenario<AllocateOrderId>()
+    .Clock(instant)
+    .Tenant(new TenantId("tenant-one"))
+    .AllowGeneration();
+var result = await scenario.Execute(new AllocateOrderId());
+```
+
+`Clock` replaces the scenario's `TimeProvider`, so `ReceivedAt` and other clock consumers
+see the same instant. `Tenant` scopes both execution and validation to the configured tenant
+and restores the caller's tenant afterward. Both configurations apply to nested commands.
+They are local to the scenario, not process-wide settings.
+
+A fixed clock does **not** fix the random suffix of UUIDv7, ULID, or TypeID. Assert the time
+and tenant parts of the contract, or pin the whole concept when you need an exact value.
+`Clock(default)` is not a request to use the system clock: unpinned context generation fails
+with `MissingGenerationTime`. A pinned value does not invoke its factory.
+
 ## Finish configuration before the first execution
 
-Once the first command executes, pins and generation policy are immutable, even if that
-command fails or has no generated parameters. Later calls to either pin overload or
-`AllowGeneration()` throw `GeneratedValuesMustBePinnedBeforeExecution`. Create a new
-scenario when you need different pins. Validation alone neither generates values nor
+Once the first command executes, pins, generation policy, clock, and tenant are immutable,
+even if that command fails or has no generated parameters. Later calls to either pin overload,
+`AllowGeneration()`, `Clock()`, or `Tenant()` throw `GeneratedValuesMustBePinnedBeforeExecution`.
+Create a new scenario when you need different configuration. Validation alone neither generates values nor
 freezes this configuration.
 
 Pins and captures are local to each scenario; they do not replace a production generation

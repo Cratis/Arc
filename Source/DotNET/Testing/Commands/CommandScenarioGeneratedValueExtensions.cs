@@ -1,6 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Tenancy;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+
 namespace Cratis.Arc.Testing.Commands;
 
 /// <summary>
@@ -46,6 +50,37 @@ public static class CommandScenarioGeneratedValueExtensions
         }
 
         /// <summary>
+        /// Fixes the received time of every operation in this scenario.
+        /// </summary>
+        /// <param name="instant">The instant used by the scenario's clock.</param>
+        /// <returns>The scenario for further configuration.</returns>
+        /// <exception cref="GeneratedValuesMustBePinnedBeforeExecution">Execution has already begun.</exception>
+        public CommandScenario<TCommand> Clock(DateTimeOffset instant)
+        {
+            var fixture = FixtureFor(scenario);
+            fixture.Clock(instant);
+            if (!scenario.IsInitialized)
+            {
+                scenario.Services.RemoveAll<TimeProvider>();
+                scenario.Services.AddSingleton<TimeProvider>(fixture.TimeProvider);
+            }
+
+            return scenario;
+        }
+
+        /// <summary>
+        /// Selects a tenant for executions and validation without changing the caller's tenant.
+        /// </summary>
+        /// <param name="tenant">The tenant used by this scenario.</param>
+        /// <returns>The scenario for further configuration.</returns>
+        /// <exception cref="GeneratedValuesMustBePinnedBeforeExecution">Execution has already begun.</exception>
+        public CommandScenario<TCommand> Tenant(TenantId tenant)
+        {
+            FixtureFor(scenario).Tenant(tenant);
+            return scenario;
+        }
+
+        /// <summary>
         /// Allows unpinned parameters to use their normal generation strategy instead of failing the command.
         /// </summary>
         /// <returns>The scenario for further configuration.</returns>
@@ -57,6 +92,12 @@ public static class CommandScenarioGeneratedValueExtensions
         }
     }
 
-    static ScenarioGeneratedValueFixture FixtureFor<TCommand>(CommandScenario<TCommand> scenario) =>
+    /// <summary>
+    /// Gets the scenario's immutable generation configuration.
+    /// </summary>
+    /// <typeparam name="TCommand">The command under test.</typeparam>
+    /// <param name="scenario">The scenario holding the fixture.</param>
+    /// <returns>The scenario-local fixture.</returns>
+    internal static ScenarioGeneratedValueFixture FixtureFor<TCommand>(CommandScenario<TCommand> scenario) =>
         (ScenarioGeneratedValueFixture)scenario.Context[GeneratedValuesCommandScenarioExtender.ContextKey];
 }
