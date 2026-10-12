@@ -113,15 +113,14 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
     {
         if (models.For(body.SyntaxTree) is not { } model)
         {
-            yield break;
+            return [];
         }
-        foreach (var call in body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>())
-        {
-            if (model.GetSymbolInfo(call).Symbol is IMethodSymbol method && SpecificationCalls.IsGenerationConfiguration(method))
-            {
-                yield return new(body, call, method, model);
-            }
-        }
+
+        return body.DescendantNodesAndSelf()
+            .OfType<InvocationExpressionSyntax>()
+            .Select(call => (Call: call, Method: model.GetSymbolInfo(call).Symbol as IMethodSymbol))
+            .Where(_ => _.Method is not null && SpecificationCalls.IsGenerationConfiguration(_.Method))
+            .Select(_ => new ConfigurationCall(body, _.Call, _.Method!, model));
     }
 
     PinResult ReadPin(ConfigurationCall configuration, ITypeSymbol? command, string? issued, IReadOnlyList<PropertyMappingModel> values)

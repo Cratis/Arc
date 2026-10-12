@@ -167,7 +167,7 @@ A returned `EventForEventSourceId` can route one event differently from the comm
 
 - An event that sets only `EventStream` uses the command's definition and that stream.
 - An event that sets `EventSource` uses that definition and its own `EventStream`; it inherits nothing from the command's stream.
-- An event that sets the legacy `EventSourceType` or `EventStreamType` is appended by those strings, not through the command's definition, because appending through the definition would silently discard them.
+- An event that sets the legacy `EventSourceType` or `EventStreamType` is appended by those strings, not through the command's definition, because appending through the definition would silently discard them. Unset values inherit the command's strings. On a definition-routed command, Arc refuses a wrapper-named stream that a known definition does not declare; a source-only override with an inherited stream remains valid.
 - `EventStreamId` and `Subject` on the event are independent of this and win over the command when set.
 
 The concurrency dimensions the definition declares apply only when no legacy attribute opts into concurrency with `concurrency: true`. A legacy attribute that does not opt in carries metadata only, so it does not displace the definition's dimensions.
@@ -294,6 +294,43 @@ When `Handle()` returns `EventsWithConcurrencyScopes`, the returned scopes repla
 ### Per-event routing
 
 A routing value set on an `EventForEventSourceId` wins over the command context. This applies to every return that carries wrappers: a single wrapper, a collection, a mixed collection, a tuple such as `(FundsSettled, EventForEventSourceId)`, and `EventsWithConcurrencyScopes`. One event can override its event source type or stream while the others keep the command's metadata. A plain, unwrapped event always uses the command context. A value counts as set when it differs from its default: `EventSourceType.Default`, `EventStreamType.All`, `EventStreamId.Default`, or a non-null `Subject`. A value left at its default falls back to the command context.
+
+Prefer typed overrides (`EventSource = typeof(Definition)` and `EventStream = "stream"`) when the target has an event source definition. Choosing another declared stream or another definition is supported; a different route is not itself a mistake. A stream-only typed override uses the command's definition.
+
+Use `IEventRoutes` to resolve a definition route once and stamp returned events without repeating legacy strings:
+
+```csharp
+using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.Streams;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
+
+[EventSource]
+[EventStream("Transactions")]
+[EventStream("Adjustments")]
+public class AccountEventSource : IEventSource;
+
+[Command]
+[EventSource<AccountEventSource>("Transactions")]
+public record AdjustAccount(EventSourceId AccountId, decimal Amount)
+{
+    public EventForEventSourceId Handle(IEventRoutes routes) =>
+        routes.For<AccountEventSource>("Adjustments").Route(AccountId, new BalanceAdjusted(Amount));
+}
+
+[EventType]
+public record BalanceAdjusted(decimal Amount);
+```
+
+This event uses the `Adjustments` stream and retains `AccountEventSource` and its concurrency policy, even though the command declares `Transactions`.
+
+Legacy string overrides remain supported, but they append by strings and drop the definition from `EventContext.EventSource`; they also omit the selected definition's concurrency policy. [ARCCHR0021](../code-analysis/ARCCHR0021.md) suggests typed routing when literal strings name a declared stream, and calls an override redundant when it repeats the command route. Its quick fix retains the definition, so review the concurrency change before applying it.
+
+[ARCCHR0020](../code-analysis/ARCCHR0020.md) warns when a literal wrapper route names a known definition and an undeclared stream on the wrapper itself. At runtime, a **definition-routed command** rejects a legacy wrapper route with `EventStreamDoesNotBelongToEventSource` when its resolved source matches a registered definition but its wrapper-named `EventStreamType` is undeclared. Arc checks each wrapper before enrolling or appending it, including wrappers in mixed collections, tuples, and `EventsWithConcurrencyScopes`. Collections and exact-scope responses are resolved before their first event is enrolled or appended. Computed strings get the same runtime check. Unknown source names, unset stream sentinels, source-only overrides with inherited streams, and commands without a definition keep their legacy behavior. A stream-only override is checked against the command's definition. Valid legacy strings are not silently converted to typed routes.
+
+The framework resolves response handlers through their constructors taking `IEventSources`. Their obsolete legacy constructors remain available for manually constructed handlers, but do not validate per-event routing against the registry; migrate manual construction to the new constructors to get this check.
 
 An empty response with **no events and no concurrency scopes** is a successful no-op: Arc neither appends an empty batch nor enrolls one in the active command transaction. This is useful when an equivalent declaration already exists. If scopes are supplied, Arc still forwards them through the normal append or transaction path; an empty event list never silently discards a required concurrency check.
 

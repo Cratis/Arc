@@ -7,6 +7,8 @@ using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -18,6 +20,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="eventLog">The event log to append events to.</param>
 /// <param name="eventTypes">The event types.</param>
 /// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
+/// <param name="eventSources">The registered event source definitions, or null to skip legacy routing validation.</param>
 /// <remarks>
 /// The match is based on the runtime type of each element rather than the static type of the collection, so a
 /// collection boxed as <see cref="IEnumerable{T}"/> of <see cref="object"/> — or a mixed collection of plain events
@@ -25,11 +28,26 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// silently serialized as the response payload. Each wrapper is appended to its own event source id; each plain event
 /// is appended to the command's event source id.
 /// </remarks>
+[method: ActivatorUtilitiesConstructor]
 public class EventsForEventSourceIdCommandResponseValueHandler(
     IEventLog eventLog,
     IEventTypes eventTypes,
-    IConcurrencyScopeStrategies concurrencyScopeStrategies) : ICommandResponseValueHandler, ICommandResponseValueHandler<IEnumerable<EventForEventSourceId>>
+    IConcurrencyScopeStrategies concurrencyScopeStrategies,
+    IEventSources? eventSources) : ICommandResponseValueHandler, ICommandResponseValueHandler<IEnumerable<EventForEventSourceId>>
 {
+    /// <summary>
+    /// Initializes a handler without validation of per-event routing against event source definitions.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="eventTypes">The registered event types.</param>
+    /// <param name="concurrencyScopeStrategies">The concurrency scope strategies.</param>
+    /// <remarks>Use the constructor taking <see cref="IEventSources"/> to validate legacy wrapper routes.</remarks>
+    [Obsolete("This constructor does not validate per-event routing against event source definitions; use the constructor that takes IEventSources.")]
+    public EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLog, IEventTypes eventTypes, IConcurrencyScopeStrategies concurrencyScopeStrategies)
+        : this(eventLog, eventTypes, concurrencyScopeStrategies, null)
+    {
+    }
+
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value)
     {
@@ -73,6 +91,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     }
 
     /// <inheritdoc/>
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var strategy = concurrencyScopeStrategies.GetFor(eventLog);
@@ -88,7 +107,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             var (eventSourceId, @event, tags, occurred) = wrapper is not null
                 ? (wrapper.EventSourceId, wrapper.Event, wrapper.SuppliedTags(), wrapper.Occurred)
                 : (commandContext.GetEventSourceId(), item, null, null);
-            var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext);
+            var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext, eventSources);
             targets.Add((eventSourceId, @event, tags, occurred, routing, CommandTransactionAppender.MergeEventTags(commandContext, wrapper?.NamedTags)));
 
             // The caller's own choice is resolved once per id, however many events it takes.

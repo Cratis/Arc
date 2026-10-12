@@ -9,6 +9,7 @@ using Cratis.Arc.Tenancy;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.Transactions;
 using Cratis.Execution;
 using Microsoft.AspNetCore.Authentication;
@@ -66,7 +67,7 @@ public class when_scheme_selection_precedes_transaction_binding : Specification
             new KnownInstancesOf<ICommandHandlerProvider>([new CommandHandlerProvider(availableTypes)])));
         var eventTypes = Substitute.For<IEventTypes>();
         eventTypes.HasFor(typeof(TenantBoundWorkRecorded)).Returns(true);
-        builder.Services.AddSingleton(eventTypes);
+        builder.Services.AddSingleton(eventTypes).AddSingleton(Substitute.For<IEventSources>());
         var concurrency = Substitute.For<IConcurrencyScopeStrategies>();
         builder.Services.AddSingleton(concurrency);
         builder.Services.AddScoped<IUnitOfWorkManager>(services =>

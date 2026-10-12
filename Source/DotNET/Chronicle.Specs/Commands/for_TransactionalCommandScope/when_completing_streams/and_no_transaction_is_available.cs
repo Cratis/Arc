@@ -4,6 +4,7 @@
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_TransactionalCommandScope.when_completing_streams;
@@ -19,7 +20,7 @@ public class and_no_transaction_is_available : given.a_pending_completion
             _operations.Add("immediate append");
             return AppendManyResult.Success(_correlationId, [EventSequenceNumber.First]);
         });
-        var append = new EventsWithConcurrencyScopesCommandResponseValueHandler(_eventLog);
+        var append = new EventsWithConcurrencyScopesCommandResponseValueHandler(_eventLog, Substitute.For<IEventSources>());
         var events = new EventsWithConcurrencyScopes([new(EventSourceId.New(), new object())], []);
         _result.MergeWith(await append.Handle(_context, events));
         await _scope.Complete(_context, _result);

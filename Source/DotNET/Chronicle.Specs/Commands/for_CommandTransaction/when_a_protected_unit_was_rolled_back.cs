@@ -6,6 +6,7 @@ using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandTransaction;
@@ -19,6 +20,7 @@ public class when_a_protected_unit_was_rolled_back
         log.Id.Returns(EventSequenceId.Log);
         unit.AddDecisionRead(DecisionFixtures.Protected<object>("source"));
         await unit.Rollback();
+        var eventSources = Substitute.For<IEventSources>();
         var types = Substitute.For<IEventTypes>();
         types.HasFor(typeof(Event)).Returns(true);
         var strategies = Substitute.For<IConcurrencyScopeStrategies>();
@@ -32,10 +34,10 @@ public class when_a_protected_unit_was_rolled_back
         try
         {
             await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new SingleEventCommandResponseValueHandler(log, types, strategies).Handle(context, @event));
-            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new SingleEventForEventSourceIdCommandResponseValueHandler(log, types, strategies).Handle(context, wrapped));
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new SingleEventForEventSourceIdCommandResponseValueHandler(log, types, strategies, eventSources).Handle(context, wrapped));
             await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsCommandResponseValueHandler(log, types, strategies).Handle(context, new[] { @event }));
-            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsForEventSourceIdCommandResponseValueHandler(log, types, strategies).Handle(context, new[] { wrapped }));
-            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsWithConcurrencyScopesCommandResponseValueHandler(log)
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsForEventSourceIdCommandResponseValueHandler(log, types, strategies, eventSources).Handle(context, new[] { wrapped }));
+            await Assert.ThrowsAsync<ReturnedEventsCannotBeAppendedOutsideDecisionTransaction>(() => new EventsWithConcurrencyScopesCommandResponseValueHandler(log, eventSources)
                 .Handle(context, new EventsWithConcurrencyScopes([wrapped], [])));
             Assert.False(CommandTransaction.TryGetActive(out _));
         }
