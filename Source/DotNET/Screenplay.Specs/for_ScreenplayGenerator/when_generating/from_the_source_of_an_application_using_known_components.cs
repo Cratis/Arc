@@ -110,11 +110,11 @@ public class from_the_source_of_an_application_using_known_components : Specific
     [Fact] void should_report_the_computed_header() => Reports("heads the column 'id' in the table of 'Author' with 'strings.identifier'").ShouldBeTrue();
     [Fact] void should_report_the_column_that_names_no_field() => Reports("does not name the property it shows as text").ShouldBeTrue();
     [Fact] void should_report_the_menu_item() => Reports("has a menu item 'Retire' that runs a callback").ShouldBeTrue();
-    [Fact] void should_report_the_details_component() => Reports("shows a details component beside the <DataPage>").ShouldBeTrue();
+    [Fact] void should_report_the_details_component() => _result.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.ScreenCompositionNotRepresentable && _.Message.Contains("shows a details component beside the <DataPage>", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_report_the_dialog_for_a_command_of_another_slice() => Reports("runs 'RegisterAuthor' from a <CommandDialog>, which is not a command its slice declares").ShouldBeTrue();
-    [Fact] void should_report_each_unread_directive_on_its_own() => _unread.Count().ShouldEqual(5);
+    [Fact] void should_report_each_unread_directive_on_its_own() => _unread.Count().ShouldEqual(4);
     [Fact] void should_report_nothing_for_a_screen_read_in_full() => _unread.Any(_ => _.StartsWith("The screen 'AddAuthor'", StringComparison.Ordinal)).ShouldBeFalse();
-    [Fact] void should_report_nothing_but_what_was_not_inferred_and_the_withheld_query_implementations() => _result.Diagnostics.Select(_ => _.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred, ScreenplayDiagnosticCodes.UnmappableQuery]);
+    [Fact] void should_report_nothing_but_what_was_not_inferred_and_the_withheld_query_implementations() => _result.Diagnostics.Select(_ => _.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred, ScreenplayDiagnosticCodes.ScreenCompositionNotRepresentable, ScreenplayDiagnosticCodes.UnmappableQuery]);
     [Fact] void should_report_the_withheld_implementation_of_each_query_with_a_body() => _withheldQueries.ShouldContainOnly(["AllAuthors", "AuthorById"]);
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
 }

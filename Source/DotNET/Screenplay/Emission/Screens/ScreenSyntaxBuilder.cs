@@ -18,7 +18,7 @@ namespace Cratis.Arc.Screenplay.Emission.Screens;
 /// A screen is written with its <c>file</c> reference and its directives together. The grammar allows a screen to
 /// carry both, and both are worth saying - the directives state what the screen reads and shows, and the file stays
 /// the honest pointer to the implementation that no directive replaces. The <c>data</c> bindings come first, then the
-/// titles, tables and actions read from the Cratis Components the screen uses. Nothing else is written, because
+/// titles, toolbars, tables and actions read from the Cratis Components the screen uses. Nothing else is written, because
 /// nothing else is known.
 /// </remarks>
 public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverter types)
@@ -47,6 +47,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
         [
             .. Bindings(screen),
             .. screen.Titles.Select(_ => new ScreenTitleSyntax(_, SourceLocation.Start)),
+            .. screen.Toolbars.Select(Toolbar),
             .. screen.Tables.Select(Table),
             .. screen.Actions.Select(_ => new ScreenActionSyntax(naming.ToDeclarationName(_), null, null, SourceLocation.Start))
         ];
@@ -90,6 +91,22 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             naming.ToDeclarationName(data.Query),
             data.By is null ? null : naming.ToPropertyName(data.By),
             SourceLocation.Start);
+
+    /// <summary>
+    /// Builds a toolbar of command input openers without inventing icons or bindings.
+    /// </summary>
+    /// <param name="toolbar">The recovered toolbar.</param>
+    /// <returns>The toolbar syntax.</returns>
+    ScreenToolbarSyntax Toolbar(ScreenToolbarModel toolbar) =>
+        new(naming.ToPropertyName(toolbar.Name), toolbar.Items.Select(ToolbarItem), SourceLocation.Start);
+
+    /// <summary>
+    /// Builds one command-opening toolbar item.
+    /// </summary>
+    /// <param name="item">The recovered item.</param>
+    /// <returns>The toolbar item syntax.</returns>
+    ToolbarItemSyntax ToolbarItem(ScreenToolbarItemModel item) =>
+        new(naming.ToPropertyName(item.Name), ToolbarItemKind.Action, naming.ToDeclarationName(item.Command), SourceLocation.Start) { Label = item.Label };
 
     /// <summary>
     /// Builds one <c>table</c> directive.
