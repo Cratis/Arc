@@ -106,7 +106,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
             EventSources = eventRoutes ? BuildEventSources(model, routedOccurrences) : []
         };
-        application = new ProtectedIdentityAnnotations(application).Apply(diagnostics);
+        application = new EmittedIdentityCompliance(application).Apply(diagnostics);
         var retainedPii = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Pii)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
         var retainedSecrets = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Sensitive)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
         diagnostics.AddRange(conceptDiagnostics.All.Where(diagnostic =>

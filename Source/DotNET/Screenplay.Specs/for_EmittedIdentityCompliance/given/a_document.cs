@@ -7,7 +7,7 @@ using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Printing;
 using Cratis.Screenplay.Syntax;
 
-namespace Cratis.Arc.Screenplay.for_ProtectedIdentityAnnotations.given;
+namespace Cratis.Arc.Screenplay.for_EmittedIdentityCompliance.given;
 
 public class a_document : Specification
 {
@@ -47,7 +47,7 @@ public class a_document : Specification
         };
     }
 
-    protected void Apply() => Result = new ProtectedIdentityAnnotations(Application).Apply(Diagnostics);
+    protected void Apply() => Result = new EmittedIdentityCompliance(Application).Apply(Diagnostics);
 
     protected void AssertStripped(string use, bool compiles = true)
     {

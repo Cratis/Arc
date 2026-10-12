@@ -4,7 +4,7 @@
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
 
-namespace Cratis.Arc.Screenplay.for_ProtectedIdentityAnnotations.when_applying;
+namespace Cratis.Arc.Screenplay.for_EmittedIdentityCompliance.when_applying;
 
 public class with_an_operation_destination : given.a_document
 {
