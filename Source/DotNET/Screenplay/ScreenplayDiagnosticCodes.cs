@@ -225,8 +225,11 @@ public static class ScreenplayDiagnosticCodes
     /// <c>DataTableForObservableQuery</c>, <c>Column</c> and <c>CommandDialog</c> - when they are written as text or as
     /// the name of a query or command the slice declares. This is reported once for each of those that is not - a
     /// computed title, a column without a field, a menu item running a callback, a query of another slice - and once
-    /// for a screen using none of them, whose structure is JSX this generator does not read. A guessed column is worse
-    /// than an absent one, so nothing is guessed and every omission says so.
+    /// for a screen using none of them, whose structure is JSX this generator does not read. In a mixed screen,
+    /// component tags outside recognized component spans are reported once per distinct tag, and intrinsic markup
+    /// is listed in one report. Fragments without direct content and pure intrinsic wrappers around recognized
+    /// components are exempt. A scan problem with recognized imports reports once and withholds all structure.
+    /// A guessed column is worse than an absent one, so nothing is guessed and every omission says so.
     /// </remarks>
     public const string ScreenStructureNotInferred = "SP0028";
 

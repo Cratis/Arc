@@ -39,16 +39,31 @@ public static partial class ScreenImports
     /// Source order is kept rather than sorted, because it is the order the file was written in and nothing else is
     /// any more meaningful - and keeping it is what makes the same file always read the same way.
     /// </remarks>
-    public static IReadOnlyList<ScreenImport> Statements(string? text)
+    public static IReadOnlyList<ScreenImport> Statements(string? text) => Statements(TsxSource.Scan(text ?? string.Empty));
+
+    /// <summary>
+    /// Gets every name a file imports, from any module, under the name the file calls it by.
+    /// </summary>
+    /// <param name="text">The text of the file, or <see langword="null"/> when it could not be read.</param>
+    /// <returns>The bindings, keyed by the name the file calls each import by.</returns>
+    /// <remarks>
+    /// A component is written under the name the file gives it, so telling a Cratis Components <c>DataPage</c> from
+    /// anything else of the same name - and a renamed query proxy from the query it is - takes the local name, the
+    /// exported name and the module together. Only named imports are read, for the same reason <see cref="Statements(string)"/>
+    /// reads only those.
+    /// </remarks>
+    public static IReadOnlyDictionary<string, ScreenImportBinding> Bindings(string? text) => Bindings(TsxSource.Scan(text ?? string.Empty));
+
+    /// <summary>
+    /// Reads real import statements from a scanned module.
+    /// </summary>
+    /// <param name="source">The scanned module.</param>
+    /// <returns>The relative named imports.</returns>
+    internal static IReadOnlyList<ScreenImport> Statements(TsxSource source)
     {
         var imports = new List<ScreenImport>();
         var seen = new HashSet<ScreenImport>();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return imports;
-        }
-
-        foreach (var statement in StatementRegex().Matches(WithoutComments(text)).Cast<Match>())
+        foreach (var statement in ImportStatements(source))
         {
             var clause = statement.Groups["clause"].Value;
             var module = statement.Groups["module"].Value;
@@ -64,25 +79,14 @@ public static partial class ScreenImports
     }
 
     /// <summary>
-    /// Gets every name a file imports, from any module, under the name the file calls it by.
+    /// Reads real named import bindings from a scanned module.
     /// </summary>
-    /// <param name="text">The text of the file, or <see langword="null"/> when it could not be read.</param>
-    /// <returns>The bindings, keyed by the name the file calls each import by.</returns>
-    /// <remarks>
-    /// A component is written under the name the file gives it, so telling a Cratis Components <c>DataPage</c> from
-    /// anything else of the same name - and a renamed query proxy from the query it is - takes the local name, the
-    /// exported name and the module together. Only named imports are read, for the same reason <see cref="Statements"/>
-    /// reads only those.
-    /// </remarks>
-    public static IReadOnlyDictionary<string, ScreenImportBinding> Bindings(string? text)
+    /// <param name="source">The scanned module.</param>
+    /// <returns>The bindings by local name.</returns>
+    internal static IReadOnlyDictionary<string, ScreenImportBinding> Bindings(TsxSource source)
     {
         var bindings = new Dictionary<string, ScreenImportBinding>(StringComparer.Ordinal);
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return bindings;
-        }
-
-        foreach (var statement in StatementRegex().Matches(WithoutComments(text)).Cast<Match>())
+        foreach (var statement in ImportStatements(source))
         {
             var clause = statement.Groups["clause"].Value;
             if (IsTypeOnly(clause))
@@ -111,7 +115,10 @@ public static partial class ScreenImports
     /// hide a real import rather than a commented one.
     /// </remarks>
     internal static string WithoutComments(string text) =>
-        CommentRegex().Replace(text, match => new string('\n', match.Value.Count(_ => _ == '\n')));
+        TsxSource.Scan(text).Code;
+
+    static IEnumerable<Match> ImportStatements(TsxSource source) =>
+        StatementRegex().Matches(source.Code).Cast<Match>().Where(_ => source.IsCode(_.Index + _.Value.IndexOf("import", StringComparison.Ordinal)));
 
     /// <summary>
     /// Determines whether a module specifier names a file sitting alongside the one importing it.
@@ -181,13 +188,6 @@ public static partial class ScreenImports
 
         return names is { } read && IdentifierRegex().IsMatch(read.Name) && IdentifierRegex().IsMatch(read.Local) ? read : null;
     }
-
-    /// <summary>
-    /// Gets the pattern a comment has to match.
-    /// </summary>
-    /// <returns>The compiled regular expression.</returns>
-    [GeneratedRegex(@"/\*[\s\S]*?\*/|//[^\r\n]*", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
-    private static partial Regex CommentRegex();
 
     /// <summary>
     /// Gets the pattern an import statement naming a module has to match.

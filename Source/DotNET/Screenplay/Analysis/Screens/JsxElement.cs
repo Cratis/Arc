@@ -19,6 +19,26 @@ public record JsxElement(
     bool IsReadable)
 {
     /// <summary>
+    /// Gets the scanned source that owns the element boundaries.
+    /// </summary>
+    internal TsxSource? Source { get; init; }
+
+    /// <summary>
+    /// Gets the exclusive end of the element.
+    /// </summary>
+    internal int End { get; init; }
+
+    /// <summary>
+    /// Gets the first child position in the original source.
+    /// </summary>
+    internal int ChildrenStart { get; init; }
+
+    /// <summary>
+    /// Gets the exclusive end of the children in the original source.
+    /// </summary>
+    internal int ChildrenEnd { get; init; }
+
+    /// <summary>
     /// Gets the value of an attribute, when the element states it.
     /// </summary>
     /// <param name="name">The name of the attribute.</param>
