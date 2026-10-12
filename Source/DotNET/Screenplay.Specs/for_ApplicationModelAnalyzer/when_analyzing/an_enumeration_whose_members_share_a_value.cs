@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
@@ -37,11 +38,13 @@ public class an_enumeration_whose_members_share_a_value : Specification
         }
         """;
 
+    ApplicationModelAnalysis _analysis;
     MappingSourceModel _source;
     MappingSourceModel _again;
 
     void Establish()
     {
+        _analysis = Analyzed.Source(Source);
         _source = Mapped();
         _again = Mapped();
     }
@@ -49,6 +52,10 @@ public class an_enumeration_whose_members_share_a_value : Specification
     static MappingSourceModel Mapped() =>
         Analyzed.Source(Source).Slice().Commands.First().Produces.Single().Mappings.Single().Source;
 
+    [Fact] void should_declare_only_the_resolved_member_for_each_number() => _analysis.Model.Concepts.Single().EnumValues.ShouldEqual(["Basic", "Premium"]);
+    [Fact] void should_preserve_each_unique_number() => _analysis.Model.Concepts.Single().EnumNumbers.Select(number => (int)number).ShouldEqual([1, 2]);
+    [Fact] void should_report_the_dropped_aliases() => _analysis.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EnumAliasNotRepresentable).Message.ShouldContain("kept 'Basic' and dropped 'Entry', 'Standard'");
+    [Fact] void should_locate_the_alias_warning() => _analysis.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EnumAliasNotRepresentable).Location.ShouldEqual("Library.Members.Upgrading.Tier");
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_name_the_first_of_the_members_in_ordinal_order() => _source.ShouldEqual(new LiteralSource(new EnumValue("Basic")));
     [Fact] void should_name_the_same_member_every_time() => _again.ShouldEqual(_source);

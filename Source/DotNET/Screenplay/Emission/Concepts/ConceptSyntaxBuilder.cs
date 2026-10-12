@@ -1,11 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
+using System.Numerics;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Emission.Validation;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
+using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.Emission.Concepts;
@@ -32,6 +35,11 @@ public class ConceptSyntaxBuilder(
     /// Gets whether syntax-only compliance details may be emitted.
     /// </summary>
     public bool AuthoringOnlyConstructs { get; init; }
+
+    /// <summary>
+    /// Gets the maximum executable model version, or null for the latest admitted version.
+    /// </summary>
+    public SemanticVersion? MaximumExecutableModelVersion { get; init; }
 
     /// <summary>
     /// Builds every concept the document declares.
@@ -65,9 +73,12 @@ public class ConceptSyntaxBuilder(
                 name,
                 ScreenplayPrimitiveTypes.GetName(concept.Primitive),
                 [.. Attributes(concept)],
-                values,
+                values.ConvertAll(value => value.Name),
                 SourceLocation.Start,
-                [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)]);
+                [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)])
+            {
+                ValueNumbers = NumbersOf(concept, values)
+            };
         }
 
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
@@ -126,18 +137,82 @@ public class ConceptSyntaxBuilder(
     /// </summary>
     /// <param name="concept">The concept to read the values of.</param>
     /// <returns>The values, empty when the concept is not an enumeration.</returns>
+    /// <exception cref="EnumNumbersDoNotMatchValues">The concept states member numbers that are not one per member.</exception>
     /// <remarks>
     /// A value is written on a line of its own, so a value named after a word the concept body reads as a directive
     /// is swallowed by that directive rather than declared, and is left out instead.
     /// </remarks>
-    List<string> ToValues(ConceptModel concept) =>
-        concept.Primitive == ScreenplayPrimitive.Enum
-            ?
-            [
-                .. concept.EnumValues
-                    .Where(_ => names.Allows(_, ReservedWords.InConcept, concept.Name, concept.Name))
-                    .Select(naming.ToPropertyName)
-                    .Distinct(StringComparer.Ordinal)
-            ]
-            : [];
+    List<(string Name, BigInteger? Number)> ToValues(ConceptModel concept)
+    {
+        if (concept.Primitive != ScreenplayPrimitive.Enum)
+        {
+            return [];
+        }
+
+        var numbers = concept.EnumNumbers.ToList();
+        var memberCount = concept.EnumValues.Count();
+        if (numbers.Count != 0 && numbers.Count != memberCount)
+        {
+            throw new EnumNumbersDoNotMatchValues(concept.Name, memberCount, numbers.Count);
+        }
+
+        var members = concept.EnumValues.Select((name, index) => (Name: name, Number: numbers.Count == 0 ? (BigInteger?)null : numbers[index]))
+            .Where(member => names.Allows(member.Name, ReservedWords.InConcept, concept.Name, concept.Name))
+            .Select(member => (Name: naming.ToPropertyName(member.Name), member.Number)).ToList();
+        foreach (var collision in members.GroupBy(member => member.Name, StringComparer.Ordinal).Where(group => group.Count() > 1))
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable,
+                $"Enum '{concept.Name}' members share the emitted name '{collision.Key}'; only the first member is declared, and the other member identities are not preserved",
+                concept.Name);
+        }
+
+        return members.DistinctBy(member => member.Name, StringComparer.Ordinal).ToList();
+    }
+
+    /// <summary>
+    /// Pins every recovered number when the target can preserve it, otherwise reports positional fallback.
+    /// </summary>
+    /// <param name="concept">The enumeration being emitted.</param>
+    /// <param name="values">The retained name and number pairs.</param>
+    /// <returns>All member numbers, or null for positional fallback.</returns>
+    List<int>? NumbersOf(ConceptModel concept, IReadOnlyList<(string Name, BigInteger? Number)> values)
+    {
+        if (values.All(value => value.Number is null))
+        {
+            return null;
+        }
+
+        var outsideRange = values.Any(value => value.Number < int.MinValue || value.Number > int.MaxValue);
+        var positional = values.Select((value, index) => value.Number == index).All(equal => equal);
+        var belowVersion = !positional && MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V12);
+        if (outsideRange || belowVersion)
+        {
+            ReportPositionalFallback(concept, values, outsideRange, belowVersion);
+            return null;
+        }
+
+        return values.Select(value => (int)value.Number!.Value).ToList();
+    }
+
+    /// <summary>
+    /// Reports that an enumeration's numbers fall back to positions in the document.
+    /// </summary>
+    /// <param name="concept">The enumeration being emitted.</param>
+    /// <param name="values">The retained name and number pairs.</param>
+    /// <param name="outsideRange">Whether a number is outside the int32 range.</param>
+    /// <param name="belowVersion">Whether the version cap is below ESM v12.</param>
+    void ReportPositionalFallback(ConceptModel concept, IReadOnlyList<(string Name, BigInteger? Number)> values, bool outsideRange, bool belowVersion)
+    {
+        var reason = string.Join(" / ", new[]
+        {
+            belowVersion ? $"needs ESM v12, cap v{MaximumExecutableModelVersion}" : null,
+            outsideRange ? "a number is outside int32" : null
+        }.OfType<string>());
+        var members = string.Join(", ", values.Select(value => $"{value.Name}={value.Number!.Value.ToString(CultureInfo.InvariantCulture)}"));
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable,
+            $"Enum '{concept.Name}' members {members} cannot be numbered ({reason}); the document numbers them by position and stored identity is not preserved",
+            concept.Name);
+    }
 }

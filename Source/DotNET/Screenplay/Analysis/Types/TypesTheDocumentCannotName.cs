@@ -28,6 +28,7 @@ public static class TypesTheDocumentCannotName
     public static void Report(TypeRegistry types, ScreenplayDiagnostics diagnostics, string? location)
     {
         types.ReportPersonalDataMarkings(diagnostics);
+        types.ReportEnumerationLimits(diagnostics);
 
         foreach (var type in types.PartialSecrets)
         {

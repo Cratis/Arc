@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Numerics;
+
 namespace Cratis.Arc.Screenplay.Model;
 
 /// <summary>
@@ -22,6 +24,11 @@ public record ConceptModel(
     IEnumerable<string> EnumValues,
     IEnumerable<ValidationRuleModel> Validations)
 {
+    /// <summary>
+    /// Gets the integer identities parallel to <see cref="EnumValues"/>, empty when no numbers were recovered.
+    /// </summary>
+    public IEnumerable<BigInteger> EnumNumbers { get; init; } = [];
+
     /// <summary>
     /// Gets whether the value is encrypted and withheld from command auditing.
     /// </summary>

@@ -568,4 +568,19 @@ public static class ScreenplayDiagnosticCodes
     /// A version cap below ESM v10 withholds executable reaction identity or observation metadata.
     /// </summary>
     public const string ReactionMetadataVersionCap = "SP0066";
+
+    /// <summary>
+    /// A flags enumeration can carry unnamed combinations the document cannot state.
+    /// </summary>
+    public const string FlagsCombinationsNotStatable = "SP0067";
+
+    /// <summary>
+    /// Enumeration member numbers exceed the target ESM version or the int32 range.
+    /// </summary>
+    public const string EnumMemberNumbersNotRepresentable = "SP0068";
+
+    /// <summary>
+    /// Enumeration aliases were omitted because Screenplay requires unique numbers.
+    /// </summary>
+    public const string EnumAliasNotRepresentable = "SP0069";
 }
