@@ -95,7 +95,7 @@ public class ConceptRegistry
     /// <returns>True when it is a concept whose simple name is free or already declared with the same meaning.</returns>
     /// <remarks>
     /// Two concepts sharing a simple name are declared once, so the later one is only faithfully named when the
-    /// declaration already written says the same about it - the same primitive and the same values.
+    /// declaration already written says the same about it - the same primitive, values, and compliance claims.
     /// </remarks>
     public bool WouldResolveTo(ITypeSymbol type) =>
         ModelOf(type) is { } concept &&
@@ -152,7 +152,11 @@ public class ConceptRegistry
     /// <param name="concept">The concept arriving under the same name.</param>
     /// <returns>True when one declaration says what both are.</returns>
     static bool IsSameAs(ConceptModel existing, ConceptModel concept) =>
-        existing.Primitive == concept.Primitive && existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal);
+        existing.Primitive == concept.Primitive &&
+        existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal) &&
+        existing.IsPii == concept.IsPii &&
+        existing.IsSensitive == concept.IsSensitive &&
+        existing.EncryptionScope == concept.EncryptionScope;
 
     /// <summary>
     /// Gets the values of an enumeration, in declaration order.

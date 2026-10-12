@@ -76,11 +76,11 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             model = AuthoringDeclarations.Resolve(model, diagnostics, options.AuthoringOnlyConstructs);
         }
 
-        model = ProtectedIdentityAnnotations.Apply(model, diagnostics);
         model = new ExecutableValidationRules(diagnostics).Apply(model);
 
         var domain = ToName(model.Domain, options.Domain);
-        var concepts = new ConceptSyntaxBuilder(naming, _validations, diagnostics, _names) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs }.Build(model.Concepts).ToList();
+        var conceptDiagnostics = new ScreenplayDiagnostics();
+        var concepts = new ConceptSyntaxBuilder(naming, _validations, conceptDiagnostics, _names) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs }.Build(model.Concepts).ToList();
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
         var declaredReadModels = new ReadModelDeclarations(naming, _types, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], diagnostics).Of(model.Slices);
         var originalSlices = model.Slices;
@@ -92,7 +92,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var modules = BuildModules(model, options, domain, declaredReadModels, omittedReferenceSlices, routedOccurrences).ToList();
         var policies = new PolicySyntaxBuilder(naming).Build(model.Policies, _authorize.Referenced);
 
-        return new(
+        var application = new ApplicationSyntax(
             [.. BuildImports(model)],
             [.. concepts],
             [.. policies],
@@ -106,6 +106,14 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
             EventSources = eventRoutes ? BuildEventSources(model, routedOccurrences) : []
         };
+        application = new ProtectedIdentityAnnotations(application).Apply(diagnostics);
+        var retainedPii = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Pii)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
+        var retainedSecrets = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Sensitive)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
+        diagnostics.AddRange(conceptDiagnostics.All.Where(diagnostic =>
+            (diagnostic.Code != ScreenplayDiagnosticCodes.ConceptPiiPromotion || retainedPii.Contains(naming.ToDeclarationName(diagnostic.Location!))) &&
+            (diagnostic.Code != ScreenplayDiagnosticCodes.EncryptionScopeNotRepresentable || retainedSecrets.Contains(naming.ToDeclarationName(diagnostic.Location!)))));
+
+        return application;
     }
 
     /// <summary>
