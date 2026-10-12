@@ -3,7 +3,6 @@
 
 using System.Collections;
 using System.Globalization;
-using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
 using Cratis.Arc.Validation;
@@ -307,18 +306,7 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         }
 
         var hasValidators = Services.Any(_ => _.ServiceType == typeof(IDiscoverableValidators));
-        var explicitAuthorization = Services.Where(_ => _.ServiceType == typeof(ICurrentPrincipalAccessor) ||
-            _.ServiceType == typeof(ICurrentPrincipalOverride) ||
-            _.ServiceType == typeof(IAuthorizationPolicyRuntime)).ToArray();
-        Services.AddCratisArcCore();
-        foreach (var type in explicitAuthorization.Select(_ => _.ServiceType).Distinct())
-        {
-            Services.RemoveAll(type);
-        }
-        foreach (var registration in explicitAuthorization)
-        {
-            Services.Add(registration);
-        }
+        Services.AddCratisArcCoreKeepingAuthorization();
         Services.RemoveAll<IQueryPerformerProviders>();
         Services.AddSingleton<IQueryPerformerProviders, ScenarioQueryPerformerProviders<TReadModel>>();
         IServiceProvider? serviceProvider = null;
