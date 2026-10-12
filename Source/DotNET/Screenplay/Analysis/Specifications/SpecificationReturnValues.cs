@@ -299,11 +299,19 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
     {
         ConditionalExpressionSyntax conditional => [conditional.WhenTrue, conditional.WhenFalse],
         BinaryExpressionSyntax { RawKind: (int)SyntaxKind.CoalesceExpression } coalesce => [coalesce.Left, coalesce.Right],
+        _ => Elements(value)
+    };
+
+    static IEnumerable<ExpressionSyntax>? Elements(ExpressionSyntax value) => value switch
+    {
         TupleExpressionSyntax tuple => tuple.Arguments.Select(argument => argument.Expression),
-        CollectionExpressionSyntax collection => collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression),
+        CollectionExpressionSyntax collection => CollectionElements(collection),
         SwitchExpressionSyntax switched => switched.Arms.Select(arm => arm.Expression),
         _ => null
     };
+
+    static IEnumerable<ExpressionSyntax> CollectionElements(CollectionExpressionSyntax collection) =>
+        collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression);
 
     static ExpressionSyntax? Copied(SyntaxNode node) => node switch
     {
