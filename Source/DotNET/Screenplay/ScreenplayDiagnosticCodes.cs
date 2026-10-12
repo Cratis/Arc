@@ -225,8 +225,11 @@ public static class ScreenplayDiagnosticCodes
     /// <c>DataTableForObservableQuery</c>, <c>Column</c> and <c>CommandDialog</c> - when they are written as text or as
     /// the name of a query or command the slice declares. This is reported once for each of those that is not - a
     /// computed title, a column without a field, a menu item running a callback, a query of another slice - and once
-    /// for a screen using none of them, whose structure is JSX this generator does not read. A guessed column is worse
-    /// than an absent one, so nothing is guessed and every omission says so.
+    /// for a screen using none of them, whose structure is JSX this generator does not read. In a mixed screen,
+    /// component tags outside recognized component spans are reported once per distinct tag, and intrinsic markup
+    /// is listed in one report. Fragments without direct content and pure intrinsic wrappers around recognized
+    /// components are exempt. A scan problem with recognized imports reports once and withholds all structure.
+    /// A guessed column is worse than an absent one, so nothing is guessed and every omission says so.
     /// </remarks>
     public const string ScreenStructureNotInferred = "SP0028";
 
@@ -585,6 +588,20 @@ public static class ScreenplayDiagnosticCodes
     public const string EnumAliasNotRepresentable = "SP0069";
 
     /// <summary>
+    /// Returned event batch constraints cannot be proven equivalent to per-fact reaction appends.
+    /// </summary>
+    public const string UnprovenReactionBatchConstraints = "SP0070";
+
+    /// <summary>
+    /// Command outcome handling in a reactor cannot be stated as executable refusal handling.
+    /// </summary>
+    public const string UnrepresentableReactionRefusalHandling = "SP0071";
+
+    /// <summary>
+    /// Receipt-based reactor redelivery handling cannot be stated executably.
+    /// </summary>
+    public const string UnrepresentableReactionRedelivery = "SP0072";
+
     /// A generated parameter's strategy cannot be recovered as a proven UUID v4 factory.
     /// </summary>
     public const string GenerationNotRecoverable = "SP0073";

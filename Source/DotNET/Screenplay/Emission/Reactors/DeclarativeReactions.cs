@@ -52,7 +52,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     {
         var name = naming.ToDeclarationName(@event);
         var reactions = reactor.Reactions.Where(_ => naming.ToDeclarationName(_.EventName) == name).ToList();
-        if (reactions is not [var reaction] || !new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor, reaction))
+        if (reactions is not [var reaction] || reaction.UnprovenBatch is not null || !new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor, reaction))
         {
             return null;
         }

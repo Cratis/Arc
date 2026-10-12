@@ -59,7 +59,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             .Select(_ => (Event: _, Name: naming.ToDeclarationName(_)))
             .Where(_ => _.Name.Length > 1)
             .DistinctBy(_ => _.Name, StringComparer.Ordinal)
-            .Select(_ => Trigger(_.Name, declarative?.For(reactor, _.Event), file))
+            .Select(_ => BuildTrigger(reactor, _.Event, _.Name, declarative, file, @namespace))
             .ToList();
 
         if (triggers.Count == 0)
@@ -78,6 +78,47 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             RunsAs = MetadataEnabled && ReactionMetadataAdmission.ValidIdentity(reactor) && reactor.SystemRoles is { } roles
                 ? new("system", roles, SourceLocation.Start) : null
         };
+    }
+
+    ReactionTriggerSyntax BuildTrigger(ReactorModel reactor, string @event, string name, DeclarativeReactions? declarative, FileReferenceSyntax file, string location)
+    {
+        var reaction = declarative?.For(reactor, @event);
+        if (reactor.Reactions.FirstOrDefault(_ => _.EventName == @event && _.UnprovenBatch is not null) is { } batch)
+        {
+            diagnostics.Warning(
+                ScreenplayDiagnosticCodes.UnprovenReactionBatchConstraints,
+                $"The reaction of '{reactor.Name}' to '{@event}' keeps its file reference: Chronicle appends its {batch.Produces.Count()} returned events as one batch, but a Screenplay reaction appends each fact separately, and {batch.UnprovenBatch}",
+                reactor.MetadataLocation ?? location);
+        }
+
+        if (reaction is null)
+        {
+            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location);
+        }
+
+        return Trigger(name, reaction, file);
+    }
+
+    void ReportCodeHandling(ReactorModel reactor, string @event, string location)
+    {
+        var handles = reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
+        var discards = reactor.DiscardedCommandResultHandlers.Contains(@event, StringComparer.Ordinal);
+        if (handles || discards)
+        {
+            var behavior = handles ? "handles the outcome of" : "discards the outcome of and acknowledges refusals from";
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnrepresentableReactionRefusalHandling,
+                $"'{reactor.Name}' {behavior} a command it executes for '{@event}' in code; 'on refused' is not admitted by any executable model (Screenplay#433, PLAY0268) and Arc cannot classify refusals in reactors yet (Arc#3058), so the trigger keeps its file reference",
+                location);
+        }
+
+        if (reactor.RedeliveryHandlers.Contains(@event, StringComparer.Ordinal))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnrepresentableReactionRedelivery,
+                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is not admitted by any executable model (Screenplay#433, PLAY0268), so the trigger keeps its file reference",
+                location);
+        }
     }
 
     /// <summary>
