@@ -41,6 +41,11 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     public const string ExecuteMethod = "Execute";
 
     /// <summary>
+    /// Gets the source definition types discovered across the application.
+    /// </summary>
+    internal IEnumerable<INamedTypeSymbol> Definitions { get; init; } = [];
+
+    /// <summary>
     /// Determines whether a type is a reactor.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -83,15 +88,19 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
         var handlers = Handlers(type).ToList();
         var eventSource = EventSourceReader.ReadObserved(type);
 
-        return new(
+        var reactor = new ReactorModel(
             type.Name,
             [.. handlers.Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)],
             IsTranslating(type, handlers),
             paths.Relative(type.SourceFilePath()),
             eventSource)
         {
-            Reactions = ReactionsOf(type, handlers, eventSource, models)
+            Reactions = ObservesTheEventLog(type) ? new ReactionReader(models).Read(type, handlers) : [],
+            HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type) &&
+                handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
+
+        return new ReactorMetadataReader(Definitions).Read(type, reactor);
     }
 
     /// <summary>
@@ -107,7 +116,8 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
         IReadOnlyList<IMethodSymbol> handlers,
         ObservedEventSourceModel? eventSource,
         SemanticModels models) =>
-        eventSource is null && ObservesTheEventLog(type) ? new ReactionReader(models).Read(type, handlers) : [];
+        eventSource is null && !ReactorMetadataReader.HasObservationFilter(type) && ObservesTheEventLog(type)
+            ? new ReactionReader(models).Read(type, handlers) : [];
 
     /// <summary>
     /// Gets the methods dispatched to by event type.

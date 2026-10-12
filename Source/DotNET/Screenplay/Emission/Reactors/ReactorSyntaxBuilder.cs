@@ -35,6 +35,11 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     public ApplicationModel? Application { get; init; }
 
     /// <summary>
+    /// Gets whether ESM v10 reaction metadata can be emitted.
+    /// </summary>
+    public bool MetadataEnabled { get; init; } = true;
+
+    /// <summary>
     /// Builds the reactor declaration.
     /// </summary>
     /// <param name="reactor">The reactor to build for.</param>
@@ -42,12 +47,13 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// <returns>The <see cref="ReactionSyntax"/>, or <see langword="null"/> when it observes no events.</returns>
     public ReactionSyntax? Build(ReactorModel reactor, string @namespace)
     {
-        new ObservedEventSourceReport(diagnostics).Report("reactor", reactor.Name, reactor.EventSource, @namespace);
+        var metadata = new ReactionMetadataAdmission(Application, MetadataEnabled);
+        metadata.Report(reactor, diagnostics, reactor.MetadataLocation ?? @namespace);
 
         var name = naming.ToDeclarationName(reactor.Name);
         var path = naming.ToFilePath(reactor.SourceFilePath) ?? SourceFilePaths.Conventional(@namespace, name);
         var file = new FileReferenceSyntax(path, SourceLocation.Start);
-        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application);
+        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled };
 
         var triggers = reactor.ObservedEvents
             .Select(_ => (Event: _, Name: naming.ToDeclarationName(_)))
@@ -66,7 +72,12 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             return null;
         }
 
-        return new(name, triggers, SourceLocation.Start);
+        return new(name, triggers, SourceLocation.Start)
+        {
+            From = metadata.FilterOf(reactor),
+            RunsAs = MetadataEnabled && ReactionMetadataAdmission.ValidIdentity(reactor) && reactor.SystemRoles is { } roles
+                ? new("system", roles, SourceLocation.Start) : null
+        };
     }
 
     /// <summary>
