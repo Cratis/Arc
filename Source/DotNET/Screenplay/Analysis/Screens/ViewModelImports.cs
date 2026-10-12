@@ -68,6 +68,16 @@ public static class ViewModelImports
     /// that is not a view model of this slice, or a file that cannot be read, and either way the screen is recovered
     /// from what it says itself.
     /// </remarks>
-    static string? TextOf(string path, IUserInterfaceFiles files) =>
-        _extensions.Select(_ => files.Contents(path + _)).FirstOrDefault(_ => _ is not null);
+    static TsxSource TextOf(string path, IUserInterfaceFiles files)
+    {
+        foreach (var extension in _extensions)
+        {
+            if (files.Contents(path + extension) is { } text)
+            {
+                return TsxSource.Scan(text, jsx: extension == ".tsx");
+            }
+        }
+
+        return TsxSource.Scan(string.Empty, jsx: false);
+    }
 }

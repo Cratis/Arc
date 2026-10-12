@@ -88,6 +88,28 @@ public class UnreadScreenStructure(ScreenplayDiagnostics diagnostics, string @na
             ? $"uses a <{tag}> without a command, so no action is written for it"
             : $"runs '{written}' from a <{tag}>, which is not a command its slice declares, so no action is written for it");
 
+    /// <summary>
+    /// Reports a scan boundary that prevents trustworthy structure inference.
+    /// </summary>
+    /// <param name="line">The line at which the boundary starts.</param>
+    /// <param name="construct">The construct that cannot be scanned.</param>
+    internal void Unscannable(int line, string construct) =>
+        Report($"cannot be scanned past line {line} ({construct}), so beyond the file realizing it and the queries it imports, its structure is not inferred");
+
+    /// <summary>
+    /// Reports an unaccounted component tag once.
+    /// </summary>
+    /// <param name="tag">The tag.</param>
+    internal void Element(string tag) =>
+        Report($"renders a <{tag}> beside the Cratis Components it reads, and what a <{tag}> shows is not read, so any title, section, summary, action or navigation it carries is not written");
+
+    /// <summary>
+    /// Reports the unaccounted intrinsic tags together.
+    /// </summary>
+    /// <param name="tags">The distinct tags in source order.</param>
+    internal void Markup(IEnumerable<string> tags) =>
+        Report($"renders {string.Join(", ", tags.Select(_ => $"<{_}>"))} beside the Cratis Components it reads, and what that markup shows is not read, so any title, section, summary, action or navigation it carries is not written");
+
     void Report(string what) =>
         diagnostics.Information(ScreenplayDiagnosticCodes.ScreenStructureNotInferred, $"The screen '{screen}' {what}", @namespace);
 }

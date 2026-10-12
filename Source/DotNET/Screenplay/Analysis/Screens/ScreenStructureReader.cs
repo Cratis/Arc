@@ -55,8 +55,19 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             return ScreenStructure.None;
         }
 
-        var components = KnownComponents.In(text);
-        var code = ScreenImports.WithoutComments(text);
+        var code = TsxSource.Scan(text);
+        var components = new KnownComponents(ScreenImports.Bindings(code));
+        if (!HasKnownComponents(components))
+        {
+            unread.Screen();
+            return ScreenStructure.None;
+        }
+
+        if (code.Problem is { } problem)
+        {
+            unread.Unscannable(problem.Line, problem.Construct);
+            return ScreenStructure.None;
+        }
         var elements = components.DataPages.SelectMany(_ => JsxElements.Named(code, _).Select(element => (Kind: ComponentKind.Page, Element: element)))
             .Concat(components.DataTables.SelectMany(_ => JsxElements.Named(code, _).Select(element => (Kind: ComponentKind.Table, Element: element))))
             .Concat(components.CommandDialogs.SelectMany(_ => JsxElements.Named(code, _).Select(element => (Kind: ComponentKind.Dialog, Element: element))))
@@ -75,8 +86,48 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             reading.Read(kind, element);
         }
 
+        ReportUnaccounted(code, elements.ConvertAll(_ => _.Element), unread);
+
         return new(reading.Titles, reading.Tables, reading.Actions.Distinct(StringComparer.Ordinal).ToList());
     }
+
+    static bool HasKnownComponents(KnownComponents components) =>
+        components.DataPages.Concat(components.DataTables).Concat(components.CommandDialogs).Any();
+
+    static void ReportUnaccounted(TsxSource source, IReadOnlyList<JsxElement> read, UnreadScreenStructure unread)
+    {
+        var outside = source.Tags.Where(tag => IsUnaccounted(tag, read)).ToList();
+        foreach (var tag in outside.Where(_ => !IsMarkup(_)).Select(_ => _.Name).Distinct(StringComparer.Ordinal))
+        {
+            unread.Element(tag);
+        }
+
+        var markup = outside.Where(IsMarkup).Select(_ => _.Name).Distinct(StringComparer.Ordinal).ToList();
+        if (markup.Count > 0)
+        {
+            unread.Markup(markup);
+        }
+    }
+
+    static bool IsUnaccounted(JsxTag tag, IReadOnlyList<JsxElement> read) => !IsAccounted(tag, read) && !IsExempt(tag, read);
+
+    static bool IsAccounted(JsxTag tag, IReadOnlyList<JsxElement> read) => read.Any(_ => Contains(_, tag.Start));
+
+    static bool Contains(JsxElement element, int position) => position >= element.Position && position < element.End;
+
+    static bool IsMarkup(JsxTag tag) => tag.IsIntrinsic || tag.IsFragment;
+
+    static bool IsExempt(JsxTag tag, IReadOnlyList<JsxElement> read)
+    {
+        if (!IsMarkup(tag) || tag.HasContent)
+        {
+            return false;
+        }
+
+        return tag.IsFragment || read.Any(_ => IsWithin(tag, _));
+    }
+
+    static bool IsWithin(JsxTag tag, JsxElement element) => element.Position > tag.Start && element.End <= tag.End;
 
     [GeneratedRegex(@"^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex PropertyPathRegex();
@@ -129,7 +180,7 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
 
             Table(page);
 
-            foreach (var item in JsxElements.Named(page.Children, $"{page.Tag}.MenuItem"))
+            foreach (var item in JsxElements.Named(page, $"{page.Tag}.MenuItem"))
             {
                 unread.MenuItem(item["label"]?.Literal);
             }
@@ -140,33 +191,22 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             }
         }
 
-        void Table(JsxElement table)
+        void Table(JsxElement table) => ReadBound(
+            table,
+            ComponentKind.Table,
+            proxy => queries.FirstOrDefault(_ => _.Name == proxy),
+            query => AddTable(table, query));
+
+        void AddTable(JsxElement table, QueryModel query)
         {
-            if (!table.IsReadable)
-            {
-                unread.Component(table.Tag, "no table is written for it");
-                return;
-            }
-
-            var written = table["query"];
-            var query = written?.Identifier is { } local && components.Proxy(local) is { } proxy
-                ? queries.FirstOrDefault(_ => _.Name == proxy)
-                : null;
-
-            if (query is null)
-            {
-                unread.Query(table.Tag, written?.Written);
-                return;
-            }
-
             var readModel = query.ReturnType.Name;
-            Tables.Add(new(readModel, [.. Columns(table.Children, readModel)]));
+            Tables.Add(new(readModel, [.. Columns(table, readModel)]));
         }
 
-        IEnumerable<ScreenColumnModel> Columns(string children, string readModel)
+        IEnumerable<ScreenColumnModel> Columns(JsxElement parent, string readModel)
         {
             var columns = components.Columns
-                .SelectMany(binding => JsxElements.Named(children, binding.Local).Select(element => (Binding: binding, Element: element)))
+                .SelectMany(binding => JsxElements.Named(parent, binding.Local).Select(element => (Binding: binding, Element: element)))
                 .OrderBy(_ => _.Element.Position);
 
             foreach (var (binding, column) in columns)
@@ -205,26 +245,39 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             }
         }
 
-        void Dialog(JsxElement dialog)
+        void Dialog(JsxElement dialog) => ReadBound(
+            dialog,
+            ComponentKind.Dialog,
+            proxy => commands.FirstOrDefault(_ => _.Name == proxy),
+            command => Actions.Add(command.Name));
+
+        void ReadBound<T>(JsxElement element, ComponentKind kind, Func<string, T?> resolve, Action<T> read)
+            where T : class
         {
-            if (!dialog.IsReadable)
+            var binding = BindingOf(kind);
+            if (!element.IsReadable)
             {
-                unread.Component(dialog.Tag, "no action is written for it");
+                unread.Component(element.Tag, binding.Consequence);
                 return;
             }
 
-            var written = dialog["command"];
-            var command = written?.Identifier is { } local && components.Proxy(local) is { } proxy
-                ? commands.FirstOrDefault(_ => _.Name == proxy)
+            var written = element[binding.Property];
+            var declaration = written?.Identifier is { } local && components.Proxy(local) is { } proxy
+                ? resolve(proxy)
                 : null;
 
-            if (command is null)
+            if (declaration is null)
             {
-                unread.Command(dialog.Tag, written?.Written);
+                binding.Report(element.Tag, written?.Written);
                 return;
             }
 
-            Actions.Add(command.Name);
+            read(declaration);
         }
+
+        (string Property, string Consequence, Action<string, string?> Report) BindingOf(ComponentKind kind) =>
+            kind == ComponentKind.Table
+                ? ("query", "no table is written for it", unread.Query)
+                : ("command", "no action is written for it", unread.Command);
     }
 }
