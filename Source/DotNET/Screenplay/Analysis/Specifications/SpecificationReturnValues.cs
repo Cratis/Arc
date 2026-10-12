@@ -40,6 +40,16 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
     const string Expected = "expected";
     const string Actual = "actual";
 
+    static readonly HashSet<SyntaxKind> Increments =
+    [
+        SyntaxKind.PreIncrementExpression,
+        SyntaxKind.PreDecrementExpression,
+        SyntaxKind.PostIncrementExpression,
+        SyntaxKind.PostDecrementExpression
+    ];
+
+    static readonly HashSet<SyntaxKind> WritingArguments = [SyntaxKind.RefKeyword, SyntaxKind.OutKeyword];
+
     /// <summary>
     /// Determines whether an expression reads the response of a command result.
     /// </summary>
@@ -230,77 +240,81 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
     static bool IsResult(ExpressionSyntax expression, ISymbol result, SemanticModel semanticModel) =>
         SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(Receiver(expression)).Symbol?.OriginalDefinition, result.OriginalDefinition);
 
-    static bool RootedAtResult(ExpressionSyntax expression, ISymbol result, SemanticModel semanticModel)
-    {
-        if (IsResult(expression, result, semanticModel))
-        {
-            return true;
-        }
+    static bool RootedAtResult(ExpressionSyntax expression, ISymbol result, SemanticModel semanticModel) =>
+        IsResult(expression, result, semanticModel) ||
+        (ReceiverOf(Receiver(expression)) is { } receiver && RootedAtResult(receiver, result, semanticModel));
 
-        expression = Receiver(expression);
-        var receiver = expression switch
-        {
-            MemberAccessExpressionSyntax member => member.Expression,
-            ElementAccessExpressionSyntax element => element.Expression,
-            ConditionalAccessExpressionSyntax conditional => conditional.Expression,
-            MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => expression.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault()?.Expression,
-            _ => null
-        };
-        return receiver is not null && RootedAtResult(receiver, result, semanticModel);
-    }
-
-    static bool WritesResult(SyntaxNode node, ISymbol result, InvocationExpressionSyntax action, SemanticModel semanticModel)
+    static ExpressionSyntax? ReceiverOf(ExpressionSyntax expression) => expression switch
     {
-        var target = node switch
-        {
-            AssignmentExpressionSyntax assignment when !(IsResult(assignment.Left, result, semanticModel) && assignment.Right.DescendantNodesAndSelf().Contains(action)) => assignment.Left,
-            ArgumentSyntax argument when argument.RefKindKeyword.IsKind(SyntaxKind.RefKeyword) || argument.RefKindKeyword.IsKind(SyntaxKind.OutKeyword) => argument.Expression,
-            RefExpressionSyntax reference => reference.Expression,
-            PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.PreIncrementExpression or (int)SyntaxKind.PreDecrementExpression } prefix => prefix.Operand,
-            PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.PostIncrementExpression or (int)SyntaxKind.PostDecrementExpression } postfix => postfix.Operand,
-            _ => null
-        };
-        return target is not null && WritesTarget(target, result, semanticModel);
-    }
+        MemberAccessExpressionSyntax member => member.Expression,
+        ElementAccessExpressionSyntax element => element.Expression,
+        ConditionalAccessExpressionSyntax conditional => conditional.Expression,
+        MemberBindingExpressionSyntax or ElementBindingExpressionSyntax => expression.Ancestors().OfType<ConditionalAccessExpressionSyntax>().FirstOrDefault()?.Expression,
+        _ => null
+    };
+
+    static bool WritesResult(SyntaxNode node, ISymbol result, InvocationExpressionSyntax action, SemanticModel semanticModel) =>
+        WriteTarget(node) is { } target && !AssignsAction(node, result, action, semanticModel) && WritesTarget(target, result, semanticModel);
+
+    static ExpressionSyntax? WriteTarget(SyntaxNode node) => node switch
+    {
+        AssignmentExpressionSyntax assignment => assignment.Left,
+        ArgumentSyntax argument when WritingArguments.Contains(argument.RefKindKeyword.Kind()) => argument.Expression,
+        RefExpressionSyntax reference => reference.Expression,
+        PrefixUnaryExpressionSyntax prefix when Increments.Contains(prefix.Kind()) => prefix.Operand,
+        PostfixUnaryExpressionSyntax postfix when Increments.Contains(postfix.Kind()) => postfix.Operand,
+        _ => null
+    };
+
+    static bool AssignsAction(SyntaxNode node, ISymbol result, InvocationExpressionSyntax action, SemanticModel semanticModel) =>
+        node is AssignmentExpressionSyntax assignment && IsResult(assignment.Left, result, semanticModel) &&
+        assignment.Right.DescendantNodesAndSelf().Contains(action);
 
     static bool WritesTarget(ExpressionSyntax target, ISymbol result, SemanticModel semanticModel) =>
         Receiver(target) is TupleExpressionSyntax tuple
             ? tuple.Arguments.Any(argument => WritesTarget(argument.Expression, result, semanticModel))
             : RootedAtResult(target, result, semanticModel);
 
-    static bool AliasesResult(SyntaxNode node, ISymbol result, SemanticModel semanticModel)
+    static bool AliasesResult(SyntaxNode node, ISymbol result, SemanticModel semanticModel) =>
+        AliasesPattern(node, result, semanticModel) || AliasesElements(node, result, semanticModel) || CopiesResult(node, result, semanticModel);
+
+    static bool AliasesElements(SyntaxNode node, ISymbol result, SemanticModel semanticModel) =>
+        node is CommonForEachStatementSyntax each && RootedAtResult(each.Expression, result, semanticModel) &&
+        IsReference(semanticModel.GetForEachStatementInfo(each).ElementType);
+
+    static bool CopiesResult(SyntaxNode node, ISymbol result, SemanticModel semanticModel) =>
+        Copied(node) is { } copied && RootedAtResult(copied, result, semanticModel) &&
+        (IsResult(copied, result, semanticModel) || IsReference(semanticModel.GetTypeInfo(copied).Type));
+
+    static ExpressionSyntax? Copied(SyntaxNode node) => node switch
     {
-        if (AliasesPattern(node, result, semanticModel))
-        {
-            return true;
-        }
-
-        if (node is CommonForEachStatementSyntax each)
-        {
-            return RootedAtResult(each.Expression, result, semanticModel) && IsReference(semanticModel.GetForEachStatementInfo(each).ElementType);
-        }
-
-        var copied = node switch
-        {
-            AssignmentExpressionSyntax assignment => assignment.Right,
-            EqualsValueClauseSyntax initializer => initializer.Value,
-            ReturnStatementSyntax { Expression: { } returned } => returned,
-            YieldStatementSyntax { Expression: { } yielded } => yielded,
-            ArrowExpressionClauseSyntax arrow => arrow.Expression,
-            LambdaExpressionSyntax { ExpressionBody: { } body } => body,
-            _ => null
-        };
-        return copied is not null && RootedAtResult(copied, result, semanticModel) &&
-            (IsResult(copied, result, semanticModel) || IsReference(semanticModel.GetTypeInfo(copied).Type));
-    }
-
-    static bool AliasesPattern(SyntaxNode node, ISymbol result, SemanticModel semanticModel) => node switch
-    {
-        IsPatternExpressionSyntax pattern => RootedAtResult(pattern.Expression, result, semanticModel) && DeclaresVariable(pattern.Pattern),
-        SwitchExpressionSyntax expression => RootedAtResult(expression.GoverningExpression, result, semanticModel) && expression.Arms.Any(arm => DeclaresVariable(arm.Pattern)),
-        SwitchStatementSyntax statement => RootedAtResult(statement.Expression, result, semanticModel) && statement.Sections.SelectMany(section => section.Labels).OfType<CasePatternSwitchLabelSyntax>().Any(label => DeclaresVariable(label.Pattern)),
-        _ => false
+        AssignmentExpressionSyntax assignment => assignment.Right,
+        EqualsValueClauseSyntax initializer => initializer.Value,
+        ReturnStatementSyntax returned => returned.Expression,
+        YieldStatementSyntax yielded => yielded.Expression,
+        _ => Produced(node)
     };
+
+    static ExpressionSyntax? Produced(SyntaxNode node) => node switch
+    {
+        ArrowExpressionClauseSyntax arrow => arrow.Expression,
+        LambdaExpressionSyntax lambda => lambda.ExpressionBody,
+        _ => null
+    };
+
+    static bool AliasesPattern(SyntaxNode node, ISymbol result, SemanticModel semanticModel) =>
+        PatternsOf(node) is ({ } subject, var patterns) && RootedAtResult(subject, result, semanticModel) && patterns.Any(DeclaresVariable);
+
+    static (ExpressionSyntax? Subject, IEnumerable<PatternSyntax> Patterns) PatternsOf(SyntaxNode node) => node switch
+    {
+        IsPatternExpressionSyntax pattern => (pattern.Expression, [pattern.Pattern]),
+        SwitchExpressionSyntax expression => (expression.GoverningExpression, expression.Arms.Select(arm => arm.Pattern)),
+        SwitchStatementSyntax statement => (statement.Expression, CasePatterns(statement)),
+        _ => (null, [])
+    };
+
+    static IEnumerable<PatternSyntax> CasePatterns(SwitchStatementSyntax statement) =>
+        statement.Sections.SelectMany(section => section.Labels).OfType<CasePatternSwitchLabelSyntax>().Select(label => label.Pattern);
 
     static bool DeclaresVariable(PatternSyntax pattern) => pattern.DescendantNodes().OfType<SingleVariableDesignationSyntax>().Any();
 
