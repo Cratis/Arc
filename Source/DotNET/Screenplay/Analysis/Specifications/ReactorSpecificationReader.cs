@@ -70,20 +70,7 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
             return $"of '{reactor.Name}', whose handlers are code rather than declarative reactions";
         }
 
-        foreach (var (invocation, method, _) in Assertions(type))
-        {
-            if (method is null || !IsReactorAssertion(method))
-            {
-                return $"that asserts something other than what '{reactor.Name}' returned, such as what a collaborator was asked to do ('{invocation.Expression}')";
-            }
-
-            if (method.TypeArguments is [var asserted] && CommandReader.IsCommand(asserted) && method.Name == ProducedAssertion)
-            {
-                return $"that asserts '{reactor.Name}' invokes '{asserted.Name}', while a specification states the facts the invoked command records";
-            }
-        }
-
-        return null;
+        return AssertionWithoutCounterpart(type, reactor);
     }
 
     /// <summary>
@@ -169,6 +156,30 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
     static bool IsReadModelSeed(IMethodSymbol method) =>
         method.Name == SpecificationCalls.ReadModelMethod &&
         method.ContainingType.OriginalDefinition.FullMetadataName() == WellKnownTypeNames.ReactorSourceGivenBuilder;
+
+    /// <summary>
+    /// Determines why the assertions of a reactor scenario have no counterpart in the language.
+    /// </summary>
+    /// <param name="type">The type declaring the scenario.</param>
+    /// <param name="reactor">The reactor it is a scenario of.</param>
+    /// <returns>The reason, or <see langword="null"/> when every assertion has a counterpart.</returns>
+    string? AssertionWithoutCounterpart(INamedTypeSymbol type, INamedTypeSymbol reactor)
+    {
+        foreach (var (invocation, method, _) in Assertions(type))
+        {
+            if (method is null || !IsReactorAssertion(method))
+            {
+                return $"that asserts something other than what '{reactor.Name}' returned, such as what a collaborator was asked to do ('{invocation.Expression}')";
+            }
+
+            if (method.TypeArguments is [var asserted] && CommandReader.IsCommand(asserted) && method.Name == ProducedAssertion)
+            {
+                return $"that asserts '{reactor.Name}' invokes '{asserted.Name}', while a specification states the facts the invoked command records";
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Gets every call a method of the chain of a scenario makes.
