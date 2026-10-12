@@ -167,19 +167,12 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             produces.Add(new(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
-                UsesCommandContext = usesCommandContext && (ProductionDestinations.ThroughCommandContext(creation, body, semanticModel, behavior is not null, generatedIdentity) ||
-                    (generatedIdentity && ThroughGeneratedWrapper(creation, body, semanticModel, sources))),
+                UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
             });
         }
     }
-
-    bool ThroughGeneratedWrapper(BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, AuthoringSources? sources) =>
-        creation.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault() is { ArgumentList.Arguments: [var destination, var payload] } wrapper &&
-        model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") &&
-        sources?.ReadPath(destination.Expression, model) is not null && MappingSourceReader.Unwrap(payload.Expression) == creation &&
-        (ReferenceEquals(wrapper, body) || (wrapper.Parent is ReturnStatementSyntax statement && ReferenceEquals(statement.Parent, body)));
 
     /// <summary>
     /// Reads what a behavior of an aggregate root the handler reached produces.

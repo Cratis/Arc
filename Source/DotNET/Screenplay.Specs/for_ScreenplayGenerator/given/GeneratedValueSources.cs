@@ -15,14 +15,15 @@ public static class GeneratedValueSources
         }
         """;
 
+    static readonly SourceTextChange _usings = new("using Cratis.Chronicle.Events;", "using Cratis.Chronicle.Events;\nusing Cratis.Concepts;");
+    static readonly SourceTextChange _concept = new("public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);", Concept);
+
     /// <summary>
     /// Wraps a command with a UUID-generating identity concept.
     /// </summary>
     /// <param name="command">The command declaration.</param>
     /// <returns>The source containing the concept and event.</returns>
-    public static string With(string command) => IdentifierSources.With(command)
-        .Replace("using Cratis.Chronicle.Events;", "using Cratis.Chronicle.Events;\nusing Cratis.Concepts;", StringComparison.Ordinal)
-        .Replace("public record AuthorId(Guid Value) : EventSourceId<Guid>(Value);", Concept, StringComparison.Ordinal);
+    public static string With(string command) => _concept.Apply(_usings.Apply(IdentifierSources.With(command)));
 
     /// <summary>
     /// Gets the real extension-block shape for pins, without installing a runtime fixture.

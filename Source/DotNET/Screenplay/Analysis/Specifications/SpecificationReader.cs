@@ -136,6 +136,12 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
         var specification = new GeneratedValuePins(models, _held).Read(
             steps,
             new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse, Returns = draft.Returns });
+        RegisterEvidence(type, specification, draft, stated);
+
+        return specification;
+    }
+
+    static void RegisterEvidence(INamedTypeSymbol type, SpecificationModel specification, SpecificationDraft draft, ScreenplayDiagnostics stated) =>
         SpecificationEvidence.Register(
             specification,
             new(
@@ -150,8 +156,6 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
                 HasExplicitCommandSources = draft.EventSources.HasExplicitCommandSources,
                 HasUnresolvedCommandSources = draft.EventSources.HasUnresolvedCommandSources
             });
-        return specification;
-    }
 
     /// <summary>
     /// Determines whether a type is written the way a specification is, whatever it turns out to specify.

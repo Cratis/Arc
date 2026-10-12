@@ -55,6 +55,36 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         _ => false
     };
 
+    static bool NeedsLegacyFixtures(CommandAuthoringModel authoring, List<SpecificationModel> scenarios)
+    {
+        if (authoring.GeneratedParameters)
+        {
+            return false;
+        }
+
+        return scenarios.Count > 0 && authoring.Generated.Count > 0;
+    }
+
+    static bool MustPreserveExplicitSources(CommandAuthoringModel authoring, ApplicationModel model, string command)
+    {
+        if (authoring.GeneratedParameters || authoring.Generated.Count == 0)
+        {
+            return false;
+        }
+
+        return model.Slices.SelectMany(slice => slice.Specifications).Any(specification => HasExplicitSource(specification, command));
+    }
+
+    static bool HasExplicitSource(SpecificationModel specification, string command)
+    {
+        if (specification.When is not { Kind: SpecificationStateKind.Command } issued || issued.Name != command)
+        {
+            return false;
+        }
+
+        return !ResponseOnlyScenarios.IsResponseOnly(specification) && SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true };
+    }
+
     CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
         if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent)
@@ -99,7 +129,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var successfulScenarios = model.Slices.SelectMany(slice => slice.Specifications).Where(specification =>
             specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
             !specification.Errors.Any() && specification.Then.Any()).ToList();
-        var needsFixtures = !authoring.GeneratedParameters && successfulScenarios.Count > 0 && authoring.Generated.Count > 0;
+        var needsFixtures = NeedsLegacyFixtures(authoring, successfulScenarios);
         if (needsFixtures)
         {
             Report(command, location, "Generation and responses were withheld to keep successful scenarios; Arc creates generated values inside Handle() with no seam a scenario can pin, so no deterministic generation fixture can be recovered and the command retains its legacy productions or handler reference");
@@ -115,10 +145,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var preserveScenarios = needsFixtures || unrecoveredReturns;
 
         // A response-only scenario on a command with generated values is never emitted, so it preserves nothing.
-        var preserveExplicitSources = !authoring.GeneratedParameters && authoring.Generated.Count > 0 && model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
-            specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
-            !ResponseOnlyScenarios.IsResponseOnly(specification) &&
-            SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true });
+        var preserveExplicitSources = MustPreserveExplicitSources(authoring, model, command.Name);
         if (preserveExplicitSources)
         {
             Report(command, location, $"Generation and responses for command '{command.Name}' were withheld to keep scenarios with explicit given event sources; generated identity fixtures cannot be recovered from Arc scenarios, so the command retains its legacy productions or handler reference");
