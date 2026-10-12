@@ -137,6 +137,7 @@ public class ConceptSyntaxBuilder(
     /// </summary>
     /// <param name="concept">The concept to read the values of.</param>
     /// <returns>The values, empty when the concept is not an enumeration.</returns>
+    /// <exception cref="EnumNumbersDoNotMatchValues">The concept states member numbers that are not one per member.</exception>
     /// <remarks>
     /// A value is written on a line of its own, so a value named after a word the concept body reads as a directive
     /// is swallowed by that directive rather than declared, and is left out instead.
@@ -149,6 +150,12 @@ public class ConceptSyntaxBuilder(
         }
 
         var numbers = concept.EnumNumbers.ToList();
+        var memberCount = concept.EnumValues.Count();
+        if (numbers.Count != 0 && numbers.Count != memberCount)
+        {
+            throw new EnumNumbersDoNotMatchValues(concept.Name, memberCount, numbers.Count);
+        }
+
         var members = concept.EnumValues.Select((name, index) => (Name: name, Number: numbers.Count == 0 ? (BigInteger?)null : numbers[index]))
             .Where(member => names.Allows(member.Name, ReservedWords.InConcept, concept.Name, concept.Name))
             .Select(member => (Name: naming.ToPropertyName(member.Name), member.Number)).ToList();
@@ -199,13 +206,13 @@ public class ConceptSyntaxBuilder(
     {
         var reason = string.Join(" / ", new[]
         {
-            belowVersion ? $"cap v{MaximumExecutableModelVersion}" : null,
-            outsideRange ? "outside int32" : null
+            belowVersion ? $"needs ESM v12, cap v{MaximumExecutableModelVersion}" : null,
+            outsideRange ? "a number is outside int32" : null
         }.OfType<string>());
         var members = string.Join(", ", values.Select(value => $"{value.Name}={value.Number!.Value.ToString(CultureInfo.InvariantCulture)}"));
         diagnostics.Warning(
             ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable,
-            $"Enum '{concept.Name}' members {members} need ESM v12 ({reason}); the document numbers them by position and stored identity is not preserved",
+            $"Enum '{concept.Name}' members {members} cannot be numbered ({reason}); the document numbers them by position and stored identity is not preserved",
             concept.Name);
     }
 }

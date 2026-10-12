@@ -248,7 +248,7 @@ Names still identify members in mappings, validation rules and scenarios: `statu
 
 Screenplay admits only unique int32 numbers. For aliases, the generator keeps the ordinal-first C# member name for each number, matching scenario constant resolution, and drops the other names with warning `SP0069`. A number outside int32 cannot be pinned; the whole enum falls back to bare, positional members with warning `SP0068`. Members whose names collide after conversion keep only the first name with `SP0068`, without renumbering surviving members when their numbers can be emitted.
 
-A `[Flags]` enum still declares one member at a time. Named combinations such as `All = 7` are ordinary members, not set semantics. Warning `SP0067` names the enum and its analyzed property uses when combinations exist that no member names. It is absent when every combination of positive members is named. Unnamed combinations in scenarios remain unsupported by [Screenplay's flags work](https://github.com/Cratis/Screenplay/issues/319).
+A `[Flags]` enum still declares one member at a time. Named combinations such as `All = 7` are ordinary members, not set semantics. Warning `SP0067` names the enum and its analyzed property uses when combinations exist that no member names. It is absent when every combination of positive members is named. The warning looks at properties of the types the document declares; an enum used only as a query or method parameter, and negative members such as `All = -1`, are not considered. Unnamed combinations in scenarios remain unsupported by [Screenplay's flags work](https://github.com/Cratis/Screenplay/issues/319).
 
 ## Keeping documents below ESM v12
 

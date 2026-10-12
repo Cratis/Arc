@@ -18,7 +18,7 @@ public class an_enumeration_with_sparse_numbers : a_generated_document
     void Because() => Generate(new ScreenplayOptions { MaximumExecutableModelVersion = SemanticVersion.V11 }, (Analyzed.SlicePath, Source));
 
     [Fact] void should_keep_bare_names() => Result.Source.ShouldContain("  draft\n  issued\n");
-    [Fact] void should_report_the_cap_and_lost_identity() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable).Message.ShouldContain("need ESM v12 (cap v11.0)");
+    [Fact] void should_report_the_cap_and_lost_identity() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable).Message.ShouldContain("needs ESM v12, cap v11.0");
     [Fact] void should_bind_and_round_trip() => AssertDocument();
     [Fact] void should_bind_below_v12() => SemanticVersion.V11.IsAtLeast(Bound.Value!.Model.SemanticVersion).ShouldBeTrue();
 }
