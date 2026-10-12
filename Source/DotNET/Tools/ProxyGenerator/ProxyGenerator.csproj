@@ -4,6 +4,7 @@
         <AssemblyName>Cratis.Arc.ProxyGenerator</AssemblyName>
         <RootNamespace>Cratis.Arc.ProxyGenerator</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
+        <DefineConstants>$(DefineConstants);METADATA_QUERY_ATTRIBUTES</DefineConstants>
         <Nullable>enable</Nullable>
         <PackAsTool>true</PackAsTool>
         <ToolCommandName>proxygenerator</ToolCommandName>
@@ -26,5 +27,7 @@
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentsModelConvention.cs" Link="Queries/QueryArgumentsModelConvention.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../../Shared/ModelBoundQueryMethod.cs" Link="Queries/ModelBound/ModelBoundQueryMethod.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/MetadataQueryAttributes.cs" Link="Queries/ModelBound/MetadataQueryAttributes.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
     </ItemGroup>
 </Project>

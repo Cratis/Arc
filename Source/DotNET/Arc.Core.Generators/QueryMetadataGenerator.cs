@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using System.Text;
+using Cratis.Arc.Queries.ModelBound;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -25,9 +26,24 @@ public class QueryMetadataGenerator : IIncrementalGenerator
     /// <inheritdoc/>
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        var declarations = context.SyntaxProvider.CreateSyntaxProvider(
+            static (node, _) => node is TypeDeclarationSyntax,
+            static (syntax, _) => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) as INamedTypeSymbol)
+            .Where(static type => type is not null).Collect();
+        context.RegisterSourceOutput(declarations, static (output, types) =>
+        {
+            foreach (var type in types.OfType<INamedTypeSymbol>().Distinct(SymbolEqualityComparer.Default).OfType<INamedTypeSymbol>())
+            {
+                foreach (var diagnostic in ModelBoundQueryMethodSymbols.Validate(type, method => IsValidQueryMethod(method, type)))
+                {
+                    output.ReportDiagnostic(diagnostic);
+                }
+            }
+        });
+
         var readModelProvider = context.SyntaxProvider
             .CreateSyntaxProvider(
-                predicate: static (node, _) => node is TypeDeclarationSyntax typeDecl && typeDecl.AttributeLists.Count > 0,
+                predicate: static (node, _) => node is TypeDeclarationSyntax,
                 transform: static (ctx, _) => GetReadModelInfo(ctx))
             .Where(static info => info is not null)
             .Select(static (info, _) => info!)
@@ -122,20 +138,14 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             return null;
         }
 
-        if (!HasReadModelAttribute(typeSymbol))
+        if (!HasReadModelAttribute(typeSymbol) && !ModelBoundQueryMethodSymbols.RequiresQueryAttribute(typeSymbol))
         {
             return null;
         }
 
-        var queryMethods = typeSymbol.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(m =>
-                m.MethodKind == MethodKind.Ordinary &&
-                m.IsStatic &&
-                m.TypeParameters.Length == 0 &&
-                m.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
-                !m.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute") &&
-                IsValidQueryMethod(m, typeSymbol))
+        var queryMethods = ModelBoundQueryMethodSymbols.GetMethods(
+                typeSymbol,
+                m => ModelBoundQueryMethodSymbols.IsCandidate(m) && IsValidQueryMethod(m, typeSymbol))
             .Select(m => m.Name)
             .ToList();
 
@@ -180,7 +190,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
             .AppendLine("    internal static void Initialize()")
             .AppendLine("    {");
 
-        foreach (var readModel in readModels)
+        foreach (var readModel in readModels.GroupBy(_ => _.FullyQualifiedTypeName).Select(_ => _.First()))
         {
             foreach (var method in readModel.QueryMethodNames)
             {

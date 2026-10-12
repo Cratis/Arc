@@ -30,5 +30,6 @@
              (via InternalsVisibleTo on Chronicle.CodeAnalysis) without the analyzer assembly referencing this
              one back - that direction stays one-way so the two projects never form a circular reference. -->
         <ProjectReference Include="../Chronicle.CodeAnalysis/Chronicle.CodeAnalysis.csproj" />
+        <Compile Include="../Shared/ModelBoundQueryReturnTypes.cs" Link="ModelBoundQueryReturnTypes.cs" />
     </ItemGroup>
 </Project>

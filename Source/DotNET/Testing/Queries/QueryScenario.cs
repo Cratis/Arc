@@ -3,7 +3,6 @@
 
 using System.Collections;
 using System.Globalization;
-using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries;
 using Cratis.Arc.Queries.ModelBound;
@@ -75,8 +74,8 @@ public class QueryScenario<TReadModel> : IDisposable, IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
 
-        var method = typeof(TReadModel).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
-            .FirstOrDefault(candidate => candidate.Name == methodName && ModelBoundQueryMethod.IsCandidate(candidate) && candidate.IsValidQueryFor(typeof(TReadModel)));
+        var method = ModelBoundQueryMethod.GetMethods(typeof(TReadModel), candidate => candidate.IsValidQueryFor(typeof(TReadModel)))
+            .FirstOrDefault(candidate => candidate.Name == methodName);
         if (method is not null && IsAsyncEnumerable(UnwrapTask(method.ReturnType)))
         {
             throw new StreamingQueryNotSupported(methodName);

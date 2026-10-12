@@ -59,17 +59,16 @@ public static partial class TypeExtensions
             dependencyContext.RuntimeLibraries.Where(_ => _.Type.Equals("project")),
             assemblyFolder,
             assemblyFile);
-        string[] paths = [.. runtimeAssemblies, .. aspNetCoreAssemblies, .. managedAppAssemblyPaths];
+        string[] requiredPaths = [.. managedAppAssemblyPaths];
 
         if (FindFundamentalsAssemblyPath(dependencyContext) is { } fundamentalsPath)
         {
-            paths = [.. paths, fundamentalsPath];
+            requiredPaths = [.. requiredPaths, fundamentalsPath];
         }
-
-        CreateMetadataLoadContext(paths.Distinct(new FileNameComparer()).ToArray());
 
         try
         {
+            CreateMetadataLoadContext([.. runtimeAssemblies, .. aspNetCoreAssemblies], requiredPaths);
             LoadProjectAssemblies(managedProjectAssemblyPaths, managedAppAssemblyPaths, message, errorMessage);
         }
         catch (Exception ex) when (ex is BadImageFormatException or FileLoadException or FileNotFoundException)
@@ -155,22 +154,8 @@ public static partial class TypeExtensions
         }
     }
 
-    static Assembly LoadMetadataAssembly(string assemblyPath)
-    {
-        var normalizedPath = Path.GetFullPath(assemblyPath);
-        var loadedAssembly = _metadataLoadContext!.GetAssemblies()
-            .FirstOrDefault(_ => string.Equals(Path.GetFullPath(_.Location), normalizedPath, StringComparison.OrdinalIgnoreCase));
-        if (loadedAssembly is not null)
-        {
-            return loadedAssembly;
-        }
-
-        var assemblyName = AssemblyName.GetAssemblyName(normalizedPath);
-        loadedAssembly = _metadataLoadContext.GetAssemblies()
-            .FirstOrDefault(_ => string.Equals(_.FullName, assemblyName.FullName, StringComparison.Ordinal));
-
-        return loadedAssembly ?? _metadataLoadContext.LoadFromAssemblyPath(normalizedPath);
-    }
+    static Assembly LoadMetadataAssembly(string assemblyPath) =>
+        _assemblyResolver!.Load(_metadataLoadContext!, assemblyPath);
 
     static Assembly LoadRuntimeAssembly(string assemblyPath)
     {
@@ -272,9 +257,9 @@ public static partial class TypeExtensions
             .LoadFromAssemblyName(runtimeType.Assembly.GetName())
             .GetType(runtimeType.FullName!)!;
 
-    static void CreateMetadataLoadContext(string[] assemblyPaths)
+    static void CreateMetadataLoadContext(string[] assemblyPaths, string[] requiredAssemblyPaths)
     {
-        _assemblyResolver = new PathAssemblyResolver(assemblyPaths);
+        _assemblyResolver = new CanonicalAssemblyResolver(assemblyPaths, requiredAssemblyPaths);
 #pragma warning disable CA2000 // Dispose objects before losing scope
         _metadataLoadContext = new MetadataLoadContext(_assemblyResolver);
 #pragma warning restore CA2000 // Dispose objects before losing scope
@@ -310,9 +295,9 @@ public static partial class TypeExtensions
             .Select(Path.GetFileName)
             .Where(_ => !string.IsNullOrEmpty(_))
             .Select(_ => Path.Join(assemblyFolder, _))
-            .Append(assemblyFile)
             .Where(File.Exists)
-            .Distinct(new FileNameComparer())
+            .Append(assemblyFile)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
     static string? FindFundamentalsAssemblyPath(DependencyContext dependencyContext)

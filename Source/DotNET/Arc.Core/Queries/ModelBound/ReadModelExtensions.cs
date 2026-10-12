@@ -35,6 +35,11 @@ public static class ReadModelExtensions
             return false;
         }
 
+        if (!ModelBoundQueryMethod.IsSelected(method, readModelType))
+        {
+            return false;
+        }
+
         var returnType = method.ReturnType;
 
         if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>))

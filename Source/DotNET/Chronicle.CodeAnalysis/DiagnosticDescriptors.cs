@@ -227,5 +227,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Chronicle reactors read [EventStreamId] as a constant, so the braces in a template stay in the stream id of the side-effect events the reactor appends. Only commands are resolved against their properties. Use a constant stream id here, or return the events with an explicit route.");
 
+    /// <summary>
+    /// ARCCHR0019: A conventional query resembles a read-model fold.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0019_ReadModelFoldMayBeQuery = new(
+        id: "ARCCHR0019",
+        title: "Read-model fold may be exposed as a query",
+        messageFormat: "Read model '{0}' conventionally exposes '{1}', which resembles a fold. If it is a helper, set RequireQueryAttribute = true and mark only intended endpoints with [Query]; preview the endpoint changes before applying.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "This heuristic recognizes Create(event[, context]) and Reduce(event, nullable current[, context]) returning the read model or Task of it. It does not prove event registration or change discovery. Opt into explicit query selection to keep folds out of the endpoint surface. Suppress with a justification when this is an intentional query.");
+
     const string Category = "Arc.Chronicle";
 }
