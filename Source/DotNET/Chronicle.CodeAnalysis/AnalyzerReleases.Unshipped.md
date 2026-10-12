@@ -20,4 +20,6 @@ ARCCHR0016|Arc.Chronicle|Warning|Concurrency flag is ignored when the handler re
 ARCCHR0017|Arc.Chronicle|Error|[EventStreamId] template is invalid
 ARCCHR0018|Arc.Chronicle|Warning|Event stream id template is only resolved for commands
 ARCCHR0019|Arc.Chronicle|Warning|Read-model fold may be exposed as a query
+ARCCHR0020|Arc.Chronicle|Warning|Wrapper names a stream its event source definition does not declare
+ARCCHR0021|Arc.Chronicle|Info|Legacy wrapper routing drops a matching event source definition
 ARC0026|Arc|Error|Invalid explicit query declaration

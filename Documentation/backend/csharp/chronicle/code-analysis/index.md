@@ -28,6 +28,8 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0017](./ARCCHR0017.md) | Error | An `[EventStreamId]` template on a command names an unusable property or has malformed braces. |
 | [ARCCHR0018](./ARCCHR0018.md) | Warning | An `[EventStreamId]` template on a reactor, where it is used literally. |
 | [ARCCHR0019](./ARCCHR0019.md) | Warning | A conventional query resembling a read-model fold; discovery is unchanged. |
+| [ARCCHR0020](./ARCCHR0020.md) | Warning | A literal wrapper route names a stream its known definition does not declare. |
+| [ARCCHR0021](./ARCCHR0021.md) | Info | Legacy wrapper strings name a declared stream but drop its definition. |
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 
@@ -63,6 +65,7 @@ A direct `IEventLog.Append*` (also via `IEventStore.EventLog`) in a command that
 | --- | --- |
 | [ARCCHR0008](./ARCCHR0008.md) | Rewrite to the fully qualified Chronicle Key attribute. |
 | [ARCCHR0010](./ARCCHR0010.md#quick-fix) | Compiler-checked local replacement with `EventSourceId<Guid>` for supported direct tuple syntax. |
+| [ARCCHR0021](./ARCCHR0021.md#quick-fix) | Replace legacy wrapper route strings with the matching definition and stream. |
 | [ARCCHR0015](./ARCCHR0015.md#quick-fix) | Compiler-checked replacement of a nullable event with an explicit event-or-validation result and rejection placeholders. |
 | [ARCCHR0016](./ARCCHR0016.md#quick-fix) | Remove `concurrency: true` from the attribute. |
 | [ARCCHR0019](./ARCCHR0019.md#quick-fix) | Preview whole-type explicit query selection, retaining intended endpoints. |

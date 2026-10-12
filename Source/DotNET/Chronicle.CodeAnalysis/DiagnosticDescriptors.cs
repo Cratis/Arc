@@ -239,5 +239,29 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "This heuristic recognizes Create(event[, context]) and Reduce(event, nullable current[, context]) returning the read model or Task of it. It does not prove event registration or change discovery. Opt into explicit query selection to keep folds out of the endpoint surface. Suppress with a justification when this is an intentional query.");
 
+    /// <summary>
+    /// ARCCHR0020: A wrapper names a stream its event source definition does not declare.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0020_WrapperEventStreamNotDeclared = new(
+        id: "ARCCHR0020",
+        title: "Wrapper event stream is not declared",
+        messageFormat: "Wrapper stream '{0}' is not declared by event source definition '{1}'",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Literal wrapper routing must name a stream declared by its known event source definition. Alternative declared streams remain supported.");
+
+    /// <summary>
+    /// ARCCHR0021: Legacy wrapper strings name a declared event source stream but drop its definition.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0021_UseEventSourceDefinitionRouting = new(
+        id: "ARCCHR0021",
+        title: "Use event source definition routing",
+        messageFormat: "Legacy wrapper routing to '{0}.{1}' {2}; use EventSource = typeof({3}) and EventStream = \"{1}\"",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Legacy strings keep their routing behavior but omit the event source definition and its concurrency dimensions. Use typed routing to retain them.");
+
     const string Category = "Arc.Chronicle";
 }

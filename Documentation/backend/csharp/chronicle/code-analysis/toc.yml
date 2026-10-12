@@ -34,3 +34,7 @@
   href: ARCCHR0018.md
 - name: ARCCHR0019 - Read-model fold may be exposed as a query
   href: ARCCHR0019.md
+- name: ARCCHR0020 - Wrapper event stream is not declared
+  href: ARCCHR0020.md
+- name: ARCCHR0021 - Use event source definition routing
+  href: ARCCHR0021.md

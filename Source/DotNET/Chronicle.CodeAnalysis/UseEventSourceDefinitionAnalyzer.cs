@@ -4,6 +4,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using static Cratis.Arc.Chronicle.CodeAnalysis.EventSourceDefinitionSymbols;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
 
@@ -18,10 +19,6 @@ public sealed class UseEventSourceDefinitionAnalyzer : DiagnosticAnalyzer
     const string AggregateRootInterface = "Cratis.Arc.Chronicle.Aggregates.IAggregateRoot";
     const string EventSourceTypeAttribute = "Cratis.Chronicle.Events.EventSourceTypeAttribute";
     const string EventStreamTypeAttribute = "Cratis.Chronicle.Events.EventStreamTypeAttribute";
-    const string EventSourceDefinitionAttribute = "Cratis.Chronicle.EventSources.EventSourceAttribute";
-    const string EventStreamDefinitionAttribute = "Cratis.Chronicle.EventSources.EventStreamAttribute";
-    const string DeclarationAttribute = "Cratis.Arc.Chronicle.Commands.EventSourceAttribute`1";
-    const string DefinitionSuffix = "EventSource";
 
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
@@ -77,62 +74,4 @@ public sealed class UseEventSourceDefinitionAnalyzer : DiagnosticAnalyzer
             sourceName,
             replacement));
     }
-
-    static ImmutableDictionary<string, INamedTypeSymbol> DefinitionsIn(INamespaceSymbol root)
-    {
-        var builder = ImmutableDictionary.CreateBuilder<string, INamedTypeSymbol>(StringComparer.Ordinal);
-        var pending = new Stack<INamespaceOrTypeSymbol>();
-        pending.Push(root);
-        while (pending.Count > 0)
-        {
-            foreach (var member in pending.Pop().GetMembers())
-            {
-                if (member is INamespaceSymbol or INamedTypeSymbol)
-                {
-                    pending.Push((INamespaceOrTypeSymbol)member);
-                }
-
-                if (member is INamedTypeSymbol type)
-                {
-                    var name = NameOf(type);
-                    if (name is not null)
-                    {
-                        // Two definitions with one name is an error Chronicle reports; suggesting either would guess.
-                        builder[name] = builder.ContainsKey(name) ? null! : type;
-                    }
-                }
-            }
-        }
-
-        return builder.Where(_ => _.Value is not null).ToImmutableDictionary(StringComparer.Ordinal);
-    }
-
-    static string? NameOf(INamedTypeSymbol type)
-    {
-        var attribute = Find(type, EventSourceDefinitionAttribute);
-        if (attribute is null)
-        {
-            return null;
-        }
-
-        if (attribute.ConstructorArguments.Length > 0 && attribute.ConstructorArguments[0].Value is string explicitName)
-        {
-            return explicitName;
-        }
-
-        return type.Name.Length > DefinitionSuffix.Length && type.Name.EndsWith(DefinitionSuffix, StringComparison.Ordinal)
-            ? type.Name.Substring(0, type.Name.Length - DefinitionSuffix.Length)
-            : type.Name;
-    }
-
-    static bool DeclaresStream(INamedTypeSymbol definition, string stream) =>
-        definition.GetAttributes().Any(_ =>
-            FullName(_.AttributeClass) == EventStreamDefinitionAttribute &&
-            _.ConstructorArguments.Length > 0 &&
-            (_.ConstructorArguments[0].Value as string) == stream);
-
-    static AttributeData? Find(ISymbol symbol, string name) =>
-        symbol.GetAttributes().FirstOrDefault(_ => FullName(_.AttributeClass) == name);
-
-    static string FullName(INamedTypeSymbol? type) => type is null ? string.Empty : $"{type.ContainingNamespace.ToDisplayString()}.{type.MetadataName}";
 }

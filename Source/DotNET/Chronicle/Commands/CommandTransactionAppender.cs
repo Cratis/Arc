@@ -7,6 +7,7 @@ using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.EventSources;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -51,7 +52,9 @@ internal static class CommandTransactionAppender
     /// <param name="eventLog">The <see cref="IEventLog"/> the event targets.</param>
     /// <param name="event">The event and target event source returned by the command.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the event metadata.</param>
+    /// <param name="eventSources">The registered event source definitions.</param>
     /// <returns>A new event value carrying the command metadata.</returns>
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
     /// <remarks>
     /// A routing value set on the wrapper (<see cref="EventForEventSourceId.EventSourceType"/>,
     /// <see cref="EventForEventSourceId.EventStreamType"/>, <see cref="EventForEventSourceId.EventStreamId"/>,
@@ -64,18 +67,20 @@ internal static class CommandTransactionAppender
     /// the append time and no tags instead.
     /// </para>
     /// </remarks>
-    internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext) =>
-        WithRouting(eventLog, @event, commandContext, ResolveRouting(@event, commandContext));
+    internal static EventForEventSourceId WithCommandMetadata(this IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext, IEventSources eventSources) =>
+        WithRouting(eventLog, @event, commandContext, ResolveRouting(@event, commandContext, eventSources));
 
     /// <summary>
     /// Resolves the routing for an event: a value set on the wrapper wins, otherwise the command context value is used.
     /// </summary>
     /// <param name="event">The wrapper the command returned, or null for a plain event that has no routing of its own.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the fallback event metadata.</param>
+    /// <param name="eventSources">The registered definitions, required by handlers resolving wrapper routes.</param>
     /// <returns>The resolved <see cref="EventRouting"/>.</returns>
-    internal static EventRouting ResolveRouting(EventForEventSourceId? @event, CommandContext commandContext)
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
+    internal static EventRouting ResolveRouting(EventForEventSourceId? @event, CommandContext commandContext, IEventSources? eventSources = default)
     {
-        var (eventSource, eventStream) = ResolveDefinition(@event, commandContext);
+        var (eventSource, eventStream) = ResolveDefinition(@event, commandContext, eventSources);
 
         return new(
             @event is not null && @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType(),
@@ -91,14 +96,16 @@ internal static class CommandTransactionAppender
     /// </summary>
     /// <param name="event">The wrapper the command returned, or null for a plain event.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> carrying the fallback definition.</param>
+    /// <param name="eventSources">The registered definitions, required by handlers resolving wrapper routes.</param>
     /// <returns>The definition type and stream name; the definition is null when the event is appended by string routing.</returns>
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
     /// <remarks>
     /// The definition and its stream are one routing decision, so the wrapper replaces them together. A wrapper naming
     /// another definition brings its own stream and inherits none of the command's. A wrapper that only names a stream
     /// uses the command's definition. A wrapper that routes with the legacy source or stream type strings leaves the
     /// definition out entirely: appending through the command's definition would silently discard those strings.
     /// </remarks>
-    internal static (Type? EventSource, string? EventStream) ResolveDefinition(EventForEventSourceId? @event, CommandContext commandContext)
+    internal static (Type? EventSource, string? EventStream) ResolveDefinition(EventForEventSourceId? @event, CommandContext commandContext, IEventSources? eventSources = default)
     {
         if (@event?.EventSource is not null)
         {
@@ -107,6 +114,7 @@ internal static class CommandTransactionAppender
 
         if (@event is not null && (@event.EventSourceType != EventSourceType.Default || @event.EventStreamType != EventStreamType.All))
         {
+            ValidateLegacyRouting(@event, commandContext, eventSources);
             return (null, null);
         }
 
@@ -311,6 +319,38 @@ internal static class CommandTransactionAppender
         return routing.EventSource is not null
             ? eventLog.AppendMany(routing.EventSource, eventSourceId, events, routing.EventStream, routing.EventStreamId, correlationId: default, concurrencyScope: concurrencyScope)
             : eventLog.AppendMany(eventSourceId, events, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
+    }
+
+    /// <summary>
+    /// Refuses legacy routing to an undeclared stream without changing valid legacy routing into definition routing.
+    /// </summary>
+    /// <param name="event">The returned wrapper.</param>
+    /// <param name="commandContext">The fallback command route.</param>
+    /// <param name="eventSources">The registered definitions.</param>
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">The known definition does not declare the wrapper-named stream.</exception>
+    static void ValidateLegacyRouting(EventForEventSourceId @event, CommandContext commandContext, IEventSources? eventSources)
+    {
+        if (commandContext.GetEventSource() is null || eventSources is null)
+        {
+            return;
+        }
+
+        if (@event.EventStreamType == EventStreamType.All)
+        {
+            return;
+        }
+
+        var source = @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType();
+        var definition = eventSources.All.FirstOrDefault(definition => definition.EventSourceType == source);
+        if (definition is null)
+        {
+            return;
+        }
+
+        if (!definition.Streams.Any(declared => declared.Name == @event.EventStreamType.Value))
+        {
+            throw new EventStreamDoesNotBelongToEventSource(definition.Name, @event.EventStreamType.Value);
+        }
     }
 
     static EventForEventSourceId WithRouting(IEventLog eventLog, EventForEventSourceId @event, CommandContext commandContext, EventRouting routing) =>

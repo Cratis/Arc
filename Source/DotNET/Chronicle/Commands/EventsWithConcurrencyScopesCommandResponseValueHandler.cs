@@ -3,6 +3,8 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSources;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -10,13 +12,27 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// Handles an ordered collection of cross-source events with exact concurrency scopes returned from a command.
 /// </summary>
 /// <param name="eventLog">The event log to append events to.</param>
-public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog eventLog) : ICommandResponseValueHandler, ICommandResponseValueHandler<EventsWithConcurrencyScopes>
+/// <param name="eventSources">The registered event source definitions.</param>
+[method: ActivatorUtilitiesConstructor]
+public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog eventLog, IEventSources eventSources) : ICommandResponseValueHandler, ICommandResponseValueHandler<EventsWithConcurrencyScopes>
 {
+    /// <summary>
+    /// Initializes a handler without validation of per-event routing against event source definitions.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <remarks>Use the constructor taking <see cref="IEventSources"/> to validate legacy wrapper routes.</remarks>
+    [Obsolete("This constructor does not validate per-event routing against event source definitions; use the constructor that takes IEventSources.")]
+    public EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog eventLog)
+        : this(eventLog, null!)
+    {
+    }
+
     /// <inheritdoc/>
     public bool CanHandle(CommandContext commandContext, object value) =>
         value is EventsWithConcurrencyScopes;
 
     /// <inheritdoc/>
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var response = (EventsWithConcurrencyScopes)value;
@@ -26,7 +42,7 @@ public class EventsWithConcurrencyScopesCommandResponseValueHandler(IEventLog ev
         }
 
         var events = response.Events
-            .Select(@event => eventLog.WithCommandMetadata(@event, commandContext))
+            .Select(@event => eventLog.WithCommandMetadata(@event, commandContext, eventSources))
             .ToArray();
 
         if (CommandTransaction.TryGetActive(out var unitOfWork))
