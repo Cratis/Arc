@@ -99,20 +99,12 @@ public static class EventSourceReader
             : null;
     }
 
-    static int DimensionsOf(INamedTypeSymbol definition, AttributeData? stream)
-    {
-        var streamDimensions = stream?.GetNamedArgument(ConcurrencyArgument) is int own ? own : 0;
-        if (streamDimensions != 0)
-        {
-            return streamDimensions;
-        }
-
-        return definition.GetAttribute(WellKnownTypeNames.EventSourceDefinitionAttribute)?.GetNamedArgument(ConcurrencyArgument) is int inherited ? inherited : 0;
-    }
-
-    static bool HasFlag(this int dimensions, int flag) => (dimensions & flag) == flag;
-
-    static string SourceNameOf(INamedTypeSymbol definition)
+    /// <summary>
+    /// Reads the stored source name using Chronicle's definition naming convention.
+    /// </summary>
+    /// <param name="definition">The actual source definition.</param>
+    /// <returns>The unsanitized stored source name.</returns>
+    internal static string SourceNameOf(INamedTypeSymbol definition)
     {
         if (definition.GetAttribute(WellKnownTypeNames.EventSourceDefinitionAttribute)?.GetArgument(0) is string name)
         {
@@ -125,4 +117,17 @@ public static class EventSourceReader
             ? definition.Name[..^suffix.Length]
             : definition.Name;
     }
+
+    static int DimensionsOf(INamedTypeSymbol definition, AttributeData? stream)
+    {
+        var streamDimensions = stream?.GetNamedArgument(ConcurrencyArgument) is int own ? own : 0;
+        if (streamDimensions != 0)
+        {
+            return streamDimensions;
+        }
+
+        return definition.GetAttribute(WellKnownTypeNames.EventSourceDefinitionAttribute)?.GetNamedArgument(ConcurrencyArgument) is int inherited ? inherited : 0;
+    }
+
+    static bool HasFlag(this int dimensions, int flag) => (dimensions & flag) == flag;
 }
