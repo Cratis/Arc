@@ -28,6 +28,7 @@ public class TypeRegistry
     readonly ConceptRegistry _concepts = new();
     readonly ShapeRegistry _shapes = new();
     readonly PersonalDataMarkings _personalData = new();
+    readonly FlagsEnumUses _flags = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
 
     /// <summary>
@@ -165,6 +166,7 @@ public class TypeRegistry
     /// <param name="property">The property to record.</param>
     internal void RecordPiiUse(IPropertySymbol property)
     {
+        _flags.Record(property);
         if (_personalData.Record(property))
         {
             MarkAsPii(property.Type);
@@ -176,6 +178,16 @@ public class TypeRegistry
     /// </summary>
     /// <param name="diagnostics">Where the findings are reported.</param>
     internal void ReportPersonalDataMarkings(ScreenplayDiagnostics diagnostics) => _personalData.Report(diagnostics);
+
+    /// <summary>
+    /// Reports enumeration aliases and unnamed flags combinations.
+    /// </summary>
+    /// <param name="diagnostics">Where the findings are reported.</param>
+    internal void ReportEnumerationLimits(ScreenplayDiagnostics diagnostics)
+    {
+        _concepts.ReportAliases(diagnostics);
+        _flags.Report(diagnostics);
+    }
 
     /// <summary>
     /// Determines whether a type says what implements it rather than what it holds.

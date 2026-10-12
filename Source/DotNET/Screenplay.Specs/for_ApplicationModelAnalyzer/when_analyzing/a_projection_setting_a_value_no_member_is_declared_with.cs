@@ -55,6 +55,6 @@ public class a_projection_setting_a_value_no_member_is_declared_with : Specifica
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
     [Fact] void should_fall_back_to_the_number_behind_the_value() => _from.Properties["Granted"].ShouldEqual("$value(3)");
-    [Fact] void should_report_the_value_it_could_not_name() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.UnnamedEnumerationValue]);
-    [Fact] void should_say_which_property_it_was_given_to() => _analysis.Diagnostics.Single().Message.Contains("'Granted'", StringComparison.Ordinal).ShouldBeTrue();
+    [Fact] void should_report_the_value_it_could_not_name() => _analysis.Diagnostics.Select(_ => _.Code).ShouldContainOnly([ScreenplayDiagnosticCodes.UnnamedEnumerationValue, ScreenplayDiagnosticCodes.FlagsCombinationsNotStatable]);
+    [Fact] void should_say_which_property_it_was_given_to() => _analysis.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnnamedEnumerationValue).Message.Contains("'Granted'", StringComparison.Ordinal).ShouldBeTrue();
 }

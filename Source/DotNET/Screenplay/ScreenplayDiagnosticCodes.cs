@@ -570,17 +570,32 @@ public static class ScreenplayDiagnosticCodes
     public const string ReactionMetadataVersionCap = "SP0066";
 
     /// <summary>
+    /// A flags enumeration can carry unnamed combinations the document cannot state.
+    /// </summary>
+    public const string FlagsCombinationsNotStatable = "SP0067";
+
+    /// <summary>
+    /// Enumeration member numbers exceed the target ESM version or the int32 range.
+    /// </summary>
+    public const string EnumMemberNumbersNotRepresentable = "SP0068";
+
+    /// <summary>
+    /// Enumeration aliases were omitted because Screenplay requires unique numbers.
+    /// </summary>
+    public const string EnumAliasNotRepresentable = "SP0069";
+
+    /// <summary>
     /// Returned event batch constraints cannot be proven equivalent to per-fact reaction appends.
     /// </summary>
-    internal const string UnprovenReactionBatchConstraints = "SP0070";
+    public const string UnprovenReactionBatchConstraints = "SP0070";
 
     /// <summary>
     /// Command outcome handling in a reactor cannot be stated as executable refusal handling.
     /// </summary>
-    internal const string UnrepresentableReactionRefusalHandling = "SP0071";
+    public const string UnrepresentableReactionRefusalHandling = "SP0071";
 
     /// <summary>
     /// Receipt-based reactor redelivery handling cannot be stated executably.
     /// </summary>
-    internal const string UnrepresentableReactionRedelivery = "SP0072";
+    public const string UnrepresentableReactionRedelivery = "SP0072";
 }

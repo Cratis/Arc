@@ -42,12 +42,13 @@ internal sealed class ConstraintCoverage
         var assemblies = types.Select(_ => _.ContainingAssembly.Identity).ToHashSet();
         var compilations = types.SelectMany(_ => _.DeclaringSyntaxReferences).Select(_ => models.For(_.SyntaxTree)?.Compilation).OfType<Compilation>().Distinct();
         var references = compilations.SelectMany(_ => _.SourceModule.ReferencedAssemblySymbols).Distinct<IAssemblySymbol>(SymbolEqualityComparer.Default);
-        foreach (var assembly in references.Where(_ => !assemblies.Contains(_.Identity) && ReferencesChronicle(_)))
+        var opaque = references
+            .Where(_ => !assemblies.Contains(_.Identity) && ReferencesChronicle(_))
+            .Select(_ => TypesIn(_.GlobalNamespace).FirstOrDefault(ConstraintReader.IsConstraint))
+            .OfType<INamedTypeSymbol>();
+        foreach (var constraint in opaque)
         {
-            if (TypesIn(assembly.GlobalNamespace).FirstOrDefault(ConstraintReader.IsConstraint) is { } constraint)
-            {
-                coverage.Unknown(constraint);
-            }
+            coverage.Unknown(constraint);
         }
 
         return coverage;
