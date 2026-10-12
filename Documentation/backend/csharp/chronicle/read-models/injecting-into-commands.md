@@ -219,6 +219,36 @@ Protection requires a projection admitted by Chronicle for direct event-source-k
 
 **Direct completion of a protected unit of work is refused.** Arc claims ownership of the command's Chronicle unit of work and commits or rolls it back as owner. A direct `Rollback()` or `Commit()` of that unit from command code, including an aggregate root committing its mutation, is refused with `ProtectedUnitOfWorkRequiresOwner` once the unit has enrolled decision reads, so the guard cannot be bypassed. This requires Chronicle 19.23 or later. A failed command whose unit has no enrolled decision reads is rolled back through the public `Rollback()`, as before.
 
+### Read a projection within one stream
+
+When a projection-based decision concerns only one event stream, inject the command-aware `IDecisionReads` and pass the source id, stream type and stream id explicitly. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
+
+```csharp
+using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.ReadModels;
+
+[Command]
+[ProtectedDecision]
+[EventSourceType("reports")]
+[EventStreamType("approval")]
+[EventStreamId("{Period}")]
+public record DecideWithinPeriod(EventSourceId Id, string Period)
+{
+    public Task<DecisionRead<PeriodState>> Provide(IDecisionReads reads) =>
+        reads.Get<PeriodState>(Id, "approval", Period, "reports");
+
+    public PeriodValueDecided Handle(DecisionRead<PeriodState> state) => new(state.Instance?.Value ?? 0);
+}
+```
+
+The fold and its append guard use those same dimensions. `Provide()` returns the issued token to `Handle()`; Arc enrolls it in the command transaction and caches identical reads only within that invocation. A whole-source read or another stream's read does not share that cache entry. The optional event source type narrows both the fold and guard. Keep it aligned with the returned event route.
+
+Use `AdmitForStream<T>()` to check the projection shape without reading. Chronicle also admits consistently stream-id-keyed projections through this overload; reading them through a key-only `Get<T>` refuses with `StreamKeyRequiresStreamScope`. An injected `DecisionRead<T>` parameter stays key-based: Arc does not automatically narrow it to the command's stream. Use the explicit stream overload for that decision.
+
+The stream type must be specific, not `EventStreamType.All`. See Chronicle's [stream-scoped decision-read contract](/chronicle/read-models/decision-reads/#scoped-to-one-event-stream) for default-id behavior, key requirements and merged guard widening. The kernel must acknowledge stream scoping; unsupported scoping fails rather than silently folding the whole source.
+
 ## Read models from other providers
 
 Injection is not Chronicle-only. A read model backed by Entity Framework Core or MongoDB is injected into a command exactly the same way, and everything on this page — the three positions, and what nullability means — applies unchanged.

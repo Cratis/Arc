@@ -37,4 +37,5 @@ public abstract class EventLogWithNamedTags : IEventLog
     public abstract Task Redact(EventSequenceNumber sequenceNumber, RedactionReason reason);
     public abstract Task Redact(EventSourceId eventSourceId, RedactionReason reason, params Type[] clrEventTypes);
     public abstract Task<Result<EventSequenceNumber, CompleteStreamError>> CompleteStream(EventStreamType eventStreamType, EventStreamId eventStreamId);
+    public abstract Task<Result<EventSequenceNumber, CompleteStreamError>> CompleteStream(ClosedStreamScope scope, EventSequenceNumber? expectedTailSequenceNumber = default);
 }

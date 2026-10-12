@@ -91,6 +91,25 @@ public static class CommandScenarioChronicleAssertionExtensions
     }
 
     /// <summary>
+    /// Asserts that the scenario successfully completed the specified event source scope.
+    /// </summary>
+    /// <typeparam name="TCommand">The command type of the scenario.</typeparam>
+    /// <param name="scenario">The scenario to assert on.</param>
+    /// <param name="scope">The expected completion scope.</param>
+    /// <returns>A completed task.</returns>
+    /// <exception cref="EventSequenceAssertionException">No matching successful scoped completion was recorded.</exception>
+    public static Task ShouldHaveCompletedStream<TCommand>(this CommandScenario<TCommand> scenario, ClosedStreamScope scope)
+    {
+        if (scenario.Services.LastOrDefault(_ => _.ServiceType == typeof(IEventLog))?.ImplementationInstance is not EventLogForScenario eventLog ||
+            !eventLog.CompletedStreamScopes.Contains(scope))
+        {
+            throw new EventSequenceAssertionException($"Expected scope '{scope}' to have been completed, but no matching completion was recorded.");
+        }
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Asserts that the tail sequence number of the events appended during command execution
     /// matches the expected value.
     /// </summary>

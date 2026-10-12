@@ -154,6 +154,12 @@ public class when_checking_decision_read_admission
 
 `ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. Only `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of the `Handle` and `Provide` methods of `[ProtectedDecision]` commands are checked, including methods inherited from a base type; abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
 
+### Assert stream completion
+
+For a command returning `CompleteStream`, `scenario.ShouldHaveCompletedStream(type, id)` accepts a successful completion with or without an event source scope. To assert the exact owner, pass a `ClosedStreamScope` instead; see [completion assertions](../chronicle/commands/completing-streams.md#assert-completion-in-a-command-scenario). Other sources using the same stream type and id remain open after a scoped close. A command without an event source id still closes that pair for every source.
+
+Explicit stream-scoped `IDecisionReads.Get<T>` calls also work in decision mode. Seed events with `OnRoute(...)` and queue competitors on that same route to check the stream guard. The static admission helper checks only injected, key-based `DecisionRead<T>` parameters; use `AdmitForStream<T>()` for an explicit stream fold.
+
 ## Transactional commands in tests
 
 The harness runs commands with the same [transactional scope](../commands/transactional-commands.md) as production: the events a command returns — and appends through `eventLog.Transactional` — commit atomically when it succeeds and roll back when it fails, including when a unique constraint rejects the commit. Immediate appends through `IEventLog`/`IEventStore.EventLog` land right away and are final, but a failed one fails the command. That gives specs two natural assertions: the intended rejection and the absence of committed events.

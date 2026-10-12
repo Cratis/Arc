@@ -13,7 +13,7 @@ public class when_redelivering_completion : given.a_stream_completion
     void Establish()
     {
         Result<EventSequenceNumber, CompleteStreamError> completed = CompleteStreamError.AlreadyCompleted;
-        _eventLog.CompleteStream("observed", "stream").Returns(completed);
+        _eventLog.CompleteStream(new ClosedStreamScope("owner", "reports", "observed", "stream")).Returns(completed);
     }
 
     async Task Because() => _result = await _handler.Handle(_context, _store, new CompleteStream());
