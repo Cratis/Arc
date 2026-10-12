@@ -191,25 +191,14 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             }
         }
 
-        void Table(JsxElement table)
+        void Table(JsxElement table) => ReadBound(
+            table,
+            ComponentKind.Table,
+            proxy => queries.FirstOrDefault(_ => _.Name == proxy),
+            query => AddTable(table, query));
+
+        void AddTable(JsxElement table, QueryModel query)
         {
-            if (!table.IsReadable)
-            {
-                unread.Component(table.Tag, "no table is written for it");
-                return;
-            }
-
-            var written = table["query"];
-            var query = written?.Identifier is { } local && components.Proxy(local) is { } proxy
-                ? queries.FirstOrDefault(_ => _.Name == proxy)
-                : null;
-
-            if (query is null)
-            {
-                unread.Query(table.Tag, written?.Written);
-                return;
-            }
-
             var readModel = query.ReturnType.Name;
             Tables.Add(new(readModel, [.. Columns(table, readModel)]));
         }
@@ -256,26 +245,39 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             }
         }
 
-        void Dialog(JsxElement dialog)
+        void Dialog(JsxElement dialog) => ReadBound(
+            dialog,
+            ComponentKind.Dialog,
+            proxy => commands.FirstOrDefault(_ => _.Name == proxy),
+            command => Actions.Add(command.Name));
+
+        void ReadBound<T>(JsxElement element, ComponentKind kind, Func<string, T?> resolve, Action<T> read)
+            where T : class
         {
-            if (!dialog.IsReadable)
+            var binding = BindingOf(kind);
+            if (!element.IsReadable)
             {
-                unread.Component(dialog.Tag, "no action is written for it");
+                unread.Component(element.Tag, binding.Consequence);
                 return;
             }
 
-            var written = dialog["command"];
-            var command = written?.Identifier is { } local && components.Proxy(local) is { } proxy
-                ? commands.FirstOrDefault(_ => _.Name == proxy)
+            var written = element[binding.Property];
+            var declaration = written?.Identifier is { } local && components.Proxy(local) is { } proxy
+                ? resolve(proxy)
                 : null;
 
-            if (command is null)
+            if (declaration is null)
             {
-                unread.Command(dialog.Tag, written?.Written);
+                binding.Report(element.Tag, written?.Written);
                 return;
             }
 
-            Actions.Add(command.Name);
+            read(declaration);
         }
+
+        (string Property, string Consequence, Action<string, string?> Report) BindingOf(ComponentKind kind) =>
+            kind == ComponentKind.Table
+                ? ("query", "no table is written for it", unread.Query)
+                : ("command", "no action is written for it", unread.Command);
     }
 }

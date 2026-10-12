@@ -65,14 +65,13 @@ public static partial class ScreenImports
         var seen = new HashSet<ScreenImport>();
         foreach (var statement in ImportStatements(source))
         {
-            var clause = statement.Groups["clause"].Value;
             var module = statement.Groups["module"].Value;
-            if (!IsRelative(module) || IsTypeOnly(clause))
+            if (!IsRelative(statement) || IsTypeOnly(statement))
             {
                 continue;
             }
 
-            imports.AddRange(NamedIn(clause).Select(_ => new ScreenImport(_, module)).Where(seen.Add));
+            imports.AddRange(NamedIn(statement).Select(_ => new ScreenImport(_, module)).Where(seen.Add));
         }
 
         return imports;
@@ -88,13 +87,12 @@ public static partial class ScreenImports
         var bindings = new Dictionary<string, ScreenImportBinding>(StringComparer.Ordinal);
         foreach (var statement in ImportStatements(source))
         {
-            var clause = statement.Groups["clause"].Value;
-            if (IsTypeOnly(clause))
+            if (IsTypeOnly(statement))
             {
                 continue;
             }
 
-            foreach (var (name, local) in LocalNamesIn(clause))
+            foreach (var (name, local) in LocalNamesIn(statement))
             {
                 bindings.TryAdd(local, new(local, name, statement.Groups["module"].Value));
             }
@@ -103,56 +101,47 @@ public static partial class ScreenImports
         return bindings;
     }
 
-    /// <summary>
-    /// Removes everything a comment holds, leaving the lines around it where they were.
-    /// </summary>
-    /// <param name="text">The text of the file.</param>
-    /// <returns>The text with nothing commented out left in it.</returns>
-    /// <remarks>
-    /// An import that has been commented out is an import the file does not make, and binding a screen to a query it
-    /// no longer calls is a plain untruth of exactly the kind this reader exists to avoid. The line breaks a comment
-    /// spans are kept, because a statement is recognized by starting a line and joining it to the line before would
-    /// hide a real import rather than a commented one.
-    /// </remarks>
-    internal static string WithoutComments(string text) =>
-        TsxSource.Scan(text).Code;
-
     static IEnumerable<Match> ImportStatements(TsxSource source) =>
         StatementRegex().Matches(source.Code).Cast<Match>().Where(_ => source.IsCode(_.Index + _.Value.IndexOf("import", StringComparison.Ordinal)));
 
     /// <summary>
     /// Determines whether a module specifier names a file sitting alongside the one importing it.
     /// </summary>
-    /// <param name="module">The module specifier.</param>
+    /// <param name="statement">The import statement.</param>
     /// <returns>True when the specifier is relative.</returns>
-    static bool IsRelative(string module) =>
-        module.StartsWith("./", StringComparison.Ordinal) || module.StartsWith("../", StringComparison.Ordinal);
+    static bool IsRelative(Match statement)
+    {
+        var module = statement.Groups["module"].Value;
+
+        return module.StartsWith("./", StringComparison.Ordinal) || module.StartsWith("../", StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Determines whether an import clause brings in types rather than values.
     /// </summary>
-    /// <param name="clause">The clause to check.</param>
+    /// <param name="statement">The import statement to check.</param>
     /// <returns>True when the whole clause is type only.</returns>
     /// <remarks>
     /// A type only import is erased before anything runs, so it says the file mentions a shape rather than that it
     /// reads through it. Binding a screen to a query it never calls would be a plain untruth.
     /// </remarks>
-    static bool IsTypeOnly(string clause) => TypeOnlyRegex().IsMatch(clause);
+    static bool IsTypeOnly(Match statement) => TypeOnlyRegex().IsMatch(statement.Groups["clause"].Value);
 
     /// <summary>
     /// Gets the exported names an import clause brings in.
     /// </summary>
-    /// <param name="clause">The clause to read.</param>
+    /// <param name="statement">The import statement to read.</param>
     /// <returns>The names.</returns>
-    static IEnumerable<string> NamedIn(string clause) => LocalNamesIn(clause).Select(_ => _.Name);
+    static IEnumerable<string> NamedIn(Match statement) => LocalNamesIn(statement).Select(_ => _.Name);
 
     /// <summary>
     /// Gets the exported names an import clause brings in, each with the name the importing file calls it by.
     /// </summary>
-    /// <param name="clause">The clause to read.</param>
+    /// <param name="statement">The import statement to read.</param>
     /// <returns>The exported and local names.</returns>
-    static IEnumerable<(string Name, string Local)> LocalNamesIn(string clause)
+    static IEnumerable<(string Name, string Local)> LocalNamesIn(Match statement)
     {
+        var clause = statement.Groups["clause"].Value;
         var open = clause.IndexOf('{', StringComparison.Ordinal);
         var close = clause.LastIndexOf('}');
         if (open < 0 || close <= open)
