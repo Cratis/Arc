@@ -72,6 +72,12 @@ internal sealed class ConstraintCoverage
         scope.GetMembers().OfType<INamespaceOrTypeSymbol>().SelectMany(member =>
             member is INamedTypeSymbol type ? TypesIn(type).Prepend(type) : TypesIn(member));
 
+    static bool IsOpaqueUnique(IMethodSymbol method, InvocationExpressionSyntax invocation) =>
+        method.Name == "Unique" && !method.IsGenericMethod && !invocation.ArgumentList.Arguments.Any(_ => _.Expression is LambdaExpressionSyntax);
+
+    static bool ReferencesChronicle(IAssemblySymbol assembly) =>
+        assembly.Modules.Any(module => module.ReferencedAssemblies.Any(reference => reference.Name.StartsWith("Cratis.Chronicle", StringComparison.Ordinal)));
+
     string? RejectionReason(INamedTypeSymbol type)
     {
         if (ConstraintReader.FromEvent(type).FirstOrDefault() is { } constraint)
@@ -146,12 +152,6 @@ internal sealed class ConstraintCoverage
             Unknown(constraint);
         }
     }
-
-    static bool IsOpaqueUnique(IMethodSymbol method, InvocationExpressionSyntax invocation) =>
-        method.Name == "Unique" && !method.IsGenericMethod && !invocation.ArgumentList.Arguments.Any(_ => _.Expression is LambdaExpressionSyntax);
-
-    static bool ReferencesChronicle(IAssemblySymbol assembly) =>
-        assembly.Modules.Any(module => module.ReferencedAssemblies.Any(reference => reference.Name.StartsWith("Cratis.Chronicle", StringComparison.Ordinal)));
 
     void ReadTarget(INamedTypeSymbol constraint, IMethodSymbol method)
     {
