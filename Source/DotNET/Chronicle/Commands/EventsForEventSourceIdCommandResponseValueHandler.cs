@@ -20,7 +20,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="eventLog">The event log to append events to.</param>
 /// <param name="eventTypes">The event types.</param>
 /// <param name="concurrencyScopeStrategies">The <see cref="IConcurrencyScopeStrategies"/> for resolving the expected sequence number.</param>
-/// <param name="eventSources">The registered event source definitions.</param>
+/// <param name="eventSources">The registered event source definitions, or null to skip legacy routing validation.</param>
 /// <remarks>
 /// The match is based on the runtime type of each element rather than the static type of the collection, so a
 /// collection boxed as <see cref="IEnumerable{T}"/> of <see cref="object"/> — or a mixed collection of plain events
@@ -33,7 +33,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     IEventLog eventLog,
     IEventTypes eventTypes,
     IConcurrencyScopeStrategies concurrencyScopeStrategies,
-    IEventSources eventSources) : ICommandResponseValueHandler, ICommandResponseValueHandler<IEnumerable<EventForEventSourceId>>
+    IEventSources? eventSources) : ICommandResponseValueHandler, ICommandResponseValueHandler<IEnumerable<EventForEventSourceId>>
 {
     /// <summary>
     /// Initializes a handler without validation of per-event routing against event source definitions.
@@ -44,7 +44,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     /// <remarks>Use the constructor taking <see cref="IEventSources"/> to validate legacy wrapper routes.</remarks>
     [Obsolete("This constructor does not validate per-event routing against event source definitions; use the constructor that takes IEventSources.")]
     public EventsForEventSourceIdCommandResponseValueHandler(IEventLog eventLog, IEventTypes eventTypes, IConcurrencyScopeStrategies concurrencyScopeStrategies)
-        : this(eventLog, eventTypes, concurrencyScopeStrategies, null!)
+        : this(eventLog, eventTypes, concurrencyScopeStrategies, null)
     {
     }
 

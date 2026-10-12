@@ -327,7 +327,7 @@ internal static class CommandTransactionAppender
     /// <param name="event">The returned wrapper.</param>
     /// <param name="commandContext">The fallback command route.</param>
     /// <param name="eventSources">The registered definitions.</param>
-    /// <exception cref="EventStreamDoesNotBelongToEventSource">The known definition does not declare the resolved stream.</exception>
+    /// <exception cref="EventStreamDoesNotBelongToEventSource">The known definition does not declare the wrapper-named stream.</exception>
     static void ValidateLegacyRouting(EventForEventSourceId @event, CommandContext commandContext, IEventSources? eventSources)
     {
         if (commandContext.GetEventSource() is null || eventSources is null)
@@ -335,12 +335,21 @@ internal static class CommandTransactionAppender
             return;
         }
 
-        var source = @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType();
-        var stream = @event.EventStreamType != EventStreamType.All ? @event.EventStreamType : commandContext.GetEventStreamType();
-        var definition = eventSources.All.FirstOrDefault(definition => definition.EventSourceType == source);
-        if (definition is not null && stream is not null && stream != EventStreamType.All && !definition.Streams.Any(declared => declared.Name == stream.Value))
+        if (@event.EventStreamType == EventStreamType.All)
         {
-            throw new EventStreamDoesNotBelongToEventSource(definition.Name, stream.Value);
+            return;
+        }
+
+        var source = @event.EventSourceType != EventSourceType.Default ? @event.EventSourceType : commandContext.GetEventSourceType();
+        var definition = eventSources.All.FirstOrDefault(definition => definition.EventSourceType == source);
+        if (definition is null)
+        {
+            return;
+        }
+
+        if (!definition.Streams.Any(declared => declared.Name == @event.EventStreamType.Value))
+        {
+            throw new EventStreamDoesNotBelongToEventSource(definition.Name, @event.EventStreamType.Value);
         }
     }
 

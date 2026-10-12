@@ -76,7 +76,7 @@ public sealed class WrapperEventRoutingAnalyzer : DiagnosticAnalyzer
         }
 
         var legacyMessage = LegacyMessage(routing, legacy, IsCommandRoute(definition, resolvedStream, declaration));
-        Report(context, definition, resolvedStream, legacyMessage);
+        Report(context, definition, (resolvedStream, !legacy || literals.Stream is not null), legacyMessage);
     }
 
     static INamedTypeSymbol? ResolveDefinition(WrapperRoutingInitializer routing, string? source, INamedTypeSymbol? commandDefinition, Lazy<ImmutableDictionary<string, INamedTypeSymbol>> definitions)
@@ -113,17 +113,20 @@ public sealed class WrapperEventRoutingAnalyzer : DiagnosticAnalyzer
             ? redundant ? "is redundant with the command route and drops the definition" : "drops the definition"
             : null;
 
-    static void Report(SyntaxNodeAnalysisContext context, INamedTypeSymbol definition, string stream, string? legacyMessage)
+    static void Report(SyntaxNodeAnalysisContext context, INamedTypeSymbol definition, (string Name, bool IsWrapperNamed) stream, string? legacyMessage)
     {
-        if (!DeclaresStream(definition, stream))
+        if (!DeclaresStream(definition, stream.Name))
         {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0020_WrapperEventStreamNotDeclared, context.Node.GetLocation(), stream, definition.Name));
+            if (stream.IsWrapperNamed)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0020_WrapperEventStreamNotDeclared, context.Node.GetLocation(), stream.Name, definition.Name));
+            }
         }
         else if (legacyMessage is not null)
         {
             var properties = ImmutableDictionary<string, string?>.Empty
-                .Add("Definition", definition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).Add("Stream", stream);
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0021_UseEventSourceDefinitionRouting, context.Node.GetLocation(), properties, NameOf(definition), stream, legacyMessage, definition.Name));
+                .Add("Definition", definition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).Add("Stream", stream.Name);
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0021_UseEventSourceDefinitionRouting, context.Node.GetLocation(), properties, NameOf(definition), stream.Name, legacyMessage, definition.Name));
         }
     }
 }
