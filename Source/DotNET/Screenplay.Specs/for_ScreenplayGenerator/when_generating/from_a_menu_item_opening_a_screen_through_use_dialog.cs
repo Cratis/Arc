@@ -7,7 +7,7 @@ public class from_a_menu_item_opening_a_screen_through_use_dialog : given.a_scre
 {
     void Establish() => _component = Imports + """
 
-        import { useDialog } from '@cratis/arc.react';
+        import { useDialog } from '@cratis/arc.react/dialogs';
         import { AuthorDetails } from './AuthorDetails';
         export const AuthorRetirement = () => {
             const [Dialog, show] = useDialog(AuthorDetails);

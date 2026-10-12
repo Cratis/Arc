@@ -13,48 +13,52 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 internal sealed partial class MenuCallbacks(TsxSource source, KnownComponents components)
 {
     /// <summary>
-    /// Gets the visibility binding of the unique React state tuple opened by a callback.
+    /// The lexical binding proof for hook-backed JSX references.
     /// </summary>
-    /// <param name="callback">The callback as written.</param>
+    readonly MenuBindingScope _scope = new(source);
+
+    /// <summary>
+    /// Gets the visibility binding of the unique React state tuple for this item's setter.
+    /// </summary>
+    /// <param name="item">The item containing the callback reference.</param>
     /// <returns>The visibility name, or null when not proven.</returns>
-    internal string? Visibility(string callback)
-    {
-        var opener = Patterns.StateOpenerRegex().Match(callback);
-        if (!opener.Success)
-        {
-            return null;
-        }
+    internal string? Visibility(JsxElement item) => StateOf(item)?.Groups["value"].Value;
 
-        var states = Tuples().Where(_ => IsStateHook(_.Groups["hook"].Value)).ToList();
-        if (states.Count != 1)
-        {
-            return null;
-        }
-
-        var state = states[0];
-        return state.Groups["show"].Value == opener.Groups["show"].Value ? state.Groups["value"].Value : null;
-    }
+    /// <summary>
+    /// Proves that the dialog's visibility and the item's setter refer to the same component tuple.
+    /// </summary>
+    /// <param name="item">The opener item.</param>
+    /// <param name="dialog">The dialog bound to visibility.</param>
+    /// <returns>Whether both lexical references are proven.</returns>
+    internal bool SharesVisibility(JsxElement item, JsxElement dialog) =>
+        StateOf(item) is { } state && _scope.Binds(state, dialog.Position);
 
     /// <summary>
     /// Gets the screen passed to a recognized useDialog opener.
     /// </summary>
-    /// <param name="callback">The callback as written.</param>
+    /// <param name="item">The item containing the opener callback.</param>
     /// <returns>The component name, or null when unread.</returns>
-    internal string? DialogScreen(string callback)
+    internal string? DialogScreen(JsxElement item)
     {
-        var opener = Patterns.DialogOpenerRegex().Match(callback);
+        var opener = Patterns.DialogOpenerRegex().Match(item["command"]!.Written);
         if (!opener.Success)
         {
             return null;
         }
 
-        var tuples = Tuples().Where(_ => IsImported(_.Groups["hook"].Value, "useDialog", "@cratis/arc.react") && _.Groups["show"].Value == opener.Groups["show"].Value).ToList();
+        var tuples = Tuples().Where(_ => _.Groups["show"].Value == opener.Groups["show"].Value).ToList();
         if (tuples.Count != 1)
         {
             return null;
         }
 
-        return JsxValue.Expression(tuples[0].Groups["argument"].Value).Identifier;
+        var tuple = tuples[0];
+        if (!IsImported(tuple.Groups["hook"].Value, "useDialog", "@cratis/arc.react/dialogs") || !_scope.Binds(tuple, item.Position))
+        {
+            return null;
+        }
+
+        return JsxValue.Expression(tuple.Groups["argument"].Value).Identifier;
     }
 
     /// <summary>
@@ -72,6 +76,34 @@ internal sealed partial class MenuCallbacks(TsxSource source, KnownComponents co
 
         var declarations = CodeMatches(Patterns.NavigateBindingRegex()).Where(_ => _.Groups["name"].Value == call.Groups["name"].Value);
         return declarations.Count(IsNavigateHook) == 1 ? JsxValue.Expression(call.Groups["route"].Value).Literal : null;
+    }
+
+    /// <summary>
+    /// Resolves a sole setter declaration and proves its lexical relationship to the item.
+    /// </summary>
+    /// <param name="item">The item containing the setter reference.</param>
+    /// <returns>The proven tuple, or null.</returns>
+    Match? StateOf(JsxElement item)
+    {
+        var opener = Patterns.StateOpenerRegex().Match(item["command"]!.Written);
+        if (!opener.Success)
+        {
+            return null;
+        }
+
+        var states = Tuples().Where(_ => _.Groups["show"].Value == opener.Groups["show"].Value).ToList();
+        if (states.Count != 1)
+        {
+            return null;
+        }
+
+        var state = states[0];
+        if (!IsStateHook(state.Groups["hook"].Value))
+        {
+            return null;
+        }
+
+        return _scope.Binds(state, item.Position) ? state : null;
     }
 
     /// <summary>
@@ -102,7 +134,7 @@ internal sealed partial class MenuCallbacks(TsxSource source, KnownComponents co
     /// <returns>Whether React supplies it.</returns>
     bool IsStateHook(string hook)
     {
-        if (IsImported(hook, "useState", "react"))
+        if (hook == "useState" && IsImported(hook, "useState", "react"))
         {
             return true;
         }

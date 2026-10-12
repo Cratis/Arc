@@ -81,6 +81,18 @@ public class UnreadScreenStructure(ScreenplayDiagnostics diagnostics, string @na
     public void MenuChildren(string tag) => Report($"uses a <{tag}> with conditional or mixed children rather than unconditional direct MenuItem markers, so no toolbar items are written for it");
 
     /// <summary>
+    /// Reports a menu container whose unconditional direct placement is not proven.
+    /// </summary>
+    /// <param name="tag">The menu container tag.</param>
+    public void MenuContainer(string tag) => Report($"uses a <{tag}> as a conditional menu container or through a wrapper rather than an unconditional direct DataPage child, so no toolbar items are written for it");
+
+    /// <summary>
+    /// Reports a menu marker that cannot render without a container.
+    /// </summary>
+    /// <param name="tag">The marker tag.</param>
+    public void OrphanMenuItem(string tag) => Report($"uses a <{tag}> outside a MenuItems container, which renders nothing, so no toolbar item is written");
+
+    /// <summary>
     /// Reports a literal disabled item.
     /// </summary>
     /// <param name="label">The literal label.</param>
@@ -116,6 +128,13 @@ public class UnreadScreenStructure(ScreenplayDiagnostics diagnostics, string @na
     /// <param name="label">The literal label.</param>
     /// <param name="written">The enablement expression or property.</param>
     public void MenuEnablement(string? label, string written) => Composition($"has a menu item {ItemLabel(label)} with '{written}' enablement; Screenplay has no toolbar counterpart, so its enablement is not stated");
+
+    /// <summary>
+    /// Reports computed enablement that prevents writing a toolbar item.
+    /// </summary>
+    /// <param name="label">The literal label.</param>
+    /// <param name="written">The computed disabled expression.</param>
+    public void ComputedMenuEnablement(string? label, string written) => Composition($"has a menu item {ItemLabel(label)} with '{written}' enablement; Screenplay has no toolbar counterpart, so no toolbar item is written and the command stays a screen action when its dialog command is readable");
 
     /// <summary>
     /// Reports behavior occurring after command success, distinct from opening command input.

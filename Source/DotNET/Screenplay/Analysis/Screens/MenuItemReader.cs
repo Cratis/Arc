@@ -14,7 +14,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <param name="unread">The per-directive reporter.</param>
 internal sealed class MenuItemReader(TsxSource source, KnownComponents components, IReadOnlyCollection<CommandModel> commands, UnreadScreenStructure unread)
 {
+    /// <summary>
+    /// The dialog positions already exposed by proven toolbar items.
+    /// </summary>
     readonly HashSet<int> _claimedDialogs = [];
+
+    /// <summary>
+    /// The supported callback and lexical binding reader.
+    /// </summary>
     readonly MenuCallbacks _callbacks = new(source, components);
 
     /// <summary>
@@ -112,12 +119,19 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
         var menus = Menus(page).ToList();
         foreach (var menu in menus)
         {
-            ReadMenu(menu, page.Tag, items, names);
+            if (IsDirectMenu(page, menu))
+            {
+                ReadMenu(menu, page.Tag, items, names);
+            }
+            else
+            {
+                unread.MenuContainer(menu.Tag);
+            }
         }
 
         foreach (var orphan in Items(page, page.Tag).Where(item => !menus.Exists(menu => Contains(menu, item))))
         {
-            unread.MenuChildren(orphan.Tag);
+            unread.OrphanMenuItem(orphan.Tag);
         }
 
         return items.Count == 0 ? null : new(name, items);
@@ -164,6 +178,31 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
             }
         }
     }
+
+    /// <summary>
+    /// Requires the container itself to be a direct page child outside any JSX expression.
+    /// </summary>
+    /// <param name="page">The page.</param>
+    /// <param name="menu">The menu container.</param>
+    /// <returns>Whether its unconditional placement is proven.</returns>
+    bool IsDirectMenu(JsxElement page, JsxElement menu)
+    {
+        var tag = source.Tags.Single(_ => _.Start == menu.Position);
+        if (tag.Parent < 0 || source.Tags[tag.Parent].Start != page.Position)
+        {
+            return false;
+        }
+
+        return !Enumerable.Range(page.ChildrenStart, menu.Position - page.ChildrenStart).Any(_ => EnclosesMenu(_, menu.Position));
+    }
+
+    /// <summary>
+    /// Detects an expression enclosing the menu, using matched boundaries rather than its textual content.
+    /// </summary>
+    /// <param name="open">The possible expression opening.</param>
+    /// <param name="position">The menu position.</param>
+    /// <returns>Whether the boundary encloses it.</returns>
+    bool EnclosesMenu(int open, int position) => source.Code[open] == '{' && source.CloseOf(open) > position;
 
     /// <summary>
     /// Checks source tag boundaries rather than matching conditional JSX as if it were unconditional.
@@ -213,7 +252,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
             return null;
         }
 
-        var visibility = callback.Literal is null ? _callbacks.Visibility(callback.Written) : null;
+        var visibility = callback.Literal is null ? _callbacks.Visibility(item) : null;
         if (visibility is null)
         {
             ReportCallback(item, callback);
@@ -242,7 +281,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
         }
         else
         {
-            unread.MenuEnablement(item["label"]?.Literal, disabled.Written);
+            unread.ComputedMenuEnablement(item["label"]?.Literal, disabled.Written);
         }
 
         return true;
@@ -258,7 +297,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
     {
         var dialogs = components.CommandDialogs.SelectMany(tag => JsxElements.Named(source, tag))
             .Where(_ => _["visible"]?.Identifier == visibility).ToList();
-        if (dialogs.Count != 1)
+        if (!HasUniqueBinding(item, dialogs))
         {
             unread.MenuItem(item["label"]?.Literal, item["command"]!.Written);
             return null;
@@ -276,6 +315,14 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
         ReportPresentation(item);
         return new(command, command, item["label"]?.Literal);
     }
+
+    /// <summary>
+    /// Requires a unique dialog whose visibility shares the setter's lexical tuple.
+    /// </summary>
+    /// <param name="item">The opener.</param>
+    /// <param name="dialogs">The dialogs with this visibility spelling.</param>
+    /// <returns>Whether the binding is proven.</returns>
+    bool HasUniqueBinding(JsxElement item, List<JsxElement> dialogs) => dialogs.Count == 1 && _callbacks.SharesVisibility(item, dialogs[0]);
 
     /// <summary>
     /// Resolves the same local proxy identity used for ordinary dialog actions.
@@ -323,7 +370,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
             return;
         }
 
-        if (_callbacks.DialogScreen(callback.Written) is { } screen)
+        if (_callbacks.DialogScreen(item) is { } screen)
         {
             unread.MenuScreenDialog(screen);
             return;
