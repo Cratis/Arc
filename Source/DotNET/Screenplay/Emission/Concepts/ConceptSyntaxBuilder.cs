@@ -181,20 +181,31 @@ public class ConceptSyntaxBuilder(
         var belowVersion = !positional && MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V12);
         if (outsideRange || belowVersion)
         {
-            var reason = string.Join(" / ", new[]
-            {
-                belowVersion ? $"cap v{MaximumExecutableModelVersion}" : null,
-                outsideRange ? "outside int32" : null
-            }.OfType<string>());
-            var members = string.Join(", ", values.Select(value => $"{value.Name}={value.Number!.Value.ToString(CultureInfo.InvariantCulture)}"));
-            diagnostics.Warning(
-                ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable,
-                $"Enum '{concept.Name}' members {members} need ESM v12 ({reason}); the document numbers them by position and stored identity is not preserved",
-                concept.Name);
-
+            ReportPositionalFallback(concept, values, outsideRange, belowVersion);
             return null;
         }
 
         return values.Select(value => (int)value.Number!.Value).ToList();
+    }
+
+    /// <summary>
+    /// Reports that an enumeration's numbers fall back to positions in the document.
+    /// </summary>
+    /// <param name="concept">The enumeration being emitted.</param>
+    /// <param name="values">The retained name and number pairs.</param>
+    /// <param name="outsideRange">Whether a number is outside the int32 range.</param>
+    /// <param name="belowVersion">Whether the version cap is below ESM v12.</param>
+    void ReportPositionalFallback(ConceptModel concept, IReadOnlyList<(string Name, BigInteger? Number)> values, bool outsideRange, bool belowVersion)
+    {
+        var reason = string.Join(" / ", new[]
+        {
+            belowVersion ? $"cap v{MaximumExecutableModelVersion}" : null,
+            outsideRange ? "outside int32" : null
+        }.OfType<string>());
+        var members = string.Join(", ", values.Select(value => $"{value.Name}={value.Number!.Value.ToString(CultureInfo.InvariantCulture)}"));
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.EnumMemberNumbersNotRepresentable,
+            $"Enum '{concept.Name}' members {members} need ESM v12 ({reason}); the document numbers them by position and stored identity is not preserved",
+            concept.Name);
     }
 }
