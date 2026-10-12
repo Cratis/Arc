@@ -170,12 +170,9 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
             return;
         }
 
-        foreach (var marker in markers)
+        foreach (var item in markers.Select(ReadItem).OfType<ScreenToolbarItemModel>())
         {
-            if (ReadItem(marker) is { } item)
-            {
-                items.Add(item with { Name = ItemName(item.Command, names) });
-            }
+            items.Add(item with { Name = ItemName(item.Command, names) });
         }
     }
 
