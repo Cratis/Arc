@@ -555,4 +555,21 @@ public static class ScreenplayDiagnosticCodes
     /// A member's personal-data marking promotes a concept's unmarked uses too.
     /// </summary>
     public const string ConceptPiiPromotion = "SP0063";
+
+    // SP0064-SP0066 are reserved for command value diagnostics.
+
+    /// <summary>
+    /// A flags enumeration can carry unnamed combinations the document cannot state.
+    /// </summary>
+    public const string FlagsCombinationsNotStatable = "SP0067";
+
+    /// <summary>
+    /// Enumeration member numbers exceed the target ESM version or the int32 range.
+    /// </summary>
+    public const string EnumMemberNumbersNotRepresentable = "SP0068";
+
+    /// <summary>
+    /// Enumeration aliases were omitted because Screenplay requires unique numbers.
+    /// </summary>
+    public const string EnumAliasNotRepresentable = "SP0069";
 }

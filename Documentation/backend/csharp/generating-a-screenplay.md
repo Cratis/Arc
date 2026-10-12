@@ -222,6 +222,38 @@ A generated identifier supplies an inline event's destination. Standalone produc
 
 The generator preserves the legacy authoring document and adds generated values and responses only where they are admitted. Documents containing handler references still compile and round-trip, but have **no executable model** because handlers report `PLAY0268`.
 
+## Enumerations
+
+An enum member's number is its stored identity. Reordering bare members in a model can change those numbers when code is rendered again. The generator therefore pins every recovered C# number, including implicit continuation and positional `0..n-1` values. This applies to direct enums and enum-backed `ConceptAs<T>` concepts, in both default and authoring output.
+
+For example, this C# declaration:
+
+```csharp
+public enum Status
+{
+    Draft = 1,
+    Issued = 4
+}
+```
+
+becomes this document-level declaration:
+
+```screenplay
+concept Status : Enum
+  draft = 1
+  issued = 4
+```
+
+Names still identify members in mappings, validation rules and scenarios: `status = "issued"`, not `status = 4`. Sparse, negative and reordered numbers select ESM v12. Explicit positional pins keep the previous executable version and canonical bytes, even below v12. Never renumber a published member or reuse its number for another member: persisted data still carries the old identity.
+
+Screenplay admits only unique int32 numbers. For aliases, the generator keeps the ordinal-first C# member name for each number, matching scenario constant resolution, and drops the other names with warning `SP0069`. A number outside int32 cannot be pinned; the whole enum falls back to bare, positional members with warning `SP0068`. Members whose names collide after conversion keep only the first name with `SP0068`, without renumbering surviving members when their numbers can be emitted.
+
+A `[Flags]` enum still declares one member at a time. Named combinations such as `All = 7` are ordinary members, not set semantics. Warning `SP0067` names the enum and its analyzed property uses when combinations exist that no member names. It is absent when every combination of positive members is named. Unnamed combinations in scenarios remain unsupported by [Screenplay's flags work](https://github.com/Cratis/Screenplay/issues/319).
+
+## Keeping documents below ESM v12
+
+If your renderer does not admit ESM v12, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V11`. Embedded generation exposes the same cap on `EmbeddedDocumentOptions`; MSBuild projects set `CratisEmbeddedScreenplayMaximumExecutableModelVersion` to `11.0`. A cap below v12 keeps bare names for non-positional enums and reports `SP0068` (Warning), listing their numbers and explaining that positional output does not preserve stored identity. Positional enums still get explicit pins because those pins do not raise the executable version. The cap applies in authoring mode too; it does not make other authoring-only constructs executable.
+
 ## Keeping documents below ESM v7
 
 If your renderer does not yet admit ESM v7, set `ScreenplayOptions.MaximumExecutableModelVersion` to `Cratis.Screenplay.Semantics.SemanticVersion.V6`. The default is `null` (no cap), so existing output is unchanged. A cap below v7 withholds generated identifiers, other generated values, and scalar or record `returns` blocks. Commands keep the same legacy productions or handler references used when generation cannot be represented, and Information diagnostic `SP0052` names the cap.
@@ -487,7 +519,7 @@ A reactor scenario that asserts something else has no counterpart and is reporte
 
 An optional event payload mapping can be left out while the rest of its block still says something true. When dependency pruning would remove a required payload mapping or leave a condition reading an unavailable read, the whole production is withheld instead. A scenario cannot: an example missing the state it started from, the action it performed, or the outcome it expected is not that example — it is a different one nobody wrote. So a step that cannot be read takes the whole scenario with it, and `SP0039` names the scenario and what made it unreadable.
 
-A value the document cannot hold takes the scenario with it the same way. The document names an enumeration member, and a scenario value that is none — a number cast to an enumeration that declares no member with it, `default` for an enumeration with no zero member, `null` for a required record or list, or several `[Flags]` members combined into a value no member is declared with, because Screenplay has no form to state combined flags — would be written as a different example if it were dropped or invented. `SP0039` names the property, the value and why.
+A value the document cannot hold takes the scenario with it the same way. The document names an enumeration member, and a scenario value that is none — a number cast to an enumeration that declares no member with it, `default` for an enumeration with no zero member, `null` for a required record or list, or several `[Flags]` members combined into a value no member is declared with, because Screenplay has no form to state combined flags — would be written as a different example if it were dropped or invented. `SP0039` names the property, the value and why. The type-extraction warning `SP0067` also reports the flags limitation before any scenario uses an unnamed combination; see [Enumerations](#enumerations).
 
 Conditional steps are the common case. Anything written under an `if`, a `switch`, a loop, a ternary or a lambda happened in some runs of the specification and not in others, and the source text does not say which — so a step recovered as unconditional would state a world nobody specified. That is the one failure mode a reader has no way of catching, which is why it is reported rather than guessed at.
 
@@ -616,11 +648,14 @@ These details can remain outside the document because the language has no counte
 | Event-source definition routes | Readable source and stream routes are emitted by default at ESM v8. `SP0044` describes an unavailable route or preserved legacy concurrency; a cap below v8 retains the previous default output. |
 | Unreadable source or stream routes | Computed stream ids, unproven formatting templates, generated mappings, conflicting declarations, and the reserved source name `Default` cannot be stated without guessing. An explicitly routed or unproven production also withholds the entire command route, regardless of identifier type: the route would claim the event lands on the command's source and stream. Information diagnostic `SP0054` reports the omission in both modes. Property-path mappings and handler-command routes remain authoring-only. |
 | Unreadable reads or provisioning | Reads and requirements are authoring-only. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`. |
-| Same-named concepts with different meanings | Primitive type, enumeration values, `pii`, `secret`, and encryption scope must agree. The first declaration is kept; warning diagnostic `SP0031` names each conflicting type rather than silently merging its compliance claims. |
+| Same-named concepts with different meanings | Primitive type, enumeration names and numbers, `pii`, `secret`, and encryption scope must agree. The first declaration is kept; warning diagnostic `SP0031` names each conflicting type rather than silently merging its compliance claims. |
 | Protected concepts in emitted identity positions | The identifier, route or event-production destination remains stated, but its concept's `pii`/`secret` annotations are omitted globally. Information diagnostic `SP0059` names each retained use. An analyzed identity that is not emitted does not cause this omission. |
 | Namespace or Global encryption scope in default output | Bare `secret` implies Subject scope. Information diagnostic `SP0061` names the concept and omitted scope. Enable `ScreenplayOptions.AuthoringOnlyConstructs` to state it. |
 | Member `[PII]` on a non-concept type | Screenplay classifies only concepts. Information diagnostic `SP0062` names `Type.Member` and suggests a personal-data concept; none is invented. |
 | Member `[PII]` promoting unmarked concept uses | The concept remains `pii` everywhere. Information diagnostic `SP0063` names the concept and lists unmarked analyzed uses that acquire this classification. No diagnostic is reported if the concept itself is marked or every analyzed use is marked. |
+| Unnamed `[Flags]` combinations | Members remain declared individually. Warning `SP0067` names the enum and property uses; named combinations are ordinary members. No warning is reported when every positive-member combination is named. |
+| Enum numbers outside int32 or above the ESM cap | Numbers are withheld together and members fall back to positional numbering. Warning `SP0068` lists the numbers and the range or cap limitation; stored identity is not preserved. Emitted-name collisions also report `SP0068` for dropped member identities. |
+| Enum aliases sharing one number | The ordinal-first member is kept so scenario constants still name a declaration. Warning `SP0069` names the kept and dropped aliases. |
 | Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.

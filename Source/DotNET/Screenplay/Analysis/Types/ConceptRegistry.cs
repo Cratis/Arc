@@ -30,6 +30,7 @@ public class ConceptRegistry
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
     readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
+    readonly Dictionary<string, ITypeSymbol> _enumerations = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the types with encryption or audit suppression alone.
@@ -146,6 +147,28 @@ public class ConceptRegistry
     }
 
     /// <summary>
+    /// Reports enumeration aliases that cannot be declared with unique numbers.
+    /// </summary>
+    /// <param name="diagnostics">Where the omissions are reported.</param>
+    internal void ReportAliases(ScreenplayDiagnostics diagnostics)
+    {
+        foreach (var type in _enumerations.Values.OrderBy(type => type.ToDisplayString(), StringComparer.Ordinal))
+        {
+            var aliases = type.GetMembers().OfType<IFieldSymbol>().Where(member => member.HasConstantValue)
+                .GroupBy(member => EnumConstants.Normalize(member.ConstantValue)).Where(group => group.Count() > 1);
+            foreach (var group in aliases)
+            {
+                var kept = EnumConstants.MemberOf(type, group.First().ConstantValue!)!;
+                var dropped = group.Select(member => member.Name).Where(name => name != kept).Order(StringComparer.Ordinal);
+                diagnostics.Warning(
+                    ScreenplayDiagnosticCodes.EnumAliasNotRepresentable,
+                    $"Enum '{type.Name}' has aliases for {group.Key}; kept '{kept}' and dropped {string.Join(", ", dropped.Select(name => $"'{name}'"))} because Screenplay requires unique member numbers",
+                    type.ToDisplayString());
+            }
+        }
+    }
+
+    /// <summary>
     /// Determines whether two concepts sharing a name are declared the same way.
     /// </summary>
     /// <param name="existing">The concept already declared.</param>
@@ -154,6 +177,7 @@ public class ConceptRegistry
     static bool IsSameAs(ConceptModel existing, ConceptModel concept) =>
         existing.Primitive == concept.Primitive &&
         existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal) &&
+        existing.EnumNumbers.SequenceEqual(concept.EnumNumbers) &&
         existing.IsPii == concept.IsPii &&
         existing.IsSensitive == concept.IsSensitive &&
         StatedScopeOf(existing) == StatedScopeOf(concept);
@@ -173,9 +197,9 @@ public class ConceptRegistry
     /// Gets the values of an enumeration, in declaration order.
     /// </summary>
     /// <param name="type">The enumeration to read.</param>
-    /// <returns>The value names.</returns>
-    static IEnumerable<string> ValuesOf(ITypeSymbol type) =>
-        [.. type.GetMembers().OfType<IFieldSymbol>().Where(_ => _.HasConstantValue).Select(_ => _.Name)];
+    /// <returns>The members with distinct integer identities.</returns>
+    static IReadOnlyList<IFieldSymbol> ValuesOf(ITypeSymbol type) =>
+        [.. type.GetMembers().OfType<IFieldSymbol>().Where(member => member.HasConstantValue && member.Name == EnumConstants.MemberOf(type, member.ConstantValue))];
 
     /// <summary>
     /// Reads the non-default encryption scope from a concept's attribute.
@@ -188,6 +212,24 @@ public class ConceptRegistry
         2 => "global",
         _ => null
     };
+
+    /// <summary>
+    /// Builds an enumeration, preserving the compiler's resolved integer constants.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    /// <param name="type">The enumeration type.</param>
+    /// <param name="pii">Whether the concept carries personal data.</param>
+    /// <returns>The enumeration model.</returns>
+    ConceptModel Enumeration(string name, ITypeSymbol type, bool pii)
+    {
+        _enumerations[type.ToDisplayString()] = type;
+        var members = ValuesOf(type);
+
+        return new(name, ScreenplayPrimitive.Enum, pii, members.Select(member => member.Name).ToList(), [])
+        {
+            EnumNumbers = members.Select(member => EnumConstants.Normalize(member.ConstantValue)!.Value).ToList()
+        };
+    }
 
     /// <summary>
     /// Builds the concept a type backed by <c>ConceptAs</c> declares.
@@ -205,7 +247,7 @@ public class ConceptRegistry
 
         if (backing.TypeKind == TypeKind.Enum)
         {
-            return new(type.Name, ScreenplayPrimitive.Enum, pii, ValuesOf(backing), []) { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
+            return Enumeration(type.Name, backing, pii) with { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
         }
 
         var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
@@ -224,7 +266,7 @@ public class ConceptRegistry
     {
         if (type.TypeKind == TypeKind.Enum)
         {
-            return new(type.Name, ScreenplayPrimitive.Enum, false, ValuesOf(type), []);
+            return Enumeration(type.Name, type, false);
         }
 
         return type.FindBase(WellKnownTypeNames.ConceptAs) is { } concept ? ToConcept(type, concept.TypeArguments[0]) : null;

@@ -102,7 +102,7 @@ public class from_source_referring_to_members_of_an_enumeration : Specification
     [Fact] void should_produce_a_document_the_compiler_says_nothing_about() => _compiled.Diagnostics.ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_declare_the_enumeration_as_a_concept() => Lines().ShouldContain("concept UserRole : Enum");
-    [Fact] void should_declare_the_member_the_document_refers_to() => Lines().ShouldContain("clientContact");
+    [Fact] void should_declare_the_member_the_document_refers_to() => Lines().ShouldContain("clientContact = 2");
     [Fact] void should_write_a_mapping_as_the_member_it_names() => Lines().ShouldContain(@"role = ""clientContact""");
     [Fact] void should_write_the_mapping_of_the_command_and_of_the_projection_alike() => Lines().Count(_ => _ == @"role = ""clientContact""").ShouldEqual(2);
     [Fact] void should_write_a_guard_as_the_member_it_compares_against() => Lines().ShouldContain(@"produces when role == ""clientContact""");
