@@ -208,10 +208,9 @@ public static class AuthoringDeclarations
                 diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': source '{route.Source}' has colliding declarations with incompatible identity or stream-id types (PLAY0273) and its routes were left out", slice.Namespace);
                 route = null;
             }
-            else if (route is { IdentifierType: { } identity } && command.Produces.Any(production => !production.UsesCommandContext) &&
-                identity.Name != "Uuid" && !application.Concepts.Any(concept => concept.Name == identity.Name && concept.Primitive == ScreenplayPrimitive.Uuid))
+            else if (route is not null && command.Produces.Any(production => !production.UsesCommandContext))
             {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': an explicitly routed or unproven production has no representable destination of the source's identifier type, so the command's source and stream route was left out", slice.Namespace);
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': an explicitly routed or unproven production's source and stream routing is not proven to be the command's, so its entire route was left out", slice.Namespace);
                 route = null;
             }
 
