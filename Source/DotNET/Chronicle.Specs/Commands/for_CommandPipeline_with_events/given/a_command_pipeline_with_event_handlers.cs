@@ -70,9 +70,8 @@ public class a_command_pipeline_with_event_handlers : Specification
         _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _subjectHandler = new SubjectCommandResponseValueHandler();
-        var eventSources = Substitute.For<IEventSources>();
-        _singleEventForEventSourceIdHandler = new SingleEventForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies, eventSources);
-        _eventsForEventSourceIdHandler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies, eventSources);
+        _singleEventForEventSourceIdHandler = new SingleEventForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies, Substitute.For<IEventSources>());
+        _eventsForEventSourceIdHandler = new EventsForEventSourceIdCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies, Substitute.For<IEventSources>());
 
         // Set up successful append results
         var successfulAppendResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);

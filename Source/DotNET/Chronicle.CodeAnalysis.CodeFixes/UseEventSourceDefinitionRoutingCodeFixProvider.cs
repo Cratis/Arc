@@ -32,15 +32,13 @@ public sealed class UseEventSourceDefinitionRoutingCodeFixProvider : CodeFixProv
         var root = await context.Document.GetSyntaxRootAsync(context.CancellationToken).ConfigureAwait(false);
         var diagnostic = context.Diagnostics[0];
         var initializer = root?.FindNode(diagnostic.Location.SourceSpan).FirstAncestorOrSelf<InitializerExpressionSyntax>();
-        if (root is null || initializer is null ||
-            !diagnostic.Properties.TryGetValue("Definition", out var definition) ||
-            !diagnostic.Properties.TryGetValue("Stream", out var stream))
+        if (initializer is null || RoutingOf(diagnostic) is not { } routing)
         {
             return;
         }
 
-        var replacement = Rewrite(initializer, definition!, stream!).WithAdditionalAnnotations(Formatter.Annotation);
-        context.RegisterCodeFix(CodeAction.Create(Title, _ => Task.FromResult(context.Document.WithSyntaxRoot(root.ReplaceNode(initializer, replacement))), Title), diagnostic);
+        var replacement = Rewrite(initializer, routing.Definition, routing.Stream).WithAdditionalAnnotations(Formatter.Annotation);
+        context.RegisterCodeFix(CodeAction.Create(Title, _ => Task.FromResult(context.Document.WithSyntaxRoot(root!.ReplaceNode(initializer, replacement))), Title), diagnostic);
     }
 
     static InitializerExpressionSyntax Rewrite(InitializerExpressionSyntax initializer, string definition, string stream)
@@ -80,4 +78,14 @@ public sealed class UseEventSourceDefinitionRoutingCodeFixProvider : CodeFixProv
 
     static AssignmentExpressionSyntax Assignment(string name, ExpressionSyntax value) =>
         SyntaxFactory.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, SyntaxFactory.IdentifierName(name), value);
+
+    /// <summary>
+    /// Reads the definition and stream the diagnostic carries.
+    /// </summary>
+    /// <param name="diagnostic">The diagnostic to read.</param>
+    /// <returns>The definition type name and declared stream, or null when either is missing.</returns>
+    static (string Definition, string Stream)? RoutingOf(Diagnostic diagnostic) =>
+        (diagnostic.Properties.GetValueOrDefault("Definition"), diagnostic.Properties.GetValueOrDefault("Stream")) is (string definition, string stream)
+            ? (definition, stream)
+            : null;
 }

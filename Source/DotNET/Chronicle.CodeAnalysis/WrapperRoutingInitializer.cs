@@ -110,7 +110,7 @@ internal sealed class WrapperRoutingInitializer(InitializerExpressionSyntax init
             return Unwrap(parenthesized.Expression);
         }
 
-        if (expression is CastExpressionSyntax cast && (model.GetTypeInfo(cast.Type).Type?.SpecialType == SpecialType.System_String || IsRoutingConcept(cast)))
+        if (expression is CastExpressionSyntax cast && IsTransparentCast(cast))
         {
             return Unwrap(cast.Expression);
         }
@@ -119,6 +119,14 @@ internal sealed class WrapperRoutingInitializer(InitializerExpressionSyntax init
             ? Unwrap(creation.ArgumentList.Arguments[0].Expression)
             : expression;
     }
+
+    /// <summary>
+    /// Determines whether a cast keeps the routing value it converts unchanged.
+    /// </summary>
+    /// <param name="cast">The cast to inspect.</param>
+    /// <returns>True when the cast is to string or to a routing concept.</returns>
+    bool IsTransparentCast(CastExpressionSyntax cast) =>
+        model.GetTypeInfo(cast.Type).Type?.SpecialType == SpecialType.System_String || IsRoutingConcept(cast);
 
     bool IsRoutingConcept(ExpressionSyntax expression)
     {
