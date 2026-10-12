@@ -27,7 +27,7 @@ public class when_probing_metadata_markers : Specification
             .Concat(Directory.GetFiles(RuntimeEnvironment.GetRuntimeDirectory(), "*.dll"));
         _context = new MetadataLoadContext(new CanonicalAssemblyResolver(paths));
         _assembly = _context.LoadFromAssemblyPath(file);
-        _fixtureDirectory = Directory.CreateDirectory(Path.Combine(".ai-work", "3163", "metadata-marker-specs", Guid.NewGuid().ToString("N"))).FullName;
+        _fixtureDirectory = Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "cratis-arc-metadata-marker-specs", Guid.NewGuid().ToString("N"))).FullName;
         _invalidOwnerAssembly = _context.LoadFromAssemblyPath(CreateInvalidOwnerImage());
     }
 
