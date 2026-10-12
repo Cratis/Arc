@@ -95,7 +95,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var straight = IsStraight(body);
         if (!recoverableGeneration)
         {
-            return ReadWithoutGeneration(command, returned, straight, model, result, location);
+            return returned is null || !straight ? result : result with { Operations = ReturnedOperations(command, returned, model, location) };
         }
         if (!parameters.Bind(command, body, model))
         {
@@ -468,15 +468,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         return new(responses, operations);
     }
 
-    CommandAuthoringModel ReadWithoutGeneration(INamedTypeSymbol command, ExpressionSyntax? returned, bool straight, SemanticModel model, CommandAuthoringModel result, string location)
-    {
-        if (returned is null || !straight)
-        {
-            return result;
-        }
-
-        return result with { Operations = ReadReturnedParts(command, returned, model, location).Operations };
-    }
+    IReadOnlyList<OperationModel> ReturnedOperations(INamedTypeSymbol command, ExpressionSyntax returned, SemanticModel model, string location) =>
+        ReadReturnedParts(command, returned, model, location).Operations;
 
     bool ContainsOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations") ||
         (type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsOperation));
