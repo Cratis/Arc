@@ -601,4 +601,9 @@ public static class ScreenplayDiagnosticCodes
     /// Receipt-based reactor redelivery handling cannot be stated executably.
     /// </summary>
     public const string UnrepresentableReactionRedelivery = "SP0072";
+
+    /// <summary>
+    /// A generated parameter's strategy cannot be recovered as a proven UUID v4 factory.
+    /// </summary>
+    public const string GenerationNotRecoverable = "SP0073";
 }

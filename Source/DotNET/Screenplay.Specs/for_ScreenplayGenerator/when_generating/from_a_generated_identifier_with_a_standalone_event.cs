@@ -8,12 +8,11 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_a_generated_identifier_with_a_standalone_event : a_generated_document
 {
-    void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
+    void Because() => Generate((Analyzed.SlicePath, GeneratedValueSources.With("""
         [Command] public record RegisterAuthor(string Name, bool Register)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 return (authorId, new(Name));
             }
         }

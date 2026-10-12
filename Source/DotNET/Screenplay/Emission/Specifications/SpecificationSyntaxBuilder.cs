@@ -81,6 +81,42 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$", RegexOptions.None, 1000)]
     private static partial Regex IsoInstant();
 
+    static bool HasUnrepresentableCommandSources(SpecificationScenarioEvidence? evidence, CommandModel? command, SpecificationModel specification)
+    {
+        if (evidence is not { HasExplicitCommandSources: true })
+        {
+            return false;
+        }
+        if (evidence.HasUnresolvedCommandSources)
+        {
+            return true;
+        }
+        if (command?.Authoring?.GeneratedParameters == true && specification.When?.For is not null)
+        {
+            return false;
+        }
+
+        return HasDifferentCommandIdentifier(evidence.CommandIdentifier, command);
+    }
+
+    static bool HasDifferentCommandIdentifier(string? statedIdentifier, CommandModel? command)
+    {
+        if (command is null || (command.Authoring?.Identifier ?? command.Identifier) is not { } identifier)
+        {
+            return false;
+        }
+        if (!command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier))
+        {
+            return false;
+        }
+
+        return command.Produces.All(production => production.UsesCommandContext) && statedIdentifier != identifier;
+    }
+
+    CommandModel? IssuedCommand(SpecificationModel specification) => specification.When is { Kind: SpecificationStateKind.Command } action
+        ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == action.Name)
+        : null;
+
     SpecificationModel? WithRepresentableSources(SpecificationModel specification)
     {
         var evidence = SpecificationEvidence.For(specification);
@@ -93,14 +129,13 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
 
-        var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
-            ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name)
-            : null;
-        if (evidence is { HasExplicitCommandSources: true } &&
-            (evidence.HasUnresolvedCommandSources ||
-             (command is not null && (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
-              command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier) &&
-              command.Produces.All(production => production.UsesCommandContext) && evidence.CommandIdentifier != identifier)))
+        var command = IssuedCommand(specification);
+        if (new SpecificationGenerationPins(Diagnostics).Apply(specification, command, location) is not { } pinned)
+        {
+            return null;
+        }
+        specification = pinned;
+        if (HasUnrepresentableCommandSources(evidence, command, specification))
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -155,7 +190,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             specification = specification with { Returns = null };
         }
 
-        if (!specification.Errors.Any() && command?.Authoring is { Generated.Count: > 0 })
+        if (!specification.Errors.Any() && command?.Authoring is { GeneratedParameters: false, Generated.Count: > 0 })
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -477,7 +512,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
-            When(specification.When),
+            When(specification),
             [.. Events(specification.Then, expected: true)],
             [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_), SourceLocation.Start))],
             SourceLocation.Start,
@@ -508,15 +543,19 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// <summary>
     /// Builds the command a scenario issued.
     /// </summary>
-    /// <param name="command">The command, or <see langword="null"/> when the scenario issued none.</param>
+    /// <param name="specification">The scenario whose command and generated fixtures are built.</param>
     /// <returns>The <see cref="SpecificationCommandSyntax"/>, or <see langword="null"/>.</returns>
     /// <remarks>
     /// A scenario about a read model issues no command - the events are what happened - and the language holds that
     /// as a specification with no <c>when</c> rather than as one with an empty one.
     /// </remarks>
-    SpecificationCommandSyntax? When(SpecificationStateModel? command) =>
-        command is { Kind: SpecificationStateKind.Command }
+    SpecificationCommandSyntax? When(SpecificationModel specification) =>
+        specification.When is { Kind: SpecificationStateKind.Command } command
             ? new(naming.ToDeclarationName(command.Name), [.. Values(command)], SourceLocation.Start)
+            {
+                For = SourceOf(command),
+                GeneratedValues = specification.GeneratedValues.Select(value => new PropertyMappingSyntax(naming.ToPropertyName(value.Property), _sources.Convert(value.Source), SourceLocation.Start)).ToList()
+            }
             : null;
 
     /// <summary>

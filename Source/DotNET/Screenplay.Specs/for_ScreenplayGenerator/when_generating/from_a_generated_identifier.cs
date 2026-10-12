@@ -9,12 +9,11 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_a_generated_identifier : a_generated_document
 {
-    void Because() => Generate((Analyzed.SlicePath, IdentifierSources.With("""
+    void Because() => Generate((Analyzed.SlicePath, GeneratedValueSources.With("""
         [Command] public record RegisterAuthor(string Name)
         {
-            public (AuthorId, AuthorRegistered) Handle()
+            public (AuthorId, AuthorRegistered) Handle([GeneratedValue] AuthorId authorId)
             {
-                AuthorId authorId = new(Guid.NewGuid());
                 return (authorId, new(Name));
             }
         }
@@ -27,7 +26,8 @@ public class from_a_generated_identifier : a_generated_document
     [Fact] void should_bind_and_round_trip() => AssertDocument();
     [Fact] void should_select_v7() => Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V7);
     [Fact] void should_keep_identical_output_with_a_v7_cap() => new ScreenplayEmitter().Emit(Result.Model, new() { MaximumExecutableModelVersion = SemanticVersion.V7 }).Source.ShouldEqual(Result.Source);
-    [Fact] void should_withhold_v7_constructs_with_a_cap_in_authoring_mode()
+    [Fact]
+    void should_withhold_v7_constructs_with_a_cap_in_authoring_mode()
     {
         var capped = new ScreenplayEmitter().Emit(Result.Model, new() { MaximumExecutableModelVersion = SemanticVersion.V6, AuthoringOnlyConstructs = true });
         capped.Source.ShouldNotContain("generated");
