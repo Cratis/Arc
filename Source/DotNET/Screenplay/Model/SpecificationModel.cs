@@ -59,4 +59,14 @@ public record SpecificationModel(
     /// Gets why a generation configuration cannot be stated faithfully.
     /// </summary>
     public string? GenerationFailure { get; init; }
+
+    /// <summary>
+    /// Gets the exact principal recovered from the scenario setup.
+    /// </summary>
+    internal SpecificationCallerModel? Caller { get; init; }
+
+    /// <summary>
+    /// Gets why an attempted caller setup could not be stated exactly.
+    /// </summary>
+    internal string? CallerFailure { get; init; }
 }

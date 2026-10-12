@@ -611,6 +611,16 @@ public static class ScreenplayDiagnosticCodes
     public const string GenerationNotRecoverable = "SP0073";
 
     /// <summary>
+    /// An open command scenario was kept without its unsupported caller setup.
+    /// </summary>
+    public const string SpecificationCallerNotRepresentable = "SP0075";
+
+    /// <summary>
+    /// A parameterized theory scenario cannot yet be stated as a case table.
+    /// </summary>
+    public const string SpecificationCasesNotFolded = "SP0076";
+
+    /// <summary>
     /// Screen composition or toolbar enablement has no corresponding Screenplay construct.
     /// </summary>
     /// <remarks>

@@ -43,20 +43,15 @@ public class SpecificationCatalog
     {
         var reader = new SpecificationReader(models, diagnostics, heldValues);
         var reactors = new ReactorSpecificationReader(models, diagnostics, heldValues);
+        var theories = new SpecificationTheories(models, diagnostics);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 
-        foreach (var type in catalog.Types)
+        foreach (var type in catalog.Types.Where(type => !theories.Report(type, reader.IsSpecification(type))))
         {
-            if (!reader.IsSpecification(type) && ReactorSpecificationReader.ReactorOf(type) is { } reactor)
-            {
-                ReadReactorScenario(type, reactor, reactors, placement, bySlice, diagnostics);
-                continue;
-            }
-
             if (!reader.IsSpecification(type))
             {
-                Report(reader.ScenarioWithoutCounterpart(type), type, diagnostics);
+                ReadOtherScenario(type, reader, reactors, (placement, bySlice, diagnostics));
                 continue;
             }
 
@@ -111,6 +106,28 @@ public class SpecificationCatalog
             ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart,
             $"The scenario '{type.Name}' is written as a {scenario}, which specifies the slice through something the language has nowhere to hold, so the whole of it was left out",
             type.ToDisplayString());
+    }
+
+    /// <summary>
+    /// Reads a scenario that is not a specification: a reactor scenario, or one written in a form with no counterpart.
+    /// </summary>
+    /// <param name="type">The type declaring the scenario.</param>
+    /// <param name="reader">The reader of specifications.</param>
+    /// <param name="reactors">The reader of reactor scenarios.</param>
+    /// <param name="target">Where the scenario is placed and reported.</param>
+    static void ReadOtherScenario(
+        INamedTypeSymbol type,
+        SpecificationReader reader,
+        ReactorSpecificationReader reactors,
+        (SpecificationPlacement Placement, Dictionary<string, List<SpecificationModel>> BySlice, ScreenplayDiagnostics Diagnostics) target)
+    {
+        if (ReactorSpecificationReader.ReactorOf(type) is { } reactor)
+        {
+            ReadReactorScenario(type, reactor, reactors, target.Placement, target.BySlice, target.Diagnostics);
+            return;
+        }
+
+        Report(reader.ScenarioWithoutCounterpart(type), type, target.Diagnostics);
     }
 
     /// <summary>
