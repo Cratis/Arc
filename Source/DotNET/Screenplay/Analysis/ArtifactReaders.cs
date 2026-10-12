@@ -148,7 +148,7 @@ public class ArtifactReaders
             new ReducerReader(diagnostics),
             new ReactorReader(models, paths)
             {
-                Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
+                Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList()
             },
             new ConstraintReader(models, paths, diagnostics),
             new ReadModelReader(paths, whole.ReadModels));

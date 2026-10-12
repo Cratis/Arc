@@ -48,8 +48,9 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
     /// Prevents execution when metadata would be discarded.
     /// </summary>
     /// <param name="reactor">The reactor.</param>
+    /// <param name="reaction">The declarative effects of one handler.</param>
     /// <returns>Whether declarative effects retain their identity and scope.</returns>
-    internal bool CanExecute(ReactorModel reactor)
+    internal bool CanExecute(ReactorModel reactor, ReactionModel reaction)
     {
         if (!ValidIdentity(reactor))
         {
@@ -60,7 +61,9 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
             return false;
         }
 
-        return !IsCapped(reactor);
+        // System identity applies only to returned commands; event-only productions need no runs as directive.
+        // A from filter still scopes every effect, so losing it always withholds the whole trigger.
+        return enabled || (reactor.EventSource is null && (reactor.SystemRoles is null || !reaction.Invokes.Any()));
     }
 
     /// <summary>
@@ -200,7 +203,7 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
     {
         if (IsCapped(reactor))
         {
-            diagnostics.Warning(ScreenplayDiagnosticCodes.ReactionMetadataVersionCap, $"The reactor '{reactor.Name}' retains its source because runs as and from require ESM v10; no unauthorized or unfiltered executable effect was substituted", location);
+            diagnostics.Warning(ScreenplayDiagnosticCodes.ReactionMetadataVersionCap, $"The reactor '{reactor.Name}' omits runs as and from because they require ESM v10; effects depending on that metadata retain their source, so no unauthorized or unfiltered executable effect was substituted", location);
         }
     }
 

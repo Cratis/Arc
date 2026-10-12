@@ -95,7 +95,9 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             paths.Relative(type.SourceFilePath()),
             eventSource)
         {
-            Reactions = ObservesTheEventLog(type) ? new ReactionReader(models).Read(type, handlers) : []
+            Reactions = ObservesTheEventLog(type) ? new ReactionReader(models).Read(type, handlers) : [],
+            HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type) &&
+                handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
 
         return new ReactorMetadataReader(Definitions).Read(type, reactor);

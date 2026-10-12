@@ -73,7 +73,6 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
             IdentityFailure = identity.Failure,
             ObservationFailure = observation.Failure,
             ObservationDefinitions = known,
-            HasUnrepresentableAppendRoute = RoutesAppends(type),
             MetadataLocation = type.ToDisplayString()
         };
     }

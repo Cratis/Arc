@@ -50,7 +50,7 @@ public class from_observation_metadata : a_filtered_application
         Result.Source.ShouldNotContain("from Other");
         Result.Source.ShouldNotContain("produces AuthorWelcomed");
         Result.Source.Contains("invokes SendWelcome", StringComparison.Ordinal).ShouldEqual(invokes);
-        Result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldContain(ScreenplayDiagnosticCodes.UnrepresentableReactionAppendRoute);
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnrepresentableReactionAppendRoute).ShouldEqual(!invokes);
         AssertDocument();
     }
 
