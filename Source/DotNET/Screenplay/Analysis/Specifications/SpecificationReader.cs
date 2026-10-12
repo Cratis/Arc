@@ -133,9 +133,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        var caller = draft.When?.Kind == SpecificationStateKind.Command
-            ? new SpecificationCallerReader(models, _held).Read(steps)
-            : new SpecificationCallerRecovery(null, null);
+        var caller = ReadCaller(draft, steps);
         var specification = new GeneratedValuePins(models, _held).Read(
             steps,
             new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors])
@@ -233,6 +231,11 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// being rejected - which is a part of a slice rather than the behavior of one.
     /// </para>
     /// </remarks>
+    SpecificationCallerRecovery ReadCaller(SpecificationDraft draft, INamedTypeSymbol steps) =>
+        draft.When?.Kind == SpecificationStateKind.Command
+            ? new SpecificationCallerReader(models, _held).Read(steps)
+            : new SpecificationCallerRecovery(null, null);
+
     bool DrivesASlice(INamedTypeSymbol steps) =>
         Calls(steps, SpecificationMembers.EstablishMethod)
             .Any(_ => SpecificationCalls.IsGivenEvents(_) || SpecificationCalls.IsGivenReadModel(_) || SpecificationCalls.IsExecution(_)) ||

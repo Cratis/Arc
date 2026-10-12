@@ -47,22 +47,11 @@ public class SpecificationCatalog
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 
-        foreach (var type in catalog.Types)
+        foreach (var type in catalog.Types.Where(type => !theories.Report(type, reader.IsSpecification(type))))
         {
-            if (theories.Report(type, reader.IsSpecification(type)))
-            {
-                continue;
-            }
-
-            if (!reader.IsSpecification(type) && ReactorSpecificationReader.ReactorOf(type) is { } reactor)
-            {
-                ReadReactorScenario(type, reactor, reactors, placement, bySlice, diagnostics);
-                continue;
-            }
-
             if (!reader.IsSpecification(type))
             {
-                Report(reader.ScenarioWithoutCounterpart(type), type, diagnostics);
+                ReadOtherScenario(type, reader, reactors, (placement, bySlice, diagnostics));
                 continue;
             }
 
@@ -128,6 +117,21 @@ public class SpecificationCatalog
     /// <param name="placement">The placement of scenarios under slices.</param>
     /// <param name="bySlice">The specifications collected so far.</param>
     /// <param name="diagnostics">The diagnostics to report to.</param>
+    static void ReadOtherScenario(
+        INamedTypeSymbol type,
+        SpecificationReader reader,
+        ReactorSpecificationReader reactors,
+        (SpecificationPlacement Placement, Dictionary<string, List<SpecificationModel>> BySlice, ScreenplayDiagnostics Diagnostics) target)
+    {
+        if (ReactorSpecificationReader.ReactorOf(type) is { } reactor)
+        {
+            ReadReactorScenario(type, reactor, reactors, target.Placement, target.BySlice, target.Diagnostics);
+            return;
+        }
+
+        Report(reader.ScenarioWithoutCounterpart(type), type, target.Diagnostics);
+    }
+
     static void ReadReactorScenario(
         INamedTypeSymbol type,
         INamedTypeSymbol reactor,

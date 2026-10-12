@@ -130,14 +130,17 @@ internal static class SpecificationPrincipalReader
 
     static List<ExpressionSyntax>? Elements(ExpressionSyntax? expression, SemanticModel model) => expression switch
     {
-        CollectionExpressionSyntax collection => collection.Elements.All(element => element is ExpressionElementSyntax)
-            ? collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression).ToList() : null,
+        CollectionExpressionSyntax collection => CollectionElements(collection),
         ArrayCreationExpressionSyntax { Initializer: { } initializer } => initializer.Expressions.ToList(),
         ImplicitArrayCreationExpressionSyntax array => array.Initializer.Expressions.ToList(),
         ObjectCreationExpressionSyntax { Initializer: { } initializer } creation =>
             IsEmptyClaimList(creation, model) ? initializer.Expressions.ToList() : null,
         _ => null
     };
+
+    static List<ExpressionSyntax>? CollectionElements(CollectionExpressionSyntax collection) =>
+        collection.Elements.All(element => element is ExpressionElementSyntax)
+            ? collection.Elements.OfType<ExpressionElementSyntax>().Select(element => element.Expression).ToList() : null;
 
     static bool IsEmptyClaimList(ObjectCreationExpressionSyntax creation, SemanticModel model) =>
         creation.ArgumentList is null or { Arguments.Count: 0 } && IsClaimList(creation, model);
