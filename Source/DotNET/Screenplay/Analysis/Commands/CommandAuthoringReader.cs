@@ -181,7 +181,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
-        if (!parameters.HasParameters && responseType is not null && CreatesUuidConcept(response, responseType, model))
+        if (CreatesLegacyUuidConcept(response, responseType, model, parameters.HasParameters))
         {
             var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
             if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
@@ -315,6 +315,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     static ExpressionSyntax[] ReturnedExpressions(ExpressionSyntax returned) => returned is TupleExpressionSyntax tuple
         ? tuple.Arguments.Select(argument => argument.Expression).ToArray()
         : [returned];
+
+    static bool IsReturnedOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations");
 
     static bool IsStraight(SyntaxNode body) => body is not BlockSyntax block ||
         (block.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) && block.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
@@ -462,16 +464,15 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 continue;
             }
 
-            if (CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations"))
+            if (!IsReturnedOperation(type))
             {
-                if (enabled)
-                {
-                    operations.AddRange(operationReader.Read(part, model, command, Sources, location));
-                }
+                responses.Add(part);
                 continue;
             }
-
-            responses.Add(part);
+            if (enabled)
+            {
+                operations.AddRange(operationReader.Read(part, model, command, Sources, location));
+            }
         }
 
         return new(responses, operations);
@@ -510,6 +511,16 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         return fields.Count > 0 && fields.Count == record.DeclaredProperties().Count() ? fields : null;
+    }
+
+    bool CreatesLegacyUuidConcept(ExpressionSyntax expression, ITypeSymbol? type, SemanticModel model, bool explicitGeneration)
+    {
+        if (explicitGeneration)
+        {
+            return false;
+        }
+
+        return type is not null && CreatesUuidConcept(expression, type, model);
     }
 
     bool CreatesUuidConcept(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)

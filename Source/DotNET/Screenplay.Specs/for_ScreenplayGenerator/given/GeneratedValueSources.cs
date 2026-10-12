@@ -35,6 +35,9 @@ public static class GeneratedValueSources
             extension<TCommand>(CommandScenario<TCommand> scenario)
             {
                 public CommandScenario<TCommand> PinGeneratedValue(string name, object value) => scenario;
+            }
+            extension<TCommand>(CommandScenario<TCommand> scenario)
+            {
                 public CommandScenario<TCommand> PinGeneratedValue<TOtherCommand>(string name, object value) => scenario;
                 public CommandScenario<TCommand> AllowGeneration() => scenario;
             }
