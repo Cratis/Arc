@@ -40,7 +40,7 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
     const string Expected = "expected";
     const string Actual = "actual";
 
-    static readonly HashSet<SyntaxKind> Increments =
+    static readonly HashSet<SyntaxKind> _increments =
     [
         SyntaxKind.PreIncrementExpression,
         SyntaxKind.PreDecrementExpression,
@@ -48,7 +48,7 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         SyntaxKind.PostDecrementExpression
     ];
 
-    static readonly HashSet<SyntaxKind> WritingArguments = [SyntaxKind.RefKeyword, SyntaxKind.OutKeyword];
+    static readonly HashSet<SyntaxKind> _writingArguments = [SyntaxKind.RefKeyword, SyntaxKind.OutKeyword];
 
     /// <summary>
     /// Determines whether an expression reads the response of a command result.
@@ -259,10 +259,10 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
     static ExpressionSyntax? WriteTarget(SyntaxNode node) => node switch
     {
         AssignmentExpressionSyntax assignment => assignment.Left,
-        ArgumentSyntax argument when WritingArguments.Contains(argument.RefKindKeyword.Kind()) => argument.Expression,
+        ArgumentSyntax argument when _writingArguments.Contains(argument.RefKindKeyword.Kind()) => argument.Expression,
         RefExpressionSyntax reference => reference.Expression,
-        PrefixUnaryExpressionSyntax prefix when Increments.Contains(prefix.Kind()) => prefix.Operand,
-        PostfixUnaryExpressionSyntax postfix when Increments.Contains(postfix.Kind()) => postfix.Operand,
+        PrefixUnaryExpressionSyntax prefix when _increments.Contains(prefix.Kind()) => prefix.Operand,
+        PostfixUnaryExpressionSyntax postfix when _increments.Contains(postfix.Kind()) => postfix.Operand,
         _ => null
     };
 
