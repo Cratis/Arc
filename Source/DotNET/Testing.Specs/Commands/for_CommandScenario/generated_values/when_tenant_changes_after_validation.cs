@@ -6,7 +6,7 @@ using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.Testing.Commands.for_CommandScenario.generated_values;
 
-public class when_clock_and_tenant_change_after_validation : Specification
+public class when_tenant_changes_after_validation : Specification
 {
     CommandScenario<given.ObserveGeneration> _scenario;
     given.GenerationObservation _observation;
@@ -14,17 +14,17 @@ public class when_clock_and_tenant_change_after_validation : Specification
 
     async Task Establish()
     {
-        _scenario = new();
+        _scenario = new CommandScenario<given.ObserveGeneration>().Clock(_instant);
         await _scenario.Validate(new());
     }
 
     async Task Because()
     {
-        _scenario.Clock(_instant).Tenant(new TenantId("tenant-two")).AllowGeneration();
+        _scenario.Tenant(new TenantId("tenant-two")).AllowGeneration();
         _observation = ((CommandResult<given.GenerationObservation>)await _scenario.Execute(new())).Response!;
     }
 
     void Destroy() => _scenario.Dispose();
 
-    [Fact] void should_keep_validation_from_freezing_configuration() => _observation.Id.Value.ShouldEqual($"{_instant:O}|tenant-two");
+    [Fact] void should_keep_validation_from_freezing_tenant_configuration() => _observation.Id.Value.ShouldEqual($"{_instant:O}|tenant-two");
 }

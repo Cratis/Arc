@@ -61,7 +61,8 @@ If both interfaces remain, Arc uses only the context form and ARC0027 warns abou
 Manually constructed contexts need a received time; a default time fails, rather than using `UtcNow`.
 
 In scenarios, use [Clock and Tenant](../backend/csharp/testing/generated-values.md#fix-the-clock-and-tenant)
-before execution. Continue pinning exact identifiers when assertions depend on the whole value:
+with `Clock` configured before the first `Execute` or `Validate` call, and `Tenant` before execution.
+Continue pinning exact identifiers when assertions depend on the whole value:
 a fixed clock does not make a random suffix deterministic.
 
 ## Replace identity-source queues with named pins

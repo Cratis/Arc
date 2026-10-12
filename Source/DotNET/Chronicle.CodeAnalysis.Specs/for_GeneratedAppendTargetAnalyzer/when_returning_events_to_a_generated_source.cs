@@ -78,6 +78,18 @@ public class when_returning_events_to_a_generated_source
             }
         }");
 
+    [Theory]
+    [InlineData("public EventForEventSourceId Handle([GeneratedValue] CartId id) => new(id, new object());")]
+    [InlineData("public EventSourceId Handle(Cart cart) => Source;")]
+    [InlineData("public EventForEventSourceId Handle(Cart cart, CartId id) => new(id, new object());")]
+    [InlineData("public EventSourceId Handle() => Source;")]
+    public async Task should_require_both_aggregate_injection_and_an_explicit_generated_target(string handle) => await Verify.VerifyAnalyzerAsync(Types + $@"
+        [Command]
+        public record Allocate(EventSourceId Source)
+        {{
+            {handle}
+        }}");
+
     [Fact]
     public async Task should_ignore_a_generated_parameter_that_is_not_an_append_target() => await Verify.VerifyAnalyzerAsync(Types + @"
         [Command]

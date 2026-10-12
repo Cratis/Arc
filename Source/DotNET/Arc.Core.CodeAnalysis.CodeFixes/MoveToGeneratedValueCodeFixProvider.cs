@@ -8,7 +8,9 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
 using Microsoft.CodeAnalysis.Formatting;
+using Microsoft.CodeAnalysis.Simplification;
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
 
 namespace Cratis.Arc.CodeAnalysis.CodeFixes;
@@ -77,8 +79,17 @@ public sealed class MoveToGeneratedValueCodeFixProvider : CodeFixProvider
             return false;
         }
 
+        if (ImplementsInterfaceMethod(symbol))
+        {
+            return false;
+        }
+
         return !method.ContainsDirectives && InlineGeneratedValue.IsCommandHandle(method, model);
     }
+
+    static bool ImplementsInterfaceMethod(IMethodSymbol method) => method.ContainingType.AllInterfaces
+        .SelectMany(contract => contract.GetMembers().OfType<IMethodSymbol>())
+        .Any(member => SymbolEqualityComparer.Default.Equals(method.ContainingType.FindImplementationForInterfaceMember(member), method));
 
     static bool IsMovableInvocation(ExpressionSyntax expression, SemanticModel model)
     {
@@ -104,15 +115,26 @@ public sealed class MoveToGeneratedValueCodeFixProvider : CodeFixProvider
         var type = InlineGeneratedValue.IsConcept(info.Type) ? info.Type! : info.ConvertedType!;
         var name = UniqueName(expression, method, type.Name, model);
         var identifier = SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None ? name : $"@{name}";
-        var parameter = Parameter(Identifier(identifier))
-            .WithType(ParseTypeName(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
-            .WithAttributeLists(SingletonList(AttributeList(SingletonSeparatedList(Attribute(ParseName("global::Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute"))))));
+        var parameter = ParameterFor(type, identifier);
         var index = method.ParameterList.Parameters.TakeWhile(candidate => candidate.Default is null && !candidate.Modifiers.Any(SyntaxKind.ParamsKeyword)).Count();
         var replacement = method.ReplaceNode(expression, IdentifierName(identifier).WithTriviaFrom(expression))
             .WithParameterList(method.ParameterList.WithParameters(method.ParameterList.Parameters.Insert(index, parameter)))
             .WithAdditionalAnnotations(Formatter.Annotation);
 
-        return document.WithSyntaxRoot(root.ReplaceNode(method, replacement));
+        var changedDocument = document.WithSyntaxRoot(root.ReplaceNode(method, replacement));
+        changedDocument = await ImportAdder.AddImportsAsync(changedDocument, Simplifier.Annotation, cancellationToken: token).ConfigureAwait(false);
+
+        return await Simplifier.ReduceAsync(changedDocument, Simplifier.Annotation, cancellationToken: token).ConfigureAwait(false);
+    }
+
+    static ParameterSyntax ParameterFor(ITypeSymbol type, string identifier)
+    {
+        var attributeName = ParseName("global::Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute").WithAdditionalAnnotations(Simplifier.Annotation);
+        var attributes = AttributeList(SingletonSeparatedList(Attribute(attributeName)));
+
+        return Parameter(Identifier(identifier))
+            .WithType(ParseTypeName(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)).WithAdditionalAnnotations(Simplifier.Annotation))
+            .WithAttributeLists(SingletonList(attributes));
     }
 
     static string UniqueName(ExpressionSyntax expression, MethodDeclarationSyntax method, string typeName, SemanticModel model)

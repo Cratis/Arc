@@ -11,5 +11,5 @@ namespace Cratis.Arc.Testing.Commands.for_CommandScenario.generated_values.given
 public record ObserveGeneration
 {
     public GenerationObservation Handle([GeneratedValue] ContextId id, CommandContext context, TimeProvider clock, ITenantIdAccessor tenant) =>
-        new(id, context.ReceivedAt, clock.GetUtcNow(), tenant.Current);
+        new(id, context.ReceivedAt, clock.GetUtcNow(), clock.GetLocalNow(), tenant.Current);
 }

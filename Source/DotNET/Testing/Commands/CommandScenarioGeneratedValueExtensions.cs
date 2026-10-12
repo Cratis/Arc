@@ -50,20 +50,21 @@ public static class CommandScenarioGeneratedValueExtensions
         }
 
         /// <summary>
-        /// Fixes the received time of every operation in this scenario.
+        /// Fixes received times and the scenario's UTC wall clock before initialization.
         /// </summary>
+        /// <remarks>
+        /// Calls to TimeProvider.GetUtcNow() and GetLocalNow() use this instant; timers and elapsed-time measurement remain real.
+        /// </remarks>
         /// <param name="instant">The instant used by the scenario's clock.</param>
         /// <returns>The scenario for further configuration.</returns>
         /// <exception cref="GeneratedValuesMustBePinnedBeforeExecution">Execution has already begun.</exception>
+        /// <exception cref="ScenarioClockMustBeConfiguredBeforeInitialization">Execute or Validate has already initialized the service provider.</exception>
         public CommandScenario<TCommand> Clock(DateTimeOffset instant)
         {
             var fixture = FixtureFor(scenario);
-            fixture.Clock(instant);
-            if (!scenario.IsInitialized)
-            {
-                scenario.Services.RemoveAll<TimeProvider>();
-                scenario.Services.AddSingleton<TimeProvider>(fixture.TimeProvider);
-            }
+            fixture.Clock(instant, scenario.IsInitialized);
+            scenario.Services.RemoveAll<TimeProvider>();
+            scenario.Services.AddSingleton<TimeProvider>(fixture.TimeProvider);
 
             return scenario;
         }

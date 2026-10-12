@@ -5,4 +5,4 @@ using Cratis.Arc.Tenancy;
 
 namespace Cratis.Arc.Testing.Commands.for_CommandScenario.generated_values.given;
 
-public record GenerationObservation(ContextId Id, DateTimeOffset ReceivedAt, DateTimeOffset Clock, TenantId Tenant);
+public record GenerationObservation(ContextId Id, DateTimeOffset ReceivedAt, DateTimeOffset Clock, DateTimeOffset LocalClock, TenantId Tenant);

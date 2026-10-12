@@ -134,10 +134,12 @@ using var scenario = new CommandScenario<AllocateOrderId>()
 var result = await scenario.Execute(new AllocateOrderId());
 ```
 
-`Clock` replaces the scenario's `TimeProvider`, so `ReceivedAt` and other clock consumers
-see the same instant. `Tenant` scopes both execution and validation to the configured tenant
-and restores the caller's tenant afterward. Both configurations apply to nested commands.
-They are local to the scenario, not process-wide settings.
+Configure `Clock` before the first `Execute` or `Validate` call builds the service provider.
+It replaces the scenario's `TimeProvider`: `ReceivedAt`, injected `TimeProvider.GetUtcNow()`,
+and `GetLocalNow()` use the same fixed instant. Timers and elapsed-time measurements remain
+real; this does not replace direct calls to `DateTimeOffset.UtcNow` or `TimeProvider.System`.
+`Tenant` scopes both execution and validation to the configured tenant and restores the caller's
+tenant afterward. Both configurations apply to nested commands and stay local to the scenario.
 
 A fixed clock does **not** fix the random suffix of UUIDv7, ULID, or TypeID. Assert the time
 and tenant parts of the contract, or pin the whole concept when you need an exact value.
@@ -149,8 +151,10 @@ with `MissingGenerationTime`. A pinned value does not invoke its factory.
 Once the first command executes, pins, generation policy, clock, and tenant are immutable,
 even if that command fails or has no generated parameters. Later calls to either pin overload,
 `AllowGeneration()`, `Clock()`, or `Tenant()` throw `GeneratedValuesMustBePinnedBeforeExecution`.
-Create a new scenario when you need different configuration. Validation alone neither generates values nor
-freezes this configuration.
+Create a new scenario when you need different configuration. Validation alone neither generates
+values nor freezes pins, generation policy, or tenant selection. It does initialize the service
+provider, so a later `Clock()` call throws `ScenarioClockMustBeConfiguredBeforeInitialization`
+without changing the clock. Configure the clock before validation too.
 
 Pins and captures are local to each scenario; they do not replace a production generation
 strategy or modify another scenario. For existing handlers that call `New()` inside

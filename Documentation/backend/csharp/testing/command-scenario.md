@@ -26,7 +26,7 @@ before execution or opt into normal generation with `AllowGeneration()`.
 | `LastResult` | The result from the latest `Execute`, including backend-only recovery observations |
 | `Operations` | Snapshot of started operation invocations from the latest `Execute`; empty before execution |
 | `Validate(TCommand command)`   | Returns `Task<CommandResult>`; runs pipeline filters but skips handler argument resolution, `Provide()`, `Handle()`, and execution scopes        |
-| `Clock(DateTimeOffset instant)` | Fixes the scenario's `TimeProvider` and operation received times; immutable after first execution |
+| `Clock(DateTimeOffset instant)` | Fixes received times and `TimeProvider.GetUtcNow()` / `GetLocalNow()`; configure before the first `Execute` or `Validate` call |
 | `Tenant(TenantId tenant)` | Scopes execution and validation to this tenant and restores the caller's tenant; immutable after first execution |
 | `Dispose()` / `DisposeAsync()` | Releases the provider and disposable context values                                                                                              |
 

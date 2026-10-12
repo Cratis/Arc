@@ -76,13 +76,20 @@ internal sealed class ScenarioGeneratedValueFixture : IGeneratedValueFixture
     }
 
     /// <summary>
-    /// Sets the scenario's fixed clock before execution.
+    /// Sets the scenario's fixed clock before its service provider is initialized.
     /// </summary>
     /// <param name="instant">The captured instant for every operation.</param>
+    /// <param name="initialized">Whether the scenario has already built its service provider.</param>
     /// <exception cref="GeneratedValuesMustBePinnedBeforeExecution">Execution has already begun.</exception>
-    internal void Clock(DateTimeOffset instant)
+    /// <exception cref="ScenarioClockMustBeConfiguredBeforeInitialization">The service provider has already been built.</exception>
+    internal void Clock(DateTimeOffset instant, bool initialized)
     {
         EnsureConfigurable();
+        if (initialized)
+        {
+            throw new ScenarioClockMustBeConfiguredBeforeInitialization();
+        }
+
         TimeProvider.Instant = instant;
     }
 
