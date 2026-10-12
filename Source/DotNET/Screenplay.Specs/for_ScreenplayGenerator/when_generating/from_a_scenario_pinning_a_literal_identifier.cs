@@ -55,10 +55,10 @@ public class from_a_scenario_pinning_a_literal_identifier : a_generated_document
     [Fact]
     void should_explain_the_strategy_refusal_that_prevents_a_literal_pin()
     {
-        GeneratePinned("_scenario.PinGeneratedValue(\"author\", _id)", factory: "public static AuthorId New() => new(Guid.CreateVersion7());");
+        GeneratePinned("_scenario.PinGeneratedValue(\"author\", _id)", factory: "public static AuthorId New() => new(Guid.Parse(System.Security.Cryptography.RandomNumberGenerator.GetHexString(64, lowercase: true)));");
         Result.Source.ShouldNotContain("generated");
         Result.Source.ShouldNotContain("specification WhenRegisteringAndAnAuthorIsRegistered");
-        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("uuidv7");
+        Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("hex-bytes");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification)
             .Message.ShouldContain("the generation strategy of 'author' is not recoverable (SP0073)");
         AssertDocument();

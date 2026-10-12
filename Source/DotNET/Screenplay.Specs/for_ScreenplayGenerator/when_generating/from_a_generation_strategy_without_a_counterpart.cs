@@ -8,8 +8,10 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 public class from_a_generation_strategy_without_a_counterpart : a_generated_document
 {
     [Theory]
+#if NET9_0_OR_GREATER
     [InlineData("public static AuthorId New() => new(GenerateValue.UuidV7());", "uuidv7")]
     [InlineData("public static AuthorId New() => new(Guid.CreateVersion7());", "uuidv7")]
+#endif
     [InlineData("public static AuthorId New() => new(Guid.Parse(System.Security.Cryptography.RandomNumberGenerator.GetHexString(64, lowercase: true)));", "hex-bytes")]
     [InlineData("public static AuthorId New() { var id = Guid.NewGuid(); return new(id); }", "not a recognized")]
     [InlineData("public static AuthorId New() => new(Guid.Empty);", "not a recognized")]

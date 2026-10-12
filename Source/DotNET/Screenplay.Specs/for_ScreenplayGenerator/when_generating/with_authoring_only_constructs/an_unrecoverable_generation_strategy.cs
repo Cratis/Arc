@@ -31,7 +31,7 @@ public class an_unrecoverable_generation_strategy : an_authoring_document
             public AuthorRegistered Handle([GeneratedValue] AuthorId authorId) => new(Name);
         }
         """).Replace("using System;", "using System;\nusing Cratis.Arc.Commands;", StringComparison.Ordinal)
-            .Replace("public static AuthorId New() => new(Guid.NewGuid());", "public static AuthorId New() => new(Guid.CreateVersion7());", StringComparison.Ordinal));
+            .Replace("public static AuthorId New() => new(Guid.NewGuid());", "public static AuthorId New() => new(Guid.Parse(System.Security.Cryptography.RandomNumberGenerator.GetHexString(64, lowercase: true)));", StringComparison.Ordinal));
 
     [Fact] void should_report_each_unrecoverable_strategy() => Result.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).ShouldEqual(3);
     [Fact] void should_read_independent_returned_operations() => Result.Source.ShouldContain("produces operation SendWelcomeEmail");
