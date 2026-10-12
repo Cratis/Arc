@@ -99,7 +99,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var successfulScenarios = model.Slices.SelectMany(slice => slice.Specifications).Where(specification =>
             specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
             !specification.Errors.Any() && specification.Then.Any()).ToList();
-        var needsFixtures = successfulScenarios.Count > 0 && authoring.Generated.Count > 0;
+        var needsFixtures = !authoring.GeneratedParameters && successfulScenarios.Count > 0 && authoring.Generated.Count > 0;
         if (needsFixtures)
         {
             Report(command, location, "Generation and responses were withheld to keep successful scenarios; Arc creates generated values inside Handle() with no seam a scenario can pin, so no deterministic generation fixture can be recovered and the command retains its legacy productions or handler reference");
@@ -115,7 +115,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var preserveScenarios = needsFixtures || unrecoveredReturns;
 
         // A response-only scenario on a command with generated values is never emitted, so it preserves nothing.
-        var preserveExplicitSources = authoring.Generated.Count > 0 && model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
+        var preserveExplicitSources = !authoring.GeneratedParameters && authoring.Generated.Count > 0 && model.Slices.SelectMany(slice => slice.Specifications).Any(specification =>
             specification.When is { Kind: SpecificationStateKind.Command } issued && issued.Name == command.Name &&
             !ResponseOnlyScenarios.IsResponseOnly(specification) &&
             SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true });

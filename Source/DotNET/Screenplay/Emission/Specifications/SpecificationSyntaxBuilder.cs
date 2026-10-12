@@ -96,11 +96,42 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         var command = specification.When is { Kind: SpecificationStateKind.Command } actionCommand
             ? Application?.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == actionCommand.Name)
             : null;
+        if (specification.GenerationFailure is { } generationFailure)
+        {
+            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because {generationFailure}", location);
+            return null;
+        }
+        if (specification.GeneratedValues.Any(value => command?.Authoring?.Generated.Any(property => property.Name == value.Property) != true))
+        {
+            Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its pinned generated values are not admitted by the emitted command; use a supported UUID concept and an ESM v7 or later cap", location);
+            return null;
+        }
+        if (command?.Authoring is { GeneratedParameters: true, Generated.Count: > 0 } generation)
+        {
+            var missing = generation.Generated.Where(property => specification.GeneratedValues.All(value => value.Property != property.Name)).Select(property => property.Name).ToList();
+            if (!specification.Errors.Any() && missing.Count > 0)
+            {
+                Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because generated values '{string.Join(", ", missing)}' need literal UUID fixtures; use PinGeneratedValue before execution", location);
+                return null;
+            }
+            var identityPin = specification.GeneratedValues.SingleOrDefault(value => value.Property == generation.Identifier)?.Source as LiteralSource;
+            if (identityPin is not null)
+            {
+                specification = specification with
+                {
+                    When = specification.When! with { For = identityPin },
+                    Given = specification.Given.Select(state => Equals(state.For, identityPin) ? state with { For = null } : state).ToList(),
+                    Then = specification.Then.Select(state => Equals(state.For, identityPin) ? state with { For = null } : state).ToList(),
+                    GeneratedValues = specification.GeneratedValues.Where(value => value.Property != generation.Identifier).ToList()
+                };
+            }
+        }
         if (evidence is { HasExplicitCommandSources: true } &&
             (evidence.HasUnresolvedCommandSources ||
              (command is not null && (command.Authoring?.Identifier ?? command.Identifier) is { } identifier &&
               command.Properties.Concat(command.Authoring?.Generated ?? []).Any(property => property.Name == identifier) &&
-              command.Produces.All(production => production.UsesCommandContext) && evidence.CommandIdentifier != identifier)))
+              command.Produces.All(production => production.UsesCommandContext) && evidence.CommandIdentifier != identifier &&
+              !(command.Authoring?.GeneratedParameters == true && specification.When?.For is not null))))
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -155,7 +186,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             specification = specification with { Returns = null };
         }
 
-        if (!specification.Errors.Any() && command?.Authoring is { Generated.Count: > 0 })
+        if (!specification.Errors.Any() && command?.Authoring is { GeneratedParameters: false, Generated.Count: > 0 })
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
@@ -477,7 +508,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
-            When(specification.When),
+            When(specification),
             [.. Events(specification.Then, expected: true)],
             [.. specification.Errors.Select(_ => new SpecificationErrorSyntax(naming.ToStringLiteral(_), SourceLocation.Start))],
             SourceLocation.Start,
@@ -508,15 +539,19 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// <summary>
     /// Builds the command a scenario issued.
     /// </summary>
-    /// <param name="command">The command, or <see langword="null"/> when the scenario issued none.</param>
+    /// <param name="specification">The scenario whose command and generated fixtures are built.</param>
     /// <returns>The <see cref="SpecificationCommandSyntax"/>, or <see langword="null"/>.</returns>
     /// <remarks>
     /// A scenario about a read model issues no command - the events are what happened - and the language holds that
     /// as a specification with no <c>when</c> rather than as one with an empty one.
     /// </remarks>
-    SpecificationCommandSyntax? When(SpecificationStateModel? command) =>
-        command is { Kind: SpecificationStateKind.Command }
+    SpecificationCommandSyntax? When(SpecificationModel specification) =>
+        specification.When is { Kind: SpecificationStateKind.Command } command
             ? new(naming.ToDeclarationName(command.Name), [.. Values(command)], SourceLocation.Start)
+            {
+                For = SourceOf(command),
+                GeneratedValues = specification.GeneratedValues.Select(value => new PropertyMappingSyntax(naming.ToPropertyName(value.Property), _sources.Convert(value.Source), SourceLocation.Start)).ToList()
+            }
             : null;
 
     /// <summary>

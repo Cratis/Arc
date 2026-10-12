@@ -15,6 +15,15 @@ public static class WellKnownTypeNames
     /// <summary>The attribute marking a model-bound command.</summary>
     public const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
 
+    /// <summary>The attribute marking a server-generated Handle parameter.</summary>
+    public const string GeneratedValueAttribute = "Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute";
+
+    /// <summary>The contract declaring a concept's generation factory.</summary>
+    public const string Generatable = "Cratis.Concepts.IGeneratable`1";
+
+    /// <summary>The scenario extensions configuring generated value pins.</summary>
+    public const string GeneratedValueScenarioExtensions = "Cratis.Arc.Testing.Commands.CommandScenarioGeneratedValueExtensions";
+
     /// <summary>The attribute marking a model-bound read model.</summary>
     public const string ReadModelAttribute = "Cratis.Arc.Queries.ModelBound.ReadModelAttribute";
 

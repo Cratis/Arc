@@ -55,6 +55,15 @@ public static class SpecificationCalls
     public const string CommandParameter = "command";
 
     /// <summary>
+    /// Determines whether a call configures named generated values on a command scenario.
+    /// </summary>
+    /// <param name="method">The resolved configuration method.</param>
+    /// <returns>Whether the call pins a generated value or opts into generation.</returns>
+    public static bool IsGenerationConfiguration(IMethodSymbol method) => (method.Name == "PinGeneratedValue" || method.Name == "AllowGeneration") &&
+        ((method.ReducedFrom ?? method).ContainingType.Is(WellKnownTypeNames.GeneratedValueScenarioExtensions) ||
+         (method.ReducedFrom ?? method).ContainingType.ContainingType.Is(WellKnownTypeNames.GeneratedValueScenarioExtensions));
+
+    /// <summary>
     /// Determines whether a call states the events a specification starts from.
     /// </summary>
     /// <param name="method">The method being called.</param>

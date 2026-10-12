@@ -69,6 +69,21 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
 
+        var declaredGeneration = handlers.SelectMany(handler => handler.Parameters).Where(parameter => parameter.HasAttribute(WellKnownTypeNames.GeneratedValueAttribute)).ToList();
+        var strategies = new GenerationStrategyReader(models);
+        var failures = declaredGeneration.Select(parameter => (Parameter: parameter, Failure: strategies.Failure(parameter))).Where(item => item.Failure is not null).ToList();
+        foreach (var (parameter, failure) in failures)
+        {
+            var attribute = parameter.GetAttributes().First(attribute => attribute.AttributeClass.Is(WellKnownTypeNames.GeneratedValueAttribute));
+            var syntax = attribute.ApplicationSyntaxReference?.GetSyntax();
+            var attributeLocation = syntax is null ? $"{location}.{parameter.Name}" : $"{syntax.SyntaxTree.FilePath}:{syntax.GetLocation().GetLineSpan().StartLinePosition.Line + 1}";
+            Report(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"[GeneratedValue] parameter '{parameter.Name}' of '{parameter.Type.Name}': {failure}; generation remains in code. Other strategies and rules require Cratis/Screenplay#616", attributeLocation);
+        }
+        if (failures.Count > 0)
+        {
+            return result;
+        }
+
         if (!enabled)
         {
             if (HasProvide(command))
@@ -95,7 +110,27 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             statements.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
         var generated = new List<PropertyModel>();
         var validatedGenerated = new List<string>();
-        foreach (var variable in body is BlockSyntax straightBody ? straightBody.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList() : [])
+        foreach (var parameter in declaredGeneration)
+        {
+            var attribute = parameter.GetAttributes().First(attribute => attribute.AttributeClass.Is(WellKnownTypeNames.GeneratedValueAttribute));
+            var name = attribute.ConstructorArguments.FirstOrDefault().Value as string ?? parameter.Name;
+            if (!IsUnchanged(parameter, body, model) || command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
+                .Any(existing => _naming.ToPropertyName(existing) == _naming.ToPropertyName(name)))
+            {
+                Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"Generated parameter '{name}' is written, passed by reference, or collides with an emitted command property; generation and dependent claims were left in code", location);
+                Sources = new();
+                return result;
+            }
+
+            generated.Add(new(name, types.Resolve(parameter.Type)));
+            if (ValidatedTypes.Contains(parameter.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
+            {
+                validatedGenerated.Add(name);
+            }
+            Sources.Add(parameter, name);
+        }
+        result = result with { GeneratedParameters = declaredGeneration.Count > 0 };
+        foreach (var variable in declaredGeneration.Count == 0 && body is BlockSyntax straightBody ? straightBody.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList() : [])
         {
             if (variable.Initializer?.Value is not { } value || model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
             {
@@ -148,6 +183,13 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         result = result with { Generated = generated, GeneratedWithValidators = validatedGenerated };
+        if (returned is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var destination, ..] } wrapper &&
+            model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") &&
+            Sources.ReadPath(destination.Expression, model) is { } wrapperIdentity && generated.Exists(property => property.Name == wrapperIdentity) &&
+            !AggregateRootBehaviors.ReachedFrom(body, model).Any())
+        {
+            return result with { Identifier = wrapperIdentity };
+        }
         if (ResponseValueType(handler.ReturnType) is null)
         {
             return result;
@@ -190,7 +232,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
-        if (responseType is not null && CreatesUuidConcept(response, responseType, model))
+        if (declaredGeneration.Count == 0 && responseType is not null && CreatesUuidConcept(response, responseType, model))
         {
             var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
             if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
@@ -341,6 +383,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         {
             IPropertySymbol property => property.Type,
             ILocalSymbol local => local.Type,
+            IParameterSymbol parameter => parameter.Type,
             _ => model.GetTypeInfo(expression).Type
         };
 
@@ -448,7 +491,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
     string? SourceOf(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command) =>
         MappingSourceReader.ReadPath(expression, model, command) ??
-        (model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol is ILocalSymbol || expression is BaseObjectCreationExpressionSyntax or InvocationExpressionSyntax
+        (model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol is ILocalSymbol or IParameterSymbol || expression is BaseObjectCreationExpressionSyntax or InvocationExpressionSyntax
             ? Sources.ReadPath(expression, model) : null);
 
     List<PropertyMappingModel>? ReadRecord(BaseObjectCreationExpressionSyntax creation, INamedTypeSymbol record, SemanticModel model, INamedTypeSymbol command)

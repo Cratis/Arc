@@ -583,4 +583,9 @@ public static class ScreenplayDiagnosticCodes
     /// Enumeration aliases were omitted because Screenplay requires unique numbers.
     /// </summary>
     public const string EnumAliasNotRepresentable = "SP0069";
+
+    /// <summary>
+    /// A generated parameter's strategy cannot be recovered as a proven UUID v4 factory.
+    /// </summary>
+    public const string GenerationNotRecoverable = "SP0073";
 }

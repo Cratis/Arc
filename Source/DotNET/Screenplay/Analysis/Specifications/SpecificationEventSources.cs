@@ -123,6 +123,14 @@ internal class SpecificationEventSources(SemanticModels? sourceModels = null, He
         return source.Literal;
     }
 
+    /// <summary>
+    /// Reads a concrete scalar occurrence value without following held members.
+    /// </summary>
+    /// <param name="expression">The literal or concept construction.</param>
+    /// <param name="model">The model resolving the value.</param>
+    /// <returns>The literal, or null when the value is computed.</returns>
+    internal static LiteralSource? ReadLiteral(ExpressionSyntax expression, SemanticModel model) => LiteralOf(expression, model);
+
     static bool Same(Source left, Source right) =>
         left.Literal is not null && right.Literal is not null
             ? Equals(left.Literal, right.Literal)
