@@ -10,9 +10,9 @@ namespace Cratis.Arc.Screenplay.Emission;
 /// </summary>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
-/// The latest published Screenplay syntax has no way to narrow a reaction trigger or a projection to an event source
-/// or stream, and the model carries no such construct to invent one for. The filter is therefore never written, and
-/// reporting it is what keeps the document from reading as an observer of every event of its types.
+/// Reactions preserve recoverable filters. When a definition is missing, ambiguous or unsafe to declare, the
+/// reaction retains its source implementation rather than substituting an unfiltered executable effect. Reducer
+/// filters still have no counterpart in the projection emitted for their code.
 /// </remarks>
 public class ObservedEventSourceReport(ScreenplayDiagnostics diagnostics)
 {
@@ -39,9 +39,9 @@ public class ObservedEventSourceReport(ScreenplayDiagnostics diagnostics)
                 location);
         }
 
-        diagnostics.Warning(
-            ScreenplayDiagnosticCodes.ObserverEventSourceNotRepresentable,
-            $"The {kind} '{name}' only observes events of event source '{eventSource.Source}'{stream}, which the language cannot declare yet; it is emitted observing its events from every event source",
-            location);
+        var message = kind == "reactor"
+            ? $"The reactor '{name}' retains its source implementation because event source '{eventSource.Source}'{stream} has no unique recoverable definition with exact safe stored names; no unfiltered executable effect was substituted"
+            : $"The {kind} '{name}' only observes events of event source '{eventSource.Source}'{stream}, which the language cannot declare yet; it is emitted observing its events from every event source";
+        diagnostics.Warning(ScreenplayDiagnosticCodes.ObserverEventSourceNotRepresentable, message, location);
     }
 }

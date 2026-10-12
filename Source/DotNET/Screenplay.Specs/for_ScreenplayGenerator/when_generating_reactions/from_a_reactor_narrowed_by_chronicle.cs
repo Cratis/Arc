@@ -6,9 +6,8 @@ using Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions.gi
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions;
 
 /// <summary>
-/// Chronicle narrows which occurrences reach a reactor by tag, event source type, stream type, event source definition
-/// and observed sequence. A reaction set off by an event says it runs for every occurrence in the event log, so a
-/// narrowed reactor keeps its file reference; one naming the event log explicitly is not narrowed.
+/// Tag and non-event-log observation remain code. Raw filters without recoverable definitions also retain the
+/// source implementation; explicitly naming the event log does not narrow it.
 /// </summary>
 public class from_a_reactor_narrowed_by_chronicle : a_reacting_application
 {
@@ -21,7 +20,6 @@ public class from_a_reactor_narrowed_by_chronicle : a_reacting_application
     [InlineData("[EventStore(\"elsewhere\")]", "")]
     [InlineData("[Cratis.Chronicle.EventSequences.EventSequence(\"outbox\")]", "")]
     [InlineData("[Reactor(eventSequence: \"outbox\")]", "")]
-    [InlineData("[Cratis.Chronicle.EventSources.FromEventSource<AuthorEventSource>(\"Onboarding\")]", "[Cratis.Chronicle.EventSources.EventSource] [Cratis.Chronicle.EventSources.EventStream(\"Onboarding\")] public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;")]
     [InlineData("", "[EventType] [EventStore(\"elsewhere\")] public record AuthorImported(string Name);")]
     public void should_keep_pointing_at_the_file(string attribute, string declarations)
     {

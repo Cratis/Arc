@@ -75,7 +75,6 @@ public class from_a_reactor_invoking_a_command : a_reacting_application
 
     [Theory]
     [InlineData("public SendWelcome Welcome(AuthorRegistered @event) => new(@event.Name, @event.Country);")]
-    [InlineData("[ExecuteCommandsAsSystem(\"Librarian\")] public class Welcomer : IReactor { public Task<SendWelcome> Welcome(AuthorRegistered @event) => Task.FromResult(new SendWelcome(@event.Name, @event.Country)); }")]
     public void should_keep_a_command_the_runtime_does_not_execute_as_a_reaction_without_a_caller_as_code(string declaration)
     {
         GenerateWith(declaration.StartsWith('[') ? declaration : $$"""public class Welcomer : IReactor { {{declaration}} }""");

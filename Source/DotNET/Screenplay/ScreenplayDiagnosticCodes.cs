@@ -466,13 +466,11 @@ public static class ScreenplayDiagnosticCodes
     public const string EventStreamIdConcurrencyNotRepresentable = "SP0046";
 
     /// <summary>
-    /// A reactor or reducer observes the events of an event source definition and stream, which the Screenplay language cannot declare yet.
+    /// An observer's event source filter could not be recovered faithfully.
     /// </summary>
     /// <remarks>
-    /// The latest published Screenplay syntax gives a reaction trigger a named event and nothing to narrow it to an
-    /// event source or stream, and the projection syntax has no such selector either. The observer is still emitted,
-    /// but for every event of its type, so this is reported so a document silent about the filter is not read as an
-    /// observer of the whole event log.
+    /// A reactor retains its source implementation when its source or stream cannot be declared without guessing.
+    /// Reducer filters remain unstated on their projection counterpart.
     /// </remarks>
     public const string ObserverEventSourceNotRepresentable = "SP0047";
 
@@ -555,4 +553,19 @@ public static class ScreenplayDiagnosticCodes
     /// A member's personal-data marking promotes a concept's unmarked uses too.
     /// </summary>
     public const string ConceptPiiPromotion = "SP0063";
+
+    /// <summary>
+    /// Returned-command system identity cannot be stated without changing its roles.
+    /// </summary>
+    public const string UnrepresentableReactionIdentity = "SP0064";
+
+    /// <summary>
+    /// Returned events require append routing unsupported by released reaction productions.
+    /// </summary>
+    public const string UnrepresentableReactionAppendRoute = "SP0065";
+
+    /// <summary>
+    /// A version cap below ESM v10 withholds executable reaction identity or observation metadata.
+    /// </summary>
+    public const string ReactionMetadataVersionCap = "SP0066";
 }
