@@ -23,7 +23,8 @@ internal static class SpecificationCallerInitialization
             ? "the command scenario may already be initialized before the caller is registered" : null;
 
     /// <summary>
-    /// Determines whether another call can initialize the action's scenario too early.
+    /// Determines whether another call can initialize the action's scenario too early. Any command-scenario initialization
+    /// counts, whatever reference it goes through, because an alias or a helper parameter can name the same scenario.
     /// </summary>
     /// <param name="call">The possible initializing call.</param>
     /// <param name="action">The single command action.</param>
@@ -37,11 +38,6 @@ internal static class SpecificationCallerInitialization
         }
 
         if (call == action)
-        {
-            return false;
-        }
-
-        if (!SymbolEqualityComparer.Default.Equals(call.Receiver, action.Receiver))
         {
             return false;
         }

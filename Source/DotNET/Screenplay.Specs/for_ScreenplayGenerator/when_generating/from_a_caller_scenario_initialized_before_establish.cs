@@ -18,6 +18,7 @@ public class from_a_caller_scenario_initialized_before_establish : a_generated_d
     [Theory]
     [InlineData("public with_a_caller() { _scenario.Validate(new RegisterAuthor(\"author\", \"Prior\")); }", "")]
     [InlineData("void InitializeScenario() => _scenario.Validate(new RegisterAuthor(\"author\", \"Prior\"));", "InitializeScenario();")]
+    [InlineData("static void InitializeScenario(CommandScenario<RegisterAuthor> scenario) => scenario.Validate(new RegisterAuthor(\"author\", \"Prior\"));", "InitializeScenario(_scenario);")]
     public void should_withhold_an_authorized_scenario_initialized_before_caller_registration(string member, string establish)
     {
         var sources = CallerScenarioSources.With(establish + CallerScenarioSources.Setup(CallerScenarioSources.RolePrincipal));
