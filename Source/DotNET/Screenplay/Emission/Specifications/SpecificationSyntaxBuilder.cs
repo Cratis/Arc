@@ -68,6 +68,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications) =>
     [
         .. specifications
+            .Select(WithRepresentableCaller)
+            .OfType<SpecificationModel>()
             .Select(WithRepresentableSources)
             .OfType<SpecificationModel>()
             .Select(WithReactionsAccountedFor)
@@ -487,6 +489,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
                 ? Event(appended)
                 : null,
+            GivenCaller = Caller(specification.Caller),
             ThenReturns = Returns(specification.Returns)
         };
     }

@@ -49,12 +49,18 @@ public class PolicyCatalog(IReadOnlyList<Compilation> compilations, string? loca
 
         foreach (var name in Names(declared, _ => _.Policies))
         {
-            policies[name] = new(name, Requirement(name, registrations));
+            var before = diagnostics.All.Count;
+            var policy = new PolicyModel(name, Requirement(name, registrations));
+            var incomplete = diagnostics.All.Skip(before).Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.PolicyRequirementsUnrecoverable);
+            PolicyRecovery.Register(policy, incomplete);
+            policies[name] = policy;
         }
 
         foreach (var role in Names(declared, _ => _.Roles).Where(_ => !policies.ContainsKey(_)))
         {
-            policies[role] = PolicyModel.ForRole(role);
+            var policy = PolicyModel.ForRole(role);
+            PolicyRecovery.Register(policy, false);
+            policies[role] = policy;
         }
 
         return [.. policies.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];

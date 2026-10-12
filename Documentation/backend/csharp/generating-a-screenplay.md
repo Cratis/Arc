@@ -445,7 +445,28 @@ slice StateChange Registration
 - **`when`** is its action: a command it executed, or `when append <EventType>` for an event scenario's append.
 - **`then`** is each event it asserted was appended, and **`then error`** a rejection it asserted.
 
+Parameterized `[Theory]` scenarios are not stated; Information `SP0076` names each omitted theory because case tables are not generated yet.
+
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
+
+### The caller a command scenario runs as
+
+An authorized command's example needs the same caller as its C# run. The generator reads the [documented caller setup](testing/command-scenario.md): one stable local or field created with `Substitute.For<ICurrentPrincipalAccessor>()`, one `Current.Returns(...)` configuration, and one `Scenario.Services.AddSingleton(accessor)` registration on the same scenario whose `Execute` is the action. The configuration and registration must run unconditionally in `Establish`, before the scenario is initialized. The explicitly typed `AddSingleton<ICurrentPrincipalAccessor>(accessor)` form is accepted too.
+
+A directly constructed `ClaimsPrincipal` with one default `ClaimsIdentity` becomes `given caller`. A nonempty constant authentication type becomes `authenticated`. Constant `ClaimTypes.Role` claims become `role` lines; other claims become `claim` lines, preserving casing, order within each group, and repetitions:
+
+```screenplay
+given caller
+  authenticated
+  role "Librarian"
+  claim "tenant" = "a"
+  claim "tenant" = "b"
+  claim "tenant" = "a"
+```
+
+Claims must be constructed with two constant strings inside a collection expression, array initializer, or an empty `List<Claim>` construction with an initializer. A parameterless principal or identity produces an empty `given caller` block. Custom name or role claim types, multiple identities, computed values, unauthenticated identities holding claims, competing authorization services, and extra accessor uses are not recovered.
+
+For an authorized command, an unrecoverable or absent caller takes the whole scenario out with `SP0039`, naming the reason. Every referenced policy must also be recovered completely: a partially read or unregistered policy is not proof of the caller's outcome. Host-driven authorized scenarios are withheld because their caller cannot be recovered from this setup. For a command without authorization, an unsupported caller setup keeps the scenario without `given caller` and reports `SP0075` (Information). No persona is inferred from the claims.
 
 Event assertions must state every payload property. `ShouldHaveAppendedEvent` predicates that check only part of an event, or assert only its type, cause the whole command or append scenario to be omitted with `SP0039` (Warning), naming the event and its missing properties. Screenplay compares expected events as whole facts, not subsets; the generator does not fill the gaps from command inputs or defaults. Screenplay 4.98.0 permits omitted optional properties, but the generator conservatively omits these partial scenarios as well; an explicit `null` is not a valid specification event value. Complete predicates retain their stated values. This check also applies to event assertions after `when append`, before any assertion that merely restates the appended fact is removed.
 
@@ -676,6 +697,8 @@ These details can remain outside the document because the language has no counte
 | Unnamed `[Flags]` combinations | Members remain declared individually. Warning `SP0067` names the enum and property uses; named combinations are ordinary members. No warning is reported when every positive-member combination is named. |
 | Enum numbers outside int32 or above the ESM cap | Numbers are withheld together and members fall back to positional numbering. Warning `SP0068` lists the numbers and the range or cap limitation; stored identity is not preserved. Emitted-name collisions also report `SP0068` for dropped member identities. |
 | Enum aliases sharing one number | The ordinal-first member is kept so scenario constants still name a declaration. Warning `SP0069` names the kept and dropped aliases. |
+| Parameterized `[Theory]` scenario | Information `SP0076` names the omitted theory; case tables are not generated yet. Ordinary `[Fact]` scenarios in the same class remain eligible. |
+| Unsupported command scenario caller | An authorized scenario is withheld with Warning `SP0039` when its caller or any referenced policy cannot be recovered exactly. An open command scenario is retained without a caller, with Information `SP0075` naming the unsupported setup. |
 | Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.

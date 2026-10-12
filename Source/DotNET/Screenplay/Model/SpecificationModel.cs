@@ -49,4 +49,14 @@ public record SpecificationModel(
     /// Gets the command response the source asserts with concrete values, or <see langword="null"/> when none was recovered.
     /// </summary>
     public SpecificationReturnModel? Returns { get; init; }
+
+    /// <summary>
+    /// Gets the exact principal recovered from the scenario setup.
+    /// </summary>
+    internal SpecificationCallerModel? Caller { get; init; }
+
+    /// <summary>
+    /// Gets why an attempted caller setup could not be stated exactly.
+    /// </summary>
+    internal string? CallerFailure { get; init; }
 }

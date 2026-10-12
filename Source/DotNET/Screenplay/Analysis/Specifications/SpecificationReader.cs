@@ -133,7 +133,16 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
 
         diagnostics.AddRange(stated.All);
 
-        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors]) { AssertsResponse = draft.AssertsResponse, Returns = draft.Returns };
+        var caller = draft.When?.Kind == SpecificationStateKind.Command
+            ? new SpecificationCallerReader(models, _held).Read(steps)
+            : new SpecificationCallerRecovery(null, null);
+        var specification = new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors])
+        {
+            AssertsResponse = draft.AssertsResponse,
+            Returns = draft.Returns,
+            Caller = caller.Caller,
+            CallerFailure = caller.Reason
+        };
         SpecificationEvidence.Register(
             specification,
             new(

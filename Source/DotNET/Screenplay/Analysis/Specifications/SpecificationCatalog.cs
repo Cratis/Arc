@@ -43,11 +43,17 @@ public class SpecificationCatalog
     {
         var reader = new SpecificationReader(models, diagnostics, heldValues);
         var reactors = new ReactorSpecificationReader(models, diagnostics, heldValues);
+        var theories = new SpecificationTheories(models, diagnostics);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
 
         foreach (var type in catalog.Types)
         {
+            if (theories.Report(type, reader.IsSpecification(type)))
+            {
+                continue;
+            }
+
             if (!reader.IsSpecification(type) && ReactorSpecificationReader.ReactorOf(type) is { } reactor)
             {
                 ReadReactorScenario(type, reactor, reactors, placement, bySlice, diagnostics);

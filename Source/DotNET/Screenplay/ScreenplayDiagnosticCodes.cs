@@ -601,4 +601,14 @@ public static class ScreenplayDiagnosticCodes
     /// Receipt-based reactor redelivery handling cannot be stated executably.
     /// </summary>
     public const string UnrepresentableReactionRedelivery = "SP0072";
+
+    /// <summary>
+    /// An open command scenario was kept without its unsupported caller setup.
+    /// </summary>
+    public const string SpecificationCallerNotRepresentable = "SP0075";
+
+    /// <summary>
+    /// A parameterized theory scenario cannot yet be stated as a case table.
+    /// </summary>
+    public const string SpecificationCasesNotFolded = "SP0076";
 }
