@@ -65,7 +65,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         return scenarios.Count > 0 && authoring.Generated.Count > 0;
     }
 
-    static bool MustPreserveExplicitSources(CommandAuthoringModel authoring, ApplicationModel model, string command)
+    static bool MustPreserveExplicitSources(CommandAuthoringModel authoring, ApplicationModel model, CommandModel command)
     {
         if (authoring.GeneratedParameters || authoring.Generated.Count == 0)
         {
@@ -75,9 +75,9 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         return model.Slices.SelectMany(slice => slice.Specifications).Any(specification => HasExplicitSource(specification, command));
     }
 
-    static bool HasExplicitSource(SpecificationModel specification, string command)
+    static bool HasExplicitSource(SpecificationModel specification, CommandModel command)
     {
-        if (specification.When is not { Kind: SpecificationStateKind.Command } issued || issued.Name != command)
+        if (specification.When is not { Kind: SpecificationStateKind.Command } issued || issued.Name != command.Name)
         {
             return false;
         }
@@ -145,7 +145,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var preserveScenarios = needsFixtures || unrecoveredReturns;
 
         // A response-only scenario on a command with generated values is never emitted, so it preserves nothing.
-        var preserveExplicitSources = MustPreserveExplicitSources(authoring, model, command.Name);
+        var preserveExplicitSources = MustPreserveExplicitSources(authoring, model, command);
         if (preserveExplicitSources)
         {
             Report(command, location, $"Generation and responses for command '{command.Name}' were withheld to keep scenarios with explicit given event sources; generated identity fixtures cannot be recovered from Arc scenarios, so the command retains its legacy productions or handler reference");

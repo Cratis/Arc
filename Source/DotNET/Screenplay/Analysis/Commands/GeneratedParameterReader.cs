@@ -24,19 +24,29 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
     List<IParameterSymbol> _parameters = [];
     string _location = string.Empty;
 
-    /// <summary>Gets the proven sources to register parameters in.</summary>
+    /// <summary>
+    /// Gets the proven sources to register parameters in.
+    /// </summary>
     public AuthoringSources Sources { get; init; } = new();
 
-    /// <summary>Gets the types with concept validators.</summary>
+    /// <summary>
+    /// Gets the types with concept validators.
+    /// </summary>
     public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
 
-    /// <summary>Gets whether the handler declares explicit generation.</summary>
+    /// <summary>
+    /// Gets whether the handler declares explicit generation.
+    /// </summary>
     public bool HasParameters => _parameters.Count > 0;
 
-    /// <summary>Gets the recovered generated properties.</summary>
+    /// <summary>
+    /// Gets the recovered generated properties.
+    /// </summary>
     public IReadOnlyList<PropertyModel> Generated => _generated;
 
-    /// <summary>Gets the generated names whose concepts have validators.</summary>
+    /// <summary>
+    /// Gets the generated names whose concepts have validators.
+    /// </summary>
     public IReadOnlyList<string> Validated => _validated;
 
     /// <summary>

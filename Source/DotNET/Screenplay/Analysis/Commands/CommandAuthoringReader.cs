@@ -456,24 +456,13 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var responses = new List<ExpressionSyntax>();
         var operations = new List<OperationModel>();
         var operationReader = new CommandOperationReader(types, paths, diagnostics);
-        foreach (var part in ReturnedExpressions(returned))
-        {
-            var type = ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType);
-            if (type is null || OnlyEvents(part, model))
-            {
-                continue;
-            }
-
-            if (!IsReturnedOperation(type))
-            {
-                responses.Add(part);
-                continue;
-            }
-            if (enabled)
-            {
-                operations.AddRange(operationReader.Read(part, model, command, Sources, location));
-            }
-        }
+        var parts = ReturnedExpressions(returned)
+            .Select(part => (Part: part, Type: ResponseValueType(model.GetTypeInfo(part).Type ?? model.GetTypeInfo(part).ConvertedType)))
+            .Where(_ => _.Type is not null && !OnlyEvents(_.Part, model))
+            .ToList();
+        responses.AddRange(parts.Where(_ => !IsReturnedOperation(_.Type!)).Select(_ => _.Part));
+        var returnedOperations = parts.Where(_ => enabled && IsReturnedOperation(_.Type!));
+        operations.AddRange(returnedOperations.SelectMany(_ => operationReader.Read(_.Part, model, command, Sources, location)));
 
         return new(responses, operations);
     }
