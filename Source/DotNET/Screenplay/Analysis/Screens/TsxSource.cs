@@ -346,10 +346,13 @@ internal sealed class TsxSource(string text, bool jsx)
             return false;
         }
 
-        _position = Math.Min(text.Length, _position + 2);
+        _position = Math.Min(text.Length, _position + (IsCarriageReturnLineFeed(_position + 1) ? 3 : 2));
 
         return true;
     }
+
+    bool IsCarriageReturnLineFeed(int index) =>
+        index + 1 < text.Length && text[index] == '\r' && text[index + 1] == '\n';
 
     void ReadTemplate(int parent)
     {
