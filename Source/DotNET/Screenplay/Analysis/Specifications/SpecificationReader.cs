@@ -217,6 +217,17 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     }
 
     /// <summary>
+    /// Reads the caller a command scenario sets up.
+    /// </summary>
+    /// <param name="draft">The scenario read so far.</param>
+    /// <param name="steps">The type the steps are written on.</param>
+    /// <returns>The recovered caller, or why it could not be recovered; empty when the scenario issues no command.</returns>
+    SpecificationCallerRecovery ReadCaller(SpecificationDraft draft, INamedTypeSymbol steps) =>
+        draft.When?.Kind == SpecificationStateKind.Command
+            ? new SpecificationCallerReader(models, _held).Read(steps)
+            : new SpecificationCallerRecovery(null, null);
+
+    /// <summary>
     /// Determines whether the steps of a specification drive a slice rather than exercise a part of one.
     /// </summary>
     /// <param name="steps">The type the steps are written on.</param>
@@ -231,11 +242,6 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// being rejected - which is a part of a slice rather than the behavior of one.
     /// </para>
     /// </remarks>
-    SpecificationCallerRecovery ReadCaller(SpecificationDraft draft, INamedTypeSymbol steps) =>
-        draft.When?.Kind == SpecificationStateKind.Command
-            ? new SpecificationCallerReader(models, _held).Read(steps)
-            : new SpecificationCallerRecovery(null, null);
-
     bool DrivesASlice(INamedTypeSymbol steps) =>
         Calls(steps, SpecificationMembers.EstablishMethod)
             .Any(_ => SpecificationCalls.IsGivenEvents(_) || SpecificationCalls.IsGivenReadModel(_) || SpecificationCalls.IsExecution(_)) ||

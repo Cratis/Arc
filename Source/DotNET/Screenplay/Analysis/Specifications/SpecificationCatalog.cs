@@ -109,14 +109,12 @@ public class SpecificationCatalog
     }
 
     /// <summary>
-    /// Reads a reactor scenario, reporting it when it has no counterpart.
+    /// Reads a scenario that is not a specification: a reactor scenario, or one written in a form with no counterpart.
     /// </summary>
     /// <param name="type">The type declaring the scenario.</param>
-    /// <param name="reactor">The reactor it is a scenario of.</param>
-    /// <param name="reader">The reader of reactor scenarios.</param>
-    /// <param name="placement">The placement of scenarios under slices.</param>
-    /// <param name="bySlice">The specifications collected so far.</param>
-    /// <param name="diagnostics">The diagnostics to report to.</param>
+    /// <param name="reader">The reader of specifications.</param>
+    /// <param name="reactors">The reader of reactor scenarios.</param>
+    /// <param name="target">Where the scenario is placed and reported.</param>
     static void ReadOtherScenario(
         INamedTypeSymbol type,
         SpecificationReader reader,
@@ -132,6 +130,15 @@ public class SpecificationCatalog
         Report(reader.ScenarioWithoutCounterpart(type), type, target.Diagnostics);
     }
 
+    /// <summary>
+    /// Reads a reactor scenario, reporting it when it has no counterpart.
+    /// </summary>
+    /// <param name="type">The type declaring the scenario.</param>
+    /// <param name="reactor">The reactor it is a scenario of.</param>
+    /// <param name="reader">The reader of reactor scenarios.</param>
+    /// <param name="placement">The placement of scenarios under slices.</param>
+    /// <param name="bySlice">The specifications collected so far.</param>
+    /// <param name="diagnostics">The diagnostics to report to.</param>
     static void ReadReactorScenario(
         INamedTypeSymbol type,
         INamedTypeSymbol reactor,
