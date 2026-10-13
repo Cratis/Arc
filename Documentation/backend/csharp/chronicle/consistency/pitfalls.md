@@ -405,11 +405,13 @@ The guard covers the events in the read set. It does not cover:
 
 - `Revise` and `Redact` between the read and the append;
 - a projection definition changed by another process, until this client registers again;
-- other event sequences, external or non-Chronicle state, and writers that do not use a scope or a decision read;
+- other event sequences and external or non-Chronicle state;
 - a unique-constraint index update that fails after the append is durable: Chronicle logs it, a later duplicate can pass, and a reindex repairs it;
 - constraints across namespaces: tenants in different namespaces can claim the same value.
 
 Do not design a rule that relies on any of these.
+
+The guard also does not protect a writer that decides without one. A guard detects every matching event appended after its boundary, whoever wrote it. It only protects decisions that carry a guard: a writer that decides without one can still break the rule. The rule holds only when every writer that decides on it is guarded, or when it is a constraint, which the kernel checks for every append.
 
 ## Tests without decision mode
 

@@ -71,7 +71,7 @@ Yes, if it has exactly one public constructor and that constructor has no parame
 
 ### What does a decision read not guard?
 
-`Revise` and `Redact` between the read and the append, a projection definition changed in another process, other event sequences, external state, and writers that use neither a scope nor a decision read. See [where the guard stops](./pitfalls.md#where-the-guard-stops).
+`Revise` and `Redact` between the read and the append, a projection definition changed in another process, other event sequences, and external state. A guard detects every matching event appended after its boundary, whoever wrote it, but it protects only decisions that carry a guard: a writer that decides without one can still break the rule. See [where the guard stops](./pitfalls.md#where-the-guard-stops).
 
 ### Do decision reads work from other languages?
 

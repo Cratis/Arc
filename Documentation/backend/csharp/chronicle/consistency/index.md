@@ -112,13 +112,13 @@ Tests that exercise a protected decision use `CommandScenario<T>().UseDecisionRe
 
 ## What each mechanism guards
 
-| Mechanism | Guards the rule? | Applies to every writer? | Boundary captured | Cost of one command |
+| Mechanism | Guards the rule? | Protects every writer's decision? | Boundary captured | Cost of one command |
 | --- | --- | --- | --- | --- |
-| Constraint | Uniqueness and create-once only; it cannot count or sum | Yes: the kernel enforces it | None needed | An index check inside the append |
-| Protected decision (`DecisionRead<T>`, `IDecisionReads`) | Yes, for the folded event types on the read keys | Only writers that use a decision read or a scope | Before the fold | A fresh fold of the key's history on every read |
-| Stream decision (`IStreamReads`) | Yes, for any event in the routed stream | Only writers that use a scope | Before reading the stream, in `Provide()` | The whole stream crosses the wire per command |
-| Aggregate root | Yes, for the event types it handles | Only writers that use a scope | When the aggregate is resolved | The handled events cross the wire per command; no snapshots |
-| Explicit scope (`EventsWithConcurrencyScopes`) | Yes, as strong as where you captured the revision | Only writers that use a scope | Wherever your code captured it | One filtered tail query at commit |
+| Constraint | Uniqueness and create-once only; it cannot count or sum | Yes: the kernel checks every append | None needed | An index check inside the append |
+| Protected decision (`DecisionRead<T>`, `IDecisionReads`) | Yes, for the folded event types on the read keys | Only decisions that carry a guard; it still detects any writer's matching event | Before the fold | A fresh fold of the key's history on every read |
+| Stream decision (`IStreamReads`) | Yes, for any event in the routed stream | Only decisions that carry a guard; it still detects any writer's matching event | Before reading the stream, in `Provide()` | The whole stream crosses the wire per command |
+| Aggregate root | Yes, for the event types it handles | Only decisions that carry a guard; it still detects any writer's matching event | When the aggregate is resolved | The handled events cross the wire per command; no snapshots |
+| Explicit scope (`EventsWithConcurrencyScopes`) | Yes, as strong as where you captured the revision | Only decisions that carry a guard; it still detects any writer's matching event | Wherever your code captured it | One filtered tail query at commit |
 | Default append | No: it checks the window after `Handle()` only | No | At commit, after `Handle()` | One tail query per event source |
 | Command validator | No: it is shape validation, see [validators](./validators.md) | No | None | None |
 | Plain read: materialized projection | No: it comes from the sink and can lag | No | None | One lookup |
@@ -222,7 +222,8 @@ An application-wide setting and automatic conversion of plain reads whose projec
 | A manual `ConcurrencyScope` without a sequence number | The kernel skips it | Silent, visible in `ConcurrencyCheckPerformed` |
 | `Revise` or `Redact` between read and append | Not detected | Silent |
 | A projection definition changed in another process | Not detected until this client re-registers | Silent |
-| Writers outside the guarantee: other event sequences, external state, non-canonical GUID forms from other SDKs | Not guarded | Silent |
+| Other event sequences, external state, non-canonical GUID forms from other SDKs | Not guarded | Silent |
+| A writer that decides on the rule without a guard | Its own decision is not protected, although a guarded writer still detects its event | Silent |
 | A unique-constraint index update that fails after the append is durable | Logged; a later duplicate can pass until a reindex repairs it | Silent |
 | A conflict | The command is rejected, no retry | Loud |
 | A refused read shape, a model without `Id`, a validator with constructor dependencies on a protected command | The command fails every time | Loud |

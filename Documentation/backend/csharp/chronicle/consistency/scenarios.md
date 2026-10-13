@@ -831,7 +831,7 @@ public static class ClaimUserName
 }
 ```
 
-This covers only writers that use the same scope. A constraint covers every writer, so prefer it where it fits.
+The scope detects any matching event appended after its boundary, whoever wrote it, but it protects only decisions that carry it: a writer that decides without a scope can still break the rule. A constraint is checked for every append, so prefer it where it fits.
 
 ## Where to go next
 
