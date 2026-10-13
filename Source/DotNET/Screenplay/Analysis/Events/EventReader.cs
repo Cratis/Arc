@@ -28,7 +28,18 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>True when the type is an event.</returns>
-    public static bool IsEvent(ITypeSymbol type) => type.HasAttribute(WellKnownTypeNames.EventTypeAttribute);
+    public static bool IsEvent(ITypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.HasAttribute(WellKnownTypeNames.EventTypeAttribute))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Reads an event.

@@ -31,7 +31,8 @@ public class ReducerReader(ScreenplayDiagnostics diagnostics)
     /// <returns>The read model, or <see langword="null"/> when the type is not a reducer.</returns>
     public static ITypeSymbol? ReadModelOf(ITypeSymbol type) =>
         type is { IsAbstract: false, TypeKind: TypeKind.Class }
-            ? type.FindInterface(WellKnownTypeNames.ReducerFor)?.TypeArguments[0]
+            ? type.FindInterface(WellKnownTypeNames.ReducerFor)?.TypeArguments[0] ??
+                (type is INamedTypeSymbol model && SelfReducerMethods.Of(model).Any() ? model : null)
             : null;
 
     /// <summary>
@@ -43,10 +44,12 @@ public class ReducerReader(ScreenplayDiagnostics diagnostics)
     /// <returns>The <see cref="ProjectionModel"/>, or <see langword="null"/> when it observes nothing.</returns>
     public ProjectionModel? Read(INamedTypeSymbol type, ITypeSymbol readModel, string location)
     {
-        var observed = type.GetMembers()
-            .OfType<IMethodSymbol>()
-            .Where(_ => _ is { MethodKind: MethodKind.Ordinary, IsStatic: false, DeclaredAccessibility: Accessibility.Public } &&
+        var methods = type.FindInterface(WellKnownTypeNames.ReducerFor) is not null
+            ? type.GetMembers().OfType<IMethodSymbol>().Where(_ =>
+                _ is { MethodKind: MethodKind.Ordinary, IsStatic: false, DeclaredAccessibility: Accessibility.Public } &&
                 _.Parameters.Length > 0 && EventReader.IsEvent(_.Parameters[0].Type))
+            : SelfReducerMethods.Of(type);
+        var observed = methods
             .Select(_ => _.Parameters[0].Type.Name)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
