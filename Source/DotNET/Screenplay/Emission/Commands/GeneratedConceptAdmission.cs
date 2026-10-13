@@ -38,7 +38,7 @@ internal static class GeneratedConceptAdmission
 
     static bool IsGeneratable(ConceptModel concept, SemanticVersion? maximumVersion)
     {
-        if (concept.Validations.Any() || concept.IsPii || concept.IsSensitive)
+        if (HasProtection(concept))
         {
             return false;
         }
@@ -49,6 +49,8 @@ internal static class GeneratedConceptAdmission
 
         return maximumVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V15);
     }
+
+    static bool HasProtection(ConceptModel concept) => concept.Validations.Any() || concept.IsPii || concept.IsSensitive;
 
     static double RandomBits(GenerationModel? generation) => generation?.Kind switch
     {

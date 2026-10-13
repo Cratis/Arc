@@ -27,10 +27,12 @@ internal static class GenerationFixtureShape
         "uuidv7" => UuidV7(value),
         "ulid" => CrockfordValue(value, Crockford),
         "typeid" => TypeId(value, generation.Prefix!),
-        "nanoid" => value.Length == (generation.Size ?? 21) && value.All((generation.Alphabet ?? NanoIdAlphabet).Contains),
+        "nanoid" => NanoId(value, generation),
         "bytes" => Bytes(value, generation),
         _ => false
     };
+
+    static bool NanoId(string value, GenerationModel generation) => value.Length == (generation.Size ?? 21) && value.All((generation.Alphabet ?? NanoIdAlphabet).Contains);
 
     static bool UuidV7(string value) => Guid.TryParseExact(value, "D", out _) && !value.Any(character => character is >= 'A' and <= 'F') && value[14] == '7' && "89ab".Contains(value[19], StringComparison.Ordinal);
 

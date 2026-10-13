@@ -13,6 +13,30 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// </summary>
 internal static class GenerationCallReader
 {
+    static readonly Dictionary<string, Func<IInvocationOperation, GenerationModel?>> _readers = new(StringComparer.Ordinal)
+    {
+        ["Cratis.Concepts.GenerateValue"] = call => Fundamentals(call.TargetMethod.Name, call),
+        ["System.Guid"] = GuidCall,
+        ["System.Security.Cryptography.RandomNumberGenerator"] = CryptographicCall
+    };
+
+    static readonly Dictionary<string, Func<IInvocationOperation, GenerationModel?>> _fundamentals = new(StringComparer.Ordinal)
+    {
+        ["Uuid"] = call => call.Arguments.IsEmpty ? new("uuid") : null,
+        ["UuidV7"] = call => HasOnly(call, "context") ? new("uuidv7") : null,
+        ["Ulid"] = call => HasOnly(call, "context") ? new("ulid") : null,
+        ["TypeId"] = call => HasOnly(call, "prefix", "context") ? TypeId(call) : null,
+        ["NanoId"] = call => HasOnly(call, "size", "alphabet") ? NanoId(call) : null,
+        ["Bytes"] = call => HasOnly(call, "count", "encoding") ? Bytes(call) : null
+    };
+
+    static readonly Dictionary<int, string> _encodings = new()
+    {
+        [0] = "base64url",
+        [1] = "hex",
+        [2] = "base32"
+    };
+
     /// <summary>
     /// Reads a direct generation invocation without evaluating application code.
     /// </summary>
@@ -30,13 +54,7 @@ internal static class GenerationCallReader
             return null;
         }
 
-        return invocation.TargetMethod.ContainingType.FullMetadataName() switch
-        {
-            "Cratis.Concepts.GenerateValue" => Fundamentals(invocation.TargetMethod.Name, invocation),
-            "System.Guid" => GuidCall(invocation),
-            "System.Security.Cryptography.RandomNumberGenerator" when invocation.TargetMethod.Name == "GetHexString" => Hex(invocation),
-            _ => null
-        };
+        return _readers.TryGetValue(invocation.TargetMethod.ContainingType.FullMetadataName(), out var read) ? read(invocation) : null;
     }
 
     static bool IsStatableInvocation(IInvocationOperation invocation) => invocation.TargetMethod.IsStatic && invocation.Arguments.All(IsStatable);
@@ -68,16 +86,9 @@ internal static class GenerationCallReader
 
     static bool HasOnly(IInvocationOperation call, params string[] names) => call.Arguments.All(argument => names.Contains(argument.Parameter!.Name, StringComparer.Ordinal));
 
-    static GenerationModel? Fundamentals(string name, IInvocationOperation call) => name switch
-    {
-        "Uuid" when call.Arguments.IsEmpty => new("uuid"),
-        "UuidV7" when HasOnly(call, "context") => new("uuidv7"),
-        "Ulid" when HasOnly(call, "context") => new("ulid"),
-        "TypeId" when HasOnly(call, "prefix", "context") => TypeId(call),
-        "NanoId" when HasOnly(call, "size", "alphabet") => NanoId(call),
-        "Bytes" when HasOnly(call, "count", "encoding") => Bytes(call),
-        _ => null
-    };
+    static GenerationModel? Fundamentals(string name, IInvocationOperation call) => _fundamentals.TryGetValue(name, out var read) ? read(call) : null;
+
+    static GenerationModel? CryptographicCall(IInvocationOperation call) => call.TargetMethod.Name == "GetHexString" ? Hex(call) : null;
 
     static GenerationModel? TypeId(IInvocationOperation call)
     {
@@ -122,22 +133,22 @@ internal static class GenerationCallReader
         {
             return null;
         }
-        var encoding = Value(call, "encoding") switch
-        {
-            0 => "base64url",
-            1 => "hex",
-            2 => "base32",
-            _ => null
-        };
+        var encoding = EncodingOf(call);
 
         return encoding is null ? null : new("bytes") { Count = count, Encoding = encoding };
     }
+
+    static string? EncodingOf(IInvocationOperation call) => Value(call, "encoding") is int encoding && _encodings.TryGetValue(encoding, out var name) ? name : null;
 
     static bool ValidHexLength(int length) => length is >= 2 and <= 1024 && length % 2 == 0;
 
     static GenerationModel? Hex(IInvocationOperation call)
     {
-        if (!HasOnly(call, "stringLength", "lowercase") || Value(call, "stringLength") is not int length || !ValidHexLength(length))
+        if (!HasOnly(call, "stringLength", "lowercase"))
+        {
+            return null;
+        }
+        if (Value(call, "stringLength") is not int length || !ValidHexLength(length))
         {
             return null;
         }

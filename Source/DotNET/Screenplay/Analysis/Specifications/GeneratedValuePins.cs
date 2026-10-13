@@ -171,14 +171,31 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
             return null;
         }
         var expression = CallArguments.For(configuration.Call, configuration.Method, "value").SingleOrDefault();
-        if (expression is null || !SymbolEqualityComparer.Default.Equals(configuration.Model.GetTypeInfo(expression).Type, parameter.Type))
+        if (expression is null || parameter.Type is not INamedTypeSymbol concept)
         {
             return null;
         }
-        if (Literal(expression, configuration.Model) is not { Value: string text } || parameter.Type is not INamedTypeSymbol concept)
+        var source = ReadConceptValue(configuration.Model, expression, concept);
+
+        return source is null ? null : new(name, source);
+    }
+
+    LiteralSource? ReadConceptValue(SemanticModel model, ExpressionSyntax expression, INamedTypeSymbol concept)
+    {
+        if (!SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(expression).Type, concept))
         {
             return null;
         }
+        if (Literal(expression, model) is not { Value: string text })
+        {
+            return null;
+        }
+
+        return ReadTextValue(concept, text);
+    }
+
+    LiteralSource? ReadTextValue(INamedTypeSymbol concept, string text)
+    {
         var generation = new GenerationStrategyReader(models).Read(concept);
         if (generation is null || !GenerationFixtureShape.Matches(generation, text))
         {
@@ -187,7 +204,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         var value = concept.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && backing.Is("System.Guid")
             ? Guid.Parse(text).ToString("D") : text;
 
-        return StatableValues.TryState(parameter.Type, value, out _) ? new(name, new LiteralSource(value)) : null;
+        return StatableValues.TryState(concept, value, out _) ? new LiteralSource(value) : null;
     }
 
     LiteralSource? Literal(ExpressionSyntax expression, SemanticModel model) =>

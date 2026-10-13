@@ -107,7 +107,11 @@ internal class GenerationStrategyReader(SemanticModels models)
 
     GenerationModel? LocalFactory(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
     {
-        if (expression is not InvocationExpressionSyntax call || model.GetSymbolInfo(call).Symbol is not IMethodSymbol method || !IsLocalFactory(method, type))
+        if (expression is not InvocationExpressionSyntax call)
+        {
+            return null;
+        }
+        if (model.GetSymbolInfo(call).Symbol is not IMethodSymbol method || !IsLocalFactory(method, type))
         {
             return null;
         }
