@@ -75,7 +75,7 @@ it: a handler without Chronicle can return the generated value alone.
 
 An identifier that implements `IGeneratable<TSelf>` over a `Guid` follows the same shape. These
 declarations allocate an identifier; they do not persist a cart or append an event, and the
-[migration guide](../../../upgrading/generated-values.md) and the analyzer pages reuse them:
+[migration guide](../../../upgrading/generated-values.md) reuses them:
 
 ```csharp title="Shop/Carts/Starting/CartId.cs and StartCart.cs"
 using System;
