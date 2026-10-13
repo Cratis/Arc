@@ -14,6 +14,9 @@ public record QueryCandidateReadModel(int Id)
         return new[] { Local(id) }.Select(model => model with { Id = id }).Single();
     }
 
+    public static QueryCandidateReadModel? Reduce(object @event, QueryCandidateReadModel? current) => current;
+    public static QueryCandidateReadModel Copy(QueryCandidateReadModel model) => model;
+
     [CompilerGenerated]
     public static QueryCandidateReadModel Generated() => new(0);
     private static QueryCandidateReadModel PrivateHelper() => new(0);
