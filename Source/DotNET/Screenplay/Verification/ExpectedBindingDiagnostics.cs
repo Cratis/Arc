@@ -11,7 +11,7 @@ namespace Cratis.Arc.Screenplay.Verification;
 /// Identifies the executable admission limits deliberately retained in generated authoring documents.
 /// </summary>
 /// <remarks>
-/// Screenplay 4.135.0 reports malformed bindings under PLAY0268 too. Its compiler contract lists codes, titles and
+/// Screenplay 4.146.0 reports malformed bindings under PLAY0268 too. Its compiler contract lists codes, titles and
 /// severities, not structured reasons, so these exact message shapes follow SemanticModelBinder.Commands, ReadModels,
 /// Concepts, and CommandProductions at that version. A changed or unknown message, or a code that is no longer an active
 /// error in the loaded compiler's contract, fails closed as SP0056 rather than silently acquiring an exemption.
@@ -84,11 +84,16 @@ public static class ExpectedBindingDiagnostics
             Reason(message, "Command") == " handler requires a constrained implementation attachment." ||
             Reason(message, "Read model") == " must have one unambiguous keyed query or one conventional '*Id' property to identify instances in the admitted ESM query shapes." ||
             Reason(message, "Concept") == " compliance attributes require portable data-subject semantics." ||
-            query == " uses filtering, scope, or implementation behavior outside the admitted ESM query shapes." ||
-            query == " must use caller-supplied 'by' arguments in the admitted ESM query shapes." ||
-            query == " without a 'by' argument must return a read-model collection in the admitted ESM query shapes." ||
-            query == " must return an optional read model or a read-model collection in the admitted ESM query shapes.";
+            IsKnownQueryReason(query);
     }
+
+    static bool IsKnownQueryReason(string? query) =>
+        query == " uses filtering, scope, or implementation behavior outside the admitted ESM query shapes." ||
+        query == " uses a performer, which is not admitted into the executable model." ||
+        query == " uses 'scoped to', which is not admitted into the executable model." ||
+        query == " must use caller-supplied 'by' arguments in the admitted ESM query shapes." ||
+        query == " without a 'by' argument must return a read-model collection in the admitted ESM query shapes." ||
+        query == " must return an optional read model or a read-model collection in the admitted ESM query shapes.";
 
     /// <summary>
     /// Gets the exact reason following a quoted declaration name, excluding all other message forms.
