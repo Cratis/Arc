@@ -451,7 +451,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         {
             var declaredType = Application?.Slices.SelectMany(slice => slice.Commands)
                 .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
-                .FirstOrDefault(candidate => candidate.Identity == route.Identity)?.IdentifierType;
+                .FirstOrDefault(candidate => candidate.Identity.HasSameSourceAs(route.Identity))?.IdentifierType;
             if (declaredType is not null)
             {
                 return CanStateLiteral(state.For!, declaredType);
