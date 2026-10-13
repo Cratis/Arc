@@ -45,6 +45,7 @@ internal static class GenerationCallReader
     /// <returns>The recovered strategy, or null when the call cannot be stated.</returns>
     public static GenerationModel? Read(ExpressionSyntax expression, SemanticModel model)
     {
+        expression = UnwrapParentheses(expression);
         if (expression is not InvocationExpressionSyntax call || model.GetOperation(call) is not IInvocationOperation invocation)
         {
             return null;
@@ -56,6 +57,14 @@ internal static class GenerationCallReader
 
         return _readers.TryGetValue(invocation.TargetMethod.ContainingType.FullMetadataName(), out var read) ? read(invocation) : null;
     }
+
+    /// <summary>
+    /// Removes parentheses without erasing casts or other value-changing syntax.
+    /// </summary>
+    /// <param name="expression">The generation expression.</param>
+    /// <returns>The expression inside its parentheses.</returns>
+    public static ExpressionSyntax UnwrapParentheses(ExpressionSyntax expression) => expression is ParenthesizedExpressionSyntax parenthesized
+        ? UnwrapParentheses(parenthesized.Expression) : expression;
 
     static bool IsStatableInvocation(IInvocationOperation invocation) => invocation.TargetMethod.IsStatic && invocation.Arguments.All(IsStatable);
 

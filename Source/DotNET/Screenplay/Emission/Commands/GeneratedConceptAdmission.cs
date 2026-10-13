@@ -38,7 +38,7 @@ internal static class GeneratedConceptAdmission
 
     static bool IsGeneratable(ConceptModel concept, SemanticVersion? maximumVersion)
     {
-        if (HasProtection(concept))
+        if (concept.Validations.Any())
         {
             return false;
         }
@@ -47,10 +47,15 @@ internal static class GeneratedConceptAdmission
             return concept.Primitive == ScreenplayPrimitive.Uuid;
         }
 
+        if (HasCompliance(concept))
+        {
+            return false;
+        }
+
         return maximumVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V15);
     }
 
-    static bool HasProtection(ConceptModel concept) => concept.Validations.Any() || concept.IsPii || concept.IsSensitive;
+    static bool HasCompliance(ConceptModel concept) => concept.IsPii || concept.IsSensitive;
 
     static double RandomBits(GenerationModel? generation) => generation?.Kind switch
     {

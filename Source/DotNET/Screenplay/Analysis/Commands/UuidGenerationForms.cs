@@ -38,6 +38,8 @@ internal class UuidGenerationForms(SemanticModels models)
             return null;
         }
 
+        expression = GenerationCallReader.UnwrapParentheses(expression);
+
         return expression switch
         {
             BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation when ConstructsConcept(creation, type, model) =>

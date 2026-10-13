@@ -69,8 +69,14 @@ internal class GenerationStrategyReader(SemanticModels models)
             return false;
         }
 
-        return strategy.Kind == "uuid" || strategy == Read(type);
+        var owned = Read(type);
+
+        return owned is null ? IsImplicitUuid(type, strategy) : strategy == owned;
     }
+
+    static bool IsImplicitUuid(INamedTypeSymbol type, GenerationModel strategy) => strategy.Kind == "uuid" && HasUuidBacking(type);
+
+    static bool HasUuidBacking(INamedTypeSymbol type) => type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && backing.Is("System.Guid");
 
     static bool IsRequiredScalar(IParameterSymbol parameter) => parameter.RefKind == RefKind.None && parameter.Type.NullableAnnotation != NullableAnnotation.Annotated;
 

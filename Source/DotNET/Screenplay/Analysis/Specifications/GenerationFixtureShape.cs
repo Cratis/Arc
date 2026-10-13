@@ -44,11 +44,22 @@ internal static class GenerationFixtureShape
     public static bool Matches(GenerationModel generation, string value) =>
         _strategies.GetValueOrDefault(generation.Kind, Unsupported)(new(generation, value));
 
+    /// <summary>
+    /// Checks the implicit UUID fixture shape enforced from ESM v15.
+    /// </summary>
+    /// <param name="value">The normalized literal fixture.</param>
+    /// <returns>Whether it is a version 4 UUID with the RFC variant.</returns>
+    public static bool MatchesUuidV4(LiteralSource value) => value.Value is string text && UuidV4(new(new("uuid"), text));
+
     static bool Unsupported(Fixture fixture) => false;
 
     static bool NanoId(Fixture fixture) => fixture.Text.Length == (fixture.Generation.Size ?? 21) && fixture.Text.All((fixture.Generation.Alphabet ?? _nanoId.Symbols).Contains);
 
-    static bool UuidV7(Fixture fixture) => Guid.TryParseExact(fixture.Text, "D", out _) && !fixture.Text.Any(character => character is >= 'A' and <= 'F') && fixture.Text[14] == '7' && "89ab".Contains(fixture.Text[19], StringComparison.Ordinal);
+    static bool UuidV4(Fixture fixture) => HasUuidShape(fixture) && fixture.Text[14] == '4';
+
+    static bool UuidV7(Fixture fixture) => HasUuidShape(fixture) && fixture.Text[14] == '7';
+
+    static bool HasUuidShape(Fixture fixture) => Guid.TryParseExact(fixture.Text, "D", out _) && !fixture.Text.Any(character => character is >= 'A' and <= 'F') && "89ab".Contains(fixture.Text[19], StringComparison.Ordinal);
 
     static bool CrockfordValue(Fixture fixture, Alphabet alphabet) => fixture.Text.Length == 26 && fixture.Text[0] is >= '0' and <= '7' && fixture.Text.All(alphabet.Symbols.Contains);
 

@@ -109,6 +109,18 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         return configuration.Model.GetSymbolInfo(call).Symbol is IMethodSymbol method && SpecificationCalls.IsExecution(method);
     }
 
+    static string? Normalize(INamedTypeSymbol concept, string text)
+    {
+        if (!HasUuidBacking(concept))
+        {
+            return text;
+        }
+
+        return Guid.TryParse(text, out var guid) ? guid.ToString("D") : null;
+    }
+
+    static bool HasUuidBacking(INamedTypeSymbol concept) => concept.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && backing.Is("System.Guid");
+
     IEnumerable<ConfigurationCall> ConfigurationsIn(SyntaxNode body)
     {
         if (models.For(body.SyntaxTree) is not { } model)
@@ -197,12 +209,15 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
     LiteralSource? ReadTextValue(INamedTypeSymbol concept, string text)
     {
         var generation = new GenerationStrategyReader(models).Read(concept);
-        if (generation is null || !GenerationFixtureShape.Matches(generation, text))
+        var value = Normalize(concept, text);
+        if (generation is null || value is null)
         {
             return null;
         }
-        var value = concept.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && backing.Is("System.Guid")
-            ? Guid.Parse(text).ToString("D") : text;
+        if (!GenerationFixtureShape.Matches(generation, value))
+        {
+            return null;
+        }
 
         return StatableValues.TryState(concept, value, out _) ? new LiteralSource(value) : null;
     }
