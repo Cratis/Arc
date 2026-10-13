@@ -40,7 +40,7 @@ Use the same `CommandScenario<TCommand>` class as for non-Chronicle commands. Wh
 | `EventScenario` | `EventScenario` | The full event scenario — use `EventScenario.Given` to seed the event log |
 | `EventLog` | `IEventLog` | The in-memory event log — use for appending and assertions |
 | `EventSequence` | `IEventSequence` | The event scenario's sequence — use with Chronicle's assertion helpers |
-| `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | Appends captured since scenario construction, including `EventScenario.Given` seeding but excluding read-model `Given.Events` seeds |
+| `AppendedEvents` | `IReadOnlyList<AppendedEventWithResult>` | Appends captured since scenario construction, including event-log seeding |
 
 ```csharp
 public class when_registering_author : Specification
@@ -111,7 +111,7 @@ Content overloads also accept `Action<TEvent>` assertions. An action validates t
 
 ## Protected decision scenarios
 
-The ordinary `EventScenario`, `Given.ForEventSource(...).Events(...)` read-model seed, and pinned `.ReadModel(...)` state above serve legacy instance reads. **They do not provide protected decision reads:** ordinary injected reads use their seed collection, even though seeded events also enter the log for observation. To exercise `DecisionRead<T>` or `IDecisionReads`, mark the command `[ProtectedDecision]` and opt the scenario in **before seeding or calling `Execute`/`Validate`**. Scenario decision mode applies the host's [protected-mode validator boundary](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands): parameterless validators run, validators with constructor dependencies are refused. `UseDecisionReads()` alone never implicitly protects an unmarked command. See [Arc #2831](https://github.com/Cratis/Arc/issues/2831) for validators that read decision state; Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on it:
+The ordinary `EventScenario`, `Given.ForEventSource(...).Events(...)` legacy read-model seed, and pinned `.ReadModel(...)` state above serve existing scenarios unchanged. **They do not provide protected decision reads:** in the ordinary scenario, read-model seed state and the event log are separate. To exercise `DecisionRead<T>` or `IDecisionReads`, mark the command `[ProtectedDecision]` and opt the scenario in **before seeding or calling `Execute`/`Validate`**. Scenario decision mode applies the host's [protected-mode validator boundary](../chronicle/read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands): parameterless validators run, validators with constructor dependencies are refused. `UseDecisionReads()` alone never implicitly protects an unmarked command. See [Arc #2831](https://github.com/Cratis/Arc/issues/2831) for validators that read decision state; Screenplay [#209](https://github.com/Cratis/Screenplay/issues/209) `require` waits on it:
 
 ```csharp
 var scenario = new CommandScenario<RegisterAuthor>().UseDecisionReads();
@@ -318,7 +318,7 @@ public class when_withdrawing_with_sufficient_funds : Specification
 
 Events are the facts; read models are derived from them. One `Events(...)` call feeds *every* read model built from those events: if the command injects both an `AccountBalance` and an `AccountStatement`, both are materialized from the same events — no read model type appears in the test.
 
-This seeds the **read model state** the command observes through its injected parameters and appends the events to the scenario log for [observable read-model queries](./query-scenario.md#observe-chronicle-read-models). These setup appends are excluded from `AppendedEvents`. Do not also append the same facts through `EventScenario.Given`: that would seed them twice. `EventScenario.Given` alone seeds only the log, not the injected read-model seed collection.
+This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters. [Observable read-model queries](./query-scenario.md#observe-chronicle-read-models) use a private log that combines read-model seeds and successful appends from the command log, without changing the command log.
 
 ### Pinning a read model instance
 
@@ -333,7 +333,7 @@ void Establish() =>
 
 Pinned instances take precedence over seeded events for the same read model type and source. A model seeded for one source is not visible to another: resolving an unseeded source returns `null`. A registered nullable dependency can receive that null; a required dependency instead rejects the command as unavailable. See [the dependency-unavailable assertion distinction](./command-scenario.md#dependency-unavailable-is-not-a-business-rule-rejection).
 
-**Current boundary:** in default mode, this builder controls injected instance reads through a separate seed collection. Appending through `EventLog` or executing a command does not add events to that collection. Observable queries instead fold the log and emit updates; pins require a readable key, and default-mode children observation has a [tracked limitation and decision-mode workaround](./query-scenario.md#children-and-decision-mode). Use Chronicle's read-model scenarios or hosted integration specs for projection behavior beyond the supported scenario boundaries.
+**Current boundary:** this builder controls injected read model resolution. Appending through `EventLog` or executing a command does not automatically add those new events to this separate seed collection. If a test needs both prior log facts and injected state, arrange both explicitly. Observable queries combine both histories in a private log, so seeding the same facts in both places processes them twice for observation. Pins require a readable key, and default-mode children observation has a [tracked limitation and decision-mode workaround](./query-scenario.md#children-and-decision-mode). Use Chronicle's read-model scenarios or hosted integration specs for projection behavior beyond the supported scenario boundaries.
 
 ## Multiple events
 

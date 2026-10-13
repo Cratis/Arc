@@ -32,17 +32,16 @@ internal static class ObservationReadModelKey
     /// <summary>
     /// Gets the identifier of a materialized instance.
     /// </summary>
-    /// <typeparam name="TReadModel">The read model type.</typeparam>
     /// <param name="instance">The materialized instance.</param>
     /// <param name="property">The identifier property.</param>
     /// <returns>The unwrapped identifier.</returns>
     /// <exception cref="PinnedReadModelCannotBeObserved">The identifier has no value.</exception>
-    internal static string Of<TReadModel>(TReadModel instance, PropertyInfo property)
+    internal static string Of(object instance, PropertyInfo property)
     {
         var value = property.GetValue(instance);
         var key = (value?.IsConcept() == true ? value.GetConceptValue() : value)?.ToString();
 
-        return key ?? throw new PinnedReadModelCannotBeObserved(typeof(TReadModel));
+        return key ?? throw new PinnedReadModelCannotBeObserved(instance.GetType());
     }
 
     static bool IsReadable(PropertyInfo? property)

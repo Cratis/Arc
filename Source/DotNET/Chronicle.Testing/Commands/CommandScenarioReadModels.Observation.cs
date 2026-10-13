@@ -5,7 +5,6 @@ using System.Linq.Expressions;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using System.Text.Json;
-using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Json;
 
@@ -15,16 +14,11 @@ internal sealed partial class CommandScenarioReadModels
 {
     readonly BehaviorSubject<int> _pinsChanged = new(0);
 
-    /// <summary>
-    /// Gets whether seeds are being appended rather than command events.
-    /// </summary>
-    internal bool IsSeedingObservation { get; private set; }
-
     /// <inheritdoc/>
     public ISubject<IEnumerable<TReadModel>> Observe<TReadModel>(Expression<Func<TReadModel, bool>>? filter = null)
     {
         // Chronicle validates passive and unknown read models before the forwarding layer merges pins.
-        var observation = inner.Observe<TReadModel>();
+        var observation = _observationLog is null ? inner.Observe<TReadModel>() : _observationLog.Observe<TReadModel>(inner);
         ValidateObservationPins(typeof(TReadModel));
         var predicate = filter?.Compile();
         var source = observation.CombineLatest(_pinsChanged, (set, _) =>
@@ -38,13 +32,24 @@ internal sealed partial class CommandScenarioReadModels
     }
 
     /// <inheritdoc/>
-    public void Dispose() => _pinsChanged.Dispose();
+    public void Dispose()
+    {
+        _observationLog?.Dispose();
+        _pinsChanged.Dispose();
+    }
 
     void ValidateObservationPins(Type readModelType)
     {
-        if (_instances.Keys.Any(key => key.ReadModelType == readModelType) && ObservationReadModelKey.PropertyFor(readModelType) is null)
+        var pins = _instances.Where(pair => pair.Key.ReadModelType == readModelType).Select(pair => pair.Value).ToArray();
+        if (pins.Length == 0)
         {
-            throw new PinnedReadModelCannotBeObserved(readModelType);
+            return;
+        }
+
+        var property = ObservationReadModelKey.PropertyFor(readModelType) ?? throw new PinnedReadModelCannotBeObserved(readModelType);
+        foreach (var pin in pins)
+        {
+            ObservationReadModelKey.Of(pin, property);
         }
     }
 
@@ -56,35 +61,11 @@ internal sealed partial class CommandScenarioReadModels
             return set;
         }
 
-        var property = ObservationReadModelKey.PropertyFor(typeof(TReadModel)) ?? throw new PinnedReadModelCannotBeObserved(typeof(TReadModel));
+        ValidateObservationPins(typeof(TReadModel));
+        var property = ObservationReadModelKey.PropertyFor(typeof(TReadModel))!;
         var keys = pins.Select(pin => pin.Key.EventSourceId).ToHashSet(StringComparer.Ordinal);
 
         return set.Where(instance => !keys.Contains(ObservationReadModelKey.Of(instance, property)))
             .Concat(pins.Select(pin => (TReadModel)pin.Value));
-    }
-
-    void SeedObservationEvents(EventSourceId eventSourceId, IEnumerable<object> events)
-    {
-        if (observationLog is null)
-        {
-            return;
-        }
-
-        IsSeedingObservation = true;
-        try
-        {
-            foreach (var @event in events)
-            {
-                var result = observationLog.Append(eventSourceId, @event).GetAwaiter().GetResult();
-                if (!result.IsSuccess)
-                {
-                    throw new PriorEventCouldNotBeSeeded();
-                }
-            }
-        }
-        finally
-        {
-            IsSeedingObservation = false;
-        }
     }
 }
