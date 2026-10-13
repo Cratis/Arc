@@ -32,9 +32,14 @@ internal static class GeneratedValueParameters
     /// </summary>
     /// <param name="type">The type to inspect.</param>
     /// <returns>Whether the type is generatable.</returns>
-    internal static bool IsGeneratable(Type type) => type.GetInterfaces().Any(candidate =>
-        candidate.IsGenericType && candidate.GetGenericTypeDefinition() == typeof(IGeneratable<>) &&
-        candidate.GenericTypeArguments[0] == type);
+    internal static bool IsGeneratable(Type type) => Implements(type, typeof(IGeneratable<>)) || IsGeneratableInContext(type);
+
+    /// <summary>
+    /// Determines whether a type implements the context-dependent generation contract for itself.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <returns>Whether the type is context-dependent.</returns>
+    internal static bool IsGeneratableInContext(Type type) => Implements(type, typeof(IGeneratableInContext<>));
 
     /// <summary>
     /// Gets the explicit generated name or the parameter name.
@@ -43,6 +48,10 @@ internal static class GeneratedValueParameters
     /// <returns>The generated value name.</returns>
     internal static string NameFor(ParameterInfo parameter) =>
         parameter.GetCustomAttribute<GeneratedValueAttribute>()!.Name ?? parameter.Name!;
+
+    static bool Implements(Type type, Type contract) => type.GetInterfaces().Any(candidate =>
+        candidate.IsGenericType && candidate.GetGenericTypeDefinition() == contract &&
+        candidate.GenericTypeArguments[0] == type);
 
     static ParameterInfo[] DescribeParameters(Type commandType, MethodInfo handleMethod, bool dynamicCodeSupported)
     {
@@ -71,7 +80,7 @@ internal static class GeneratedValueParameters
         var type = parameter.ParameterType;
         if (!IsGeneratable(type))
         {
-            throw new InvalidGeneratedValueParameter(commandType, parameter.Name!, "the type must implement IGeneratable<TSelf> for itself.");
+            throw new InvalidGeneratedValueParameter(commandType, parameter.Name!, "the type must implement IGeneratable<TSelf> or IGeneratableInContext<TSelf> for itself.");
         }
 
         if (new NullabilityInfoContext().Create(parameter).ReadState == NullabilityState.Nullable)

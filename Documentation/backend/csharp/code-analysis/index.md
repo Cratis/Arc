@@ -7,7 +7,7 @@ Arc's Core Roslyn analyzers check command, query, validation, and concept declar
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0026 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0028 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -37,6 +37,8 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0024](ARC0024.md) | Generated value names must be non-empty and unique | Error | `GeneratedValueAnalyzer` |
 | [ARC0025](ARC0025.md) | Provide supplies a generated value type | Warning | `GeneratedValueAnalyzer` |
 | [ARC0026](ARC0026.md) | Invalid explicit query declaration | Error | `ReadModelAnalyzer` and query metadata generation |
+| [ARC0027](ARC0027.md) | Generated value implements both generation contracts | Warning | `GeneratedValueAnalyzer` |
+| [ARC0028](ARC0028.md) | Move inline generation to a generated parameter | Info | `InlineGeneratedValueAnalyzer` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -169,8 +171,9 @@ Only these Core diagnostics currently have code-fix providers. The other rules r
 | --- | --- | --- |
 | ARC0010 | Unwrap to synchronous Handle() | `UnwrapCommandHandleTaskCodeFixProvider` |
 | ARC0011 | Use nameof for role | `UseNameofForRolesCodeFixProvider` |
+| [ARC0028](ARC0028.md) | Move to a [GeneratedValue] parameter | `MoveToGeneratedValueCodeFixProvider` |
 
-Both providers expose Roslyn's batch Fix All support. Review and compile the result, particularly the enum lookup for ARC0011.
+ARC0010 and ARC0011 expose Roslyn's batch Fix All support; ARC0028 deliberately fixes one expression at a time. Review and compile the result, particularly the enum lookup for ARC0011.
 
 ## Installation
 

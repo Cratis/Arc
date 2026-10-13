@@ -145,6 +145,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
+        using var tenant = CommandScenarioGeneratedValueExtensions.FixtureFor(this).BeginTenant(_serviceProvider!);
         LastResult = await _pipeline!.Execute(command!, _serviceProvider!, allowedSeverity: null, cancellationToken);
 
         return LastResult;
@@ -178,11 +179,13 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
     /// <param name="command">The command to validate.</param>
     /// <returns>A <see cref="Task{TResult}"/> that resolves to the <see cref="CommandResult"/>.</returns>
     /// <exception cref="ObjectDisposedException">Thrown if the scenario has been disposed.</exception>
-    public Task<CommandResult> Validate(TCommand command)
+    public async Task<CommandResult> Validate(TCommand command)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureInitialized();
-        return _pipeline!.Validate(command!, _serviceProvider!);
+        using var tenant = CommandScenarioGeneratedValueExtensions.FixtureFor(this).BeginTenant(_serviceProvider!);
+
+        return await _pipeline!.Validate(command!, _serviceProvider!);
     }
 
     /// <summary>

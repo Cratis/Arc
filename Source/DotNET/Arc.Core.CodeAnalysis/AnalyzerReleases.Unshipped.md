@@ -27,3 +27,5 @@ ARC0023|Arc|Error|Generated value declared outside a command Handle method
 ARC0024|Arc|Error|Generated value names must be non-empty and unique
 ARC0025|Arc|Warning|Provide supplies a generated value type
 ARC0026|Arc|Error|Invalid explicit query declaration
+ARC0027|Arc|Warning|Generated value implements both generation contracts
+ARC0028|Arc|Info|Move inline generation to a generated parameter
