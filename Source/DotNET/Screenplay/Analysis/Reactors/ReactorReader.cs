@@ -90,6 +90,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     {
         var handlers = Handlers(type).ToList();
         var eventSource = EventSourceReader.ReadObserved(type);
+        var routesAppends = ReactorMetadataReader.RoutesAppends(type, handlers, models);
 
         var reactor = new ReactorModel(
             type.Name,
@@ -99,11 +100,11 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             eventSource)
         {
             Reactions = ObservesTheEventLog(type)
-                ? new ReactionReader(models) { Constraints = _constraintCoverage ??= ConstraintCoverage.Read(Definitions, models) }.Read(type, handlers) : [],
+                ? new ReactionReader(models) { Constraints = _constraintCoverage ??= ConstraintCoverage.Read(Definitions, models) }.Read(type, handlers, routesAppends) : [],
             RefusalHandlingHandlers = [.. handlers.Where(HandlesACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             DiscardedCommandResultHandlers = [.. handlers.Where(DiscardsACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             RedeliveryHandlers = [.. handlers.Where(UsesDeliveryReceipts).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
-            HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type, handlers, models) &&
+            HasUnrepresentableAppendRoute = routesAppends &&
                 handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
 

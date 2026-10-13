@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Commands;
+using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -38,6 +39,10 @@ internal class ReactorAppendRouting(SemanticModels models)
 
     static bool HasIndependentDestination(ITypeSymbol type, HashSet<ITypeSymbol> visited)
     {
+        if (EventReader.IsEvent(type))
+        {
+            return false;
+        }
         if (!visited.Add(type))
         {
             return false;

@@ -62,22 +62,8 @@ public class ReactionReader(SemanticModels models)
     /// <param name="reactor">The type declaring the reactor.</param>
     /// <param name="handlers">The handlers of the reactor.</param>
     /// <returns>The reactions, one per observed event whose handler can be stated.</returns>
-    public IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers)
-    {
-        if (IsNarrowed(reactor, handlers))
-        {
-            return [];
-        }
-
-        var routesAppends = ReactorMetadataReader.RoutesAppends(reactor, handlers, models);
-
-        return handlers
-            .GroupBy(_ => _.Parameters[0].Type, SymbolEqualityComparer.Default)
-            .Where(_ => _.Count() == 1)
-            .Select(_ => Read(_.Single(), routesAppends))
-            .OfType<ReactionModel>()
-            .ToList();
-    }
+    public IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers) =>
+        Read(reactor, handlers, ReactorMetadataReader.RoutesAppends(reactor, handlers, models));
 
     /// <summary>
     /// Gets the single expression a body returns.
@@ -142,6 +128,28 @@ public class ReactionReader(SemanticModels models)
             method.ContainingType.FullMetadataName() == "System.Threading.Tasks.Task"
                 ? argument.Expression
                 : null;
+    }
+
+    /// <summary>
+    /// Reads the declarative reactions with the reactor's append routing already classified.
+    /// </summary>
+    /// <param name="reactor">The type declaring the reactor.</param>
+    /// <param name="handlers">The handlers of the reactor.</param>
+    /// <param name="routesAppends">Whether returned events use an unsupported context append route.</param>
+    /// <returns>The declarative reactions.</returns>
+    internal IEnumerable<ReactionModel> Read(INamedTypeSymbol reactor, IReadOnlyList<IMethodSymbol> handlers, bool routesAppends)
+    {
+        if (IsNarrowed(reactor, handlers))
+        {
+            return [];
+        }
+
+        return handlers
+            .GroupBy(_ => _.Parameters[0].Type, SymbolEqualityComparer.Default)
+            .Where(_ => _.Count() == 1)
+            .Select(_ => Read(_.Single(), routesAppends))
+            .OfType<ReactionModel>()
+            .ToList();
     }
 
     /// <summary>
