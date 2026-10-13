@@ -41,5 +41,5 @@ public class a_query_served_at_a_route_of_its_own : Specification
     [Fact] void should_still_recover_the_query() => _analysis.Slice().Queries.Single().Name.ShouldEqual("AuthorsByName");
     [Fact] void should_say_where_the_query_is_served() => _analysis.Diagnostics.Count(_ => _.Message.Contains("/catalog/authors/by-name'", StringComparison.Ordinal)).ShouldEqual(1);
     [Fact] void should_not_name_the_read_model_path_its_only_query_replaced() => _analysis.Diagnostics.Count(_ => _.Message.Contains("/catalog/authors'", StringComparison.Ordinal)).ShouldEqual(0);
-    [Fact] void should_report_both_as_a_serving_concern() => _analysis.Diagnostics.All(_ => _.Code == ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart).ShouldBeTrue();
+    [Fact] void should_report_both_as_a_serving_concern() => _analysis.Diagnostics.Where(_ => _.Message.Contains("/catalog/", StringComparison.Ordinal)).All(_ => _.Code == ScreenplayDiagnosticCodes.ServingConcernWithoutCounterpart).ShouldBeTrue();
 }

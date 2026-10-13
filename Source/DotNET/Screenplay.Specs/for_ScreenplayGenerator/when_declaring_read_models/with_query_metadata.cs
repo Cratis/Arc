@@ -14,6 +14,7 @@ public class with_query_metadata : Specification
     const string Source = """
         using System;
         using System.Collections.Generic;
+        using System.Linq;
         using System.Threading.Tasks;
         using Cratis.Arc.Queries;
         using Cratis.Arc.Queries.ModelBound;
@@ -23,7 +24,7 @@ public class with_query_metadata : Specification
         {
             /// <summary>One author, if present.</summary>
             public static Task<Author?> ById(Guid id) => Task.FromResult<Author?>(null);
-            public static IEnumerable<Author> All(int limit = 10, string? name = null) { return []; }
+            public static IEnumerable<Author> All(int limit = 10, string? name = null) { return Enumerable.Empty<Author>().Where(x => name is null || x.Name == name); }
             public static Task<Author[]?> MaybeAll() => Task.FromResult<Author[]?>(null);
             public static Author? WithContext(QueryContext context, Guid id) => null;
             public static extern Author? WithoutBody(Guid id);
@@ -45,7 +46,7 @@ public class with_query_metadata : Specification
     [Fact] void should_preserve_a_nullable_wrapped_scalar_return() => _default.Source.ShouldContain("query ById => Author optional");
     [Fact] void should_preserve_a_nullable_collection_return() => _default.Source.ShouldContain("query MaybeAll => Author[] optional");
     [Fact] void should_preserve_non_nullable_collection_returns() => _default.Source.ShouldContain("query All => Author[]\n");
-    [Fact] void should_recover_value_parameter_defaults_as_optional() => _default.Source.ShouldContain("filter limit Int optional");
+    [Fact] void should_withhold_a_defaulted_parameter_without_equality() => _default.Source.ShouldNotContain("filter limit");
     [Fact] void should_recover_null_defaults_as_optional() => _default.Source.ShouldContain("filter name String optional");
     [Fact] void should_report_the_unrepresented_default_value() => _default.Diagnostics.Any(d => d.Code == "SP0019" && d.Message.Contains("non-null default value", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_not_fabricate_scalar_context_sources() => _default.Source.ShouldNotContain("from $context");

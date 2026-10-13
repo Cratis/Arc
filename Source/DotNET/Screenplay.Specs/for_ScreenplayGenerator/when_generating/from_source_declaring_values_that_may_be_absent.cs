@@ -17,6 +17,7 @@ public class from_source_declaring_values_that_may_be_absent : Specification
     const string Invoicing = """
         using System;
         using System.Collections.Generic;
+        using System.Linq;
         using Cratis.Arc.Commands.ModelBound;
         using Cratis.Arc.Queries.ModelBound;
         using Cratis.Chronicle.Events;
@@ -48,7 +49,10 @@ public class from_source_declaring_values_that_may_be_absent : Specification
         {
             public string Id { get; init; } = string.Empty;
 
-            public static IEnumerable<InvoiceGroup> GroupsByKey(InvoiceGroupKey? groupKey) => [];
+            public InvoiceGroupKey? GroupKey { get; init; }
+
+            public static IEnumerable<InvoiceGroup> GroupsByKey(IEnumerable<InvoiceGroup> groups, InvoiceGroupKey? groupKey = null) =>
+                groups.Where(group => groupKey is null || group.GroupKey == groupKey);
         }
         """;
 
