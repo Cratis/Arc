@@ -47,6 +47,8 @@ Client-side validation is a convenience, not a gate — every rule it applies is
 calling an endpoint directly gains nothing. Server rejections report member names the same way the client does:
 camelCased, and attributed to the field rather than to a concept's inner value.
 
+For an HTTP query request, a server validation rejection returns HTTP 400 with a query result whose `isValid` and `isSuccess` are `false` and whose `validationResults` contain the member names and messages. `perform()` preserves that result, and React query hooks expose those same fields. Observable subscriptions deliver one invalid result through the callback and then end that subscription, over either WebSocket or SSE, in direct or hub mode.
+
 For general validation docs, see [Validation](../validation/index.md).
 
 ## Sorting and paging
