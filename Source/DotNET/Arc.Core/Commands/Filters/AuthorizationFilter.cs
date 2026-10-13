@@ -18,7 +18,7 @@ public class AuthorizationFilter(IAuthorizationEvaluator authorizationHelper) : 
         context.CancellationToken.ThrowIfCancellationRequested();
         if (context.ServiceProvider is null && AuthorizationAttributeGuard.RequiresScopedEvaluation(context.Type))
         {
-            return CommandResult.Unauthorized(context.CorrelationId);
+            return CommandResult.AuthorizationConfigurationFailure(context.CorrelationId);
         }
 
         bool allowed;
@@ -40,7 +40,7 @@ public class AuthorizationFilter(IAuthorizationEvaluator authorizationHelper) : 
         catch (AsynchronousAuthorizationRequired)
         {
             context.CancellationToken.ThrowIfCancellationRequested();
-            return CommandResult.Unauthorized(context.CorrelationId);
+            return CommandResult.AuthorizationConfigurationFailure(context.CorrelationId);
         }
         context.CancellationToken.ThrowIfCancellationRequested();
         return allowed ? CommandResult.Success(context.CorrelationId) : CommandResult.Unauthorized(context.CorrelationId);
