@@ -9,8 +9,18 @@ using Cratis.Monads;
 
 namespace Cratis.Arc.Chronicle.Reactors;
 
+/// <summary>
+/// Validates branch productions before appending through the ordinary reactor event path.
+/// </summary>
 internal static class RefusalEvents
 {
+    /// <summary>
+    /// Appends a branch's registered events with the reactor's resolved routing.
+    /// </summary>
+    /// <param name="context">The reactor context.</param>
+    /// <param name="store">The current event store.</param>
+    /// <param name="value">The branch production.</param>
+    /// <returns>The append outcome or a failure for an invalid production.</returns>
     public static Task<Result<ReactorSideEffectFailure>> Append(ReactorContext context, IEventStore store, object value)
     {
         var events = value is IEnumerable<object> sequence ? sequence.ToArray() : [value];

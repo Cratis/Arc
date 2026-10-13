@@ -22,5 +22,10 @@ public static class Invoke
     /// </summary>
     /// <param name="refusal">The refused command's details.</param>
     /// <returns>Null, representing acknowledgment.</returns>
-    public static object? Acknowledge(CommandRefusal refusal) => null;
+    public static object? Acknowledge(CommandRefusal refusal)
+    {
+        _ = refusal;
+
+        return null;
+    }
 }

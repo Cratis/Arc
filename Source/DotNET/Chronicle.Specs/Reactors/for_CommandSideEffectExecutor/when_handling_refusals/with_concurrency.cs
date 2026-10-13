@@ -22,7 +22,7 @@ public class with_concurrency : given.a_refused_invocation
     }
 
     [Fact] void should_fail_for_recovery() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_preserve_the_failure_message() => _failure.GetMessages().ShouldContain("Command 'TestCommand' failed validation: moved on");
+    [Fact] void should_preserve_the_failure_message() => _failure.AppendFailures.SelectMany(failure => failure.Errors).ShouldContain("Command 'TestCommand' failed validation: moved on");
     [Fact] void should_not_run_a_branch() => _branchesRun.ShouldEqual(0);
     [Fact] void should_skip_later_commands() => _commandPipeline.DidNotReceive().Execute(_later, _serviceProvider);
 }

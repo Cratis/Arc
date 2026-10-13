@@ -55,26 +55,6 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
         }
     }
 
-    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, Type? reactorType, Func<object, Task<Result<ReactorSideEffectFailure>>>? append)
-    {
-        using var systemExecutionScope = reactorType is not null ? EstablishSystemExecution(reactorType) : null;
-        using var scope = serviceScopeFactory.CreateScope();
-        var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
-
-        foreach (var item in commands)
-        {
-            var invocation = item as CommandInvocation;
-            var command = invocation?.Command ?? item;
-            var result = await commandPipeline.Execute(command, scope.ServiceProvider);
-            if (!result.IsSuccess)
-            {
-                return await HandleFailure(command, result, invocation, append);
-            }
-        }
-
-        return Result.Success<ReactorSideEffectFailure>();
-    }
-
     static async Task<Result<ReactorSideEffectFailure>> HandleFailure(object command, CommandResult result, CommandInvocation? invocation, Func<object, Task<Result<ReactorSideEffectFailure>>>? append)
     {
         if (invocation is null)
@@ -96,6 +76,26 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
         }
 
         return append is not null ? await append(events) : Result.Failed(CreateFailure(command, result));
+    }
+
+    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, Type? reactorType, Func<object, Task<Result<ReactorSideEffectFailure>>>? append)
+    {
+        using var systemExecutionScope = reactorType is not null ? EstablishSystemExecution(reactorType) : null;
+        using var scope = serviceScopeFactory.CreateScope();
+        var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
+
+        foreach (var item in commands)
+        {
+            var invocation = item as CommandInvocation;
+            var command = invocation?.Command ?? item;
+            var result = await commandPipeline.Execute(command, scope.ServiceProvider);
+            if (!result.IsSuccess)
+            {
+                return await HandleFailure(command, result, invocation, append);
+            }
+        }
+
+        return Result.Success<ReactorSideEffectFailure>();
     }
 
     IDisposable? EstablishSystemExecution(Type reactorType)

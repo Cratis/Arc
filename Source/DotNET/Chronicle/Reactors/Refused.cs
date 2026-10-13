@@ -37,5 +37,10 @@ public sealed class Refused
     public static Refused ByConstraint(string? name = null) =>
         new(refusal => refusal.Kind == CommandRefusalKind.Constraint && (name is null || refusal.ConstraintName == name));
 
+    /// <summary>
+    /// Tests whether the refusal satisfies this selector.
+    /// </summary>
+    /// <param name="refusal">The classified refusal.</param>
+    /// <returns>Whether the selector matches.</returns>
     internal bool Matches(CommandRefusal refusal) => _matches(refusal);
 }

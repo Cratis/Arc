@@ -12,6 +12,11 @@ public sealed class CommandInvocation
 {
     readonly RefusalBranch[] _branches;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="CommandInvocation"/> class.
+    /// </summary>
+    /// <param name="command">The protected command.</param>
+    /// <param name="branches">The ordered branches.</param>
     internal CommandInvocation(object command, RefusalBranch[] branches)
     {
         Command = command;
@@ -39,6 +44,11 @@ public sealed class CommandInvocation
     /// <returns>A new invocation with an acknowledgment branch.</returns>
     public CommandInvocation Acknowledge(Refused selector) => OnRefused(selector, Invoke.Acknowledge);
 
+    /// <summary>
+    /// Selects the first matching branch in declaration order.
+    /// </summary>
+    /// <param name="refusal">The classified refusal.</param>
+    /// <returns>The matching branch, or null.</returns>
     internal RefusalBranch? FindBranch(CommandRefusal refusal) =>
         _branches.FirstOrDefault(branch => branch.Selector.Matches(refusal));
 }

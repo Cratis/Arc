@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Execution;
 
@@ -29,7 +30,7 @@ public class events_and_invocations : given.an_invocation_dispatcher
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_preserve_events_first_then_branch_append_order() => _order.SequenceEqual(["append", "command", "append"]).ShouldBeTrue();
-    [Fact] void should_append_ordinary_events_first() => _batches.First().Single().ShouldEqual(new RefusalRecorded("ordinary"));
-    [Fact] void should_append_branch_events_separately() => _batches.Last().Single().ShouldEqual(new RefusalRecorded("$strings.refused"));
+    [Fact] void should_append_ordinary_events_first() => _batches[0].Single().ShouldEqual(new RefusalRecorded("ordinary"));
+    [Fact] void should_append_branch_events_separately() => _batches[^1].Single().ShouldEqual(new RefusalRecorded("$strings.refused"));
     [Fact] void should_skip_later_commands() => _commandPipeline.DidNotReceive().Execute(_later, _serviceProvider);
 }

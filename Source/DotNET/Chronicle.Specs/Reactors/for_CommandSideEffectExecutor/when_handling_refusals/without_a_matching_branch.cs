@@ -17,6 +17,6 @@ public class without_a_matching_branch : given.a_refused_invocation
     }
 
     [Fact] void should_fail() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_retain_the_existing_failure_message() => _failure.GetMessages().ShouldContain("Command 'TestCommand' failed validation: $strings.refused");
+    [Fact] void should_retain_the_existing_failure_message() => _failure.AppendFailures.SelectMany(failure => failure.Errors).ShouldContain("Command 'TestCommand' failed validation: $strings.refused");
     [Fact] void should_not_run_a_branch() => _branchesRun.ShouldEqual(0);
 }

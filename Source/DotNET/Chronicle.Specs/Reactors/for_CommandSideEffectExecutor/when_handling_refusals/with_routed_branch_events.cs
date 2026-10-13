@@ -4,6 +4,7 @@
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.Reactors.SideEffects;
 
 namespace Cratis.Arc.Chronicle.Reactors.for_CommandSideEffectExecutor.when_handling_refusals;
 
@@ -26,10 +27,10 @@ public class with_routed_branch_events : given.a_refused_invocation
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_append_both_events_in_order() => _appended.Select(envelope => envelope.Event).ShouldContainOnly(_bare, _routed.Event);
-    [Fact] void should_preserve_the_explicit_envelope() => ReferenceEquals(_appended.Last(), _routed).ShouldBeTrue();
-    [Fact] void should_use_the_resolved_source() => _appended.First().EventSourceId.Value.ShouldEqual("resolved");
-    [Fact] void should_use_the_resolved_stream_type() => _appended.First().EventStreamType.Value.ShouldEqual("resolved-type");
-    [Fact] void should_use_the_resolved_stream_id() => _appended.First().EventStreamId.Value.ShouldEqual("resolved-stream");
-    [Fact] void should_use_the_resolved_source_type() => _appended.First().EventSourceType.Value.ShouldEqual("resolved-source");
-    [Fact] void should_use_the_resolved_subject() => _appended.First().Subject!.Value.ShouldEqual("resolved-subject");
+    [Fact] void should_preserve_the_explicit_envelope() => ReferenceEquals(_appended[^1], _routed).ShouldBeTrue();
+    [Fact] void should_use_the_resolved_source() => _appended[0].EventSourceId.Value.ShouldEqual("resolved");
+    [Fact] void should_use_the_resolved_stream_type() => _appended[0].EventStreamType.Value.ShouldEqual("resolved-type");
+    [Fact] void should_use_the_resolved_stream_id() => _appended[0].EventStreamId.Value.ShouldEqual("resolved-stream");
+    [Fact] void should_use_the_resolved_source_type() => _appended[0].EventSourceType.Value.ShouldEqual("resolved-source");
+    [Fact] void should_use_the_resolved_subject() => _appended[0].Subject!.Value.ShouldEqual("resolved-subject");
 }

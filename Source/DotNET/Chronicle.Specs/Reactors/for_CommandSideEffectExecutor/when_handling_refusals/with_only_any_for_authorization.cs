@@ -23,7 +23,7 @@ public class with_only_any_for_authorization : given.a_refused_invocation
     }
 
     [Fact] void should_fail() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_retain_the_existing_failure_message() => _failure.GetMessages().ShouldContain("Command 'TestCommand' was not authorized. denied");
+    [Fact] void should_retain_the_existing_failure_message() => _failure.AppendFailures.SelectMany(failure => failure.Errors).ShouldContain("Command 'TestCommand' was not authorized. denied");
     [Fact] void should_not_run_a_branch() => _branchesRun.ShouldEqual(0);
     [Fact] void should_skip_later_commands() => _commandPipeline.DidNotReceive().Execute(_later, _serviceProvider);
 }
