@@ -25,6 +25,11 @@ public class ReducerReader(ScreenplayDiagnostics diagnostics)
     public const string EventLogSequence = "event-log";
 
     /// <summary>
+    /// Gets the semantic models resolving definition names.
+    /// </summary>
+    internal SemanticModels? Models { get; init; }
+
+    /// <summary>
     /// Determines whether a type is a reducer, and for what read model.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -69,7 +74,7 @@ public class ReducerReader(ScreenplayDiagnostics diagnostics)
             ProjectionAutoMapMode.Enabled,
             false,
             ProjectionScopeModel.Empty with { From = [.. observed.Select(_ => new ProjectionFromModel([_], null, null, EmptyMap()))] },
-            EventSourceReader.ReadObserved(type));
+            EventSourceReader.ReadObserved(type, Models));
     }
 
     /// <summary>

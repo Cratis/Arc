@@ -109,7 +109,7 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
             return null;
         }
 
-        return RoutesUseDeclaredStreams(definition) ? definition : null;
+        return UniqueStoredSource(reactor, definition) && RoutesUseDeclaredStreams(definition) ? definition : null;
     }
 
     /// <summary>
@@ -192,7 +192,8 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
     }
 
     static bool ValidStreams(ReactorSourceDefinition definition) => definition.Streams.All(ValidName) &&
-        definition.Streams.Distinct(StringComparer.Ordinal).Count() == definition.Streams.Count;
+        definition.Streams.Distinct(StringComparer.Ordinal).Count() == definition.Streams.Count &&
+        definition.StoredStreams.Values.Distinct(StringComparer.Ordinal).Count() == definition.StoredStreams.Count;
 
     static bool ObservesDeclaredStream(ObservedEventSourceModel observed, ReactorSourceDefinition definition) =>
         observed.Stream is null || definition.Streams.Contains(observed.Stream, StringComparer.Ordinal);
@@ -241,6 +242,9 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
 
     ReactorSourceDefinition? UniqueSource(ReactorModel reactor, string source) => DefinitionsOf(reactor)
         .DistinctBy(item => item.Identity, StringComparer.Ordinal).Where(item => item.Source == source).ToList() is [var definition] ? definition : null;
+
+    bool UniqueStoredSource(ReactorModel reactor, ReactorSourceDefinition definition) => DefinitionsOf(reactor)
+        .Where(item => item.StoredSource == definition.StoredSource).Select(item => item.Identity).Distinct(StringComparer.Ordinal).Count() == 1;
 
     IEnumerable<ReactorSourceDefinition> DefinitionsOf(ReactorModel reactor) => application is null
         ? reactor.ObservationDefinitions

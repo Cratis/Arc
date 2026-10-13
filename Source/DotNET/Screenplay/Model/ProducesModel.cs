@@ -15,6 +15,11 @@ public record ProducesModel(
     IEnumerable<PropertyMappingModel> Mappings)
 {
     /// <summary>
+    /// Gets the proven explicit destination of a reaction production.
+    /// </summary>
+    public MappingSourceModel? Destination { get; init; }
+
+    /// <summary>
     /// Gets the source event type identity, when the construction was analyzed.
     /// </summary>
     public string? EventTypeIdentity { get; init; }

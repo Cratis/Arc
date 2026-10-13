@@ -134,6 +134,7 @@ public class ArtifactReaders
             new CommandReader(properties, produces, validators, paths, new(models, diagnostics))
             {
                 Diagnostics = diagnostics,
+                Models = models,
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
                 {
                     ExecutableRoutes = whole.ExecutableRoutes,
@@ -145,7 +146,7 @@ public class ArtifactReaders
             new QueryReader(types, diagnostics) { Paths = paths, Models = models },
             new ModelBoundProjectionReader(diagnostics),
             new FluentProjectionReader(models, diagnostics),
-            new ReducerReader(diagnostics),
+            new ReducerReader(diagnostics) { Models = models },
             new ReactorReader(models, paths)
             {
                 Definitions = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList()
