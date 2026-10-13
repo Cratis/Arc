@@ -28,6 +28,8 @@ class CreateUserCommandValidator extends CommandValidator<ICreateUserCommand> {
 - `matches(regex)`
 - `greaterThan()`, `greaterThanOrEqual()`, `lessThan()`, `lessThanOrEqual()`
 
+For strings, `notEmpty()` rejects empty text and text made entirely of Unicode `White_Space` characters, matching .NET `char.IsWhiteSpace`. This includes U+0085 (NEXT LINE), but not U+FEFF (BYTE ORDER MARK).
+
 ## Custom messages
 
 Use `withMessage()` to override defaults:

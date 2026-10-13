@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net;
+using System.Net.WebSockets;
+using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
 using Cratis.Arc.Tenancy;
@@ -121,6 +123,11 @@ public static class QueryEndpointMapper
                     // is what names the reason on the wire. Everything else stays an exception result.
                     var errorResult = QueryResult.FromException(correlationIdAccessor.Current, ex);
                     ExceptionDetailRedactor.Redact(errorResult, arcOptions.ExposeExceptionDetails, logger);
+                    if (await TryWriteValidationRejection(context, errorResult, arcOptions))
+                    {
+                        return;
+                    }
+
                     context.SetStatusCode((int)HttpStatusCode.BadRequest);
                     await context.WriteResponseAsJson(errorResult, typeof(QueryResult), context.RequestAborted);
                     return;
@@ -197,11 +204,54 @@ public static class QueryEndpointMapper
             return;
         }
 
+        await WriteQueryResponse(context, queryResult, arcOptions, logger);
+    }
+
+    static async Task WriteQueryResponse(IHttpRequestContext context, QueryResult queryResult, ArcOptions arcOptions, ILogger logger)
+    {
         ExceptionDetailRedactor.Redact(queryResult, arcOptions.ExposeExceptionDetails, logger);
+        if (await TryWriteValidationRejection(context, queryResult, arcOptions))
+        {
+            return;
+        }
 
         var statusCode = EndpointRouteHelper.GetStatusCode(queryResult.IsSuccess, queryResult.IsAuthorized, queryResult.IsValid, queryResult.IsReady);
         context.SetStatusCode(statusCode);
         await context.WriteResponseAsJson(queryResult, typeof(QueryResult), context.RequestAborted);
+    }
+
+    static async Task<bool> TryWriteValidationRejection(IHttpRequestContext context, QueryResult result, ArcOptions options)
+    {
+        if (result.IsValid || !result.IsAuthorized)
+        {
+            return false;
+        }
+
+        var rejection = new QueryResult
+        {
+            CorrelationId = result.CorrelationId,
+            ValidationResults = result.ValidationResults
+        };
+
+        if (context.WebSockets.IsWebSocketRequest)
+        {
+            using var socket = await context.WebSockets.AcceptWebSocket(context.RequestAborted);
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(rejection, options.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
+            await socket.Send(bytes, System.Net.WebSockets.WebSocketMessageType.Text, true, context.RequestAborted);
+            await socket.Close(WebSocketCloseStatus.NormalClosure, "Query validation failed", context.RequestAborted);
+            return true;
+        }
+
+        if (context.Headers.TryGetValue("Accept", out var accept) &&
+            accept.Contains(HttpRequestContextExtensions.SseContentType, StringComparison.OrdinalIgnoreCase))
+        {
+            context.SetSseResponseHeaders();
+            var json = JsonSerializer.Serialize(rejection, options.JsonSerializerOptions.ResolveTypeInfo<QueryResult>());
+            await context.Write($"data: {json}\n\n", context.RequestAborted);
+            return true;
+        }
+
+        return false;
     }
 
     static bool CanPerformWithCustomPipeline(IHttpRequestContext context, IQueryPerformer performer, ILogger logger)
