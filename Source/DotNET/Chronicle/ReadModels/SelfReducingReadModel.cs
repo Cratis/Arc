@@ -34,7 +34,8 @@ internal static class SelfReducingReadModel
         return method.Name == "Reduce" && !method.IsSpecialName && !method.IsGenericMethod && !method.ContainsGenericParameters &&
             parameters.Length is 2 or 3 &&
             parameters.All(parameter => !parameter.ParameterType.IsByRef && !parameter.IsOptional && !parameter.IsDefined(typeof(ParamArrayAttribute))) &&
-            parameters[0].ParameterType.IsDefined(typeof(EventTypeAttribute), inherit: true) &&
+            parameters[0].ParameterType != typeof(object) &&
+            (parameters[0].ParameterType.IsClass || parameters[0].ParameterType.IsInterface) &&
             parameters[1].ParameterType == model &&
             new NullabilityInfoContext().Create(parameters[1]).ReadState != NullabilityState.NotNull &&
             (parameters.Length == 2 || parameters[2].ParameterType == typeof(EventContext)) &&

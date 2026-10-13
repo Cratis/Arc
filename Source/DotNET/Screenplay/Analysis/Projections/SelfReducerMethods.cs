@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Screenplay.Analysis.Events;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.Analysis.Projections;
@@ -40,7 +39,8 @@ internal static class SelfReducerMethods
         method.Name == "Reduce" && method is { MethodKind: MethodKind.Ordinary, IsStatic: true, DeclaredAccessibility: Accessibility.Public, TypeParameters.Length: 0, ReturnsByRef: false, ReturnsByRefReadonly: false } &&
         method.Parameters.Length is 2 or 3 &&
         method.Parameters.All(parameter => parameter.RefKind == RefKind.None && !parameter.IsOptional && !parameter.IsParams) &&
-        EventReader.IsEvent(method.Parameters[0].Type) &&
+        method.Parameters[0].Type.SpecialType != SpecialType.System_Object &&
+        method.Parameters[0].Type.TypeKind is TypeKind.Class or TypeKind.Interface or TypeKind.Array or TypeKind.Delegate &&
         SymbolEqualityComparer.Default.Equals(method.Parameters[1].Type, model) &&
         method.Parameters[1].NullableAnnotation != NullableAnnotation.NotAnnotated &&
         (method.Parameters.Length == 2 || method.Parameters[2].Type.Is(WellKnownTypeNames.EventContext)) &&

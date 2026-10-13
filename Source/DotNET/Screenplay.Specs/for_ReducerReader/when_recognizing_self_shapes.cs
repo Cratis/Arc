@@ -10,6 +10,14 @@ public class when_recognizing_self_shapes
     [Theory]
     [InlineData("public static Balance Reduce(Added e, Balance? current) => new();", true)]
     [InlineData("public static Balance? Reduce(Added e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(IAccountEvent e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(UnmarkedBase e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(ExplicitlyRegisteredEvent e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(string e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(string[] e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(System.Action e, Balance? current) => current;", true)]
+    [InlineData("public static Balance? Reduce(dynamic e, Balance? current) => current;", false)]
+    [InlineData("public static Balance? Reduce(int e, Balance? current) => current;", false)]
     [InlineData("public static Task<Balance> Reduce(Added e, Balance? current) => Task.FromResult(new Balance());", true)]
     [InlineData("public static Task<Balance?> Reduce(Added e, Balance? current, EventContext context) => Task.FromResult(current);", true)]
     [InlineData("#nullable disable\npublic static Balance Reduce(Added e, Balance current) => current;", true)]
@@ -30,6 +38,9 @@ public class when_recognizing_self_shapes
             using Cratis.Chronicle.Events;
             namespace Library.Feature.Slice;
             [EventType] public record Added;
+            public interface IAccountEvent;
+            public record UnmarkedBase;
+            public record ExplicitlyRegisteredEvent : UnmarkedBase, IAccountEvent;
             public record Balance
             {
                 {{method}}
