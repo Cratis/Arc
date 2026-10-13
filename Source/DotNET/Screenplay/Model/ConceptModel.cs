@@ -35,6 +35,16 @@ public record ConceptModel(
     public bool IsSensitive { get; init; }
 
     /// <summary>
+    /// Gets the proven generation strategy owned by this concept.
+    /// </summary>
+    internal GenerationModel? Generation { get; init; }
+
+    /// <summary>
+    /// Gets the source anchor for generation withholding diagnostics.
+    /// </summary>
+    internal string? GenerationLocation { get; init; }
+
+    /// <summary>
     /// Gets the non-default encryption scope, or null for Subject scope.
     /// </summary>
     internal string? EncryptionScope { get; init; }

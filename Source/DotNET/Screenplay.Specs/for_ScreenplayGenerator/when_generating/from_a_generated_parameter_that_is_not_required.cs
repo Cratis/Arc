@@ -21,7 +21,7 @@ public class from_a_generated_parameter_that_is_not_required : a_generated_docum
         Result.Source.ShouldNotContain("generated");
         Result.Source.ShouldContain("produces AuthorRegistered");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable)
-            .Message.ShouldContain("not a required scalar UUID concept");
+            .Message.ShouldContain("not a required scalar generatable concept");
         AssertDocument();
     }
 }

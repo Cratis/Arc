@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
 /// <summary>
-/// Follows constructor initializers that preserve their UUID parameter unchanged.
+/// Follows constructor initializers that preserve their generation primitive unchanged.
 /// </summary>
 /// <param name="models">The models resolving constructor syntax.</param>
 internal class UuidConstructorForwarding(SemanticModels models)
@@ -18,14 +18,14 @@ internal class UuidConstructorForwarding(SemanticModels models)
     /// </summary>
     /// <param name="constructor">The constructor to follow.</param>
     /// <param name="visited">The constructors already followed.</param>
-    /// <returns>Whether the UUID reaches the framework base unchanged.</returns>
+    /// <returns>Whether the primitive reaches the framework base unchanged.</returns>
     public bool Read(IMethodSymbol constructor, ISet<IMethodSymbol> visited)
     {
         if (!visited.Add(constructor))
         {
             return false;
         }
-        if (UuidParameter(constructor) is not { } parameter)
+        if (GenerationParameter(constructor) is not { } parameter)
         {
             return false;
         }
@@ -37,7 +37,9 @@ internal class UuidConstructorForwarding(SemanticModels models)
         return constructor.DeclaringSyntaxReferences.Any(reference => ForwardsFrom(InitializerOf(reference.GetSyntax()), parameter, visited));
     }
 
-    static IParameterSymbol? UuidParameter(IMethodSymbol constructor) => constructor.Parameters is [var parameter] && parameter.Type.Is("System.Guid") ? parameter : null;
+    static IParameterSymbol? GenerationParameter(IMethodSymbol constructor) => constructor.Parameters is [var parameter] && IsGenerationPrimitive(parameter.Type) ? parameter : null;
+
+    static bool IsGenerationPrimitive(ITypeSymbol type) => type.Is("System.Guid") || type.SpecialType == SpecialType.System_String;
 
     static bool IsFrameworkBase(INamedTypeSymbol type) => IsConceptBase(type) && type.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal);
 
