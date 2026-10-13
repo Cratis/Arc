@@ -42,6 +42,28 @@ for (const direct of [true, false]) {
                 paging: { page: 0, size: 0, totalItems: 0, totalPages: 0 }
             };
 
+            const sendDirectRejection = () => {
+                stream.onmessage?.({ data: JSON.stringify(rejection) });
+                // A server closes the direct transport after the one rejection frame.
+                stream.onclose?.();
+                stream.onmessage?.({ data: JSON.stringify(rejection) });
+            };
+
+            const hubQueryId = (fetchStub: sinon.SinonStub): string => {
+                if (transport === QueryTransportMethod.ServerSentEvents) {
+                    stream.onmessage?.({ data: JSON.stringify({ type: 'Connected', payload: 'connection-1' }) });
+                    return JSON.parse(fetchStub.firstCall.args[1].body).queryId;
+                }
+                return JSON.parse(stream.send.firstCall.args[0]).queryId;
+            };
+
+            const sendHubRejection = (fetchStub: sinon.SinonStub) => {
+                const queryId = hubQueryId(fetchStub);
+                stream.onmessage?.({ data: JSON.stringify({ type: 'QueryResult', queryId, payload: rejection }) });
+                // A terminal subscription must not receive a stale duplicate frame.
+                stream.onmessage?.({ data: JSON.stringify({ type: 'QueryResult', queryId, payload: rejection }) });
+            };
+
             beforeEach(() => {
                 originalDirect = Globals.queryDirectMode;
                 originalTransport = Globals.queryTransportMethod;
@@ -75,21 +97,9 @@ for (const direct of [true, false]) {
                 stream.onopen?.();
 
                 if (direct) {
-                    stream.onmessage?.({ data: JSON.stringify(rejection) });
-                    // A server closes the direct transport after the one rejection frame.
-                    stream.onclose?.();
-                    stream.onmessage?.({ data: JSON.stringify(rejection) });
+                    sendDirectRejection();
                 } else {
-                    let queryId: string;
-                    if (transport === QueryTransportMethod.ServerSentEvents) {
-                        stream.onmessage?.({ data: JSON.stringify({ type: 'Connected', payload: 'connection-1' }) });
-                        queryId = JSON.parse(fetchStub.firstCall.args[1].body).queryId;
-                    } else {
-                        queryId = JSON.parse(stream.send.firstCall.args[0]).queryId;
-                    }
-                    stream.onmessage?.({ data: JSON.stringify({ type: 'QueryResult', queryId, payload: rejection }) });
-                    // A terminal subscription must not receive a stale duplicate frame.
-                    stream.onmessage?.({ data: JSON.stringify({ type: 'QueryResult', queryId, payload: rejection }) });
+                    sendHubRejection(fetchStub);
                 }
             });
 
