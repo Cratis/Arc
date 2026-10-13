@@ -163,19 +163,19 @@ Return an invocation on its own, `Task<CommandInvocation>`, or a stable sequence
 
 ### Refusal selectors and details
 
-`CommandResult.GetRefusal()` in `Cratis.Arc.Commands` returns a `CommandRefusal`, or `null` for a non-refusal result. `CommandRefusal.Kind` is `CommandRefusalKind.Validation`, `Constraint`, or `Authorization`; `ConstraintName` is nullable and only supplied for a constraint; `Message` preserves authored text, including unresolved `$strings.` keys.
+`CommandResult.GetRefusal()` in `Cratis.Arc.Commands` returns a `CommandRefusal`, or `null` for a non-refusal result. `CommandRefusal.Kind` is `CommandRefusalKind.Validation`, `Constraint`, or `Authorization`; `ConstraintNames` carries all distinct violated names in result order, with nullable `ConstraintName` retaining the first error constraint's name; `Message` preserves authored text, including unresolved `$strings.` keys.
 
 | Selector | Matches |
 | --- | --- |
 | `Refused.ByValidation` | Error-severity authored rules, including property and concept rules and `require`. |
-| `Refused.ByConstraint("Name")` | An error constraint refusal with that exact, case-sensitive name. |
+| `Refused.ByConstraint("Name")` | An error constraint refusal with that exact, case-sensitive name among its violated names. |
 | `Refused.ByConstraint()` | Any error constraint refusal, including one without a name. |
 | `Refused.ByAuthorization` | An actual unauthorized result (`IsAuthorized` is false). |
 | `Refused.Any` | Validation and constraint refusals only, **never authorization**. |
 
-For mixed business refusals, authorization wins, then constraints, then validation. Authorization uses `AuthorizationFailureReason` verbatim. For constraints, the first error constraint supplies the name; messages for that constraint name join in result order with `\n`. Validation joins all error rule messages in result order with `\n`. Joining does not trim or translate text. Messages are not stable identities; match constraint names rather than parsing prose.
+For mixed business refusals, authorization wins, then constraints, then validation. Authorization uses `AuthorizationFailureReason` verbatim. For constraints, all error constraint messages join in result order with `\n`, and named selectors match any violated name. Validation joins all error rule messages in result order with `\n`. Joining does not trim or translate text. Messages are not stable identities; match constraint names rather than parsing prose.
 
-Exceptions, concurrency conflicts, validator failures, unavailable dependencies, malformed requests, and unknown validation reasons are **not refusals**, even if the result also contains a business refusal. Unsupported policy outcomes are not authorization refusals. Success and warning- or information-only rule results do not classify as refusals. A warning that blocks a command under its declared severity policy therefore still fails the partition rather than being acknowledged by a validation branch.
+Exceptions, authorization configuration failures, framework-composed stream-completion errors, concurrency conflicts, validator failures, unavailable dependencies, malformed requests, and unknown validation reasons are **not refusals**, even if the result also contains a business refusal. Unsupported policy outcomes are not authorization refusals. Success and warning- or information-only rule results do not classify as refusals. A warning that blocks a command under its declared severity policy therefore still fails the partition rather than being acknowledged by a validation branch.
 
 Concurrency remains a failure for Chronicle recovery to retry. An unhandled refusal and every non-refusal failure keep the existing failure behavior. Explicit authorization handling is deliberate: `Refused.Any` must not conceal a missing reactor actor. Custom `ICommandSideEffectExecutor` implementations must implement its context-and-event-store overload to support refusal branches.
 

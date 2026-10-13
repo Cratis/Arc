@@ -9,4 +9,10 @@ namespace Cratis.Arc.Commands;
 /// <param name="Kind">The refusal category.</param>
 /// <param name="ConstraintName">The violated constraint name, when available for a constraint refusal.</param>
 /// <param name="Message">The authored refusal messages, verbatim and joined with a newline.</param>
-public record CommandRefusal(CommandRefusalKind Kind, string? ConstraintName, string Message);
+public record CommandRefusal(CommandRefusalKind Kind, string? ConstraintName, string Message)
+{
+    /// <summary>
+    /// Gets all violated constraint names in result order, without duplicates.
+    /// </summary>
+    public IReadOnlyList<string> ConstraintNames { get; init; } = ConstraintName is null ? [] : [ConstraintName];
+}

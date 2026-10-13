@@ -35,7 +35,7 @@ public sealed class Refused
     /// <param name="name">The constraint name, or null to match any constraint.</param>
     /// <returns>The constraint selector.</returns>
     public static Refused ByConstraint(string? name = null) =>
-        new(refusal => refusal.Kind == CommandRefusalKind.Constraint && (name is null || refusal.ConstraintName == name));
+        new(refusal => refusal.Kind == CommandRefusalKind.Constraint && (name is null || refusal.ConstraintNames.Contains(name)));
 
     /// <summary>
     /// Tests whether the refusal satisfies this selector.

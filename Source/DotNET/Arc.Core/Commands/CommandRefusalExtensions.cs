@@ -18,13 +18,14 @@ public static class CommandRefusalExtensions
     /// <remarks>
     /// Exceptions and validation reasons other than Rule or ConstraintViolation prevent classification, even in
     /// mixed results. Otherwise authorization wins over constraints, which win over error-severity rules.
-    /// The first error constraint supplies the name; messages for that name are joined in result order with
-    /// a newline. Validation joins all error rule messages in result order. Authorization retains its reason verbatim.
+    /// All error constraint names and messages are retained in result order, with the first name also available
+    /// as ConstraintName. Messages are joined with a newline. Validation joins all error rule messages in result
+    /// order. Authorization retains its reason verbatim; configuration failures are not denials.
     /// </remarks>
     public static CommandRefusal? GetRefusal(this CommandResult result)
     {
         var validations = result.ValidationResults.ToArray();
-        if (result.HasExceptions || validations.Any(IsNonRefusal))
+        if (CannotClassify(result, validations))
         {
             return null;
         }
@@ -35,16 +36,20 @@ public static class CommandRefusalExtensions
         }
 
         var errors = validations.Where(validation => validation.Severity == ValidationResultSeverity.Error).ToArray();
-        var constraint = errors.FirstOrDefault(validation => validation.Reason == ValidationResultReason.ConstraintViolation);
-        if (constraint is not null)
+        var constraints = errors.Where(validation => validation.Reason == ValidationResultReason.ConstraintViolation).ToArray();
+        if (constraints.Length > 0)
         {
-            var messages = errors.Where(validation => validation.Reason == ValidationResultReason.ConstraintViolation && validation.ReasonDetail == constraint.ReasonDetail);
-
-            return new(CommandRefusalKind.Constraint, constraint.ReasonDetail, JoinMessages(messages));
+            return new(CommandRefusalKind.Constraint, constraints[0].ReasonDetail, JoinMessages(constraints))
+            {
+                ConstraintNames = constraints.Select(validation => validation.ReasonDetail).OfType<string>().Distinct().ToArray()
+            };
         }
 
         return errors.Length > 0 ? new(CommandRefusalKind.Validation, null, JoinMessages(errors)) : null;
     }
+
+    static bool CannotClassify(CommandResult result, IEnumerable<ValidationResult> validations) =>
+        result.HasExceptions || result.AuthorizationConfigurationFailed || validations.Any(IsNonRefusal);
 
     static bool IsNonRefusal(ValidationResult validation) =>
         validation.Reason != ValidationResultReason.Rule && validation.Reason != ValidationResultReason.ConstraintViolation;

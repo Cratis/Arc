@@ -15,7 +15,8 @@ public class with_non_refusal_failures : Specification
         ValidationResultReason[] reasons =
         [
             ValidationResultReason.ConcurrencyViolation, ValidationResultReason.ValidatorFailed,
-            ValidationResultReason.DependencyUnavailable, ValidationResultReason.MalformedRequest, new("unsupported")
+            ValidationResultReason.DependencyUnavailable, ValidationResultReason.MalformedRequest,
+            ValidationResultReason.FrameworkFailure, new("unsupported")
         ];
         _refusals = reasons.Select(reason => new CommandResult
         {

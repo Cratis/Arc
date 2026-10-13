@@ -18,7 +18,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 internal sealed record PendingStreamCompletion(IEventLog EventLog, EventStreamType StreamType, EventStreamId StreamId, ClosedStreamScope? Scope)
 {
     /// <summary>
-    /// Applies the completion and merges any refusal into the command result.
+    /// Applies the completion and merges any framework failure into the command result.
     /// </summary>
     /// <param name="result">The command result.</param>
     /// <returns>A task representing completion.</returns>
@@ -30,7 +30,7 @@ internal sealed record PendingStreamCompletion(IEventLog EventLog, EventStreamTy
         if (!completion.IsSuccess && (!completion.TryGetError(out var error) || error != CompleteStreamError.AlreadyCompleted))
         {
             result.ValidationResults = [.. result.ValidationResults, ValidationResult.Error(
-                $"Stream '{StreamType}/{StreamId}' could not be completed: {error}.")];
+                $"Stream '{StreamType}/{StreamId}' could not be completed: {error}.", reason: ValidationResultReason.FrameworkFailure)];
         }
     }
 }

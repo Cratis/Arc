@@ -16,7 +16,8 @@ namespace Cratis.Arc.Chronicle.Reactors;
 public class CommandInvocationResultHandler(ICommandSideEffectExecutor executor) : IReactorSideEffectHandler
 {
     /// <inheritdoc/>
-    public bool CanHandleReturnType(Type type) => type == typeof(CommandInvocation);
+    public bool CanHandleReturnType(Type type) =>
+        type == typeof(CommandInvocation) || typeof(IEnumerable<CommandInvocation>).IsAssignableFrom(type);
 
     /// <inheritdoc/>
     public bool CanHandle(ReactorContext reactorContext, object value) => value is CommandInvocation;

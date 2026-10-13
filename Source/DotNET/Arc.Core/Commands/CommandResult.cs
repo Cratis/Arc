@@ -77,6 +77,15 @@ public class CommandResult
     /// </summary>
     protected internal virtual object? ResponseValue => null;
 
+    internal bool AuthorizationConfigurationFailed { get; set; }
+
+    internal static CommandResult AuthorizationConfigurationFailure(CorrelationId correlationId) => new()
+    {
+        CorrelationId = correlationId,
+        IsAuthorized = false,
+        AuthorizationConfigurationFailed = true
+    };
+
     /// <summary>
     /// Creates a new <see cref="CommandResult"/> representing a successful command execution.
     /// </summary>
@@ -156,6 +165,7 @@ public class CommandResult
     public void MergeWith(params CommandResult[] commandResults)
     {
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
+        AuthorizationConfigurationFailed |= commandResults.Any(result => result.AuthorizationConfigurationFailed);
         if (string.IsNullOrEmpty(AuthorizationFailureReason))
         {
             AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
