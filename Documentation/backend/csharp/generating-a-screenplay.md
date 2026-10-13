@@ -196,7 +196,7 @@ Queries and projections referring to an omitted read model are withheld too, as 
 
 ## Query descriptions and implementations
 
-A query method's XML `<summary>` becomes its `description`. Collection query filters describe equality against the same-named read-model property, combining with `by` and other filters as AND. The generator recognizes direct `x.Property == parameter` and `parameter == x.Property` comparisons in returned LINQ `Where` and MongoDB `Find`/`Where` query chains, including conjunctions with `&&`. Property and parameter names must match without regard to case; the emitted filter uses the property's name and type, including its concept or enum.
+A query method's XML `<summary>` becomes its `description`. Collection query filters describe equality against the same-named read-model property, combining with `by` and other filters as AND. The generator recognizes direct `x.Property == parameter` and `parameter == x.Property` comparisons in returned LINQ `Where` and MongoDB `Find`/`Where` query chains, in the filter of Arc's observable `Observe` queries on a MongoDB collection or an Entity Framework Core `DbSet`, and in Entity Framework Core chains awaited through `ToListAsync`, `ToArrayAsync` or `AsAsyncEnumerable`, including conjunctions with `&&`. Property and parameter names must match without regard to case; the emitted filter uses the property's name and type, including its concept or enum.
 
 For example, this read model uses a nullable parameter to skip name filtering when no name is supplied:
 
