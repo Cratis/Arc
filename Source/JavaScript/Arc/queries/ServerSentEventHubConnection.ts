@@ -390,24 +390,25 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     }
 
     private handleQueryResult(message: HubMessage): void {
-        if (!message.queryId) return;
-
-        const sub = this._subscriptions.get(message.queryId);
-        if (!sub || !this.isMessageForCurrentSubscription(message)) return;
-
         const result = message.payload as QueryResult<any>;
-        sub.callback(result);
+        this.deliverResult(message, result, result?.isValid === false);
     }
 
     private handleUnauthorized(message: HubMessage): void {
+        this.deliverResult(message, QueryResult.unauthorized(), true);
+    }
+
+    private deliverResult(message: HubMessage, result: QueryResult<any>, terminal: boolean): void {
         if (!message.queryId) return;
 
         const sub = this._subscriptions.get(message.queryId);
         if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
-        this._subscriptions.delete(message.queryId);
-        this._pendingSubscriptions.delete(message.queryId);
-        sub.callback(QueryResult.unauthorized());
+        if (terminal) {
+            this._subscriptions.delete(message.queryId);
+            this._pendingSubscriptions.delete(message.queryId);
+        }
+        sub.callback(result);
     }
 
     private sendSubscribe(

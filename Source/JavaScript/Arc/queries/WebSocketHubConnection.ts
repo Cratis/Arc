@@ -402,6 +402,9 @@ export class WebSocketHubConnection {
         if (!sub || !this.isMessageForCurrentSubscription(message)) return;
 
         const result = message.payload as QueryResult<any>;
+        if (result?.isValid === false) {
+            this._subscriptions.delete(message.queryId);
+        }
         sub.callback(result);
     }
 
