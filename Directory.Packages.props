@@ -21,7 +21,7 @@
     <PackageVersion Include="Cratis.Chronicle.AspNetCore" Version="19.59.1" />
     <PackageVersion Include="Cratis.Chronicle.Testing" Version="19.59.1" />
     <PackageVersion Include="Cratis.Fundamentals" Version="7.24.0" />
-    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.19.4" />
+    <PackageVersion Include="Cratis.Metrics.Roslyn" Version="7.24.0" />
     <PackageVersion Include="Cratis.Screenplay" Version="4.148.0" />
     <PackageVersion Include="Cratis.Screenplay.Generation.Contracts" Version="0.18.1" />
     <PackageVersion Include="Cratis.Screenplay.Generation" Version="0.18.1" />
@@ -51,7 +51,7 @@
     <PackageVersion Include="System.Text.Json" Version="10.0.12" />
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
     <!-- Third Party -->
-    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation" Version="12.2.0" />
     <PackageVersion Include="MongoDB.Driver" Version="3.12.0" />
     <!-- 0.50.4 is the newest version listed on nuget.org. 1.0.0 exists in the flat container but is
          unlisted, so it is invisible to search and to anyone auditing the dependency - and because
