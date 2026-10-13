@@ -5,6 +5,8 @@ description: Read a routed stream and return events guarded at the tail used by 
 
 When a command decides from events in one stream, inject `IStreamReads` in `Provide()` and return `decision.Append(...)` from `Handle()`. The returned events carry the read route and an exact concurrency scope. A competing append to that stream after the read rejects the command with a concurrency validation failure, including when both commands attempt the first append.
 
+Use a stream decision when the facts are raw events in one routed stream. For a rule over the folded state of one or more event sources, use a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands); for uniqueness, use a constraint. The cost is the whole stream crossing the wire on every command, so keep streams short. [Choosing how a command's rule holds](../consistency/index.md) compares the mechanisms, and its [scenarios](../consistency/scenarios.md#one-stream-of-raw-events) show this one next to the others.
+
 This guide assumes Chronicle is [configured for the application](../index.md). `IStreamReads` and `IEventRoutes` resolve by Arc's service conventions; no additional registration is needed.
 
 ## Read the command's stream
