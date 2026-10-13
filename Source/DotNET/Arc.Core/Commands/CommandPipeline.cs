@@ -144,6 +144,7 @@ public class CommandPipeline(
                 ExceptionMessages = result.ExceptionMessages,
                 ExceptionStackTrace = result.ExceptionStackTrace,
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
+                AuthorizationConfigurationFailed = result.AuthorizationConfigurationFailed,
                 Recovery = result.Recovery,
                 OperationOutcomes = result.OperationOutcomes,
                 Response = response is TResult typedResponse ? typedResponse : default
@@ -317,7 +318,7 @@ public class CommandPipeline(
         var declaration = GetHostedDeclaration(command.GetType(), requestServices, activity);
         if (declaration is null)
         {
-            return CommandResult.Unauthorized(GetCorrelationId());
+            return CommandResult.AuthorizationConfigurationFailure(GetCorrelationId());
         }
 
         if (!declaration.RequiresAsynchronousEvaluation)
@@ -357,7 +358,7 @@ public class CommandPipeline(
         var declaration = GetHostedDeclaration(command.GetType(), requestServices, activity);
         if (declaration is null)
         {
-            return CommandResult.Unauthorized(GetCorrelationId());
+            return CommandResult.AuthorizationConfigurationFailure(GetCorrelationId());
         }
 
         if (!declaration.RequiresAsynchronousEvaluation)
@@ -397,7 +398,7 @@ public class CommandPipeline(
         {
             OperationActivity.RecordException(activity, exception);
             services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
-            return (null, CommandResult.Unauthorized(GetCorrelationId()));
+            return (null, CommandResult.AuthorizationConfigurationFailure(GetCorrelationId()));
         }
         catch (Exception exception)
         {
@@ -549,7 +550,7 @@ public class CommandPipeline(
                 (commandContext.AuthorizedExecution is { } verdict &&
                  !verdict.IsCurrent(command.GetType(), serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(), currentDeclaration)))
             {
-                return await CompleteExecutionScopes(CommandResult.Unauthorized(correlationId));
+                return await CompleteExecutionScopes(CommandResult.AuthorizationConfigurationFailure(correlationId));
             }
 
             // Read again: a context values provider or modifier can have resolved the tenant since the read above.
@@ -604,7 +605,7 @@ public class CommandPipeline(
         {
             OperationActivity.RecordException(activity, ex);
             serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
-            result.MergeWith(CommandResult.Unauthorized(correlationId));
+            result.MergeWith(CommandResult.AuthorizationConfigurationFailure(correlationId));
             operations?.CaptureFailure(result, failureSource);
         }
         catch (Exception ex)
@@ -771,7 +772,7 @@ public class CommandPipeline(
         {
             OperationActivity.RecordException(activity, ex);
             serviceProvider.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(ex);
-            result.MergeWith(CommandResult.Unauthorized(correlationId));
+            result.MergeWith(CommandResult.AuthorizationConfigurationFailure(correlationId));
         }
         catch (Exception ex)
         {

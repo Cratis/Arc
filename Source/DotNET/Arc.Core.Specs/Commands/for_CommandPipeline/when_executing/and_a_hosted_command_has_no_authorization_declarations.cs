@@ -26,7 +26,9 @@ public class and_a_hosted_command_has_no_authorization_declarations : given.a_co
     [Fact] void should_not_throw_an_unhandled_configuration_error() => _error.ShouldBeNull();
     [Fact] void should_return_a_result() => _result.ShouldNotBeNull();
     [Fact] void should_report_unauthorized() => _result!.IsAuthorized.ShouldBeFalse();
-    [Fact] void should_log_the_configuration_failure() => _logger.ReceivedCalls()
+    [Fact] void should_not_classify_as_a_business_refusal() => _result!.GetRefusal().ShouldBeNull();
+    [Fact]
+    void should_log_the_configuration_failure() => _logger.ReceivedCalls()
         .Any(call => call.GetMethodInfo().Name == nameof(ILogger.Log) &&
             call.GetArguments()[0] is LogLevel.Error &&
             call.GetArguments()[3] is InvalidAuthorizationConfiguration)
