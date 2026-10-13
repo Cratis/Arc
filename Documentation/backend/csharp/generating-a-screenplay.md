@@ -389,6 +389,14 @@ Named rules are opaque to reference execution. The generator withholds them when
 
 Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
 
+## Constraints
+
+A uniqueness claim can cover several event types. The generator keeps every readable `On<T>` target under one `constraint`, rather than splitting the claim into independent rules. Multiple direct property selectors become an ordered composite key. Repeated parameterless `RemovedWith<T>()` declarations become `released by` lines, including releases of a generic `Unique<T>` event constraint.
+
+If any target, property selector, or release cannot be recovered, the generator withholds the whole uniqueness declaration with Warning diagnostic `SP0017`. It never keeps only the readable targets or silently drops a release. This includes non-generic event-type arguments, computed selectors, nested property paths, and releases that select particular values: Screenplay can release a whole claim, but cannot express a value-specific release.
+
+Reaction batch admission remains separate from constraint emission. A constraint omitted from the document still affects whether Chronicle's atomic batch can be represented as sequential reaction appends.
+
 ## Reactors
 
 Every reactor becomes a `reaction` with one `when` trigger per event it handles. What happens under each trigger depends on the handler.
@@ -700,6 +708,7 @@ These details can remain outside the document because the language has no counte
 | Routed reactor event results | Explicit append routes and identity providers cannot become routed reaction productions. The whole trigger keeps its source reference with Warning diagnostic `SP0065`, independently of recoverable observation metadata. |
 | Manual reactor command outcome handling | Inspecting, pattern-matching, or discarding `CommandResult` after pipeline execution retains `file` with Information diagnostic `SP0071`. Executable refusal handling needs Arc#3058 and Screenplay#433. |
 | Receipt-based reactor redelivery | `ReactorDelivery` or `DeliveryId` use retains `file` with Information diagnostic `SP0072`. Executable redelivery handling needs Screenplay#433. |
+| Unreadable uniqueness targets or releases | The whole constraint is withheld with Warning diagnostic `SP0017`, rather than stating a subset. Non-generic event-type arguments, computed or nested property selectors, and value-specific releases cannot be stated faithfully. |
 | Returned event batches with append constraints | Chronicle appends atomically while a reaction appends each fact separately. Later rejection, early stream closure, or unreadable constraint coverage keeps the whole trigger as `file` with Warning diagnostic `SP0070`. |
 | Reaction metadata below an ESM v10 cap | Warning diagnostic `SP0066` reports withheld metadata in both default and authoring mode. Effects depending on that metadata retain their source; event-only productions remain declarative when only `runs as` is withheld. |
 | Aggregate roots no command reaches                                                                    | The events an aggregate root applies are stated through the command that hands its work to it. One that nothing calls has nothing to state them through — a document has no construct for a class that decides on its own. `SP0018`.                                                                                                                                                                                                                |

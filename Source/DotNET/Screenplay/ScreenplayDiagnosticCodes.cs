@@ -110,7 +110,7 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableValidationRule = "SP0016";
 
     /// <summary>
-    /// A constraint declares a rule that is neither unique on a property nor unique on an event type.
+    /// A constraint declares a uniqueness rule whose complete targets or releases cannot be stated faithfully.
     /// </summary>
     public const string UnmappableConstraint = "SP0017";
 

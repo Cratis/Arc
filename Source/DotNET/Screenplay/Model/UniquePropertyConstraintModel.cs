@@ -9,4 +9,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Name">The name of the constraint.</param>
 /// <param name="Property">The property that has to be unique, in its original casing.</param>
 /// <param name="EventName">The name of the event the constraint applies to.</param>
-public record UniquePropertyConstraintModel(string Name, string Property, string EventName) : ConstraintModel(Name);
+public record UniquePropertyConstraintModel(string Name, string Property, string EventName) : ConstraintModel(Name)
+{
+    /// <summary>
+    /// Gets the remaining properties of the composite claim, in declaration order.
+    /// </summary>
+    public IEnumerable<string> AdditionalProperties { get; init; } = [];
+}
