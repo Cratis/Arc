@@ -6,6 +6,7 @@ using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Monads;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Cratis.Arc.Chronicle.Commands.for_TransactionalCommandScope.when_completing_streams.given;
 
@@ -34,6 +35,16 @@ public class a_pending_completion : for_TransactionalCommandScope.given.a_transa
         });
         _handler = new(_eventLog);
         _result = CommandResult.Success(_correlationId);
+    }
+
+    protected void ResolveSource(object command)
+    {
+        _context = _context with { Type = command.GetType(), Command = command };
+        var provider = new EventSourceValuesProvider(NullLogger<EventSourceValuesProvider>.Instance);
+        foreach (var (key, value) in provider.Provide(command))
+        {
+            _context.Values[key] = value;
+        }
     }
 
     protected Task<CommandResult> Enroll()

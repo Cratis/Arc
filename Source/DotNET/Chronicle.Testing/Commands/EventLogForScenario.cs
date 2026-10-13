@@ -27,6 +27,11 @@ internal sealed class EventLogForScenario(IEventLog inner, IUnitOfWorkManager un
     /// </summary>
     public List<(EventStreamType EventStreamType, EventStreamId EventStreamId)> CompletedStreams { get; } = [];
 
+    /// <summary>
+    /// Gets the successful scoped completions recorded by this log.
+    /// </summary>
+    public List<ClosedStreamScope> CompletedStreamScopes { get; } = [];
+
     /// <inheritdoc/>
     public EventSequenceId Id => inner.Id;
 
@@ -91,14 +96,39 @@ internal sealed class EventLogForScenario(IEventLog inner, IUnitOfWorkManager un
     public Task Redact(EventSourceId eventSourceId, RedactionReason reason, params Type[] clrEventTypes) => inner.Redact(eventSourceId, reason, clrEventTypes);
 
     /// <inheritdoc/>
+    public Task<bool> IsStreamCompleted(ClosedStreamScope scope) => inner.IsStreamCompleted(scope);
+
+    /// <inheritdoc/>
+    public Task<bool> IsStreamCompleted(EventStreamType eventStreamType, EventStreamId eventStreamId) => inner.IsStreamCompleted(eventStreamType, eventStreamId);
+
+    /// <inheritdoc/>
+    public async Task<Result<EventSequenceNumber, CompleteStreamError>> CompleteStream(ClosedStreamScope scope, EventSequenceNumber? expectedTailSequenceNumber = default)
+    {
+        var result = await inner.CompleteStream(scope, expectedTailSequenceNumber);
+        if (IsCompleted(result))
+        {
+            CompletedStreamScopes.Add(scope);
+            if (scope.EventStreamType is { } streamType && scope.EventStreamId is { } streamId)
+            {
+                CompletedStreams.Add((streamType, streamId));
+            }
+        }
+
+        return result;
+    }
+
+    /// <inheritdoc/>
     public async Task<Result<EventSequenceNumber, CompleteStreamError>> CompleteStream(EventStreamType eventStreamType, EventStreamId eventStreamId)
     {
         var result = await inner.CompleteStream(eventStreamType, eventStreamId);
-        if (result.IsSuccess || (result.TryGetError(out var error) && error == CompleteStreamError.AlreadyCompleted))
+        if (IsCompleted(result))
         {
             CompletedStreams.Add((eventStreamType, eventStreamId));
         }
 
         return result;
     }
+
+    static bool IsCompleted(Result<EventSequenceNumber, CompleteStreamError> result) =>
+        result.IsSuccess || (result.TryGetError(out var error) && error == CompleteStreamError.AlreadyCompleted);
 }

@@ -162,7 +162,7 @@ An asynchronous handler can perform manual work and then return supported side e
 
 ## Complete the observed stream
 
-Return `CompleteStream` from `Cratis.Arc.Chronicle.Streams` (or `Task<CompleteStream>`) to close a stream without injecting the event log. Omitted stream parts use the observed event's stream type and id; redelivery of an already completed stream succeeds. This completion cannot be mixed with events or commands in a returned collection. Return a command when you need final events followed by completion. See [completing streams](../commands/completing-streams.md) for the event-log-wide scope and non-atomic append/completion boundary.
+Return `CompleteStream` from `Cratis.Arc.Chronicle.Streams` (or `Task<CompleteStream>`) to close a stream without injecting the event log. Completion is scoped to the observed event's event source id and event source type. Omitted stream parts use its stream type and id; redelivery of an already completed stream succeeds. This completion cannot be mixed with events or commands in a returned collection. Return a command when you need final events followed by completion. See [completing streams](../commands/completing-streams.md) for the scoped completion contract, Chronicle kernel 19.39 requirement, and non-atomic append/completion boundary.
 
 ## See also
 

@@ -34,7 +34,9 @@ public class CompleteStreamResultHandler : IReactorSideEffectHandler
             return Failure("The default stream cannot be completed.");
         }
 
-        var result = await eventStore.EventLog.CompleteStream(streamType, streamId);
+        var observed = reactorContext.EventContext;
+        var scope = new ClosedStreamScope(observed.EventSourceId, observed.EventSourceType, streamType, streamId);
+        var result = await eventStore.EventLog.CompleteStream(scope);
         if (!result.IsSuccess && (!result.TryGetError(out var error) || error != CompleteStreamError.AlreadyCompleted))
         {
             return Failure($"Stream '{streamType}/{streamId}' could not be completed: {error}.");

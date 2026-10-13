@@ -29,11 +29,32 @@ public class CompleteStreamCommandResponseValueHandler(IEventLog eventLog) : ICo
         {
             result.ValidationResults = [ValidationResult.Error("The default stream cannot be completed.")];
         }
-        else if (!TransactionalCommandScope.EnrollCompletion(commandContext, new PendingStreamCompletion(eventLog, streamType, streamId)))
+        else if (!TransactionalCommandScope.EnrollCompletion(commandContext, new PendingStreamCompletion(eventLog, streamType, streamId, CompletionScope(commandContext, streamType, streamId))))
         {
             result.ExceptionMessages = ["Stream completion requires an active command execution scope."];
         }
 
         return Task.FromResult(result);
     }
+
+    static ClosedStreamScope? CompletionScope(CommandContext context, EventStreamType streamType, EventStreamId streamId)
+    {
+        if (!HasCompletionSource(context))
+        {
+            return null;
+        }
+
+        var sourceId = context.GetEventSourceIdOrDefault();
+
+        return sourceId == EventSourceId.Unspecified ? null : new(
+            EventSourceId: sourceId,
+            EventSourceType: context.GetEventSourceType(),
+            EventStreamType: streamType,
+            EventStreamId: streamId);
+    }
+
+    static bool HasCompletionSource(CommandContext context) =>
+        EventSourceExtensions.IsEventSourceIdValue(context.Response) ||
+        context.Command is ICanProvideEventSourceId ||
+        context.Command.HasEventSourceId();
 }
