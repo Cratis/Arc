@@ -259,7 +259,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
                 AuthoringOnlyConstructs = options.AuthoringOnlyConstructs
             },
             new EventSyntaxBuilder(naming, _types, _names),
-            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, Diagnostics = diagnostics },
+            new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = options.MaximumExecutableModelVersion },
             new ConstraintSyntaxBuilder(naming),
             new ReactorSyntaxBuilder(naming, diagnostics) { Application = model, MetadataEnabled = options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10) },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),

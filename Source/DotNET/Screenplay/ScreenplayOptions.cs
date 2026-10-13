@@ -68,12 +68,13 @@ public record ScreenplayOptions
     public bool AuthoringOnlyConstructs { get; init; }
 
     /// <summary>
-    /// Gets the maximum executable model version whose generated command values and responses are emitted.
+    /// Gets the maximum executable model version whose admitted constructs are emitted.
     /// </summary>
     /// <remarks>
     /// Defaults to null, admitting the latest supported constructs. A cap below v7 keeps commands in their legacy
-    /// form without generated values or responses. Earlier executable constructs and authoring-only admission
-    /// limitations are unchanged; the cap does not guarantee that a document binds.
+    /// form without generated values or responses. A cap below v14 withholds equality query filters. Earlier
+    /// executable constructs and authoring-only admission limitations are unchanged; the cap does not guarantee
+    /// that a document binds.
     /// </remarks>
     public SemanticVersion? MaximumExecutableModelVersion { get; init; }
 

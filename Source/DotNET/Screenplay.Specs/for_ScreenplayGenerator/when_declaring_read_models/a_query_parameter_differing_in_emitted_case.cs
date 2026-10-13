@@ -22,7 +22,8 @@ public class a_query_parameter_differing_in_emitted_case : a_read_model_document
     void Because() => GenerateSlice(Source);
 
     [Fact] void should_keep_the_property_case() => Says("bookId String").ShouldBeTrue();
-    [Fact] void should_keep_the_parameter_case_as_a_filter() => Says("filter bookID String").ShouldBeTrue();
+    [Fact] void should_withhold_the_unproven_parameter() => Says("filter bookID String").ShouldBeFalse();
+    [Fact] void should_report_the_unproven_argument() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableQuery && diagnostic.Message.Contains("not a proven", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_not_key_by_a_name_the_binder_would_not_resolve() => Result.Source.ShouldNotContain("by bookID");
     [Fact] void should_resolve_every_reference() => UnresolvedReferences.ShouldBeEmpty();
     [Fact] void should_report_no_binding_defect() => Result.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldNotContain(ScreenplayDiagnosticCodes.DocumentDidNotBind);

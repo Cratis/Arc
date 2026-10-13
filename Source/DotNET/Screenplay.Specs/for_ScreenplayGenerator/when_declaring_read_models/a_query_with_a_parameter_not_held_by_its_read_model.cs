@@ -22,7 +22,8 @@ public class a_query_with_a_parameter_not_held_by_its_read_model : a_read_model_
     void Because() => GenerateSlice(Source);
 
     [Fact] void should_preserve_the_query() => Says("query GetById => Book optional").ShouldBeTrue();
-    [Fact] void should_preserve_the_caller_argument_as_a_filter() => Says("filter id String").ShouldBeTrue();
+    [Fact] void should_withhold_the_unproven_caller_argument() => Says("filter id String").ShouldBeFalse();
+    [Fact] void should_report_the_unproven_argument() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableQuery && diagnostic.Message.Contains("not a proven", StringComparison.Ordinal)).ShouldBeTrue();
     [Fact] void should_not_claim_a_key_the_read_model_does_not_hold() => Result.Source.ShouldNotContain("by id");
     [Fact] void should_not_invent_a_read_model_property() => Says("id String").ShouldBeFalse();
     [Fact] void should_resolve_every_reference() => UnresolvedReferences.ShouldBeEmpty();

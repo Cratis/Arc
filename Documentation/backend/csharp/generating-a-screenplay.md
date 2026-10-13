@@ -173,7 +173,7 @@ projection Book => Book
 
 The declaration states the shape and nothing else. No property is marked `identifier`: the executable model identifies an instance through the read model's keyed query, so a read model with a `by` query answering with one instance is identifiable, and one without such a query is declared without claiming an identity it does not have.
 
-A query's first required caller parameter becomes `by` only when its emitted name exactly matches an emitted read-model property name, including case. Otherwise it remains a `filter`: it narrows the result without claiming a key property the read model does not hold. For example, `GetById(string id)` returning a model with only a `Title` property emits `filter id String`, not `by id String`. Filtered queries are valid authoring syntax but are not yet executable.
+A query's first required caller parameter becomes `by` only when its emitted name exactly matches an emitted read-model property name, including case. Other parameters become filters only when the query body proves a same-named scalar equality on a returned collection. A parameter with no matching property, such as `GetById(string id)` returning a model with only `Title`, is withheld with Information diagnostic `SP0019`, not guessed as a filter.
 
 A document refers to a read model by its simple name, so each read model is declared exactly once. It goes in the first slice, in namespace order, that matches the earliest of these:
 
@@ -196,7 +196,38 @@ Queries and projections referring to an omitted read model are withheld too, as 
 
 ## Query descriptions and implementations
 
-A query method's XML `<summary>` becomes its `description`. Parameters with explicit defaults become optional filters, including non-null defaults such as `int limit = 10`. Screenplay cannot state the default value itself; Information diagnostic `SP0019` reports that gap. Nullable scalar returns remain optional through `Task<T>` and `ValueTask<T>` wrappers. For collection returns, `optional` describes the collection, not its elements; nullable elements are reported as `SP0019` rather than described as an optional collection.
+A query method's XML `<summary>` becomes its `description`. Collection query filters describe equality against the same-named read-model property, combining with `by` and other filters as AND. The generator recognizes direct `x.Property == parameter` and `parameter == x.Property` comparisons in returned LINQ `Where` and MongoDB `Find`/`Where` query chains, including conjunctions with `&&`. Property and parameter names must match without regard to case; the emitted filter uses the property's name and type, including its concept or enum.
+
+For example, this read model uses a nullable parameter to skip name filtering when no name is supplied:
+
+```csharp
+using System.Collections.Generic;
+using System.Linq;
+using Cratis.Arc.Queries.ModelBound;
+
+[ReadModel]
+public record Book(string Id, string? Name)
+{
+    public static IEnumerable<Book> ByName(string id, IEnumerable<Book> books, string? name = null) =>
+        books.Where(book => book.Id == id && (name is null || book.Name == name));
+}
+```
+
+Its generated query is:
+
+```screenplay
+query ByName => Book[]
+  by id String
+  filter name String optional
+```
+
+Only a nullable parameter whose comparison is skipped by `parameter is null || equality` becomes `optional`. Reversed operands and `== null` checks are recognized too. A nullable equality without that skip remains required: ESM v14 refuses supplied null filter values. A default alone does not prove optional filtering. Non-null defaults have no equivalent omission semantics and are withheld with `SP0019`.
+
+The generator leaves unproven parameters out with `SP0019`: different property names, `!=`, `<`/`>`, `Contains`, method calls or computed comparison operands, repeated parameter comparisons, and `||` other than the nullable null-skip form. Predicates unrelated to the returned query, conditional query bodies, and filters on single-result queries are not recovered. Paging, sorting and injected services keep their existing handling.
+
+Equality filters bind as ESM v14; filter-free documents keep their previous executable version. Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V13` or earlier to withhold filters with a located `SP0019` naming the required version and cap. This applies in authoring mode too. As with other caps, the resulting document describes less behavior; withholding filters is not an equivalent implementation of the original query.
+
+Nullable scalar returns remain optional through `Task<T>` and `ValueTask<T>` wrappers. For collection returns, `optional` describes the collection, not its elements; nullable elements are reported as `SP0019` rather than described as an optional collection.
 
 Set `ScreenplayOptions.AuthoringOnlyConstructs` to include a `performer` with the repository-relative file containing a query's block or expression body. A declaration without a body gets no performer. Performer-backed queries are not executable in the pinned language, so default output retains the query without its performer and reports Information diagnostic `SP0019`. A body with no portable source path is also reported rather than given a machine-specific file reference.
 
@@ -319,7 +350,7 @@ and the document is returned as it stands so the line can be read (Library)
 
 A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` alone does **not** mean an expected limitation: Screenplay also uses it for malformed bindings, including incompatible condition operands. The generator accepts only the pinned binder's known admission messages:
 
-- In both modes: legacy handler attachments; read models without an unambiguous keyed query or conventional `*Id` property; queries with unsupported filtering, scope, implementation, caller-argument, or return shapes; concept compliance attributes whose execution needs portable data-subject semantics. Admitted collection and observable queries receive no exemption for unresolved references.
+- In both modes: legacy handler attachments; read models without an unambiguous keyed query or conventional `*Id` property; queries with unsupported scope, implementation, caller-argument, or return shapes; concept compliance attributes whose execution needs portable data-subject semantics. Admitted collection and observable queries receive no exemption for unresolved references.
 - In both modes, temporarily: same-named queries in different slices reach a [known binder limit](https://github.com/Cratis/Screenplay/issues/624). Their names are preserved; only that exact ambiguity message is accepted until the binder fix ships.
 - With authoring-only constructs enabled: the explicit refusal of operations and systems, or property-path stream-id mappings.
 - Legacy concurrency messages (`PLAY0271`) remain accepted for unrouted commands. Routed commands carrying legacy concurrency fail default verification. Legacy read messages remain accepted only in authoring mode. Informational diagnostics do not produce `SP0056`.

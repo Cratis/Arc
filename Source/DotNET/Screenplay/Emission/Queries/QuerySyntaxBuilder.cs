@@ -6,6 +6,7 @@ using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
+using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.Emission.Queries;
@@ -32,6 +33,11 @@ public class QuerySyntaxBuilder(
     public ScreenplayDiagnostics? Diagnostics { get; init; }
 
     /// <summary>
+    /// Gets the maximum executable version admitting recovered query filters.
+    /// </summary>
+    public SemanticVersion? MaximumExecutableModelVersion { get; init; }
+
+    /// <summary>
     /// Builds the query declaration.
     /// </summary>
     /// <param name="query">The query to build for.</param>
@@ -41,12 +47,30 @@ public class QuerySyntaxBuilder(
             naming.ToDeclarationName(query.Name),
             types.Convert(query.ReturnType),
             query.By is null ? null : ToParameter(query.By),
-            [.. query.Filters.Select(ToParameter)],
+            [.. FiltersOf(query)],
             authorize.Build(query.Authorization),
             SourceLocation.Start,
             Description: naming.ToStringLiteral(query.Description),
             Performer: PerformerOf(query),
             IsObservable: query.IsObservable);
+
+    IEnumerable<QueryParameterSyntax> FiltersOf(QueryModel query)
+    {
+        if (MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V14))
+        {
+            return query.Filters.Select(ToParameter);
+        }
+
+        foreach (var filter in query.Filters)
+        {
+            Diagnostics?.Information(
+                ScreenplayDiagnosticCodes.UnmappableQuery,
+                $"The query '{query.Name}' filter '{filter.Name}' requires ESM v14 and was withheld because ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}",
+                query.Name);
+        }
+
+        return [];
+    }
 
     /// <summary>
     /// Builds the authoring-only implementation reference.

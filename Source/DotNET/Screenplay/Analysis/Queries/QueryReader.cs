@@ -39,6 +39,11 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     public SourcePaths? Paths { get; init; }
 
     /// <summary>
+    /// Gets the semantic models used to prove equality filters in query bodies.
+    /// </summary>
+    public SemanticModels? Models { get; init; }
+
+    /// <summary>
     /// Determines whether a type is a model-bound read model.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -119,7 +124,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
             method.Name,
             returnType,
             key is null ? null : ToParameter(key),
-            [.. parameters.Where(_ => !SymbolEqualityComparer.Default.Equals(_, key)).Select(ToParameter)],
+            new QueryFilterReader(types, Models, diagnostics).Read(method, key, location).ToList(),
             AuthorizationReader.Read(method, declaring),
             QueryReturnTypes.IsObservable(method.ReturnType))
         {
@@ -175,7 +180,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableQuery,
-                $"The query '{method.Name}' allows '{parameter.Name}' to be omitted; its non-null default value has no query-parameter counterpart, so only optionality was stated",
+                $"The query '{method.Name}' allows '{parameter.Name}' to be omitted; its non-null default value has no equivalent optional equality filter, so the parameter was left out",
                 location);
         }
 
