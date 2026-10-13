@@ -68,6 +68,11 @@ internal record EventsAndCommands(IEnumerable<object> Events, IEnumerable<object
             return IsEvent(eventTypes, envelope.Event) ? EffectKind.Event : EffectKind.Invalid;
         }
 
+        return ClassifyValue(eventTypes, value);
+    }
+
+    static EffectKind ClassifyValue(IEventTypes eventTypes, object value)
+    {
         var isEvent = eventTypes.HasFor(value.GetType());
         var isCommand = value.GetType().IsCommand();
 
