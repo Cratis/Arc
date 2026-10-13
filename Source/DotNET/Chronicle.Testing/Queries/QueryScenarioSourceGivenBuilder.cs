@@ -37,7 +37,15 @@ public sealed class QueryScenarioSourceGivenBuilder<TReadModel>(QueryScenario<TR
     /// Seeds events to be projected into a read model on demand.
     /// </summary>
     /// <param name="events">The events in occurrence order.</param>
-    public void Events(params object[] events) =>
+    public void Events(params object[] events)
+    {
+        if (scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
+        {
+            ((DecisionCommandScenario)decision).Seed(eventSourceId, events).GetAwaiter().GetResult();
+            return;
+        }
+
         ((CommandScenarioReadModels)scenario.Context[ChronicleCommandScenarioExtender.ReadModelsKey])
             .SeedEvents(eventSourceId, events);
+    }
 }

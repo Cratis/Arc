@@ -50,6 +50,10 @@ public class wrappers_with_occurred_and_tags : given.an_events_for_event_source_
     async Task Because() => _result = await _handler.Handle(_commandContext, _value);
 
     [Fact] void should_return_success() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_append_the_wrapped_event_with_its_tags_and_occurrence() => _eventLog.Received(1).Append(_wrapperEventSourceId, _wrappedEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>(), Arg.Any<CorrelationId?>(), Arg.Is<IEnumerable<string>?>(_ => _ != null && _.SequenceEqual(_tags)), Arg.Any<ConcurrencyScope?>(), _occurred, Arg.Any<Subject?>());
-    [Fact] void should_append_the_plain_event_without_tags_or_occurrence() => _eventLog.Received(1).Append(_commandEventSourceId, _plainEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>(), Arg.Any<CorrelationId?>(), null, Arg.Any<ConcurrencyScope?>(), null, Arg.Any<Subject?>());
+    [Fact] void should_append_the_wrapped_event_with_its_tags() => _appended[1].Tags.ShouldEqual(_tags);
+    [Fact] void should_append_the_wrapped_event_with_its_occurrence() => _appended[1].Occurred.ShouldEqual(_occurred);
+    [Fact] void should_append_the_wrapped_event_to_its_source() => (_appended[1].EventSourceId, _appended[1].Event).ShouldEqual((_wrapperEventSourceId, _wrappedEvent));
+    [Fact] void should_append_the_plain_event_without_tags() => _appended[0].Tags.ShouldBeEmpty();
+    [Fact] void should_append_the_plain_event_without_occurrence() => _appended[0].Occurred.ShouldBeNull();
+    [Fact] void should_append_the_plain_event_to_the_command_source() => (_appended[0].EventSourceId, _appended[0].Event).ShouldEqual((_commandEventSourceId, _plainEvent));
 }

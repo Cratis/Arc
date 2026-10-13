@@ -606,7 +606,7 @@ public static class ScreenplayDiagnosticCodes
     public const string UnrepresentableReactionRedelivery = "SP0072";
 
     /// <summary>
-    /// A generated parameter's strategy cannot be recovered as a proven UUID v4 factory.
+    /// A generated parameter's factory or literal strategy arguments cannot be recovered as an executable generate declaration.
     /// </summary>
     public const string GenerationNotRecoverable = "SP0073";
 
