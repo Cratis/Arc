@@ -297,48 +297,90 @@ internal static class CommandTransactionAppender
         var tagSnapshot = namedTags.ToArray();
         if (routing.Subject is not null)
         {
-            // Wrapper batches keep static tags per event, just as the subject-routed single appends did.
-            var wrappers = events.Select(@event => new EventForEventSourceId(eventSourceId, @event)
-            {
-                EventSource = routing.EventSource,
-                EventStream = routing.EventStream,
-                EventSourceType = routing.EventSourceType ?? EventSourceType.Default,
-                EventStreamType = routing.EventStreamType ?? EventStreamType.All,
-                EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
-                Subject = routing.Subject,
-                NamedTags = tagSnapshot
-            }).ToArray();
-            var concurrencyScopes = new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } };
-
-            return tagSnapshot.Length > 0
-                ? eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: concurrencyScopes)
-                : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
+            return AppendSubjectRoutedBatch(eventLog, eventSourceId, events, routing, concurrencyScope, tagSnapshot);
         }
 
         if (tagSnapshot.Length > 0)
         {
-            if (routing.EventSource is not null)
-            {
-                var eventSnapshot = events.ToArray();
-
-                // Chronicle's definition-routed plain batch applies every event type's static tags to every event.
-                var staticTags = eventSnapshot.SelectMany(@event => @event.GetType().GetTags()).Distinct().ToArray();
-                var wrappers = eventSnapshot.Select(@event => new EventForEventSourceId(eventSourceId, @event)
-                {
-                    EventSource = routing.EventSource,
-                    EventStream = routing.EventStream,
-                    EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
-                    NamedTags = tagSnapshot
-                });
-                return eventLog.AppendManyWithNamedTags(wrappers, [], tags: staticTags, concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } });
-            }
-
-            return eventLog.AppendManyWithNamedTags(eventSourceId, events, tagSnapshot, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
+            return AppendNamedTagBatch(eventLog, eventSourceId, events, routing, concurrencyScope, tagSnapshot);
         }
 
         return routing.EventSource is not null
             ? eventLog.AppendMany(routing.EventSource, eventSourceId, events, routing.EventStream, routing.EventStreamId, correlationId: default, concurrencyScope: concurrencyScope)
             : eventLog.AppendMany(eventSourceId, events, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
+    }
+
+    /// <summary>
+    /// Appends a subject-routed batch while retaining each event type's own static tags.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="eventSourceId">The event source id.</param>
+    /// <param name="events">The returned events.</param>
+    /// <param name="routing">The resolved routing.</param>
+    /// <param name="concurrencyScope">The concurrency scope.</param>
+    /// <param name="namedTags">The command's named tag snapshot.</param>
+    /// <returns>The batch append result.</returns>
+    static Task<AppendManyResult> AppendSubjectRoutedBatch(
+        IEventLog eventLog,
+        EventSourceId eventSourceId,
+        IEnumerable<object> events,
+        EventRouting routing,
+        ConcurrencyScope? concurrencyScope,
+        NamedTag[] namedTags)
+    {
+        // Wrapper batches keep static tags per event, just as the subject-routed single appends did.
+        var wrappers = events.Select(@event => new EventForEventSourceId(eventSourceId, @event)
+        {
+            EventSource = routing.EventSource,
+            EventStream = routing.EventStream,
+            EventSourceType = routing.EventSourceType ?? EventSourceType.Default,
+            EventStreamType = routing.EventStreamType ?? EventStreamType.All,
+            EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+            Subject = routing.Subject,
+            NamedTags = namedTags
+        }).ToArray();
+        var concurrencyScopes = new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } };
+
+        return namedTags.Length > 0
+            ? eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: concurrencyScopes)
+            : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
+    }
+
+    /// <summary>
+    /// Appends a named-tag batch using its definition or legacy routing.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="eventSourceId">The event source id.</param>
+    /// <param name="events">The returned events.</param>
+    /// <param name="routing">The resolved routing.</param>
+    /// <param name="concurrencyScope">The concurrency scope.</param>
+    /// <param name="namedTags">The command's named tag snapshot.</param>
+    /// <returns>The batch append result.</returns>
+    static Task<AppendManyResult> AppendNamedTagBatch(
+        IEventLog eventLog,
+        EventSourceId eventSourceId,
+        IEnumerable<object> events,
+        EventRouting routing,
+        ConcurrencyScope? concurrencyScope,
+        NamedTag[] namedTags)
+    {
+        if (routing.EventSource is not null)
+        {
+            var eventSnapshot = events.ToArray();
+
+            // Chronicle's definition-routed plain batch applies every event type's static tags to every event.
+            var staticTags = eventSnapshot.SelectMany(@event => @event.GetType().GetTags()).Distinct().ToArray();
+            var wrappers = eventSnapshot.Select(@event => new EventForEventSourceId(eventSourceId, @event)
+            {
+                EventSource = routing.EventSource,
+                EventStream = routing.EventStream,
+                EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                NamedTags = namedTags
+            });
+            return eventLog.AppendManyWithNamedTags(wrappers, [], tags: staticTags, concurrencyScopes: new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } });
+        }
+
+        return eventLog.AppendManyWithNamedTags(eventSourceId, events, namedTags, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType, correlationId: default, concurrencyScope: concurrencyScope);
     }
 
     /// <summary>

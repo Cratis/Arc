@@ -95,53 +95,10 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
-        var strategy = concurrencyScopeStrategies.GetFor(eventLog);
-
-        // Resolve every event's routing and guard first. Events for one event source id share one scope, so guards that
-        // cannot be shared are rejected here, before the first event is enrolled or appended.
-        var targets = new List<(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing, IEnumerable<NamedTag> NamedTags)>();
-        var derivedGuards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
-        foreach (var item in ((IEnumerable)value).Cast<object>())
-        {
-            // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
-            var wrapper = item as EventForEventSourceId;
-            var (eventSourceId, @event, tags, occurred) = wrapper is not null
-                ? (wrapper.EventSourceId, wrapper.Event, wrapper.SuppliedTags(), wrapper.Occurred)
-                : (commandContext.GetEventSourceId(), item, null, null);
-            var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext, eventSources);
-            targets.Add((eventSourceId, @event, tags, occurred, routing, CommandTransactionAppender.MergeEventTags(commandContext, wrapper?.NamedTags)));
-
-            // The caller's own choice is resolved once per id, however many events it takes.
-            var derived = derivedGuards.Find(_ => _.EventSourceId == eventSourceId && _.Derived.Origin == DerivedConcurrencyScopeOrigin.Explicit).Derived
-                ?? await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, eventSourceId, routing);
-            derivedGuards.Add((eventSourceId, derived));
-        }
-
-        // A scope carries the expected tail of one stream, so it cannot be shared across the streams a
-        // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
-        var concurrencyScopesByEventSourceId = CommandConcurrencyScopes.Resolve(derivedGuards);
-
+        var (targets, concurrencyScopesByEventSourceId) = await ResolveTargets(commandContext, value);
         if (targets.Count > 1 && !CommandTransaction.TryGetActive(out _))
         {
-            CommandTransaction.RefuseImmediateAppend();
-            var events = targets.Select(target => new EventForEventSourceId(target.EventSourceId, target.Event)
-            {
-                EventSource = target.Routing.EventSource,
-                EventStream = target.Routing.EventStream,
-                EventSourceType = target.Routing.EventSourceType ?? EventSourceType.Default,
-                EventStreamType = target.Routing.EventStreamType ?? EventStreamType.All,
-                EventStreamId = target.Routing.EventStreamId ?? EventStreamId.Default,
-                Subject = target.Routing.Subject,
-                Tags = target.Tags ?? [],
-                Occurred = target.Occurred,
-                NamedTags = target.NamedTags
-            }).ToArray();
-            var concurrencyScopes = concurrencyScopesByEventSourceId.ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
-            var result = events.Any(@event => @event.NamedTags.Any())
-                ? await eventLog.AppendManyWithNamedTags(events, [], concurrencyScopes: concurrencyScopes)
-                : await eventLog.AppendMany(events, concurrencyScopes: concurrencyScopes);
-
-            return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult();
+            return await AppendBatch(commandContext, targets, concurrencyScopesByEventSourceId);
         }
 
         foreach (var (eventSourceId, @event, tags, occurred, routing, namedTags) in targets)
@@ -170,4 +127,91 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
         return CommandResult.Success(commandContext.CorrelationId);
     }
+
+    /// <summary>
+    /// Creates a batch event carrying the target's resolved metadata.
+    /// </summary>
+    /// <param name="target">The resolved append target.</param>
+    /// <returns>The event with its routing, tags, subject and occurrence time.</returns>
+    static EventForEventSourceId CreateEventForBatch(AppendTarget target) =>
+        new(target.EventSourceId, target.Event)
+        {
+            EventSource = target.Routing.EventSource,
+            EventStream = target.Routing.EventStream,
+            EventSourceType = target.Routing.EventSourceType ?? EventSourceType.Default,
+            EventStreamType = target.Routing.EventStreamType ?? EventStreamType.All,
+            EventStreamId = target.Routing.EventStreamId ?? EventStreamId.Default,
+            Subject = target.Routing.Subject,
+            Tags = target.Tags ?? [],
+            Occurred = target.Occurred,
+            NamedTags = target.NamedTags
+        };
+
+    /// <summary>
+    /// Resolves every target and validates shared guards before enrollment or append.
+    /// </summary>
+    /// <param name="commandContext">The command context supplying fallback metadata.</param>
+    /// <param name="value">The returned event collection.</param>
+    /// <returns>The ordered targets and the concurrency scope for each event source id.</returns>
+    async Task<(IReadOnlyList<AppendTarget> Targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> ConcurrencyScopes)> ResolveTargets(CommandContext commandContext, object value)
+    {
+        var strategy = concurrencyScopeStrategies.GetFor(eventLog);
+
+        // Resolve every event's routing and guard first. Events for one event source id share one scope, so guards that
+        // cannot be shared are rejected here, before the first event is enrolled or appended.
+        var targets = new List<AppendTarget>();
+        var derivedGuards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
+        foreach (var item in ((IEnumerable)value).Cast<object>())
+        {
+            // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
+            var wrapper = item as EventForEventSourceId;
+            var (eventSourceId, @event, tags, occurred) = wrapper is not null
+                ? (wrapper.EventSourceId, wrapper.Event, wrapper.SuppliedTags(), wrapper.Occurred)
+                : (commandContext.GetEventSourceId(), item, null, null);
+            var routing = CommandTransactionAppender.ResolveRouting(wrapper, commandContext, eventSources);
+            targets.Add(new(eventSourceId, @event, tags, occurred, routing, CommandTransactionAppender.MergeEventTags(commandContext, wrapper?.NamedTags)));
+
+            // The caller's own choice is resolved once per id, however many events it takes.
+            var derived = derivedGuards.Find(_ => _.EventSourceId == eventSourceId && _.Derived.Origin == DerivedConcurrencyScopeOrigin.Explicit).Derived
+                ?? await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, eventSourceId, routing);
+            derivedGuards.Add((eventSourceId, derived));
+        }
+
+        // A scope carries the expected tail of one stream, so it cannot be shared across the streams a
+        // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
+        return (targets, CommandConcurrencyScopes.Resolve(derivedGuards));
+    }
+
+    /// <summary>
+    /// Appends the resolved targets as one immediate batch.
+    /// </summary>
+    /// <param name="commandContext">The command context supplying the correlation id.</param>
+    /// <param name="targets">The ordered append targets.</param>
+    /// <param name="concurrencyScopesByEventSourceId">The resolved per-source concurrency scopes.</param>
+    /// <returns>The command result for the batch append.</returns>
+    async Task<CommandResult> AppendBatch(
+        CommandContext commandContext,
+        IEnumerable<AppendTarget> targets,
+        IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopesByEventSourceId)
+    {
+        CommandTransaction.RefuseImmediateAppend();
+        var events = targets.Select(CreateEventForBatch).ToArray();
+        var concurrencyScopes = concurrencyScopesByEventSourceId.ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
+        var result = events.Any(@event => @event.NamedTags.Any())
+            ? await eventLog.AppendManyWithNamedTags(events, [], concurrencyScopes: concurrencyScopes)
+            : await eventLog.AppendMany(events, concurrencyScopes: concurrencyScopes);
+
+        return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult();
+    }
+
+    /// <summary>
+    /// Carries an event and its resolved append metadata.
+    /// </summary>
+    /// <param name="EventSourceId">The target event source id.</param>
+    /// <param name="Event">The returned event.</param>
+    /// <param name="Tags">The supplied legacy tags.</param>
+    /// <param name="Occurred">The supplied occurrence time.</param>
+    /// <param name="Routing">The resolved routing.</param>
+    /// <param name="NamedTags">The merged named tags.</param>
+    record AppendTarget(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing, IEnumerable<NamedTag> NamedTags);
 }
