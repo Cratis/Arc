@@ -16,10 +16,10 @@ namespace Cratis.Arc.Screenplay.Analysis.Constraints;
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 /// <remarks>
 /// Screenplay knows exactly two rules - a property of an event has to be unique, and an event may occur once. A
-/// rule declared in code that says anything else is pointed at rather than described as something it is not.
+/// uniqueness rule whose targets or releases cannot all be recovered is withheld rather than partially described.
 /// <para>
-/// A rule whose defining method belongs to a project that was not handed over is a rule nothing can be read from, so
-/// the file holding it is pointed at exactly as one saying something unmappable is.
+/// A rule whose defining method belongs to a project that was not handed over cannot be read, so its source file
+/// is referenced instead of inventing a declarative rule.
 /// </para>
 /// </remarks>
 public class ConstraintReader(SemanticModels models, SourcePaths paths, ScreenplayDiagnostics diagnostics)
@@ -69,20 +69,21 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
     /// </summary>
     /// <param name="type">The type declaring the constraint.</param>
     /// <param name="location">Where the constraint lives, for use in diagnostics.</param>
-    /// <returns>The constraints it declares, never empty.</returns>
+    /// <returns>The readable constraints, or a source reference when no uniqueness declaration was found.</returns>
     public IEnumerable<ConstraintModel> Read(INamedTypeSymbol type, string location)
     {
         var declared = new List<ConstraintModel>();
+        var foundUnique = false;
 
         foreach (var method in type.GetMembers(DefineMethod).OfType<IMethodSymbol>())
         {
             foreach (var reference in method.DeclaringSyntaxReferences)
             {
-                ReadDeclaration(type, reference.GetSyntax(), location, declared);
+                foundUnique |= ReadDeclaration(type, reference.GetSyntax(), location, declared);
             }
         }
 
-        return declared.Count > 0 ? declared : [Custom(type)];
+        return foundUnique ? declared : [Custom(type)];
     }
 
     /// <summary>
@@ -99,13 +100,15 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
     /// <param name="declaration">The declaration to read.</param>
     /// <param name="location">Where the constraint lives, for use in diagnostics.</param>
     /// <param name="declared">The constraints collected so far.</param>
-    void ReadDeclaration(INamedTypeSymbol type, SyntaxNode declaration, string location, List<ConstraintModel> declared)
+    /// <returns>Whether a uniqueness declaration was found, including withheld declarations.</returns>
+    bool ReadDeclaration(INamedTypeSymbol type, SyntaxNode declaration, string location, List<ConstraintModel> declared)
     {
         if (models.For(declaration.SyntaxTree) is not { } semanticModel)
         {
-            return;
+            return false;
         }
 
+        var foundUnique = false;
         foreach (var invocation in declaration.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
             if (!string.Equals(InvocationChain.NameOf(invocation), Unique, StringComparison.Ordinal))
@@ -113,20 +116,22 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
                 continue;
             }
 
+            foundUnique = true;
             var read = ReadUnique(type, invocation, semanticModel);
             if (read is null)
             {
                 diagnostics.Warning(
                     ScreenplayDiagnosticCodes.UnmappableConstraint,
-                    $"The rule '{type.Name}' declares is neither unique on a property nor unique on an event type, so the file holding it is pointed at instead",
+                    $"The uniqueness rule '{type.Name}' declares has targets, a lifetime or configuration that cannot be proven and stated faithfully, so the whole constraint was withheld",
                     location);
 
-                declared.Add(Custom(type));
                 continue;
             }
 
             declared.Add(read);
         }
+
+        return foundUnique;
     }
 
     /// <summary>
@@ -138,9 +143,29 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
     /// <returns>The constraint, or <see langword="null"/> when the rule cannot be described.</returns>
     /// <remarks>
     /// The generic form names the event type directly and constrains the whole event, while the builder form names
-    /// the property it constrains inside a nested call.
+    /// every property target it constrains inside nested calls. Releases belong to the whole shared claim.
     /// </remarks>
     ConstraintModel? ReadUnique(INamedTypeSymbol type, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
+    {
+        var releases = ConstraintTargets.Releases(invocation, semanticModel);
+        if (releases is null)
+        {
+            return null;
+        }
+
+        var rule = ReadRule(type, invocation, semanticModel);
+
+        return rule is null ? null : rule with { ReleasedBy = releases };
+    }
+
+    /// <summary>
+    /// Reads every target sharing a rule, retaining the existing single-target naming behavior.
+    /// </summary>
+    /// <param name="type">The type declaring the constraint.</param>
+    /// <param name="invocation">The uniqueness declaration.</param>
+    /// <param name="semanticModel">The semantic model owning the declaration.</param>
+    /// <returns>The complete rule, or null if any target cannot be stated.</returns>
+    ConstraintModel? ReadRule(INamedTypeSymbol type, InvocationExpressionSyntax invocation, SemanticModel semanticModel)
     {
         if (InvocationChain.TypeArgumentOf(invocation) is { } declaredEvent)
         {
@@ -151,22 +176,25 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
                 : new UniqueEventConstraintModel(ConstraintNames.Resolve(invocation, semanticModel, type, resolved), resolved.Name);
         }
 
-        var body = invocation.DescendantNodes().OfType<InvocationExpressionSyntax>()
-            .FirstOrDefault(_ => string.Equals(InvocationChain.NameOf(_), On, StringComparison.Ordinal));
-
-        if (body is null || InvocationChain.TypeArgumentOf(body) is not { } eventType)
+        var targets = ConstraintTargets.Properties(invocation, semanticModel);
+        if (targets is null)
         {
             return null;
         }
 
-        var property = LambdaPaths.Read(InvocationChain.ArgumentOf(body));
-        var declaring = semanticModel.GetTypeInfo(eventType).Type;
+        var calls = ConstraintBuilderCalls.Callback(invocation, semanticModel)!;
+        var firstCall = calls.First(_ => InvocationChain.NameOf(_) == On);
+        var declaring = semanticModel.GetTypeInfo(InvocationChain.TypeArgumentOf(firstCall)!).Type!;
+        var first = targets[0];
 
-        return property is null || declaring is null
-            ? null
-            : new UniquePropertyConstraintModel(
-                ConstraintNames.Resolve(invocation, semanticModel, type, declaring, property),
-                property,
-                declaring.Name);
+        return new UniquePropertyConstraintModel(
+            ConstraintNames.Resolve(invocation, semanticModel, type, declaring, first.Property),
+            first.Property,
+            first.EventName)
+        {
+            AdditionalProperties = first.AdditionalProperties,
+            AdditionalRules = targets.Skip(1).ToArray(),
+            IgnoreCasing = calls.Any(_ => InvocationChain.NameOf(_) == "IgnoreCasing")
+        };
     }
 }
