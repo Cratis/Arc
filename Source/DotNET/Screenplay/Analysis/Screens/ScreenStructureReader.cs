@@ -15,8 +15,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// A known component states its structure through properties whose meaning is fixed by the component rather than by
 /// the screen: a <c>DataPage</c>'s <c>title</c>, the <c>query</c> a data table is bound to and the <c>field</c> and
 /// <c>header</c> of each <c>Column</c>, the <c>command</c> a <c>CommandDialog</c> runs. Those are read, and only when
-/// they are written as text or as the name of a query or command the slice declares. A computed title, a column
-/// without a field, a menu item running a callback and a query from another slice are each left out and reported on
+/// they are written as text or as an imported query or command resolved to its declaring slice. A computed title,
+/// a column without a field, an unread menu callback and an unresolved proxy binding are left out and reported on
 /// their own, so what the document says about a screen is always something the screen says too.
 /// <para>
 /// Nothing in the Cratis Components states navigation - a details component is a pane on the same screen - so no
@@ -40,13 +40,15 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
     /// <param name="path">The path of the file realizing it, as the compilation spells it.</param>
     /// <param name="queries">The queries the slice declares, under the names it declares them.</param>
     /// <param name="commands">The commands the slice declares.</param>
+    /// <param name="references">The application-wide proxy resolver, when available.</param>
     /// <returns>The <see cref="ScreenStructure"/>.</returns>
     public ScreenStructure Read(
         string @namespace,
         string name,
         string path,
         IReadOnlyCollection<QueryModel> queries,
-        IReadOnlyCollection<CommandModel> commands)
+        IReadOnlyCollection<CommandModel> commands,
+        ScreenProxyReferences? references = null)
     {
         var unread = new UnreadScreenStructure(diagnostics, @namespace, name);
         if (files.Contents(path) is not { } text)
@@ -80,9 +82,10 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             return ScreenStructure.None;
         }
 
-        var menus = new MenuItemReader(code, components, commands, unread);
-        var toolbars = menus.ReadPages(elements.Where(_ => _.Kind == ComponentKind.Page).Select(_ => _.Element).ToList(), queries);
-        var reading = new Reading(components, queries, commands, unread) { Menus = menus };
+        references ??= new(@namespace, path, components, queries, commands);
+        var menus = new MenuItemReader(code, components, references, unread);
+        var toolbars = menus.ReadPages(elements.Where(_ => _.Kind == ComponentKind.Page).Select(_ => _.Element).ToList());
+        var reading = new Reading(components, references, unread) { Menus = menus };
         foreach (var (kind, element) in elements)
         {
             reading.Read(kind, element);
@@ -136,8 +139,7 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
 
     sealed class Reading(
         KnownComponents components,
-        IReadOnlyCollection<QueryModel> queries,
-        IReadOnlyCollection<CommandModel> commands,
+        ScreenProxyReferences references,
         UnreadScreenStructure unread)
     {
         /// <summary>
@@ -196,12 +198,12 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
         void Table(JsxElement table) => ReadBound(
             table,
             ComponentKind.Table,
-            proxy => queries.FirstOrDefault(_ => _.Name == proxy),
+            references.Query,
             query => AddTable(table, query));
 
-        void AddTable(JsxElement table, QueryModel query)
+        void AddTable(JsxElement table, ScreenDataModel query)
         {
-            var readModel = query.ReturnType.Name;
+            var readModel = query.Type.Name;
             Tables.Add(new(readModel, [.. Columns(table, readModel)]));
         }
 
@@ -250,8 +252,8 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
         void Dialog(JsxElement dialog) => ReadBound(
             dialog,
             ComponentKind.Dialog,
-            proxy => commands.FirstOrDefault(_ => _.Name == proxy),
-            command => ReadDialogCommand(dialog, command.Name));
+            references.Command,
+            command => ReadDialogCommand(dialog, command));
 
         /// <summary>
         /// Writes unclaimed dialog actions and keeps post-success behavior separate from input opening.
@@ -282,8 +284,8 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             }
 
             var written = element[binding.Property];
-            var declaration = written?.Identifier is { } local && components.Proxy(local) is { } proxy
-                ? resolve(proxy)
+            var declaration = written?.Identifier is { } local
+                ? resolve(local)
                 : null;
 
             if (declaration is null)

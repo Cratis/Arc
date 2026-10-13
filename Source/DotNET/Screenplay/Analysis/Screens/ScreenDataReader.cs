@@ -6,20 +6,18 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.Analysis.Screens;
 
 /// <summary>
-/// Reads which of a slice's queries a screen binds.
+/// Reads the declared queries a screen imports from its own or another slice.
 /// </summary>
 /// <param name="files">The <see cref="IUserInterfaceFiles"/> the text of a component is asked of.</param>
-/// <param name="elsewhere">The <see cref="CrossSliceQueries"/> a name matching no query of the slice is held by.</param>
+/// <param name="elsewhere">The import-site declaration catalog shared across slices.</param>
 /// <remarks>
 /// Arc generates a proxy per query and a component imports it by name, so an import is a name the model can be held
-/// against rather than a reading of a user interface. A name matching a query the slice declares is a binding.
+/// against rather than a reading of a user interface. An import whose owner declares that query is a binding.
 /// Nothing about the binding is taken from the component beyond the name - the type and the key come from the query,
 /// which is C#.
 /// <para>
-/// A name matching nothing the slice declares is handed on rather than dropped, because a query another slice
-/// declares is a binding too and the only reason it cannot be written down is that a reference has no way to say
-/// which slice it belongs to. What that name means depends on every slice the application has, so answering it waits
-/// until they have all been read.
+/// Imports are resolved through their module paths against every slice's declarations. Cross-slice bindings retain
+/// the owner's namespace until emission replaces it with the shortest unambiguous emitted scope.
 /// </para>
 /// <para>
 /// What a view model beside the component imports counts as what the component imports, because where components are
@@ -37,28 +35,20 @@ public class ScreenDataReader(IUserInterfaceFiles files, CrossSliceQueries elsew
     /// Reads the bindings of one screen.
     /// </summary>
     /// <param name="namespace">The namespace of the slice the screen belongs to.</param>
-    /// <param name="name">The name of the screen.</param>
     /// <param name="path">The path of the file realizing it, as the compilation spells it.</param>
-    /// <param name="queries">The queries the slice declares, under the names it declares them.</param>
     /// <returns>The bindings, ordered by the query they read through.</returns>
     public IEnumerable<ScreenDataModel> Read(
         string @namespace,
-        string name,
-        string path,
-        IReadOnlyCollection<QueryModel> queries)
+        string path)
     {
         var written = ScreenImports.Statements(files.Contents(path));
         var imports = written.Concat(ViewModelImports.Of(path, written, files)).Distinct().ToList();
-        var imported = new HashSet<string>(imports.Select(_ => _.Name), StringComparer.Ordinal);
-
-        elsewhere.Record(@namespace, name, path, imports);
-
         return
         [
-            .. queries
-                .Where(_ => imported.Contains(_.Name))
-                .OrderBy(_ => _.Name, StringComparer.Ordinal)
-                .Select(_ => new ScreenDataModel(_.Name, _.ReturnType, _.By?.Name))
+            .. imports.Select(import => elsewhere.Query(@namespace, path, import))
+                .OfType<ScreenDataModel>()
+                .Distinct()
+                .OrderBy(_ => _.Query, StringComparer.Ordinal)
         ];
     }
 }
