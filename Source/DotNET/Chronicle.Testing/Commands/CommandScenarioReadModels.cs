@@ -18,16 +18,18 @@ namespace Cratis.Arc.Chronicle.Testing.Commands;
 /// <see cref="SeedEvents"/>. Decision mode passes its single in-process log, so non-decision reads see the same events that
 /// protected decision reads fold.
 /// </param>
+/// <param name="commandLog">The legacy command log whose successful appends are mirrored into a private observation log.</param>
 /// <remarks>
 /// Seeding events is deliberately type-agnostic: a test states the events that happened for an event source, and any
 /// read model a command injects for that source is materialized from those events on demand — mirroring how the real
 /// system derives read models from the event log. Pinned instances take precedence when a test wants to assert against
 /// a specific read model value directly.
 /// </remarks>
-internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null) : IReadModels
+internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEventSequence? eventLog = null, IEventSequence? commandLog = null) : IReadModels, IDisposable
 {
     readonly Dictionary<(Type ReadModelType, string EventSourceId), object> _instances = [];
     readonly Dictionary<string, List<object>> _events = [];
+    readonly PrivateReadModelObservationLog? _observationLog = commandLog is null ? null : new(commandLog);
 
     /// <inheritdoc/>
     public IMaterializedReadModels Materialized => inner.Materialized;
@@ -38,8 +40,11 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
     /// <param name="readModelType">The read model type.</param>
     /// <param name="eventSourceId">The event source id to associate the instance with.</param>
     /// <param name="instance">The read model instance.</param>
-    public void SeedInstance(Type readModelType, EventSourceId eventSourceId, object instance) =>
+    public void SeedInstance(Type readModelType, EventSourceId eventSourceId, object instance)
+    {
         _instances[(readModelType, eventSourceId.Value)] = instance;
+        _pinsChanged.OnNext(_pinsChanged.Value + 1);
+    }
 
     /// <summary>
     /// Seeds events for an event source id that read models are materialized from on demand.
@@ -54,7 +59,9 @@ internal sealed class CommandScenarioReadModels(IReadModels inner, IEventSequenc
             _events[eventSourceId.Value] = seeded;
         }
 
-        seeded.AddRange(events);
+        var snapshot = events.ToArray();
+        seeded.AddRange(snapshot);
+        _observationLog?.Seed(eventSourceId, snapshot);
     }
 
     /// <inheritdoc/>
