@@ -59,4 +59,9 @@ public record ValidationResultReason(string Value) : ConceptAs<string>(Value)
     /// was sent for. No rule was reached.
     /// </summary>
     public static readonly ValidationResultReason MalformedRequest = new("malformedRequest");
+
+    /// <summary>
+    /// The framework could not fulfill a command contract or complete its effects. No authored rule rejected input.
+    /// </summary>
+    public static readonly ValidationResultReason FrameworkFailure = new("frameworkFailure");
 }

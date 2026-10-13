@@ -377,6 +377,7 @@ are:
 | `validatorFailed` | A validator threw, and the framework substituted a result. Nothing of the authored rules survives. |
 | `dependencyUnavailable` | Something the command needed was not available, so no rule was ever evaluated. |
 | `malformedRequest` | The request itself could not be read or bound. No rule was reached. |
+| `frameworkFailure` | The framework could not fulfill a command contract or complete its effects. Framework-composed; the message is not meant for end users. |
 
 `reason` is the machine-readable counterpart to `message`, and `reasonDetail` says which
 specific thing within that category produced the result - which constraint, for example -

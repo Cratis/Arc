@@ -72,6 +72,12 @@ public class CommandResult
     public IReadOnlyList<CommandOperationOutcome> OperationOutcomes { get; internal set; } = [];
 
     /// <summary>
+    /// Gets or sets a value indicating whether authorization failed because its configuration or evaluation was unavailable,
+    /// rather than because the caller was denied. Server-only; never serialized.
+    /// </summary>
+    internal bool AuthorizationConfigurationFailed { get; set; }
+
+    /// <summary>
     /// Gets the response value carried by this result, if any, boxed as an <see cref="object"/>. This lets a caller
     /// read the response without knowing its concrete generic type.
     /// </summary>
@@ -156,6 +162,7 @@ public class CommandResult
     public void MergeWith(params CommandResult[] commandResults)
     {
         IsAuthorized = IsAuthorized && commandResults.All(r => r.IsAuthorized);
+        AuthorizationConfigurationFailed |= commandResults.Any(result => result.AuthorizationConfigurationFailed);
         if (string.IsNullOrEmpty(AuthorizationFailureReason))
         {
             AuthorizationFailureReason = commandResults.Select(r => r.AuthorizationFailureReason).FirstOrDefault(reason => !string.IsNullOrEmpty(reason)) ?? string.Empty;
@@ -169,6 +176,18 @@ public class CommandResult
             ExceptionStackTrace = ExceptionStackTrace[Environment.NewLine.Length..];
         }
     }
+
+    /// <summary>
+    /// Creates a <see cref="CommandResult"/> for an authorization configuration or evaluation failure.
+    /// </summary>
+    /// <param name="correlationId">The <see cref="CorrelationId"/> associated with the command.</param>
+    /// <returns>An unauthorized <see cref="CommandResult"/> marked as a configuration failure.</returns>
+    internal static CommandResult AuthorizationConfigurationFailure(CorrelationId correlationId) => new()
+    {
+        CorrelationId = correlationId,
+        IsAuthorized = false,
+        AuthorizationConfigurationFailed = true
+    };
 
     /// <summary>
     /// Removes the response value carried by this result, if any. This lets a caller holding an untyped

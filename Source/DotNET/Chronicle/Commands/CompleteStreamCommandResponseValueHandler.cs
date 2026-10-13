@@ -27,7 +27,7 @@ public class CompleteStreamCommandResponseValueHandler(IEventLog eventLog) : ICo
         var result = CommandResult.Success(commandContext.CorrelationId);
         if (streamId.IsDefault || streamId == EventStreamId.NotSet)
         {
-            result.ValidationResults = [ValidationResult.Error("The default stream cannot be completed.")];
+            result.ValidationResults = [ValidationResult.Error("The default stream cannot be completed.", reason: ValidationResultReason.FrameworkFailure)];
         }
         else if (!TransactionalCommandScope.EnrollCompletion(commandContext, new PendingStreamCompletion(eventLog, streamType, streamId, CompletionScope(commandContext, streamType, streamId))))
         {
