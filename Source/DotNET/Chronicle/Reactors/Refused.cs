@@ -51,7 +51,16 @@ public sealed record Refused
     /// </summary>
     /// <param name="name">The required constraint name.</param>
     /// <returns>The named constraint selector.</returns>
-    public static Refused ByConstraint(string name) => new([CommandRefusalKind.Constraint], name);
+    /// <exception cref="ConstraintNameIsRequired">The name is null, empty or whitespace.</exception>
+    public static Refused ByConstraint(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ConstraintNameIsRequired();
+        }
+
+        return new([CommandRefusalKind.Constraint], name);
+    }
 
     /// <summary>
     /// Compares selectors by their matched kinds and constraint name.

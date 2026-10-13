@@ -12,7 +12,32 @@ namespace Cratis.Arc.Commands;
 public record CommandRefusal(CommandRefusalKind Kind, string? ConstraintName, string Message)
 {
     /// <summary>
+    /// Gets the first violated constraint name, or null when no names are available.
+    /// </summary>
+    public string? ConstraintName => ConstraintNames.Count > 0 ? ConstraintNames[0] : null;
+
+    /// <summary>
     /// Gets all violated constraint names in result order, without duplicates.
     /// </summary>
     public IReadOnlyList<string> ConstraintNames { get; init; } = ConstraintName is null ? [] : [ConstraintName];
+
+    /// <summary>
+    /// Compares refusals by their kind, authored message and ordered constraint names.
+    /// </summary>
+    /// <param name="other">The refusal to compare.</param>
+    /// <returns>Whether both refusals describe the same outcome.</returns>
+    public virtual bool Equals(CommandRefusal? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        return EqualityContract == other.EqualityContract && Kind == other.Kind &&
+            Message == other.Message && ConstraintNames.SequenceEqual(other.ConstraintNames);
+    }
+
+    /// <inheritdoc/>
+    public override int GetHashCode() =>
+        ConstraintNames.Aggregate(HashCode.Combine(EqualityContract, Kind, Message), HashCode.Combine);
 }
