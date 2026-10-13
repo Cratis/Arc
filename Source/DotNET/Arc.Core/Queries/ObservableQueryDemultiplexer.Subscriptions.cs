@@ -76,6 +76,16 @@ public partial class ObservableQueryDemultiplexer
         Paging = queryResult.Paging
     };
 
+    static Task SendValidationRejection(QueryResult result, SubscriptionCallbacks callbacks, CancellationToken token)
+    {
+        var rejection = new QueryResult
+        {
+            CorrelationId = result.CorrelationId,
+            ValidationResults = result.ValidationResults
+        };
+        return callbacks.OnNext(rejection, token);
+    }
+
     static bool TransferScopeToSubscription(IDisposable? subscription, IServiceScope? ownedScope)
     {
         if (subscription is StreamingQuerySubscription lifetime && ownedScope is not null)
@@ -298,6 +308,12 @@ public partial class ObservableQueryDemultiplexer
             {
                 logger.QueryUnauthorized(request.QueryName, queryId);
                 await callbacks.OnUnauthorized(queryId, token);
+                return null;
+            }
+
+            if (!queryResult.IsValid)
+            {
+                await SendValidationRejection(queryResult, callbacks, token);
                 return null;
             }
 

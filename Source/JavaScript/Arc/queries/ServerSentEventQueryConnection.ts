@@ -61,19 +61,7 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
 
         this._eventSource = Globals.eventSourceFactory ? Globals.eventSourceFactory(url) : new EventSource(url);
 
-        this._eventSource.onmessage = (event: MessageEvent) => {
-            if (this._disconnected) return;
-            try {
-                const result = JSON.parse(event.data as string) as QueryResult<TDataType>;
-                if ((result as unknown as { isAuthorized?: boolean })?.isAuthorized === false) {
-                    this.handleUnauthorized(url, result, dataReceived);
-                    return;
-                }
-                dataReceived(result);
-            } catch (error) {
-                console.error('SSE: error parsing message', error);
-            }
-        };
+        this._eventSource.onmessage = (event: MessageEvent) => this.handleMessage(event, url, dataReceived);
 
         this._eventSource.onerror = () => {
             if (this._disconnected || this._unauthorized) return;
@@ -87,6 +75,23 @@ export class ServerSentEventQueryConnection<TDataType> implements IObservableQue
         this._disconnected = true;
         this._eventSource?.close();
         this._eventSource = undefined;
+    }
+
+    private handleMessage(event: MessageEvent, url: string, dataReceived: DataReceived<TDataType>): void {
+        if (this._disconnected) return;
+        try {
+            const result = JSON.parse(event.data as string) as QueryResult<TDataType>;
+            if ((result as unknown as { isAuthorized?: boolean })?.isAuthorized === false) {
+                this.handleUnauthorized(url, result, dataReceived);
+                return;
+            }
+            if (result?.isValid === false) {
+                this.disconnect();
+            }
+            dataReceived(result);
+        } catch (error) {
+            console.error('SSE: error parsing message', error);
+        }
     }
 
     /**
