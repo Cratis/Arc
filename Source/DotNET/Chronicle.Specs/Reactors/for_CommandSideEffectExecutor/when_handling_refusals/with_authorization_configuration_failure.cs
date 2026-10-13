@@ -27,10 +27,16 @@ public class with_authorization_configuration_failure : given.a_refused_invocati
         _activitySource = new("Cratis.Arc.Test");
         source.ActualSource.Returns(_activitySource);
         _commandPipeline = new CommandPipeline(
-            Substitute.For<ICorrelationIdAccessor>(), Substitute.For<ICommandFilters>(), providers,
-            Substitute.For<ICommandResponseValueHandlers>(), Substitute.For<ICommandContextModifier>(),
-            Substitute.For<ICommandContextValuesBuilder>(), Substitute.For<ICommandHandlerArgumentResolver>(),
-            new KnownInstancesOf<ICommandExecutionScope>([]), _serviceScopeFactory, source);
+            Substitute.For<ICorrelationIdAccessor>(),
+            Substitute.For<ICommandFilters>(),
+            providers,
+            Substitute.For<ICommandResponseValueHandlers>(),
+            Substitute.For<ICommandContextModifier>(),
+            Substitute.For<ICommandContextValuesBuilder>(),
+            Substitute.For<ICommandHandlerArgumentResolver>(),
+            new KnownInstancesOf<ICommandExecutionScope>([]),
+            _serviceScopeFactory,
+            source);
         _serviceProvider.GetService(typeof(ICommandPipeline)).Returns(_commandPipeline);
         _invocation = Invoke.Command(_command).OnRefused(Refused.ByAuthorization, _ =>
         {

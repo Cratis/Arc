@@ -17,15 +17,22 @@ public class with_unsupported_authorization : Specification
     void Establish()
     {
         var declarations = new AuthorizationDeclarations(
-            new KnownInstancesOf<IAnonymousEvaluator>([]), new KnownInstancesOf<IAuthorizationAttributeEvaluator>([]));
-        var evaluation = new AuthorizationEvaluation(declarations, Substitute.For<IAuthorizationEvaluator>(),
-            Substitute.For<ICurrentPrincipalAccessor>(), Substitute.For<IAuthorizationPolicyRuntime>());
+            new KnownInstancesOf<IAnonymousEvaluator>([]),
+            new KnownInstancesOf<IAuthorizationAttributeEvaluator>([]));
+        var evaluation = new AuthorizationEvaluation(
+            declarations,
+            Substitute.For<IAuthorizationEvaluator>(),
+            Substitute.For<ICurrentPrincipalAccessor>(),
+            Substitute.For<IAuthorizationPolicyRuntime>());
         _context = new(CorrelationId.NotSet, typeof(object), new object(), [], new(), ServiceProvider: Substitute.For<IServiceProvider>());
         var filter = Substitute.For<IAuthorizationCommandFilter>();
         filter.OnExecution(_context).Returns(async _ =>
         {
-            var allowed = await evaluation.IsAuthorized(typeof(CommandContext).GetProperty(nameof(CommandContext.Command))!,
-                _context, _context.ServiceProvider!, CancellationToken.None);
+            var allowed = await evaluation.IsAuthorized(
+                typeof(CommandContext).GetProperty(nameof(CommandContext.Command))!,
+                _context,
+                _context.ServiceProvider!,
+                CancellationToken.None);
 
             return allowed ? CommandResult.Success(_context.CorrelationId) : CommandResult.Unauthorized(_context.CorrelationId);
         });

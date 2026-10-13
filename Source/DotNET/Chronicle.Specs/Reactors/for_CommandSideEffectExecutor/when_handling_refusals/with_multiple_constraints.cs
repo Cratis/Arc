@@ -21,7 +21,7 @@ public class with_multiple_constraints : given.a_refused_invocation
 
     [Fact] void should_match_a_constraint_other_than_the_first() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_retain_the_first_name() => _received!.ConstraintName.ShouldEqual("First");
-    [Fact] void should_retain_every_name() => _received!.ConstraintNames.ShouldEqual(["First", "Second"]);
+    [Fact] void should_retain_every_name() => _received!.ConstraintNames.SequenceEqual(["First", "Second"]).ShouldBeTrue();
     [Fact] void should_record_all_constraint_messages() => _appended.Single().Event.ShouldEqual(new RefusalRecorded("first\nsecond"));
     [Fact] void should_skip_later_commands() => _commandPipeline.DidNotReceive().Execute(_later, _serviceProvider);
 }

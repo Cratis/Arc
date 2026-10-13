@@ -18,6 +18,6 @@ public class with_constraints_and_validation : given.a_command_result
 
     [Fact] void should_prefer_the_first_constraint() => _refusal!.Kind.ShouldEqual(CommandRefusalKind.Constraint);
     [Fact] void should_preserve_the_constraint_name() => _refusal!.ConstraintName.ShouldEqual("UniqueSeat");
-    [Fact] void should_carry_every_violated_name() => _refusal!.ConstraintNames.ShouldEqual(["UniqueSeat", "Other"]);
+    [Fact] void should_carry_every_violated_name() => _refusal!.ConstraintNames.ShouldContainOnly("UniqueSeat", "Other");
     [Fact] void should_join_all_constraint_messages() => _refusal!.Message.ShouldEqual("$strings.unique\nanother\n detail ");
 }

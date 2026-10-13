@@ -14,5 +14,4 @@ public static class Invoke
     /// <param name="command">The command to execute.</param>
     /// <returns>An invocation to which refusal branches can be added.</returns>
     public static CommandInvocation Command(object command) => new(command, []);
-
 }

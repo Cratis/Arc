@@ -32,7 +32,7 @@ public class when_comparing_selectors : Specification
     [Fact] void should_hash_equivalent_selections_equally() => _first.GetHashCode().ShouldEqual(_equivalent.GetHashCode());
     [Fact] void should_distinguish_exact_names() => _differentName.ShouldBeFalse();
     [Fact] void should_distinguish_kinds() => _differentKinds.ShouldBeFalse();
-    [Fact] void should_expose_the_selected_kinds() => _first.Kinds.ShouldEqual([CommandRefusalKind.Constraint]);
+    [Fact] void should_expose_the_selected_kinds() => _first.Kinds.SequenceEqual([CommandRefusalKind.Constraint]).ShouldBeTrue();
     [Fact] void should_expose_the_constraint_restriction() => _first.ConstraintName.ShouldEqual("Seat");
-    [Fact] void should_expose_any_without_authorization() => Refused.Any.Kinds.ShouldEqual([CommandRefusalKind.Validation, CommandRefusalKind.Constraint]);
+    [Fact] void should_expose_any_without_authorization() => Refused.Any.Kinds.SequenceEqual([CommandRefusalKind.Validation, CommandRefusalKind.Constraint]).ShouldBeTrue();
 }
