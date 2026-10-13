@@ -4,6 +4,7 @@
 using Cratis.Arc.Commands;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -13,10 +14,10 @@ namespace Cratis.Arc.Chronicle.Commands;
 public static class AppendResultExtensions
 {
     /// <summary>
-    /// Convert an <see cref="IAppendResult"/> to a <see cref="CommandResult"/>.
+    /// Converts an append result using its constraint and concurrency outcomes.
     /// </summary>
-    /// <param name="result">The <see cref="IAppendResult"/> to convert.</param>
-    /// <returns>A <see cref="CommandResult"/>.</returns>
+    /// <param name="result">The append result.</param>
+    /// <returns>The command result.</returns>
     public static CommandResult ToCommandResult(this IAppendResult result)
     {
         var commandResult = new CommandResult
@@ -52,6 +53,25 @@ public static class AppendResultExtensions
 
             commandResult.ValidationResults = validationResults;
         }
+
+        return commandResult;
+    }
+
+    /// <summary>
+    /// Converts an append outcome using the producing invocation's freshness provenance.
+    /// </summary>
+    /// <param name="result">The append result.</param>
+    /// <param name="context">The producing invocation.</param>
+    /// <param name="sequence">The event sequence that was appended to.</param>
+    /// <returns>The command result.</returns>
+    internal static CommandResult ToCommandResult(this IAppendResult result, CommandContext context, EventSequenceId sequence)
+    {
+        var commandResult = result.ToCommandResult();
+        var freshness = FreshIdentifierScopes.For(context);
+        commandResult.ValidationResults = commandResult.ValidationResults.Select(validation =>
+            validation.State is ConcurrencyViolation violation && freshness.Owns(sequence, violation)
+                ? GeneratedIdentifierCollision.CreateValidationResult(violation)
+                : validation).ToArray();
 
         return commandResult;
     }

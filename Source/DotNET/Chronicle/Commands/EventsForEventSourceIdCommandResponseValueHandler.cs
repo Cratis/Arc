@@ -124,7 +124,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             var result = await eventLog.AppendForCommand(target.EventSourceId, target.Event, target.Routing, concurrencyScope, target.Tags, target.Occurred, target.NamedTags);
             if (!result.IsSuccess)
             {
-                return result.ToCommandResult();
+                return result.ToCommandResult(commandContext, eventLog.Id);
             }
         }
 
@@ -152,7 +152,8 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             // The caller's own choice is resolved once per id, however many events it takes.
             var derived = derivedGuards.Find(_ => _.EventSourceId == target.EventSourceId && _.Derived.Origin == DerivedConcurrencyScopeOrigin.Explicit).Derived
                 ?? await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, target.EventSourceId, target.Routing);
-            derivedGuards.Add((target.EventSourceId, derived));
+            var scope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, target.EventSourceId, derived.Scope, derived.Origin == DerivedConcurrencyScopeOrigin.Explicit);
+            derivedGuards.Add((target.EventSourceId, scope == derived.Scope ? derived : new(scope, DerivedConcurrencyScopeOrigin.Explicit)));
         }
 
         return (targets, derivedGuards);
@@ -175,7 +176,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         var scopes = concurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
         var result = await eventLog.AppendRoutedBatch(wrappers, scopes);
 
-        return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult();
+        return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult(commandContext, eventLog.Id);
     }
 
     sealed record AppendTarget(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing, IEnumerable<NamedTag> NamedTags);

@@ -31,7 +31,9 @@ public static class AggregateRootCommitResultExtensions
 
         if (result.ConcurrencyViolations.Any())
         {
-            validationResults.AddRange(result.ConcurrencyViolations.Select(_ => _.ToValidationResult()));
+            validationResults.AddRange(result.ConcurrencyViolations.Select(violation => result.FreshIdentifiers?.Owns(violation) == true
+                ? GeneratedIdentifierCollision.CreateValidationResult(violation)
+                : violation.ToValidationResult()));
         }
 
         return new Arc.Commands.CommandResult
