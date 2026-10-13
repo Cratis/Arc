@@ -45,9 +45,61 @@ internal static class ConstraintTargets
     /// <returns>Release event names, or null if any release is unreadable.</returns>
     internal static IReadOnlyList<string>? Releases(InvocationExpressionSyntax invocation, SemanticModel model)
     {
+        if (HasUnprovenEventReleases(invocation, model))
+        {
+            return null;
+        }
+
         var releases = ReleaseCalls(invocation, model).Select(call => Release(call, model)).ToArray();
 
         return releases.Any(_ => _ is null) ? null : releases.OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    static bool HasUnprovenEventReleases(InvocationExpressionSyntax invocation, SemanticModel model)
+    {
+        if (InvocationChain.TypeArgumentOf(invocation) is null)
+        {
+            return false;
+        }
+
+        var declaration = invocation.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault();
+        if (declaration is null)
+        {
+            return false;
+        }
+
+        var builder = Receiver(invocation, model);
+        var releases = CallsIn(declaration).SkipWhile(_ => _ != invocation).Skip(1)
+            .Where(call => IsReleaseOn(call, model, builder));
+
+        return releases.Any() && !HasReadableDefinition(declaration, model);
+    }
+
+    static bool IsReleaseOn(InvocationExpressionSyntax invocation, SemanticModel model, ISymbol? builder) =>
+        InvocationChain.NameOf(invocation) == RemovedWith && SymbolEqualityComparer.Default.Equals(Receiver(invocation, model), builder);
+
+    /// <summary>
+    /// Proves the most-recent-claim association using only unconditional direct builder statements.
+    /// </summary>
+    /// <param name="declaration">The constraint definition.</param>
+    /// <param name="model">The semantic model owning the definition.</param>
+    /// <returns>Whether every call is unconditionally applied to its stated builder.</returns>
+    /// <remarks>
+    /// Conditional calls, deferred callbacks, reassigned builders and helpers can change which claim is released.
+    /// </remarks>
+    static bool HasReadableDefinition(MethodDeclarationSyntax declaration, SemanticModel model)
+    {
+        if (declaration.Body is { } body && body.Statements.Any(_ => _ is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax }))
+        {
+            return false;
+        }
+
+        if (declaration.DescendantNodes().Any(_ => _ is LambdaExpressionSyntax or AssignmentExpressionSyntax))
+        {
+            return false;
+        }
+
+        return CallsIn(declaration).All(call => IsKnownCall(call, model));
     }
 
     static bool HasReadableCallback(InvocationExpressionSyntax invocation, SemanticModel model)

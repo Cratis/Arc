@@ -86,7 +86,15 @@ public static class ExternalEvents
     /// </summary>
     /// <param name="constraint">The constraint to read.</param>
     /// <returns>The names.</returns>
-    static IEnumerable<string> EventsOf(ConstraintModel constraint) => constraint switch
+    static IEnumerable<string> EventsOf(ConstraintModel constraint) =>
+        [.. PrimaryEventOf(constraint), .. constraint.AdditionalRules.SelectMany(EventsOf), .. constraint.ReleasedBy];
+
+    /// <summary>
+    /// Gets the event a constraint's own rule is declared on.
+    /// </summary>
+    /// <param name="constraint">The constraint to read.</param>
+    /// <returns>The name, or nothing for a constraint without a declared event.</returns>
+    static IEnumerable<string> PrimaryEventOf(ConstraintModel constraint) => constraint switch
     {
         UniquePropertyConstraintModel unique => [unique.EventName],
         UniqueEventConstraintModel unique => [unique.EventName],
