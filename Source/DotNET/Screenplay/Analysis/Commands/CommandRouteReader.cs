@@ -23,7 +23,7 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
     /// <returns>The route, or null when it cannot be stated.</returns>
     public CommandRouteModel? Read(INamedTypeSymbol command, string? identifier, string location)
     {
-        var definition = EventSourceReader.Read(command);
+        var definition = EventSourceReader.Read(command, models);
         var source = definition?.Source ?? command.GetAttribute(WellKnownTypeNames.EventSourceTypeAttribute)?.GetArgument(0) as string;
         var stream = definition?.Stream ?? command.GetAttribute(WellKnownTypeNames.EventStreamTypeAttribute)?.GetArgument(0) as string;
         if (source is null && stream is null)
@@ -45,7 +45,7 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
         var identity = command.DeclaredProperties().FirstOrDefault(property => property.Name == identifier);
         if (stream is null)
         {
-            return new(source, null, identity is null ? null : types.Resolve(identity.Type), null, null);
+            return WithStoredNames(new(source, null, identity is null ? null : types.Resolve(identity.Type), null, null), definition);
         }
 
         string? streamId = null;
@@ -74,7 +74,7 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
             var property = command.DeclaredProperties().FirstOrDefault(property => streamIdValue == $"{{{property.Name}}}" && PortableStreamId(property.Type));
             if (property is not null)
             {
-                return new(source, stream, identity is null ? null : types.Resolve(identity.Type), types.Resolve(property.Type), property.Name);
+                return WithStoredNames(new(source, stream, identity is null ? null : types.Resolve(identity.Type), types.Resolve(property.Type), property.Name), definition);
             }
 
             if (ConcurrencyReader.IsTemplate(streamIdValue))
@@ -89,19 +89,25 @@ public class CommandRouteReader(SemanticModels models, TypeRegistry types, Scree
                 return null;
             }
 
-            return new(source, stream, identity is null ? null : types.Resolve(identity.Type), new("String", false, false), null)
+            var route = new CommandRouteModel(source, stream, identity is null ? null : types.Resolve(identity.Type), new("String", false, false), null)
             {
                 StreamIdLiteral = new(streamIdValue)
             };
+
+            return WithStoredNames(route, definition);
         }
 
-        return new(source, stream, identity is null ? null : types.Resolve(identity.Type), streamIdType, streamId);
+        return WithStoredNames(new(source, stream, identity is null ? null : types.Resolve(identity.Type), streamIdType, streamId), definition);
     }
+
+    static CommandRouteModel WithStoredNames(CommandRouteModel route, EventSourceBindingModel? definition) =>
+        route with { StoredSource = definition?.StoredSource, StoredStream = definition?.StoredStream };
 
     static bool PortableStreamId(ITypeSymbol type)
     {
         var backing = type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments.FirstOrDefault();
         var scalar = backing ?? type;
+
         return type.NullableAnnotation != NullableAnnotation.Annotated &&
             (scalar.SpecialType == SpecialType.System_String || scalar.Is("System.Guid") ||
                 (backing is not null && scalar.SpecialType is SpecialType.System_Int32 or SpecialType.System_Int64));

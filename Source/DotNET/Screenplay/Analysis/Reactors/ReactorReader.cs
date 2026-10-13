@@ -71,7 +71,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     /// <param name="models">The <see cref="SemanticModels"/> every handler is read through.</param>
     /// <returns>The reactions, empty when the type is not a reactor or none of its handlers can be stated.</returns>
     public static IEnumerable<ReactionModel> ReactionsOf(INamedTypeSymbol type, SemanticModels models) =>
-        IsReactor(type) ? ReactionsOf(type, [.. Handlers(type)], EventSourceReader.ReadObserved(type), models) : [];
+        IsReactor(type) ? ReactionsOf(type, [.. Handlers(type)], EventSourceReader.ReadObserved(type, models), models) : [];
 
     /// <summary>
     /// Gets the names of the events a reactor observes.
@@ -89,7 +89,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     public ReactorModel Read(INamedTypeSymbol type)
     {
         var handlers = Handlers(type).ToList();
-        var eventSource = EventSourceReader.ReadObserved(type);
+        var eventSource = EventSourceReader.ReadObserved(type, models);
         var routesAppends = ReactorMetadataReader.RoutesAppends(type, handlers, models);
 
         var reactor = new ReactorModel(
@@ -108,7 +108,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
                 handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
 
-        return new ReactorMetadataReader(Definitions).Read(type, reactor);
+        return new ReactorMetadataReader(Definitions, models).Read(type, reactor);
     }
 
     /// <summary>

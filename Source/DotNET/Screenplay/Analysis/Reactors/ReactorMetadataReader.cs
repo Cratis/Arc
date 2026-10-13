@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 
@@ -11,7 +12,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 /// Recovers identity, observation and independent append metadata without reading handler bodies.
 /// </summary>
 /// <param name="definitions">The application's registered definition types.</param>
-internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
+/// <param name="models">The semantic models resolving attribute expressions.</param>
+internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions, SemanticModels models)
 {
     /// <summary>
     /// Reads the nearest declaration, replacing rather than combining inherited attributes.
@@ -106,18 +108,6 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
         return roles.Distinct(StringComparer.Ordinal).Count() != roles.Count ? Failure : null;
     }
 
-    static RecoveredObservation ReadObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known)
-    {
-        if (!type.HasAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT))
-        {
-            return ReadRawObservation(type, known);
-        }
-
-        return EventSourceReader.ReadObserved(type) is { } observed
-            ? new(NormalizeTypedObservation(observed), null)
-            : new(null, "its typed observation definition could not be resolved");
-    }
-
     static ObservedEventSourceModel NormalizeTypedObservation(ObservedEventSourceModel observed)
     {
         if (!observed.StreamDeclared)
@@ -128,7 +118,7 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
         return string.Equals(observed.Stream, "All", StringComparison.Ordinal) ? observed with { Stream = null } : observed;
     }
 
-    static RecoveredObservation ReadRawObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known)
+    static RecoveredObservation ReadRawObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known, SemanticModels models)
     {
         var source = AttributeText(Nearest(type, WellKnownTypeNames.EventSourceTypeAttribute), string.Empty);
         var stream = AttributeText(Nearest(type, WellKnownTypeNames.EventStreamTypeAttribute), "All");
@@ -146,9 +136,35 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
         }
 
         var selectedStream = stream == "All" ? null : stream;
-        var declared = selectedStream is null || DeclaresStream(known, source, selectedStream);
 
-        return new(new(source, selectedStream, declared), null);
+        return new(RawFilter(type, (source, selectedStream), known, models), null);
+    }
+
+    static ObservedEventSourceModel RawFilter(INamedTypeSymbol type, (string Source, string? Stream) selected, List<ReactorSourceDefinition> known, SemanticModels models)
+    {
+        if (known.Where(item => item.StoredSource == selected.Source).ToList() is [var definition])
+        {
+            var namedStream = selected.Stream is null ? null : RawStreamName(type, definition, models) ?? selected.Stream;
+
+            return new(definition.Source, namedStream, namedStream is null || definition.Streams.Contains(namedStream, StringComparer.Ordinal));
+        }
+        var declared = selected.Stream is null || DeclaresStream(known, selected.Source, selected.Stream);
+
+        return new(selected.Source, selected.Stream, declared);
+    }
+
+    static string? RawStreamName(INamedTypeSymbol type, ReactorSourceDefinition definition, SemanticModels models)
+    {
+        var attribute = Nearest(type, WellKnownTypeNames.EventStreamTypeAttribute);
+        if (attribute?.ApplicationSyntaxReference?.GetSyntax() is not AttributeSyntax { ArgumentList.Arguments: [var argument, ..] } syntax ||
+            models.For(syntax.SyntaxTree)?.GetSymbolInfo(argument.Expression).Symbol is not IFieldSymbol field)
+        {
+            return null;
+        }
+        var owner = field.ContainingType;
+        var identity = $"{owner.ContainingAssembly.Identity}:{owner.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}";
+
+        return identity == definition.Identity ? EventSourceNames.Stream(attribute, owner, models) : null;
     }
 
     static string? AttributeText(AttributeData? attribute, string fallback) => attribute is null ? fallback : attribute.GetArgument(0) as string;
@@ -166,10 +182,33 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
     static bool IsDefinition(INamedTypeSymbol type) =>
         !type.IsAbstract && type.TypeKind is TypeKind.Class or TypeKind.Struct && type.FindInterface(WellKnownTypeNames.EventSourceDefinition) is not null;
 
-    static ReactorSourceDefinition Describe(INamedTypeSymbol definition) => new(
-        $"{definition.ContainingAssembly.Identity}:{definition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
-        EventSourceReader.SourceNameOf(definition),
-        definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute).Select(attribute => attribute.GetArgument(0) as string ?? string.Empty).ToList());
+    RecoveredObservation ReadObservation(INamedTypeSymbol type, List<ReactorSourceDefinition> known)
+    {
+        if (!type.HasAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT))
+        {
+            return ReadRawObservation(type, known, models);
+        }
+
+        return EventSourceReader.ReadObserved(type, models) is { } observed
+            ? new(NormalizeTypedObservation(observed), null)
+            : new(null, "its typed observation definition could not be resolved");
+    }
+
+    ReactorSourceDefinition Describe(INamedTypeSymbol definition)
+    {
+        var streams = definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
+            .Select(attribute => (Name: EventSourceNames.Stream(attribute, definition, models), Stored: attribute.GetArgument(0) as string ?? string.Empty))
+            .Where(stream => stream.Name is not null).Select(stream => (Name: stream.Name!, stream.Stored)).ToList();
+
+        return new(
+            $"{definition.ContainingAssembly.Identity}:{definition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}",
+            EventSourceReader.SourceNameOf(definition, models),
+            streams.ConvertAll(stream => stream.Name))
+        {
+            StoredSource = EventSourceNames.StoredSource(definition),
+            StoredStreams = streams.DistinctBy(stream => stream.Name, StringComparer.Ordinal).ToDictionary(stream => stream.Name, stream => stream.Stored, StringComparer.Ordinal)
+        };
+    }
 
     List<ReactorSourceDefinition> DefinitionsFor(INamedTypeSymbol type) => definitions.Concat(TypedDefinition(type))
         .Where(IsDefinition).Select(Describe).DistinctBy(item => item.Identity, StringComparer.Ordinal).ToList();

@@ -19,7 +19,9 @@ public class with_explicit_event_destinations : a_filtered_application
         GenerateFilteredWith($$"""{{Definition}} {{attributes}} public class Welcomer : IReactor { {{ReturnedEvent}} }""");
 
         Result.Source.ShouldContain(filter);
-        Result.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");
+        Result.Source.ShouldContain("produces AuthorWelcomed");
+        Result.Source.ShouldContain("for \"author\"");
+        Result.Source.ShouldNotContain("file Authors/Welcoming/Welcoming.cs");
         Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnrepresentableReactionAppendRoute).ShouldBeEmpty();
         AssertDocument();
     }

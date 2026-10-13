@@ -79,7 +79,7 @@ internal class ReactorAppendRouting(SemanticModels models)
         {
             return true;
         }
-        if (ReactionReader.ReturnedBy(body) is not { } returned ||
+        if (ReactionReader.ReturnedBy(body, model) is not { } returned ||
             ReactionReader.ValueOf(handler, returned, model, out _, out _) is not { } value)
         {
             return true;
@@ -94,7 +94,7 @@ internal class ReactorAppendRouting(SemanticModels models)
         {
             return true;
         }
-        if (ReactionReader.ItemsOf(value) is { } items)
+        if (ReactionReader.ItemsOf(value, model) is { } items)
         {
             return items.All(item => HasIndependentDestination(item, model));
         }
