@@ -26,10 +26,12 @@ Because the same command scope serves `Provide()` and `Handle()`, all three see 
 ## What to be aware of
 
 - **A key does not prove existence.** Declare the parameter nullable when a missing projection is a business condition, non-nullable when it is required. This is the central decision — see [nullable versus required](read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
-- **Freshness depends on backing.** Materialized models can lag; passive models build state on demand. Neither snapshot alone guarantees an invariant under concurrent commands. Use a Chronicle [constraint](/chronicle/constraints/) for those.
+- **Freshness depends on backing.** Materialized models can lag; passive models build state on demand. Neither is a guard: a validator that reads a plain read model can pass for two concurrent commands. Use a Chronicle [constraint](/chronicle/constraints/) for uniqueness, or a [protected decision](read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands) for state, and keep the validator as a hint. A `[ProtectedDecision]` command refuses a validator that takes constructor dependencies. See [validators and protected decisions](consistency/validators.md).
 - **Validators need the Arc command pipeline.** Read-model injection does not work through MVC controllers — see [`ReadModelValidatorRequiresCommandPipeline`](read-models/failures.md#readmodelvalidatorrequirescommandpipeline).
 
 ## See also
+
+- [Choosing how a command's rule holds](consistency/index.md) — which mechanism makes a rule hold, and which only look as if they do.
 
 - [Use current state in a command](../../../scenarios/use-current-state-in-a-command.mdx) — the recipe, covering validators, `Provide()`, and `Handle()`.
 - [Read models in commands](read-models/injecting-into-commands.md) — the full reference for all three positions.
