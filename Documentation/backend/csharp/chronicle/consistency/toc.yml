@@ -1,0 +1,10 @@
+- name: Choosing how a rule holds
+  href: index.md
+- name: Scenarios
+  href: scenarios.md
+- name: Validators
+  href: validators.md
+- name: Pitfalls
+  href: pitfalls.md
+- name: FAQ
+  href: faq.md

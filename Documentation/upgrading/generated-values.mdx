@@ -1,0 +1,140 @@
+---
+title: Migrate generated identifiers
+description: Move identifier generation out of Handle and into generated Handle parameters, and replace identity-source queues with named scenario pins.
+---
+
+A handler that calls `CartId.New()` inside `Handle()` hides the identifier from your specs: nothing in a
+spec can choose it. Moving it to a command property would let every client choose it instead. The way out
+is a `[GeneratedValue]` Handle parameter that a spec pins by name.
+
+This guide assumes an Arc command and an identifier that implements `IGeneratable<TSelf>` from
+Cratis.Fundamentals 7.23.0 or later. See
+[declaring a server-owned identifier](../backend/csharp/commands/generated-values.md#declare-a-server-owned-identifier)
+for the `CartId` declaration used below. The before and after code is the `StartCartWithInlineGeneration` and
+`StartCart` pair in the
+[Generated Values Shop sample](https://github.com/Cratis/Samples/tree/main/GeneratedValues/Shop).
+
+## See the diagnostic
+
+The command creates its identity inline:
+
+```csharp title="Shop/Carts/Starting/StartCartWithInlineGeneration.cs"
+using Cratis.Arc.Commands.ModelBound;
+
+namespace Shop.Carts.Starting;
+
+[Command]
+public record StartCartWithInlineGeneration
+{
+    public CartId Handle() => CartId.New();
+}
+```
+
+[ARC0028](../backend/csharp/code-analysis/ARC0028.md) reports the call. Its default severity is Info, and a
+build that raises it shows a warning like this one from the sample:
+
+```text
+Shop/Carts/Starting/StartCartWithInlineGeneration.cs(22,31): warning ARC0028: Move inline generation of 'CartId' to a [GeneratedValue] Handle parameter so scenarios can pin it
+```
+
+## Apply the quick fix
+
+In your editor, choose **Move to a [GeneratedValue] parameter** on the diagnostic. For a supported single
+expression it adds the parameter and replaces the call:
+
+```csharp title="Shop/Carts/Starting/StartCart.cs"
+using Cratis.Arc.Commands.ModelBound;
+
+namespace Shop.Carts.Starting;
+
+[Command]
+public record StartCart
+{
+    public CartId Handle([GeneratedValue("cart")] CartId cartId) => cartId;
+}
+```
+
+The fix derives a parameter name; this example then chose the explicit name `cart` so scenario pins
+survive a C# parameter rename. Arc now calls `CartId.New()`, validates the value and supplies it to
+`Handle()`. The value stays outside the command's request properties. Update any direct callers of the
+handler yourself; the fix does not.
+
+The fix recognizes `X.New()`, `GenerateValue.*(...)` and `Guid.NewGuid()` converted or wrapped into a
+concept that implements a generation contract. A raw primitive cannot become a generated parameter. It does
+not move generation inside loops, branches or nested functions, and it does not carry over nonconstant
+strategy arguments. Migrate those by hand: moving a per-iteration or conditional allocation into a Handle
+parameter changes when and how many values are created. Review the concept's factory too, because it must
+own the strategy the handler used before.
+
+Keep identifiers the client supplies, such as an existing cart to update, on command properties. They are
+not generated values.
+
+## Move time-dependent strategies to the context contract
+
+If your handler read the clock to build the value, such as a time-ordered order identifier, do not
+carry that read into `New()`. Implement `IGeneratableInContext<TSelf>` with `New(GenerationContext)`
+instead, as the shop's `OrderId` does with `GenerateValue.TypeId("order", context)`. Follow
+[context-dependent generation](../backend/csharp/commands/generated-values.md#generate-with-the-commands-time-and-tenant)
+for the full declaration. Arc passes the command's `ReceivedAt` and the mapped tenant.
+
+If both interfaces remain on the type, Arc uses only the context form and
+[ARC0027](../backend/csharp/code-analysis/ARC0027.md) warns about the plain one. Manually constructed
+contexts need a received time; a default time fails rather than using `UtcNow`.
+
+## Update your specs
+
+Specs that called the handler through a scenario now need a pin, because scenarios are strict about
+generated parameters. Pin by the name you chose:
+
+```csharp title="Shop.Specs/Carts/Starting/for_StartCart/when_starting_a_cart.cs"
+using Shop.Carts.Starting;
+
+namespace Shop.Specs.Carts.Starting.for_StartCart;
+
+public class when_starting_a_cart : Specification
+{
+    readonly CommandScenario<StartCart> _scenario = new();
+    readonly CartId _cartId = new(Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"));
+    CommandResult _result = null!;
+
+    void Establish() => _scenario.PinGeneratedValue("cart", _cartId);
+    async Task Because() => _result = await _scenario.Execute(new StartCart());
+    void Destroy() => _scenario.Dispose();
+
+    [Fact] void should_succeed() => _result.ShouldBeSuccessful();
+    [Fact] void should_return_the_pinned_cart_id() => ((CommandResult<CartId>)_result).Response.ShouldEqual(_cartId);
+}
+```
+
+What changes in specs:
+
+- An unpinned generated parameter fails the command with a `GeneratedValueNotPinned` outcome. Pin it, or
+  call `AllowGeneration()` when the exact value is irrelevant.
+- Pins and generation policy must be set before the first `Execute`.
+- For a context-dependent concept, use `Clock` and `Tenant` as in
+  [fix the clock and tenant](../backend/csharp/testing/generated-values.md#fix-the-clock-and-tenant), and
+  configure `Clock` before the first `Execute` or `Validate`.
+- A fixed clock does not make a random suffix deterministic. Keep pinning the whole value when an assertion
+  depends on it.
+
+## Replace identity-source queues with named pins
+
+Arc v22.65.3 removed `IIdentitySource` and `CommandScenario.Generate(Guid[])`. Remove the identity-source
+dependency and its calls from your handler and use a generated parameter. If your identifier does not yet
+implement `IGeneratable<TSelf>`, add that interface and its static `New()` strategy.
+
+Replace queued raw Guids in specs with typed, named pins. With `AllocateCartId` and `CartId` from the
+declaration linked above, this fragment goes in an async spec that imports `Cratis.Arc.Commands`,
+`Cratis.Arc.Testing.Commands` and `Cratis.Specifications`:
+
+<ArcBackendTabs snippet="upgrading/generated-values/pin-generated-value" variants="csharp" />
+
+A pin identifies the command type and the generated name, instead of relying on the order in which
+handlers consume a queue. It supplies the same value on every execution of that command in the scenario.
+Use separate scenarios when executions need different values, or `AllowGeneration()` when their exact values
+do not matter.
+
+## Next steps
+
+- [Pin generated values in command specs](../backend/csharp/testing/generated-values.md) covers multiple parameters, nested commands and reading all captures.
+- [Generated values](../backend/csharp/commands/generated-values.md) explains resolution, validation and when not to use `[GeneratedValue]`.

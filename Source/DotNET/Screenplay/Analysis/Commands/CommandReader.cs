@@ -53,6 +53,11 @@ public class CommandReader(
     public ScreenplayDiagnostics? Diagnostics { get; init; }
 
     /// <summary>
+    /// Gets the semantic models resolving definition names.
+    /// </summary>
+    internal SemanticModels? Models { get; init; }
+
+    /// <summary>
     /// Determines whether a type is a model-bound command.
     /// </summary>
     /// <param name="type">The type to check.</param>
@@ -78,9 +83,9 @@ public class CommandReader(
             AuthorizationReader.Read(type),
             validators.For(type),
             produces.Read(type, handlers, location, authoring is null ? null : Authoring?.Sources, authoring?.Identifier is not null),
-            ConcurrencyReader.Read(type, Diagnostics, location) ?? EventSourceReader.ReadConcurrency(type),
+            ConcurrencyReader.Read(type, Diagnostics, location) ?? EventSourceReader.ReadConcurrency(type, Models),
             paths.Relative(type.SourceFilePath()),
-            EventSourceReader.Read(type))
+            EventSourceReader.Read(type, Models))
         {
             Identifier = identifier,
             Authoring = authoring,

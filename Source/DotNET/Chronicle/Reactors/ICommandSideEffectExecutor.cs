@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Chronicle;
 using Cratis.Chronicle.Reactors.SideEffects;
 using Cratis.Monads;
 
@@ -42,4 +43,18 @@ public interface ICommandSideEffectExecutor
     /// declared roles. When the reactor is not marked, this behaves identically to <see cref="Execute(IEnumerable{object})"/>.
     /// </remarks>
     Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType);
+
+    /// <summary>
+    /// Executes commands and invocation branches using the reactor's event routing for branch productions.
+    /// </summary>
+    /// <param name="commands">The ordered commands or invocations.</param>
+    /// <param name="reactorContext">The reactor context supplying identity and event routing.</param>
+    /// <param name="eventStore">The event store to which branch events are appended.</param>
+    /// <returns>The first failure, or success after all commands or a handled refusal.</returns>
+    /// <remarks>
+    /// A handled refusal stops the remaining invocations. Custom executors retain their existing execution path
+    /// unless they implement this overload to support refusal branches.
+    /// </remarks>
+    Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, ReactorContext reactorContext, IEventStore eventStore) =>
+        Execute(commands, reactorContext.Reactor.GetType());
 }

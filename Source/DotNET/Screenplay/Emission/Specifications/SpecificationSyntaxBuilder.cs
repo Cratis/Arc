@@ -4,7 +4,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using Cratis.Arc.Screenplay.Analysis.Specifications;
-using Cratis.Arc.Screenplay.Emission.Commands;
 using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Emission.Reactors;
@@ -165,7 +164,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             specification = specification with
             {
                 Then = specification.Then.Select(state => state.Kind == SpecificationStateKind.Event && state.For is null
-                    ? state with { Route = new(commandRoute.Source, commandRoute.Stream, streamId) { StreamIdParts = streamIdParts } }
+                    ? state with { Route = SpecificationRouteDeclarations.Inferred(commandRoute, streamId, streamIdParts) }
                     : state).ToList()
             };
         }
@@ -394,20 +393,14 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return false;
         }
 
-        var declarations = Application is { } application
-            ? application.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route)
-                .OfType<CommandRouteModel>().Concat(ApplicationSyntaxBuilder.SpecificationRoutes(application, (RoutedOccurrences ?? []).Concat(occurrences)))
-                .Where(candidate => candidate.Source == route.Source).ToList()
-            : [];
-        var streamDeclarations = declarations.Where(candidate => candidate.Stream == route.Stream).ToList();
-        if (declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().Distinct().Count() > 1 ||
-            streamDeclarations.Exists(candidate => !CommandRouteAdmission.SameStream(streamDeclarations[0], candidate)))
+        var resolved = ResolveRoutes(occurrences);
+        if (resolved.ConflictingSources.Contains(route.Identity!.Source))
         {
             return false;
         }
-
-        var declared = streamDeclarations.FirstOrDefault();
-        var identity = declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault();
+        var sourceDeclaration = resolved.Sources.SingleOrDefault(source => source.Identity.Source == route.Identity.Source);
+        var declared = sourceDeclaration?.Streams.SingleOrDefault(stream => stream.Identity == route.Identity);
+        var identity = sourceDeclaration?.IdentifierType;
         var identifiers = Application?.Slices.SelectMany(slice => slice.Commands)
             .Where(command => command.Produces.Any(production => production.EventName == state.Name))
             .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
@@ -433,6 +426,18 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         return route.StreamIdParts.Count == 0 && route.StreamId is { } id && CanStateStreamId(id, streamIdType);
     }
 
+    ResolvedEventSources ResolveRoutes(IEnumerable<SpecificationStateModel> occurrences)
+    {
+        if (Application is not { } application)
+        {
+            return new([], new HashSet<string>(StringComparer.Ordinal));
+        }
+        var routes = application.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route).OfType<CommandRouteModel>();
+        var stated = SpecificationRouteDeclarations.Read(application, (RoutedOccurrences ?? []).Concat(occurrences));
+
+        return EventSourceDeclarations.Resolve(routes.Concat(stated), EventSourceDeclarations.ObservedRoutes(application, ReactionMetadataEnabled));
+    }
+
     bool CanStateStreamId(LiteralSource id, TypeReferenceModel type) => CanStateLiteral(id, type) &&
             (id.Value is not string text || (text.Length > 0 && text.IsNormalized() && naming.ToStringLiteral(text) == text)) &&
             (id.Value is not long number || number is >= -9007199254740991 and <= 9007199254740991);
@@ -446,7 +451,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         {
             var declaredType = Application?.Slices.SelectMany(slice => slice.Commands)
                 .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
-                .FirstOrDefault(candidate => candidate.Source == route.Source)?.IdentifierType;
+                .FirstOrDefault(candidate => candidate.Identity.HasSameSourceAs(route.Identity))?.IdentifierType;
             if (declaredType is not null)
             {
                 return CanStateLiteral(state.For!, declaredType);

@@ -10,4 +10,15 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Stream">The name of the declared stream, or <see langword="null"/> when the command declares none.</param>
 /// <param name="StreamDeclared">Whether the definition declares the stream; <see langword="false"/> when the command names a stream it does not.</param>
 /// <param name="ConcurrentByStreamId">Whether the stream id takes part in the concurrency scope the definition declares.</param>
-public record EventSourceBindingModel(string Source, string? Stream, bool StreamDeclared, bool ConcurrentByStreamId);
+public record EventSourceBindingModel(string Source, string? Stream, bool StreamDeclared, bool ConcurrentByStreamId)
+{
+    /// <summary>
+    /// Gets the exact stored source classification.
+    /// </summary>
+    public string? StoredSource { get; init; }
+
+    /// <summary>
+    /// Gets the exact stored stream classification.
+    /// </summary>
+    public string? StoredStream { get; init; }
+}

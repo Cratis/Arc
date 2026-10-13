@@ -18,9 +18,11 @@ public class CommandsResultHandler(ICommandSideEffectExecutor executor) : IReact
 {
     /// <inheritdoc/>
     public bool CanHandle(ReactorContext reactorContext, object value) =>
-        value is IEnumerable<object> commands && commands.Any() && commands.All(command => command?.GetType().IsCommand() == true);
+        value is IEnumerable<object> commands && commands.Any() && commands.All(command => command is CommandInvocation || command?.GetType().IsCommand() == true);
 
     /// <inheritdoc/>
     public Task<Result<ReactorSideEffectFailure>> Handle(ReactorContext reactorContext, IEventStore eventStore, object value) =>
-        executor.Execute((IEnumerable<object>)value, reactorContext.Reactor.GetType());
+        ((IEnumerable<object>)value).Any(command => command is CommandInvocation)
+            ? executor.Execute((IEnumerable<object>)value, reactorContext, eventStore)
+            : executor.Execute((IEnumerable<object>)value, reactorContext.Reactor.GetType());
 }

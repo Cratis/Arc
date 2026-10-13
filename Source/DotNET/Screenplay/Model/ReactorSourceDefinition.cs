@@ -9,4 +9,15 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Identity">The definition's qualified type identity.</param>
 /// <param name="Source">Its exact stored source name.</param>
 /// <param name="Streams">Its exact declared stream names.</param>
-internal record ReactorSourceDefinition(string Identity, string Source, IReadOnlyList<string> Streams);
+internal record ReactorSourceDefinition(string Identity, string Source, IReadOnlyList<string> Streams)
+{
+    /// <summary>
+    /// Gets the exact stored source name.
+    /// </summary>
+    internal string StoredSource { get; init; } = Source;
+
+    /// <summary>
+    /// Gets stored stream names keyed by their recovered model names.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string> StoredStreams { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+}

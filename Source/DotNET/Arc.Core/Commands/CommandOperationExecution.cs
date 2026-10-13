@@ -108,6 +108,7 @@ internal sealed class CommandOperationExecution
             {
                 IsAuthorized = result.IsAuthorized,
                 AuthorizationFailureReason = result.AuthorizationFailureReason,
+                AuthorizationConfigurationFailed = result.AuthorizationConfigurationFailed,
                 ValidationResults = result.ValidationResults.ToArray(),
                 ExceptionMessages = _originalFailure,
                 ExceptionStackTrace = result.ExceptionStackTrace
@@ -159,6 +160,7 @@ internal sealed class CommandOperationExecution
         if (_originalResult is not null)
         {
             result.IsAuthorized &= _originalResult.IsAuthorized;
+            result.AuthorizationConfigurationFailed |= _originalResult.AuthorizationConfigurationFailed;
             result.ValidationResults = result.ValidationResults.Union(_originalResult.ValidationResults).ToArray();
             result.ExceptionMessages = result.ExceptionMessages.Union(_originalResult.ExceptionMessages).ToArray();
             if (string.IsNullOrEmpty(result.AuthorizationFailureReason))

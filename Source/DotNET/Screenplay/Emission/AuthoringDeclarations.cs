@@ -20,10 +20,7 @@ public static class AuthoringDeclarations
         var systems = commands.SelectMany(command => command.Authoring?.Operations ?? []).GroupBy(operation => operation.System, StringComparer.Ordinal)
             .Where(group => group.Select(operation => operation.SystemTypeIdentity).Distinct(StringComparer.Ordinal).Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
         var routes = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().ToArray();
-        var conflictingSources = routes.GroupBy(route => route.Source, StringComparer.Ordinal)
-            .Where(source => source.Select(route => route.IdentifierType).OfType<TypeReferenceModel>().Distinct().Count() > 1 ||
-                source.GroupBy(route => route.Stream, StringComparer.Ordinal).Any(stream => stream.Any(route => !CommandRouteAdmission.SameStream(stream.First(), route))))
-            .Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
+        var conflictingSources = EventSourceDeclarations.Resolve(routes, EventSourceDeclarations.ObservedRoutes(model)).ConflictingSources.ToHashSet(StringComparer.Ordinal);
 
         var reads = commands.SelectMany(command => command.Authoring?.Reads ?? []).ToArray();
         var projections = model.Slices.SelectMany(slice => slice.Projections.Select(projection => (projection.ReadModel, slice.Namespace))).ToArray();

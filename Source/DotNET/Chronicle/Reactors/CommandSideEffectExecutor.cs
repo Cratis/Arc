@@ -4,6 +4,7 @@
 using System.Reflection;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Reactors.SideEffects;
 using Cratis.DependencyInjection;
 using Cratis.Monads;
@@ -22,11 +23,15 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
 {
     /// <inheritdoc/>
     public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands) =>
-        ExecuteWithinScope(commands, null);
+        ExecuteWithinScope(commands, null, null);
 
     /// <inheritdoc/>
     public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, Type reactorType) =>
-        ExecuteWithinScope(commands, reactorType);
+        ExecuteWithinScope(commands, reactorType, null);
+
+    /// <inheritdoc/>
+    public Task<Result<ReactorSideEffectFailure>> Execute(IEnumerable<object> commands, ReactorContext reactorContext, IEventStore eventStore) =>
+        ExecuteWithinScope(commands, reactorContext.Reactor.GetType(), value => RefusalEvents.Append(reactorContext, eventStore, value));
 
     static ReactorSideEffectFailure CreateFailure(object command, CommandResult result) =>
         new([new AppendFailure([], false, DescribeFailure(command.GetType(), result), [])]);
@@ -50,18 +55,43 @@ public class CommandSideEffectExecutor(IServiceScopeFactory serviceScopeFactory,
         }
     }
 
-    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, Type? reactorType)
+    static async Task<Result<ReactorSideEffectFailure>> HandleFailure(object command, CommandResult result, CommandInvocation? invocation, Func<object, Task<Result<ReactorSideEffectFailure>>>? append)
+    {
+        if (invocation is null)
+        {
+            return Result.Failed(CreateFailure(command, result));
+        }
+
+        var refusal = result.GetRefusal();
+        var branch = refusal is not null ? invocation.FindBranch(refusal) : null;
+        if (branch is null)
+        {
+            return Result.Failed(CreateFailure(command, result));
+        }
+
+        var events = branch.Handler(refusal!);
+        if (events is null)
+        {
+            return Result.Success<ReactorSideEffectFailure>();
+        }
+
+        return append is not null ? await append(events) : Result.Failed(CreateFailure(command, result));
+    }
+
+    async Task<Result<ReactorSideEffectFailure>> ExecuteWithinScope(IEnumerable<object> commands, Type? reactorType, Func<object, Task<Result<ReactorSideEffectFailure>>>? append)
     {
         using var systemExecutionScope = reactorType is not null ? EstablishSystemExecution(reactorType) : null;
         using var scope = serviceScopeFactory.CreateScope();
         var commandPipeline = scope.ServiceProvider.GetRequiredService<ICommandPipeline>();
 
-        foreach (var command in commands)
+        foreach (var item in commands)
         {
+            var invocation = item as CommandInvocation;
+            var command = invocation?.Command ?? item;
             var result = await commandPipeline.Execute(command, scope.ServiceProvider);
             if (!result.IsSuccess)
             {
-                return Result.Failed(CreateFailure(command, result));
+                return await HandleFailure(command, result, invocation, append);
             }
         }
 

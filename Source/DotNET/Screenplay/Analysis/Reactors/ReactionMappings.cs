@@ -87,6 +87,38 @@ public static class ReactionMappings
     }
 
     /// <summary>
+    /// Reads an explicit destination from the same values supported by payload mappings.
+    /// </summary>
+    /// <param name="expression">The destination expression.</param>
+    /// <param name="model">The semantic model resolving the value.</param>
+    /// <param name="handler">The handler supplying the trigger and context.</param>
+    /// <returns>The exact source, or null when it is code.</returns>
+    internal static MappingSourceModel? Destination(ExpressionSyntax expression, SemanticModel model, IMethodSymbol handler)
+    {
+        var type = model.GetTypeInfo(expression).Type;
+        if (type is null)
+        {
+            return null;
+        }
+        if (!RequiredScalar(type))
+        {
+            return null;
+        }
+        var source = SourceOf(expression, model, type, handler.Parameters[0], handler.Parameters.Length > 1 ? handler.Parameters[1] : null);
+
+        return SupportedDestination(source);
+    }
+
+    static bool RequiredScalar(ITypeSymbol type) => type.NullableAnnotation != NullableAnnotation.Annotated && Types.CollectionElements.ElementOf(type) is null;
+
+    static MappingSourceModel? SupportedDestination(MappingSourceModel? source) => source switch
+    {
+        PropertyPathSource => source,
+        LiteralSource { Value: string text } when !string.IsNullOrWhiteSpace(text) => source,
+        _ => null
+    };
+
+    /// <summary>
     /// Determines whether constructing a type does nothing but put the values it is given into its properties.
     /// </summary>
     /// <param name="type">The type being constructed.</param>
