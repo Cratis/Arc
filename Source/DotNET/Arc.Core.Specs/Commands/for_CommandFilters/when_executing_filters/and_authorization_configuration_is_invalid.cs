@@ -40,9 +40,11 @@ public class and_authorization_configuration_is_invalid : Specification
     async Task Because() => _result = await _filters.OnExecution(_context);
 
     [Fact] void should_report_unauthorized() => _result.IsAuthorized.ShouldBeFalse();
+    [Fact] void should_not_classify_as_a_business_refusal() => _result.GetRefusal().ShouldBeNull();
     [Fact] void should_not_report_an_error() => _result.HasExceptions.ShouldBeFalse();
     [Fact] void should_not_run_later_filters() => _laterFilter.DidNotReceive().OnExecution(_context);
-    [Fact] void should_log_the_configuration_failure() => _logger.ReceivedCalls()
+    [Fact]
+    void should_log_the_configuration_failure() => _logger.ReceivedCalls()
         .Any(call => call.GetMethodInfo().Name == nameof(ILogger.Log) &&
             call.GetArguments()[0] is LogLevel.Error &&
             call.GetArguments()[3] is InvalidAuthorizationConfiguration)

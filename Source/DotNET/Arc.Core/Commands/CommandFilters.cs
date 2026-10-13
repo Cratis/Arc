@@ -51,7 +51,7 @@ public class CommandFilters(IInstancesOf<ICommandFilter> filters, IActivitySourc
             catch (InvalidAuthorizationConfiguration ex)
             {
                 context.ServiceProvider?.GetService<ILogger<CommandFilters>>()?.AuthorizationConfigurationFailed(ex);
-                result.MergeWith(CommandResult.Unauthorized(context.CorrelationId));
+                result.MergeWith(CommandResult.AuthorizationConfigurationFailure(context.CorrelationId));
             }
             catch (Exception ex)
             {

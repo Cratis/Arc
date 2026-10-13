@@ -37,6 +37,8 @@ public class EventsAndCommandsResultHandler(ICommandSideEffectExecutor executor)
             return result;
         }
 
-        return await executor.Execute(effects.Commands, reactorContext.Reactor.GetType());
+        return effects.Commands.Any(command => command is CommandInvocation)
+            ? await executor.Execute(effects.Commands, reactorContext, eventStore)
+            : await executor.Execute(effects.Commands, reactorContext.Reactor.GetType());
     }
 }
