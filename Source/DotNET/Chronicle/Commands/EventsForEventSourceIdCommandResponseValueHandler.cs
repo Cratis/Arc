@@ -157,9 +157,33 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     static Task<ConcurrencyScope> GetDefaultLegacyScope(AppendTarget target, IConcurrencyScopeStrategy strategy) =>
         strategy.GetScope(
             target.EventSourceId,
-            string.IsNullOrEmpty(target.Routing.EventStreamType?.Value) ? EventStreamType.All : target.Routing.EventStreamType,
-            string.IsNullOrEmpty(target.Routing.EventStreamId?.Value) ? EventStreamId.Default : target.Routing.EventStreamId,
-            string.IsNullOrEmpty(target.Routing.EventSourceType?.Value) ? EventSourceType.Default : target.Routing.EventSourceType);
+            NormalizeLegacyStreamType(target.Routing.EventStreamType),
+            NormalizeLegacyStreamId(target.Routing.EventStreamId),
+            NormalizeLegacySourceType(target.Routing.EventSourceType));
+
+    /// <summary>
+    /// Resolves an unset legacy stream type to the event sequence's default.
+    /// </summary>
+    /// <param name="value">The resolved legacy stream type.</param>
+    /// <returns>The supplied stream type or its sentinel for a null or empty value.</returns>
+    static EventStreamType NormalizeLegacyStreamType(EventStreamType? value) =>
+        string.IsNullOrEmpty(value?.Value) ? EventStreamType.All : value;
+
+    /// <summary>
+    /// Resolves an unset legacy stream id to the event sequence's default.
+    /// </summary>
+    /// <param name="value">The resolved legacy stream id.</param>
+    /// <returns>The supplied stream id or its sentinel for a null or empty value.</returns>
+    static EventStreamId NormalizeLegacyStreamId(EventStreamId? value) =>
+        string.IsNullOrEmpty(value?.Value) ? EventStreamId.Default : value;
+
+    /// <summary>
+    /// Resolves an unset legacy source type to the event sequence's default.
+    /// </summary>
+    /// <param name="value">The resolved legacy source type.</param>
+    /// <returns>The supplied source type or its sentinel for a null or empty value.</returns>
+    static EventSourceType NormalizeLegacySourceType(EventSourceType? value) =>
+        string.IsNullOrEmpty(value?.Value) ? EventSourceType.Default : value;
 
     /// <summary>
     /// Retains an existing guard or resolves the target's immediate-append default.

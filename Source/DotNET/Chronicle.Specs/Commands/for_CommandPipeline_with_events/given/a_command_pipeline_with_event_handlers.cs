@@ -65,10 +65,7 @@ public class a_command_pipeline_with_event_handlers : Specification
         // Set up event handling infrastructure
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
-        _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
-        var concurrencyScopeStrategy = Substitute.For<IConcurrencyScopeStrategy>();
-        concurrencyScopeStrategy.StandInForAnOptimisticStrategy();
-        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(concurrencyScopeStrategy);
+        ConfigureConcurrencyScopeStrategies();
         _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _subjectHandler = new SubjectCommandResponseValueHandler();
@@ -164,6 +161,17 @@ public class a_command_pipeline_with_event_handlers : Specification
             new KnownInstancesOf<ICommandExecutionScope>([]),
             _serviceScopeFactory,
             CreateActivitySource<CommandPipeline>());
+    }
+
+    /// <summary>
+    /// Configures the event sequence's strategy substitute to supply realistic optimistic guards.
+    /// </summary>
+    void ConfigureConcurrencyScopeStrategies()
+    {
+        _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
+        var concurrencyScopeStrategy = Substitute.For<IConcurrencyScopeStrategy>();
+        concurrencyScopeStrategy.StandInForAnOptimisticStrategy();
+        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(concurrencyScopeStrategy);
     }
 
     void Cleanup()
