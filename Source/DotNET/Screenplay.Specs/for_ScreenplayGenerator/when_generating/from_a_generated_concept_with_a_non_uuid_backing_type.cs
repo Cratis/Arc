@@ -16,7 +16,7 @@ public class from_a_generated_concept_with_a_non_uuid_backing_type : a_generated
             .Replace("new(Guid.NewGuid())", "new(Guid.NewGuid().ToString())", StringComparison.Ordinal)));
 
     [Fact] void should_leave_generation_in_code() => Result.Source.ShouldNotContain("generated");
-    [Fact] void should_name_the_unsupported_backing_type() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("backing type 'string' is not UUID");
+    [Fact] void should_explain_the_unrecognized_body() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("not a recognized generation form");
     [Fact] void should_preserve_the_event_production() => Result.Source.ShouldContain("produces AuthorRegistered");
     [Fact] void should_bind_and_round_trip() => AssertDocument();
 }

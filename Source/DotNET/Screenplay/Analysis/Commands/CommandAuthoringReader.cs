@@ -112,7 +112,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 continue;
             }
 
-            if (CreatesUuidConcept(value, local.Type, model))
+            if (CreatesGeneratableConcept(value, local.Type, model))
             {
                 if (!IsUnchanged(local, body, model))
                 {
@@ -134,7 +134,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 }
 
                 // Roslyn annotates inferred reference locals as nullable even when their initializer is required.
-                // Keep explicit local annotations, but resolve var from the proven UUID creation instead.
+                // Keep explicit local annotations, but resolve var from the proven generation expression instead.
                 var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
                     ? model.GetTypeInfo(value).Type ?? local.Type
                     : local.Type;
@@ -182,7 +182,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         }
 
         var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
-        if (CreatesLegacyUuidConcept(response, responseType, model, parameters.HasParameters))
+        if (CreatesLegacyGeneratableConcept(response, responseType, model, parameters.HasParameters))
         {
             var name = char.ToLowerInvariant(responseType.Name[0]) + responseType.Name[1..];
             if (command.DeclaredProperties().Select(property => property.Name).Concat(generated.Select(property => property.Name))
@@ -219,7 +219,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             return result with { ResponseFields = fields, ResponseType = ResponseTypes.NameOf(record) };
         }
 
-        Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The response is not a direct command property, generated UUID concept, or fully readable response record and was left in code", location);
+        Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, "The response is not a direct command property, generated concept, or fully readable response record and was left in code", location);
         return result;
     }
 
@@ -396,53 +396,6 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             type.AllInterfaces.Any(contract => contract.Is("Cratis.Chronicle.EventSequences.IAppendResult")) ? null : type;
     }
 
-    bool CreatesFromNewGuid(ExpressionSyntax expression, SemanticModel model) =>
-        MappingSourceReader.Unwrap(expression) is BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation &&
-        MappingSourceReader.Unwrap(argument.Expression) is InvocationExpressionSyntax invocation &&
-        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true, Parameters.Length: 0 } factory && factory.Name == "NewGuid" && factory.ContainingType.Is("System.Guid") &&
-        model.GetSymbolInfo(creation).Symbol is IMethodSymbol constructor && ForwardsUuid(constructor, new(SymbolEqualityComparer.Default));
-
-    bool ForwardsUuid(IMethodSymbol constructor, HashSet<IMethodSymbol> visited)
-    {
-        if (!visited.Add(constructor) || constructor.Parameters is not [var parameter] || !parameter.Type.Is("System.Guid"))
-        {
-            return false;
-        }
-
-        if ((constructor.ContainingType.Is(WellKnownTypeNames.ConceptAs) || constructor.ContainingType.Is("Cratis.Chronicle.Events.EventSourceId`1")) &&
-            constructor.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        foreach (var reference in constructor.DeclaringSyntaxReferences)
-        {
-            var declaration = reference.GetSyntax();
-            var initializer = declaration switch
-            {
-                RecordDeclarationSyntax record => (SyntaxNode?)record.BaseList?.Types.OfType<PrimaryConstructorBaseTypeSyntax>().SingleOrDefault(),
-                ConstructorDeclarationSyntax { Body: null or { Statements.Count: 0 }, ExpressionBody: null } explicitConstructor => explicitConstructor.Initializer,
-                _ => null
-            };
-            var arguments = initializer switch
-            {
-                PrimaryConstructorBaseTypeSyntax primary => primary.ArgumentList,
-                ConstructorInitializerSyntax explicitInitializer => explicitInitializer.ArgumentList,
-                _ => null
-            };
-            if (arguments?.Arguments is [var argument] && models.For(initializer!.SyntaxTree) is { } model &&
-                model.GetSymbolInfo(MappingSourceReader.Unwrap(argument.Expression)).Symbol is IParameterSymbol forwarded &&
-                !argument.Expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) &&
-                model.GetConversion(argument.Expression).IsIdentity &&
-                SymbolEqualityComparer.Default.Equals(forwarded, parameter) && model.GetSymbolInfo(initializer).Symbol is IMethodSymbol target && ForwardsUuid(target, visited))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     bool SupportsResponse(ITypeSymbol type)
     {
         var optional = false;
@@ -506,53 +459,20 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         return fields.Count > 0 && fields.Count == record.DeclaredProperties().Count() ? fields : null;
     }
 
-    bool CreatesLegacyUuidConcept(ExpressionSyntax expression, ITypeSymbol? type, SemanticModel model, bool explicitGeneration)
+    bool CreatesLegacyGeneratableConcept(ExpressionSyntax expression, ITypeSymbol? type, SemanticModel model, bool explicitGeneration)
     {
         if (explicitGeneration)
         {
             return false;
         }
 
-        return type is not null && CreatesUuidConcept(expression, type, model);
+        return type is not null && CreatesGeneratableConcept(expression, type, model);
     }
 
-    bool CreatesUuidConcept(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model)
-    {
-        if (type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is not [var backing] || !backing.Is("System.Guid") ||
-            expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) ||
-            !HasIdentityType(expression, type, model))
-        {
-            return false;
-        }
-
-        expression = MappingSourceReader.Unwrap(expression);
-        if (CreatesFromNewGuid(expression, model))
-        {
-            return true;
-        }
-
-        if (expression is not InvocationExpressionSyntax invocation ||
-            model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol { IsStatic: true, Parameters.Length: 0, Name: "New" } factory ||
-            !SymbolEqualityComparer.Default.Equals(factory.ReturnType, type) ||
-            !(SymbolEqualityComparer.Default.Equals(factory.ContainingType, type) ||
-                ((factory.ContainingType.Is("Cratis.Chronicle.Events.EventSourceId`1") || factory.ContainingType.Is(WellKnownTypeNames.ConceptAs)) &&
-                    factory.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal) &&
-                    SymbolEqualityComparer.Default.Equals(type.FindBase(factory.ContainingType.FullMetadataName()), factory.ContainingType))))
-        {
-            return false;
-        }
-
-        // A name is not a generation contract. Only a source body proving fresh UUID creation is admitted.
-        return factory.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()).OfType<MethodDeclarationSyntax>().Any(declaration =>
-        {
-            var returned = declaration.ExpressionBody?.Expression ??
-                (declaration.Body?.Statements is [ReturnStatementSyntax statement] ? statement.Expression : null);
-
-            return returned is not null && models.For(declaration.SyntaxTree) is { } factoryModel &&
-                !returned.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) &&
-                HasIdentityType(returned, type, factoryModel) && CreatesFromNewGuid(returned, factoryModel);
-        });
-    }
+    bool CreatesGeneratableConcept(ExpressionSyntax expression, ITypeSymbol type, SemanticModel model) =>
+        type is INamedTypeSymbol concept && HasIdentityType(expression, type, model) &&
+        !expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax) &&
+        new GenerationStrategyReader(models).ReadLocal(MappingSourceReader.Unwrap(expression), concept, model);
 
     void Report(string code, string message, string location) => diagnostics.Information(code, message, location);
 

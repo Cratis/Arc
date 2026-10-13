@@ -70,6 +70,11 @@ public class TypeRegistry
     public IEnumerable<string> Names => [.. _concepts.Names, .. _shapes.Names];
 
     /// <summary>
+    /// Gets the models used to recover concept-owned generation strategies.
+    /// </summary>
+    internal SemanticModels Models { init => _concepts = new() { Models = value }; }
+
+    /// <summary>
     /// Determines whether naming a type would refer to the declaration of that very type.
     /// </summary>
     /// <param name="type">The type a property carries, already stripped of optionality and collection.</param>

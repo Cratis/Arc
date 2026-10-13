@@ -49,7 +49,7 @@ public record WholeApplication(IReadOnlyList<Compilation> Compilations, Screenpl
     /// <summary>
     /// Gets the registry collecting every concept the application refers to.
     /// </summary>
-    public TypeRegistry Types { get; } = new();
+    public TypeRegistry Types { get; } = new() { Models = new(Compilations) };
 
     /// <summary>
     /// Gets the catalog collecting the shape of every read model the application declares.

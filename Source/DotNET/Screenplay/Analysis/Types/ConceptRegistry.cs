@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Emission.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -66,6 +67,11 @@ public class ConceptRegistry
     /// the two cannot share a name - which is a question only something holding both can answer.
     /// </remarks>
     public IReadOnlySet<string> Names => _concepts.Keys.ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Gets the models used to prove concept generation factories.
+    /// </summary>
+    internal SemanticModels Models { get; init; } = new([]);
 
     /// <summary>
     /// Registers a type as a concept when it is one.
@@ -176,6 +182,7 @@ public class ConceptRegistry
     /// <returns>True when one declaration says what both are.</returns>
     static bool IsSameAs(ConceptModel existing, ConceptModel concept) =>
         existing.Primitive == concept.Primitive &&
+        existing.Generation == concept.Generation &&
         existing.EnumValues.SequenceEqual(concept.EnumValues, StringComparer.Ordinal) &&
         existing.EnumNumbers.SequenceEqual(concept.EnumNumbers) &&
         existing.IsPii == concept.IsPii &&
@@ -254,7 +261,14 @@ public class ConceptRegistry
             ? primitive
             : ScreenplayPrimitive.String;
 
-        return new(type.Name, resolved, pii, [], []) { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
+        return new(type.Name, resolved, pii, [], [])
+        {
+            IsSensitive = encrypted && notAudited,
+            EncryptionScope = scope,
+            Generation = type is INamedTypeSymbol conceptType ? new GenerationStrategyReader(Models).Read(conceptType) : null,
+            GenerationLocation = type.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax().GetLocation().GetLineSpan() is { } anchor
+                ? $"{anchor.Path}:{anchor.StartLinePosition.Line + 1}" : null
+        };
     }
 
     /// <summary>

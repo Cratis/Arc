@@ -43,7 +43,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
 
     static PinResult InvalidPin(string? name) => new(
         null,
-        $"PinGeneratedValue('{name ?? "?"}') is not a single unconditional literal UUID pin before execution; replace New() or computed values with a literal pin");
+        $"PinGeneratedValue('{name ?? "?"}') is not a single unconditional literal UUID or text pin before execution; replace New() or computed values with a literal pin");
 
     static string? NameOf(ConfigurationCall configuration)
     {
@@ -109,6 +109,18 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         return configuration.Model.GetSymbolInfo(call).Symbol is IMethodSymbol method && SpecificationCalls.IsExecution(method);
     }
 
+    static string? Normalize(INamedTypeSymbol concept, string text)
+    {
+        if (!HasUuidBacking(concept))
+        {
+            return text;
+        }
+
+        return Guid.TryParse(text, out var guid) ? guid.ToString("D") : null;
+    }
+
+    static bool HasUuidBacking(INamedTypeSymbol concept) => concept.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && backing.Is("System.Guid");
+
     IEnumerable<ConfigurationCall> ConfigurationsIn(SyntaxNode body)
     {
         if (models.For(body.SyntaxTree) is not { } model)
@@ -127,7 +139,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
     {
         if (configuration.Method.Name == "AllowGeneration")
         {
-            return new(null, "AllowGeneration() has no concrete fixture; use PinGeneratedValue with a literal UUID");
+            return new(null, "AllowGeneration() has no concrete fixture; use PinGeneratedValue with a literal UUID or text value");
         }
         if (!TargetsIssuedCommand(configuration, command, issued))
         {
@@ -171,16 +183,43 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
             return null;
         }
         var expression = CallArguments.For(configuration.Call, configuration.Method, "value").SingleOrDefault();
-        if (expression is null || !SymbolEqualityComparer.Default.Equals(configuration.Model.GetTypeInfo(expression).Type, parameter.Type))
+        if (expression is null || parameter.Type is not INamedTypeSymbol concept)
         {
             return null;
         }
-        if (Literal(expression, configuration.Model) is not { Value: string text } || !Guid.TryParse(text, out var guid))
+        var source = ReadConceptValue(configuration.Model, expression, concept);
+
+        return source is null ? null : new(name, source);
+    }
+
+    LiteralSource? ReadConceptValue(SemanticModel model, ExpressionSyntax expression, INamedTypeSymbol concept)
+    {
+        if (!SymbolEqualityComparer.Default.Equals(model.GetTypeInfo(expression).Type, concept))
+        {
+            return null;
+        }
+        if (Literal(expression, model) is not { Value: string text })
         {
             return null;
         }
 
-        return StatableValues.TryState(parameter.Type, text, out _) ? new(name, new LiteralSource(guid.ToString("D"))) : null;
+        return ReadTextValue(concept, text);
+    }
+
+    LiteralSource? ReadTextValue(INamedTypeSymbol concept, string text)
+    {
+        var generation = new GenerationStrategyReader(models).Read(concept);
+        var value = Normalize(concept, text);
+        if (generation is null || value is null)
+        {
+            return null;
+        }
+        if (!GenerationFixtureShape.Matches(generation, value))
+        {
+            return null;
+        }
+
+        return StatableValues.TryState(concept, value, out _) ? new LiteralSource(value) : null;
     }
 
     LiteralSource? Literal(ExpressionSyntax expression, SemanticModel model) =>

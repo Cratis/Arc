@@ -77,7 +77,8 @@ public class ConceptSyntaxBuilder(
                 SourceLocation.Start,
                 [.. validations.Build(concept.Validations, concept.Name, impliedSubject: true)])
             {
-                ValueNumbers = NumbersOf(concept, values)
+                ValueNumbers = NumbersOf(concept, values),
+                Generation = ConceptGenerationSyntax.Build(concept, MaximumExecutableModelVersion, diagnostics)
             };
         }
 

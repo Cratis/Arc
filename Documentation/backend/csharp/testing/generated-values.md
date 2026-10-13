@@ -69,6 +69,25 @@ C# name. Supply the actual concept, not its underlying `Guid`: an incompatible o
 fails execution with `PinnedGeneratedValueHasWrongType`. Its message names the command,
 parameter, and expected and actual types, never the pinned value.
 
+## Make pins recoverable into Screenplay
+
+Arc accepts pins for string-backed concepts too. When you [generate a Screenplay](../generating-a-screenplay.md#recovering-generation-strategies),
+the generator needs a concrete literal, not the factory call used by `_cartId` above. For that UUID
+example, initialize the field with `new CartId(Guid.Parse("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"))`
+instead. Direct concept construction and one-hop stable fields with literal initializers are recoverable.
+
+For a string-backed concept, construct it from literal text matching its recovered generation strategy:
+NanoID's alphabet and size, ULID's uppercase Crockford encoding, TypeID's prefix and UUIDv7 suffix,
+or bytes' encoding, case, length and unused trailing bits. Text stays unchanged. The issued command's
+generated identifier becomes a `for "<value>"` fixture; another generated value becomes
+`generated <name> = "<value>"` under `when`.
+
+A mismatched shape, computed or repeated pin, conditional configuration, nested-command pin or
+`AllowGeneration()` leaves the scenario out with `SP0039`. Its command keeps any admitted generation
+contract. Non-default strategies require an ESM v15 cap or later; Screenplay v15 also rejects reuse of a
+generated identifier whose event source already has facts. These recovery checks do not add strategy-shape
+validation to Arc's runtime pins: runtime pins still use normal concept validation.
+
 ## Keep scenarios strict or opt into generation
 
 Scenarios are strict by default. An unpinned generated parameter fails the command with a

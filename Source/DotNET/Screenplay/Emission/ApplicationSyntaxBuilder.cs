@@ -56,7 +56,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
         if (options.AuthoringOnlyConstructs)
         {
-            if (options.MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V7))
+            if (options.MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V15))
             {
                 model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, cap, authoringOnlyConstructs: true));
             }
@@ -84,7 +84,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var declaredTypes = new TypeSyntaxBuilder(naming, _types, diagnostics).Build(model.Types, concepts, model.Domain).ToList();
         var declaredReadModels = new ReadModelDeclarations(naming, _types, [.. concepts.Select(_ => _.Name), .. declaredTypes.Select(_ => _.Name)], diagnostics).Of(model.Slices);
         var originalSlices = model.Slices;
-        model = ReadModelReferences.Apply(model, declaredReadModels, diagnostics);
+        model = ExecutableGenerationFixtures.Apply(ReadModelReferences.Apply(model, declaredReadModels, diagnostics), concepts);
         var omittedReferenceSlices = originalSlices.Zip(model.Slices)
             .Where(pair => pair.First.Queries.Count() != pair.Second.Queries.Count() || pair.First.Projections.Count() != pair.Second.Projections.Count() || pair.First.Specifications.Count() != pair.Second.Specifications.Count())
             .Select(pair => (pair.Second.Namespace, pair.Second.Name)).ToHashSet();
