@@ -671,17 +671,17 @@ What is recovered about a screen comes from something that can be checked.
 
 **The `file` reference** says which file realizes the screen. It is what a reader opens, and no directive replaces it, so it stays on the screen even when directives sit beside it.
 
-**The `data` directives** say which of the slice's queries the screen reads through. Arc generates a TypeScript proxy per query and a component imports that proxy by name, so the component's `import` statements name candidates — and a candidate is kept only when it matches a query the slice really declares. Nothing about the binding comes from the component beyond that name: the read model, whether there is one or many of it, and the parameter it is keyed by all come from the C# query. An import naming anything else — a package, a command, a sibling component, a type-only import — leaves nothing behind.
+**The `data` directives** say which queries the screen reads through — the slice's own, or another slice's under a qualified name. Arc generates a TypeScript proxy per query and a component imports that proxy by name, so the component's `import` statements name candidates — and a candidate is kept only when the slice its import points at really declares that query. Nothing about the binding comes from the component beyond that name: the read model, whether there is one or many of it, and the parameter it is keyed by all come from the C# query. An import naming anything else — a package, a command, a sibling component, a type-only import — leaves nothing behind.
 
 **`title`, `table` and `action`** come from the [Cratis Components](/components/) the screen uses, because their properties mean the same thing in every application. Only components imported from `@cratis/components` are read:
 
 | Component | Becomes |
 | --- | --- |
 | `DataPage` `title="…"` | `title "…"` |
-| `DataPage`, `DataTableForQuery` or `DataTableForObservableQuery` with `query={…}` naming a query of the slice | `table <ReadModel>`, named after the read model the query returns |
+| `DataPage`, `DataTableForQuery` or `DataTableForObservableQuery` with `query={…}` naming a query of the slice or, qualified, of another slice | `table <ReadModel>`, named after the read model the query returns |
 | `Column` `field="…"` inside such a table | `column <field>`, with `label "…"` when `header="…"` is text |
-| `CommandDialog` with `command={…}` naming a command of the slice | `action <Command>`, unless a toolbar item already exposes that dialog |
-| `DataPage.MenuItems` / `DataPage.MenuItem`, or imported `MenuItems` / `MenuItem`, opening a command dialog of the slice | `toolbar actions` with `item <name> action <Command>` and a literal `label`, when the opener can be proven |
+| `CommandDialog` with `command={…}` naming a command of the slice or, qualified, of another slice | `action <Command>`, unless a toolbar item already exposes that dialog |
+| `DataPage.MenuItems` / `DataPage.MenuItem`, or imported `MenuItems` / `MenuItem`, opening a command dialog of the slice or, qualified, of another slice | `toolbar actions` with `item <name> action <Command>` and a literal `label`, when the opener can be proven |
 
 Take a listing screen written with a data page:
 
