@@ -43,7 +43,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
 
     static PinResult InvalidPin(string? name) => new(
         null,
-        $"PinGeneratedValue('{name ?? "?"}') is not a single unconditional literal UUID pin before execution; replace New() or computed values with a literal pin");
+        $"PinGeneratedValue('{name ?? "?"}') is not a single unconditional literal UUID or text pin before execution; replace New() or computed values with a literal pin");
 
     static string? NameOf(ConfigurationCall configuration)
     {
@@ -127,7 +127,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
     {
         if (configuration.Method.Name == "AllowGeneration")
         {
-            return new(null, "AllowGeneration() has no concrete fixture; use PinGeneratedValue with a literal UUID");
+            return new(null, "AllowGeneration() has no concrete fixture; use PinGeneratedValue with a literal UUID or text value");
         }
         if (!TargetsIssuedCommand(configuration, command, issued))
         {
@@ -175,12 +175,19 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         {
             return null;
         }
-        if (Literal(expression, configuration.Model) is not { Value: string text } || !Guid.TryParse(text, out var guid))
+        if (Literal(expression, configuration.Model) is not { Value: string text } || parameter.Type is not INamedTypeSymbol concept)
         {
             return null;
         }
+        var generation = new GenerationStrategyReader(models).Read(concept);
+        if (generation is null || !GenerationFixtureShape.Matches(generation, text))
+        {
+            return null;
+        }
+        var value = concept.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && backing.Is("System.Guid")
+            ? Guid.Parse(text).ToString("D") : text;
 
-        return StatableValues.TryState(parameter.Type, text, out _) ? new(name, new LiteralSource(guid.ToString("D"))) : null;
+        return StatableValues.TryState(parameter.Type, value, out _) ? new(name, new LiteralSource(value)) : null;
     }
 
     LiteralSource? Literal(ExpressionSyntax expression, SemanticModel model) =>

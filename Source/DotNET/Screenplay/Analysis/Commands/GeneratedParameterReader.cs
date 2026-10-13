@@ -144,7 +144,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
         var location = syntax is null ? $"{_location}.{parameter.Name}" : $"{syntax.SyntaxTree.FilePath}:{syntax.GetLocation().GetLineSpan().StartLinePosition.Line + 1}";
         diagnostics.Information(
             ScreenplayDiagnosticCodes.GenerationNotRecoverable,
-            $"[GeneratedValue] parameter '{parameter.Name}' of '{parameter.Type.Name}': {failure}; generation remains in code. Other strategies and rules require Cratis/Screenplay#616",
+            $"[GeneratedValue] parameter '{parameter.Name}' of '{parameter.Type.Name}': {failure}; generation remains in code. Screenplay cannot execute generate rule bodies, context member use, pattern or random yet (Cratis/Screenplay#616)",
             location);
     }
 

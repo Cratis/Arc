@@ -38,7 +38,7 @@ internal class SpecificationGenerationPins(ScreenplayDiagnostics? diagnostics)
         }
         if (specification.GeneratedValues.Any(value => !IsAdmitted(value, command)))
         {
-            return "its pinned generated values are not admitted by the emitted command; use a supported UUID concept and an ESM v7 or later cap";
+            return "its pinned generated values are not admitted by the emitted command; use a supported generatable concept and a cap admitting its strategy";
         }
         if (command?.Authoring is not { GeneratedParameters: true, Generated.Count: > 0 } generation)
         {
@@ -48,7 +48,7 @@ internal class SpecificationGenerationPins(ScreenplayDiagnostics? diagnostics)
         var missing = generation.Generated.Where(property => specification.GeneratedValues.All(value => value.Property != property.Name)).Select(property => property.Name).ToList();
 
         return !specification.Errors.Any() && missing.Count > 0
-            ? $"generated values '{string.Join(", ", missing)}' need literal UUID fixtures; use PinGeneratedValue before execution"
+            ? $"generated values '{string.Join(", ", missing)}' need literal UUID or text fixtures; use PinGeneratedValue before execution"
             : null;
     }
 

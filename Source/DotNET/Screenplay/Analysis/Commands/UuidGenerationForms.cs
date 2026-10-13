@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -8,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
 /// <summary>
-/// Recognizes direct UUID creation and proven primitive-to-concept conversions.
+/// Recognizes generation calls and proven primitive-to-concept conversions.
 /// </summary>
 /// <param name="models">The models resolving concept bodies.</param>
 internal class UuidGenerationForms(SemanticModels models)
@@ -24,40 +25,25 @@ internal class UuidGenerationForms(SemanticModels models)
         (declaration.Body?.Statements is [ReturnStatementSyntax statement] ? statement.Expression : null);
 
     /// <summary>
-    /// Proves a recognized UUID v4 expression constructs the given concept.
+    /// Reads a strategy only when its primitive reaches the concept unchanged.
     /// </summary>
     /// <param name="expression">The factory expression.</param>
     /// <param name="type">The expected concept.</param>
     /// <param name="model">The model resolving the expression.</param>
-    /// <returns>Whether the concept receives a fresh, unchanged UUID v4.</returns>
-    public bool Read(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
+    /// <returns>The proven strategy, or null.</returns>
+    public GenerationModel? Strategy(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
     {
         if (expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax))
         {
-            return false;
+            return null;
         }
 
         return expression switch
         {
-            BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation =>
-                ConstructsConcept(creation, type, model) && IsUuidCall(argument.Expression, model),
-            _ => ThroughConversion(expression, type, model)
-        };
-    }
-
-    static bool IsUuidCall(ExpressionSyntax expression, SemanticModel model)
-    {
-        if (expression is not InvocationExpressionSyntax { ArgumentList.Arguments.Count: 0 } call ||
-            model.GetSymbolInfo(call).Symbol is not IMethodSymbol { IsStatic: true, Parameters.Length: 0 } method)
-        {
-            return false;
-        }
-
-        return method.Name switch
-        {
-            "NewGuid" => method.ContainingType.Is("System.Guid"),
-            "Uuid" => method.ContainingType.Is("Cratis.Concepts.GenerateValue"),
-            _ => false
+            BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation when ConstructsConcept(creation, type, model) =>
+                GenerationCallReader.Read(argument.Expression, model),
+            _ when ThroughConversion(expression, type, model) => GenerationCallReader.Read(expression, model),
+            _ => null
         };
     }
 
@@ -76,7 +62,7 @@ internal class UuidGenerationForms(SemanticModels models)
 
     bool ThroughConversion(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
     {
-        if (!IsUuidCall(expression, model))
+        if (GenerationCallReader.Read(expression, model) is null)
         {
             return false;
         }

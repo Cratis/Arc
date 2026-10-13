@@ -39,11 +39,6 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         },
         diagnostics);
 
-    static bool CanGenerate(PropertyModel property, CommandAuthoringModel authoring, ApplicationModel model) =>
-        !property.Type.IsOptional && !property.Type.IsCollection &&
-        !authoring.GeneratedWithValidators.Contains(property.Name, StringComparer.Ordinal) &&
-        model.Concepts.SingleOrDefault(concept => concept.Name == property.Type.Name) is { Primitive: ScreenplayPrimitive.Uuid } concept && !concept.Validations.Any();
-
     static bool Reads(string path, string name) => string.Equals(path, name, StringComparison.OrdinalIgnoreCase) || path.StartsWith($"{name}.", StringComparison.OrdinalIgnoreCase);
 
     static bool Reads(PropertyPathSource? source, string name) => source is not null && Reads(source.Path, name);
@@ -98,7 +93,9 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
 
         var capped = maximumVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V7) &&
             (authoring.Generated.Count > 0 || authoring.Response is not null || authoring.ResponseFields.Count > 0);
-        if (authoringOnlyConstructs && !capped)
+        var strategyCapped = maximumVersion is { } strategyCap && !strategyCap.IsAtLeast(SemanticVersion.V15) &&
+            authoring.Generated.Any(property => model.Concepts.Any(concept => concept.Name == property.Type.Name && concept.Generation is { Kind: not "uuid" }));
+        if (authoringOnlyConstructs && !capped && !strategyCapped)
         {
             return command;
         }
@@ -107,10 +104,10 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             Report(command, location, $"Generation and responses were withheld because ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{maximumVersion}; ESM v7 is required, so the command retains its legacy productions or handler reference");
         }
 
-        var blocked = authoring.Generated.Where(property => !CanGenerate(property, authoring, model)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+        var blocked = authoring.Generated.Where(property => !GeneratedConceptAdmission.Allows(property, authoring, model, maximumVersion)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
         if (blocked.Count > 0)
         {
-            Report(command, location, $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' can be generated only as required scalar Uuid-backed concepts with no concept validators or validation rules (PLAY0268); those values, dependent responses, mappings, and production conditions were left in code");
+            Report(command, location, $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' must be required scalar generatable concepts with no concept validators, validation rules or compliance markers (PLAY0268); non-default strategies require ESM v15 (cap v{maximumVersion?.ToString() ?? "latest"}) and generated identifiers require at least 64 random bits (PLAY0684); those values, dependent responses, mappings, and production conditions were left in code");
         }
 
         var protectedValues = authoring.Generated.Where(property => command.Validations.Any(rule => Reads(rule.Property, property.Name) || Reads(rule.Value as PropertyPathSource, property.Name)) ||
