@@ -13,6 +13,7 @@ public class and_handler_returns_enumerable_of_events_for_event_source_id : give
 {
     CommandResult _result;
     IEnumerable<EventForEventSourceId> _value;
+    EventForEventSourceId[] _appended;
     EventSourceId _firstTargetEventSourceId;
     EventSourceId _secondTargetEventSourceId;
     TestEvent _firstEvent;
@@ -30,28 +31,25 @@ public class and_handler_returns_enumerable_of_events_for_event_source_id : give
             new EventForEventSourceId(_secondTargetEventSourceId, _secondEvent),
         ];
         _commandHandler.Handle(Arg.Any<CommandContext>()).Returns(_value);
+        _appended = [];
+        _eventLog.AppendMany(
+            Arg.Any<IEnumerable<EventForEventSourceId>>(),
+            Arg.Any<CorrelationId?>(),
+            Arg.Any<IEnumerable<string>?>(),
+            Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>?>()).Returns(call =>
+        {
+            _appended = call.Arg<IEnumerable<EventForEventSourceId>>().ToArray();
+            return AppendManyResult.Success(_correlationId, []);
+        });
     }
 
     async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
-    [Fact] void should_append_first_event_to_first_target_event_source_id() => _eventLog.Received(1).Append(
-        _firstTargetEventSourceId,
-        _firstEvent,
-        Arg.Any<EventStreamType?>(),
-        Arg.Any<EventStreamId?>(),
-        Arg.Any<EventSourceType?>(),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope>());
-    [Fact] void should_append_second_event_to_second_target_event_source_id() => _eventLog.Received(1).Append(
-        _secondTargetEventSourceId,
-        _secondEvent,
-        Arg.Any<EventStreamType?>(),
-        Arg.Any<EventStreamId?>(),
-        Arg.Any<EventSourceType?>(),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope>());
+    [Fact] void should_append_first_event_to_first_target_event_source_id() => (_appended[0].EventSourceId, _appended[0].Event).ShouldEqual((_firstTargetEventSourceId, _firstEvent));
+    [Fact] void should_append_second_event_to_second_target_event_source_id() => (_appended[1].EventSourceId, _appended[1].Event).ShouldEqual((_secondTargetEventSourceId, _secondEvent));
+    [Fact] void should_append_both_events() => _appended.Length.ShouldEqual(2);
+    [Fact] void should_append_as_one_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(1);
+    [Fact] void should_not_append_individual_events() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.Append)).ShouldEqual(0);
 }

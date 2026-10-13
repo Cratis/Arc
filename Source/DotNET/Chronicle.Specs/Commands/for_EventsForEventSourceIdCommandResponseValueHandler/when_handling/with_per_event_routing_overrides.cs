@@ -49,26 +49,8 @@ public class with_per_event_routing_overrides : given.an_events_for_event_source
             new EventForEventSourceId(_plain, _testEvent)
         });
 
-    [Fact] void should_use_the_routing_set_on_the_event() => _eventLog.Received(1).Append(
-        _overridden,
-        _testEvent,
-        new EventStreamType("Postings"),
-        new EventStreamId("postings-1"),
-        new EventSourceType("Ledger"),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope?>(),
-        Arg.Any<DateTimeOffset?>(),
-        Arg.Any<Subject?>());
-    [Fact] void should_use_the_command_context_for_the_event_without_routing() => _eventLog.Received(1).Append(
-        _plain,
-        _testEvent,
-        new EventStreamType("CommandStream"),
-        new EventStreamId("command-stream-id"),
-        new EventSourceType("Command"),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope?>(),
-        Arg.Any<DateTimeOffset?>(),
-        Arg.Any<Subject?>());
+    [Fact] void should_use_the_routing_set_on_the_event() => (_appended[0].EventStreamType, _appended[0].EventStreamId, _appended[0].EventSourceType).ShouldEqual((new EventStreamType("Postings"), new EventStreamId("postings-1"), new EventSourceType("Ledger")));
+    [Fact] void should_use_the_command_context_for_the_event_without_routing() => (_appended[1].EventStreamType, _appended[1].EventStreamId, _appended[1].EventSourceType).ShouldEqual((new EventStreamType("CommandStream"), new EventStreamId("command-stream-id"), new EventSourceType("Command")));
+    [Fact] void should_preserve_the_overridden_event_source() => _appended[0].EventSourceId.ShouldEqual(_overridden);
+    [Fact] void should_preserve_the_plain_event_source() => _appended[1].EventSourceId.ShouldEqual(_plain);
 }

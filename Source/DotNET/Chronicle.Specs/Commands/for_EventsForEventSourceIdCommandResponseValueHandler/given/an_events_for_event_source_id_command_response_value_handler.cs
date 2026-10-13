@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -20,10 +21,12 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
     protected CorrelationId _correlationId;
     protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
     protected IConcurrencyScopeStrategy _concurrencyScopeStrategy;
+    protected EventForEventSourceId[] _appended;
+    protected IDictionary<EventSourceId, ConcurrencyScope> _scopes;
 
     void Establish()
     {
-        _eventLog = Substitute.For<IEventLog>();
+        _eventLog = Substitute.For<EventLogWithNamedTags>();
         _eventTypes = Substitute.For<IEventTypes>();
         _eventSources = Substitute.For<IEventSources>();
         _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
@@ -35,6 +38,21 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
         _correlationId = Guid.NewGuid();
         var command = new TestCommand();
         _commandContext = new CommandContext(_correlationId, typeof(TestCommand), command, [], new CommandContextValues(), null);
+
+        _appended = [];
+        _scopes = new Dictionary<EventSourceId, ConcurrencyScope>();
+        _eventLog.AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>?>()).Returns(call =>
+        {
+            _appended = call.Arg<IEnumerable<EventForEventSourceId>>().ToArray();
+            _scopes = call.Arg<IDictionary<EventSourceId, ConcurrencyScope>>();
+            return AppendManyResult.Success(_correlationId, []);
+        });
+        _eventLog.AppendManyWithNamedTags(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<IEnumerable<NamedTag>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>?>()).Returns(call =>
+        {
+            _appended = call.Arg<IEnumerable<EventForEventSourceId>>().ToArray();
+            _scopes = call.Arg<IDictionary<EventSourceId, ConcurrencyScope>>();
+            return AppendManyResult.Success(_correlationId, []);
+        });
 
         var successfulResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);
         _eventLog.Append(

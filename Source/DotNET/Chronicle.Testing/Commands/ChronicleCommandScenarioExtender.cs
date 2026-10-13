@@ -12,7 +12,6 @@ using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.Events;
 using Cratis.Chronicle.Testing.EventSequences;
-using Cratis.Chronicle.Testing.ReadModels;
 using Cratis.Chronicle.Transactions;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection;
@@ -72,7 +71,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var namespaceName = new EventStoreNamespaceName($"default-{scenarioId:N}");
         var eventScenario = new EventScenario(EventSequenceId.Log, eventStoreName, namespaceName, new DiscoveredConstraintsForScenario(Defaults.Instance));
         var appendedEvents = new List<AppendedEventWithResult>();
-        var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
+        var readModels = new CommandScenarioReadModels(
+            Defaults.Instance.EventStore.ReadModels,
+            commandLog: eventScenario.EventLog);
         var eventStore = new EventStoreForScenario(eventScenario, readModels, eventStoreName, namespaceName);
         var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
