@@ -4,8 +4,6 @@
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.EventSequences.Concurrency;
-using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandResponseValueHandler.when_handling;
 
@@ -48,25 +46,10 @@ public class and_the_command_is_scoped_for_concurrency : given.an_events_for_eve
     [Fact] void should_resolve_a_scope_for_the_second_event_source() =>
         _concurrencyScopeStrategy.Received(1).GetScope(_secondEventSourceId, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>(), Arg.Any<IEnumerable<EventType>?>());
 
-    [Fact] void should_append_to_the_first_event_source_with_its_own_scope() => _eventLog.Received(2).Append(
-        _firstEventSourceId,
-        Arg.Any<object>(),
-        Arg.Any<EventStreamType?>(),
-        Arg.Any<EventStreamId?>(),
-        Arg.Any<EventSourceType?>(),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Is<ConcurrencyScope>(scope => scope != null && scope.EventSourceId == _firstEventSourceId));
-
-    [Fact] void should_append_to_the_second_event_source_with_its_own_scope() => _eventLog.Received(1).Append(
-        _secondEventSourceId,
-        Arg.Any<object>(),
-        Arg.Any<EventStreamType?>(),
-        Arg.Any<EventStreamId?>(),
-        Arg.Any<EventSourceType?>(),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Is<ConcurrencyScope>(scope => scope != null && scope.EventSourceId == _secondEventSourceId));
+    [Fact] void should_append_to_the_first_event_source_with_its_own_scope() => _scopes[_firstEventSourceId].EventSourceId.ShouldEqual(_firstEventSourceId);
+    [Fact] void should_append_to_the_second_event_source_with_its_own_scope() => _scopes[_secondEventSourceId].EventSourceId.ShouldEqual(_secondEventSourceId);
+    [Fact] void should_keep_all_events_in_order() => _appended.Select(_ => _.EventSourceId).ShouldEqual([_firstEventSourceId, _secondEventSourceId, _firstEventSourceId]);
+    [Fact] void should_append_as_one_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(1);
 
     [EventSourceType("Thing", concurrency: true)]
     class ConcurrencyScopedCommand;
