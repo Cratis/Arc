@@ -16,7 +16,7 @@ public class when_completion_is_refused : given.a_stream_completion
     void Establish()
     {
         Result<EventSequenceNumber, CompleteStreamError> refused = CompleteStreamError.DefaultStreamCannotBeCompleted;
-        _eventLog.CompleteStream("observed", "stream").Returns(refused);
+        _eventLog.CompleteStream(new ClosedStreamScope("owner", "reports", "observed", "stream")).Returns(refused);
     }
 
     async Task Because()

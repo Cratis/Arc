@@ -39,6 +39,8 @@ The empty append represents an **identical retry**: approval was already recorde
 
 `StreamDecision.Events` contains `AppendedEvent` values; `EventsOf<TEvent>()` selects payloads and `Has<TEvent>()` checks for a type. The reader captures `Tail` **before** fetching events and discards events beyond that tail. `IsEmpty` means the tail was unavailable, and the scope uses `ExpectingNoMatchingEvent()` to protect the first append. Source type, stream type and stream id filters are identical for the read and guard.
 
+If you need a folded projection rather than raw stream facts, use the command-aware [`IDecisionReads` stream overload](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream). It enrolls a `[ProtectedDecision]` command's projection read in the same transaction; injected `DecisionRead<T>` parameters are not automatically narrowed to the command route.
+
 ## Reuse a definition-backed route
 
 For a command declaring `[EventSource<TSource>(stream)]`, `ForCommand()` also retains the event source definition and its selected stream. If you need a route outside the current command, inject `IEventRoutes` and resolve it from the same discovered registry. This excerpt assumes your application declares an `IEventSource` named `ReportSource` with an `approval` stream:

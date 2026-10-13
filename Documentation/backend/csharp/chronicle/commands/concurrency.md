@@ -197,6 +197,8 @@ public record ReportGenerated(DateOnly Period);
 
 `EventStreamIdTemplate.Resolve("{ReportingScopeId}:{Period}", command)` resolves a template outside the pipeline. `EventStreamIdTemplate.ResolveFor(command)` resolves the command's attribute or provider interface exactly as the pipeline does, and returns null when neither declares an id. Use the same function for a read or seed route instead of repeating the join. An attribute with a value and `ICanProvideEventStreamId` still raises `AmbiguousEventStreamId`.
 
+Owner-qualified templates are not needed to scope a [stream completion](./completing-streams.md): when the command has an event source id, Arc closes only that source's stream. Keep a composite id when those properties genuinely identify the stream.
+
 ## Event Source Id
 
 The event source id used when appending is resolved from the command by convention — not from the concurrency scope. See [Event Source Id Resolution](./events.md#event-source-id-resolution) for the full resolution order, including `ICanProvideEventSourceId`.

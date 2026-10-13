@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -21,10 +22,10 @@ public class a_stream_completion : Specification
     {
         _handler = new();
         _store = Substitute.For<IEventStore>();
-        _eventLog = Substitute.For<IEventLog>();
+        _eventLog = Substitute.For<EventLogWithNamedTags>();
         _store.EventLog.Returns(_eventLog);
-        _context = new(EventContext.Empty with { EventStreamType = "observed", EventStreamId = "stream" }, new object(), new());
+        _context = new(EventContext.Empty with { EventSourceId = "owner", EventSourceType = "reports", EventStreamType = "observed", EventStreamId = "stream" }, new object(), new());
         Result<EventSequenceNumber, CompleteStreamError> completed = EventSequenceNumber.First;
-        _eventLog.CompleteStream("observed", "stream").Returns(completed);
+        _eventLog.CompleteStream(new ClosedStreamScope("owner", "reports", "observed", "stream")).Returns(completed);
     }
 }

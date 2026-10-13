@@ -165,4 +165,12 @@ public static class CommandContextExtensions
             ? subject
             : null;
     }
+
+    /// <summary>
+    /// Gets the event source id without refusing a command that has no source.
+    /// </summary>
+    /// <param name="commandContext">The command context.</param>
+    /// <returns>The resolved id, or the unspecified sentinel.</returns>
+    internal static EventSourceId GetEventSourceIdOrDefault(this CommandContext commandContext) =>
+        commandContext.HasEventSourceId() ? commandContext.GetEventSourceId() : EventSourceId.Unspecified;
 }

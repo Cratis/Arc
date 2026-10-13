@@ -14,7 +14,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// <param name="EventLog">The command's event log.</param>
 /// <param name="StreamType">The resolved stream type.</param>
 /// <param name="StreamId">The resolved stream id.</param>
-internal sealed record PendingStreamCompletion(IEventLog EventLog, EventStreamType StreamType, EventStreamId StreamId)
+/// <param name="Scope">The owning event source scope, or null for an all-sources completion.</param>
+internal sealed record PendingStreamCompletion(IEventLog EventLog, EventStreamType StreamType, EventStreamId StreamId, ClosedStreamScope? Scope)
 {
     /// <summary>
     /// Applies the completion and merges any refusal into the command result.
@@ -23,7 +24,9 @@ internal sealed record PendingStreamCompletion(IEventLog EventLog, EventStreamTy
     /// <returns>A task representing completion.</returns>
     internal async Task Complete(CommandResult result)
     {
-        var completion = await EventLog.CompleteStream(StreamType, StreamId);
+        var completion = Scope is null
+            ? await EventLog.CompleteStream(StreamType, StreamId)
+            : await EventLog.CompleteStream(Scope);
         if (!completion.IsSuccess && (!completion.TryGetError(out var error) || error != CompleteStreamError.AlreadyCompleted))
         {
             result.ValidationResults = [.. result.ValidationResults, ValidationResult.Error(
