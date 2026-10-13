@@ -69,7 +69,7 @@ The subscription buffers values immediately, so the synchronous change above is 
 
 Each emission runs read-model interceptors and emission guards in order when you read it. Suppression skips a value; denial returns an unauthorized result and ends the subscription. Stream errors and completion return error results rather than successful empty data. `Observe` and `Next` throw `TimeoutException` on their deadlines; a `Next` timeout leaves the subscription live. An observation's `Dispose` starts disposal without waiting for cleanup. Use `DisposeAsync` or dispose the scenario to wait for cleanup; the scenario ends observations before releasing its provider.
 
-The scenario does not restore ambient tenant or identity on a producer thread. Guards receive the admitted principal explicitly. MongoDB `.Observe()` still needs a real MongoDB provider and change-stream support; these scenarios do not emulate it. Chronicle-backed state currently supports seeding snapshots, not pushing new emissions after an append.
+The scenario does not restore ambient tenant or identity on a producer thread. Guards receive the admitted principal explicitly. MongoDB `.Observe()` still needs a real MongoDB provider and change-stream support; these scenarios do not emulate it. For Chronicle-backed queries, the testing extension also supports [observable read-model collections](#observe-chronicle-read-models).
 
 ## Chronicle-backed state
 
@@ -86,3 +86,60 @@ Assert.True(result.IsSuccess);
 ```
 
 `Given.ForEventSource(id).ReadModel(otherReadModel)` can pin another read model type used by the query. `Given.ForEventSource(id).Events(events)` also seeds history for projection on demand. The read-model query must resolve `IReadModels` from its method dependencies and read the seeded event source id; seeding does not replace arbitrary application stores or make HTTP endpoints available. See the Chronicle query spec `Source/DotNET/Chronicle.Specs/Queries/for_QueryScenario/when_a_chronicle_read_model_is_seeded.cs` for a complete tested example.
+
+## Observe Chronicle read models
+
+Use `Observe` to assert both the initial collection and later changes from a query returning `readModels.Observe<TReadModel>(filter)`. The scenario folds its events through your application's discovered projections or reducers; it does not require a running Chronicle server. The optional filter applies to the merged collection, including pins.
+
+This illustrative excerpt assumes `AccountBalance` has an event-source-keyed projection from `BalanceChanged(decimal Balance)` and an `[AllowAnonymous]` static query `All(IReadModels readModels)` returning `readModels.Observe<AccountBalance>()`:
+
+```csharp
+using Cratis.Arc.Chronicle.Testing.Queries;
+using Cratis.Arc.Testing.Queries;
+using Cratis.Chronicle.Events;
+
+await using var scenario = new QueryScenario<AccountBalance>();
+var sourceId = EventSourceId.New();
+scenario.Given.ForEventSource(sourceId).Events(new BalanceChanged(10m));
+await using var observation = await scenario.Observe(nameof(AccountBalance.All));
+Assert.Equal(10m, ((IEnumerable<AccountBalance>)observation.Initial.Data).Single().Balance);
+
+scenario.Given.ForEventSource(sourceId).Events(new BalanceChanged(42m));
+var changed = await observation.Next();
+Assert.Equal(42m, ((IEnumerable<AccountBalance>)changed.Data).Single().Balance);
+```
+
+The initial emission includes events and read models seeded through `Given`. In default mode, observation creates its own private log on the first `Observe` call. `Given.Events` never enters the command log, so it cannot shift command sequence numbers, rehydrate aggregates, or affect command constraints. The private log also mirrors successful appends from the command log, including `EventScenario.Given` seeds and command or operation appends. Later `Given.ForEventSource(id).Events(...)` and `.ReadModel(...)` update the observation too. If the same facts are seeded in both histories, observation processes both copies. A command scenario created independently has its own log and cannot update this query. `Next` reads buffered emissions; dispose the observation and scenario when the spec ends.
+
+Pins win over projected instances for their seeded key. To merge a pin safely, the read model must expose a readable identifier: Chronicle's `[Key]`, then `[Subject]`, then a property named `Id`, including attributes on positional record parameters. If a pinned instance has no readable identifier or its identifier value is null, `Observe` throws `PinnedReadModelCannotBeObserved`, naming the type and advising you to seed events instead of pinning, or give the read model a key property. The identifier must also have a value in each emitted instance; a null key fails the stream rather than producing an ambiguous merge. For a named key property, you can populate it explicitly with `[SetFromContext<BalanceChanged>(nameof(EventContext.EventSourceId))]`. Adding an unsupported pin to an active observation also fails the stream. Event-only observation does not require an identifier property. Unknown and passive read models retain Chronicle's own observation errors.
+
+### Children and decision mode
+
+The default scenario mode cannot reliably observe read models with `ChildrenFrom` mappings: Chronicle can report **“Could not resolve parent key…”** even though `GetInstanceById` projects the children successfully. Its observation store does not share the event scenario's storage. [Chronicle #4816](https://github.com/Cratis/Chronicle/issues/4816) tracks the shared read-model surface needed to remove this limitation. Flat event-source-keyed model-bound projections and fluent set/add projections work in default mode.
+
+For children, use the shared store from a [decision-mode command scenario](./chronicle.md#protected-decision-scenarios). `CommandScenario.UseDecisionReads()` activates the internal `EnableDecisionReads` hook; there is no public `QueryScenario.EnableDecisionReads()` method. Share its services and context with the query **before seeding or initializing either scenario**. This setup excerpt assumes `ChangeBalance` and `AccountBalance` are your application's command and read model:
+
+```csharp
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Testing.Queries;
+
+await using var commands = new CommandScenario<ChangeBalance>().UseDecisionReads();
+await using var queries = new QueryScenario<AccountBalance>();
+foreach (var resource in queries.Context.Values.Distinct().OfType<IDisposable>())
+{
+    resource.Dispose();
+}
+queries.Context.Clear();
+queries.Services.Clear();
+foreach (var service in commands.Services)
+{
+    queries.Services.Add(service);
+}
+foreach (var (key, value) in commands.Context)
+{
+    queries.Context[key] = value;
+}
+```
+
+Now seed with `queries.Given.ForEventSource(id).Events(...)`, observe with `queries.Observe(...)`, and execute commands through `commands.Execute(...)`. Both scenarios use one log and owning observation store, so children project correctly and command appends reach the observation. The scenario does not emulate Chronicle's observer lifecycle, persistent storage, or transport; use hosted integration specs for those boundaries.

@@ -318,7 +318,7 @@ public class when_withdrawing_with_sufficient_funds : Specification
 
 Events are the facts; read models are derived from them. One `Events(...)` call feeds *every* read model built from those events: if the command injects both an `AccountBalance` and an `AccountStatement`, both are materialized from the same events — no read model type appears in the test.
 
-This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters.
+This is distinct from `_scenario.EventScenario.Given` above: that seeds the event **log** (prior facts the handler may read or append against); this seeds the **read model state** the command observes through its injected parameters. [Observable read-model queries](./query-scenario.md#observe-chronicle-read-models) use a private log that combines read-model seeds and successful appends from the command log, without changing the command log.
 
 ### Pinning a read model instance
 
@@ -333,7 +333,7 @@ void Establish() =>
 
 Pinned instances take precedence over seeded events for the same read model type and source. A model seeded for one source is not visible to another: resolving an unseeded source returns `null`. A registered nullable dependency can receive that null; a required dependency instead rejects the command as unavailable. See [the dependency-unavailable assertion distinction](./command-scenario.md#dependency-unavailable-is-not-a-business-rule-rejection).
 
-**Current boundary:** this builder controls injected read model resolution. It is not a live projection subscription: appending through `EventLog` or executing a command does not automatically add those new events to this separate seed collection. If a test needs both prior log facts and injected state, arrange both explicitly. Use Chronicle's read-model scenarios to test projection behavior, rather than assuming this command harness updates every downstream view.
+**Current boundary:** this builder controls injected read model resolution. Appending through `EventLog` or executing a command does not automatically add those new events to this separate seed collection. If a test needs both prior log facts and injected state, arrange both explicitly. Observable queries combine both histories in a private log, so seeding the same facts in both places processes them twice for observation. Pins require a readable key, and default-mode children observation has a [tracked limitation and decision-mode workaround](./query-scenario.md#children-and-decision-mode). Use Chronicle's read-model scenarios or hosted integration specs for projection behavior beyond the supported scenario boundaries.
 
 ## Multiple events
 

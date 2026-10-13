@@ -45,7 +45,8 @@ public static class DecisionReadAdmissions
             return [];
         }
 
-        var decisionReads = new EventStoreForTesting(serviceProvider: null, clientArtifactsProvider: Defaults.Instance.ClientArtifactsProvider).GetDecisionReads();
+        using var store = new EventStoreForTesting(serviceProvider: null, clientArtifactsProvider: Defaults.Instance.ClientArtifactsProvider);
+        var decisionReads = store.GetDecisionReads();
         var admissions = new Dictionary<Type, DecisionReadAdmission>();
         var refused = new List<RefusedDecisionRead>();
         foreach (var (command, readModel) in reads)

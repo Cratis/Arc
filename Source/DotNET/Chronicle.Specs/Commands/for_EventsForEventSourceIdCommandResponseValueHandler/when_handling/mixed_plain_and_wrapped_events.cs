@@ -31,6 +31,7 @@ public class mixed_plain_and_wrapped_events : given.an_events_for_event_source_i
     async Task Because() => _result = await _handler.Handle(_commandContext, _value);
 
     [Fact] void should_return_success() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_append_the_plain_event_to_the_command_event_source_id() => _eventLog.Received(1).Append(_commandEventSourceId, _plainEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>());
-    [Fact] void should_append_the_wrapped_event_to_its_own_event_source_id() => _eventLog.Received(1).Append(_wrapperEventSourceId, _wrappedEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>());
+    [Fact] void should_append_the_plain_event_to_the_command_event_source_id() => (_appended[0].EventSourceId, _appended[0].Event).ShouldEqual((_commandEventSourceId, _plainEvent));
+    [Fact] void should_append_the_wrapped_event_to_its_own_event_source_id() => (_appended[1].EventSourceId, _appended[1].Event).ShouldEqual((_wrapperEventSourceId, _wrappedEvent));
+    [Fact] void should_append_as_one_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(1);
 }
