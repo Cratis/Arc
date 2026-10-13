@@ -8,6 +8,8 @@
   href: commands/toc.yml
 - name: Resolving EventSourceId
   href: resolving-event-source-id.md
+- name: Choosing how a rule holds
+  href: consistency/toc.yml
 - name: Read Models
   href: read-models/toc.yml
 - name: Validation
