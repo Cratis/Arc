@@ -106,6 +106,7 @@ public class ScreenReader(
             {
                 Data = [.. data.Read(@namespace, name, path, queries)],
                 Titles = stated.Titles,
+                Toolbars = stated.Toolbars,
                 Tables = stated.Tables,
                 Actions = stated.Actions
             });

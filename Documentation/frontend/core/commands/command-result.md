@@ -165,6 +165,8 @@ if (result.isSuccess && result.response) {
 
 The response is typed according to the command's generic parameter, providing full type safety.
 
+Generated proxies preserve collection responses. A C# command returning `IEnumerable<ProjectSummary>` generates `Command<IYourCommand, ProjectSummary[]>` and uses `ProjectSummary[]` as the response type in its React `useCommand` hook. Calling `execute()` returns `CommandResult<ProjectSummary[]>`, so you can iterate or map `result.response` after checking that it is present, without casting it. An `IEnumerable<object>` response becomes `Record<string, unknown>[]`; a scalar `ProjectSummary` response remains `ProjectSummary`. Commands without response data omit the response generic and retain the default `object` type.
+
 ### Validation Results
 
 Access detailed validation errors through the `validationResults` array:

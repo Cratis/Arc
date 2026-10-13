@@ -17,4 +17,9 @@ public record ScreenStructure(IEnumerable<string> Titles, IEnumerable<ScreenTabl
     /// Gets the structure of a screen nothing was read from.
     /// </summary>
     public static readonly ScreenStructure None = new([], [], []);
+
+    /// <summary>
+    /// Gets the toolbars recovered from data page menus.
+    /// </summary>
+    public IEnumerable<ScreenToolbarModel> Toolbars { get; init; } = [];
 }
