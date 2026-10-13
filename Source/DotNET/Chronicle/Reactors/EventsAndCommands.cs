@@ -58,6 +58,11 @@ internal record EventsAndCommands(IEnumerable<object> Events, IEnumerable<object
             return EffectKind.Invalid;
         }
 
+        if (value is CommandInvocation invocation)
+        {
+            return ClassifyInvocation(eventTypes, invocation);
+        }
+
         if (value is EventForEventSourceId envelope)
         {
             return IsEvent(eventTypes, envelope.Event) ? EffectKind.Event : EffectKind.Invalid;
@@ -73,6 +78,9 @@ internal record EventsAndCommands(IEnumerable<object> Events, IEnumerable<object
             _ => EffectKind.Invalid
         };
     }
+
+    static EffectKind ClassifyInvocation(IEventTypes eventTypes, CommandInvocation invocation) =>
+        invocation.Command.GetType().IsCommand() && !eventTypes.HasFor(invocation.Command.GetType()) ? EffectKind.Command : EffectKind.Invalid;
 
     static bool IsEvent(IEventTypes eventTypes, object? value) =>
         value is not null and not CompleteStream and not EventForEventSourceId &&
