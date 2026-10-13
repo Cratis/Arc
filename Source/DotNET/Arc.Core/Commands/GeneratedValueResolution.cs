@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -29,6 +30,7 @@ internal sealed class GeneratedValueResolution
     /// <returns>The validated generated value.</returns>
     /// <exception cref="InvalidGeneratedValueParameter">The factory or fixture supplied an incompatible value.</exception>
     /// <exception cref="GeneratedValueRejected">The generated value failed validation.</exception>
+    /// <exception cref="MissingGenerationTime">An unpinned context-dependent value has no received time.</exception>
     /// <exception cref="OperationCanceledException">Command execution was cancelled.</exception>
     internal static async Task<object> Resolve(Type commandType, ParameterInfo parameter, CommandContext context, IServiceProvider services)
     {
@@ -38,7 +40,7 @@ internal sealed class GeneratedValueResolution
         var fixture = services.GetService<IGeneratedValueFixture>();
         var value = fixture is not null && fixture.TryGet(commandType, name, type, out var pinned)
             ? pinned
-            : GeneratedValueFactories.Create(commandType, parameter);
+            : GeneratedValueFactories.Create(commandType, parameter, ContextFor(type, context, services));
         if (!type.IsInstanceOfType(value))
         {
             throw new InvalidGeneratedValueParameter(commandType, parameter.Name!, "the factory or fixture must supply a non-null value of the declared type.");
@@ -49,6 +51,31 @@ internal sealed class GeneratedValueResolution
         context.GeneratedValues.Add(name, type, value);
         fixture?.Record(commandType, context.GeneratedValues[^1]);
         return value;
+    }
+
+    /// <summary>
+    /// Adapts the command's receipt and tenant for context-dependent generation.
+    /// </summary>
+    /// <param name="type">The generated type.</param>
+    /// <param name="context">The command context.</param>
+    /// <param name="services">The command's services.</param>
+    /// <returns>The generation context, or default for context-free types.</returns>
+    /// <exception cref="MissingGenerationTime">A context-dependent value has no received time.</exception>
+    static GenerationContext ContextFor(Type type, CommandContext context, IServiceProvider services)
+    {
+        if (!GeneratedValueParameters.IsGeneratableInContext(type))
+        {
+            return default;
+        }
+
+        if (context.ReceivedAt == default)
+        {
+            throw new MissingGenerationTime();
+        }
+
+        var tenant = services.GetRequiredService<ITenantIdAccessor>().Current;
+
+        return new(context.ReceivedAt, tenant.IsDefault ? GenerationContext.DefaultTenant : tenant.Value);
     }
 
     static async Task Validate(Type commandType, string name, Type type, object value, IServiceProvider services, CancellationToken cancellationToken)

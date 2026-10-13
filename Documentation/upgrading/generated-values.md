@@ -38,6 +38,33 @@ Arc now calls `CartId.New()`, validates the value, and supplies it to `Handle()`
 remains outside the command's request properties. Keep identifiers supplied by clients,
 such as an existing cart to update, on command properties; they are not generated values.
 
+## Use the editor migration
+
+[ARC0028](../backend/csharp/code-analysis/ARC0028.md) identifies concept generation inside
+`Handle()`. Use **Move to a [GeneratedValue] parameter** for a supported single expression,
+then choose a stable generated name and update direct calls to the handler. The fix recognizes
+`X.New()`, `GenerateValue.*(...)`, and `Guid.NewGuid()` converted or wrapped into a concept
+that implements a generation contract. A raw primitive cannot become a generated parameter.
+
+The fix does not move generation inside loops, branches, or nested functions, or discard
+nonconstant strategy arguments. Migrate these deliberately: moving a per-iteration or
+conditional allocation into a Handle parameter changes when and how many values are created.
+Review the concept's factory too; it must own the strategy that the handler previously used.
+
+## Move time-dependent strategies to the context contract
+
+For concepts depending on time or tenant, use Fundamentals 7.24.0's
+`IGeneratableInContext<TSelf>` and `New(GenerationContext)` instead of reading the clock
+inside `New()`. Follow [context-dependent generation](../backend/csharp/commands/generated-values.md#generate-with-the-commands-time-and-tenant)
+for the complete declaration. Arc passes the command's `ReceivedAt` and mapped tenant.
+If both interfaces remain, Arc uses only the context form and ARC0027 warns about the plain form.
+Manually constructed contexts need a received time; a default time fails, rather than using `UtcNow`.
+
+In scenarios, use [Clock and Tenant](../backend/csharp/testing/generated-values.md#fix-the-clock-and-tenant)
+with `Clock` configured before the first `Execute` or `Validate` call, and `Tenant` before execution.
+Continue pinning exact identifiers when assertions depend on the whole value:
+a fixed clock does not make a random suffix deterministic.
+
 ## Replace identity-source queues with named pins
 
 Arc v22.65.3 removed `IIdentitySource` and `CommandScenario.Generate(Guid[])`. Remove the

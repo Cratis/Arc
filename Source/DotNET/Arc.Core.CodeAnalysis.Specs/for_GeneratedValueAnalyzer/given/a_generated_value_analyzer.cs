@@ -32,7 +32,7 @@ public class a_generated_value_analyzer
 
     protected static Task VerifyDiagnostic(string source, string id, params string[] arguments) =>
         VerifySource(source, Verify.Diagnostic(id)
-            .WithSeverity(id == "ARC0025" ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error)
+            .WithSeverity(id == "ARC0025" || id == "ARC0027" ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error)
             .WithLocation(0).WithArguments(arguments));
 
     protected static Task VerifyValid(string source) => VerifySource(source);

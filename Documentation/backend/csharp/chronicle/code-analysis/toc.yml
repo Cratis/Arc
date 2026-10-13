@@ -38,3 +38,5 @@
   href: ARCCHR0020.md
 - name: ARCCHR0021 - Use event source definition routing
   href: ARCCHR0021.md
+- name: ARCCHR0022 - Command-key aggregate on a generated append target
+  href: ARCCHR0022.md

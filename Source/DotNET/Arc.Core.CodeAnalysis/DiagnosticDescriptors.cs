@@ -232,11 +232,11 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARC0022_InvalidGeneratedValueType = new(
         id: "ARC0022",
         title: "Invalid generated value parameter type",
-        messageFormat: "Generated parameter '{0}' of type '{1}' must be non-nullable and implement Cratis.Concepts.IGeneratable<TSelf> for itself. Use a non-nullable generatable type.",
+        messageFormat: "Generated parameter '{0}' of type '{1}' must be non-nullable and implement Cratis.Concepts.IGeneratable<TSelf> or IGeneratableInContext<TSelf> for itself. Use a non-nullable generatable type.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
-        description: "Generated Handle parameters must implement IGeneratable<TSelf> with their own type as TSelf. Parameters whose runtime nullable read state is Nullable, and by-reference parameters, cannot be generated.");
+        description: "Generated Handle parameters must implement IGeneratable<TSelf> or IGeneratableInContext<TSelf> with their own type as TSelf. Parameters whose runtime nullable read state is Nullable, and by-reference parameters, cannot be generated.");
 
     /// <summary>
     /// ARC0023: Generated value declared outside a command Handle method.
@@ -273,6 +273,30 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Generated parameters are resolved before matching Provide values, so Provide cannot override them. Other unmarked Handle parameters can still consume provided values of the same type.");
+
+    /// <summary>
+    /// ARC0027: Generated value implements both generation contracts.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0027_DualGeneratedValueContracts = new(
+        id: "ARC0027",
+        title: "Generated value implements both generation contracts",
+        messageFormat: "Generated parameter '{0}' of type '{1}' implements both generation contracts. Arc uses the context form; the plain New() is never called by Arc.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Arc prefers IGeneratableInContext<TSelf> when a generated parameter implements both interfaces. Remove the plain contract if it has no other callers.");
+
+    /// <summary>
+    /// ARC0028: Move inline generation to a generated parameter.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARC0028_InlineGeneratedValue = new(
+        id: "ARC0028",
+        title: "Move inline generation to a generated parameter",
+        messageFormat: "Move inline generation of '{0}' to a [GeneratedValue] Handle parameter so scenarios can pin it",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A generated parameter keeps generation outside the command's decision and allows scenario pinning. The concept must own its generation strategy.");
 
     const string Category = "Arc";
 }
