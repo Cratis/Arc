@@ -66,7 +66,7 @@ public class QuerySyntaxBuilder(
             Diagnostics?.Information(
                 ScreenplayDiagnosticCodes.UnmappableQuery,
                 $"The query '{query.Name}' filter '{filter.Name}' requires ESM v14 and was withheld because ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}",
-                query.Name);
+                query.PerformerFile);
         }
 
         return [];

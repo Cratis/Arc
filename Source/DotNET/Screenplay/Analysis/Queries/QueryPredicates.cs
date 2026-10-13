@@ -12,6 +12,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Queries;
 internal static class QueryPredicates
 {
     static readonly string[] _materializers = ["ToList", "ToArray", "ToListAsync", "ToArrayAsync", "AsQueryable", "AsEnumerable", "ToEnumerable"];
+    static readonly string[] _entityFrameworkMaterializers = ["ToListAsync", "ToArrayAsync", "AsAsyncEnumerable"];
+    static readonly string[] _collectionObservers = ["MongoDB.Driver.MongoCollectionExtensions", "Microsoft.EntityFrameworkCore.DbSetObserveExtensions"];
 
     /// <summary>
     /// Reads the predicates in the returned query chain.
@@ -52,7 +54,7 @@ internal static class QueryPredicates
             return [];
         }
 
-        var predicates = IsPredicate(method.Name)
+        var predicates = IsPredicate(method)
             ? invocation.ArgumentList.Arguments.Select(argument => Unwrap(argument.Expression)).OfType<LambdaExpressionSyntax>()
             : [];
         var source = SourceOf(invocation, method);
@@ -70,13 +72,38 @@ internal static class QueryPredicates
         return IsQueryOperation(method) ? method : null;
     }
 
-    static bool IsQueryOperation(IMethodSymbol method) =>
-        IsQueryNamespace(method.ContainingNamespace.ToDisplayString()) &&
-        (IsPredicate(method.Name) || _materializers.Contains(method.Name, StringComparer.Ordinal));
+    static bool IsQueryOperation(IMethodSymbol method) => IsPredicate(method) || IsMaterializer(method);
+
+    static bool IsPredicate(IMethodSymbol method)
+    {
+        if (IsCollectionObservation(method))
+        {
+            return true;
+        }
+
+        return IsQueryNamespace(method.ContainingNamespace.ToDisplayString()) && IsFilterMethod(method.Name);
+    }
+
+    static bool IsMaterializer(IMethodSymbol method)
+    {
+        if (IsEntityFrameworkMaterializer(method))
+        {
+            return true;
+        }
+
+        return IsQueryNamespace(method.ContainingNamespace.ToDisplayString()) && _materializers.Contains(method.Name, StringComparer.Ordinal);
+    }
+
+    static bool IsCollectionObservation(IMethodSymbol method) => method.Name.Equals("Observe", StringComparison.Ordinal) &&
+        _collectionObservers.Contains(method.ContainingType.FullMetadataName(), StringComparer.Ordinal);
+
+    static bool IsEntityFrameworkMaterializer(IMethodSymbol method) =>
+        method.ContainingType.FullMetadataName().Equals("Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions", StringComparison.Ordinal) &&
+        _entityFrameworkMaterializers.Contains(method.Name, StringComparer.Ordinal);
 
     static bool IsQueryNamespace(string name) => name == "System.Linq" || name.StartsWith("MongoDB.Driver", StringComparison.Ordinal);
 
-    static bool IsPredicate(string name) => name.Equals("Where", StringComparison.Ordinal) || name.Equals("Find", StringComparison.Ordinal);
+    static bool IsFilterMethod(string name) => name.Equals("Where", StringComparison.Ordinal) || name.Equals("Find", StringComparison.Ordinal);
 
     static ExpressionSyntax? SourceOf(InvocationExpressionSyntax invocation, IMethodSymbol method) =>
         method.IsStatic && method.ReducedFrom is null

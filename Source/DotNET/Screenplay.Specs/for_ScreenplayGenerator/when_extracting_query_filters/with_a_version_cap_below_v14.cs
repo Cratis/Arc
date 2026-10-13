@@ -15,6 +15,7 @@ public class with_a_version_cap_below_v14 : given.a_generated_document
     [Fact] void should_withhold_filters() => Result.Source.ShouldNotContain("filter ");
     [Fact] void should_keep_the_existing_key() => Result.Source.ShouldContain("by id Uuid");
     [Fact] void should_name_the_required_version_and_cap() => Result.Diagnostics.Single(diagnostic => diagnostic.Message.Contains("requires ESM v14", StringComparison.Ordinal)).Message.ShouldContain("capped at ESM v13");
+    [Fact] void should_locate_the_cap_at_the_implementation_file() => Result.Diagnostics.Single(diagnostic => diagnostic.Message.Contains("requires ESM v14", StringComparison.Ordinal)).Location.ShouldEqual("Feature/Slice/Slice.cs");
     [Fact] void should_use_the_existing_unmappable_query_diagnostic() => Result.Diagnostics.Single(diagnostic => diagnostic.Message.Contains("requires ESM v14", StringComparison.Ordinal)).Code.ShouldEqual(ScreenplayDiagnosticCodes.UnmappableQuery);
     [Fact] void should_keep_the_filter_free_document_on_its_previous_version() => Bound.Value!.Model.SemanticVersion.IsAtLeast(SemanticVersion.V14).ShouldBeFalse();
     [Fact] void should_round_trip_and_bind() => AssertDocument();
