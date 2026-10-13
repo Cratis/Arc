@@ -127,14 +127,7 @@ Replace queued raw Guids in specs with typed, named pins. With `AllocateCartId` 
 declaration linked above, this fragment goes in an async spec that imports `Cratis.Arc.Commands`,
 `Cratis.Arc.Testing.Commands` and `Cratis.Specifications`:
 
-```csharp
-using var scenario = new CommandScenario<AllocateCartId>();
-var cartId = CartId.New();
-scenario.PinGeneratedValue("cart", cartId);
-var result = await scenario.Execute(new AllocateCartId());
-result.ShouldBeSuccessful();
-scenario.GeneratedValues.Last<CartId>("cart").ShouldEqual(cartId);
-```
+<ArcBackendTabs snippet="upgrading/generated-values/pin-generated-value" variants="csharp" />
 
 A pin identifies the command type and the generated name, instead of relying on the order in which
 handlers consume a queue. It supplies the same value on every execution of that command in the scenario.

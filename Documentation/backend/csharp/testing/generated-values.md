@@ -235,5 +235,5 @@ validation to Arc's runtime pins, which use normal concept validation.
 
 ## Next steps
 
-- [Migrate generated identifiers](../../../upgrading/generated-values.md) when a handler still calls `New()` inside `Handle()`.
+- [Migrate generated identifiers](../../../upgrading/generated-values.mdx) when a handler still calls `New()` inside `Handle()`.
 - [Testing generated values in Fundamentals](/fundamentals/csharp/generating-values/testing/) for specs outside a command.

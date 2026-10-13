@@ -3,4 +3,4 @@
 - name: Secure defaults
   href: secure-defaults.mdx
 - name: Migrate generated identifiers
-  href: generated-values.md
+  href: generated-values.mdx
