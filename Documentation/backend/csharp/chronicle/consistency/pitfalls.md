@@ -24,7 +24,7 @@ Use this page to check a command you wrote, or to find out why a rule did not ho
 | [Where the guard stops](#where-the-guard-stops) | Silent | Nothing | Outside the guarantee |
 | [Tests without decision mode](#tests-without-decision-mode) | Silent | Nothing | `UseDecisionReads()` |
 
-Two failures are loud by design. A conflict rejects the command with the reason `concurrencyViolation` and is never retried; the caller reads again and resubmits. A read shape that decision reads refuse fails the command each time it runs; `DecisionReadAdmissions` in your specs finds it before production (see [protected decision scenarios](../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads)).
+Two failures are loud by design. A conflict rejects the command with the reason `concurrencyViolation` and is never retried; the caller reads again and resubmits. A read shape that decision reads refuse fails the command each time it runs; `DecisionReadAdmissions` in your specs finds it before production for `DecisionRead<T>` parameters of protected commands; a model read through `IDecisionReads.Get<T>` needs its own `Admit<T>()` check or a scenario that runs it (see [protected decision scenarios](../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads)).
 
 All examples on this page share one namespace.
 
@@ -226,7 +226,7 @@ public record RecordPaymentToRandomStream(Guid AccountId, decimal Amount)
 }
 ```
 
-Declare the id as `EventSourceId` (or an `EventSourceId<T>`-derived type) so the event goes to the account's stream. When a command has two such properties, Arc cannot choose and [ARCCHR0002](../code-analysis/index.md#arcchr0002-ambiguous-command-identity) warns:
+Declare the id as `EventSourceId` (or an `EventSourceId<T>`-derived type) so the event goes to the account's stream. When a command has two such properties, Arc silently uses the first one declared, which also becomes the decision-read key, and [ARCCHR0002](../code-analysis/index.md#arcchr0002-ambiguous-command-identity) is the only signal (a warning). `[Key]` on one of them does not silence it:
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -250,7 +250,7 @@ public record RecordLoanWithAKey(EventSourceId Member, EventSourceId Book) : ICa
 }
 ```
 
-The second command is the fix: `ICanProvideEventSourceId` names the stream. The key also decides which instance a `DecisionRead<T>` reads, so the choice is part of the rule. See [resolving the event source id](../resolving-event-source-id.md).
+The second command is the fix: `ICanProvideEventSourceId` names the stream explicitly (`[Key]` marks a candidate but does not silence the warning). The key also decides which instance a `DecisionRead<T>` reads, so the choice is part of the rule. See [resolving the event source id](../resolving-event-source-id.md).
 
 ## A decision-read model without an Id
 
@@ -280,7 +280,7 @@ public record BorrowBookWithoutId(EventSourceId BookId, Guid MemberId)
 }
 ```
 
-This compiles. When the command runs, Chronicle refuses the model with the reason `KeyConversion`, and the command fails with `DecisionReadCouldNotBeAcquired` every time. The same happens for a reducer, a join, a child collection, `FromEvery`, a key from an event property, or a projection with no event types. Rename the key to `Id`, or use a stream decision, an aggregate or a constraint. Add `DecisionReadAdmissions.ShouldAdmitDecisionReadsIn(...)` to your specs.
+This compiles. When the command runs, Chronicle refuses the model with the reason `KeyConversion`, and the command fails with `DecisionReadCouldNotBeAcquired` every time. The same happens for a reducer, a join, a child collection, `FromEvery`, a key from an event property, or a projection with no event types. Rename the key to `Id`, or use a stream decision, an aggregate or a constraint. Add `DecisionReadAdmissions.ShouldAdmitDecisionReadsIn(...)` to your specs; it checks the `DecisionRead<T>` parameters of protected commands, and a model read with `IDecisionReads.Get<T>(key)` needs its own `Admit<T>()` check or a scenario that runs it.
 
 ## The model folds a different key than the one the facts are written to
 

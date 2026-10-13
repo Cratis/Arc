@@ -55,7 +55,7 @@ A flat projection keyed by the event source, with an `Id` property of a string-l
 
 ### How do I find a refused shape before production?
 
-Add `DecisionReadAdmissions` to your specs. It reports the refused decision reads of the commands in an assembly. See [protected decision scenarios](../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads).
+Add `DecisionReadAdmissions` to your specs. It checks the `DecisionRead<T>` parameters of the `Handle` and `Provide` methods of `[ProtectedDecision]` commands in an assembly. A model read through `IDecisionReads.Get<T>(key)` inside `Handle` is not checked: give it its own `Admit<T>()` check or a scenario that runs the command. See [protected decision scenarios](../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads).
 
 ### Does Arc retry a command that conflicted?
 

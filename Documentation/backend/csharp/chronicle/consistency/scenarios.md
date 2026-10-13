@@ -567,7 +567,7 @@ public record BorrowBook(EventSourceId BookId, Guid MemberId)
 }
 ```
 
-Both events commit in one atomic append, guarded by the decision read. A plain `eventLog.Append(...)` in the same method would be written before the commit, and survives a conflict that rejects the returned event: [ARCCHR0012](../code-analysis/index.md#arcchr0012-immediate-append-with-a-decision-read) reports it at Info severity. Outside a command or another established unit of work, `Transactional.Append` throws.
+Both events commit in one atomic append, guarded by the decision read. [ARCCHR0007](../code-analysis/index.md#arcchr0007-command-handler-injects-ieventlog) still reports the `IEventLog` parameter in this shape, because the rule matches the parameter type rather than the call. A narrow suppression is acceptable for a deliberate transactional append; under warnings-as-errors suppress it on that command. A plain `eventLog.Append(...)` in the same method would be written before the commit, and survives a conflict that rejects the returned event: [ARCCHR0012](../code-analysis/index.md#arcchr0012-immediate-append-with-a-decision-read) reports it at Info severity. Outside a command or another established unit of work, `Transactional.Append` throws.
 
 ### Plain read models in `Handle()`
 
@@ -580,23 +580,20 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Monads;
 
-[EventType]
-public record BookLent(Guid MemberId);
-
 [Command]
 public record LendBook(EventSourceId BookId, Guid MemberId)
 {
-    public async Task<Result<BookLent, ValidationResult>> Handle(IReadModels readModels)
+    public async Task<Result<BookBorrowed, ValidationResult>> Handle(IReadModels readModels)
     {
         var stock = await readModels.GetInstanceById<BookStock>(BookId);
         return stock is not { Available: > 0 }
             ? ValidationResult.Error("No copies of this book are available.")
-            : new BookLent(MemberId);
+            : new BookBorrowed(MemberId);
     }
 }
 ```
 
-[ARCCHR0011](../code-analysis/index.md#arcchr0011-unguarded-legacy-decision-reads) reports this at Info severity. Two commands can both read `Available: 1` and both succeed. The projection may also lag the event log. To fix it, mark the command `[ProtectedDecision]` and take `DecisionRead<BookStock>` as in the [idiomatic path](./index.md#the-idiomatic-path). If the read is deliberately only a hint, mark the command `[Unprotected]` and enforce the rule elsewhere.
+[ARCCHR0011](../code-analysis/index.md#arcchr0011-unguarded-legacy-decision-reads) reports this at Info severity. Two commands can both read `Available: 1` and both succeed. The projection may also lag the event log. To fix it, mark the command `[ProtectedDecision]` and take `DecisionRead<BookStock>` as in the [idiomatic path](./index.md#the-idiomatic-path). The guard only sees the event types the model folds: `BookStock` decrements on `BookBorrowed`, which is why `LendBook` returns `BookBorrowed`. An event the model does not fold, such as a differently named lending event, is neither counted in `Available` nor detected as a competing append. If the read is deliberately only a hint, mark the command `[Unprotected]` and enforce the rule elsewhere.
 
 ### Several event sources
 
