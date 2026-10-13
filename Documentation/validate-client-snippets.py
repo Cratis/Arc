@@ -216,6 +216,23 @@ FIXTURES: dict[str, DomainFixture] = {
             public record Withdraw(AccountId AccountId, decimal Amount);
         """,
     ),
+    "cart": DomainFixture(
+        usings=(
+            "using Cratis.Concepts;",
+        ),
+        declarations="""
+            public record CartId(Guid Value) : ConceptAs<Guid>(Value), IGeneratable<CartId>
+            {
+                public static CartId New() => new(GenerateValue.Uuid());
+            }
+
+            [Command]
+            public record AllocateCartId
+            {
+                public CartId Handle([GeneratedValue("cart")] CartId cartId) => cartId;
+            }
+        """,
+    ),
     "order": DomainFixture(
         declarations="""
             public enum OrderStatus
@@ -570,6 +587,11 @@ SNIPPET_CONTEXTS: dict[str, SnippetContext] = {
         kind="body",
         usings=("using Cratis.Arc;", "using Microsoft.AspNetCore.Builder;"),
         prelude="var builder = WebApplication.CreateBuilder();",
+    ),
+    "upgrading/generated-values/pin-generated-value": SnippetContext(
+        kind="body",
+        fixtures=("cart",),
+        usings=("using Cratis.Arc.Commands;", USING_ARC_TESTING, "using Cratis.Specifications;"),
     ),
     "tutorial/authorization/development-header-adapter": SnippetContext(
         kind="body",

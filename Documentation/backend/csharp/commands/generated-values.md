@@ -75,7 +75,7 @@ it: a handler without Chronicle can return the generated value alone.
 
 An identifier that implements `IGeneratable<TSelf>` over a `Guid` follows the same shape. These
 declarations allocate an identifier; they do not persist a cart or append an event, and the
-[migration guide](../../../upgrading/generated-values.md) and the analyzer pages reuse them:
+[migration guide](../../../upgrading/generated-values.mdx) and the analyzer pages reuse them:
 
 ```csharp title="Shop/Carts/Starting/CartId.cs and StartCart.cs"
 using System;
@@ -284,7 +284,7 @@ Startup validation remains in place for commands compiled without the analyzers.
 ## Next steps
 
 - [Pin generated values in command specs](../testing/generated-values.md) so a spec can choose the value or assert its time part.
-- [Migrate generated identifiers](../../../upgrading/generated-values.md) when handlers still call `New()` inside `Handle()`.
+- [Migrate generated identifiers](../../../upgrading/generated-values.mdx) when handlers still call `New()` inside `Handle()`.
 - [Generating a Screenplay](../generating-a-screenplay.md#recovering-generation-strategies) to see which strategies Arc recovers into a model.
 - [Generated values, from Screenplay to running app](/generated-values/) for the whole path across products.
 - Inspect captures through the [command context](command-context.md).
