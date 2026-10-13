@@ -51,7 +51,7 @@ public record UseReducerReadModelInHandle(EventSourceId AccountId)
 }
 ```
 
-The injection signature is the same for reducer, fluent-projection, and model-bound-projection backings, including passive models. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
+The injection signature is the same for classic reducers, [self-reducing models](./index.md#self-reducing-read-models) (Chronicle 19.58.0+), fluent projections, and model-bound projections, including passive models. A self model needs no separate reducer registration in Arc: Chronicle's discovered reducer set supplies it. Existing instances are read through `IReadModels` and released before injection; absent self-model state resolves to null. None of these snapshots protects a later append against concurrent changes. Freshness and release paths differ; see [materialized and passive paths](./index.md#materialized-and-passive-paths).
 
 ## In `Provide()`
 

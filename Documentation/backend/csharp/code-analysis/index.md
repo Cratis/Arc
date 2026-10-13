@@ -87,11 +87,11 @@ Reports a FluentValidation `RuleFor` selector that dereferences a member of a co
 
 ## ARC0014: Generic query methods
 
-Reports public or internal static generic methods on a `[ReadModel]` whose return type has an accepted query shape. Query invocation cannot close the method's type parameters. Make the query non-generic, move a generic composition helper off the read model, or opt into explicit query selection and leave the helper unmarked. A valid return type alone does not make a generic method invocable.
+Reports public or internal static generic methods on a `[ReadModel]` whose return type has an accepted query shape. Methods with a parameter of their own read-model type, nullable or not, are excluded; generic self-parameter helpers are not query candidates. Query invocation cannot close a genuine query's type parameters. Make the query non-generic, move a generic composition helper off the read model, or opt into explicit query selection and leave the helper unmarked. A valid return type alone does not make a generic method invocable.
 
 ## ARC0015: Concept query parameters
 
-Reports `string`, `Guid`, or nullable `Guid` parameters converted to a `ConceptAs<T>`-derived type inside a public or internal static non-void method on a `[ReadModel]`. In explicit mode only selected queries are analyzed; unmarked helpers are ignored. The analyzer recognizes conversion operations (including implicit conversions), not every possible manual construction or data-flow pattern.
+Reports `string`, `Guid`, or nullable `Guid` parameters converted to a `ConceptAs<T>`-derived type inside a public or internal static non-void method on a `[ReadModel]`. Self-parameter methods are never queries and are ignored. In explicit mode only selected queries are analyzed; unmarked helpers are ignored. The analyzer recognizes conversion operations (including implicit conversions), not every possible manual construction or data-flow pattern.
 
 Declare the parameter as the concept when you want Arc's query pipeline to validate that concept before invoking the method. Preserve null-aware handling for omitted input. For free-text search whose accepted values intentionally differ from an identifier concept's rules, review the model or suppress this warning locally with a reason. Direct static calls still bypass the query pipeline.
 

@@ -113,11 +113,11 @@ When a fallback and a declaring provider can both load a read model, declared ow
 
 | Provider | Owns a read model when | Claims it as |
 | --- | --- | --- |
-| Chronicle | a projection, model-bound projection, or reducer targets it | declared |
+| Chronicle | a projection, model-bound projection, or classic reducer targets it, or Chronicle discovers it as an eligible self-reducing model (19.58.0+) | declared |
 | Entity Framework Core | a `DbSet` on a `ReadOnlyDbContext` carries it | declared |
 | MongoDB | — a collection is served for any read model | fallback |
 
-A declaring provider wins over a fallback in either registration order. Two declaring providers (for example Chronicle and EF Core) replace one another; the later registration wins. MongoDB claims only what nothing else resolves, and it also leaves your own registration of a read model type alone. This matters beyond tidiness: Chronicle is the provider that releases a read model's compliance-protected values, so a read model Chronicle projects has to be resolved by Chronicle.
+A declaring provider wins over a fallback in either registration order. Two declaring providers (for example Chronicle and EF Core) replace one another; the later registration wins. MongoDB claims only what nothing else resolves, and it also leaves your own registration of a read model type alone. This matters beyond tidiness: Chronicle is the provider that releases a read model's compliance-protected values, so a Chronicle-backed model, including a [self-reducing model](./index.md#self-reducing-read-models), has to be resolved by Chronicle. Being listed in the reducer artifacts is not enough on its own: a nominated plain reducer implementation is not necessarily its own read model.
 
 ### What else the winner decides
 
