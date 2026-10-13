@@ -136,9 +136,10 @@ internal static class ModelBoundQueryMethod
         {
             if (ReadModel(owner) is null || HasSelfParameter(method, owner) || !IsValidExplicitQuery(method) || !legacyReturn(method))
             {
-                throw new InvalidQueryDeclaration(owner, method.Name, HasSelfParameter(method, owner)
+                var reason = HasSelfParameter(method, owner)
                     ? QuerySelectionPolicy.SelfParameterReason
-                    : "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]");
+                    : "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]";
+                throw new InvalidQueryDeclaration(owner, method.Name, reason);
             }
         }
     }

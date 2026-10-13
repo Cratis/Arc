@@ -144,11 +144,11 @@ internal static class ModelBoundQueryMethodSymbols
 
     static IEnumerable<Diagnostic> InvalidMarkers(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods, Func<IMethodSymbol, bool> legacyPredicate) => methods
         .Where(method => IsMarked(method) && HasInvalidDeclaration(type, method, legacyPredicate))
-        .Select(method => DeclarationError(
-            method,
-            HasSelfParameter(method)
-                ? QuerySelectionPolicy.SelfParameterReason
-                : "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]"));
+        .Select(method => DeclarationError(method, InvalidMarkerReason(method)));
+
+    static string InvalidMarkerReason(IMethodSymbol method) => HasSelfParameter(method)
+        ? QuerySelectionPolicy.SelfParameterReason
+        : "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]";
 
     static bool HasInvalidDeclaration(INamedTypeSymbol type, IMethodSymbol method, Func<IMethodSymbol, bool> legacyPredicate) =>
         ReadModel(type) is null || !IsValidExplicitQuery(method) || !legacyPredicate(method);

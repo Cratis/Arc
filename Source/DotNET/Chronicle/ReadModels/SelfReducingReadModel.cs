@@ -20,7 +20,6 @@ internal static class SelfReducingReadModel
     internal static bool IsSelfReducing(Type model) =>
         model.IsClass && !model.IsAbstract && !model.IsGenericType && !model.ContainsGenericParameters &&
         !model.IsAssignableTo(typeof(IReducer)) &&
-        !model.GetInterfaces().Any(type => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(IReducerFor<>)) &&
         MethodsOf(model).Any(method => IsReduction(model, method));
 
     static IEnumerable<MethodInfo> MethodsOf(Type model)
@@ -34,6 +33,9 @@ internal static class SelfReducingReadModel
         }
     }
 
+    static bool ReturnsModel(Type model, Type result) => result == model ||
+        (result.IsGenericType && result.GetGenericTypeDefinition() == typeof(Task<>) && result.GetGenericArguments()[0] == model);
+
     static bool IsReduction(Type model, MethodInfo method)
     {
         var parameters = method.GetParameters();
@@ -44,6 +46,6 @@ internal static class SelfReducingReadModel
             parameters[1].ParameterType == model &&
             new NullabilityInfoContext().Create(parameters[1]).ReadState != NullabilityState.NotNull &&
             (parameters.Length == 2 || parameters[2].ParameterType == typeof(EventContext)) &&
-            (method.ReturnType == model || method.ReturnType == typeof(Task<>).MakeGenericType(model));
+            ReturnsModel(model, method.ReturnType);
     }
 }
