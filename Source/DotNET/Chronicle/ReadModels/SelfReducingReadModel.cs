@@ -22,16 +22,8 @@ internal static class SelfReducingReadModel
         !model.IsAssignableTo(typeof(IReducer)) &&
         MethodsOf(model).Any(method => IsReduction(model, method));
 
-    static IEnumerable<MethodInfo> MethodsOf(Type model)
-    {
-        for (var current = model; current is not null; current = current.BaseType)
-        {
-            foreach (var method in current.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
-            {
-                yield return method;
-            }
-        }
-    }
+    static MethodInfo[] MethodsOf(Type model) =>
+        model.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
 
     static bool ReturnsModel(Type model, Type result) => result == model ||
         (result.IsGenericType && result.GetGenericTypeDefinition() == typeof(Task<>) && result.GetGenericArguments()[0] == model);
