@@ -1,0 +1,26 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using System.Reactive.Subjects;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Queries.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.Keys;
+using Cratis.Chronicle.Projections.ModelBound;
+using Cratis.Chronicle.ReadModels;
+
+namespace Cratis.Arc.Chronicle.Queries.for_QueryScenario;
+
+[ReadModel]
+[FromEvent<ObservedAccountChanged>]
+public record ObservedShelf(
+    [property: Key]
+    [SetFromContext<ObservedAccountChanged>(nameof(EventContext.EventSourceId))]
+    string ShelfId,
+    decimal Balance,
+    [ChildrenFrom<ObservedBookAdded>(key: nameof(ObservedBookAdded.BookId), identifiedBy: nameof(ObservedBook.Id))]
+    IEnumerable<ObservedBook> Books)
+{
+    [AllowAnonymous]
+    public static ISubject<IEnumerable<ObservedShelf>> All(IReadModels readModels) => readModels.Observe<ObservedShelf>();
+}

@@ -72,11 +72,19 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         var namespaceName = new EventStoreNamespaceName($"default-{scenarioId:N}");
         var eventScenario = new EventScenario(EventSequenceId.Log, eventStoreName, namespaceName, new DiscoveredConstraintsForScenario(Defaults.Instance));
         var appendedEvents = new List<AppendedEventWithResult>();
-        var readModels = new CommandScenarioReadModels(new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels));
+        var readModels = new CommandScenarioReadModels(
+            new ReadModelsForTesting(Defaults.Instance.EventStore.ReadModels, eventScenario.EventLog),
+            observationLog: eventScenario.EventLog);
         var eventStore = new EventStoreForScenario(eventScenario, readModels, eventStoreName, namespaceName);
         var unitOfWorkManager = new UnitOfWorkManager(eventStore);
 
-        eventScenario.EventLog.AppendOperations.Subscribe(appendedEvents.AddRange);
+        eventScenario.EventLog.AppendOperations.Subscribe(events =>
+        {
+            if (!readModels.IsSeedingObservation)
+            {
+                appendedEvents.AddRange(events);
+            }
+        });
 
         var eventSerializerRegistration = ServiceDescriptor.Singleton(Defaults.Instance.EventSerializer);
         services.TryAdd(eventSerializerRegistration);
