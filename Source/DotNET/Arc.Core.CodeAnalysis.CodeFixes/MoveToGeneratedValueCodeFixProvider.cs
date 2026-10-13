@@ -148,13 +148,11 @@ public sealed class MoveToGeneratedValueCodeFixProvider : CodeFixProvider
         var identifiers = method.DescendantTokens().Where(token => token.IsKind(SyntaxKind.IdentifierToken)).Select(token => token.ValueText);
         var names = new HashSet<string>(identifiers.Concat(model.LookupSymbols(expression.SpanStart).Select(symbol => symbol.Name)), StringComparer.Ordinal);
         var symbol = model.GetDeclaredSymbol(method)!;
-        foreach (var attribute in symbol.Parameters.SelectMany(parameter => parameter.GetAttributes()).Where(attribute => attribute.AttributeClass?.ToDisplayString() == "Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute"))
-        {
-            if (attribute.ConstructorArguments.FirstOrDefault().Value is string name)
-            {
-                names.Add(name);
-            }
-        }
+        names.UnionWith(symbol.Parameters
+            .SelectMany(parameter => parameter.GetAttributes())
+            .Where(attribute => attribute.AttributeClass?.ToDisplayString() == "Cratis.Arc.Commands.ModelBound.GeneratedValueAttribute")
+            .Select(attribute => attribute.ConstructorArguments.FirstOrDefault().Value)
+            .OfType<string>());
 
         var candidate = preferred;
         for (var suffix = 2; names.Contains(candidate); suffix++)
