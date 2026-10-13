@@ -259,6 +259,8 @@ The generator preserves the legacy authoring document and adds generated values 
 
 ## Recovering generation strategies
 
+In the shop from [Generated values](commands/generated-values.md), `OrderId` (`GenerateValue.TypeId("order", context)`) and `ApiKey` (`GenerateValue.Bytes(32, ValueEncoding.Base64Url)`) match the forms in the table below and recover as `generate typeid "order"` and `generate bytes 32 base64url`. `CustomerId` builds its text with string interpolation, and `InviteCode` reads its alphabet from a constant. Neither is a listed form, so they stay in code and are reported with `SP0073`. The `[NotAudited]` marking is not part of the model. For how Screenplay and Stage treat these strategies, see [Generated values](/screenplay/generated-values/) and [Generated values rendering](/stage/reference/generated-values-rendering/).
+
 Recovery reads the concept's generation contract, including explicit interface implementations. A recognized body is one expression, or a block containing only its return: `new(<call>)`, `new Concept(<call>)`, or `<call>` through a proven implicit conversion. Constructors and conversions must forward the primitive unchanged to the concept base. Arguments must be literals, encoding enum members, or a passed-through `GenerationContext` parameter; computed arguments and reads of `context.Now` or `context.Tenant` are not recovered.
 
 The concept owns the strategy. Its declaration gets the `generate` line; each command property says only `generated` or `generated identifier`.
