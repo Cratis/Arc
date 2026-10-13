@@ -15,4 +15,9 @@ public record UniquePropertyConstraintModel(string Name, string Property, string
     /// Gets the remaining properties of the composite claim, in declaration order.
     /// </summary>
     public IEnumerable<string> AdditionalProperties { get; init; } = [];
+
+    /// <summary>
+    /// Gets whether all targets of the shared claim compare values without regard to casing.
+    /// </summary>
+    public bool IgnoreCasing { get; init; }
 }

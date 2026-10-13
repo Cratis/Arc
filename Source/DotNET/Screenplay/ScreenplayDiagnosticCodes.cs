@@ -110,7 +110,7 @@ public static class ScreenplayDiagnosticCodes
     public const string UnmappableValidationRule = "SP0016";
 
     /// <summary>
-    /// A constraint declares a uniqueness rule whose complete targets or releases cannot be stated faithfully.
+    /// A constraint declares a uniqueness rule whose targets, lifetime or configuration cannot be proven and stated faithfully.
     /// </summary>
     public const string UnmappableConstraint = "SP0017";
 

@@ -38,7 +38,8 @@ public class ConstraintSyntaxBuilder(IScreenplayNaming naming)
                 naming.ToDeclarationName(unique.EventName),
                 SourceLocation.Start)
                 {
-                    AdditionalProperties = unique.AdditionalProperties.Select(naming.ToPropertyPath).ToArray()
+                    AdditionalProperties = unique.AdditionalProperties.Select(naming.ToPropertyPath).ToArray(),
+                    IgnoreCasing = unique.IgnoreCasing
                 },
             UniqueEventConstraintModel unique => new UniqueEventConstraintSyntax(
                 name,

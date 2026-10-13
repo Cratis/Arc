@@ -23,143 +23,48 @@ internal static class ConstraintTargets
     /// </summary>
     /// <param name="invocation">The uniqueness declaration.</param>
     /// <param name="model">The semantic model owning the declaration.</param>
-    /// <returns>All targets, or null if any target is unreadable.</returns>
+    /// <returns>All targets, or null if any target or retention mode is unreadable.</returns>
     internal static IReadOnlyList<UniquePropertyConstraintModel>? Properties(InvocationExpressionSyntax invocation, SemanticModel model)
     {
-        if (!HasReadableCallback(invocation, model))
+        var calls = ConstraintBuilderCalls.Callback(invocation, model);
+        if (calls is null || !HasDefaultRetention(calls, model))
         {
             return null;
         }
 
-        var calls = CallsIn(invocation).Where(_ => InvocationChain.NameOf(_) == ConstraintReader.On).ToArray();
-        var targets = calls.Select(call => Property(call, model)).ToArray();
+        var targets = calls.Where(_ => InvocationChain.NameOf(_) == ConstraintReader.On).Select(call => Property(call, model)).ToArray();
 
         return targets.Length == 0 || targets.Any(_ => _ is null) ? null : targets.OfType<UniquePropertyConstraintModel>().ToArray();
     }
 
     /// <summary>
-    /// Reads every event releasing a uniqueness declaration.
+    /// Reads every event releasing a uniqueness declaration, only after proving its builder's registration flow.
     /// </summary>
     /// <param name="invocation">The uniqueness declaration.</param>
     /// <param name="model">The semantic model owning the declaration.</param>
-    /// <returns>Release event names, or null if any release is unreadable.</returns>
+    /// <returns>Release event names, or null if builder identity or any release is unreadable.</returns>
     internal static IReadOnlyList<string>? Releases(InvocationExpressionSyntax invocation, SemanticModel model)
     {
-        if (HasUnprovenEventReleases(invocation, model))
+        var definition = ConstraintBuilderCalls.Definition(invocation, model);
+        if (definition is null)
         {
             return null;
         }
 
-        var releases = ReleaseCalls(invocation, model).Select(call => Release(call, model)).ToArray();
+        var calls = InvocationChain.TypeArgumentOf(invocation) is null
+            ? ConstraintBuilderCalls.Callback(invocation, model)!
+            : definition.SkipWhile(_ => _ != invocation).Skip(1).TakeWhile(_ => !IsUniqueEvent(_));
+        var releases = calls.Where(_ => InvocationChain.NameOf(_) == RemovedWith).Select(call => Release(call, model)).ToArray();
 
         return releases.Any(_ => _ is null) ? null : releases.OfType<string>().Distinct(StringComparer.Ordinal).ToArray();
     }
 
-    static bool HasUnprovenEventReleases(InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        if (InvocationChain.TypeArgumentOf(invocation) is null)
-        {
-            return false;
-        }
-
-        var declaration = invocation.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault();
-        if (declaration is null)
-        {
-            return false;
-        }
-
-        var builder = Receiver(invocation, model);
-        var releases = CallsIn(declaration).SkipWhile(_ => _ != invocation).Skip(1)
-            .Where(call => IsReleaseOn(call, model, builder));
-
-        return releases.Any() && !HasReadableDefinition(declaration, model);
-    }
-
-    static bool IsReleaseOn(InvocationExpressionSyntax invocation, SemanticModel model, ISymbol? builder) =>
-        InvocationChain.NameOf(invocation) == RemovedWith && SymbolEqualityComparer.Default.Equals(Receiver(invocation, model), builder);
-
-    /// <summary>
-    /// Proves the most-recent-claim association using only unconditional direct builder statements.
-    /// </summary>
-    /// <param name="declaration">The constraint definition.</param>
-    /// <param name="model">The semantic model owning the definition.</param>
-    /// <returns>Whether every call is unconditionally applied to its stated builder.</returns>
-    /// <remarks>
-    /// Conditional calls, deferred callbacks, reassigned builders and helpers can change which claim is released.
-    /// </remarks>
-    static bool HasReadableDefinition(MethodDeclarationSyntax declaration, SemanticModel model)
-    {
-        if (declaration.Body is { } body && body.Statements.Any(_ => _ is not ExpressionStatementSyntax { Expression: InvocationExpressionSyntax }))
-        {
-            return false;
-        }
-
-        if (declaration.DescendantNodes().Any(_ => _ is LambdaExpressionSyntax or AssignmentExpressionSyntax))
-        {
-            return false;
-        }
-
-        return CallsIn(declaration).All(call => IsKnownCall(call, model));
-    }
-
-    static bool HasReadableCallback(InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        if (InvocationChain.ArgumentOf(invocation) is not LambdaExpressionSyntax callback)
-        {
-            return false;
-        }
-
-        if (callback.Body is BlockSyntax block && block.Statements.Any(_ => _ is not ExpressionStatementSyntax))
-        {
-            return false;
-        }
-
-        return CallsIn(invocation).All(call => IsKnownCall(call, model));
-    }
-
-    static bool IsKnownCall(InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        if (model.GetConstantValue(invocation).HasValue)
-        {
-            return true;
-        }
-
-        return model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method &&
-            method.ContainingNamespace.ToDisplayString() == "Cratis.Chronicle.Events.Constraints";
-    }
-
-    static IEnumerable<InvocationExpressionSyntax> CallsIn(InvocationExpressionSyntax invocation) =>
-        invocation.DescendantNodes().OfType<InvocationExpressionSyntax>().OrderBy(_ => _.Span.End);
-
-    static IEnumerable<InvocationExpressionSyntax> ReleaseCalls(InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        if (InvocationChain.TypeArgumentOf(invocation) is null)
-        {
-            return CallsIn(invocation).Where(_ => InvocationChain.NameOf(_) == RemovedWith);
-        }
-
-        var declaration = invocation.Ancestors().OfType<MethodDeclarationSyntax>().FirstOrDefault();
-        var calls = declaration is null ? [invocation] : CallsIn(declaration);
-        var builder = Receiver(invocation, model);
-
-        return calls.Where(call => SymbolEqualityComparer.Default.Equals(Receiver(call, model), builder))
-            .SkipWhile(_ => _ != invocation).Skip(1)
-            .TakeWhile(_ => !IsUniqueEvent(_))
-            .Where(_ => InvocationChain.NameOf(_) == RemovedWith);
-    }
-
-    static IEnumerable<InvocationExpressionSyntax> CallsIn(MethodDeclarationSyntax declaration) =>
-        declaration.DescendantNodes().OfType<InvocationExpressionSyntax>().OrderBy(_ => _.Span.End);
+    static bool HasDefaultRetention(IEnumerable<InvocationExpressionSyntax> calls, SemanticModel model) =>
+        calls.Where(_ => InvocationChain.NameOf(_) == "WithMode")
+            .All(call => model.GetConstantValue(InvocationChain.ArgumentOf(call)!).Value is 0);
 
     static bool IsUniqueEvent(InvocationExpressionSyntax invocation) =>
         InvocationChain.NameOf(invocation) == ConstraintReader.Unique && InvocationChain.TypeArgumentOf(invocation) is not null;
-
-    static ISymbol? Receiver(InvocationExpressionSyntax invocation, SemanticModel model)
-    {
-        var root = InvocationChain.Sequence(invocation)[0];
-
-        return root.Expression is MemberAccessExpressionSyntax member ? model.GetSymbolInfo(member.Expression).Symbol : null;
-    }
 
     static ITypeSymbol? EventType(InvocationExpressionSyntax invocation, SemanticModel model)
     {

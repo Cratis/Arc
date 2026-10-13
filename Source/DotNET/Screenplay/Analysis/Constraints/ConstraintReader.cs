@@ -122,7 +122,7 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
             {
                 diagnostics.Warning(
                     ScreenplayDiagnosticCodes.UnmappableConstraint,
-                    $"The uniqueness rule '{type.Name}' declares has a target, property or release that cannot be stated faithfully, so the whole constraint was withheld",
+                    $"The uniqueness rule '{type.Name}' declares has targets, a lifetime or configuration that cannot be proven and stated faithfully, so the whole constraint was withheld",
                     location);
 
                 continue;
@@ -182,8 +182,8 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
             return null;
         }
 
-        var firstCall = invocation.DescendantNodes().OfType<InvocationExpressionSyntax>()
-            .Where(_ => InvocationChain.NameOf(_) == On).OrderBy(_ => _.Span.End).First();
+        var calls = ConstraintBuilderCalls.Callback(invocation, semanticModel)!;
+        var firstCall = calls.First(_ => InvocationChain.NameOf(_) == On);
         var declaring = semanticModel.GetTypeInfo(InvocationChain.TypeArgumentOf(firstCall)!).Type!;
         var first = targets[0];
 
@@ -193,7 +193,8 @@ public class ConstraintReader(SemanticModels models, SourcePaths paths, Screenpl
             first.EventName)
         {
             AdditionalProperties = first.AdditionalProperties,
-            AdditionalRules = targets.Skip(1).ToArray()
+            AdditionalRules = targets.Skip(1).ToArray(),
+            IgnoreCasing = calls.Any(_ => InvocationChain.NameOf(_) == "IgnoreCasing")
         };
     }
 }

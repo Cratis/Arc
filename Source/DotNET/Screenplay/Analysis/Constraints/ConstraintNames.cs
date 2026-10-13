@@ -37,7 +37,8 @@ public static class ConstraintNames
         ITypeSymbol eventType,
         string? property = null)
     {
-        var named = invocation.DescendantNodes().OfType<InvocationExpressionSyntax>()
+        var callback = InvocationChain.ArgumentOf(invocation) as LambdaExpressionSyntax;
+        var named = callback?.Body.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()
             .FirstOrDefault(_ => string.Equals(InvocationChain.NameOf(_), WithName, StringComparison.Ordinal));
 
         if (named is not null && InvocationChain.ArgumentOf(named) is { } argument &&
