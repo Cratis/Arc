@@ -12,6 +12,11 @@ namespace Cratis.Arc.Screenplay.Model;
 public record CommandRouteModel(string Source, string? Stream, TypeReferenceModel? IdentifierType, TypeReferenceModel? StreamIdType, string? StreamId)
 {
     /// <summary>
+    /// Gets the model and effective stored names identifying this route.
+    /// </summary>
+    public RouteIdentity Identity => new(Source, Stream, StoredSource ?? Source, StoredStream ?? Stream);
+
+    /// <summary>
     /// Gets the stored source name when it differs from the model name.
     /// </summary>
     public string? StoredSource { get; init; }

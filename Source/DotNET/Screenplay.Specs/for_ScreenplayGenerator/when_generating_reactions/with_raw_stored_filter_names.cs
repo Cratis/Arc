@@ -44,6 +44,10 @@ public class with_raw_stored_filter_names : a_generated_document
         Result.Source.Contains("from Author.Onboarding", StringComparison.Ordinal).ShouldEqual(admitted);
         Result.Source.Contains("produces Followed", StringComparison.Ordinal).ShouldEqual(admitted);
         Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ObserverEventSourceNotRepresentable).ShouldEqual(!admitted);
+        if (source == "Author")
+        {
+            Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.ObserverEventStreamNotDeclared).ShouldBeEmpty();
+        }
         AssertDocument();
     }
 }

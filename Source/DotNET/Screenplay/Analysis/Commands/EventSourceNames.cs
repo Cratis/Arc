@@ -28,9 +28,9 @@ internal static class EventSourceNames
         {
             return stored;
         }
-        var name = definition.Name.EndsWith(Suffix, StringComparison.Ordinal) ? definition.Name[..^Suffix.Length] : null;
+        var name = RecoveredSourceName(definition, stored);
 
-        return name is not null && IdentityName(name) && Portable(stored) ? name : namedStreams ? string.Empty : stored;
+        return name ?? (namedStreams ? string.Empty : stored);
     }
 
     /// <summary>
@@ -40,7 +40,7 @@ internal static class EventSourceNames
     /// <returns>The stored name.</returns>
     internal static string StoredSource(INamedTypeSymbol definition) =>
         definition.GetAttribute(WellKnownTypeNames.EventSourceDefinitionAttribute)?.GetArgument(0) is string stored ? stored :
-            definition.Name.EndsWith(Suffix, StringComparison.Ordinal) && definition.Name.Length > Suffix.Length ? definition.Name[..^Suffix.Length] : definition.Name;
+            DefaultSourceName(definition);
 
     /// <summary>
     /// Reads a stream directly referenced by an attribute, retaining legacy literal identity names.
@@ -62,9 +62,7 @@ internal static class EventSourceNames
         }
         var symbol = models?.For(syntax.SyntaxTree)?.GetSymbolInfo(argument.Expression).Symbol;
 
-        return symbol is IFieldSymbol { IsConst: true, ConstantValue: string value } field &&
-            SymbolEqualityComparer.Default.Equals(field.ContainingType, definition) && value == stored &&
-            IdentityName(field.Name) && Portable(value) ? field.Name : LiteralIdentityStream(definition, stored);
+        return DirectStreamName(symbol, definition, stored) ?? LiteralIdentityStream(definition, stored);
     }
 
     /// <summary>
@@ -82,6 +80,34 @@ internal static class EventSourceNames
     internal static bool Portable(string name) => name.Length > 0 && name.IsNormalized() &&
         new ScreenplayNaming().ToStringLiteral(name) == name && !name.Contains('\\', StringComparison.Ordinal);
 
+    static string DefaultSourceName(INamedTypeSymbol definition) => definition.Name.EndsWith(Suffix, StringComparison.Ordinal) &&
+        definition.Name.Length > Suffix.Length ? definition.Name[..^Suffix.Length] : definition.Name;
+
+    static string? RecoveredSourceName(INamedTypeSymbol definition, string stored)
+    {
+        if (!definition.Name.EndsWith(Suffix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        var name = definition.Name[..^Suffix.Length];
+
+        return IdentityName(name) && Portable(stored) ? name : null;
+    }
+
+    static string? DirectStreamName(ISymbol? symbol, INamedTypeSymbol definition, string? stored)
+    {
+        if (symbol is not IFieldSymbol { IsConst: true, ConstantValue: string value } field)
+        {
+            return null;
+        }
+        if (!SymbolEqualityComparer.Default.Equals(field.ContainingType, definition) || value != stored)
+        {
+            return null;
+        }
+
+        return IdentityName(field.Name) && Portable(value) ? field.Name : null;
+    }
+
     static string? LiteralIdentityStream(INamedTypeSymbol definition, string? stored)
     {
         if (stored is null || !IdentityName(stored))
@@ -97,6 +123,5 @@ internal static class EventSourceNames
         syntax.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax;
 
     static bool HasNamedStreams(INamedTypeSymbol definition, SemanticModels? models) => definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
-        .Any(attribute => attribute.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax { ArgumentList.Arguments: [var argument, ..] } &&
-            argument.Expression is not LiteralExpressionSyntax && Stream(attribute, definition, models) is not null);
+        .Any(attribute => !IsLiteral(attribute) && Stream(attribute, definition, models) is not null);
 }

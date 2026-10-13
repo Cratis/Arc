@@ -136,22 +136,23 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions, 
 
         var selectedStream = stream == "All" ? null : stream;
 
-        return new(RawFilter((source, selectedStream), known), null);
+        if (known.Where(item => item.StoredSource == source).ToList() is not [var definition])
+        {
+            return new(null, $"no unique definition stores source '{source}'");
+        }
+
+        return new(RawFilter(selectedStream, definition), null);
     }
 
-    static ObservedEventSourceModel RawFilter((string Source, string? Stream) selected, List<ReactorSourceDefinition> known)
+    static ObservedEventSourceModel RawFilter(string? storedStream, ReactorSourceDefinition definition)
     {
-        if (known.Where(item => item.StoredSource == selected.Source).ToList() is not [var definition])
-        {
-            return new(selected.Source, selected.Stream, false);
-        }
-        if (selected.Stream is null)
+        if (storedStream is null)
         {
             return new(definition.Source, null, true);
         }
-        var names = definition.StoredStreams.Where(stream => stream.Value == selected.Stream).Select(stream => stream.Key).ToList();
+        var names = definition.StoredStreams.Where(stream => stream.Value == storedStream).Select(stream => stream.Key).ToList();
 
-        return names is [var name] ? new(definition.Source, name, true) : new(definition.Source, selected.Stream, false);
+        return names is [var name] ? new(definition.Source, name, true) : new(definition.Source, storedStream, false);
     }
 
     static string? AttributeText(AttributeData? attribute, string fallback) => attribute is null ? fallback : attribute.GetArgument(0) as string;

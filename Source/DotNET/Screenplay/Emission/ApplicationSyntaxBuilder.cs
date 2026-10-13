@@ -104,7 +104,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
                 .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
-            EventSources = eventRoutes ? BuildEventSources(model, routedOccurrences, options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10)) : []
+            EventSources = eventRoutes ? new EventSourceSyntaxBuilder(naming).Build(model, routedOccurrences, options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10)) : []
         };
         application = new EmittedIdentityCompliance(application).Apply(diagnostics);
         var retainedPii = application.Concepts.Where(concept => concept.AttributeNames.Contains(ConceptAttributeSyntax.Pii)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
@@ -114,39 +114,6 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             (diagnostic.Code != ScreenplayDiagnosticCodes.EncryptionScopeNotRepresentable || retainedSecrets.Contains(naming.ToDeclarationName(diagnostic.Location!)))));
 
         return application;
-    }
-
-    /// <summary>
-    /// Resolves specification routes without changing declarations recovered from commands.
-    /// </summary>
-    /// <param name="model">The application declaring command routes and event producers.</param>
-    /// <param name="routedOccurrences">The specification occurrences whose routes are being admitted.</param>
-    /// <returns>The source and stream declarations implied by these occurrences.</returns>
-    internal static IEnumerable<CommandRouteModel> SpecificationRoutes(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences)
-    {
-        var commands = model.Slices.SelectMany(slice => slice.Commands).ToList();
-        foreach (var state in routedOccurrences)
-        {
-            if (state.Route is not { Source: not null, Stream: not null } route)
-            {
-                continue;
-            }
-
-            var declarations = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Where(candidate => candidate.Source == route.Source).ToList();
-            var existing = declarations.Find(candidate => candidate.Stream == route.Stream);
-            var identifiers = commands.Where(command => command.Produces.Any(production => production.EventName == state.Name))
-                .Select(command => command.Properties.Concat(command.Authoring?.Generated ?? []).SingleOrDefault(property => property.Name == (command.Authoring?.Identifier ?? command.Identifier))?.Type)
-                .OfType<TypeReferenceModel>().Distinct().ToList();
-            yield return new(
-                route.Source,
-                route.Stream,
-                declarations.Select(candidate => candidate.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() ?? (identifiers is [var identifier] ? identifier : new("String", false, false)),
-                existing is not null ? existing.StreamIdType : route.StreamId is not null ? new("String", false, false) : null,
-                null)
-            {
-                StreamIdParts = existing?.StreamIdParts ?? route.StreamIdParts.Select(part => new CommandStreamIdPartModel(part.Property, new("String", false, false), part.Source)).ToList()
-            };
-        }
     }
 
     /// <summary>
@@ -269,23 +236,6 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             InlineEvents = inlineEvents,
             DeclaredReadModels = declaredReadModels
         };
-
-    List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences, bool reactionMetadataEnabled) => model.Slices.SelectMany(slice => slice.Commands)
-        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Concat(SpecificationRoutes(model, routedOccurrences))
-        .Concat(EventSourceDeclarations.ObservedRoutes(model, reactionMetadataEnabled))
-        .GroupBy(route => (Name: route.Source, Stored: route.StoredSource ?? route.Source))
-        .OrderBy(group => group.Key.Name, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key.Name, SourceLocation.Start)
-        {
-            Id = source.Key.Stored != source.Key.Name ? source.Key.Stored : null,
-            Identifier = source.Select(route => route.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() is { } identifier ? _types.Convert(identifier) : null,
-            Streams = source.Where(route => route.Stream is not null).GroupBy(route => (Name: route.Stream!, Stored: route.StoredStream ?? route.Stream!)).OrderBy(group => group.Key.Name, StringComparer.Ordinal)
-                .Select(stream => new EventStreamSyntax(stream.Key.Name, SourceLocation.Start)
-                {
-                    Id = stream.Key.Stored != stream.Key.Name ? stream.Key.Stored : null,
-                    StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null,
-                    StreamIdParts = stream.First().StreamIdParts.Select(part => new EventStreamIdPartSyntax(naming.ToPropertyName(part.Name), _types.Convert(part.Type), SourceLocation.Start)).ToList()
-                }).ToList()
-        }).ToList();
 
     /// <summary>
     /// Sanitizes a document level name, falling back when it yields nothing usable.
