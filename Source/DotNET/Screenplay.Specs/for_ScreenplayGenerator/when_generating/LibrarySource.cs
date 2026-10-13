@@ -92,6 +92,37 @@ public static class LibrarySource
         """;
 
     /// <summary>
+    /// The slice listing authors and retiring a selected author.
+    /// </summary>
+    public const string AuthorRetirement = """
+        using System.Collections.Generic;
+        using Cratis.Arc.Commands.ModelBound;
+        using Cratis.Arc.Queries.ModelBound;
+        using Cratis.Chronicle.Events;
+        using Cratis.Concepts;
+
+        namespace Library.Authors.Retirement;
+
+        public record AuthorId(string Value) : ConceptAs<string>(Value);
+        public record AuthorName(string Value) : ConceptAs<string>(Value);
+
+        [ReadModel]
+        public record Author(AuthorId Id, AuthorName Name)
+        {
+            public static IEnumerable<Author> AuthorsToRetire() => [];
+        }
+
+        [EventType]
+        public record AuthorRetired(AuthorId Id);
+
+        [Command]
+        public record RetireAuthor(AuthorId Id)
+        {
+            public AuthorRetired Handle() => new(Id);
+        }
+        """;
+
+    /// <summary>
     /// The slice reserving a copy of a book.
     /// </summary>
     public const string Reserving = """

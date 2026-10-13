@@ -29,6 +29,11 @@ public record ScreenModel(string Name, string FilePath)
     public IEnumerable<string> Titles { get; init; } = [];
 
     /// <summary>
+    /// Gets the command input openers recovered from data page menus.
+    /// </summary>
+    public IEnumerable<ScreenToolbarModel> Toolbars { get; init; } = [];
+
+    /// <summary>
     /// Gets the tables the screen shows, in the order its components state them.
     /// </summary>
     public IEnumerable<ScreenTableModel> Tables { get; init; } = [];

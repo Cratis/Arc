@@ -80,7 +80,9 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             return ScreenStructure.None;
         }
 
-        var reading = new Reading(components, queries, commands, unread);
+        var menus = new MenuItemReader(code, components, commands, unread);
+        var toolbars = menus.ReadPages(elements.Where(_ => _.Kind == ComponentKind.Page).Select(_ => _.Element).ToList(), queries);
+        var reading = new Reading(components, queries, commands, unread) { Menus = menus };
         foreach (var (kind, element) in elements)
         {
             reading.Read(kind, element);
@@ -88,7 +90,7 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
 
         ReportUnaccounted(code, elements.ConvertAll(_ => _.Element), unread);
 
-        return new(reading.Titles, reading.Tables, reading.Actions.Distinct(StringComparer.Ordinal).ToList());
+        return new(reading.Titles, reading.Tables, reading.Actions.Distinct(StringComparer.Ordinal).ToList()) { Toolbars = toolbars };
     }
 
     static bool HasKnownComponents(KnownComponents components) =>
@@ -138,6 +140,11 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
         IReadOnlyCollection<CommandModel> commands,
         UnreadScreenStructure unread)
     {
+        /// <summary>
+        /// Gets the menu reader that tracks claimed dialogs.
+        /// </summary>
+        public MenuItemReader? Menus { get; init; }
+
         public List<string> Titles { get; } = [];
 
         public List<ScreenTableModel> Tables { get; } = [];
@@ -180,14 +187,9 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
 
             Table(page);
 
-            foreach (var item in JsxElements.Named(page, $"{page.Tag}.MenuItem"))
+            if (page["detailsComponent"] is { } details)
             {
-                unread.MenuItem(item["label"]?.Literal);
-            }
-
-            if (page["detailsComponent"] is not null)
-            {
-                unread.Details(page.Tag);
+                unread.Details(page.Tag, details.Written);
             }
         }
 
@@ -249,7 +251,25 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
             dialog,
             ComponentKind.Dialog,
             proxy => commands.FirstOrDefault(_ => _.Name == proxy),
-            command => Actions.Add(command.Name));
+            command => ReadDialogCommand(dialog, command.Name));
+
+        /// <summary>
+        /// Writes unclaimed dialog actions and keeps post-success behavior separate from input opening.
+        /// </summary>
+        /// <param name="dialog">The dialog.</param>
+        /// <param name="command">The command name.</param>
+        void ReadDialogCommand(JsxElement dialog, string command)
+        {
+            if (Menus?.Claims(dialog) != true)
+            {
+                Actions.Add(command);
+            }
+
+            if (dialog["onSuccess"] is { } callback)
+            {
+                unread.AfterSuccess(command, callback.Written);
+            }
+        }
 
         void ReadBound<T>(JsxElement element, ComponentKind kind, Func<string, T?> resolve, Action<T> read)
             where T : class

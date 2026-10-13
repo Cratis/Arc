@@ -122,7 +122,7 @@ public class when_generating_lint_compliant_output : Specification
             ("NumberResponse", "number", "Number", false),
             ("CustomResponse", "Response", "Response", false),
             ("EnumResponse", "Choice", "Number", false),
-            ("ArrayResponse", "Response[]", "Response", true),
+            ("ArrayResponse", "Response", "Response", true),
             ("VoidResponse", "void", "Object", false)
         })
         {
@@ -165,6 +165,10 @@ public class when_generating_lint_compliant_output : Specification
             "export const customHook = CustomResponse.use();",
             "export const enumHook = EnumResponse.use();",
             "export const arrayHook = ArrayResponse.use();",
+            "export async function consumeArrayResponse(): Promise<Response[] | undefined> {",
+            "    const result = await arrayHook[0].execute();",
+            "    return result.response?.map(response => response);",
+            "}",
             "export const voidHook = VoidResponse.use();",
             "export const collisionCommand = new CommandWithInternalMemberNames();",
             "collisionCommand.origin = 'user-provided-origin';",

@@ -229,6 +229,9 @@ public static class ScreenplayDiagnosticCodes
     /// component tags outside recognized component spans are reported once per distinct tag, and intrinsic markup
     /// is listed in one report. Fragments without direct content and pure intrinsic wrappers around recognized
     /// components are exempt. A scan problem with recognized imports reports once and withholds all structure.
+    /// Menu items are read only as unconditional direct markers opening the unique state-bound CommandDialog
+    /// of a command of this slice. Other callbacks, route destinations and post-success behavior are reported
+    /// independently; composition gaps are <see cref="ScreenCompositionNotRepresentable"/> instead.
     /// A guessed column is worse than an absent one, so nothing is guessed and every omission says so.
     /// </remarks>
     public const string ScreenStructureNotInferred = "SP0028";
@@ -616,4 +619,13 @@ public static class ScreenplayDiagnosticCodes
     /// A parameterized theory scenario cannot yet be stated as a case table.
     /// </summary>
     public const string SpecificationCasesNotFolded = "SP0076";
+
+    /// <summary>
+    /// Screen composition or toolbar enablement has no corresponding Screenplay construct.
+    /// </summary>
+    /// <remarks>
+    /// Information reporting same-screen details panes, screens opened as dialogs and toolbar enablement.
+    /// Unread callbacks, routes and post-success behavior remain <see cref="ScreenStructureNotInferred"/>.
+    /// </remarks>
+    public const string ScreenCompositionNotRepresentable = "SP0077";
 }

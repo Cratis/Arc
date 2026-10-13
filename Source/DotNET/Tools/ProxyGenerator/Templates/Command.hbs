@@ -49,7 +49,7 @@ export class {{Name}}Validator extends CommandValidator<I{{Name}}> {
  */
 {{/if}}
 {{#if HasResponse }}
-export class {{Name}} extends Command<I{{Name}}, {{{ResponseType.Name}}}> implements I{{Name}} {
+export class {{Name}} extends Command<I{{Name}}, {{{ResponseType.Name}}}{{#if ResponseType.IsEnumerable}}[]{{/if}}> implements I{{Name}} {
 {{else}}
 export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
 {{/if}}
@@ -130,6 +130,6 @@ export class {{Name}} extends Command<I{{Name}}> implements I{{Name}} {
     {{/Properties}}
 
     static use(initialValues?: I{{Name}}): [{{Name}}, SetCommandValues<I{{Name}}>, ClearCommandValues] {
-        return useCommand<{{Name}}, I{{Name}}{{#if HasResponse}}, {{{ResponseType.Name}}}{{/if}}>({{Name}}, initialValues);
+        return useCommand<{{Name}}, I{{Name}}{{#if HasResponse}}, {{{ResponseType.Name}}}{{#if ResponseType.IsEnumerable}}[]{{/if}}{{/if}}>({{Name}}, initialValues);
     }
 }

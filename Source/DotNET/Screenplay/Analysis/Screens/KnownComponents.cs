@@ -35,6 +35,16 @@ public record KnownComponents(IReadOnlyDictionary<string, ScreenImportBinding> I
     public IEnumerable<string> CommandDialogs => Named("CommandDialog");
 
     /// <summary>
+    /// Gets the standalone menu containers imported from Cratis Components.
+    /// </summary>
+    public IEnumerable<string> MenuItems => Named("MenuItems");
+
+    /// <summary>
+    /// Gets the standalone menu markers imported from Cratis Components.
+    /// </summary>
+    public IEnumerable<string> MenuItem => Named("MenuItem");
+
+    /// <summary>
     /// Gets the names the file uses anything exported as <c>Column</c> by, wherever it comes from.
     /// </summary>
     /// <remarks>
