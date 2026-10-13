@@ -329,22 +329,33 @@ internal static class CommandTransactionAppender
         NamedTag[] namedTags)
     {
         // Wrapper batches keep static tags per event, just as the subject-routed single appends did.
-        var wrappers = events.Select(@event => new EventForEventSourceId(eventSourceId, @event)
-        {
-            EventSource = routing.EventSource,
-            EventStream = routing.EventStream,
-            EventSourceType = routing.EventSourceType ?? EventSourceType.Default,
-            EventStreamType = routing.EventStreamType ?? EventStreamType.All,
-            EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
-            Subject = routing.Subject,
-            NamedTags = namedTags
-        }).ToArray();
+        var wrappers = events.Select(@event => CreateSubjectRoutedEvent(eventSourceId, @event, routing, namedTags)).ToArray();
         var concurrencyScopes = new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } };
 
         return namedTags.Length > 0
             ? eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: concurrencyScopes)
             : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
     }
+
+    /// <summary>
+    /// Creates a subject-routed event without adding legacy types to a definition route.
+    /// </summary>
+    /// <param name="eventSourceId">The event source id.</param>
+    /// <param name="event">The returned event.</param>
+    /// <param name="routing">The resolved routing.</param>
+    /// <param name="namedTags">The command's named tag snapshot.</param>
+    /// <returns>The event carrying the same routing metadata as an individual append.</returns>
+    static EventForEventSourceId CreateSubjectRoutedEvent(EventSourceId eventSourceId, object @event, EventRouting routing, NamedTag[] namedTags) =>
+        new(eventSourceId, @event)
+        {
+            EventSource = routing.EventSource,
+            EventStream = routing.EventStream,
+            EventSourceType = routing.EventSource is null ? routing.EventSourceType ?? EventSourceType.Default : EventSourceType.Default,
+            EventStreamType = routing.EventSource is null ? routing.EventStreamType ?? EventStreamType.All : EventStreamType.All,
+            EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+            Subject = routing.Subject,
+            NamedTags = namedTags
+        };
 
     /// <summary>
     /// Appends a named-tag batch using its definition or legacy routing.

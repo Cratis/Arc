@@ -66,7 +66,9 @@ public class a_command_pipeline_with_event_handlers : Specification
         _eventLog = Substitute.For<IEventLog>();
         _eventTypes = Substitute.For<IEventTypes>();
         _concurrencyScopeStrategies = Substitute.For<IConcurrencyScopeStrategies>();
-        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(Substitute.For<IConcurrencyScopeStrategy>());
+        var concurrencyScopeStrategy = Substitute.For<IConcurrencyScopeStrategy>();
+        concurrencyScopeStrategy.StandInForAnOptimisticStrategy();
+        _concurrencyScopeStrategies.GetFor(Arg.Any<IEventSequence>()).Returns(concurrencyScopeStrategy);
         _singleEventHandler = new SingleEventCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _eventsHandler = new EventsCommandResponseValueHandler(_eventLog, _eventTypes, _concurrencyScopeStrategies);
         _subjectHandler = new SubjectCommandResponseValueHandler();

@@ -93,6 +93,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
     /// <inheritdoc/>
     /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
+    /// <exception cref="IncompatibleConcurrencyScopesForEventSource">Events for one event source id require incompatible concurrency guards.</exception>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         var (targets, concurrencyScopesByEventSourceId) = await ResolveTargets(commandContext, value);
@@ -138,14 +139,49 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         {
             EventSource = target.Routing.EventSource,
             EventStream = target.Routing.EventStream,
-            EventSourceType = target.Routing.EventSourceType ?? EventSourceType.Default,
-            EventStreamType = target.Routing.EventStreamType ?? EventStreamType.All,
+            EventSourceType = target.Routing.EventSource is null ? target.Routing.EventSourceType ?? EventSourceType.Default : EventSourceType.Default,
+            EventStreamType = target.Routing.EventSource is null ? target.Routing.EventStreamType ?? EventStreamType.All : EventStreamType.All,
             EventStreamId = target.Routing.EventStreamId ?? EventStreamId.Default,
             Subject = target.Routing.Subject,
             Tags = target.Tags ?? [],
             Occurred = target.Occurred,
             NamedTags = target.NamedTags
         };
+
+    /// <summary>
+    /// Resolves the guard an individual legacy append would obtain from the event sequence's strategy.
+    /// </summary>
+    /// <param name="target">The resolved legacy append target.</param>
+    /// <param name="strategy">The event sequence's configured strategy.</param>
+    /// <returns>The default concurrency scope for the target's normalized routing.</returns>
+    static Task<ConcurrencyScope> GetDefaultLegacyScope(AppendTarget target, IConcurrencyScopeStrategy strategy) =>
+        strategy.GetScope(
+            target.EventSourceId,
+            string.IsNullOrEmpty(target.Routing.EventStreamType?.Value) ? EventStreamType.All : target.Routing.EventStreamType,
+            string.IsNullOrEmpty(target.Routing.EventStreamId?.Value) ? EventStreamId.Default : target.Routing.EventStreamId,
+            string.IsNullOrEmpty(target.Routing.EventSourceType?.Value) ? EventSourceType.Default : target.Routing.EventSourceType);
+
+    /// <summary>
+    /// Retains an existing guard or resolves the target's immediate-append default.
+    /// </summary>
+    /// <param name="target">The resolved append target.</param>
+    /// <param name="strategy">The event sequence's configured strategy.</param>
+    /// <param name="concurrencyScope">The guard already resolved for the event source id.</param>
+    /// <returns>The guard and its origin for compatibility validation.</returns>
+    static async Task<DerivedConcurrencyScope> BuildBatchGuard(AppendTarget target, IConcurrencyScopeStrategy strategy, ConcurrencyScope? concurrencyScope)
+    {
+        if (concurrencyScope is not null && concurrencyScope != ConcurrencyScope.NotSet)
+        {
+            return new(concurrencyScope, DerivedConcurrencyScopeOrigin.Explicit);
+        }
+
+        if (target.Routing.EventSource is not null)
+        {
+            return new(null, DerivedConcurrencyScopeOrigin.DerivedByEventSequence);
+        }
+
+        return new(await GetDefaultLegacyScope(target, strategy), DerivedConcurrencyScopeOrigin.Implicit);
+    }
 
     /// <summary>
     /// Resolves every target and validates shared guards before enrollment or append.
@@ -196,12 +232,34 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
     {
         CommandTransaction.RefuseImmediateAppend();
         var events = targets.Select(CreateEventForBatch).ToArray();
-        var concurrencyScopes = concurrencyScopesByEventSourceId.ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
+        var concurrencyScopes = await ResolveBatchScopes(targets, concurrencyScopesByEventSourceId);
         var result = events.Any(@event => @event.NamedTags.Any())
             ? await eventLog.AppendManyWithNamedTags(events, [], concurrencyScopes: concurrencyScopes)
             : await eventLog.AppendMany(events, concurrencyScopes: concurrencyScopes);
 
         return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult();
+    }
+
+    /// <summary>
+    /// Preserves every legacy default guard and rejects predicates a batch cannot represent.
+    /// </summary>
+    /// <param name="targets">The ordered append targets.</param>
+    /// <param name="concurrencyScopesByEventSourceId">The guards already resolved for each source id.</param>
+    /// <returns>The compatible scopes to send with the batch.</returns>
+    /// <exception cref="IncompatibleConcurrencyScopesForEventSource">Events for one event source id require incompatible concurrency guards.</exception>
+    async Task<Dictionary<EventSourceId, ConcurrencyScope>> ResolveBatchScopes(
+        IEnumerable<AppendTarget> targets,
+        IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopesByEventSourceId)
+    {
+        var strategy = concurrencyScopeStrategies.GetFor(eventLog);
+        var guards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
+        foreach (var target in targets)
+        {
+            var derived = await BuildBatchGuard(target, strategy, concurrencyScopesByEventSourceId[target.EventSourceId]);
+            guards.Add((target.EventSourceId, derived));
+        }
+
+        return CommandConcurrencyScopes.Resolve(guards).ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
     }
 
     /// <summary>
