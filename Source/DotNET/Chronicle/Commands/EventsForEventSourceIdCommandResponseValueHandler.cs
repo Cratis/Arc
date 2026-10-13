@@ -145,9 +145,8 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         var strategy = concurrencyScopeStrategies.GetFor(eventLog);
         var targets = new List<AppendTarget>();
         var derivedGuards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
-        foreach (var item in value.Cast<object>())
+        foreach (var target in value.Cast<object>().Select(item => ResolveTarget(commandContext, item)))
         {
-            var target = ResolveTarget(commandContext, item);
             targets.Add(target);
 
             // The caller's own choice is resolved once per id, however many events it takes.
