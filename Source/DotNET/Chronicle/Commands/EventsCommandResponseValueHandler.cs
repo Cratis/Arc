@@ -39,26 +39,12 @@ public class EventsCommandResponseValueHandler(
         {
             var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(commandContext, concurrencyScopeStrategies.GetFor(eventLog), eventSourceId);
             var routing = CommandTransactionAppender.ResolveRouting(null, commandContext);
-            var subject = routing.Subject;
 
             if (CommandTransaction.TryGetActive(out _))
             {
                 foreach (var @event in events)
                 {
                     eventLog.TryEnrollForCommand(eventSourceId, @event, commandContext, concurrencyScope, routing: routing);
-                }
-            }
-            else if (subject is not null)
-            {
-                CommandTransaction.RefuseImmediateAppend();
-                foreach (var @event in events)
-                {
-                    var appendResult = await eventLog.AppendForCommand(eventSourceId, @event, routing, concurrencyScope, namedTags: commandContext.ResolveEventTags());
-
-                    if (!appendResult.IsSuccess)
-                    {
-                        return appendResult.ToCommandResult();
-                    }
                 }
             }
             else

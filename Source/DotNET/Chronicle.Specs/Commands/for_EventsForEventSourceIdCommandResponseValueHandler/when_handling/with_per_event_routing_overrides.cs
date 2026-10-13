@@ -4,8 +4,6 @@
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.EventSequences.Concurrency;
-using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandResponseValueHandler.when_handling;
 
@@ -23,17 +21,7 @@ public class with_per_event_routing_overrides : given.an_events_for_event_source
         _commandContext.Values[WellKnownCommandContextKeys.EventSourceType] = new EventSourceType("Command");
         _commandContext.Values[WellKnownCommandContextKeys.EventStreamType] = new EventStreamType("CommandStream");
         _commandContext.Values[WellKnownCommandContextKeys.EventStreamId] = new EventStreamId("command-stream-id");
-        _eventLog.Append(
-            Arg.Any<EventSourceId>(),
-            Arg.Any<object>(),
-            Arg.Any<EventStreamType?>(),
-            Arg.Any<EventStreamId?>(),
-            Arg.Any<EventSourceType?>(),
-            Arg.Any<CorrelationId?>(),
-            Arg.Any<IEnumerable<string>?>(),
-            Arg.Any<ConcurrencyScope?>(),
-            Arg.Any<DateTimeOffset?>(),
-            Arg.Any<Subject?>()).Returns(AppendResult.Success(_correlationId, EventSequenceNumber.First));
+        _commandContext.Values[WellKnownCommandContextKeys.Subject] = new Subject("command-subject");
     }
 
     Task Because() => _handler.Handle(
@@ -44,31 +32,20 @@ public class with_per_event_routing_overrides : given.an_events_for_event_source
             {
                 EventSourceType = new EventSourceType("Ledger"),
                 EventStreamType = new EventStreamType("Postings"),
-                EventStreamId = new EventStreamId("postings-1")
+                EventStreamId = new EventStreamId("postings-1"),
+                Subject = new Subject("wrapper-subject")
             },
             new EventForEventSourceId(_plain, _testEvent)
         });
 
-    [Fact] void should_use_the_routing_set_on_the_event() => _eventLog.Received(1).Append(
-        _overridden,
-        _testEvent,
-        new EventStreamType("Postings"),
-        new EventStreamId("postings-1"),
-        new EventSourceType("Ledger"),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope?>(),
-        Arg.Any<DateTimeOffset?>(),
-        Arg.Any<Subject?>());
-    [Fact] void should_use_the_command_context_for_the_event_without_routing() => _eventLog.Received(1).Append(
-        _plain,
-        _testEvent,
-        new EventStreamType("CommandStream"),
-        new EventStreamId("command-stream-id"),
-        new EventSourceType("Command"),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope?>(),
-        Arg.Any<DateTimeOffset?>(),
-        Arg.Any<Subject?>());
+    [Fact] void should_keep_the_overridden_source_id() => _batch[0].EventSourceId.ShouldEqual(_overridden);
+    [Fact] void should_keep_the_overridden_source_type() => _batch[0].EventSourceType.ShouldEqual(new EventSourceType("Ledger"));
+    [Fact] void should_keep_the_overridden_stream_type() => _batch[0].EventStreamType.ShouldEqual(new EventStreamType("Postings"));
+    [Fact] void should_keep_the_overridden_stream_id() => _batch[0].EventStreamId.ShouldEqual(new EventStreamId("postings-1"));
+    [Fact] void should_keep_the_overridden_subject() => _batch[0].Subject.ShouldEqual(new Subject("wrapper-subject"));
+    [Fact] void should_keep_the_other_source_id() => _batch[1].EventSourceId.ShouldEqual(_plain);
+    [Fact] void should_use_the_command_source_type() => _batch[1].EventSourceType.ShouldEqual(new EventSourceType("Command"));
+    [Fact] void should_use_the_command_stream_type() => _batch[1].EventStreamType.ShouldEqual(new EventStreamType("CommandStream"));
+    [Fact] void should_use_the_command_stream_id() => _batch[1].EventStreamId.ShouldEqual(new EventStreamId("command-stream-id"));
+    [Fact] void should_use_the_command_subject() => _batch[1].Subject.ShouldEqual(new Subject("command-subject"));
 }

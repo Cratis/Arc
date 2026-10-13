@@ -4,8 +4,6 @@
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.EventSequences.Concurrency;
-using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_CommandPipeline_with_events.when_executing;
 
@@ -13,6 +11,7 @@ public class and_handler_returns_enumerable_of_events_for_event_source_id : give
 {
     CommandResult _result;
     IEnumerable<EventForEventSourceId> _value;
+    EventForEventSourceId[] _batch;
     EventSourceId _firstTargetEventSourceId;
     EventSourceId _secondTargetEventSourceId;
     TestEvent _firstEvent;
@@ -30,28 +29,20 @@ public class and_handler_returns_enumerable_of_events_for_event_source_id : give
             new EventForEventSourceId(_secondTargetEventSourceId, _secondEvent),
         ];
         _commandHandler.Handle(Arg.Any<CommandContext>()).Returns(_value);
+        _eventLog.AppendMany(default!).ReturnsForAnyArgs(call =>
+        {
+            _batch = call.ArgAt<IEnumerable<EventForEventSourceId>>(0).ToArray();
+            return AppendManyResult.Success(_correlationId, []);
+        });
     }
 
     async Task Because() => _result = await _commandPipeline.Execute(_command, _serviceProvider);
 
     [Fact] void should_be_successful() => _result.IsSuccess.ShouldBeTrue();
     [Fact] void should_have_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
-    [Fact] void should_append_first_event_to_first_target_event_source_id() => _eventLog.Received(1).Append(
-        _firstTargetEventSourceId,
-        _firstEvent,
-        Arg.Any<EventStreamType?>(),
-        Arg.Any<EventStreamId?>(),
-        Arg.Any<EventSourceType?>(),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope>());
-    [Fact] void should_append_second_event_to_second_target_event_source_id() => _eventLog.Received(1).Append(
-        _secondTargetEventSourceId,
-        _secondEvent,
-        Arg.Any<EventStreamType?>(),
-        Arg.Any<EventStreamId?>(),
-        Arg.Any<EventSourceType?>(),
-        Arg.Any<CorrelationId?>(),
-        Arg.Any<IEnumerable<string>?>(),
-        Arg.Any<ConcurrencyScope>());
+    [Fact] void should_append_first_event_to_first_target_event_source_id() => _batch[0].EventSourceId.ShouldEqual(_firstTargetEventSourceId);
+    [Fact] void should_keep_the_first_event() => _batch[0].Event.ShouldEqual(_firstEvent);
+    [Fact] void should_append_second_event_to_second_target_event_source_id() => _batch[1].EventSourceId.ShouldEqual(_secondTargetEventSourceId);
+    [Fact] void should_keep_the_second_event() => _batch[1].Event.ShouldEqual(_secondEvent);
+    [Fact] void should_append_as_one_batch() => _eventLog.ReceivedWithAnyArgs(1).AppendMany(default!);
 }

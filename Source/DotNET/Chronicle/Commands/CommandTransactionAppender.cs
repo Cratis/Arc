@@ -295,6 +295,26 @@ internal static class CommandTransactionAppender
         IEnumerable<NamedTag> namedTags)
     {
         var tagSnapshot = namedTags.ToArray();
+        if (routing.Subject is not null)
+        {
+            // Wrapper batches keep static tags per event, just as the subject-routed single appends did.
+            var wrappers = events.Select(@event => new EventForEventSourceId(eventSourceId, @event)
+            {
+                EventSource = routing.EventSource,
+                EventStream = routing.EventStream,
+                EventSourceType = routing.EventSourceType ?? EventSourceType.Default,
+                EventStreamType = routing.EventStreamType ?? EventStreamType.All,
+                EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                Subject = routing.Subject,
+                NamedTags = tagSnapshot
+            }).ToArray();
+            var concurrencyScopes = new Dictionary<EventSourceId, ConcurrencyScope> { { eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet } };
+
+            return tagSnapshot.Length > 0
+                ? eventLog.AppendManyWithNamedTags(wrappers, [], concurrencyScopes: concurrencyScopes)
+                : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
+        }
+
         if (tagSnapshot.Length > 0)
         {
             if (routing.EventSource is not null)

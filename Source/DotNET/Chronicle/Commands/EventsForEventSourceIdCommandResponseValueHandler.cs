@@ -26,7 +26,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// collection boxed as <see cref="IEnumerable{T}"/> of <see cref="object"/> — or a mixed collection of plain events
 /// and <see cref="EventForEventSourceId"/> wrappers — is appended instead of falling through the handlers and being
 /// silently serialized as the response payload. Each wrapper is appended to its own event source id; each plain event
-/// is appended to the command's event source id.
+/// is appended to the command's event source id. Collections with multiple events are appended as one atomic batch
+/// when no command transaction is active.
 /// </remarks>
 [method: ActivatorUtilitiesConstructor]
 public class EventsForEventSourceIdCommandResponseValueHandler(
@@ -119,6 +120,29 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         // A scope carries the expected tail of one stream, so it cannot be shared across the streams a
         // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
         var concurrencyScopesByEventSourceId = CommandConcurrencyScopes.Resolve(derivedGuards);
+
+        if (targets.Count > 1 && !CommandTransaction.TryGetActive(out _))
+        {
+            CommandTransaction.RefuseImmediateAppend();
+            var events = targets.Select(target => new EventForEventSourceId(target.EventSourceId, target.Event)
+            {
+                EventSource = target.Routing.EventSource,
+                EventStream = target.Routing.EventStream,
+                EventSourceType = target.Routing.EventSourceType ?? EventSourceType.Default,
+                EventStreamType = target.Routing.EventStreamType ?? EventStreamType.All,
+                EventStreamId = target.Routing.EventStreamId ?? EventStreamId.Default,
+                Subject = target.Routing.Subject,
+                Tags = target.Tags ?? [],
+                Occurred = target.Occurred,
+                NamedTags = target.NamedTags
+            }).ToArray();
+            var concurrencyScopes = concurrencyScopesByEventSourceId.ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
+            var result = events.Any(@event => @event.NamedTags.Any())
+                ? await eventLog.AppendManyWithNamedTags(events, [], concurrencyScopes: concurrencyScopes)
+                : await eventLog.AppendMany(events, concurrencyScopes: concurrencyScopes);
+
+            return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult();
+        }
 
         foreach (var (eventSourceId, @event, tags, occurred, routing, namedTags) in targets)
         {

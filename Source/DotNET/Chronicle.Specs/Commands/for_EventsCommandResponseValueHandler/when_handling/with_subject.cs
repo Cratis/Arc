@@ -5,58 +5,41 @@ using Cratis.Arc.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.EventSequences.Concurrency;
-using Cratis.Execution;
 
 namespace Cratis.Arc.Chronicle.Commands.for_EventsCommandResponseValueHandler.when_handling;
 
 public class with_subject : given.an_events_command_response_value_handler
 {
-    IEnumerable<object> _events;
+    object[] _events;
+    EventForEventSourceId[] _batch;
     CommandResult _result;
-    TestEvent _testEvent;
-    AnotherTestEvent _anotherTestEvent;
     Subject _subject;
 
     void Establish()
     {
-        _testEvent = new TestEvent("First Event");
-        _anotherTestEvent = new AnotherTestEvent(123);
-        _events = [_testEvent, _anotherTestEvent];
-
+        _events = [new TestEvent("First Event"), new AnotherTestEvent(123)];
         _subject = new Subject("customer-42");
-        _commandContext = new CommandContext(
-            _correlationId,
-            typeof(TestCommand),
-            _commandContext.Command,
-            [],
-            new CommandContextValues
-            {
-                { WellKnownCommandContextKeys.EventSourceId, ((TestCommand)_commandContext.Command).EventSourceId },
-                { WellKnownCommandContextKeys.Subject, _subject }
-            },
-            null);
-
-        var successResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);
-        _eventLog.Append(
-            Arg.Any<EventSourceId>(),
-            Arg.Any<object>(),
-            Arg.Any<EventStreamType?>(),
-            Arg.Any<EventStreamId?>(),
-            Arg.Any<EventSourceType?>(),
-            Arg.Any<CorrelationId?>(),
-            Arg.Any<IEnumerable<string>?>(),
-            Arg.Any<ConcurrencyScope?>(),
-            Arg.Any<DateTimeOffset?>(),
-            Arg.Any<Subject?>()).Returns(successResult);
+        _commandContext.Values[WellKnownCommandContextKeys.Subject] = _subject;
+        _commandContext.Values[WellKnownCommandContextKeys.EventSourceType] = new EventSourceType("Customer");
+        _commandContext.Values[WellKnownCommandContextKeys.EventStreamType] = new EventStreamType("Changes");
+        _commandContext.Values[WellKnownCommandContextKeys.EventStreamId] = new EventStreamId("customer-changes");
+        _eventLog.AppendMany(default!).ReturnsForAnyArgs(call =>
+        {
+            _batch = call.ArgAt<IEnumerable<EventForEventSourceId>>(0).ToArray();
+            return AppendManyResult.Success(_correlationId, []);
+        });
     }
 
     async Task Because() => _result = await _handler.Handle(_commandContext, _events);
 
-    [Fact] void should_return_success() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_not_use_append_many() => _eventLog.DidNotReceive().AppendMany(Arg.Any<EventSourceId>(), Arg.Any<IEnumerable<object>>(), Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>());
-    [Fact] void should_append_each_event_individually() => _eventLog.Received(2).Append(Arg.Any<EventSourceId>(), Arg.Any<object>(), Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<ConcurrencyScope?>(), Arg.Any<DateTimeOffset?>(), Arg.Any<Subject?>());
-    [Fact] void should_append_first_event_with_subject() => _eventLog.Received(1).Append(Arg.Any<EventSourceId>(), _testEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<ConcurrencyScope?>(), Arg.Any<DateTimeOffset?>(), _subject);
-    [Fact] void should_append_second_event_with_subject() => _eventLog.Received(1).Append(Arg.Any<EventSourceId>(), _anotherTestEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<ConcurrencyScope?>(), Arg.Any<DateTimeOffset?>(), _subject);
-    [Fact] void should_return_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
+    [Fact] void should_append_as_one_batch() => _eventLog.ReceivedWithAnyArgs(1).AppendMany(default!);
+    [Fact] void should_preserve_the_events_in_order() => _batch.Select(_ => _.Event).ShouldEqual(_events);
+    [Fact] void should_preserve_the_event_source_id() => _batch.ShouldEachConformTo(_ => _.EventSourceId == _commandContext.GetEventSourceId());
+    [Fact] void should_preserve_the_subject() => _batch.ShouldEachConformTo(_ => _.Subject == _subject);
+    [Fact] void should_preserve_the_source_type() => _batch.ShouldEachConformTo(_ => _.EventSourceType == new EventSourceType("Customer"));
+    [Fact] void should_preserve_the_stream_type() => _batch.ShouldEachConformTo(_ => _.EventStreamType == new EventStreamType("Changes"));
+    [Fact] void should_preserve_the_stream_id() => _batch.ShouldEachConformTo(_ => _.EventStreamId == new EventStreamId("customer-changes"));
+    [Fact] void should_not_append_events_individually() => _eventLog.DidNotReceiveWithAnyArgs().Append(default!, default!);
+    [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_preserve_the_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);
 }

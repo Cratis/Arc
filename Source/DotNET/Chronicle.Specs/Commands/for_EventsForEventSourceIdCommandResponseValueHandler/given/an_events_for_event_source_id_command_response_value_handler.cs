@@ -20,6 +20,8 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
     protected CorrelationId _correlationId;
     protected IConcurrencyScopeStrategies _concurrencyScopeStrategies;
     protected IConcurrencyScopeStrategy _concurrencyScopeStrategy;
+    protected EventForEventSourceId[] _batch;
+    protected IDictionary<EventSourceId, ConcurrencyScope> _batchScopes;
 
     void Establish()
     {
@@ -35,6 +37,13 @@ public class an_events_for_event_source_id_command_response_value_handler : Spec
         _correlationId = Guid.NewGuid();
         var command = new TestCommand();
         _commandContext = new CommandContext(_correlationId, typeof(TestCommand), command, [], new CommandContextValues(), null);
+
+        _eventLog.AppendMany(default!).ReturnsForAnyArgs(call =>
+        {
+            _batch = (call.ArgAt<IEnumerable<EventForEventSourceId>?>(0) ?? []).ToArray();
+            _batchScopes = call.ArgAt<IDictionary<EventSourceId, ConcurrencyScope>>(3);
+            return AppendManyResult.Success(_correlationId, []);
+        });
 
         var successfulResult = AppendResult.Success(_correlationId, EventSequenceNumber.First);
         _eventLog.Append(
