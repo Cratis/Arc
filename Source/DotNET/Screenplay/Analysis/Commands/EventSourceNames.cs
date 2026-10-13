@@ -64,7 +64,7 @@ internal static class EventSourceNames
 
         return symbol is IFieldSymbol { IsConst: true, ConstantValue: string value } field &&
             SymbolEqualityComparer.Default.Equals(field.ContainingType, definition) && value == stored &&
-            IdentityName(field.Name) && Portable(value) ? field.Name : null;
+            IdentityName(field.Name) && Portable(value) ? field.Name : LiteralIdentityStream(definition, stored);
     }
 
     /// <summary>
@@ -81,6 +81,20 @@ internal static class EventSourceNames
     /// <returns>Whether the text is portable.</returns>
     internal static bool Portable(string name) => name.Length > 0 && name.IsNormalized() &&
         new ScreenplayNaming().ToStringLiteral(name) == name && !name.Contains('\\', StringComparison.Ordinal);
+
+    static string? LiteralIdentityStream(INamedTypeSymbol definition, string? stored)
+    {
+        if (stored is null || !IdentityName(stored))
+        {
+            return null;
+        }
+
+        return definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
+            .Any(attribute => (attribute.GetArgument(0) as string) == stored && IsLiteral(attribute)) ? stored : null;
+    }
+
+    static bool IsLiteral(AttributeData attribute) => attribute.ApplicationSyntaxReference?.GetSyntax() is not AttributeSyntax syntax ||
+        syntax.ArgumentList?.Arguments.FirstOrDefault()?.Expression is LiteralExpressionSyntax;
 
     static bool HasNamedStreams(INamedTypeSymbol definition, SemanticModels? models) => definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
         .Any(attribute => attribute.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax { ArgumentList.Arguments: [var argument, ..] } &&

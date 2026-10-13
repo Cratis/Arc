@@ -272,22 +272,16 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
 
     List<EventSourceSyntax> BuildEventSources(ApplicationModel model, IEnumerable<SpecificationStateModel> routedOccurrences, bool reactionMetadataEnabled) => model.Slices.SelectMany(slice => slice.Commands)
         .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().Concat(SpecificationRoutes(model, routedOccurrences))
-        .Concat(new ReactionMetadataAdmission(model, reactionMetadataEnabled).Sources().SelectMany(source =>
-            source.Streams.Count == 0 ? [new CommandRouteModel(source.Source, null, null, null, null) { StoredSource = source.StoredSource }] :
-                source.Streams.Select(stream => new CommandRouteModel(source.Source, stream, null, null, null)
-                {
-                    StoredSource = source.StoredSource,
-                    StoredStream = source.StoredStreams.GetValueOrDefault(stream)
-                })))
-        .GroupBy(route => route.Source, StringComparer.Ordinal)
-        .OrderBy(group => group.Key, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key, SourceLocation.Start)
+        .Concat(EventSourceDeclarations.ObservedRoutes(model, reactionMetadataEnabled))
+        .GroupBy(route => (Name: route.Source, Stored: route.StoredSource ?? route.Source))
+        .OrderBy(group => group.Key.Name, StringComparer.Ordinal).Select(source => new EventSourceSyntax(source.Key.Name, SourceLocation.Start)
         {
-            Id = source.Select(route => route.StoredSource).OfType<string>().FirstOrDefault(stored => stored != source.Key),
+            Id = source.Key.Stored != source.Key.Name ? source.Key.Stored : null,
             Identifier = source.Select(route => route.IdentifierType).OfType<TypeReferenceModel>().FirstOrDefault() is { } identifier ? _types.Convert(identifier) : null,
-            Streams = source.Where(route => route.Stream is not null).GroupBy(route => route.Stream!, StringComparer.Ordinal).OrderBy(group => group.Key, StringComparer.Ordinal)
-                .Select(stream => new EventStreamSyntax(stream.Key, SourceLocation.Start)
+            Streams = source.Where(route => route.Stream is not null).GroupBy(route => (Name: route.Stream!, Stored: route.StoredStream ?? route.Stream!)).OrderBy(group => group.Key.Name, StringComparer.Ordinal)
+                .Select(stream => new EventStreamSyntax(stream.Key.Name, SourceLocation.Start)
                 {
-                    Id = stream.Select(route => route.StoredStream).OfType<string>().FirstOrDefault(stored => stored != stream.Key),
+                    Id = stream.Key.Stored != stream.Key.Name ? stream.Key.Stored : null,
                     StreamId = stream.Select(route => route.StreamIdType).OfType<TypeReferenceModel>().FirstOrDefault() is { } id ? _types.Convert(id) : null,
                     StreamIdParts = stream.First().StreamIdParts.Select(part => new EventStreamIdPartSyntax(naming.ToPropertyName(part.Name), _types.Convert(part.Type), SourceLocation.Start)).ToList()
                 }).ToList()

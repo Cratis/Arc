@@ -24,6 +24,7 @@ public static class AuthoringDeclarations
             .Where(source => source.Select(route => route.IdentifierType).OfType<TypeReferenceModel>().Distinct().Count() > 1 ||
                 source.GroupBy(route => route.Stream, StringComparer.Ordinal).Any(stream => stream.Any(route => !CommandRouteAdmission.SameStream(stream.First(), route))))
             .Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
+        conflictingSources.UnionWith(EventSourceDeclarations.ConflictingStoredNames(routes.Concat(EventSourceDeclarations.ObservedRoutes(model))));
 
         var reads = commands.SelectMany(command => command.Authoring?.Reads ?? []).ToArray();
         var projections = model.Slices.SelectMany(slice => slice.Projections.Select(projection => (projection.ReadModel, slice.Namespace))).ToArray();
