@@ -30,19 +30,29 @@ public class ConstraintSyntaxBuilder(IScreenplayNaming naming)
     {
         var name = naming.ToDeclarationName(constraint.Name);
 
-        return constraint switch
+        ConstraintSyntax syntax = constraint switch
         {
             UniquePropertyConstraintModel unique => new UniquePropertyConstraintSyntax(
                 name,
                 naming.ToPropertyPath(unique.Property),
                 naming.ToDeclarationName(unique.EventName),
-                SourceLocation.Start),
+                SourceLocation.Start)
+                {
+                    AdditionalProperties = unique.AdditionalProperties.Select(naming.ToPropertyPath).ToArray(),
+                    IgnoreCasing = unique.IgnoreCasing
+                },
             UniqueEventConstraintModel unique => new UniqueEventConstraintSyntax(
                 name,
                 naming.ToDeclarationName(unique.EventName),
                 SourceLocation.Start),
             CustomConstraintModel custom => ToFileConstraint(name, custom, @namespace),
             _ => ToFileConstraint(name, new CustomConstraintModel(constraint.Name, null), @namespace)
+        };
+
+        return syntax with
+        {
+            AdditionalRules = constraint.AdditionalRules.Select(rule => Build(rule with { Name = constraint.Name }, @namespace)).ToArray(),
+            ReleasedBy = constraint.ReleasedBy.Select(naming.ToDeclarationName).ToArray()
         };
     }
 

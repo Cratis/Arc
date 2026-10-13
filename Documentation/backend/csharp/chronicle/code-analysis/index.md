@@ -30,6 +30,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0019](./ARCCHR0019.md) | Warning | A conventional query resembling a read-model fold; discovery is unchanged. |
 | [ARCCHR0020](./ARCCHR0020.md) | Warning | A literal wrapper route names a stream its known definition does not declare. |
 | [ARCCHR0021](./ARCCHR0021.md) | Info | Legacy wrapper strings name a declared stream but drop its definition. |
+| [ARCCHR0022](./ARCCHR0022.md) | Warning | A command-key aggregate accompanies returned or appended events targeting a generated parameter. |
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 

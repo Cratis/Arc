@@ -28,6 +28,12 @@ public class from_an_unreadable_constraint : a_returned_event_batch
 
         AssertWithheld();
         Result.Source.ShouldContain("produces AuthorWelcomed");
+        if (definition.Contains("RemovedWith", StringComparison.Ordinal))
+        {
+            Result.Source.ShouldNotContain("constraint ");
+            Result.Diagnostics.Single(_ => _.Code == "SP0017").Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Warning);
+        }
+
         Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("cannot be read");
     }
 }

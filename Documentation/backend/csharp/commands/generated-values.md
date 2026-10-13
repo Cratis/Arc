@@ -35,9 +35,43 @@ Arc calls the concept's strategy before invoking `Handle()`. The `cartId` parame
 not a command property, so it does not appear in the request body or generated client
 inputs. The handler returns the allocated identifier as its ordinary response.
 
-Use `GenerateValue.UuidV7()` instead when time-ordered UUIDs suit your domain. UUIDv7 reveals
-creation time and does not guarantee monotonic order within a millisecond. Both strategies
-create UUIDs, not proof that a value is absent from your storage.
+For time-ordered identifiers, use the context contract below. UUIDv7 reveals creation time
+and does not guarantee monotonic order within a millisecond. Neither strategy proves that
+a value is absent from your storage.
+
+## Generate with the command's time and tenant
+
+Use `IGeneratableInContext<TSelf>` from Cratis.Fundamentals 7.24.0 or later when your strategy
+depends on time or tenant. This complete declaration allocates a time-ordered order identifier:
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Concepts;
+
+public record OrderId(string Value) : ConceptAs<string>(Value), IGeneratableInContext<OrderId>
+{
+    public static OrderId New(GenerationContext context) => new(GenerateValue.TypeId("order", context));
+}
+
+[Command]
+public record AllocateOrderId
+{
+    public OrderId Handle([GeneratedValue("order")] OrderId orderId) => orderId;
+}
+```
+
+Arc passes `CommandContext.ReceivedAt` as `GenerationContext.Now`, so every generated value
+uses the command's captured received time rather than reading a second clock. It maps
+`ITenantIdAccessor.Current` to `GenerationContext.Tenant`: `TenantId.NotSet` and
+`TenantId.Default` become `GenerationContext.DefaultTenant` (the zero-GUID string); named
+tenants use their `Value`. Built-in strategies use time, not tenant; your concept can use
+`context.Tenant` when tenant scope belongs in its value.
+
+If a type implements both interfaces, **Arc always calls the context form**. Its plain
+`New()` is never selected by Arc. Context-dependent generation with a default `ReceivedAt`
+throws `MissingGenerationTime`, even if a custom strategy ignores time. A manually constructed
+command context must supply its received time; Arc never silently substitutes `UtcNow`.
+Scenario pins bypass generation, but still pass through validation.
 
 ## Names and resolution
 
@@ -79,10 +113,10 @@ Use generated parameters for new identifiers owned by the server. Keep existing 
 client-chosen references, and business input on command properties. Use ordinary Handle
 dependencies for services and read models, not `[GeneratedValue]`.
 
-Only non-nullable types implementing `IGeneratable<TSelf>` for themselves are valid. A raw
+Only non-nullable types implementing `IGeneratable<TSelf>` or `IGeneratableInContext<TSelf>`
+for themselves are valid. A raw
 `Guid`, a nullable concept, duplicate names, or a generated parameter on `Provide()` fails
-at handler construction. Generation has no freshness guard or tenant, clock, or pattern
-context in this phase.
+at handler construction. Generation has no freshness guard or pattern contract.
 
 ## Analyzers
 
@@ -91,6 +125,8 @@ Arc checks generated declarations in the IDE and at compile time:
 [ARC0023](../code-analysis/ARC0023.md) rejects attributes outside command Handle parameters,
 [ARC0024](../code-analysis/ARC0024.md) rejects empty or duplicate names, and
 [ARC0025](../code-analysis/ARC0025.md) warns when `Provide()` supplies a generated type.
+[ARC0027](../code-analysis/ARC0027.md) warns about dual generation interfaces, and
+[ARC0028](../code-analysis/ARC0028.md) offers migration from inline generation to a parameter.
 Startup validation remains in place for commands compiled without the analyzers.
 
 ## Testing

@@ -36,10 +36,10 @@ public class a_generated_value_compilation : Specification
         _assembly = Assembly.Load(binary.ToArray());
     }
 
-    protected object Create(string commandName)
+    protected object Create(string commandName, GenerationContext context = default)
     {
         var commandType = _assembly.GetType(commandName)!;
         var parameters = GeneratedValueParameters.Describe(commandType, commandType.GetHandleMethod(), dynamicCodeSupported: false);
-        return GeneratedValueFactories.Create(commandType, parameters.Single());
+        return GeneratedValueFactories.Create(commandType, parameters.Single(), context);
     }
 }
