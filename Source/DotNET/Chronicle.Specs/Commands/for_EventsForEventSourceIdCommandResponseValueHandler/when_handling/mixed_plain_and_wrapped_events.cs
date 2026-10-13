@@ -31,8 +31,6 @@ public class mixed_plain_and_wrapped_events : given.an_events_for_event_source_i
     async Task Because() => _result = await _handler.Handle(_commandContext, _value);
 
     [Fact] void should_return_success() => _result.IsSuccess.ShouldBeTrue();
-    [Fact] void should_append_the_plain_event_to_the_command_event_source_id() => _batch[0].EventSourceId.ShouldEqual(_commandEventSourceId);
-    [Fact] void should_keep_the_plain_event() => _batch[0].Event.ShouldEqual(_plainEvent);
-    [Fact] void should_append_the_wrapped_event_to_its_own_event_source_id() => _batch[1].EventSourceId.ShouldEqual(_wrapperEventSourceId);
-    [Fact] void should_keep_the_wrapped_event() => _batch[1].Event.ShouldEqual(_wrappedEvent);
+    [Fact] void should_append_the_plain_event_to_the_command_event_source_id() => _eventLog.Received(1).Append(_commandEventSourceId, _plainEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>());
+    [Fact] void should_append_the_wrapped_event_to_its_own_event_source_id() => _eventLog.Received(1).Append(_wrapperEventSourceId, _wrappedEvent, Arg.Any<EventStreamType?>(), Arg.Any<EventStreamId?>(), Arg.Any<EventSourceType?>());
 }
