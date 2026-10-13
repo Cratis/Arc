@@ -88,6 +88,11 @@ scenario.GeneratedValues.Last<OrderId>("orderId").ShouldEqual(((CommandResult<Or
 ```
 
 A pin supplies the same value on every execution; it is not a queue of identifiers.
+For a guarded generated append target, reusing an occupied pin rejects the command with
+`ConcurrencyViolation` and `ReasonDetail = "GeneratedIdentifierCollision"`. Seed an event for the pinned id,
+execute once, and assert that detail and no new persisted events. See
+[Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for whole-source semantics and the direct-write exclusion.
+
 `Last<T>(name)` selects the latest capture with that name and **declared** type, failing if none exists.
 `All<T>(name)` returns a read-only snapshot in resolution order across executions, or an empty list.
 Both include validated pins and nested-command captures. Avoid logging or tracing these values.
