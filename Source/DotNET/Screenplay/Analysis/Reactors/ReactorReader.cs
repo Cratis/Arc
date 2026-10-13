@@ -103,7 +103,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             RefusalHandlingHandlers = [.. handlers.Where(HandlesACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             DiscardedCommandResultHandlers = [.. handlers.Where(DiscardsACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             RedeliveryHandlers = [.. handlers.Where(UsesDeliveryReceipts).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
-            HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type) &&
+            HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type, handlers, models) &&
                 handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
 

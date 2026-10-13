@@ -66,6 +66,7 @@ public class from_observation_metadata : a_filtered_application
         Result.Source.ShouldContain("eventsource Author");
         new ScreenplayCompiler().Compile(Result.Source).Value!.EventSources.Single().Identifier.ShouldBeNull();
         Result.Source.ShouldContain("invokes SendWelcome");
+        Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnrepresentableReactionAppendRoute).ShouldBeEmpty();
         AssertDocument();
     }
 

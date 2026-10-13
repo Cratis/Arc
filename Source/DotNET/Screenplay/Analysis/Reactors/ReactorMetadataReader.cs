@@ -46,13 +46,11 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
     /// Checks append routing independently of observation.
     /// </summary>
     /// <param name="type">The reactor type.</param>
+    /// <param name="handlers">The reactor's handlers.</param>
+    /// <param name="models">The semantic models used to resolve returned results.</param>
     /// <returns>Whether returned events require an unsupported append route.</returns>
-    internal static bool RoutesAppends(INamedTypeSymbol type) =>
-        type.FindInterface(WellKnownTypeNames.CanProvideEventSourceId) is not null ||
-        type.FindInterface(WellKnownTypeNames.CanProvideEventStreamId) is not null ||
-        (Nearest(type, WellKnownTypeNames.EventSourceTypeAttribute) is { } source && source.GetArgument(0) is not "Default") ||
-        (Nearest(type, WellKnownTypeNames.EventStreamTypeAttribute) is { } stream && stream.GetArgument(0) is not "All") ||
-        (Nearest(type, WellKnownTypeNames.EventStreamIdAttribute) is { } id && id.GetArgument(0) is not "" and not "Default");
+    internal static bool RoutesAppends(INamedTypeSymbol type, IReadOnlyList<IMethodSymbol> handlers, SemanticModels models) =>
+        new ReactorAppendRouting(models).UsesContextRoute(handlers) && HasAppendRoute(type);
 
     /// <summary>
     /// Adds metadata even when every handler remains code.
@@ -76,6 +74,13 @@ internal class ReactorMetadataReader(IEnumerable<INamedTypeSymbol> definitions)
             MetadataLocation = type.ToDisplayString()
         };
     }
+
+    static bool HasAppendRoute(INamedTypeSymbol type) =>
+        type.FindInterface(WellKnownTypeNames.CanProvideEventSourceId) is not null ||
+        type.FindInterface(WellKnownTypeNames.CanProvideEventStreamId) is not null ||
+        (Nearest(type, WellKnownTypeNames.EventSourceTypeAttribute) is { } source && source.GetArgument(0) is not "Default") ||
+        (Nearest(type, WellKnownTypeNames.EventStreamTypeAttribute) is { } stream && stream.GetArgument(0) is not "All") ||
+        (Nearest(type, WellKnownTypeNames.EventStreamIdAttribute) is { } id && id.GetArgument(0) is not "" and not "Default");
 
     static RecoveredIdentity ReadIdentity(INamedTypeSymbol type)
     {

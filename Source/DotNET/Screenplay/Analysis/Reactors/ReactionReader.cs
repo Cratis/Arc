@@ -69,7 +69,7 @@ public class ReactionReader(SemanticModels models)
             return [];
         }
 
-        var routesAppends = ReactorMetadataReader.RoutesAppends(reactor);
+        var routesAppends = ReactorMetadataReader.RoutesAppends(reactor, handlers, models);
 
         return handlers
             .GroupBy(_ => _.Parameters[0].Type, SymbolEqualityComparer.Default)
@@ -77,6 +77,71 @@ public class ReactionReader(SemanticModels models)
             .Select(_ => Read(_.Single(), routesAppends))
             .OfType<ReactionModel>()
             .ToList();
+    }
+
+    /// <summary>
+    /// Gets the single expression a body returns.
+    /// </summary>
+    /// <param name="body">The body of the handler.</param>
+    /// <returns>The expression, or <see langword="null"/> when the body does anything else.</returns>
+    internal static ExpressionSyntax? ReturnedBy(SyntaxNode body) => body switch
+    {
+        ExpressionSyntax expression => expression,
+        BlockSyntax { Statements: [ReturnStatementSyntax { Expression: { } expression }] } => expression,
+        _ => null
+    };
+
+    /// <summary>
+    /// Gets the items of a literal collection.
+    /// </summary>
+    /// <param name="expression">The expression to read.</param>
+    /// <returns>The items, or <see langword="null"/> when the expression is not a literal collection.</returns>
+    internal static IReadOnlyList<ExpressionSyntax>? ItemsOf(ExpressionSyntax expression) => Unparenthesize(expression) switch
+    {
+        CollectionExpressionSyntax collection when collection.Elements.All(_ => _ is ExpressionElementSyntax) =>
+            [.. collection.Elements.OfType<ExpressionElementSyntax>().Select(_ => _.Expression)],
+        ArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
+        ImplicitArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
+        _ => null
+    };
+
+    /// <summary>
+    /// Gets the value a handler hands back, looking through a completed task.
+    /// </summary>
+    /// <param name="handler">The handler.</param>
+    /// <param name="returned">The expression the body returns.</param>
+    /// <param name="semanticModel">The model the body is read through.</param>
+    /// <param name="result">The type of the value handed back.</param>
+    /// <param name="asynchronous">Whether the value is handed back through a task.</param>
+    /// <returns>The expression of the value, or <see langword="null"/> when it is not handed back directly.</returns>
+    internal static ExpressionSyntax? ValueOf(
+        IMethodSymbol handler,
+        ExpressionSyntax returned,
+        SemanticModel semanticModel,
+        out ITypeSymbol? result,
+        out bool asynchronous)
+    {
+        result = handler.ReturnType;
+        asynchronous = false;
+        if (handler.ReturnType is not INamedTypeSymbol { TypeArguments: [var awaited] } task ||
+            task.OriginalDefinition.FullMetadataName() != TaskType)
+        {
+            return returned;
+        }
+
+        result = awaited;
+        asynchronous = true;
+        if (handler.IsAsync)
+        {
+            return returned;
+        }
+
+        return Unparenthesize(returned) is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
+            semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true } method &&
+            string.Equals(method.Name, FromResultMethod, StringComparison.Ordinal) &&
+            method.ContainingType.FullMetadataName() == "System.Threading.Tasks.Task"
+                ? argument.Expression
+                : null;
     }
 
     /// <summary>
@@ -162,76 +227,11 @@ public class ReactionReader(SemanticModels models)
         expression is ParenthesizedExpressionSyntax parenthesized ? Unparenthesize(parenthesized.Expression) : expression;
 
     /// <summary>
-    /// Gets the single expression a body returns.
-    /// </summary>
-    /// <param name="body">The body of the handler.</param>
-    /// <returns>The expression, or <see langword="null"/> when the body does anything else.</returns>
-    static ExpressionSyntax? ReturnedBy(SyntaxNode body) => body switch
-    {
-        ExpressionSyntax expression => expression,
-        BlockSyntax { Statements: [ReturnStatementSyntax { Expression: { } expression }] } => expression,
-        _ => null
-    };
-
-    /// <summary>
     /// Gets the element type of a sequence, ignoring text.
     /// </summary>
     /// <param name="type">The type to inspect.</param>
     /// <returns>The element type, or <see langword="null"/> when the type is not a sequence.</returns>
     static ITypeSymbol? ElementOf(ITypeSymbol type) => EventReader.IsEvent(type) ? null : CollectionElements.ElementOf(type);
-
-    /// <summary>
-    /// Gets the items of a literal collection.
-    /// </summary>
-    /// <param name="expression">The expression to read.</param>
-    /// <returns>The items, or <see langword="null"/> when the expression is not a literal collection.</returns>
-    static IReadOnlyList<ExpressionSyntax>? ItemsOf(ExpressionSyntax expression) => Unparenthesize(expression) switch
-    {
-        CollectionExpressionSyntax collection when collection.Elements.All(_ => _ is ExpressionElementSyntax) =>
-            [.. collection.Elements.OfType<ExpressionElementSyntax>().Select(_ => _.Expression)],
-        ArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
-        ImplicitArrayCreationExpressionSyntax { Initializer: { } initializer } => [.. initializer.Expressions],
-        _ => null
-    };
-
-    /// <summary>
-    /// Gets the value a handler hands back, looking through a completed task.
-    /// </summary>
-    /// <param name="handler">The handler.</param>
-    /// <param name="returned">The expression the body returns.</param>
-    /// <param name="semanticModel">The model the body is read through.</param>
-    /// <param name="result">The type of the value handed back.</param>
-    /// <param name="asynchronous">Whether the value is handed back through a task.</param>
-    /// <returns>The expression of the value, or <see langword="null"/> when it is not handed back directly.</returns>
-    static ExpressionSyntax? ValueOf(
-        IMethodSymbol handler,
-        ExpressionSyntax returned,
-        SemanticModel semanticModel,
-        out ITypeSymbol? result,
-        out bool asynchronous)
-    {
-        result = handler.ReturnType;
-        asynchronous = false;
-        if (handler.ReturnType is not INamedTypeSymbol { TypeArguments: [var awaited] } task ||
-            task.OriginalDefinition.FullMetadataName() != TaskType)
-        {
-            return returned;
-        }
-
-        result = awaited;
-        asynchronous = true;
-        if (handler.IsAsync)
-        {
-            return returned;
-        }
-
-        return Unparenthesize(returned) is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
-            semanticModel.GetSymbolInfo(invocation).Symbol is IMethodSymbol { IsStatic: true } method &&
-            string.Equals(method.Name, FromResultMethod, StringComparison.Ordinal) &&
-            method.ContainingType.FullMetadataName() == "System.Threading.Tasks.Task"
-                ? argument.Expression
-                : null;
-    }
 
     /// <summary>
     /// Determines whether a returned value is one Chronicle hands to a side effect handler as it is.
