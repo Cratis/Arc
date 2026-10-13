@@ -8,8 +8,13 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating.with_eve
 public class with_a_source_identifier_on_another_stream : a_generated_document
 {
     const string Command = """
+        public record AccountId(int Value) : Cratis.Concepts.ConceptAs<int>(Value)
+        {
+            public static implicit operator AccountId(int value) => new(value);
+            public static implicit operator EventSourceId(AccountId value) => new(value.Value.ToString());
+        }
         [Command, EventSourceType("Account"), EventStreamType("Transactions")]
-        public record RegisterAuthor([Key] string Id, string Name)
+        public record RegisterAuthor([Key] AccountId Id, string Name)
         {
             public AuthorRegistered Handle() => new(Name);
         }
@@ -33,10 +38,10 @@ public class with_a_source_identifier_on_another_stream : a_generated_document
         public class and_an_author_was_imported
         {
             readonly CommandScenario<RegisterAuthor> _scenario = new();
-            Task Establish() => _scenario.EventScenario.EventSequence.Append("other", new AuthorImported("Prior"),
+            Task Establish() => _scenario.EventScenario.EventSequence.Append(new AccountId(2), new AuthorImported("Prior"),
                 eventSourceType: "Account", eventStreamType: "Archive");
-            Task Because() => _scenario.Execute(new RegisterAuthor("author", "New"));
-            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == "New");
+            Task Because() => _scenario.Execute(new RegisterAuthor(1, "New"));
+            [Fact] Task should_append() => _scenario.EventSequence.ShouldHaveAppendedEvent<AuthorRegistered>(new AccountId(1), e => e.Name == "New");
         }
         """;
 
@@ -47,6 +52,6 @@ public class with_a_source_identifier_on_another_stream : a_generated_document
 
     [Fact] void should_state_the_scenario_using_the_sources_declared_identifier() => Result.Source.ShouldContain("specification WhenRegisteringAndAnAuthorWasImported");
     [Fact] void should_state_the_prior_occurrence_on_its_own_stream() => Result.Source.ShouldContain("stream Account.Archive");
-    [Fact] void should_keep_the_sources_identifier_type() => Result.Source.ShouldContain("identifier String");
+    [Fact] void should_keep_the_sources_identifier_type() => Result.Source.ShouldContain("identifier AccountId");
     [Fact] void should_compile_and_bind() => AssertDocument();
 }
