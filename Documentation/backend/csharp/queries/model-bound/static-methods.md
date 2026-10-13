@@ -10,13 +10,15 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 Declare queries as non-generic **public or internal static** methods on a `[ReadModel]` type. Give each query a descriptive name and return the declaring model or a [supported wrapper around it](return-types.md). Private static helpers, local functions, compiler-generated methods, and property accessors are not query endpoints. Ordinary helper methods returning another type are not query endpoints. Avoid overloaded query names: the method name is part of the query's identity.
 
+A method with a parameter of its own read-model type is **never a query**. The parameter can be nullable or non-nullable, have any name, and appear in any position. This is an exact type check: a collection of the model, a different read-model type, or a service parameter does not trigger the exclusion. Adding `[Query]` to a self-parameter method is an [ARC0026](../../code-analysis/ARC0026.md) error; remove the marker, not the current-state parameter.
+
 Dependencies are resolved by type, not by parameter position. C# still requires optional parameters to follow required parameters, including required service parameters.
 
 ## Choose endpoints explicitly when a model has helpers
 
 `[ReadModel]` uses conventional discovery by default. Adding `[Query]` to one method does **not** hide its siblings or change that mode. Keep convention for a model whose eligible static methods are all queries.
 
-Set `RequireQueryAttribute = true` when the same type also has factories, folds, or other helpers:
+Self-parameter folds are excluded automatically. Set `RequireQueryAttribute = true` when the same type also has factories or other query-shaped helpers **without** a self parameter:
 
 ```csharp
 using System.Threading.Tasks;
@@ -50,7 +52,7 @@ In explicit mode a marked `ById(string)` can coexist with an unmarked `ById(int)
 3. Compare runtime discovery, generated query metadata, TypeScript proxies, and Screenplay extraction with the intended endpoint list. Preserve each endpoint's `[Path]`, HTTP method, argument defaults, and authorization attributes.
 4. Exercise retained queries through the pipeline or `QueryScenario`, including observable queries, and confirm helpers are absent. `[Path]`, `[QueryHttpMethod]`, and authorization on an unmarked helper do not make it an endpoint.
 
-No method name is globally reserved. In conventional mode `Create`, `Reduce`, and lifecycle helpers remain subject to existing query discovery and diagnostics. The optional Chronicle integration warning [ARCCHR0019](../../chronicle/code-analysis/ARCCHR0019.md) flags some fold-like shapes without changing discovery. Its whole-type quick fix requires an endpoint preview; it cannot identify arbitrary runtime-registered events or prove which helpers you intended as queries. Chronicle's future static self-reducer lifecycle implementation and complete fold/query role-conflict validation are separate work.
+No method name is globally reserved. A `Reduce` or `Create` method **with a self parameter** is excluded by its signature, not its name. Helpers without a self parameter remain subject to conventional discovery and diagnostics. The optional Chronicle integration warning [ARCCHR0019](../../chronicle/code-analysis/ARCCHR0019.md) flags some creator shapes without changing discovery. Its whole-type quick fix requires an endpoint preview; it cannot prove which helpers you intended as queries. For a record that combines static reductions with ordinary queries, see [self-reducing read models](../../chronicle/read-models/index.md#self-reducing-read-models).
 
 ## Async methods
 
