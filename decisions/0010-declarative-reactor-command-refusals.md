@@ -1,8 +1,10 @@
 ---
 id: 0010-declarative-reactor-command-refusals
 title: Handle reactor command refusals with ordered per-invocation branches
-status: proposed
-stage: none
+status: accepted
+stage: implemented
+decided: 2026-10-13
+decider: woksin (via L0)
 class: contract
 reversibility: costly
 applies-to:
@@ -20,7 +22,7 @@ A failed command returned from a reactor currently fails the observer partition.
 
 ## Decision
 
-Classify command business refusals in Arc.Core as validation, constraint with an optional name, or authorization, and expose ordered per-invocation branches through `Invoke.Command(command).OnRefused(selector, handler)`. Error-severity authored rules and constraints qualify; actual unauthorized results qualify, not Unsupported outcomes. Exceptions, concurrency, infrastructure, contract and unknown validation reasons prevent classification, including mixed results. Among business refusals authorization wins over constraint, which wins over validation. Constraint refusals carry all distinct violated names in `ConstraintNames`, with `ConstraintName` retaining the first error constraint's name; named selectors match any violated name. All error constraint messages join in result order with a newline; validation joins error rule messages in result order; authorization preserves its reason. Server-only authorization configuration failure markers and framework-composed stream-completion errors prevent refusal classification without changing HTTP authorization responses. Text is not trimmed or translated. The first matching branch returns registered events or null to acknowledge, and successful handling stops remaining commands. `Refused.Any` matches validation and constraints, never authorization. Branch productions use the ordinary returned-event append path and routing, and an append failure fails the partition. Plain command behavior and mixed results' events-first partitioning remain unchanged. No reflection is added for branch selection or execution.
+Classify command business refusals in Arc.Core as validation, constraint with an optional name, or authorization, and expose ordered per-invocation branches through `Invoke.Command(command).OnRefused(selector, handler)`. Error-severity authored rules and constraints qualify; actual unauthorized results qualify, not Unsupported outcomes. Exceptions and error-severity concurrency, infrastructure, contract and unknown validation reasons prevent classification, including mixed results; warning and information results never prevent classification. Among business refusals authorization wins over constraint, which wins over validation. Constraint refusals carry all distinct violated names in `ConstraintNames`, with `ConstraintName` retaining the first error constraint's name; named selectors match any violated name. All error constraint messages join in result order with a newline; validation joins error rule messages in result order; authorization preserves its reason. Server-only authorization configuration failure markers and framework-composed stream-completion errors prevent refusal classification without changing HTTP authorization responses. Text is not trimmed or translated. `Refused` is an inspectable sealed record whose matched kinds and optional constraint name determine matching and value equality. `Refused.ByAnyConstraint` selects any constraint, while `Refused.ByConstraint(name)` requires a name. The first matching branch returns registered events or null, and successful handling stops remaining commands. `.Acknowledge(Refused.X)` is the single acknowledgment convenience and maps to Screenplay `acknowledge`; there is no `Invoke.Acknowledge`. `Refused.Any` matches validation and constraints, never authorization. Branch productions use the ordinary returned-event append path and routing, and an append failure fails the partition. Plain command behavior and mixed results' events-first partitioning remain unchanged. No reflection is added for branch selection or execution.
 
 ## Options considered
 
@@ -32,11 +34,11 @@ Classify command business refusals in Arc.Core as validation, constraint with an
 
 ## Default if unanswered
 
-Plain command failures keep failing the partition. This additive API remains a proposal and is not merged until the maintainer accepts this record; generated refusal handling remains blocked on Arc's runtime contract.
+Without this contract, plain command failures keep failing the partition and generated refusal handling remains unavailable. woksin accepts the additive contract with the inspectable selector, single acknowledgment convenience, error-only non-refusal filtering, explicit any-constraint selector and explicit exclusion of Unsupported authorization outcomes recorded above.
 
 ## Timeline and scope
 
-Applies to Arc's additive refusal-handling contract and subsequent generator extraction. In scope: classification, ordered selectors, acknowledgment, branch event append and stop-after-handled semantics. Out of scope: Screenplay admission, Stage rendering, generator extraction (Arc #3094), redelivery declarations, new actor semantics, cross-command transactions and external-effect deduplication. A blocking warning under decision 0005 is not an error-severity refusal and retains failure/recovery behavior. Existing system-execution roles and decision 0008's trust boundaries remain unchanged.
+Applies to Arc's additive refusal-handling contract and subsequent generator extraction. In scope: classification, ordered selectors, acknowledgment, branch event append and stop-after-handled semantics. Out of scope: Screenplay admission, Stage rendering, generator extraction and analyzer coverage for refusal branches returning non-events (Arc #3094), redelivery declarations, new actor semantics, cross-command transactions and external-effect deduplication. A blocking warning under decision 0005 is not an error-severity refusal and retains failure/recovery behavior. Existing system-execution roles and decision 0008's trust boundaries remain unchanged.
 
 ## Verification
 

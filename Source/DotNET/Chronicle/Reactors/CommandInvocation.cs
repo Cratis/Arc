@@ -42,7 +42,7 @@ public sealed class CommandInvocation
     /// </summary>
     /// <param name="selector">The refusal selector.</param>
     /// <returns>A new invocation with an acknowledgment branch.</returns>
-    public CommandInvocation Acknowledge(Refused selector) => OnRefused(selector, Invoke.Acknowledge);
+    public CommandInvocation Acknowledge(Refused selector) => OnRefused(selector, _ => null);
 
     /// <summary>
     /// Selects the first matching branch in declaration order.

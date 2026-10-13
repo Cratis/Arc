@@ -10,7 +10,7 @@ public class with_any_constraint : given.a_refused_invocation
     void Establish()
     {
         _commandResult.ValidationResults = [ValidationResult.Error("taken", reason: ValidationResultReason.ConstraintViolation, reasonDetail: "UniqueSeat")];
-        _invocation = Invoke.Command(_command).OnRefused(Refused.ByConstraint(), Record);
+        _invocation = Invoke.Command(_command).OnRefused(Refused.ByAnyConstraint, Record);
     }
     async Task Because() => _result = await _executor.Execute([_invocation], _context, _store);
 

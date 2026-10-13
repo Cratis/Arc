@@ -16,16 +16,16 @@ public static class CommandRefusalExtensions
     /// <param name="result">The command result to classify.</param>
     /// <returns>The refusal, or null for success or a non-refusal failure.</returns>
     /// <remarks>
-    /// Exceptions and validation reasons other than Rule or ConstraintViolation prevent classification, even in
-    /// mixed results. Otherwise authorization wins over constraints, which win over error-severity rules.
+    /// Exceptions and error-severity validation reasons other than Rule or ConstraintViolation prevent classification,
+    /// even in mixed results. Warning and information results never prevent classification. Otherwise authorization wins over constraints, which win over error-severity rules.
     /// All error constraint names and messages are retained in result order, with the first name also available
     /// as ConstraintName. Messages are joined with a newline. Validation joins all error rule messages in result
     /// order. Authorization retains its reason verbatim; configuration failures are not denials.
     /// </remarks>
     public static CommandRefusal? GetRefusal(this CommandResult result)
     {
-        var validations = result.ValidationResults.ToArray();
-        if (CannotClassify(result, validations))
+        var errors = result.ValidationResults.Where(validation => validation.Severity == ValidationResultSeverity.Error).ToArray();
+        if (CannotClassify(result, errors))
         {
             return null;
         }
@@ -35,7 +35,6 @@ public static class CommandRefusalExtensions
             return new(CommandRefusalKind.Authorization, null, result.AuthorizationFailureReason);
         }
 
-        var errors = validations.Where(validation => validation.Severity == ValidationResultSeverity.Error).ToArray();
         var constraints = errors.Where(validation => validation.Reason == ValidationResultReason.ConstraintViolation).ToArray();
         if (constraints.Length > 0)
         {

@@ -9,7 +9,7 @@ public class without_a_matching_branch : given.a_refused_invocation
 {
     ReactorSideEffectFailure _failure;
 
-    void Establish() => _invocation = Invoke.Command(_command).OnRefused(Refused.ByConstraint(), Record);
+    void Establish() => _invocation = Invoke.Command(_command).OnRefused(Refused.ByAnyConstraint, Record);
     async Task Because()
     {
         _result = await _executor.Execute([_invocation], _context, _store);

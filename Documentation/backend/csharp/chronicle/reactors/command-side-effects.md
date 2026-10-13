@@ -148,14 +148,14 @@ public class CatalogIndexer : IReactor
         return Invoke.Command(new CreateSearchIndex(bookId, @event.Title))
             .OnRefused(Refused.ByConstraint("UniqueBook"), refusal => new BookIndexingRefused(refusal.Message))
             .OnRefused(Refused.ByValidation, refusal => new BookIndexingRefused(refusal.Message))
-            .OnRefused(Refused.ByAuthorization, Invoke.Acknowledge);
+            .Acknowledge(Refused.ByAuthorization);
     }
 }
 ```
 
 Use your command's actual constraint name in place of `UniqueBook`. Register branch event types just like other returned events. The command still runs through validation and authorization; a branch cannot bypass either.
 
-The **first matching branch wins**. It returns a registered event, an `EventForEventSourceId`, or a stable nonempty sequence of those. Return `null` to acknowledge without producing events, or use `.Acknowledge(selector)` as shorthand for `.OnRefused(selector, Invoke.Acknowledge)`. Acknowledgment records a handled refusal; it does not prove that the command's work previously completed. Branches cannot return commands, operations, or stream completions.
+The **first matching branch wins**. It returns a registered event, an `EventForEventSourceId`, or a stable nonempty sequence of those. Use `.Acknowledge(selector)` to acknowledge without producing events; a branch handler that returns `null` also produces no events. Acknowledgment records a handled refusal; it does not prove that the command's work previously completed. Branches cannot return commands, operations, or stream completions.
 
 A handled refusal appends its branch events and **stops all remaining commands or invocations** in this delivery. If the branch append fails, the reactor fails; another refusal branch cannot handle that append failure. Bare branch events use the same resolved event-source, stream, source-type, and subject metadata as ordinary returned events. Explicit envelopes retain their metadata.
 
@@ -169,13 +169,15 @@ Return an invocation on its own, `Task<CommandInvocation>`, or a stable sequence
 | --- | --- |
 | `Refused.ByValidation` | Error-severity authored rules, including property and concept rules and `require`. |
 | `Refused.ByConstraint("Name")` | An error constraint refusal with that exact, case-sensitive name among its violated names. |
-| `Refused.ByConstraint()` | Any error constraint refusal, including one without a name. |
+| `Refused.ByAnyConstraint` | Any error constraint refusal, including one without a name. |
 | `Refused.ByAuthorization` | An actual unauthorized result (`IsAuthorized` is false). |
 | `Refused.Any` | Validation and constraint refusals only, **never authorization**. |
 
+Selectors are inspectable sealed records: `Kinds` exposes the matched refusal kinds, and `ConstraintName` is the optional exact-name restriction. Equal kinds and names compare as equal selectors. Use `ByAnyConstraint` for an unrestricted constraint branch; `ByConstraint(name)` requires a name.
+
 For mixed business refusals, authorization wins, then constraints, then validation. Authorization uses `AuthorizationFailureReason` verbatim. For constraints, all error constraint messages join in result order with `\n`, and named selectors match any violated name. Validation joins all error rule messages in result order with `\n`. Joining does not trim or translate text. Messages are not stable identities; match constraint names rather than parsing prose.
 
-Exceptions, authorization configuration failures, framework-composed stream-completion errors, concurrency conflicts, validator failures, unavailable dependencies, malformed requests, and unknown validation reasons are **not refusals**, even if the result also contains a business refusal. Unsupported policy outcomes are not authorization refusals. Success and warning- or information-only rule results do not classify as refusals. A warning that blocks a command under its declared severity policy therefore still fails the partition rather than being acknowledged by a validation branch.
+Exceptions and authorization configuration failures are **not refusals**. Error-severity framework-composed stream-completion errors, concurrency conflicts, validator failures, unavailable dependencies, malformed requests, and unknown validation reasons also prevent classification, even if the result contains a business refusal. Warning and information results never prevent classification. Unsupported policy outcomes are not authorization refusals. Success and warning- or information-only rule results do not classify as refusals. A warning that blocks a command under its declared severity policy therefore still fails the partition rather than being acknowledged by a validation branch.
 
 Concurrency remains a failure for Chronicle recovery to retry. An unhandled refusal and every non-refusal failure keep the existing failure behavior. Explicit authorization handling is deliberate: `Refused.Any` must not conceal a missing reactor actor. Custom `ICommandSideEffectExecutor` implementations must implement its context-and-event-store overload to support refusal branches.
 
