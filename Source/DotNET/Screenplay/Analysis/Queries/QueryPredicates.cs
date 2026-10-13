@@ -42,8 +42,12 @@ internal static class QueryPredicates
 
     static IEnumerable<LambdaExpressionSyntax> In(ExpressionSyntax expression, SemanticModel model)
     {
-        if (Unwrap(expression) is not InvocationExpressionSyntax invocation ||
-            model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || !IsQueryOperation(method))
+        if (Unwrap(expression) is not InvocationExpressionSyntax invocation)
+        {
+            return [];
+        }
+
+        if (QueryMethodOf(invocation, model) is not { } method)
         {
             return [];
         }
@@ -54,6 +58,16 @@ internal static class QueryPredicates
         var source = SourceOf(invocation, method);
 
         return source is null ? predicates : predicates.Concat(In(source, model));
+    }
+
+    static IMethodSymbol? QueryMethodOf(InvocationExpressionSyntax invocation, SemanticModel model)
+    {
+        if (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method)
+        {
+            return null;
+        }
+
+        return IsQueryOperation(method) ? method : null;
     }
 
     static bool IsQueryOperation(IMethodSymbol method) =>

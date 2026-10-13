@@ -69,6 +69,26 @@ internal sealed class QueryFilterReader(TypeRegistry types, SemanticModels? mode
     static bool IsScalarValue(ITypeSymbol type) => type.TypeKind == TypeKind.Enum || type.FindBase(WellKnownTypeNames.ConceptAs) is not null ||
         (type is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out _));
 
+    static bool IsRepresentable(IParameterSymbol parameter, IPropertySymbol property)
+    {
+        if (!IsScalar(property.Type))
+        {
+            return false;
+        }
+
+        if (!IsScalar(parameter.Type))
+        {
+            return false;
+        }
+
+        if (HasNonNullDefault(parameter))
+        {
+            return false;
+        }
+
+        return SameType(parameter.Type, property.Type);
+    }
+
     Evidence? EvidenceOf(IMethodSymbol method)
     {
         var declaration = method.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()).OfType<MethodDeclarationSyntax>().FirstOrDefault();
@@ -89,7 +109,7 @@ internal sealed class QueryFilterReader(TypeRegistry types, SemanticModels? mode
 
     PropertyModel? Prove(IParameterSymbol parameter, IPropertySymbol property, Evidence evidence)
     {
-        if (!IsScalar(property.Type) || !IsScalar(parameter.Type) || !SameType(parameter.Type, property.Type) || HasNonNullDefault(parameter))
+        if (!IsRepresentable(parameter, property))
         {
             return null;
         }

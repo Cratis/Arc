@@ -67,18 +67,25 @@ internal sealed class EqualityQueryFilter(SemanticModel model, IParameterSymbol 
             return true;
         }
 
-        if (expression is BinaryExpressionSyntax optional && optional.IsKind(SyntaxKind.LogicalOrExpression) && IsNullable(parameter.Type))
+        if (expression is not BinaryExpressionSyntax optional)
         {
-            if (IsOptionalEquality(optional.Left, optional.Right, property) || IsOptionalEquality(optional.Right, optional.Left, property))
-            {
-                Optional = true;
-
-                return true;
-            }
+            return false;
         }
 
-        return false;
+        if (!IsNullableDisjunction(optional) || !HasOptionalEquality(optional, property))
+        {
+            return false;
+        }
+
+        Optional = true;
+
+        return true;
     }
+
+    bool IsNullableDisjunction(BinaryExpressionSyntax expression) => expression.IsKind(SyntaxKind.LogicalOrExpression) && IsNullable(parameter.Type);
+
+    bool HasOptionalEquality(BinaryExpressionSyntax expression, IPropertySymbol property) =>
+        IsOptionalEquality(expression.Left, expression.Right, property) || IsOptionalEquality(expression.Right, expression.Left, property);
 
     bool IsOptionalEquality(ExpressionSyntax skip, ExpressionSyntax equality, IPropertySymbol property) =>
         IsNullSkip(QueryPredicates.Unwrap(skip)) && IsEquality(QueryPredicates.Unwrap(equality), property);
