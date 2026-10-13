@@ -204,7 +204,7 @@ Match the value to its job, then read the linked page before shortening anything
 | --- | --- | --- |
 | `CustomerId`, `CartId` | `Ulid()` with a prefix, or `Uuid()` | Identifier; plenty of random bits |
 | `OrderId` | `TypeId("order", context)` | Names its type, sorts by the command's time |
-| `InviteCode` | `NanoId(10, "23456789ABCDEFGHJKLMNPQRSTUVWXYZ")` | People read it aloud; only 50 random bits, so it is a property with a uniqueness check, not an identifier |
+| `InviteCode` | `NanoId(10, "23456789ABCDEFGHJKLMNPQRSTUVWXYZ")` | People read it aloud; only 50 random bits, so it is a generated property, never an identifier; back it with a uniqueness check where collisions matter |
 | `ApiKey` | `Bytes(32)` | Secret, 256 bits |
 
 The decision flow, collision tables and entropy guidance are in
