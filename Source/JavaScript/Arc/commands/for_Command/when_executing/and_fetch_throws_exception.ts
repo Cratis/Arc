@@ -9,6 +9,8 @@ describe("when executing and fetch throws exception", given(a_command, context =
     let result: CommandResult<object>;
 
     beforeEach(async () => {
+        // The stub is restored after every spec, so each one installs its own instead of falling through to a real fetch.
+        context.fetchStub = context.fetchHelper.stubFetch();
         context.fetchStub.rejects(new Error('Network error'));
 
         result = await context.command.execute();
