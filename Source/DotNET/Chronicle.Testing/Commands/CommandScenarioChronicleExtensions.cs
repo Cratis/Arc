@@ -49,7 +49,7 @@ public static class CommandScenarioChronicleExtensions
         /// </summary>
         public IEventSequence EventSequence =>
             scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision)
-                ? ((DecisionCommandScenario)decision).Store.EventLog
+                ? ((DecisionCommandScenario)decision).EventSequence
                 : ((EventScenario)scenario.Context[ChronicleCommandScenarioExtender.ContextKey]).EventSequence;
 
         /// <summary>
@@ -113,36 +113,42 @@ public static class CommandScenarioChronicleExtensions
         }
 
         /// <summary>
-        /// Queues routed competing facts after the handler reads and before its owner commits.
+        /// Queues routed competing facts after the handler reads and before its owner commits, with or without decision mode.
         /// </summary>
         /// <param name="eventSourceId">The source changed by the competitor.</param>
         /// <param name="route">The competitor's route.</param>
         /// <param name="events">The competing facts.</param>
-        /// <exception cref="ConcurrentAppendRequiresDecisionReads">Decision mode was not enabled.</exception>
-        public void AppendConcurrently(EventSourceId eventSourceId, EventRoute route, params object[] events)
-        {
-            if (!scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
-            {
-                throw new ConcurrentAppendRequiresDecisionReads();
-            }
-
-            ((DecisionCommandScenario)decision).QueueCompetingAppend(eventSourceId, events, route);
-        }
+        /// <exception cref="CompetingEventsMustBeQueuedBeforeExecution">The scenario cannot configure competing appends after initialization or during execution.</exception>
+        /// <exception cref="ConcurrentAppendsCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        public void AppendConcurrently(EventSourceId eventSourceId, EventRoute route, params object[] events) =>
+            CompetingScenario(scenario).QueueCompetingAppend(eventSourceId, events, route);
 
         /// <summary>
-        /// Queues competing facts to append after the handler reads and before its owner commits.
+        /// Queues competing facts to append after the handler reads and before its owner commits, with or without decision mode.
         /// </summary>
         /// <param name="eventSourceId">The source being changed by a competitor.</param>
         /// <param name="events">The competing events.</param>
-        /// <exception cref="ConcurrentAppendRequiresDecisionReads">Protected decision mode was not enabled.</exception>
-        public void AppendConcurrently(EventSourceId eventSourceId, params object[] events)
-        {
-            if (!scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
-            {
-                throw new ConcurrentAppendRequiresDecisionReads();
-            }
+        /// <exception cref="CompetingEventsMustBeQueuedBeforeExecution">The scenario cannot configure competing appends after initialization or during execution.</exception>
+        /// <exception cref="ConcurrentAppendsCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        public void AppendConcurrently(EventSourceId eventSourceId, params object[] events) =>
+            CompetingScenario(scenario).QueueCompetingAppend(eventSourceId, events);
+    }
 
-            ((DecisionCommandScenario)decision).QueueCompetingAppend(eventSourceId, events);
+    static DecisionCommandScenario CompetingScenario<TCommand>(CommandScenario<TCommand> scenario)
+    {
+        if (scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.DecisionScenarioKey, out var decision))
+        {
+            return (DecisionCommandScenario)decision;
         }
+        if (scenario.Context.TryGetValue(ChronicleCommandScenarioExtender.ConcurrentScenarioKey, out var concurrent))
+        {
+            return (DecisionCommandScenario)concurrent;
+        }
+        if (scenario.IsInitialized)
+        {
+            throw new CompetingEventsMustBeQueuedBeforeExecution();
+        }
+
+        return ChronicleCommandScenarioExtender.EnableConcurrentAppends(scenario.Services, scenario.Context);
     }
 }

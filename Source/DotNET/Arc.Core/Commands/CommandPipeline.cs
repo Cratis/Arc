@@ -510,6 +510,13 @@ public class CommandPipeline(
                 executionScope.Begin(commandContext);
             }
 
+            foreach (var executionScope in scopes.OfType<IAsyncCommandExecutionScope>())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await executionScope.BeginAsync(commandContext);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             result = await commandFilters.OnExecution(commandContext);
             result = FilterValidationResults(result, commandContext);
             if (!result.IsSuccess)
