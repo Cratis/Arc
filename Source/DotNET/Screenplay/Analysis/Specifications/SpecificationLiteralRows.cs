@@ -104,7 +104,7 @@ internal sealed class SpecificationLiteralRows(SemanticModels models, Screenplay
             ReadRow(row, parameters, slice, result, readings, symbolic, ref reason);
         }
 
-        if (reason is null && symbolic is not null && readings.Count == rows.Count)
+        if (reason is null && readings.Count == rows.Count)
         {
             new SpecificationCaseTable(symbolic, symbolicValues.Targets, readings).Register();
             return;
