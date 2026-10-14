@@ -230,6 +230,30 @@ public class CommandPipeline(
         }
     }
 
+    static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
+    {
+        try
+        {
+            if (context?.ServiceProvider?.GetService<IInstancesOf<ICommandExceptionMapper>>() is { } mappers)
+            {
+                foreach (var mapper in mappers)
+                {
+                    if (mapper.TryMap(context, exception, out var mapped))
+                    {
+                        return mapped;
+                    }
+                }
+            }
+        }
+        catch (Exception mappingFailure)
+        {
+            // A failed mapper still fails the command and lets execution scopes roll back their pending work.
+            return CommandResult.Error(correlationId, mappingFailure);
+        }
+
+        return CommandResult.FromException(correlationId, exception);
+    }
+
     static string TypeNameOf(Type type) => type.FullName ?? type.Name;
 
     static AuthorizationDeclaration? GetHostedDeclaration(Type commandType, IServiceProvider services, Activity? activity)
@@ -618,7 +642,7 @@ public class CommandPipeline(
         catch (Exception ex)
         {
             OperationActivity.RecordException(activity, ex);
-            result.MergeWith(CommandResult.FromException(correlationId, ex));
+            result.MergeWith(MapException(correlationId, commandContext, ex));
             operations?.CaptureFailure(result, ex is OperationCanceledException ? CommandOperationFailureSource.Cancellation : failureSource);
         }
 
