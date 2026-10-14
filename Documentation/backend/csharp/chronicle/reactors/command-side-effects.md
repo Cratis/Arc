@@ -163,6 +163,8 @@ A handled refusal appends its branch events and **stops all remaining commands o
 
 Return an invocation on its own, `Task<CommandInvocation>`, or a stable sequence of invocations and plain commands. You can also mix them with events using the existing events-first rule: ordinary returned events append as one batch before any command runs, then branch events append when a refusal is handled. Previously appended events and successful commands remain committed on failure or acknowledgment. Refusal handling adds no transaction, redelivery deduplication, or exactly-once guarantee.
 
+The [Screenplay generator's refusal extraction](../../generating-a-screenplay.md#command-refusal-branches) recovers pure `Invoke.Command(...).OnRefused(...)` and `.Acknowledge(...)` chains as ordered executable `on refused` branches at ESM v19. Opaque callbacks and caps below v19 keep the whole trigger file-backed with `SP0071`; runtime support does not imply every C# callback is extractable.
+
 ### Refusal selectors and details
 
 `CommandResult.GetRefusal()` in `Cratis.Arc.Commands` returns a `CommandRefusal`, or `null` for a non-refusal result. `CommandRefusal.Kind` is `CommandRefusalKind.Validation`, `Constraint`, or `Authorization`; `ConstraintNames` carries all distinct violated names in result order, with nullable `ConstraintName` retaining the first error constraint's name; `Message` preserves authored text, including unresolved `$strings.` keys.
