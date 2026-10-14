@@ -110,16 +110,29 @@ classification as returned events. This applies only to the command's actual uni
 new units or external stores. Returned, aggregate and direct events for the same generated source share
 one expectation; an occupied source rejects the whole pending unit, including events for other sources.
 
-Nested pipeline invocations share the outer command's unit. Each invocation with a guarded generated
-parameter contributes its live captures while it runs. Successfully enrolled requirements and their
-provenance survive nested completion until the unit completes; only the outer owner commits or rolls back.
+Nested pipeline invocations share the outer command's unit. When Arc composes returned-event or aggregate
+scopes, it considers guarded captures from every active invocation on that unit. A nested handler's
+attribute-derived scope therefore cannot narrow an outer generated identifier's whole-source guard.
+Truly caller-supplied scopes remain subject to the explicit conflict check.
+
+After successful enrollment, Chronicle retains the required scope even when that invocation's contributor
+is disposed. A later unscoped write inherits the requirement; an incompatible supplied scope can fail
+inside Chronicle's merge before Arc's contributor runs. Scope-only `AddEvents` entries preserve existing
+requirements but do not call contributors, create a new freshness guard or record generated provenance.
+An identifier captured by a completed nested invocation but never targeted has no enrolled requirement.
+
+Nested pipeline scopes leave commit and rollback to the outer command. Propagate a nested rejection so the
+outer command rolls back instead of committing earlier events. An explicit aggregate `Commit()` can still
+finalize the shared unit early; see [Nested commands and aggregates](transactional-commands.md#nested-commands-and-aggregates).
 
 Custom `IUnitOfWork` implementations must support Chronicle's enrollment contributors. A handler declaring
 at least one guarded `[GeneratedValue]` parameter fails closed with Arc's
-`UnitOfWorkEnrollmentContributorsNotSupported` if its unit cannot register one. Commands without generated
+`FreshIdentifierGuardRequiresEnrollmentContributors` if its unit cannot register one. Commands without generated
 parameters, or with only `Unguarded` parameters, do not require this support.
 
-`IUnitOfWork.AddEvents` checks all destinations before staging any event in that call.
+`IUnitOfWork.AddEvents` resolves scope requirements for all destinations before staging events in that
+call. A scope conflict stages none of that call's events; a contributor notification failure occurs after
+staging and prevents the unit from committing.
 `Transactional.AppendMany` and `AppendManyWithNamedTags` stage per event instead: a later rejection may
 leave earlier events pending. Let the exception escape `Handle()` so Arc rolls back the whole unit.
 Catching the rejection and succeeding can commit earlier enrollments.

@@ -19,7 +19,7 @@ public class with_an_unsupported_unit : given.a_guarded_transactional_scope
         await _scope.Complete(_context, CommandResult.Error(_correlationId, "begin failed"));
     }
 
-    [Fact] void should_fail_closed_with_an_arc_exception() => _error.ShouldBeOfExactType<UnitOfWorkEnrollmentContributorsNotSupported>();
+    [Fact] void should_fail_closed_with_an_arc_exception() => _error.ShouldBeOfExactType<FreshIdentifierGuardRequiresEnrollmentContributors>();
     [Fact] void should_preserve_the_chronicle_cause() => _error.InnerException.ShouldBeOfExactType<Cratis.Chronicle.Transactions.UnitOfWorkEnrollmentContributorsNotSupported>();
     [Fact] void should_explain_the_required_support() => _error.Message.ShouldContain("guarded [GeneratedValue]");
     [Fact] void should_roll_back_after_begin_failed() => _unsupported.IsCompleted.ShouldBeTrue();

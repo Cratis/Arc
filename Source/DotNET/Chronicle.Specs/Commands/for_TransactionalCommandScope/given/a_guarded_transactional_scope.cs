@@ -18,6 +18,7 @@ public class a_guarded_transactional_scope : a_transactional_command_scope
         _unitOfWorkManager.Begin(Arg.Any<Cratis.Execution.CorrelationId>()).Returns(_unitOfWork);
         _registration = Substitute.For<IDisposable>();
         _unitOfWork.AddEnrollmentContributor(Arg.Any<IUnitOfWorkEnrollmentContributor>()).Returns(_registration);
+        _context = _context with { Type = typeof(Commands.given.a_generated_target.CreatesId), Command = new Commands.given.a_generated_target.CreatesId() };
         _handler = Substitute.For<ICommandHandler>();
         _handler.Parameters.Returns(typeof(Commands.given.a_generated_target.CreatesId).GetMethod("Handle")!.GetParameters());
         var providers = Substitute.For<ICommandHandlerProviders>();

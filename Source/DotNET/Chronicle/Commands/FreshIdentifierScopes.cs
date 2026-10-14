@@ -41,7 +41,15 @@ internal sealed class FreshIdentifierScopes(GeneratedValues captures)
     /// </summary>
     /// <param name="source">The append target.</param>
     /// <returns>Whether any guarded capture matches.</returns>
-    internal bool Matches(EventSourceId source) => captures.Any(capture =>
+    internal bool Matches(EventSourceId source) => MatchesOwnCapture(source) ||
+        (CommandTransaction.TryGetActive(out var unit) && TransactionalCommandScope.MatchesFreshIdentifier(unit, source));
+
+    /// <summary>
+    /// Matches only this invocation's captures, without traversing the active invocation chain.
+    /// </summary>
+    /// <param name="source">The append target.</param>
+    /// <returns>Whether this invocation captured the target with a guarded policy.</returns>
+    internal bool MatchesOwnCapture(EventSourceId source) => captures.Any(capture =>
         capture.Freshness == GeneratedValueFreshness.Guarded &&
         string.Equals(GeneratedIdentifierCanonicalizer.Canonicalize(capture.Value), source.Value, StringComparison.Ordinal));
 

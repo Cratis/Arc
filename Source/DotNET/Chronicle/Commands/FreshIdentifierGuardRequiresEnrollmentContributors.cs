@@ -7,5 +7,5 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// The exception that is thrown when a command with guarded generated values cannot protect direct unit-of-work writes.
 /// </summary>
 /// <param name="innerException">The unsupported enrollment contributor failure.</param>
-public class UnitOfWorkEnrollmentContributorsNotSupported(Exception innerException)
+public class FreshIdentifierGuardRequiresEnrollmentContributors(Exception innerException)
     : Exception("Commands with guarded [GeneratedValue] parameters require a unit of work that supports enrollment contributors (Chronicle 19.62.0 or later).", innerException);

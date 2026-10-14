@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
@@ -8,6 +9,7 @@ using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Validation;
+using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
 using Cratis.DependencyInjection;
@@ -36,6 +38,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 public class TransactionalCommandScope : ICommandOperationExecutionScope
 {
     static readonly AsyncLocal<TransactionFrame?> _frames = new();
+    static readonly ConcurrentDictionary<Type, bool> _guardedGeneratedParameters = new();
     static readonly ConditionalWeakTable<CommandContextValues, CommitObservation> _observations = new();
 
     /// <inheritdoc/>
@@ -84,6 +87,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         if (CommandTransaction.TryGetActive(out var activeUnit))
         {
             // A nested invocation owns its contributor registration, never the shared transaction.
+            frame.UnitOfWork = activeUnit;
             RegisterEnrollmentContributor(context, frame, activeUnit);
             return;
         }
@@ -114,6 +118,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
 
         CommandTransaction.Current = unitOfWork;
         frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
+        frame.UnitOfWork = unitOfWork;
         RegisterEnrollmentContributor(context, frame, unitOfWork);
     }
 
@@ -136,6 +141,25 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             frame.EnrollmentContributor?.Dispose();
             frame.EnrollmentContributor = null;
         }
+    }
+
+    /// <summary>
+    /// Matches live guarded captures from every active invocation sharing the command's unit.
+    /// </summary>
+    /// <param name="unit">The receiving unit of work.</param>
+    /// <param name="source">The append destination.</param>
+    /// <returns>Whether an active invocation captured that destination with a guarded policy.</returns>
+    internal static bool MatchesFreshIdentifier(IUnitOfWork unit, EventSourceId source)
+    {
+        for (var frame = ActiveFrame(); frame is not null; frame = frame.Previous)
+        {
+            if (!frame.Completed && ReferenceEquals(frame.UnitOfWork, unit) && frame.FreshIdentifiers.MatchesOwnCapture(source))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -291,9 +315,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
 
     static void RegisterEnrollmentContributor(CommandContext context, TransactionFrame frame, IUnitOfWork unit)
     {
-        var providers = context.ServiceProvider?.GetService<ICommandHandlerProviders>();
-        if (providers?.TryGetHandlerFor(context.Command, out var handler) != true ||
-            !handler.Parameters.Any(parameter => parameter.GetCustomAttribute<GeneratedValueAttribute>()?.Freshness == GeneratedValueFreshness.Guarded))
+        if (!HasGuardedGeneratedParameters(context))
         {
             return;
         }
@@ -302,10 +324,29 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         {
             frame.EnrollmentContributor = unit.AddEnrollmentContributor(new FreshIdentifierEnrollmentContributor(frame.FreshIdentifiers, unit));
         }
-        catch (Cratis.Chronicle.Transactions.UnitOfWorkEnrollmentContributorsNotSupported exception)
+        catch (UnitOfWorkEnrollmentContributorsNotSupported exception)
         {
-            throw new UnitOfWorkEnrollmentContributorsNotSupported(exception);
+            throw new FreshIdentifierGuardRequiresEnrollmentContributors(exception);
         }
+    }
+
+    static bool HasGuardedGeneratedParameters(CommandContext context)
+    {
+        if (_guardedGeneratedParameters.TryGetValue(context.Type, out var guarded))
+        {
+            return guarded;
+        }
+
+        var providers = context.ServiceProvider?.GetService<ICommandHandlerProviders>();
+        if (providers?.TryGetHandlerFor(context.Command, out var handler) != true)
+        {
+            return false;
+        }
+
+        return _guardedGeneratedParameters.GetOrAdd(
+            context.Type,
+            static (_, handler) => handler.Parameters.Any(parameter => parameter.GetCustomAttribute<GeneratedValueAttribute>()?.Freshness == GeneratedValueFreshness.Guarded),
+            handler);
     }
 
     static async Task CompleteStreams(TransactionFrame frame, CommandResult result)
@@ -346,6 +387,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public CommandContextValues Values { get; } = values;
         public TransactionFrame? Previous { get; } = previous;
         public OwnedTransaction? Owned { get; set; }
+        public IUnitOfWork? UnitOfWork { get; set; }
         public IDisposable? EnrollmentContributor { get; set; }
         public List<PendingStreamCompletion> Completions { get; } = [];
         public bool Completed { get; set; }

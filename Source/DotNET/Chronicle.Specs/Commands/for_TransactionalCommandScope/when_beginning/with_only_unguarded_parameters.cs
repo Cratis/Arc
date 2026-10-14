@@ -8,7 +8,11 @@ namespace Cratis.Arc.Chronicle.Commands.for_TransactionalCommandScope.when_begin
 
 public class with_only_unguarded_parameters : given.a_guarded_transactional_scope
 {
-    void Establish() => _handler.Parameters.Returns(typeof(Commands.given.a_generated_target.CreatesUnguardedId).GetMethod("Handle")!.GetParameters());
+    void Establish()
+    {
+        _context = _context with { Type = typeof(Commands.given.a_generated_target.CreatesUnguardedId), Command = new Commands.given.a_generated_target.CreatesUnguardedId() };
+        _handler.Parameters.Returns(_context.Type.GetMethod("Handle")!.GetParameters());
+    }
     async Task Because()
     {
         _scope.Begin(_context);
