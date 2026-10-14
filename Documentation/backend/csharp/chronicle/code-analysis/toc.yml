@@ -40,3 +40,5 @@
   href: ARCCHR0021.md
 - name: ARCCHR0022 - Command-key aggregate on a generated append target
   href: ARCCHR0022.md
+- name: ARCCHR0023 - Refusal branch must return registered events or acknowledge
+  href: ARCCHR0023.md
