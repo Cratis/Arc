@@ -144,6 +144,8 @@ These metadata attributes categorize and identify the appended events. Because t
 
 ### Event source definitions
 
+The [event source definition guide](./event-source-definitions.md) covers choosing the stream, stream ids, what the definition guards and migrating from strings; [scenarios](./event-source-definition-scenarios.md) and [how routing works](./event-source-definition-routing.md) go further. Chronicle's [event sources](/chronicle/event-sources/) page describes the definition itself, and its [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) pages explain the boundary the append is checked against.
+
 Use `[EventSource<TSource>]` when a command always appends through a registered Chronicle event source definition. The definition supplies the event source type, validates the optional stream name, records the definition in `EventContext.EventSource`, and supplies its concurrency dimensions unless a legacy `concurrency: true` attribute explicitly selects dimensions.
 
 ```csharp
