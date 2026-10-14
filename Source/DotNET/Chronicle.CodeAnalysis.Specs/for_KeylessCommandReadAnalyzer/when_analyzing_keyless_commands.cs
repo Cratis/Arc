@@ -36,6 +36,33 @@ public class when_analyzing_keyless_commands
         await Verify("[Command] public record Change { public State Provide() => new(new OwnerId(Guid.NewGuid())); public Changed Handle(State state) => new(); }");
 
     [Theory]
+    [InlineData("private")]
+    [InlineData("protected")]
+    [InlineData("internal")]
+    [InlineData("protected internal")]
+    [InlineData("private protected")]
+    public async Task should_not_warn_for_a_model_supplied_by_non_public_provide(string accessibility) =>
+        await Verify($"[Command] public record Change {{ {accessibility} State Provide() => new(new OwnerId(Guid.NewGuid())); public Changed Handle(State state) => new(); }}");
+
+    [Theory]
+    [InlineData("protected")]
+    [InlineData("internal")]
+    public async Task should_not_warn_for_a_model_supplied_by_inherited_non_public_provide(string accessibility) =>
+        await Verify($"public record Base {{ {accessibility} State Provide() => new(new OwnerId(Guid.NewGuid())); }} [Command] public record Change : Base {{ public Changed Handle(State state) => new(); }}");
+
+    [Fact]
+    public async Task should_warn_despite_an_inherited_private_provide() =>
+        await Verify("public record Base { private State Provide() => new(new OwnerId(Guid.NewGuid())); } [Command] public record Change : Base { public Changed Handle(State state) => new(); }", Warning());
+
+    [Fact]
+    public async Task should_warn_despite_a_static_provide() =>
+        await Verify("[Command] public record Change { public static State Provide() => new(new OwnerId(Guid.NewGuid())); public Changed Handle(State state) => new(); }", Warning());
+
+    [Fact]
+    public async Task should_warn_for_a_non_public_provide_parameter() =>
+        await Verify("[Command] public record Change { private Plain Provide(State state) => new(state.Id); public Changed Handle(Plain plain) => new(); }", Warning());
+
+    [Theory]
     [InlineData("OwnerId Id")]
     [InlineData("EventSourceId Id")]
     [InlineData("[Key] Guid Id")]

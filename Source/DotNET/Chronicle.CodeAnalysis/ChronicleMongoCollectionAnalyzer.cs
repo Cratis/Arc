@@ -35,7 +35,9 @@ public sealed class ChronicleMongoCollectionAnalyzer : DiagnosticAnalyzer
         var syntax = (ParameterSyntax)context.Node;
         if (syntax.Parent?.Parent is not BaseMethodDeclarationSyntax and not TypeDeclarationSyntax ||
             context.SemanticModel.GetDeclaredSymbol(syntax, context.CancellationToken) is not IParameterSymbol parameter ||
-            parameter.Type is not INamedTypeSymbol collection)
+            parameter.Type is not INamedTypeSymbol collection ||
+            parameter.ContainingSymbol is not IMethodSymbol method ||
+            !IsCommandInjection(method, context.Compilation))
         {
             return;
         }
@@ -51,5 +53,25 @@ public sealed class ChronicleMongoCollectionAnalyzer : DiagnosticAnalyzer
             DiagnosticSeverity.Info,
             parameter.Name,
             model.Name));
+    }
+
+    static bool IsCommandInjection(IMethodSymbol method, Compilation compilation)
+    {
+        if (RawGuidResponseAnalysis.HasAttribute(method.ContainingType, "Cratis.Arc.Commands.ModelBound.CommandAttribute", compilation))
+        {
+            return ChronicleStateSymbols.DependencyMethods(method.ContainingType).Contains(method, SymbolEqualityComparer.Default);
+        }
+        if (method.MethodKind != MethodKind.Constructor)
+        {
+            return false;
+        }
+        for (var current = method.ContainingType.BaseType; current is not null; current = current.BaseType)
+        {
+            if (RawGuidResponseAnalysis.IsType(current, "Cratis.Arc.Commands.CommandValidator`1", compilation))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

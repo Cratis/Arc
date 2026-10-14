@@ -73,7 +73,7 @@ internal static class ChronicleStateSymbols
         RawGuidResponseAnalysis.HandleMethods(type).Any(method => ProducesEvents(method.ReturnType, compilation));
 
     /// <summary>
-    /// Finds public instance dependency injection methods.
+    /// Finds public instance handlers and public or non-public instance providers.
     /// </summary>
     /// <param name="command">The command.</param>
     /// <returns>The handler and provider methods.</returns>
@@ -197,7 +197,8 @@ internal static class ChronicleStateSymbols
         for (var current = command; current is not null; current = current.BaseType)
         {
             foreach (var method in current.GetMembers("Provide").OfType<IMethodSymbol>().Where(method =>
-                method.DeclaredAccessibility == Accessibility.Public && !method.IsStatic && method.MethodKind == MethodKind.Ordinary))
+                !method.IsStatic && method.MethodKind == MethodKind.Ordinary &&
+                (SymbolEqualityComparer.Default.Equals(current, command) || method.DeclaredAccessibility != Accessibility.Private)))
             {
                 yield return method;
             }

@@ -22,19 +22,39 @@ public class when_analyzing_collection_dependencies
 
     [Fact]
     public async Task should_advise_for_a_constructor_dependency() =>
-        await Verify("public class Reader(MongoDB.Driver.IMongoCollection<State> states);", Info());
+        await Verify("[Command] public record Change { public Changed Handle() => new(); } public class Validator : Cratis.Arc.Commands.CommandValidator<Change> { public Validator(MongoDB.Driver.IMongoCollection<State> states) { } }", Info());
 
     [Fact]
     public async Task should_advise_for_a_fluent_projection_target() =>
-        await Verify("public record Projected(OwnerId Id); public class Projection : IProjectionFor<Projected> { public void Define(IProjectionBuilderFor<Projected> builder) => builder.From<Changed>(); } public class Reader(MongoDB.Driver.IMongoCollection<Projected> states);", Info());
+        await Verify("public record Projected(OwnerId Id); public class Projection : IProjectionFor<Projected> { public void Define(IProjectionBuilderFor<Projected> builder) => builder.From<Changed>(); } [Command] public record Change { public Changed Handle(MongoDB.Driver.IMongoCollection<Projected> states) => new(); }", Info());
 
     [Fact]
     public async Task should_advise_for_a_reducer_target() =>
-        await Verify("public record Reduced(OwnerId Id); public class Reducer : IReducerFor<Reduced>; public class Reader(MongoDB.Driver.IMongoCollection<Reduced> states);", Info());
+        await Verify("public record Reduced(OwnerId Id); public class Reducer : IReducerFor<Reduced>; [Command] public record Change { public Changed Handle(MongoDB.Driver.IMongoCollection<Reduced> states) => new(); }", Info());
 
     [Fact]
     public async Task should_advise_for_a_self_reducing_model() =>
-        await Verify("public record Reduced(OwnerId Id) { public static Reduced Reduce(Changed @event, Reduced? current) => new(new OwnerId(Guid.NewGuid())); } public class Reader(MongoDB.Driver.IMongoCollection<Reduced> states);", Info());
+        await Verify("public record Reduced(OwnerId Id) { public static Reduced Reduce(Changed @event, Reduced? current) => new(new OwnerId(Guid.NewGuid())); } [Command] public record Change { public Changed Handle(MongoDB.Driver.IMongoCollection<Reduced> states) => new(); }", Info());
+
+    [Fact]
+    public async Task should_advise_for_a_validator_primary_constructor() =>
+        await Verify("[Command] public record Change { public Changed Handle() => new(); } public class Validator(MongoDB.Driver.IMongoCollection<State> states) : Cratis.Arc.Commands.CommandValidator<Change>;", Info());
+
+    [Fact]
+    public async Task should_advise_for_a_non_public_provide_dependency() =>
+        await Verify("[Command] public record Change { State Provide(MongoDB.Driver.IMongoCollection<State> states) => new(new OwnerId(Guid.NewGuid())); public Changed Handle(State state) => new(); }", Info());
+
+    [Theory]
+    [InlineData("[Cratis.Arc.Queries.ModelBound.ReadModel] public record Query { public static State Read(MongoDB.Driver.IMongoCollection<State> states) => new(new OwnerId(Guid.NewGuid())); }")]
+    [InlineData("[Cratis.Arc.Queries.ModelBound.ReadModel] public class Query(MongoDB.Driver.IMongoCollection<State> states);")]
+    [InlineData("public class Reader(MongoDB.Driver.IMongoCollection<State> states);")]
+    [InlineData("public class Reader { public State Read(MongoDB.Driver.IMongoCollection<State> states) => new(new OwnerId(Guid.NewGuid())); }")]
+    [InlineData("[Command] public record Change { public Changed Handle() => new(); public void Helper(MongoDB.Driver.IMongoCollection<State> states) { } }")]
+    [InlineData("[Command] public record Change(MongoDB.Driver.IMongoCollection<State> states) { public Changed Handle() => new(); }")]
+    [InlineData("[Command] public record Change { public Changed Handle() => new(); public static State Provide(MongoDB.Driver.IMongoCollection<State> states) => new(new OwnerId(Guid.NewGuid())); }")]
+    [InlineData("[Command] public record Change { public Changed Handle() => new(); } public class Validator : Cratis.Arc.Commands.CommandValidator<Change> { public void Check(MongoDB.Driver.IMongoCollection<State> states) { } }")]
+    public async Task should_ignore_parameters_outside_command_injection_sites(string source) =>
+        await Verify(source);
 
     [Fact]
     public async Task should_ignore_an_ordinary_mongo_model() =>

@@ -45,6 +45,45 @@ public class when_analyzing_lookup_keys
     public async Task should_ignore_explicitly_provided_models() =>
         await Verify("[Command] public record Change(OwnerId Owner) { public MemberState Provide() => new(new MemberId(Guid.NewGuid())); public Changed Handle(MemberState state) => new(); }");
 
+    [Theory]
+    [InlineData("private")]
+    [InlineData("protected")]
+    [InlineData("internal")]
+    [InlineData("protected internal")]
+    [InlineData("private protected")]
+    public async Task should_ignore_models_supplied_by_non_public_provide(string accessibility) =>
+        await Verify($"[Command] public record Change(OwnerId Owner) {{ {accessibility} MemberState Provide() => new(new MemberId(Guid.NewGuid())); public Changed Handle(MemberState state) => new(); }}");
+
+    [Theory]
+    [InlineData("protected")]
+    [InlineData("internal")]
+    public async Task should_ignore_models_supplied_by_inherited_non_public_provide(string accessibility) =>
+        await Verify($"public record Base {{ {accessibility} MemberState Provide() => new(new MemberId(Guid.NewGuid())); }} [Command] public record Change(OwnerId Owner) : Base {{ public Changed Handle(MemberState state) => new(); }}");
+
+    [Fact]
+    public async Task should_not_treat_an_inherited_private_provide_as_eligible() =>
+        await Verify("public record Base { private MemberState Provide() => new(new MemberId(Guid.NewGuid())); } [Command] public record Change(OwnerId Owner) : Base { public Changed Handle(MemberState state) => new(); }", Info());
+
+    [Fact]
+    public async Task should_not_treat_a_static_provide_as_eligible() =>
+        await Verify("[Command] public record Change(OwnerId Owner) { public static MemberState Provide() => new(new MemberId(Guid.NewGuid())); public Changed Handle(MemberState state) => new(); }", Info());
+
+    [Fact]
+    public async Task should_report_models_in_non_public_provide() =>
+        await Verify("[Command] public record Change(OwnerId Owner) { private Plain Provide(MemberState state) => new(Owner); public Changed Handle(Plain plain) => new(); }", Info());
+
+    [Fact]
+    public async Task should_not_report_different_models_resolving_the_same_key() =>
+        await Verify("[FromEvent<Changed>] public record OtherState([property: Key] OwnerId Id); [Command] public record Change(OwnerId Owner) { public Changed Handle(State first, OtherState second) => new(); }");
+
+    [Fact]
+    public async Task should_not_report_different_models_matching_one_distinguishing_property() =>
+        await Verify("[FromEvent<Changed>] public record OtherMemberState([property: Key] MemberId Id); [Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState first, OtherMemberState second) => new(); }");
+
+    [Fact]
+    public async Task should_report_repeated_models_matching_one_distinguishing_property() =>
+        await Verify("[Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState first, MemberState second) => new(); }", Info().WithArguments("second", "first", "Member"));
+
     [Fact]
     public async Task should_report_models_in_provide() =>
         await Verify("[Command] public record Change(OwnerId Owner) { public Plain Provide(MemberState state) => new(Owner); public Changed Handle(Plain plain) => new(); }", Info());

@@ -55,7 +55,7 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
         IMethodSymbol method,
         Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
     {
-        var resolved = new Dictionary<IPropertySymbol, IParameterSymbol>(SymbolEqualityComparer.Default);
+        var resolvedByModel = new Dictionary<ITypeSymbol, Dictionary<IPropertySymbol, IParameterSymbol>>(SymbolEqualityComparer.Default);
         foreach (var parameter in method.Parameters.Where(parameter =>
             parameter.Locations.Any(location => location.IsInSource) &&
             !ChronicleStateSymbols.IsKeyedService(parameter, context.Compilation) &&
@@ -79,6 +79,11 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
                 continue;
             }
             var lookupKey = distinguishing ? matches[0] : commandKey;
+            if (!resolvedByModel.TryGetValue(parameter.Type, out var resolved))
+            {
+                resolved = new Dictionary<IPropertySymbol, IParameterSymbol>(SymbolEqualityComparer.Default);
+                resolvedByModel.Add(parameter.Type, resolved);
+            }
             if (resolved.TryGetValue(lookupKey, out var first))
             {
                 Report(context, parameter, command, DiagnosticSeverity.Info, $"this parameter and '{first.Name}' infer the same command key '{lookupKey.Name}'; whether this is intentional is not proven");
