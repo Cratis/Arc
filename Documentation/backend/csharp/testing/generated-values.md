@@ -271,6 +271,13 @@ contract. Non-default strategies need an ESM v15 cap or later, and Screenplay v1
 generated identifier whose event source already has facts. These checks do not add strategy-shape
 validation to Arc's runtime pins, which use normal concept validation.
 
+A literal pin does not supply a missing generation strategy. When the factory is unrecoverable
+(`SP0073`), a scenario pinning that value is withheld whole with `SP0039`; no fixture is emitted against
+an invented caller parameter or UUID strategy. Successful scenarios are also withheld when their command
+loses an event production, including dependent event, response and route assertions. A provably independent
+pre-generation rejection scenario can remain. These omissions apply in authoring-only output and under
+version caps too; they do not prevent your original Arc specs from pinning a custom factory.
+
 ## Next steps
 
 - [Migrate generated identifiers](../../../upgrading/generated-values.mdx) when a handler still calls `New()` inside `Handle()`.

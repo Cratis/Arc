@@ -286,6 +286,21 @@ Arc checks generated declarations in the IDE and at compile time:
 [ARC0028](../code-analysis/ARC0028.md) offers migration from inline generation to a parameter.
 Startup validation remains in place for commands compiled without the analyzers.
 
+## Custom factories in a generated model
+
+Arc executes your concept's generation contract at runtime; Screenplay recovery recognizes only the
+[documented factory forms](../generating-a-screenplay.md#recovering-generation-strategies). A custom
+helper, multi-statement factory or context-member calculation can be valid Arc code without a recoverable
+Screenplay strategy. `SP0073` names that limitation; it does not change your runtime factory or make the
+value caller-supplied.
+
+The generated model keeps independent parameters and behavior. It withholds a whole event production
+when a required payload member or explicit destination depends on the opaque value; an optional payload
+dependency removes only that mapping. Dependent responses and operations stay in code too. When no event
+production remains, the model keeps a handler file reference, which is not executable Screenplay behavior.
+Enabling authoring-only constructs or raising the executable version cap does not recover an unknown
+factory. Keep the original handler and use the diagnostics to identify what the partial model cannot run.
+
 ## Next steps
 
 - [Pin generated values in command specs](../testing/generated-values.md) so a spec can choose the value or assert its time part.
