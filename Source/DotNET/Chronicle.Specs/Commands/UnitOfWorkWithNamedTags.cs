@@ -26,6 +26,7 @@ public abstract class UnitOfWorkWithNamedTags : IUnitOfWork
     public abstract void AddEvent(EventSequenceId eventSequenceId, EventSourceId eventSourceId, object @event, Causation causation, EventStreamType? eventStreamType = default, EventStreamId? eventStreamId = default, EventSourceType? eventSourceType = default, ConcurrencyScope? concurrencyScope = default, IEnumerable<string>? tags = default, DateTimeOffset? occurred = default, Subject? subject = default);
     public abstract void AddEventWithNamedTags(EventSequenceId eventSequenceId, EventSourceId eventSourceId, object @event, IEnumerable<NamedTag> namedTags, Causation causation, EventStreamType? eventStreamType = default, EventStreamId? eventStreamId = default, EventSourceType? eventSourceType = default, ConcurrencyScope? concurrencyScope = default, IEnumerable<string>? tags = default, DateTimeOffset? occurred = default, Subject? subject = default);
     public abstract void AddEvents(EventSequenceId eventSequenceId, IEnumerable<EventForEventSourceId> events, IEnumerable<KeyValuePair<EventSourceId, ConcurrencyScope>> concurrencyScopes);
+    public abstract IDisposable AddEnrollmentContributor(IUnitOfWorkEnrollmentContributor contributor);
     public abstract void AddDecisionRead(IDecisionRead read);
     public abstract IEnumerable<DecisionConflict> GetDecisionConflicts();
     public abstract IEnumerable<object> GetEvents();
