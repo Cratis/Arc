@@ -9,18 +9,19 @@ using Microsoft.CodeAnalysis.Diagnostics;
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
 
 /// <summary>
-/// Validates consistency declarations using the same lookup and precedence rules as the runtime.
+/// Validates read-protection declarations using the shared runtime declaration policy.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
 {
-    static readonly DiagnosticDescriptor _profileConflict = new("ARCCHR0029", "Conflicting command profile", "Command '{0}' has conflicting protection declarations: {1}", "Arc.Chronicle", DiagnosticSeverity.Error, true);
-    static readonly DiagnosticDescriptor _readConflict = new("ARCCHR0030", "Conflicting read policy", "Command '{0}' declares both Unprotected and Consistency at one read-policy level", "Arc.Chronicle", DiagnosticSeverity.Error, true);
-    static readonly DiagnosticDescriptor _invalidLookup = new("ARCCHR0031", "Invalid read-model lookup", "LookUpBy on '{0}' requires a read-model parameter and an existing command property", "Arc.Chronicle", DiagnosticSeverity.Error, true);
-    static readonly DiagnosticDescriptor _inertDeclaration = new("ARCCHR0032", "Inert consistency declaration", "Declaration on protected command '{0}' is inert: {1}", "Arc.Chronicle", DiagnosticSeverity.Info, true);
-
     /// <inheritdoc/>
-    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [_profileConflict, _readConflict, _invalidLookup, _inertDeclaration];
+    public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
+        [DiagnosticDescriptors.ARCCHR0029_ProtectedAndUnprotected,
+         DiagnosticDescriptors.ARCCHR0029_ReadProtectionAndUnprotected,
+         DiagnosticDescriptors.ARCCHR0031_MissingLookupProperty,
+         DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel,
+         DiagnosticDescriptors.ARCCHR0031_LookupKeyTypeMismatch,
+         DiagnosticDescriptors.ARCCHR0032_InertReadProtection];
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -31,7 +32,6 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         {
             var backedTypes = new Lazy<ImmutableHashSet<INamedTypeSymbol>>(() => ChronicleStateSymbols.BackedTypes(start.Compilation));
             start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
-            start.RegisterSymbolAction(AnalyzeMethod, SymbolKind.Method);
             start.RegisterSymbolAction(_ => AnalyzeParameter(_, backedTypes), SymbolKind.Parameter);
         });
     }
@@ -40,25 +40,30 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
     {
         var type = (INamedTypeSymbol)context.Symbol;
         var profile = CommandAttributeSymbols.ResolveCommand(type);
-        if (profile.Conflict is { } conflict)
+        if (profile.Conflict == AttributePrecedencePolicy.ProtectionConflict)
         {
-            context.ReportDiagnostic(Diagnostic.Create(_profileConflict, type.Locations.FirstOrDefault(), type.Name, conflict));
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0029_ProtectedAndUnprotected, type.Locations.FirstOrDefault(), type.Name));
+        }
+        else if (profile.Conflict == AttributePrecedencePolicy.ReadProtectionConflict)
+        {
+            var mode = CommandAttributeSymbols.Find(type, AttributePrecedencePolicy.ReadProtectionName)?.ConstructorArguments.FirstOrDefault().Value;
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0029_ReadProtectionAndUnprotected, type.Locations.FirstOrDefault(), type.Name, mode is 1 ? "Measure" : "On"));
         }
 
-        ReportInert(context, type, type);
-    }
-
-    static void AnalyzeMethod(SymbolAnalysisContext context)
-    {
-        var method = (IMethodSymbol)context.Symbol;
-        if (method.Name is not ("Handle" or "Provide"))
+        var declaration = type.GetAttributes().FirstOrDefault(_ => _.AttributeClass?.ToDisplayString() == AttributePrecedencePolicy.ReadProtectionName);
+        if (declaration is null)
         {
             return;
         }
 
-        var command = method.ContainingType;
-        ReportInert(context, command, method);
-        ReportReadConflict(context, command, CommandAttributeSymbols.ResolveRead(command, command, method).Conflict);
+        if (!IsCommand(type))
+        {
+            ReportInert(context, type, "ReadProtection applies only to commands or assemblies");
+        }
+        else if (profile.Mode == 1 && declaration.ConstructorArguments.FirstOrDefault().Value is 0 or 2)
+        {
+            ReportInert(context, type, "ReadProtection Off or On is redundant on a ProtectedDecision command");
+        }
     }
 
     static void AnalyzeParameter(SymbolAnalysisContext context, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
@@ -69,29 +74,45 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var command = method.ContainingType;
-        if (CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName) is not null &&
-            CommandAttributeSymbols.ResolveLookup(command, parameter, MayBeReadModel(parameter.Type, context.Compilation, backedTypes)).Conflict is not null)
+        var mayBeModel = MayBeReadModel(parameter.Type, context.Compilation, backedTypes);
+        if (parameter.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == AttributePrecedencePolicy.UnprotectedName) && !mayBeModel)
         {
-            context.ReportDiagnostic(Diagnostic.Create(_invalidLookup, parameter.Locations.FirstOrDefault(), command.Name));
+            ReportInert(context, parameter, "Unprotected has no effect on a non-read-model parameter");
         }
 
-        if (method.Name is not ("Handle" or "Provide"))
+        var lookup = CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName);
+        if (lookup?.ConstructorArguments.FirstOrDefault().Value is not string propertyName)
         {
             return;
         }
 
-        ReportInert(context, command, parameter);
-        if (parameter.Type is INamedTypeSymbol model)
+        var command = method.ContainingType;
+        var resolution = CommandAttributeSymbols.ResolveLookup(command, parameter, mayBeModel);
+        if (!mayBeModel)
         {
-            ReportReadConflict(context, command, CommandAttributeSymbols.ResolveRead(command, model, method, parameter).Conflict);
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupOnNonReadModel, parameter.Locations.FirstOrDefault(), parameter.Name, parameter.Type.Name));
+            return;
+        }
+
+        var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
+        if (resolution.Conflict is not null)
+        {
+            var suggestion = properties.OrderBy(_ => EditDistance(propertyName, _.Name)).ThenBy(_ => _.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
+            var diagnosticProperties = ImmutableDictionary<string, string?>.Empty.Add("SuggestedProperty", suggestion);
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_MissingLookupProperty, parameter.Locations.FirstOrDefault(), diagnosticProperties, parameter.Name, propertyName, command.Name, suggestion ?? "an existing command property"));
+            return;
+        }
+
+        var property = properties.First(_ => _.Name == propertyName);
+        var modelKey = parameter.Type is INamedTypeSymbol model ? ChronicleStateSymbols.ModelKey(model, context.Compilation) : null;
+        if (modelKey is not null && !SymbolEqualityComparer.Default.Equals(property.Type, modelKey.Type))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupKeyTypeMismatch, parameter.Locations.FirstOrDefault(), parameter.Name, property.Name, property.Type.Name, parameter.Type.Name, modelKey.Type.Name));
         }
     }
 
     /// <summary>
-    /// Treats a model as a possible read model unless it is provably not one. Projection and reducer
-    /// targets can be declared in referenced projects the analyzer cannot scan, so unseen backing is not
-    /// proof; the runtime check validates those lookups.
+    /// Allows unseen domain models because a projection or reducer in another project may back them.
     /// </summary>
     /// <param name="type">The parameter type.</param>
     /// <param name="compilation">The compilation.</param>
@@ -103,32 +124,30 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
     static bool IsProvablyNotReadModel(ITypeSymbol type) =>
         type.SpecialType != SpecialType.None ||
         type.TypeKind is TypeKind.Enum or TypeKind.Delegate or TypeKind.Array or TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic ||
-        type.ContainingNamespace?.ToDisplayString() is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal) || ns == "Microsoft" || ns.StartsWith("Microsoft.", StringComparison.Ordinal));
+        (type.ContainingNamespace?.ToDisplayString() is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal) || ns == "Microsoft" || ns.StartsWith("Microsoft.", StringComparison.Ordinal)));
 
-    static void ReportReadConflict(SymbolAnalysisContext context, INamedTypeSymbol command, string? conflict)
+    static bool IsCommand(INamedTypeSymbol type) =>
+        CommandAttributeSymbols.Find(type, "Cratis.Arc.Commands.ModelBound.CommandAttribute") is not null ||
+        RawGuidResponseAnalysis.HandleMethods(type).Any();
+
+    static void ReportInert(SymbolAnalysisContext context, ISymbol symbol, string reason) =>
+        context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0032_InertReadProtection, symbol.Locations.FirstOrDefault(), symbol.Name, reason));
+
+    static int EditDistance(string left, string right)
     {
-        if (conflict is not null)
+        var row = Enumerable.Range(0, right.Length + 1).ToArray();
+        for (var i = 1; i <= left.Length; i++)
         {
-            context.ReportDiagnostic(Diagnostic.Create(_readConflict, context.Symbol.Locations.FirstOrDefault(), command.Name));
-        }
-    }
-
-    static void ReportInert(SymbolAnalysisContext context, INamedTypeSymbol command, ISymbol declaration)
-    {
-        if (CommandAttributeSymbols.ResolveCommand(command).Mode != 1)
-        {
-            return;
-        }
-
-        if (declaration.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == AttributePrecedencePolicy.ConsistencyName))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(_inertDeclaration, declaration.Locations.FirstOrDefault(), command.Name, "Consistency does not change protected decision reads"));
+            var diagonal = row[0];
+            row[0] = i;
+            for (var j = 1; j <= right.Length; j++)
+            {
+                var previous = row[j];
+                row[j] = Math.Min(Math.Min(row[j] + 1, row[j - 1] + 1), diagonal + (left[i - 1] == right[j - 1] ? 0 : 1));
+                diagonal = previous;
+            }
         }
 
-        if (declaration is INamedTypeSymbol && declaration.GetAttributes().Any(_ =>
-            _.AttributeClass?.ToDisplayString() == AttributePrecedencePolicy.KeyGuardName && _.ConstructorArguments.FirstOrDefault().Value is 0))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(_inertDeclaration, declaration.Locations.FirstOrDefault(), command.Name, "KeyGuard Off is redundant"));
-        }
+        return row[right.Length];
     }
 }

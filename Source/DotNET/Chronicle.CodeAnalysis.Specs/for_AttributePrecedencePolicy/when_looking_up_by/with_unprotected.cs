@@ -12,7 +12,7 @@ public class with_unprotected : given.a_declaration
         _action = "lookup";
         _source = """
             public class Model;
-            [KeyGuard(KeyGuardMode.On)] public class Command { public string Key { get; } = "key"; public void Handle([Unprotected, LookUpBy(nameof(Key))] Model model) { } }
+            [ReadProtection(ReadProtectionMode.On)] public class Command { public string Key { get; } = "key"; public void Handle([Unprotected, LookUpBy(nameof(Key))] Model model) { } }
             """;
     }
 
@@ -20,6 +20,6 @@ public class with_unprotected : given.a_declaration
 
     [Fact] void should_resolve_by_reflection() => _runtime.ShouldEqual("Key");
     [Fact] void should_resolve_by_roslyn() => _roslyn.ShouldEqual("Key");
-    [Fact] void should_keep_the_reflected_read_advisory() => _runtimeRead.ShouldEqual("2:False:");
-    [Fact] void should_keep_the_symbol_read_advisory() => _roslynRead.ShouldEqual("2:False:");
+    [Fact] void should_keep_the_reflected_read_advisory() => _runtimeRead.ShouldEqual("True:False");
+    [Fact] void should_keep_the_symbol_read_advisory() => _roslynRead.ShouldEqual("True:False");
 }

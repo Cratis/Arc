@@ -19,5 +19,5 @@ public class when_a_lookup_targets_a_non_read_model
         using Cratis.Chronicle.Projections.ModelBound;
         public class Command { public string Key { get; } = "key"; public void Handle([LookUpBy(nameof(Key))] string model) { } }
         """,
-        AnalyzerVerifier<CommandAttributeAnalyzer>.Diagnostic("ARCCHR0031").WithSeverity(DiagnosticSeverity.Error));
+        new ExpectedDiagnostic("ARCCHR0031", DiagnosticSeverity.Error, "parameter 'model'", "'String' is not a read-model type"));
 }

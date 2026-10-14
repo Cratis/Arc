@@ -311,5 +311,83 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "This advisory recognizes IMongoCollection<T> parameters where T has Chronicle model-bound projection metadata, a source-declared projection or reducer, or a recognizable self-reduction. It does not inspect queries or prove runtime dataflow.");
 
+    /// <summary>
+    /// ARCCHR0029: Conflicting protected and advisory command declarations.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0029_ProtectedAndUnprotected = new(
+        id: "ARCCHR0029",
+        title: "Conflicting read protection",
+        messageFormat: "Command '{0}' declares both ProtectedDecision and Unprotected. Remove one of these declarations.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Protected decisions cannot also be declared advisory on the same command, including inherited declarations.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0029");
+
+    /// <summary>
+    /// ARCCHR0029: Explicit read protection conflicts with a command opt-out.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0029_ReadProtectionAndUnprotected = new(
+        id: "ARCCHR0029",
+        title: "Conflicting read protection",
+        messageFormat: "Command '{0}' declares both ReadProtection({1}) and Unprotected. Remove one of these declarations.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "An explicit command-level On or Measure declaration cannot be combined with a command-level advisory opt-out. An assembly rollout may be overridden by Unprotected.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0029");
+
+    /// <summary>
+    /// ARCCHR0031: Lookup refers to a missing command property.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0031_MissingLookupProperty = new(
+        id: "ARCCHR0031",
+        title: "Invalid read-model lookup",
+        messageFormat: "LookUpBy on parameter '{0}' names missing public instance property '{1}' on command '{2}'. Check the property name (did you mean '{3}') and use nameof for the property.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "LookUpBy must name an existing public instance command property. A suggested property can be converted to nameof by the code fix.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0031");
+
+    /// <summary>
+    /// ARCCHR0031: Lookup is declared on a parameter proven not to be a read model.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0031_LookupOnNonReadModel = new(
+        id: "ARCCHR0031",
+        title: "Invalid read-model lookup",
+        messageFormat: "LookUpBy on parameter '{0}' requires a read model, but '{1}' is not a read-model type. Remove LookUpBy or inject a read model.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Only provably non-model types are reported; backing declared in another project need not be visible to the analyzer.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0031");
+
+    /// <summary>
+    /// ARCCHR0031: Lookup property and model key types differ.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0031_LookupKeyTypeMismatch = new(
+        id: "ARCCHR0031",
+        title: "Invalid read-model lookup",
+        messageFormat: "LookUpBy on parameter '{0}' selects property '{1}' of type '{2}', but read model '{3}' has key type '{4}'. Select a property of the model key type.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "When the model key is statically known, the explicit lookup property must have the same type.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0031");
+
+    /// <summary>
+    /// ARCCHR0032: A declaration is inert or redundant.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0032_InertReadProtection = new(
+        id: "ARCCHR0032",
+        title: "Inert or redundant read-protection declaration",
+        messageFormat: "Declaration on '{0}' is inert or redundant: {1}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "ReadProtection on a non-command type and Unprotected on a provably non-model parameter have no effect. Off and On declarations on ProtectedDecision commands are redundant.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0032");
+
     const string Category = "Arc.Chronicle";
 }

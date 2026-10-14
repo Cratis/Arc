@@ -10,17 +10,12 @@ namespace Cratis.Arc.Commands;
 internal static class AttributePrecedencePolicy
 {
     /// <summary>
-    /// Metadata name of the key guard declaration.
+    /// Metadata name of the read-protection declaration.
     /// </summary>
-    internal const string KeyGuardName = "Cratis.Arc.Commands.KeyGuardAttribute";
+    internal const string ReadProtectionName = "Cratis.Arc.Commands.ReadProtectionAttribute";
 
     /// <summary>
-    /// Metadata name of the consistency declaration.
-    /// </summary>
-    internal const string ConsistencyName = "Cratis.Arc.Commands.ConsistencyAttribute";
-
-    /// <summary>
-    /// Metadata name of the lookup declaration.
+    /// Metadata name of the explicit lookup declaration.
     /// </summary>
     internal const string LookUpByName = "Cratis.Arc.Commands.LookUpByAttribute";
 
@@ -35,79 +30,58 @@ internal static class AttributePrecedencePolicy
     internal const string ProtectedName = "Cratis.Arc.Chronicle.ReadModels.ProtectedDecisionAttribute";
 
     /// <summary>
-    /// Identifies conflicting protection declarations.
+    /// Identifies incompatible protected and advisory command declarations.
     /// </summary>
     internal const string ProtectionConflict = "CommandCannotBeBothProtectedAndUnprotected";
 
     /// <summary>
-    /// Identifies a key guard declaration conflicting with a protection declaration.
+    /// Identifies an explicit rollout declaration conflicting with a command opt-out.
     /// </summary>
-    internal const string KeyGuardConflict = "CommandCannotCombineProtectedDecisionAndKeyGuard";
+    internal const string ReadProtectionConflict = "ConflictingReadProtection";
 
     /// <summary>
-    /// Identifies conflicting declarations at one read-policy level.
-    /// </summary>
-    internal const string ReadConflict = "ConflictingReadPolicy";
-
-    /// <summary>
-    /// Identifies a lookup that cannot be resolved.
+    /// Identifies an invalid explicit lookup declaration.
     /// </summary>
     internal const string LookupConflict = "InvalidLookUpBy";
 
     /// <summary>
-    /// Resolves the command profile, preserving protection declarations over assembly rollout settings.
+    /// Resolves the existing decision profile and the independent read-protection rollout mode.
     /// </summary>
     /// <param name="isProtected">Whether the command declares protected decisions.</param>
     /// <param name="isUnprotected">Whether the command declares advisory decisions.</param>
-    /// <param name="commandKeyGuard">The inherited command declaration.</param>
-    /// <param name="assemblyKeyGuard">The command assembly declaration.</param>
-    /// <param name="hostDefault">The host fallback, Off by default.</param>
-    /// <returns>The decision mode, guard mode and declaration conflict.</returns>
-    internal static (int Mode, int KeyGuard, string? Conflict) ResolveCommand(
+    /// <param name="commandReadProtection">The inherited command declaration.</param>
+    /// <param name="assemblyReadProtection">The command assembly declaration.</param>
+    /// <returns>The decision mode, read-protection mode and declaration conflict.</returns>
+    internal static (int Mode, int ReadProtection, string? Conflict) ResolveCommand(
         bool isProtected,
         bool isUnprotected,
-        int? commandKeyGuard,
-        int? assemblyKeyGuard,
-        int hostDefault = 0)
+        int? commandReadProtection,
+        int? assemblyReadProtection)
     {
         var mode = isProtected ? 1 : isUnprotected ? 2 : 0;
         var conflict = isProtected && isUnprotected
             ? ProtectionConflict
-            : (isProtected || isUnprotected) && commandKeyGuard is 1 or 2 ? KeyGuardConflict : null;
-        var keyGuard = isProtected || isUnprotected ? 0 : commandKeyGuard ?? assemblyKeyGuard ?? hostDefault;
-        return (mode, keyGuard, conflict);
+            : isUnprotected && commandReadProtection is 1 or 2 ? ReadProtectionConflict : null;
+        var readProtection = isUnprotected ? 0 : commandReadProtection ?? assemblyReadProtection ?? 0;
+        return (mode, readProtection, conflict);
     }
 
     /// <summary>
-    /// Resolves the nearest read declaration only while the key guard is On.
+    /// Records parameter/model advisory declarations separately from method-body opt-outs.
+    /// No reads or guards are executed by this policy.
     /// </summary>
-    /// <param name="keyGuard">The resolved guard mode.</param>
-    /// <param name="levels">Declarations ordered from nearest to farthest.</param>
-    /// <returns>The read policy, whether it contributes a guard label, and any conflict.</returns>
-    internal static (int Policy, bool Label, string? Conflict) ResolveRead(
-        int keyGuard,
-        IEnumerable<(bool Unprotected, int? Consistency)> levels)
-    {
-        if (keyGuard != 2)
-        {
-            return (0, false, null);
-        }
-
-        foreach (var level in levels.Where(_ => _.Unprotected || _.Consistency.HasValue))
-        {
-            if (level.Unprotected && level.Consistency.HasValue)
-            {
-                return (0, false, ReadConflict);
-            }
-
-            return level.Unprotected ? (2, false, null) : (level.Consistency!.Value, true, null);
-        }
-
-        return (1, true, null);
-    }
+    /// <param name="parameterUnprotected">Whether the injected parameter is advisory.</param>
+    /// <param name="modelUnprotected">Whether the read-model type is advisory.</param>
+    /// <param name="methodUnprotected">Whether reads in the method body are advisory.</param>
+    /// <returns>The parameter's advisory status and the method-body declaration.</returns>
+    internal static (bool Advisory, bool MethodBodyUnprotected) ResolveRead(
+        bool parameterUnprotected,
+        bool modelUnprotected,
+        bool methodUnprotected) =>
+        (parameterUnprotected || modelUnprotected, methodUnprotected);
 
     /// <summary>
-    /// Validates the independent explicit lookup axis in every guard mode.
+    /// Validates the independent explicit lookup axis in every read-protection mode.
     /// </summary>
     /// <param name="property">The declared property, or null without a declaration.</param>
     /// <param name="isReadModel">Whether the parameter is a read model.</param>

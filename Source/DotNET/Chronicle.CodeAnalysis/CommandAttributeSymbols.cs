@@ -15,29 +15,29 @@ internal static class CommandAttributeSymbols
     /// Resolves the inherited command and command-assembly declarations.
     /// </summary>
     /// <param name="commandType">The constructed command symbol.</param>
-    /// <param name="hostDefault">The fallback guard mode.</param>
     /// <returns>The shared profile resolution.</returns>
-    internal static (int Mode, int KeyGuard, string? Conflict) ResolveCommand(INamedTypeSymbol commandType, int hostDefault = 0) =>
+    internal static (int Mode, int ReadProtection, string? Conflict) ResolveCommand(INamedTypeSymbol commandType) =>
         AttributePrecedencePolicy.ResolveCommand(
             Find(commandType, AttributePrecedencePolicy.ProtectedName) is not null,
             HasUnprotected(commandType),
-            Value(Find(commandType, AttributePrecedencePolicy.KeyGuardName)),
-            Value(Find(commandType.ContainingAssembly, AttributePrecedencePolicy.KeyGuardName)),
-            hostDefault);
+            Value(Find(commandType, AttributePrecedencePolicy.ReadProtectionName)),
+            Value(Find(commandType.ContainingAssembly, AttributePrecedencePolicy.ReadProtectionName)));
 
     /// <summary>
-    /// Resolves a parameter read or an ambient method read without executing it.
+    /// Records parameter advisory status and method-body declarations without executing reads.
     /// </summary>
-    /// <param name="commandType">The command symbol.</param>
     /// <param name="readModelType">The constructed read-model symbol.</param>
     /// <param name="method">The ambient Handle or Provide method, when applicable.</param>
     /// <param name="parameter">The injected parameter, when applicable.</param>
-    /// <returns>The shared read resolution.</returns>
-    internal static (int Policy, bool Label, string? Conflict) ResolveRead(INamedTypeSymbol commandType, INamedTypeSymbol readModelType, IMethodSymbol? method = null, IParameterSymbol? parameter = null) =>
-        AttributePrecedencePolicy.ResolveRead(ResolveCommand(commandType).KeyGuard, ReadLevels(commandType, readModelType, method, parameter));
+    /// <returns>The shared read declarations.</returns>
+    internal static (bool Advisory, bool MethodBodyUnprotected) ResolveRead(INamedTypeSymbol readModelType, IMethodSymbol? method = null, IParameterSymbol? parameter = null) =>
+        AttributePrecedencePolicy.ResolveRead(
+            parameter is not null && HasUnprotected(parameter),
+            HasUnprotected(readModelType),
+            method is not null && HasUnprotected(method));
 
     /// <summary>
-    /// Resolves the inherited lookup declaration independently of read consistency.
+    /// Resolves the inherited lookup declaration independently of read protection.
     /// </summary>
     /// <param name="commandType">The command symbol.</param>
     /// <param name="parameter">The injected parameter.</param>
@@ -47,7 +47,7 @@ internal static class CommandAttributeSymbols
     {
         var attribute = Find(parameter, AttributePrecedencePolicy.LookUpByName);
         var property = attribute?.ConstructorArguments.FirstOrDefault().Value as string;
-        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => HasProperty(commandType, name));
+        return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => PublicProperties(commandType).Any(_ => _.Name == name));
     }
 
     /// <summary>
@@ -77,6 +77,22 @@ internal static class CommandAttributeSymbols
         return null;
     }
 
+    /// <summary>
+    /// Finds public instance properties, including inherited declarations.
+    /// </summary>
+    /// <param name="type">The command type.</param>
+    /// <returns>The lookup candidate properties.</returns>
+    internal static IEnumerable<IPropertySymbol> PublicProperties(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>().Where(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic && !_.IsIndexer))
+            {
+                yield return property;
+            }
+        }
+    }
+
     static ISymbol? InheritedSymbol(ISymbol symbol) => symbol switch
     {
         INamedTypeSymbol type => type.BaseType,
@@ -86,37 +102,4 @@ internal static class CommandAttributeSymbols
     };
 
     static int? Value(AttributeData? attribute) => attribute?.ConstructorArguments.FirstOrDefault().Value as int?;
-
-    static (bool Unprotected, int? Consistency) ReadLevel(ISymbol symbol) =>
-        (HasUnprotected(symbol), Value(Find(symbol, AttributePrecedencePolicy.ConsistencyName)));
-
-    static IEnumerable<(bool Unprotected, int? Consistency)> ReadLevels(INamedTypeSymbol commandType, INamedTypeSymbol readModelType, IMethodSymbol? method, IParameterSymbol? parameter)
-    {
-        if (parameter is not null)
-        {
-            yield return ReadLevel(parameter);
-        }
-
-        if (method is not null)
-        {
-            yield return ReadLevel(method);
-        }
-
-        yield return ReadLevel(commandType);
-        yield return ReadLevel(readModelType);
-        yield return ReadLevel(commandType.ContainingAssembly);
-    }
-
-    static bool HasProperty(INamedTypeSymbol type, string name)
-    {
-        for (var current = type; current is not null; current = current.BaseType)
-        {
-            if (current.GetMembers(name).OfType<IPropertySymbol>().Any(_ => _.DeclaredAccessibility == Accessibility.Public && !_.IsStatic))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

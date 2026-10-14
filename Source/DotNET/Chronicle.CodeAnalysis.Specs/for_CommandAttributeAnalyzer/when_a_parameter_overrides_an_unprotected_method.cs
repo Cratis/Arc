@@ -16,6 +16,6 @@ public class when_a_parameter_overrides_an_unprotected_method
         using Cratis.Arc.Chronicle.ReadModels;
         using Cratis.Chronicle.Events;
         using Cratis.Chronicle.Projections.ModelBound;
-        [KeyGuard(KeyGuardMode.On)] public class Command { [Unprotected] public void Handle([Consistency(ReadConsistency.Current)] Model model) { } } public class Model;
+        [ReadProtection(ReadProtectionMode.On)] public class Command { [Unprotected] public void Handle(Model model) { } } public class Model;
         """);
 }

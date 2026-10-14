@@ -16,6 +16,6 @@ public class when_a_valid_lookup_composes_with_unprotected
         using Cratis.Arc.Chronicle.ReadModels;
         using Cratis.Chronicle.Events;
         using Cratis.Chronicle.Projections.ModelBound;
-        [KeyGuard(KeyGuardMode.On)] public class Command { public string Key { get; } = "key"; public void Handle([Unprotected, LookUpBy(nameof(Key))] Model model) { } } [FromEvent<Changed>] public class Model; [EventType("5908fb8b-80a7-45e8-8157-b6af86425c19")] public record Changed;
+        [ReadProtection(ReadProtectionMode.On)] public class Command { public string Key { get; } = "key"; public void Handle([Unprotected, LookUpBy(nameof(Key))] Model model) { } } [FromEvent<Changed>] public class Model; [EventType("5908fb8b-80a7-45e8-8157-b6af86425c19")] public record Changed;
         """);
 }

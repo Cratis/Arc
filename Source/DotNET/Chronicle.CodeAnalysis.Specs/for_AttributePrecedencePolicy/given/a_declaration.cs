@@ -12,7 +12,7 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_AttributePrecedencePolicy.
 public class a_declaration : Specification
 {
     const string Imports = "using Cratis.Arc.Commands; using Cratis.Arc.Chronicle.ReadModels;\n";
-    protected string _action = "key_guard";
+    protected string _action = "read_protection";
     protected string _source = string.Empty;
     protected string _foreignSource = string.Empty;
     protected string _commandName = "Command";
@@ -30,7 +30,7 @@ public class a_declaration : Specification
     protected void Resolve()
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Concat([typeof(KeyGuardAttribute).Assembly.Location, typeof(UnprotectedAttribute).Assembly.Location])
+            .Concat([typeof(ReadProtectionAttribute).Assembly.Location, typeof(UnprotectedAttribute).Assembly.Location])
             .Distinct(StringComparer.Ordinal).Select(path => MetadataReference.CreateFromFile(path)).ToList();
         CSharpCompilation? foreign = null;
         Assembly? foreignAssembly = null;
@@ -61,21 +61,20 @@ public class a_declaration : Specification
             modelSymbol = (INamedTypeSymbol)methodSymbol!.Parameters[0].Type;
         }
 
-        if (_action == "key_guard")
+        if (_action == "read_protection")
         {
             var runtime = CommandAttributePolicy.ResolveCommand(command);
             var roslyn = CommandAttributeSymbols.ResolveCommand(commandSymbol);
-            var error = Record.Exception(() => CommandAttributePolicy.ThrowIfConflicting(command, runtime.Conflict, (CommandDecisionMode)runtime.Mode));
-            _runtime = $"{runtime.Mode}:{runtime.KeyGuard}:{error?.GetType().Name}";
-            _roslyn = $"{roslyn.Mode}:{roslyn.KeyGuard}:{roslyn.Conflict}";
+            var error = Record.Exception(() => CommandAttributePolicy.ThrowIfConflicting(command, runtime.Conflict));
+            _runtime = $"{runtime.Mode}:{runtime.ReadProtection}:{error?.GetType().Name}";
+            _roslyn = $"{roslyn.Mode}:{roslyn.ReadProtection}:{roslyn.Conflict}";
         }
         else if (_action == "read_policy")
         {
-            var runtime = CommandAttributePolicy.ResolveRead(command, model, _hasMethod ? method : null, parameter);
-            var roslyn = CommandAttributeSymbols.ResolveRead(commandSymbol, modelSymbol, _hasMethod ? methodSymbol : null, parameterSymbol);
-            var error = Record.Exception(() => CommandAttributePolicy.ThrowIfInvalidRead(command, runtime.Conflict));
-            _runtime = $"{runtime.Policy}:{runtime.Label}:{error?.GetType().Name}";
-            _roslyn = $"{roslyn.Policy}:{roslyn.Label}:{roslyn.Conflict}";
+            var runtime = CommandAttributePolicy.ResolveRead(model, _hasMethod ? method : null, parameter);
+            var roslyn = CommandAttributeSymbols.ResolveRead(modelSymbol, _hasMethod ? methodSymbol : null, parameterSymbol);
+            _runtime = $"{runtime.Advisory}:{runtime.MethodBodyUnprotected}";
+            _roslyn = $"{roslyn.Advisory}:{roslyn.MethodBodyUnprotected}";
         }
         else
         {
@@ -84,10 +83,10 @@ public class a_declaration : Specification
             _runtime = error?.GetType().Name ?? lookup.Property ?? string.Empty;
             var symbolLookup = CommandAttributeSymbols.ResolveLookup(commandSymbol, parameterSymbol!, _isReadModel);
             _roslyn = symbolLookup.Conflict ?? symbolLookup.Property ?? string.Empty;
-            var runtimeRead = CommandAttributePolicy.ResolveRead(command, model, method, parameter);
-            var roslynRead = CommandAttributeSymbols.ResolveRead(commandSymbol, modelSymbol, methodSymbol, parameterSymbol);
-            _runtimeRead = $"{runtimeRead.Policy}:{runtimeRead.Label}:{runtimeRead.Conflict}";
-            _roslynRead = $"{roslynRead.Policy}:{roslynRead.Label}:{roslynRead.Conflict}";
+            var runtimeRead = CommandAttributePolicy.ResolveRead(model, method, parameter);
+            var roslynRead = CommandAttributeSymbols.ResolveRead(modelSymbol, methodSymbol, parameterSymbol);
+            _runtimeRead = $"{runtimeRead.Advisory}:{runtimeRead.MethodBodyUnprotected}";
+            _roslynRead = $"{roslynRead.Advisory}:{roslynRead.MethodBodyUnprotected}";
         }
     }
 

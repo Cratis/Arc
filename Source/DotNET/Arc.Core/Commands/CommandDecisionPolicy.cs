@@ -20,10 +20,10 @@ public static class CommandDecisionPolicy
     public static CommandDecisionMode Mode => Active()?.Mode ?? CommandDecisionMode.Legacy;
 
     /// <summary>
-    /// Gets the resolved key guard declaration, or Off outside the command pipeline.
+    /// Gets the resolved read-protection declaration, or Off outside the command pipeline.
     /// Resolution alone does not enable reads or append guards.
     /// </summary>
-    public static KeyGuardMode KeyGuard => Active()?.KeyGuard ?? KeyGuardMode.Off;
+    public static ReadProtectionMode ReadProtection => Active()?.ReadProtection ?? ReadProtectionMode.Off;
 
     /// <summary>
     /// Gets whether a command invocation is active.
@@ -59,21 +59,21 @@ public static class CommandDecisionPolicy
     internal static IDisposable Begin(Type commandType)
     {
         var profile = _profiles.GetOrAdd(commandType, ResolveProfile);
-        var frame = new Frame(profile.Mode, profile.KeyGuard, profile.Conflict, commandType, Active());
+        var frame = new Frame(profile.Mode, profile.ReadProtection, profile.Conflict, commandType, Active());
         _current.Value = frame;
         return new Lease(frame);
     }
 
     /// <summary>
-    /// Refuses conflicting protection and key guard declarations through the command result boundary.
+    /// Refuses conflicting protection declarations through the command result boundary.
     /// </summary>
     /// <exception cref="CommandCannotBeBothProtectedAndUnprotected">Conflicting protection profiles were declared.</exception>
-    /// <exception cref="CommandCannotCombineProtectedDecisionAndKeyGuard">A protected or unprotected command explicitly enables the key guard.</exception>
+    /// <exception cref="ConflictingReadProtection">An unprotected command explicitly enables read protection.</exception>
     internal static void ThrowIfConflicting()
     {
         if (Active() is { } frame)
         {
-            CommandAttributePolicy.ThrowIfConflicting(frame.CommandType, frame.Conflict, frame.Mode);
+            CommandAttributePolicy.ThrowIfConflicting(frame.CommandType, frame.Conflict);
         }
     }
 
@@ -97,7 +97,7 @@ public static class CommandDecisionPolicy
     static Profile ResolveProfile(Type commandType)
     {
         var profile = CommandAttributePolicy.ResolveCommand(commandType);
-        return new Profile((CommandDecisionMode)profile.Mode, (KeyGuardMode)profile.KeyGuard, profile.Conflict);
+        return new Profile((CommandDecisionMode)profile.Mode, (ReadProtectionMode)profile.ReadProtection, profile.Conflict);
     }
 
     static Frame? Active()
@@ -111,12 +111,12 @@ public static class CommandDecisionPolicy
         return frame;
     }
 
-    sealed record Profile(CommandDecisionMode Mode, KeyGuardMode KeyGuard, string? Conflict);
+    sealed record Profile(CommandDecisionMode Mode, ReadProtectionMode ReadProtection, string? Conflict);
 
-    sealed class Frame(CommandDecisionMode mode, KeyGuardMode keyGuard, string? conflict, Type commandType, Frame? previous)
+    sealed class Frame(CommandDecisionMode mode, ReadProtectionMode readProtection, string? conflict, Type commandType, Frame? previous)
     {
         public CommandDecisionMode Mode { get; } = mode;
-        public KeyGuardMode KeyGuard { get; } = keyGuard;
+        public ReadProtectionMode ReadProtection { get; } = readProtection;
         public string? Conflict { get; } = conflict;
         public Type CommandType { get; } = commandType;
         public Frame? Previous { get; } = previous;
