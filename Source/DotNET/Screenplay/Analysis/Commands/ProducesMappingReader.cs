@@ -181,6 +181,12 @@ public class ProducesMappingReader(ScreenplayDiagnostics diagnostics)
         string location,
         ParameterBindings? bindings)
     {
+        if (_authoring?.UnavailableIn(expression, semanticModel, bindings) is { } unavailable)
+        {
+            mappings.Add(new(property, new UnavailableValueSource(unavailable)));
+            return;
+        }
+
         var source = _sources.Read(expression, semanticModel, owner, location, bindings);
         if (source is null && _authoring?.ReadPath(expression, semanticModel) is { } path &&
             ((!path.Contains('.', StringComparison.Ordinal) && SymbolEqualityComparer.Default.Equals(

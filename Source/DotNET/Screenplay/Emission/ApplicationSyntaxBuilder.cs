@@ -56,10 +56,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
         if (options.AuthoringOnlyConstructs)
         {
-            if (options.MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V15))
-            {
-                model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, cap, authoringOnlyConstructs: true));
-            }
+            model = AuthoringDeclarations.RemoveOrphans(model, new ExecutableCommandValues(diagnostics).Apply(model, options.MaximumExecutableModelVersion, authoringOnlyConstructs: true));
         }
         else
         {

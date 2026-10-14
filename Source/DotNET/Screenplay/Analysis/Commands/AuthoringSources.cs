@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Aggregates;
+using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -9,9 +11,15 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <summary>Holds proven command-local generated values and read dependencies.</summary>
 public class AuthoringSources
 {
+    readonly Dictionary<ISymbol, UnavailableGeneratedValueModel> _unavailable = new(SymbolEqualityComparer.Default);
     readonly Dictionary<ISymbol, string> _paths = new(SymbolEqualityComparer.Default);
     readonly HashSet<ISymbol> _decisionReads = new(SymbolEqualityComparer.Default);
     readonly Dictionary<ExpressionSyntax, string> _expressions = new();
+
+    /// <summary>
+    /// Gets whether any generated input is unavailable in this command.
+    /// </summary>
+    public bool HasUnavailable => _unavailable.Count > 0;
 
     /// <summary>Registers a directly returned generated expression.</summary>
     /// <param name="expression">The generated expression.</param>
@@ -30,6 +38,22 @@ public class AuthoringSources
             _decisionReads.Add(symbol);
         }
     }
+
+    /// <summary>
+    /// Registers the symbol identity of a generated input that remains in code.
+    /// </summary>
+    /// <param name="symbol">The declared parameter.</param>
+    /// <param name="input">Its origin and recovery failure.</param>
+    public void AddUnavailable(ISymbol symbol, UnavailableGeneratedValueModel input) => _unavailable[symbol] = input;
+
+    /// <summary>
+    /// Finds unavailable generated dependencies, including local aliases and returned constructions.
+    /// </summary>
+    /// <param name="expression">The expression whose dependencies are needed.</param>
+    /// <param name="model">The model resolving symbol identities.</param>
+    /// <param name="bindings">The call-site arguments of a reached aggregate behavior.</param>
+    /// <returns>The first unavailable dependency, or null for independent expressions.</returns>
+    public UnavailableGeneratedValueModel? UnavailableIn(SyntaxNode expression, SemanticModel model, ParameterBindings? bindings = null) => UnavailableIn(expression, model, new(SymbolEqualityComparer.Default), bindings);
 
     /// <summary>Reads a path into a registered source.</summary>
     /// <param name="expression">The expression being mapped.</param>
@@ -67,5 +91,39 @@ public class AuthoringSources
         }
 
         return string.Join('.', members.Prepend(path));
+    }
+
+    UnavailableGeneratedValueModel? UnavailableIn(SyntaxNode expression, SemanticModel model, HashSet<ISymbol> visited, ParameterBindings? bindings = null)
+    {
+        foreach (var identifier in expression.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>())
+        {
+            if (bindings?.Resolve(identifier, model) is { } bound && UnavailableIn(bound.Expression, bound.SemanticModel, visited) is { } boundInput)
+            {
+                return boundInput;
+            }
+            var symbol = model.GetSymbolInfo(identifier).Symbol;
+            if (symbol is null)
+            {
+                continue;
+            }
+            if (_unavailable.TryGetValue(symbol, out var input))
+            {
+                return input;
+            }
+            if (symbol is not ILocalSymbol local || !visited.Add(symbol))
+            {
+                continue;
+            }
+
+            foreach (var value in LocalValueOrigins.Values(local, model))
+            {
+                if (UnavailableIn(value, model, visited, bindings) is { } dependency)
+                {
+                    return dependency;
+                }
+            }
+        }
+
+        return null;
     }
 }

@@ -20,6 +20,8 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
 {
     readonly ScreenplayNaming _naming = new();
     readonly List<PropertyModel> _generated = [];
+    readonly List<UnavailableGeneratedValueModel> _unavailable = [];
+    readonly Dictionary<IParameterSymbol, string> _failures = new(SymbolEqualityComparer.Default);
     readonly List<string> _validated = [];
     List<IParameterSymbol> _parameters = [];
     string _location = string.Empty;
@@ -45,6 +47,11 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
     public IReadOnlyList<PropertyModel> Generated => _generated;
 
     /// <summary>
+    /// Gets declared inputs whose generation or binding remains unavailable.
+    /// </summary>
+    public IReadOnlyList<UnavailableGeneratedValueModel> Unavailable => _unavailable;
+
+    /// <summary>
     /// Gets the generated names whose concepts have validators.
     /// </summary>
     public IReadOnlyList<string> Validated => _validated;
@@ -63,6 +70,8 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
         var failures = _parameters.Select(parameter => (Parameter: parameter, Failure: strategies.Failure(parameter))).Where(item => item.Failure is not null).ToList();
         foreach (var (parameter, failure) in failures)
         {
+            _failures[parameter] = failure!;
+            AddUnavailable(parameter, AttributeOf(parameter).ConstructorArguments.FirstOrDefault().Value as string ?? parameter.Name, failure!);
             ReportStrategy(parameter, failure!);
         }
 
@@ -87,7 +96,12 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
                     ScreenplayDiagnosticCodes.UnreadableCommandResponse,
                     $"Generated parameter '{name}' is written, passed by reference, or collides with an emitted command property; generation and dependent claims were left in code",
                     _location);
-                return false;
+                AddUnavailable(parameter, name, "its symbol is written, passed by reference, or its emitted name collides");
+                continue;
+            }
+            if (_failures.ContainsKey(parameter))
+            {
+                continue;
             }
 
             _generated.Add(new(name, types.Resolve(parameter.Type)));
@@ -98,7 +112,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
             Sources.Add(parameter, name);
         }
 
-        return true;
+        return _unavailable.Count == 0;
     }
 
     /// <summary>
@@ -138,14 +152,28 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
         ? block.Statements.OfType<LocalDeclarationStatementSyntax>().SelectMany(statement => statement.Declaration.Variables).ToList()
         : [];
 
+    void AddUnavailable(IParameterSymbol parameter, string name, string failure)
+    {
+        var input = new UnavailableGeneratedValueModel(name, types.Resolve(parameter.Type), LocationOf(parameter), failure);
+        _unavailable.RemoveAll(existing => existing.Name == input.Name && existing.Location == input.Location);
+        _unavailable.Add(input);
+        Sources.AddUnavailable(parameter, input);
+    }
+
     void ReportStrategy(IParameterSymbol parameter, string failure)
     {
-        var syntax = AttributeOf(parameter).ApplicationSyntaxReference?.GetSyntax();
-        var location = syntax is null ? $"{_location}.{parameter.Name}" : $"{syntax.SyntaxTree.FilePath}:{syntax.GetLocation().GetLineSpan().StartLinePosition.Line + 1}";
+        var location = LocationOf(parameter);
         diagnostics.Information(
             ScreenplayDiagnosticCodes.GenerationNotRecoverable,
             $"[GeneratedValue] parameter '{parameter.Name}' of '{parameter.Type.Name}': {failure}; generation remains in code. Screenplay cannot execute generate rule bodies, context member use, pattern or random yet (Cratis/Screenplay#616)",
             location);
+    }
+
+    string LocationOf(IParameterSymbol parameter)
+    {
+        var syntax = AttributeOf(parameter).ApplicationSyntaxReference?.GetSyntax();
+
+        return syntax is null ? $"{_location}.{parameter.Name}" : $"{syntax.SyntaxTree.FilePath}:{syntax.GetLocation().GetLineSpan().StartLinePosition.Line + 1}";
     }
 
     bool Collides(string name, INamedTypeSymbol command) => command.DeclaredProperties().Select(property => property.Name).Concat(_generated.Select(property => property.Name))

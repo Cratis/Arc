@@ -61,7 +61,9 @@ public class from_a_scenario_pinning_a_literal_identifier : a_generated_document
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("not a recognized");
         Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableSpecification)
             .Message.ShouldContain("the generation strategy of 'author' is not recoverable (SP0073)");
-        AssertDocument();
+        Result.Source.ShouldNotContain("produces AuthorRegistered");
+        Result.Source.ShouldContain("handler");
+        AssertPartialDocument();
     }
 
     void GeneratePinned(string pin, string members = "", string factory = "public static AuthorId New() => new(Guid.NewGuid());")
