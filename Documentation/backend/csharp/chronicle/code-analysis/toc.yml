@@ -46,3 +46,5 @@
   href: ARCCHR0025.md
 - name: ARCCHR0026 - Chronicle model read through a MongoDB collection
   href: ARCCHR0026.md
+- name: ARCCHR0027 - Refusal branch must return registered events or acknowledge
+  href: ARCCHR0027.md

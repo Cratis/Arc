@@ -42,6 +42,11 @@ public class SpecificationDraft
     public SpecificationStateModel? When { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the scenario asserts only an authorization denial.
+    /// </summary>
+    public bool Denied { get; set; }
+
+    /// <summary>
     /// Gets or sets whether an assertion reads the command response.
     /// </summary>
     public bool AssertsResponse { get; set; }
@@ -60,6 +65,11 @@ public class SpecificationDraft
     /// Gets the occurrence sources being compared while an event scenario is read.
     /// </summary>
     internal SpecificationEventSources EventSources { get; init; } = new();
+
+    /// <summary>
+    /// Gets the primary-constructor bindings used by this reading.
+    /// </summary>
+    internal SpecificationCaseValues? CaseValues { get; init; }
 
     /// <summary>
     /// Records why a scenario cannot be read.

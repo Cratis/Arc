@@ -53,6 +53,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public bool ReactionMetadataEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v19 reaction refusal branches are admitted.
+    /// </summary>
+    public bool ReactionRefusalsEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets where routed occurrences from retained specifications are collected for source declarations.
     /// </summary>
     public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
@@ -64,20 +69,12 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </summary>
     /// <param name="specifications">The scenarios the slice is specified by.</param>
     /// <returns>The specifications, ordered by name.</returns>
-    public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications) =>
-    [
-        .. specifications
-            .Select(WithRepresentableCaller)
-            .OfType<SpecificationModel>()
-            .Select(WithRepresentableSources)
-            .OfType<SpecificationModel>()
-            .Select(WithReactionsAccountedFor)
-            .OfType<SpecificationModel>()
-            .Select(WithFollowingAssertions)
-            .OfType<SpecificationModel>()
-            .Select(Build)
-            .OrderBy(_ => _.Name, StringComparer.Ordinal)
-    ];
+    public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications)
+    {
+        var rows = specifications.Select(PrepareAndBuild).ToList();
+
+        return FoldCases(rows).OrderBy(specification => specification.Name, StringComparer.Ordinal).ToList();
+    }
 
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$", RegexOptions.None, 1000)]
     private static partial Regex IsoInstant();
@@ -269,12 +266,12 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </remarks>
     SpecificationModel? WithReactionsAccountedFor(SpecificationModel specification)
     {
-        if (Application is null || specification.When is not { } action || specification.Errors.Any())
+        if (Application is null || specification.When is not { } action || specification.Errors.Any() || specification.Denied)
         {
             return specification;
         }
 
-        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled };
+        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled, RefusalsEnabled = ReactionRefusalsEnabled };
         var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
             Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         var reason = specification.Reactor is { } reactor
@@ -516,7 +513,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             RoutedOccurrences?.Add(occurrence);
         }
 
-        return new(
+        return Syntax(specification);
+    }
+
+    /// <summary>
+    /// Creates syntax without registering routed occurrences a second time when rows are folded.
+    /// </summary>
+    /// <param name="specification">The already admitted scenario.</param>
+    /// <returns>The specification syntax.</returns>
+    SpecificationSyntax Syntax(SpecificationModel specification) => new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
             When(specification),
@@ -530,9 +535,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                 ? Event(appended)
                 : null,
             GivenCaller = Caller(specification.Caller),
-            ThenReturns = Returns(specification.Returns)
+            ThenReturns = Returns(specification.Returns),
+            ThenDenied = specification.Denied ? new(SourceLocation.Start) : null,
+            Parameters = CaseParameters(specification),
+            Cases = CaseRows(specification)
         };
-    }
 
     /// <summary>
     /// Builds the response a scenario expects.
@@ -624,5 +631,5 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// <param name="state">The state to build from.</param>
     /// <returns>The values.</returns>
     IEnumerable<PropertyMappingSyntax> Values(SpecificationStateModel state) =>
-        state.Values.Select(_ => new PropertyMappingSyntax(naming.ToPropertyName(_.Property), _sources.Convert(_.Source), SourceLocation.Start));
+        state.Values.Select(_ => new PropertyMappingSyntax(naming.ToPropertyName(_.Property), CaseValue(_.Source), SourceLocation.Start));
 }

@@ -375,6 +375,10 @@ public static class ScreenplayDiagnosticCodes
     /// Reported as a warning during both analysis and emission, at the declaring specification type (or its slice
     /// when no source declaration is available). Emission can also withhold a scenario whose command or concrete
     /// event sources cannot be represented, or whose generated fixtures or response expectations were not recovered.
+    /// A denial also requires an emitted authorization gate, exactly recovered policies and caller, and no other
+    /// outcome. The pinned reference runner must prove that the stated gate denies that caller, and visible
+    /// command code must not supply another authorization denial. An absent gate, inexact policy or caller,
+    /// allowed or undecidable caller, code-level denial, or combined outcome is reported here.
     /// </para>
     /// </remarks>
     public const string UnreadableSpecification = "SP0039";
@@ -612,7 +616,7 @@ public static class ScreenplayDiagnosticCodes
     public const string SpecificationCallerNotRepresentable = "SP0075";
 
     /// <summary>
-    /// A parameterized theory scenario cannot yet be stated as a case table.
+    /// A parameterized scenario stays per row or a theory is omitted because a faithful case table could not be proved.
     /// </summary>
     public const string SpecificationCasesNotFolded = "SP0076";
 

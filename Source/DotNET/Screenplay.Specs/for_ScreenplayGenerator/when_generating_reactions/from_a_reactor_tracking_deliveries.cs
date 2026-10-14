@@ -33,7 +33,8 @@ public class from_a_reactor_tracking_deliveries : a_returned_event_batch
         var report = Result.Diagnostics.Single(_ => _.Code == "SP0072");
         report.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
         report.Location.ShouldEqual("Library.Authors.Welcoming.Welcomer");
-        report.Message.ShouldContain("Screenplay#433");
+        report.Message.ShouldContain("specification action");
+        report.Message.ShouldNotContain("not admitted");
         Result.Diagnostics.Where(_ => _.Code == "SP0071").ShouldBeEmpty();
         ScenarioReports.Single().Code.ShouldEqual(ScreenplayDiagnosticCodes.ScenarioWithoutCounterpart);
         AssertDocument();

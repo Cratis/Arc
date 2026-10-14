@@ -200,6 +200,21 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
     {
         var localProperty = type.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
         var sourceProperty = sourceType.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
+        if (localProperty is not null && draft.CaseValues?.TryRead(
+                expression, semanticModel, localProperty.Type, CanStateNull(type, localProperty), out var bound) == true)
+        {
+            if (bound is null)
+            {
+                draft.CannotRead(draft.CaseValues.Failure!);
+                return;
+            }
+
+            var mapping = new PropertyMappingModel(property, bound);
+            values.Add(mapping);
+            draft.AddValue(mapping, expression.GetLocation());
+            return;
+        }
+
         LiteralSource? literal;
         if (queryValues)
         {

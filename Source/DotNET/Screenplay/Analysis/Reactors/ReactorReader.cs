@@ -273,8 +273,11 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             .Select(_ => (_.Node, _.Model!));
 
     bool HandlesACommandOutcome(IMethodSymbol handler) =>
-        ExecutesACommand(handler) && DeclarationsOf(handler).Any(declaration =>
-            declaration.Node.DescendantNodes().Any(node => InspectsAnOutcome(node, declaration.Model)));
+        DeclarationsOf(handler).Any(declaration =>
+            declaration.Node.DescendantNodes().OfType<InvocationExpressionSyntax>()
+                .Any(invocation => RefusalInvocations.IsBranch(invocation, declaration.Model))) ||
+        (ExecutesACommand(handler) && DeclarationsOf(handler).Any(declaration =>
+            declaration.Node.DescendantNodes().Any(node => InspectsAnOutcome(node, declaration.Model))));
 
     bool DiscardsACommandOutcome(IMethodSymbol handler) =>
         DeclarationsOf(handler).Any(declaration => declaration.Node.DescendantNodes().OfType<InvocationExpressionSyntax>()

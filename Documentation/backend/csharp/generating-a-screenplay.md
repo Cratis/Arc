@@ -480,6 +480,54 @@ The generator only writes this form when it is exactly what Chronicle and Arc do
 - The construction gives every property the event or command carries a value, directly: a positional record property through its constructor argument, or an automatic property with no initializer through the object initializer. A computed property, a property with an initializer or accessor body, a redeclared positional property, an explicit field, or a type deriving from another type keeps the handler as code.
 - Every event and command it names is declared once in the document, with the properties the mapping fills in. An invoked command receives every one of its properties, and none of them is generated.
 
+### Command refusal branches
+
+A returned `Invoke.Command(...)` chain becomes an `invokes` declaration with ordered `on refused` branches. These excerpts assume the event and command types above, and imports for `System.Threading.Tasks` and `Cratis.Arc.Chronicle.Reactors`:
+
+```csharp
+public class Welcomer : IReactor
+{
+    public Task<CommandInvocation> Welcome(AuthorRegistered @event) => Task.FromResult(
+        Invoke.Command(new SendWelcome(@event.Name, @event.Country))
+            .OnRefused(Refused.ByValidation, refusal => new AuthorWelcomed(@event.Name, refusal.Message))
+            .Acknowledge(Refused.ByAuthorization));
+}
+```
+
+```screenplay
+reaction Welcomer
+  when AuthorRegistered
+    invokes SendWelcome
+      name = name
+      country = country
+      on refused by validation
+        produces AuthorWelcomed
+          name = name
+          greeting = $refusal.message
+      on refused by authorization
+        acknowledge
+```
+
+The first matching branch wins, and a handled refusal stops the trigger's remaining invocations. The generator preserves declaration order; it never sorts or drops branches. Synchronous `CommandInvocation`, `Task<CommandInvocation>` and homogeneous literal invocation collections are supported.
+
+| Arc selector | Generated selector |
+| --- | --- |
+| `Refused.ByValidation` | `on refused by validation` |
+| `Refused.ByAuthorization` | `on refused by authorization` |
+| `Refused.ByAnyConstraint` | `on refused by constraint` |
+| `Refused.ByConstraint("Name")` | `on refused by constraint Name` |
+| `Refused.Any` | `on refused` — validation and constraints, never authorization |
+
+Named constraints require a constant name that prints unchanged, resolves uniquely to a declared constraint, and targets an event the invoked command produces. Unresolved, renamed, duplicate or shadowed selectors keep the whole trigger as code rather than emitting an invalid branch.
+
+A callback must be a pure expression or single-return lambda, anonymous method, or static method group with an available, non-async body. It may return `null` to acknowledge, an event construction, a nonempty literal event array, or a provable two-argument `EventForEventSourceId`. `.Acknowledge(selector)` emits the same acknowledgment. Payloads use the ordinary trigger, occurrence-time and constant mappings; `refusal.Message` additionally maps to `$refusal.message`. `refusal.ConstraintName` (also with `!`) maps to `$refusal.constraint` only under a constraint selector. Both retain the runtime's verbatim message and first-violated-name semantics. `CommandRefusal.Kind` is an enum, not Screenplay's lowercase String `$refusal.reason`, so it and its `ToString()` remain code; the generator does not invent a conversion.
+
+Branches and refusal values require **ESM v19**, available from Screenplay 4.160.0. A `MaximumExecutableModelVersion` cap below v19 keeps the **whole trigger** file-backed with Information diagnostic `SP0071`, in both authoring modes. An opaque helper, instance method group, conditional callback, side effect, unprovable mapping or route, invalid production, or unsafe event batch does the same. The generator never substitutes an invocation without its refusal handling. Ordinary command scenarios that do not run reactors are omitted only when the reaction actually remains declarative under that cap.
+
+See [handling a command refusal](chronicle/reactors/command-side-effects.md#handle-a-command-refusal) for runtime classification, append failures and recovery limits.
+
+### Identity and observation
+
 Identity and observation metadata survive even when the body stays code:
 
 - `[ExecuteCommandsAsSystem]` becomes `runs as system`. No attribute means no declared identity; an attribute with zero roles means an authenticated system identity with no roles. The nearest declaration replaces inherited roles. Role text is preserved exactly, including quotes, backslashes, whitespace inside a non-blank role, and Unicode. Null, blank, or duplicate roles retain the source implementation with `SP0064`; none are silently removed.
@@ -492,7 +540,7 @@ Chronicle appends a returned event collection atomically; a Screenplay reaction 
 
 Both metadata directives require ESM v10. A `MaximumExecutableModelVersion` cap below v10 withholds those directives and reports `SP0066` in both default and authoring mode. An otherwise recoverable handler returning only events keeps its `produces` body when only `runs as` is withheld: system identity applies to returned commands, not event appends. Effects that depend on a withheld identity or observation filter retain their source reference. The cap never substitutes an unfiltered or unauthorized executable effect.
 
-Anything else keeps the trigger's `file` reference: a branch, a computed value, a call to a collaborator, any other parameter, an `object` return, a mixed event/command result or routing envelope, a `[Replay]` handler, several handlers for one event, tag filtering, or observation outside the event log. Manual `ICommandPipeline.Execute` outcome inspection or discarded results keep the trigger as code with Information diagnostic `SP0071`, including forwarding the execution task from a non-generic `Task` or `ValueTask` handler; `ReactorDelivery` receipts or `DeliveryId` use report `SP0072`. Executable `on refused` and `when redelivered` extraction remain blocked by Arc#3058 and Screenplay#433 (PLAY0268). Conditions are not translated into `where`. `runs as` describes the identity of **returned commands**, not an identity wrapped around imperative pipeline calls inside a handler. A reaction with a `file` body returns `SemanticUnsupported` when a specification reaches it; preserving its metadata does not make that body executable.
+Anything outside the supported shapes keeps the trigger's `file` reference: arbitrary control flow, a computed value, a call to a collaborator, any other parameter, an `object` return, a mixed event/command result or routing envelope, a `[Replay]` handler, several handlers for one event, tag filtering, or observation outside the event log. Manual `ICommandPipeline.Execute` outcome inspection or discarded results keep the trigger as code with Information diagnostic `SP0071`, including forwarding the execution task from a non-generic `Task` or `ValueTask` handler; `ReactorDelivery` receipts or `DeliveryId` use report `SP0072`. Recognition uses Arc's method symbols, not method-name lookalikes. `when redelivered` is a specification action: receipt use cannot prove that a scenario delivers the same recorded delivery again, so it remains opaque rather than becoming a redelivery specification. Conditions are not translated into `where`. `runs as` describes the identity of **returned commands**, not an identity wrapped around imperative pipeline calls inside a handler. A reaction with a `file` body returns `SemanticUnsupported` when a specification reaches it; preserving its metadata does not make that body executable.
 
 ## The scenarios a slice is specified by
 
@@ -525,9 +573,61 @@ slice StateChange Registration
 
 - **`given`** is what the specification started from — the events it seeded, and the read model it pinned.
 - **`when`** is its action: a command it executed, or `when append <EventType>` for an event scenario's append.
-- **`then`** is each event it asserted was appended, and **`then error`** a rejection it asserted.
+- **`then`** is each event it asserted was appended, **`then error`** a validation or constraint rejection, and **`then denied`** an authorization denial.
 
-Parameterized `[Theory]` scenarios are not stated; Information `SP0076` names each omitted theory because case tables are not generated yet.
+### Literal-case tables
+
+When body-less concrete classes pass literal values to the primary constructor of one abstract scenario, the generator can state the shared steps once. It reads the base symbolically, reads every row with its constants, and folds only when substituting those values reproduces every row's complete model: the same steps, outcomes and caller. Textual similarity is not enough.
+
+This excerpt assumes `RegisterAuthor` takes a string key and an `AuthorName` concept, and produces `AuthorRegistered` with that same `Name` property:
+
+```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Chronicle.Testing.EventSequences;
+using Cratis.Specifications;
+using Xunit;
+
+namespace Library.Authors.Registration.given;
+
+public abstract class Registering(string name) : Specification
+{
+    readonly CommandScenario<RegisterAuthor> _scenario = new();
+    async Task Because() => await _scenario.Execute(new RegisterAuthor("author", name));
+    [Fact] Task should_append() => _scenario.EventSequence
+        .ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == name);
+    void Destroy() => _scenario.Dispose();
+}
+
+public class Jane() : Registering("Jane");
+public class John() : Registering("John");
+public class Empty() : Registering("");
+```
+
+Inside the slice, the generated table is:
+
+```screenplay
+specification Registering
+  parameter name AuthorName
+  case Empty
+    name = ""
+  case Jane
+    name = "Jane"
+  case John
+    name = "John"
+  when RegisterAuthor
+    id = "author"
+    name = case.name
+  then AuthorRegistered
+    name = case.name
+```
+
+The parameter uses the single target type it feeds, not necessarily the constructor's primitive type. Cases keep their class names and are ordered deterministically. Screenplay expands them into independent specifications such as `Registering_Jane` under ordinary executable admission; tables do not require a new ESM version. An optional read-model target can receive a literal `null` row value; null command and event fixtures remain inadmissible.
+
+Rows with added steps or assertions, nonliteral constructor arguments, inconsistent target types, or references outside supported whole value positions stay individual, with Information `SP0076` explaining why they were not folded. Direct parameters are currently recovered in constructed command/event/read-model property values and expected-event equalities. Parameterized callers, clocks, redelivery locators and examples cannot be folded. Existing unreadable-scenario diagnostics still apply; an invalid fixture is not made valid by leaving it outside a table.
+
+Parameterized `[Theory]`/`[InlineData]` scenarios are still not stated. Information `SP0076` names each omitted theory: reading an action and its assertions inside a theory method needs a separate reader from the `Establish`/`Because`/`[Fact]` shape.
 
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
@@ -560,7 +660,13 @@ A direct event-sequence append supplying concrete source and stream names become
 
 Routes must fit the source and stream types the document declares. Computed routing, unproven composite stream-id construction, nonportable literals, or incompatible types retain `SP0039` rather than a guessed route. ESM v8 admits routes on `given`, `when append`, and `then`; the generator withholds a routed scenario with `SP0060` only when default output is capped below v8, or its source has the reserved name `Default`.
 
-A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()`, `IsSuccess.ShouldBeFalse()`, and `ShouldNotBeSuccessful()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
+An unconditional `result.ShouldNotBeAuthorized()` on the stable result of the scenario's `Execute` becomes `then denied`. The command must have an emitted `authorize` gate, every referenced role or named policy must be recovered exactly, and the scenario must supply an exactly recovered `given caller`. The standard authentication-only gate is also supported. A partial or synthesized named policy is not proof of denial. Before emitting denial, the generator runs an authorization-only probe through the pinned Screenplay reference runner with the emitted policies and caller. The probe must produce the typed `Unauthorized` outcome, not a validation error. If the caller would pass, `SP0039` reports "stated caller satisfies the stated authorization". A policy needing a subject, artifact value, or unrecovered predicate cannot prove failure from the caller alone; `SP0039` reports "denial cannot be decided from the stated caller".
+
+A denial cannot accompany event, read-model, response or error assertions. An unconditional `ShouldNotBeSuccessful()` on the same command result adds nothing to denial and may accompany it. No separate `then no events` is emitted: Screenplay does not allow that form beside `then denied`. Other assertions that cannot be proven redundant withhold the scenario. `SP0039` names the reason: caller not recovered, policy not recovered exactly, denial combined with another outcome, or "denial not explained by any stated policy" for a command without an emitted gate. Conditional denial assertions, unrelated helpers with the same name, and assertions on another or reassigned result also retain `SP0039`. A command whose visible code can return `AuthorizationResult`, `CommandResult`, a wrapper carrying either, or an untyped result is also withheld: code-level denial from `Provide()`, `Handle()`, or a visible helper is not explained by the stated gate alone.
+
+`ShouldHaveExceptions()` remains unsupported. `ShouldNotBeSuccessful()` and `IsSuccess.ShouldBeFalse()` alone do not identify a validation, constraint or authorization category and retain `SP0039`; beside a separate validation assertion they add no reason.
+
+A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()` and `ShouldHaveValidationErrors()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
 A scenario that compares the command response with concrete values becomes `then returns`:
 
@@ -830,8 +936,8 @@ These details can remain outside the document because the language has no counte
 | Unrecoverable reactor observation filters | Recoverable filters are emitted as `from`, including on file-backed triggers. Missing, ambiguous, unsafe, or unexpressible definitions keep executable effects in source rather than broadening observation. `SP0047` explains the refusal; `SP0048` reports an undeclared typed stream. Reducer filters remain unstated on the projection counterpart. |
 | Invalid returned-command system identity | Null, blank, or duplicate roles retain the source implementation with Warning diagnostic `SP0064`; roles are never sanitized. |
 | Routed reactor event results | Provable two-argument `EventForEventSourceId` destinations become `for`. Extra wrapper metadata stays code. Context append routes and identity providers retain the whole trigger with Warning diagnostic `SP0065`, independently of recoverable observation metadata. |
-| Manual reactor command outcome handling | Inspecting, pattern-matching, or discarding `CommandResult` after pipeline execution retains `file` with Information diagnostic `SP0071`. Executable refusal handling needs Arc#3058 and Screenplay#433. |
-| Receipt-based reactor redelivery | `ReactorDelivery` or `DeliveryId` use retains `file` with Information diagnostic `SP0072`. Executable redelivery handling needs Screenplay#433. |
+| Unrecoverable reactor command refusal handling | Pure Arc `OnRefused` and `Acknowledge` chains emit ordered branches at ESM v19. Opaque callbacks, unproven selectors, mappings or batch semantics, a cap below v19, and manual inspection or discarding of `CommandResult` after pipeline execution retain the whole trigger as `file` with Information diagnostic `SP0071`. |
+| Receipt-based reactor redelivery | `ReactorDelivery` or `DeliveryId` use retains `file` with Information diagnostic `SP0072`. Receipt use alone cannot recover a same-delivery `when redelivered` specification action from code. |
 | Unreadable fluent uniqueness targets, lifetimes or registration | The whole constraint is withheld with Warning diagnostic `SP0017`, rather than stating a subset. Non-generic event-type arguments, computed or nested selectors, value-specific releases, non-default or unknown retention, builder aliases and unproven control flow cannot be stated faithfully. |
 | Returned event batches with append constraints | Chronicle appends atomically while a reaction appends each fact separately. Later rejection, early stream closure, or unreadable constraint coverage keeps the whole trigger as `file` with Warning diagnostic `SP0070`. |
 | Reaction metadata below an ESM v10 cap | Warning diagnostic `SP0066` reports withheld metadata in both default and authoring mode. Effects depending on that metadata retain their source; event-only productions remain declarative when only `runs as` is withheld. |
@@ -863,6 +969,7 @@ These details can remain outside the document because the language has no counte
 | Enum aliases sharing one number | The ordinal-first member is kept so scenario constants still name a declaration. Warning `SP0069` names the kept and dropped aliases. |
 | Parameterized `[Theory]` scenario | Information `SP0076` names the omitted theory; case tables are not generated yet. Ordinary `[Fact]` scenarios in the same class remain eligible. |
 | Unsupported command scenario caller | An authorized scenario is withheld with Warning `SP0039` when its caller or any referenced policy cannot be recovered exactly. An open command scenario is retained without a caller, with Information `SP0075` naming the unsupported setup. |
+| Unrepresentable command denial or failure | `ShouldNotBeAuthorized()` becomes `then denied` only with an emitted authorization gate, exact policies and caller, and no other outcome. Otherwise Warning `SP0039` names the missing caller, inexact policy, combined outcome, or denial not explained by any stated policy. Exception assertions and uncategorized failures remain unsupported. |
 | Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.
