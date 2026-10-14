@@ -16,7 +16,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// itself - and a specification calls whichever of them its own shape reaches, so matching the declaring type would
 /// recognize the same sentence in one specification and not in the next.
 /// <para>
-/// Only the two outcomes Screenplay can hold are recognized: an event was appended, and the command was rejected.
+/// Events, validation or constraint rejections, and exactly bound command authorization denials are recognized.
 /// Everything else a specification asserts - how far the sequence got, that no exception was thrown, that the result
 /// was valid - says nothing the language has a place for and is passed over rather than reported, in the same way a
 /// unit level specification is.
@@ -52,7 +52,6 @@ public static class SpecificationAssertions
     public static readonly string[] UnsupportedFailures =
     [
         "ShouldHaveExceptions",
-        "ShouldNotBeAuthorized",
         "ShouldNotBeSuccessful"
     ];
 
@@ -138,6 +137,29 @@ public static class SpecificationAssertions
     public static bool IsUnsupportedFailure(InvocationExpressionSyntax invocation, IMethodSymbol method) =>
         Array.Exists(UnsupportedFailures, name => string.Equals(name, method.Name, StringComparison.Ordinal)) ||
         IsUnsuccessful(invocation, method);
+
+    /// <summary>
+    /// Determines whether the assertion is the command-result authorization denial helper.
+    /// </summary>
+    /// <param name="method">The bound assertion method.</param>
+    /// <returns>Whether the exact testing API asserts an authorization denial.</returns>
+    internal static bool IsDenial(IMethodSymbol method) => IsCommandResultAssertion(method, "ShouldNotBeAuthorized");
+
+    /// <summary>
+    /// Determines whether an unsuccessful-result assertion adds nothing to a denial.
+    /// </summary>
+    /// <param name="method">The bound assertion method.</param>
+    /// <returns>Whether the exact testing API asserts only that the command was unsuccessful.</returns>
+    internal static bool IsRedundantDenialAssertion(IMethodSymbol method) => IsCommandResultAssertion(method, "ShouldNotBeSuccessful");
+
+    static bool IsCommandResultAssertion(IMethodSymbol method, string name)
+    {
+        var definition = DotNetInvocations.DefinitionOf(method);
+        return definition.Name == name && definition.IsExtensionMethod &&
+            definition.ContainingType.Is("Cratis.Arc.Testing.Commands.CommandResultShouldExtensions") &&
+            definition.TypeParameters.Length == 0 && definition.ReturnsVoid &&
+            definition.Parameters is [{ Type: var type }] && type.Is("Cratis.Arc.Commands.CommandResult");
+    }
 
     static bool IsCommandScenarioAssertion(IMethodSymbol method) =>
         method.ContainingType.ToDisplayString() == "Cratis.Arc.Chronicle.Testing.Commands.CommandScenarioChronicleAssertionExtensions" &&

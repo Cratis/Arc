@@ -38,6 +38,11 @@ public record SpecificationModel(
     public string? Reactor { get; init; }
 
     /// <summary>
+    /// Gets whether the scenario expects an authorization denial instead of events or errors.
+    /// </summary>
+    public bool Denied { get; init; }
+
+    /// <summary>
     /// Gets whether the source asserts the command response.
     /// </summary>
     /// <remarks>

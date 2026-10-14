@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Specifications;
+using Cratis.Arc.Screenplay.Emission.Policies;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax.Specifications;
@@ -42,6 +43,26 @@ public partial class SpecificationSyntaxBuilder
         new(caller.Authenticated, caller.Roles, caller.Claims.Select(claim => new SpecificationCallerClaimSyntax(claim.Key, claim.Value, SourceLocation.Start)), SourceLocation.Start);
 
     /// <summary>
+    /// Checks that a denial has a stated gate, an exact caller, and no other outcome.
+    /// </summary>
+    /// <param name="specification">The scenario asserting denial.</param>
+    /// <param name="command">Its emitted command.</param>
+    /// <returns>The reason denial cannot be stated, or null when its evidence is exact.</returns>
+    static string? DenialFailure(SpecificationModel specification, CommandModel? command)
+    {
+        if (specification.Then.Any() || specification.Errors.Any() || specification.AssertsResponse || specification.Returns is not null)
+        {
+            return "its denial is combined with another outcome";
+        }
+        if (new AuthorizeSyntaxBuilder().Build(command?.Authorization) is null)
+        {
+            return "denial not explained by any stated policy";
+        }
+
+        return specification.CallerFailure ?? (specification.Caller is null ? "no caller was recovered for its denial" : null);
+    }
+
+    /// <summary>
     /// Withholds an unproven authorized scenario without dropping source evidence from open scenarios.
     /// </summary>
     /// <param name="specification">The scenario to filter.</param>
@@ -50,11 +71,19 @@ public partial class SpecificationSyntaxBuilder
     {
         var command = IssuedCommand(specification);
         var authorized = RequiresAuthorization(command?.Authorization);
-        var reason = specification.CallerFailure;
+        var reason = specification.Denied ? DenialFailure(specification, command) : specification.CallerFailure;
         if (authorized)
         {
             reason ??= specification.Caller is null ? "no caller was recovered for its authorized command" : null;
-            reason ??= InexactPolicy(command!.Authorization!);
+            var policyFailure = InexactPolicy(command!.Authorization!);
+            reason ??= specification.Denied && policyFailure is not null
+                ? $"{policyFailure}; denial cannot be decided from the stated caller"
+                : policyFailure;
+        }
+
+        if (specification.Denied && reason is null)
+        {
+            reason = new SpecificationDenialProof(naming).Failure(command!.Authorization!, Application!.Policies, Caller(specification.Caller)!);
         }
 
         if (reason is null)
@@ -63,7 +92,7 @@ public partial class SpecificationSyntaxBuilder
         }
 
         var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString();
-        if (authorized)
+        if (authorized || specification.Denied)
         {
             Diagnostics?.Warning(
                 ScreenplayDiagnosticCodes.UnreadableSpecification,
