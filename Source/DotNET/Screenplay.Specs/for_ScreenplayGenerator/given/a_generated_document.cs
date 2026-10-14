@@ -48,6 +48,16 @@ public class a_generated_document : Specification
         return new SemanticSpecificationRunner().Run(plan, plan.Specifications.Values.Single(specification => specification.Name == name).Id);
     }
 
+    protected void AssertPartialDocument()
+    {
+        Analyzed.ErrorsIn(_compilation).ShouldBeEmpty();
+        RoundTrip.Errors.ShouldBeEmpty();
+        RoundTrip.IsStable.ShouldBeTrue();
+        Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.DocumentDidNotBind).ShouldBeEmpty();
+        Bound.Diagnostics.Where(diagnostic => diagnostic.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Error &&
+            !ExpectedBindingDiagnostics.IsExpected(diagnostic, authoringOnlyConstructs: false)).Select(diagnostic => $"{diagnostic.Code}: {diagnostic.Message}").ShouldBeEmpty();
+    }
+
     protected void AssertDocument()
     {
         var errors = Analyzed.ErrorsIn(_compilation).ToArray();

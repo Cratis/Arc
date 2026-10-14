@@ -15,6 +15,16 @@ public record ProducesModel(
     IEnumerable<PropertyMappingModel> Mappings)
 {
     /// <summary>
+    /// Gets an unavailable generated dependency of the production's guard.
+    /// </summary>
+    public UnavailableGeneratedValueModel? UnavailableCondition { get; init; }
+
+    /// <summary>
+    /// Gets an unavailable generated dependency of an explicit destination.
+    /// </summary>
+    public UnavailableGeneratedValueModel? UnavailableDestination { get; init; }
+
+    /// <summary>
     /// Gets the proven explicit destination of a reaction production.
     /// </summary>
     public MappingSourceModel? Destination { get; init; }
