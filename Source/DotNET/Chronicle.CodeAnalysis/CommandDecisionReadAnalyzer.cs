@@ -45,21 +45,6 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
         });
     }
 
-    /// <summary>
-    /// Tests the existing Chronicle-backed read-model predicate for declaration validation.
-    /// </summary>
-    /// <param name="type">The parameter type.</param>
-    /// <param name="backedTypes">Lazily discovered projection and reducer targets.</param>
-    /// <returns>Whether Chronicle backs the model.</returns>
-    internal static bool IsReadModel(ITypeSymbol type, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes) => IsChronicleBacked(type, backedTypes);
-
-    /// <summary>
-    /// Discovers the existing projection and reducer targets for declaration validation.
-    /// </summary>
-    /// <param name="compilation">The current compilation.</param>
-    /// <returns>The Chronicle-backed model types.</returns>
-    internal static ImmutableHashSet<INamedTypeSymbol> FindBackedTypes(Compilation compilation) => ProjectionAndReducerTargets(compilation);
-
     static void AnalyzeParameter(SyntaxNodeAnalysisContext context, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
     {
         var syntax = (ParameterSyntax)context.Node;

@@ -29,7 +29,7 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         context.EnableConcurrentExecution();
         context.RegisterCompilationStartAction(start =>
         {
-            var backedTypes = new Lazy<ImmutableHashSet<INamedTypeSymbol>>(() => CommandDecisionReadAnalyzer.FindBackedTypes(start.Compilation));
+            var backedTypes = new Lazy<ImmutableHashSet<INamedTypeSymbol>>(() => ChronicleStateSymbols.BackedTypes(start.Compilation));
             start.RegisterSymbolAction(AnalyzeType, SymbolKind.NamedType);
             start.RegisterSymbolAction(AnalyzeMethod, SymbolKind.Method);
             start.RegisterSymbolAction(_ => AnalyzeParameter(_, backedTypes), SymbolKind.Parameter);
@@ -71,7 +71,7 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
 
         var command = method.ContainingType;
         if (CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName) is not null &&
-            CommandAttributeSymbols.ResolveLookup(command, parameter, CommandDecisionReadAnalyzer.IsReadModel(parameter.Type, backedTypes)).Conflict is not null)
+            CommandAttributeSymbols.ResolveLookup(command, parameter, ChronicleStateSymbols.IsBacked(parameter.Type, context.Compilation, backedTypes)).Conflict is not null)
         {
             context.ReportDiagnostic(Diagnostic.Create(_invalidLookup, parameter.Locations.FirstOrDefault(), command.Name));
         }
