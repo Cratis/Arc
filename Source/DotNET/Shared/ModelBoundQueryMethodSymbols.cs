@@ -78,7 +78,7 @@ internal static class ModelBoundQueryMethodSymbols
     /// <param name="method">The method.</param>
     /// <returns>Whether selection permits it.</returns>
     internal static bool IsSelected(IMethodSymbol method) =>
-        QuerySelectionPolicy.IsSelected(RequiresQueryAttribute(method.ContainingType), () => IsMarked(method), () => IsValidExplicitQuery(method));
+        QuerySelectionPolicy.IsSelected(HasSelfParameter(method), RequiresQueryAttribute(method.ContainingType), () => IsMarked(method), () => IsValidExplicitQuery(method));
 
     /// <summary>
     /// Selects queries with explicit rules or the caller's unchanged legacy predicate.
@@ -127,13 +127,28 @@ internal static class ModelBoundQueryMethodSymbols
     /// <returns>Whether it is eligible in explicit mode.</returns>
     internal static bool IsValidExplicitQuery(IMethodSymbol method) =>
         IsCandidate(method) && !IsOpen(method.ContainingType) && !method.ReturnsByRef && !method.ReturnsByRefReadonly &&
-        method.Parameters.All(_ => _.RefKind == RefKind.None);
+        method.Parameters.All(_ => _.RefKind == RefKind.None) && !HasSelfParameter(method);
+
+    /// <summary>
+    /// Detects an exact self parameter, ignoring nullable reference annotations.
+    /// </summary>
+    /// <param name="method">The method.</param>
+    /// <returns>Whether any parameter is the declaring model itself.</returns>
+    internal static bool HasSelfParameter(IMethodSymbol method) => method.Parameters.Any(parameter =>
+        SymbolEqualityComparer.Default.Equals(UnwrapNullable(parameter.Type), method.ContainingType));
+
+    static ITypeSymbol UnwrapNullable(ITypeSymbol type) =>
+        type is INamedTypeSymbol named && named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+            ? named.TypeArguments[0]
+            : type;
 
     static IEnumerable<Diagnostic> InvalidMarkers(INamedTypeSymbol type, IEnumerable<IMethodSymbol> methods, Func<IMethodSymbol, bool> legacyPredicate) => methods
         .Where(method => IsMarked(method) && HasInvalidDeclaration(type, method, legacyPredicate))
-        .Select(method => DeclarationError(
-            method,
-            "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]"));
+        .Select(method => DeclarationError(method, InvalidMarkerReason(method)));
+
+    static string InvalidMarkerReason(IMethodSymbol method) => HasSelfParameter(method)
+        ? QuerySelectionPolicy.SelfParameterReason
+        : "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]";
 
     static bool HasInvalidDeclaration(INamedTypeSymbol type, IMethodSymbol method, Func<IMethodSymbol, bool> legacyPredicate) =>
         ReadModel(type) is null || !IsValidExplicitQuery(method) || !legacyPredicate(method);
