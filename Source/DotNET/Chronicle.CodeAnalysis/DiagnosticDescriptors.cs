@@ -287,5 +287,41 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "A refusal branch is validated in full before any branch events are appended. Statically visible invalid results fail the reactor delivery at runtime. This rule checks visible lambdas, anonymous methods and source method-group bodies, including conditional returns and literal batches; opaque helpers remain runtime-validated.");
 
+    /// <summary>
+    /// ARCCHR0023: A read-model parameter's intended lookup key is not proven.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0023_ReadModelLookupNotProven = new(
+        id: "ARCCHR0023",
+        title: "Read-model lookup key is not proven",
+        messageFormat: "Read-model parameter '{0}' on command '{1}' has no proven lookup key: {2}",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A distinguishing read-model key type can reveal ambiguous or missing command properties. Repeated default-key parameters are advisory. This rule does not change runtime lookup or prove dataflow.");
+
+    /// <summary>
+    /// ARCCHR0025: A keyless event-producing command depends on Chronicle state.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0025_KeylessCommandRead = new(
+        id: "ARCCHR0025",
+        title: "Keyless command reads Chronicle state",
+        messageFormat: "Command '{0}' has no event source key; {1}. Add a key property or implement ICanProvideEventSourceId.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Automatically injected Chronicle read models in a keyless command are looked up using a newly generated id. IReadModels and IEventStore dependencies are advisory because their explicit lookup keys are not proven.");
+
+    /// <summary>
+    /// ARCCHR0026: A MongoDB collection's model is backed by Chronicle.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0026_ChronicleModelThroughMongoCollection = new(
+        id: "ARCCHR0026",
+        title: "Chronicle model read through a MongoDB collection",
+        messageFormat: "MongoDB collection parameter '{0}' contains Chronicle-backed model '{1}'; a read through this collection is not proven protected. Inject the model for a keyed read, or express an invariant as a constraint.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "This advisory recognizes IMongoCollection<T> parameters where T has Chronicle model-bound projection metadata, a source-declared projection or reducer, or a recognizable self-reduction. It does not inspect queries or prove runtime dataflow.");
+
     const string Category = "Arc.Chronicle";
 }

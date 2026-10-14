@@ -1,24 +1,42 @@
 ---
-title: "ARCCHR0023: Refusal branch must return registered events or acknowledge"
-description: Correct statically invalid OnRefused callback results before they fail a reactor delivery.
+title: "ARCCHR0023: Read-model lookup key is not proven"
+description: Signature-based hints about ambiguous, missing, or repeated read-model lookup keys.
 ---
 
 ## Rule
 
-A `CommandInvocation.OnRefused` callback produces registered events, not further command work. **Default severity: Warning.**
+A read-model parameter's key is not necessarily the entity you intended to read.
+This analyzer compares a Chronicle-backed model's `[Key]` or `Id`/`id` type with
+public command properties and the command's event source key.
 
-The analyzer reports statically visible invalid returns in expression or block lambdas, anonymous methods, and method groups whose source bodies are available. It checks conditional and switch-expression arms and literal collections. Commands, operations, stream completions, non-event objects, empty collections, null batch members, and envelopes containing invalid payloads are rejected.
+For a distinguishing concept type different from the command key type:
 
-The runtime validates the complete refusal production before appending any branch events. One invalid member fails the delivery without appending the valid members of that branch. Earlier successful commands and previously appended events are not rolled back.
+- Several matching properties produce a **Warning** naming the candidates.
+- No matching property produces **Info**.
+- Exactly one matching property is not reported.
 
-## Fix
+A second parameter resolving to the same inferred key produces **Info**. Reading
+several views of one entity can be intentional; this advisory does not prove a bug.
+Raw primitives, `Guid`, `string`, `EventSourceId`, and the generic `EventSourceId<T>`
+base are not distinguishing types. Derived domain identity types are distinguishing.
 
-Return an event marked `[EventType]`, an `EventForEventSourceId` containing one event, or a stable nonempty array or list of those. Register the event types as usual. Return `null` or use `.Acknowledge(selector)` when handling the refusal should produce no events. An envelope must not contain another envelope or an event collection.
+## Resolve the diagnostic
 
-Do not return a command from the refusal callback to try another operation. Choose the subsequent work outside the branch; a handled refusal stops the delivery's remaining command invocations. There is no automatic code fix because the intended refusal outcome is a domain decision.
+Use `Provide()` to read the intended entity explicitly and pass the plain model to
+`Handle()`. See [read-model injection](../read-models/injecting-into-commands.md).
+Suppress a repeated-key advisory with a justification when both parameters intentionally
+represent the same entity. There is no automatic code fix.
+
+This analyzer does not introduce other-key lookup conventions or change runtime
+resolution. A unique matching command property is a signature hint, not proof that
+runtime lookup uses it.
 
 ## Boundaries
 
-Only the actual Arc `CommandInvocation.OnRefused` method is checked; similarly named APIs are ignored. Method-group bodies outside the current compilation remain opaque, even when a project reference exposes their syntax. Collection-builder factory results are also opaque: an empty input does not prove that a custom builder returns an empty batch. The analyzer does not follow helper calls, erased object values, unknown generic elements, custom enumerators, or mutable collection dataflow. Nested functions are not callback returns unless supplied directly as the callback. A quiet analyzer is not proof of event registration, collection stability, or a valid runtime result.
-
-See [handling a command refusal](../reactors/command-side-effects.md#handle-a-command-refusal) for branch ordering, selectors, and failure behavior.
+The analyzer examines public instance `Handle()` and `Provide()` methods on recognizable
+event-producing model-bound commands. It recognizes model-bound projection metadata,
+projection/reducer targets declared in the compilation, and recognizable self-reductions.
+Custom event source providers, keyed service parameters, and `Handle()` dependencies
+on commands with `Provide()` are excluded because their lookup is not proven statically.
+Indirect reads, external fluent artifacts, runtime-only event registration, and erased
+event return types can be missed. A quiet analyzer does not prove lookup correctness.

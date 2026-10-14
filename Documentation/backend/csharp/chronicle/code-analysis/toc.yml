@@ -40,5 +40,9 @@
   href: ARCCHR0021.md
 - name: ARCCHR0022 - Command-key aggregate on a generated append target
   href: ARCCHR0022.md
-- name: ARCCHR0023 - Refusal branch must return registered events or acknowledge
+- name: ARCCHR0023 - Read-model lookup key is not proven
   href: ARCCHR0023.md
+- name: ARCCHR0025 - Keyless command reads Chronicle state
+  href: ARCCHR0025.md
+- name: ARCCHR0026 - Chronicle model read through a MongoDB collection
+  href: ARCCHR0026.md
