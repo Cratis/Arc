@@ -268,7 +268,7 @@ generated identifier that already has events, and there is no `Freshness` option
 [Cratis/Arc#3129](https://github.com/Cratis/Arc/issues/3129) tracks the guard. Stage renders applications
 with a Chronicle `BeforeFirst` concurrency scope on each generated event source;
 see [Concurrency](/chronicle/events/concurrency/) for what that scope checks, and
-[Generated values rendering](/stage/reference/generated-values-rendering/) for what Stage produces.
+[Generated values rendering](https://github.com/Cratis/Stage/blob/main/Documentation/reference/generated-values-rendering.md) for what Stage produces.
 
 ## Analyzers
 
