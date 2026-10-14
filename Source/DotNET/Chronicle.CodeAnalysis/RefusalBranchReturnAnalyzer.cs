@@ -44,14 +44,11 @@ public class RefusalBranchReturnAnalyzer : DiagnosticAnalyzer
         }
 
         var effects = new RefusalBranchEffects(context.Compilation);
-        foreach (var value in RefusalCallbackReturns.Read(callback.Value, context.Compilation, context.CancellationToken))
+        foreach (var value in RefusalCallbackReturns.Read(callback.Value, context.Compilation, context.CancellationToken).Where(effects.IsInvalid))
         {
-            if (effects.IsInvalid(value))
-            {
-                context.ReportDiagnostic(Diagnostic.Create(
-                    DiagnosticDescriptors.ARCCHR0027_InvalidRefusalBranchReturn,
-                    value.Syntax.GetLocation()));
-            }
+            context.ReportDiagnostic(Diagnostic.Create(
+                DiagnosticDescriptors.ARCCHR0027_InvalidRefusalBranchReturn,
+                value.Syntax.GetLocation()));
         }
     }
 }

@@ -353,12 +353,10 @@ public class ReactionReader(SemanticModels models)
             return null;
         }
         var sequence = ElementOf(returned.Type) is not null;
-        if (returned.Type.Is("Cratis.Arc.Chronicle.Reactors.CommandInvocation") || sequence || returned.Asynchronous)
+        if ((returned.Type.Is("Cratis.Arc.Chronicle.Reactors.CommandInvocation") || sequence || returned.Asynchronous) &&
+            new ReactionInvocations(models, Constraints).Read(returned.Value, semanticModel, handler, routesAppends) is { } invocation)
         {
-            if (new ReactionInvocations(models, Constraints).Read(returned.Value, semanticModel, handler, routesAppends) is { } invocation)
-            {
-                return invocation;
-            }
+            return invocation;
         }
         if (ReadEffects(returned.Value, semanticModel, handler, sequence) is not { } effects)
         {
