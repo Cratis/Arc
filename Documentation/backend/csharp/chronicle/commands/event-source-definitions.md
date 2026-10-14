@@ -49,7 +49,7 @@ A command declares at most one `[EventSource<TSource>]`. The stream argument is 
 
 A stream is the part of an event source's history that one kind of decision shares. Pick the stream by asking which events must be checked against each other when two commands run at once.
 
-**Recommended:** one definition per kind of entity, one `[EventStream]` per history that is decided separately, and the event source id as the entity's id. Name the stream on the command with `[EventSource<TSource>(stream)]`. The reason: the definition is the single place that says which streams exist and which dimensions guard them, and Arc rejects a typo. Alternatives, in order of preference: the command key and default stream with no definition, when one history per entity is enough; string attributes (`[EventStreamType]`), which ARCCHR0013 flags once a matching definition exists; explicit scopes, when the decision must be bound to a revision it read.
+**Recommended:** one definition per kind of entity, one `[EventStream]` per history that is decided separately, and the event source id as the entity's id. Name the stream on the command with `[EventSource<TSource>(stream)]`. The reason: the definition is the single place that says which streams exist and which dimensions guard them, and Arc rejects a typo. Alternatives, in order of preference: the command key and default stream with no definition, when one history per entity is enough; string attributes (`[EventSourceType]` with `[EventStreamType]`), which ARCCHR0013 flags once a matching definition exists; explicit scopes, when the decision must be bound to a revision it read.
 
 | You want | Declare | Stream id |
 | --- | --- | --- |
@@ -101,14 +101,14 @@ Chronicle's Dynamic Consistency Boundary (DCB) selects the events an append must
 
 | Dimension | The append is checked against events with the same |
 | --- | --- |
-| `EventSourceId` | Event source id. Leave it out only when the guard should span every event source that writes the stream. |
+| `EventSourceId` | Event source id. Leave it out only when the guard should span every event source that writes the stream, and only on a definition-routed `EventForEventSourceId`; see below. |
 | `EventSourceType` | Event source type, the definition name |
 | `EventStreamType` | Stream type, the stream name |
 | `EventStreamId` | Stream id, from `[EventStreamId]` |
 
 With no dimensions declared, the definition adds no guard of its own and the event sequence applies its configured strategy as it does for any append.
 
-Include `EventSourceId` unless you want a stream-wide guard across sources: a definition-derived guard without it is checked against all sources' events with the same stream type and stream id.
+Which dimensions the scope carries depends on how the event is returned. A definition-routed `EventForEventSourceId`, single or in a returned collection of wrappers (`EventSource` set, or built with `IEventRoutes`), is guarded by the scope Chronicle derives from the definition, which carries exactly the declared dimensions (when the command's definition declares any), so a definition without `EventSourceId` is checked against all sources' events with the same stream type and stream id. For every other returned event, that is a plain event, a collection of plain events, or a legacy-string wrapper, Arc builds the scope itself and always includes the target event source id, then adds the declared stream type, stream id and source type. Omitting `EventSourceId` therefore gives no cross-source guard there. Do not rely on a cross-source boundary from a plain returned event; include `EventSourceId` on the definition so both paths agree, or return definition-routed events. [How routing works](./event-source-definition-routing.md) lists each return path.
 
 Four limits matter:
 
@@ -135,15 +135,15 @@ Commands without a definition keep working. To move one over:
 2. Replace `[EventSourceType("Name")]` and `[EventStreamType("Stream")]` on the command with `[EventSource<TSource>("Stream")]`. Keep `[EventStreamId]` and `ICanProvideEventStreamId`; the definition does not replace them.
 3. Move `concurrency: true` to dimensions on the definition. While a command still carries the flag, the flag chooses the dimensions and the definition's are ignored for it.
 
-[ARCCHR0013](../code-analysis/index.md#arcchr0013-use-the-event-source-definition) (Info) finds the commands to migrate: when `[EventSourceType]` or `[EventStreamType]` on a command or aggregate root names a source that a definition in the compilation declares, it suggests `[EventSource<TSource>(stream)]`. It has no code fix, because the attributes can carry `concurrency: true` flags that the definition's dimensions do not reproduce.
+[ARCCHR0013](../code-analysis/index.md#arcchr0013-use-the-event-source-definition) (Info) finds the commands to migrate: when `[EventSourceType("Name")]` on a command or aggregate root names a source that a definition in the compilation declares, it suggests `[EventSource<TSource>]`, or `[EventSource<TSource>("stream")]` when an `[EventStreamType]` names a stream the definition declares. It stays silent when the stream is not declared, and for a type that already has `[EventSource<TSource>]`. It has no code fix, because the attributes can carry `concurrency: true` flags that the definition's dimensions do not reproduce.
 
 Do not keep a string attribute that contradicts the definition. `[EventSourceType]` or `[EventStreamType]` with a value other than the definition's source or stream fails with `EventRoutingContradictsEventSource` rather than append events whose strings disagree with the definition.
 
 ### Wrapper-named streams
 
-A returned `EventForEventSourceId` can name its route with `EventSourceType` and `EventStreamType` strings. That still works, but the event is appended by those strings: it loses `EventContext.EventSource` and the definition's concurrency dimensions. Two analyzers help you migrate:
+A returned `EventForEventSourceId` can name its route with `EventSourceType` and `EventStreamType` strings. That still works, but the event is appended by those strings: it loses `EventContext.EventSource` and the wrapper target's own definition policy. On a definition-routed command Arc still applies the command's selected definition dimensions, and builds the scope from the wrapper's own routing strings, always including the target event source id. Two analyzers help you migrate:
 
-- [ARCCHR0021](../code-analysis/ARCCHR0021.md) (Info) finds literal strings that spell a declared stream. Its code fix replaces them with `EventSource = typeof(Definition)` and `EventStream = "stream"`, or you can use `IEventRoutes`. Review the concurrency change first, because the definition's dimensions now apply to that event.
+- [ARCCHR0021](../code-analysis/ARCCHR0021.md) (Info) finds literal strings that spell a declared stream. Its code fix replaces them with `EventSource = typeof(Definition)` and `EventStream = "stream"`, or you can use `IEventRoutes`. Review the concurrency change first, because the guard now comes from the definition, which Chronicle derives with exactly the declared dimensions rather than Arc's scope that always includes the event source id.
 - [ARCCHR0020](../code-analysis/ARCCHR0020.md) (Warning) finds a literal stream name that the definition does not declare, which is usually a typo. At runtime a definition-routed command rejects such a wrapper with `EventStreamDoesNotBelongToEventSource` before it enrolls or appends anything.
 
 ```csharp
