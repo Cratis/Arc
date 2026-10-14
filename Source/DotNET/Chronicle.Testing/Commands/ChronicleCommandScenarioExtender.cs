@@ -59,6 +59,11 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     internal const string DecisionScenarioKey = "Chronicle.DecisionScenario";
 
     /// <summary>
+    /// Key for competing appends in a scenario that keeps its ordinary read mode.
+    /// </summary>
+    internal const string ConcurrentScenarioKey = "Chronicle.ConcurrentScenario";
+
+    /// <summary>
     /// The context key for the serializer registration owned by this extender.
     /// </summary>
     internal const string EventSerializerRegistrationKey = "Chronicle.EventSerializerRegistration";
@@ -100,6 +105,43 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
         context[ReadModelsKey] = readModels;
+    }
+
+    /// <summary>
+    /// Enables competing appends on the existing scenario log without opting into decision reads.
+    /// </summary>
+    /// <param name="services">The services of the uninitialized scenario.</param>
+    /// <param name="context">The scenario context.</param>
+    /// <returns>The competing append queue for the existing log.</returns>
+    /// <exception cref="ConcurrentAppendsCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+    internal static DecisionCommandScenario EnableConcurrentAppends(IServiceCollection services, IDictionary<string, object> context)
+    {
+        if (services.Any(_ => _.ServiceType == typeof(IInstancesOf<ICommandExecutionScope>) || _.ServiceType == typeof(ICommandExecutionScope)))
+        {
+            throw new ConcurrentAppendsCannotOrderCustomExecutionScopes();
+        }
+
+        var eventScenario = (EventScenario)context[ContextKey];
+        var unitOfWorkManager = (IUnitOfWorkManager)services.Last(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ImplementationInstance!;
+        var scenario = new DecisionCommandScenario(eventScenario.EventLog, unitOfWorkManager, (List<AppendedEventWithResult>)context[AppendedEventsKey], captureCommands: false);
+        services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(sp =>
+        {
+            var types = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple<ICommandExecutionScope>()
+                .Where(type => type != typeof(DecisionScenarioConcurrentAppendScope) && type != typeof(DecisionScenarioCommandCaptureScope));
+            var scopes = types.Select(type => (ICommandExecutionScope)ActivatorUtilities.GetServiceOrCreateInstance(sp, type)).ToList();
+            var ownerIndex = scopes.FindIndex(scope => scope is TransactionalCommandScope);
+            if (ownerIndex < 0)
+            {
+                throw new ConcurrentAppendsRequireTransactionalCommandScope();
+            }
+
+            scopes.Insert(ownerIndex, new DecisionScenarioCommandCaptureScope(scenario));
+            scopes.Insert(ownerIndex + 2, new DecisionScenarioConcurrentAppendScope(scenario));
+            return new KnownInstancesOf<ICommandExecutionScope>(scopes);
+        });
+        context[ConcurrentScenarioKey] = scenario;
+
+        return scenario;
     }
 
     /// <summary>
