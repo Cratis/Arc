@@ -135,7 +135,7 @@ using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
 
-await using var scenario = new CommandScenario<ApproveReportOnce>().UseDecisionReads();
+await using var scenario = new CommandScenario<ApproveReportOnce>();
 var id = EventSourceId.New();
 var route = scenario.EventRoutes.For<ReportEventSource>("Approval").WithStreamId("acme:2026-10-01");
 scenario.AppendConcurrently(id, route, new ReportApproved());
