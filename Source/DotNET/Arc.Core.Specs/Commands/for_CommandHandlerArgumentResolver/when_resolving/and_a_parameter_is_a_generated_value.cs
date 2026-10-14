@@ -7,6 +7,7 @@ public class and_a_parameter_is_a_generated_value : given.a_generated_value_reso
 {
     async Task Because() => _resolution = await Resolve();
 
+    [Fact] void should_capture_guarded_freshness_by_default() => _context.GeneratedValues.Single().Freshness.ShouldEqual(GeneratedValueFreshness.Guarded);
     [Fact] void should_succeed() => _resolution.ControlResult.IsSuccess.ShouldBeTrue();
     [Fact] void should_generate_the_argument() => _resolution.Arguments.Single().ShouldBeOfExactType<Id>();
     [Fact] void should_capture_the_argument() => _context.GeneratedValues.Get<Id>("id").ShouldEqual(_resolution.Arguments.Single());

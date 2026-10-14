@@ -15,6 +15,11 @@ namespace Cratis.Arc.Commands;
 public sealed record GeneratedValue(int Order, string Name, Type Type, object Value)
 {
     /// <summary>
+    /// Gets the freshness policy captured from the generated parameter.
+    /// </summary>
+    public GeneratedValueFreshness Freshness { get; init; } = GeneratedValueFreshness.Guarded;
+
+    /// <summary>
     /// Formats the capture metadata without exposing the generated value.
     /// </summary>
     /// <returns>The order, name and declared type of the generated value.</returns>

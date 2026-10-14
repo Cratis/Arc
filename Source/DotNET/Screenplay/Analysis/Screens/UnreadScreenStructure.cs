@@ -38,14 +38,14 @@ public class UnreadScreenStructure(ScreenplayDiagnostics diagnostics, string @na
         Report($"titles a <{tag}> with '{written}', which is computed rather than written as text, so no title is written for it");
 
     /// <summary>
-    /// Reports a table bound to something that is not a query of its slice.
+    /// Reports a table whose imported query cannot be resolved to a declaring slice.
     /// </summary>
     /// <param name="tag">The tag of the table.</param>
     /// <param name="written">The query as written, or null when it states none.</param>
     public void Query(string tag, string? written) =>
         Report(written is null
             ? $"uses a <{tag}> without a query, so no table is written for it"
-            : $"binds a <{tag}> to '{written}', which is not a query its slice declares, so no table is written for it");
+            : $"binds a <{tag}> to '{written}', whose imported query cannot be resolved to a declaring slice, so no table is written for it");
 
     /// <summary>
     /// Reports a column that is left out.
@@ -152,14 +152,14 @@ public class UnreadScreenStructure(ScreenplayDiagnostics diagnostics, string @na
         Composition($"shows a details component beside the <{tag}>, a pane on the same screen showing '{written}' for the selected row; Screenplay has no same-screen composition for it, so neither navigation nor its content is written. A slice-directory details file remains a separate screen");
 
     /// <summary>
-    /// Reports a command dialog running something that is not a command of its slice.
+    /// Reports a command dialog whose imported command cannot be resolved to a declaring slice.
     /// </summary>
     /// <param name="tag">The tag of the dialog.</param>
     /// <param name="written">The command as written, or null when it states none.</param>
     public void Command(string tag, string? written) =>
         Report(written is null
             ? $"uses a <{tag}> without a command, so no action is written for it"
-            : $"runs '{written}' from a <{tag}>, which is not a command its slice declares, so no action is written for it");
+            : $"runs '{written}' from a <{tag}>, whose imported command cannot be resolved to a declaring slice, so no action is written for it");
 
     /// <summary>
     /// Reports a scan boundary that prevents trustworthy structure inference.

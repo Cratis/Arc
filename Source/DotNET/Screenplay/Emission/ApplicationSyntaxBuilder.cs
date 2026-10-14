@@ -189,7 +189,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             placed.Add(new(slice.Namespace, built));
         }
 
-        var builder = new SliceTreeBuilder(naming);
+        var builder = new SliceTreeBuilder(naming) { Diagnostics = diagnostics };
 
         return options.ModulesFromNamespaceRoots
             ? builder.BuildPerNamespaceRoot(placed, domain, segmentsToSkip)

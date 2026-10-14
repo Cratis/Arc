@@ -38,5 +38,7 @@ public sealed class GeneratedValues : IReadOnlyList<GeneratedValue>
     /// <param name="name">The generated value name.</param>
     /// <param name="type">The declared type.</param>
     /// <param name="value">The validated value.</param>
-    internal void Add(string name, Type type, object value) => _values.Add(new(_values.Count, name, type, value));
+    /// <param name="freshness">The parameter's freshness policy.</param>
+    internal void Add(string name, Type type, object value, GeneratedValueFreshness freshness = GeneratedValueFreshness.Guarded) =>
+        _values.Add(new(_values.Count, name, type, value) { Freshness = freshness });
 }

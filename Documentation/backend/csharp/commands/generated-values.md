@@ -234,7 +234,8 @@ an exception rather than a 400 validation failure. Warnings and information allo
 contain names and types only.
 
 `CommandContext.GeneratedValues` exposes validated captures in parameter resolution order. Each entry has a
-zero-based `Order`, a `Name`, its declared `Type`, and its `Value`. `Get<CustomerId>("customerId")`
+zero-based `Order`, a `Name`, its declared `Type`, its `Value`, and the immutable `Freshness` policy.
+`Get<CustomerId>("customerId")`
 retrieves the latest matching capture and fails if none exists. Context copies retain the same captures.
 
 :::caution[Do not log or trace generated values]
@@ -261,14 +262,18 @@ captures of secrets like the secret.
 Generation also does not prove a value is absent from your storage. Time-ordered values, UUIDv7 included,
 reveal their creation time and are not monotonic within a millisecond.
 
-## What is not there yet
+## Guard a generated append target
 
-Arc has no freshness guard for hand-written commands. Nothing stops a handler from appending to a
-generated identifier that already has events, and there is no `Freshness` option on `[GeneratedValue]`.
-[Cratis/Arc#3129](https://github.com/Cratis/Arc/issues/3129) tracks the guard. Stage renders applications
-with a Chronicle `BeforeFirst` concurrency scope on each generated event source;
-see [Concurrency](/chronicle/events/concurrency/) for what that scope checks, and
-[Generated values rendering](https://github.com/Cratis/Stage/blob/main/Documentation/reference/generated-values-rendering.md) for what Stage produces.
+With Arc's Chronicle integration, `GeneratedValueFreshness.Guarded` is the default. Returned events and
+aggregate mutations targeting a generated identifier require the whole event source to be empty, regardless
+of stream or event type. Occupancy produces `ConcurrencyViolation` with `ReasonDetail = "GeneratedIdentifierCollision"`;
+Arc does not rerun `Handle()`.
+
+`[GeneratedValue(Freshness = GeneratedValueFreshness.Unguarded)]` opts out while keeping generation and
+validation. Values used only in a response or payload add no scope. Direct user calls to unit-of-work
+append APIs inside `Handle()` are not automatically guarded. See
+[Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for supported paths, explicit-scope merging,
+version requirements and the direct-write workaround.
 
 ## Analyzers
 

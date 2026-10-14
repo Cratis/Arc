@@ -12,7 +12,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 /// components fix: the title of a data page, the query its table is bound to, the field and header of each column,
 /// the command a dialog runs. That much is written into the document, and every part the generator cannot read
 /// without guessing - a computed header, a column showing a computed value, a menu item running a callback, a
-/// details pane, a dialog for a command of another slice - is left out and reported on its own.
+/// details pane - is left out and reported on its own. Cross-slice dialog actions are qualified.
 /// </summary>
 public class from_the_source_of_an_application_using_known_components : Specification
 {
@@ -101,7 +101,7 @@ public class from_the_source_of_an_application_using_known_components : Specific
     [Fact] void should_produce_a_document_without_warnings_or_errors() => _compiled.Diagnostics.WithoutTimelineInformation().ShouldBeEmpty();
     [Fact] void should_print_the_same_text_on_a_second_pass() => _reprinted.ShouldEqual(_result.Source);
     [Fact] void should_write_the_title_of_the_data_page() => SaysInSequence("data Author[] via query AllAuthors", "title \"Authors\"").ShouldBeTrue();
-    [Fact] void should_write_a_table_of_the_read_model_the_query_returns() => SaysInSequence("table Author", "column name label \"Name\"", "column id", string.Empty).ShouldBeTrue();
+    [Fact] void should_write_a_table_of_the_read_model_the_query_returns() => SaysInSequence("table Author", "column name label \"Name\"", "column id", "action Registration.RegisterAuthor").ShouldBeTrue();
     [Fact] void should_leave_out_a_column_that_names_no_field() => Says("Initials").ShouldBeFalse();
     [Fact] void should_leave_out_a_column_that_is_commented_out() => Says("column retired").ShouldBeFalse();
     [Fact] void should_write_the_command_a_dialog_runs() => SaysInSequence("action RegisterAuthor").ShouldBeTrue();
@@ -111,8 +111,8 @@ public class from_the_source_of_an_application_using_known_components : Specific
     [Fact] void should_report_the_column_that_names_no_field() => Reports("does not name the property it shows as text").ShouldBeTrue();
     [Fact] void should_report_the_menu_item() => Reports("has a menu item 'Retire' that runs a callback").ShouldBeTrue();
     [Fact] void should_report_the_details_component() => _result.Diagnostics.Any(_ => _.Code == ScreenplayDiagnosticCodes.ScreenCompositionNotRepresentable && _.Message.Contains("shows a details component beside the <DataPage>", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_report_the_dialog_for_a_command_of_another_slice() => Reports("runs 'RegisterAuthor' from a <CommandDialog>, which is not a command its slice declares").ShouldBeTrue();
-    [Fact] void should_report_each_unread_directive_on_its_own() => _unread.Count().ShouldEqual(4);
+    [Fact] void should_write_the_dialog_for_a_command_of_another_slice() => Says("action Registration.RegisterAuthor").ShouldBeTrue();
+    [Fact] void should_report_each_unread_directive_on_its_own() => _unread.Count().ShouldEqual(3);
     [Fact] void should_report_nothing_for_a_screen_read_in_full() => _unread.Any(_ => _.StartsWith("The screen 'AddAuthor'", StringComparison.Ordinal)).ShouldBeFalse();
     [Fact] void should_report_nothing_but_what_was_not_inferred_and_the_withheld_query_implementations() => _result.Diagnostics.Select(_ => _.Code).Distinct().ShouldContainOnly([ScreenplayDiagnosticCodes.ScreenStructureNotInferred, ScreenplayDiagnosticCodes.ScreenCompositionNotRepresentable, ScreenplayDiagnosticCodes.UnmappableQuery]);
     [Fact] void should_report_the_withheld_implementation_of_each_query_with_a_body() => _withheldQueries.ShouldContainOnly(["AllAuthors", "AuthorById"]);

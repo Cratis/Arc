@@ -3,29 +3,27 @@
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
-public class from_a_menu_item_opening_a_dialog_of_another_slice : given.a_screen_using_components
+public class from_a_menu_item_opening_a_dialog_of_another_slice : given.a_cross_slice_screen
 {
-    void Establish() => _component = Imports + """
-
+    void Establish() => Component = """
+        import { DataPage, MenuItem, MenuItems, CommandDialog } from '@cratis/components';
+        import { useState } from 'react';
+        import { All } from './All';
         import { RegisterAuthor } from '../Registration/RegisterAuthor';
-        export const AuthorRetirement = () => {
+        export const AuthorBoard = () => {
             const [visible, show] = useState(false);
             return <>
-                <DataPage query={AuthorsToRetire}><MenuItems><MenuItem command={() => show(true)} /></MenuItems></DataPage>
+                <DataPage query={All}><MenuItems><MenuItem command={() => show(true)} /></MenuItems></DataPage>
                 <CommandDialog command={RegisterAuthor} visible={visible} />
             </>;
         };
         """;
 
-    void Because() => Generate();
+    void Because() => GenerateScreen();
 
-    [Fact] void should_compile_the_document() => _compiled.Success.ShouldBeTrue();
-    [Fact] void should_have_no_document_warnings_or_errors() => DocumentIsClean.ShouldBeTrue();
-    [Fact] void should_reprint_identically() => _reprinted.ShouldEqual(_result.Source);
+    [Fact] void should_bind_and_round_trip_the_document() => AssertDocument();
+    [Fact] void should_write_the_qualified_toolbar_item() => Says("item registerAuthor action Registration.RegisterAuthor").ShouldBeTrue();
+    [Fact] void should_not_write_the_claimed_dialog_as_a_screen_action() => Says("\n                action ").ShouldBeFalse();
+    [Fact] void should_not_report_the_read_command() => Result.Diagnostics.Where(_ => _.Code == "SP0028").ShouldBeEmpty();
     [Fact] void should_not_invent_navigation() => Says("navigate to").ShouldBeFalse();
-
-    [Fact] void should_not_write_a_toolbar() => Says("toolbar").ShouldBeFalse();
-    [Fact] void should_report_the_dialog_command_and_menu_item() => Count("SP0028").ShouldEqual(2);
-    [Fact] void should_report_the_unread_dialog_command() => Reports("SP0028", "which is not a command its slice declares").ShouldBeTrue();
-    [Fact] void should_report_the_unread_opener() => Reports("SP0028", "dialog's command is not read").ShouldBeTrue();
 }

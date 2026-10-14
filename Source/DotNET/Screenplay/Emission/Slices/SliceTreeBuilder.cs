@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Emission.Naming;
+using Cratis.Arc.Screenplay.Emission.Screens;
 using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Syntax;
 
@@ -14,6 +15,11 @@ namespace Cratis.Arc.Screenplay.Emission.Slices;
 public class SliceTreeBuilder(IScreenplayNaming naming)
 {
     /// <summary>
+    /// Gets the reporter for screen references withheld during emission.
+    /// </summary>
+    public ScreenplayDiagnostics Diagnostics { get; init; } = new();
+
+    /// <summary>
     /// Builds the module holding every slice, nesting features after the namespace segments of each slice.
     /// </summary>
     /// <param name="slices">The slices to arrange, keyed on the namespace they live in.</param>
@@ -22,17 +28,9 @@ public class SliceTreeBuilder(IScreenplayNaming naming)
     /// <returns>The modules of the document.</returns>
     public IEnumerable<ModuleSyntax> Build(IEnumerable<PlacedSlice> slices, string moduleName, int segmentsToSkip)
     {
-        var root = new FeatureNode();
+        var scoped = slices.Select(placed => (Placed: placed, Scope: ScopeOf(placed, moduleName, segmentsToSkip))).ToList();
 
-        foreach (var placed in slices)
-        {
-            var path = GetFeaturePath(placed.Namespace, moduleName, segmentsToSkip);
-            root.Resolve(path).Slices.Add(placed.Slice);
-        }
-
-        var features = root.BuildChildren();
-
-        return features.Length == 0 ? [] : [new ModuleSyntax(moduleName, [], features, SourceLocation.Start)];
+        return BuildTree(new ScreenReferenceScopes(scoped, naming, Diagnostics).Apply(), moduleName, segmentsToSkip);
     }
 
     /// <summary>
@@ -48,13 +46,36 @@ public class SliceTreeBuilder(IScreenplayNaming naming)
     /// projects is actually divided by, and the assembly names are not. It is also the division a reader already
     /// sees, because the segment every namespace of one bounded context begins with is the name that context goes by.
     /// </remarks>
-    public IEnumerable<ModuleSyntax> BuildPerNamespaceRoot(IEnumerable<PlacedSlice> slices, string fallbackName, int segmentsToSkip) =>
-    [
-        .. slices
-            .GroupBy(_ => RootOf(_.Namespace, fallbackName, segmentsToSkip), StringComparer.Ordinal)
-            .OrderBy(_ => _.Key, StringComparer.Ordinal)
-            .SelectMany(group => Build([.. group], group.Key, segmentsToSkip))
-    ];
+    public IEnumerable<ModuleSyntax> BuildPerNamespaceRoot(IEnumerable<PlacedSlice> slices, string fallbackName, int segmentsToSkip)
+    {
+        var scoped = slices.Select(placed => (Placed: placed, Scope: ScopeOf(placed, RootOf(placed.Namespace, fallbackName, segmentsToSkip), segmentsToSkip))).ToList();
+
+        return
+        [
+            .. new ScreenReferenceScopes(scoped, naming, Diagnostics).Apply()
+                .GroupBy(_ => RootOf(_.Namespace, fallbackName, segmentsToSkip), StringComparer.Ordinal)
+                .OrderBy(_ => _.Key, StringComparer.Ordinal)
+                .SelectMany(group => BuildTree(group, group.Key, segmentsToSkip))
+        ];
+    }
+
+    IEnumerable<ModuleSyntax> BuildTree(IEnumerable<PlacedSlice> slices, string moduleName, int segmentsToSkip)
+    {
+        var root = new FeatureNode();
+
+        foreach (var placed in slices)
+        {
+            var path = GetFeaturePath(placed.Namespace, moduleName, segmentsToSkip);
+            root.Resolve(path).Slices.Add(placed.Slice);
+        }
+
+        var features = root.BuildChildren();
+
+        return features.Length == 0 ? [] : [new ModuleSyntax(moduleName, [], features, SourceLocation.Start)];
+    }
+
+    string[] ScopeOf(PlacedSlice placed, string moduleName, int segmentsToSkip) =>
+        [moduleName, .. GetFeaturePath(placed.Namespace, moduleName, segmentsToSkip), placed.Slice.Name];
 
     /// <summary>
     /// Resolves the module a slice is gathered under.
