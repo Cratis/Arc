@@ -109,11 +109,38 @@ have Arc's generated-target provenance and therefore need not report `GeneratedI
 
 ## Verify an occupied identifier in a spec
 
-Use a [command scenario](../../testing/generated-values.md) and pin the generated parameter by name before
-execution. Seed an event for that same identifier, including a different stream if your command routes to a
-specific stream. Execute once and assert `ConcurrencyViolation`, `ReasonDetail == "GeneratedIdentifierCollision"`,
-no additional persisted events, and one handler invocation. Also exercise an empty source with two returned
-events: both must append successfully under one guard.
+Create a [command scenario](../../testing/generated-values.md) with `UseDecisionReads()` **before seeding**,
+then pin the generated parameter by name. In this mode, `Given.ForEventSource(id).Events(...)` seeds the same
+event log the freshness guard checks. Default mode seeds read-model state only and leaves that log empty;
+it cannot prove that a generated identifier is occupied.
+
+This excerpt uses `CreateSource`, `Identifier`, `Created` and `ResultShape` from the
+[fresh-identifier spec context](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/Commands/for_CommandScenario_with_fresh_identifiers/given/a_fresh_identifier_scenario.cs).
+Import `Cratis.Arc.Testing.Commands`, `Cratis.Arc.Chronicle.Testing.Commands`, `Cratis.Arc.Validation`
+and `Cratis.Specifications`:
+
+```csharp
+await using var scenario = new CommandScenario<CreateSource>().UseDecisionReads();
+var id = new Identifier(Guid.Parse("fb6dd43a-b161-44b1-9baa-7b2e4a071680"));
+scenario.PinGeneratedValue("id", id);
+scenario.Given.ForEventSource(id).Events(new Created("existing"));
+var tailBefore = await scenario.EventLog.GetTailSequenceNumber();
+var command = new CreateSource(ResultShape.Wrapper);
+
+var result = await scenario.Execute(command);
+
+result.ValidationResults.Single().Reason.ShouldEqual(ValidationResultReason.ConcurrencyViolation);
+result.ValidationResults.Single().ReasonDetail.ShouldEqual("GeneratedIdentifierCollision");
+(await scenario.EventLog.GetTailSequenceNumber()).ShouldEqual(tailBefore);
+command.Calls.ShouldEqual(1);
+```
+
+Default mode now throws `GeneratedIdentifierCollisionRequiresDecisionReads` before handling the command:
+"The scenario cannot prove a generated-identifier collision without UseDecisionReads(). Create the scenario
+with `new CommandScenario<TCommand>().UseDecisionReads()` before seeding events and pinning the generated value."
+
+Seed an event for the same identifier, including a different stream if your command routes to a specific
+stream. Also exercise an empty source with two returned events: both must append successfully under one guard.
 
 A fixed pin is reused across executions. A second create invocation with the same pin should collide rather
 than silently continue the first source.

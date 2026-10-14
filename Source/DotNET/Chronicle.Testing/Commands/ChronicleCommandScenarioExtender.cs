@@ -105,6 +105,7 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
         context[ReadModelsKey] = readModels;
+        context[nameof(GeneratedIdentifierCollisionScenarioCheck)] = new GeneratedIdentifierCollisionScenarioCheck(context, readModels);
     }
 
     /// <summary>
