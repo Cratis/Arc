@@ -22,4 +22,9 @@ public record ScreenStructure(IEnumerable<string> Titles, IEnumerable<ScreenTabl
     /// Gets the toolbars recovered from data page menus.
     /// </summary>
     public IEnumerable<ScreenToolbarModel> Toolbars { get; init; } = [];
+
+    /// <summary>
+    /// Gets proven post-success navigation keyed by the command reference.
+    /// </summary>
+    public IReadOnlyDictionary<string, ScreenNavigationModel> AfterSuccess { get; init; } = new Dictionary<string, ScreenNavigationModel>();
 }

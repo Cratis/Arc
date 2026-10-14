@@ -49,7 +49,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             .. screen.Titles.Select(_ => new ScreenTitleSyntax(_, SourceLocation.Start)),
             .. screen.Toolbars.Select(Toolbar),
             .. screen.Tables.Select(Table),
-            .. screen.Actions.Select(_ => new ScreenActionSyntax(Reference(_), null, null, SourceLocation.Start))
+            .. screen.Actions.Select(_ => new ScreenActionSyntax(Reference(_), null, screen.AfterSuccess.TryGetValue(_, out var destination) ? Navigate(destination) : null, SourceLocation.Start))
         ];
 
         return new(name, new FileReferenceSyntax(path, SourceLocation.Start), directives, SourceLocation.Start);
@@ -93,7 +93,7 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
             SourceLocation.Start);
 
     /// <summary>
-    /// Builds a toolbar of command input openers without inventing icons or bindings.
+    /// Builds a toolbar of command input openers and proven route navigation without inventing icons or bindings.
     /// </summary>
     /// <param name="toolbar">The recovered toolbar.</param>
     /// <returns>The toolbar syntax.</returns>
@@ -101,12 +101,26 @@ public class ScreenSyntaxBuilder(IScreenplayNaming naming, TypeReferenceConverte
         new(naming.ToPropertyName(toolbar.Name), toolbar.Items.Select(ToolbarItem), SourceLocation.Start);
 
     /// <summary>
-    /// Builds one command-opening toolbar item.
+    /// Builds one command-opening or screen-navigation toolbar item.
     /// </summary>
     /// <param name="item">The recovered item.</param>
     /// <returns>The toolbar item syntax.</returns>
     ToolbarItemSyntax ToolbarItem(ScreenToolbarItemModel item) =>
-        new(naming.ToPropertyName(item.Name), ToolbarItemKind.Action, Reference(item.Command), SourceLocation.Start) { Label = item.Label };
+        new(
+            naming.ToPropertyName(item.Name),
+            item.Navigation is null ? ToolbarItemKind.Action : ToolbarItemKind.Navigate,
+            Reference(item.Navigation?.Screen ?? item.Command),
+            SourceLocation.Start)
+        {
+            Label = item.Label,
+            Parameters = item.Navigation is { } destination ? ScreenNavigationSyntax.Parameters(destination) : []
+        };
+
+    ScreenNavigateSyntax Navigate(ScreenNavigationModel navigation) => new(Reference(navigation.Screen), null, SourceLocation.Start)
+    {
+        Route = navigation.Route,
+        Parameters = ScreenNavigationSyntax.Parameters(navigation)
+    };
 
     string Reference(string name) => string.Join('.', name.Split('.').Select(naming.ToDeclarationName));
 

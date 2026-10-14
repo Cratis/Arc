@@ -26,6 +26,13 @@ public interface IUserInterfaceFiles
     IEnumerable<string> In(string directory);
 
     /// <summary>
+    /// Gets potential route tables recursively under a source root, excluding build and dependency directories.
+    /// </summary>
+    /// <param name="directory">The common root of the compilation's source paths.</param>
+    /// <returns>The TSX paths; hosts without route-table discovery return an empty collection.</returns>
+    IEnumerable<string> Under(string directory) => [];
+
+    /// <summary>
     /// Gets the text of a user interface file.
     /// </summary>
     /// <param name="path">The path of the file, spelled exactly as <see cref="In"/> gave it.</param>

@@ -19,8 +19,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// a column without a field, an unread menu callback and an unresolved proxy binding are left out and reported on
 /// their own, so what the document says about a screen is always something the screen says too.
 /// <para>
-/// Nothing in the Cratis Components states navigation - a details component is a pane on the same screen - so no
-/// <c>navigate to</c> is ever written.
+/// A literal router gesture is emitted only when an application route table proves which screen it shows.
+/// A details component is a pane on the same screen, not navigation.
 /// </para>
 /// </remarks>
 public partial class ScreenStructureReader(IUserInterfaceFiles files, ScreenplayDiagnostics diagnostics)
@@ -41,6 +41,7 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
     /// <param name="queries">The queries the slice declares, under the names it declares them.</param>
     /// <param name="commands">The commands the slice declares.</param>
     /// <param name="references">The application-wide proxy resolver, when available.</param>
+    /// <param name="navigation">The literal route resolver, when a route table is available.</param>
     /// <returns>The <see cref="ScreenStructure"/>.</returns>
     public ScreenStructure Read(
         string @namespace,
@@ -48,7 +49,8 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
         string path,
         IReadOnlyCollection<QueryModel> queries,
         IReadOnlyCollection<CommandModel> commands,
-        ScreenProxyReferences? references = null)
+        ScreenProxyReferences? references = null,
+        Func<string, ScreenNavigationModel?>? navigation = null)
     {
         var unread = new UnreadScreenStructure(diagnostics, @namespace, name);
         if (files.Contents(path) is not { } text)
@@ -83,17 +85,24 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
         }
 
         references ??= new(@namespace, path, components, queries, commands);
-        var menus = new MenuItemReader(code, components, references, unread);
+        var menus = new MenuItemReader(code, components, references, unread, navigation);
+        var success = new ScreenSuccessNavigation(new MenuCallbacks(code, components), navigation, unread);
         var toolbars = menus.ReadPages(elements.Where(_ => _.Kind == ComponentKind.Page).Select(_ => _.Element).ToList());
-        var reading = new Reading(components, references, unread) { Menus = menus };
+        var reading = new Reading(components, references, unread, success) { Menus = menus };
         foreach (var (kind, element) in elements)
         {
             reading.Read(kind, element);
         }
 
         ReportUnaccounted(code, elements.ConvertAll(_ => _.Element), unread);
+        UnreadNavigationGestures.Report(code, components, new MenuCallbacks(code, components), unread);
 
-        return new(reading.Titles, reading.Tables, reading.Actions.Distinct(StringComparer.Ordinal).ToList()) { Toolbars = toolbars };
+        var afterSuccess = success.Resolved();
+        return new(reading.Titles, reading.Tables, reading.Actions.Concat(afterSuccess.Keys).Distinct(StringComparer.Ordinal).ToList())
+        {
+            Toolbars = toolbars,
+            AfterSuccess = afterSuccess
+        };
     }
 
     static bool HasKnownComponents(KnownComponents components) =>
@@ -140,7 +149,8 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
     sealed class Reading(
         KnownComponents components,
         ScreenProxyReferences references,
-        UnreadScreenStructure unread)
+        UnreadScreenStructure unread,
+        ScreenSuccessNavigation success)
     {
         /// <summary>
         /// Gets the menu reader that tracks claimed dialogs.
@@ -267,10 +277,7 @@ public partial class ScreenStructureReader(IUserInterfaceFiles files, Screenplay
                 Actions.Add(command);
             }
 
-            if (dialog["onSuccess"] is { } callback)
-            {
-                unread.AfterSuccess(command, callback.Written);
-            }
+            success.Read(dialog, command);
         }
 
         void ReadBound<T>(JsxElement element, ComponentKind kind, Func<string, T?> resolve, Action<T> read)
