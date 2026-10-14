@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Events.Constraints;
@@ -54,6 +55,11 @@ public class AggregateRootCommitResult
     /// Gets the validation results reported by the aggregate root during processing.
     /// </summary>
     public IEnumerable<ValidationResult> ValidationResults { get; init; } = [];
+
+    /// <summary>
+    /// Gets generated-target provenance from the unit that produced this result.
+    /// </summary>
+    internal FreshIdentifierProvenance? FreshIdentifiers { get; init; }
 
     /// <summary>
     /// Implicitly convert from <see cref="AggregateRootCommitResult"/> to <see cref="bool"/>.
@@ -118,6 +124,7 @@ public class AggregateRootCommitResult
         IEnumerable<ValidationResult>? validationResults = default) =>
         new()
         {
+            FreshIdentifiers = FreshIdentifierScopes.For(unitOfWork),
             Events = events.ToArray(),
             SequenceNumbers = sequenceNumbers.ToArray(),
             ConstraintViolations = unitOfWork.GetConstraintViolations().ToArray(),

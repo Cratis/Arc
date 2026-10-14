@@ -14,6 +14,8 @@
   href: transactional-commands.md
 - name: Concurrency
   href: concurrency.md
+- name: Fresh identifiers
+  href: fresh-identifiers.md
 - name: Stream decisions
   href: stream-decisions.md
 - name: Completing streams
