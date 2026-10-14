@@ -6,9 +6,7 @@ using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing.EventSequences;
-using Cratis.Chronicle.Testing.ReadModels;
 
 namespace Cratis.Arc.Chronicle.Testing.Commands;
 
@@ -44,14 +42,13 @@ internal sealed class PrivateReadModelObservationLog : IDisposable
     /// Observes the private log through Chronicle's own testing read models.
     /// </summary>
     /// <typeparam name="TReadModel">The read model type.</typeparam>
-    /// <param name="inner">The read models supplying discovered artifacts.</param>
     /// <returns>The collection stream, including any failure to mirror history.</returns>
-    public IObservable<IEnumerable<TReadModel>> Observe<TReadModel>(IReadModels inner)
+    public IObservable<IEnumerable<TReadModel>> Observe<TReadModel>()
     {
         lock (_gate)
         {
             _scenario ??= new EventScenario(EventSequenceId.Log, $"observation-{Guid.NewGuid():N}", "default", constraintProvider: null);
-            var observation = new ReadModelsForTesting(inner, _scenario.EventLog).Observe<TReadModel>();
+            var observation = _scenario.ReadModels.Observe<TReadModel>();
             Flush();
             if (_failure is not null)
             {

@@ -7,7 +7,7 @@ Licensed under the MIT license. See LICENSE file in the project root for full li
 
 ## Discovery contract
 
-For an `[ReadModel]` type `T`, a query method must return one of these shapes. One outer `Task<TResult>` is also supported, including around a subject.
+For an `[ReadModel]` type `T`, a query method must return one of these shapes. One outer `Task<TResult>` is also supported, including around a subject. A supported return shape is necessary, not sufficient: the method must satisfy the [static-method requirements](static-methods.md#method-requirements), including **no parameter of type `T` or nullable `T?`**. Static self-reduction methods therefore remain helpers, not endpoints.
 
 | Declared return type | Behavior |
 | --- | --- |

@@ -9,6 +9,10 @@ public class when_selecting_queries
 {
     [Theory]
     [InlineData(false, "public static Order Create(object value) => new();", true)]
+    [InlineData(false, "public static Order Helper(Order current, object e) => current;", false)]
+    [InlineData(false, "public static Order? Reduce(object e, Order? current) => current;", false)]
+    [InlineData(false, "public static Task<Order?> Helper(object e, object context, Order? current) => Task.FromResult(current);", false)]
+    [InlineData(false, "public static Order Helper(System.Collections.Generic.IEnumerable<Order> models) => new();", true)]
     [InlineData(false, "private static Order Helper() => new();", true)]
     [InlineData(true, "public static Order Helper() => new();", false)]
     [InlineData(true, "private static Order Helper() => new();", false)]
@@ -30,6 +34,9 @@ public class when_selecting_queries
 
     [Fact]
     public void should_reject_invalid_marked_task_helpers() => Catch.Exception(() => _ = QueryReader.MethodsOf(TypeOf("[Query] public static Task BeginReplay(object service) => Task.CompletedTask;", true))).ShouldNotBeNull();
+
+    [Fact]
+    public void should_reject_marked_self_parameters() => Catch.Exception(() => _ = QueryReader.MethodsOf(TypeOf("[Query] public static Order? Reduce(object e, Order? current) => current;", false))).ShouldNotBeNull();
 
     static Microsoft.CodeAnalysis.INamedTypeSymbol TypeOf(string method, bool explicitMode)
     {
