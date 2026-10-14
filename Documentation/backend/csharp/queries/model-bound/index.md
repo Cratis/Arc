@@ -64,7 +64,7 @@ This unprotected teaching example is suitable only for public data or a local sa
 
 ## What Arc discovers
 
-Use a non-generic static method returning **the declaring read-model type**, a collection of that type, or one of its [supported wrappers](return-types.md). Public methods are the recommended declaration style.
+Use a non-generic static method returning **the declaring read-model type**, a collection of that type, or one of its [supported wrappers](return-types.md). Public methods are the recommended declaration style. A method accepting that exact read-model type as a parameter is never a query, even if the parameter is nullable. This keeps self-reduction and other self-parameter helpers off the endpoint surface without requiring `RequireQueryAttribute`.
 
 For example, a method on `DebitAccount` returning `IEnumerable<DebitAccount>` qualifies. A method there returning `AccountSummary`, `int`, or `PagedResult<DebitAccount>` does not. Put a summary query on an `[ReadModel] AccountSummary` instead, or choose a [controller](../controller-based/index.md). Compiling a method is not proof that Arc discovers an endpoint for it.
 

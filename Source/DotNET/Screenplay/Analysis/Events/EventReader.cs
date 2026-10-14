@@ -28,7 +28,7 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     /// </summary>
     /// <param name="type">The type to check.</param>
     /// <returns>True when the type is an event.</returns>
-    public static bool IsEvent(ITypeSymbol type) => type.HasAttribute(WellKnownTypeNames.EventTypeAttribute);
+    public static bool IsEvent(ITypeSymbol type) => EventTypeOf(type) is not null;
 
     /// <summary>
     /// Reads an event.
@@ -40,7 +40,7 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     {
         ReportWhatIsLost(type, location);
 
-        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var attribute = EventTypeOf(type);
         var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
         var id = generation is null or 1u ? attribute?.GetArgument(0) as string : null;
         var documentation = Documentation.RemarksOf(type);
@@ -68,9 +68,22 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
         };
     }
 
+    static AttributeData? EventTypeOf(ITypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            if (current.GetAttribute(WellKnownTypeNames.EventTypeAttribute) is { } attribute)
+            {
+                return attribute;
+            }
+        }
+
+        return null;
+    }
+
     static bool IsGenerationOne(INamedTypeSymbol type)
     {
-        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var attribute = EventTypeOf(type);
         var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
 
         return generation is null or 1u;
@@ -83,7 +96,7 @@ public class EventReader(PropertyReader properties, ScreenplayDiagnostics diagno
     /// <param name="location">Where the event lives.</param>
     void ReportWhatIsLost(INamedTypeSymbol type, string location)
     {
-        var attribute = type.GetAttribute(WellKnownTypeNames.EventTypeAttribute);
+        var attribute = EventTypeOf(type);
         var generation = attribute?.GetNamedArgument(GenerationArgument) ?? attribute?.GetArgument(1);
 
         if (generation is uint declared && declared > 1)
