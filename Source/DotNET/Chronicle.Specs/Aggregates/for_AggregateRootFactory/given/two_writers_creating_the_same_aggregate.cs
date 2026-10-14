@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
@@ -62,7 +63,7 @@ public class two_writers_creating_the_same_aggregate : Specification
     async Task<ConcurrencyScope> StageCreation()
     {
         var captured = ConcurrencyScope.NotSet;
-        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var unitOfWork = Substitute.For<UnitOfWorkWithNamedTags>();
         unitOfWork.When(_ => _.AddEvent(
                 Arg.Any<EventSequenceId>(),
                 _eventSourceId,
