@@ -11,6 +11,7 @@ public class from_a_denial_scenario_with_command_code_denial : a_generated_docum
     [InlineData("public Cratis.Arc.Authorization.AuthorizationResult Provide() => Cratis.Arc.Authorization.AuthorizationResult.Failure(\"not allowed\"); public AuthorRegistered Handle() => new(Name);")]
     [InlineData("public System.Threading.Tasks.Task<Cratis.Arc.Authorization.AuthorizationResult> Provide() => System.Threading.Tasks.Task.FromResult(Cratis.Arc.Authorization.AuthorizationResult.Failure(\"not allowed\")); public AuthorRegistered Handle() => new(Name);")]
     [InlineData("public Cratis.Arc.Authorization.AuthorizationResult Handle() => Cratis.Arc.Authorization.AuthorizationResult.Failure(\"not allowed\");")]
+    [InlineData("public DeniedAccess Handle() => new(); public record DeniedAccess() : Cratis.Arc.Authorization.AuthorizationResult(false, \"not allowed\");")]
     [InlineData("public Cratis.Arc.Commands.CommandResult Handle() => Cratis.Arc.Commands.CommandResult.Unauthorized(default);")]
     [InlineData("public object Handle() => Cratis.Arc.Authorization.AuthorizationResult.Failure(\"not allowed\");")]
     [InlineData("public IOutcome Handle() => ReadOutcome(); static IOutcome ReadOutcome() => null!; public interface IOutcome { }")]

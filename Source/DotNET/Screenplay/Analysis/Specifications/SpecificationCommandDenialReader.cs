@@ -43,6 +43,7 @@ internal sealed class SpecificationCommandDenialReader(SemanticModels models)
         { SpecialType: SpecialType.System_Object } or { TypeKind: TypeKind.Dynamic or TypeKind.TypeParameter } => true,
         IArrayTypeSymbol array => CanCarryDenial(array.ElementType),
         INamedTypeSymbol named => named.Is("Cratis.Arc.Authorization.AuthorizationResult") ||
+            named.FindBase("Cratis.Arc.Authorization.AuthorizationResult") is not null ||
             named.Is("Cratis.Arc.Commands.CommandResult") || named.FindBase("Cratis.Arc.Commands.CommandResult") is not null ||
             named.TypeArguments.Any(CanCarryDenial),
         _ => false
