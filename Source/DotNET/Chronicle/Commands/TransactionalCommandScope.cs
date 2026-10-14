@@ -1,10 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
@@ -75,10 +77,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         CommandDecisionReads.Begin(context.Type);
         var frame = new TransactionFrame(context.Values, ActiveFrame(), FreshIdentifierScopes.For(context));
         _frames.Value = frame;
-        if (context.ServiceProvider is not { } serviceProvider || CommandTransaction.TryGetActive(out _))
+        if (context.ServiceProvider is not { } serviceProvider)
         {
-            // A nested command joins the outermost command's transaction, and without a service provider there is
-            // nothing to own — either way this frame must not inherit ownership from an outer frame.
+            return;
+        }
+        if (CommandTransaction.TryGetActive(out var activeUnit))
+        {
+            // A nested invocation owns its contributor registration, never the shared transaction.
+            RegisterEnrollmentContributor(context, frame, activeUnit);
             return;
         }
 
@@ -108,6 +114,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
 
         CommandTransaction.Current = unitOfWork;
         frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
+        RegisterEnrollmentContributor(context, frame, unitOfWork);
     }
 
     /// <inheritdoc/>
@@ -120,6 +127,45 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             return;
         }
 
+        try
+        {
+            await CompleteFrame(context, result, frame);
+        }
+        finally
+        {
+            frame.EnrollmentContributor?.Dispose();
+            frame.EnrollmentContributor = null;
+        }
+    }
+
+    /// <summary>
+    /// Defers stream completion until the command transaction's owner succeeds.
+    /// </summary>
+    /// <param name="context">The current command context.</param>
+    /// <param name="completion">The resolved completion.</param>
+    /// <returns>Whether an active execution frame accepted the completion.</returns>
+    internal static bool EnrollCompletion(CommandContext context, PendingStreamCompletion completion)
+    {
+        var frame = ActiveFrame();
+        if (frame is null || !ReferenceEquals(frame.Values, context.Values))
+        {
+            return false;
+        }
+
+        // A nested command's returned events join its owner's unit of work. Its completions must wait for that
+        // owner's commit too, rather than closing a stream while the outer command still holds pending events.
+        var owner = frame;
+        while (owner.Owned is null && owner.Previous is { Completed: false } previous)
+        {
+            owner = previous;
+        }
+        owner.Completions.Add(completion);
+
+        return true;
+    }
+
+    static async Task CompleteFrame(CommandContext context, CommandResult result, TransactionFrame frame)
+    {
         // Leave this invocation's cache and provenance behind before a nested command resumes its own frame.
         CommandDecisionReads.End();
         var owned = frame.Owned;
@@ -243,30 +289,23 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         }
     }
 
-    /// <summary>
-    /// Defers stream completion until the command transaction's owner succeeds.
-    /// </summary>
-    /// <param name="context">The current command context.</param>
-    /// <param name="completion">The resolved completion.</param>
-    /// <returns>Whether an active execution frame accepted the completion.</returns>
-    internal static bool EnrollCompletion(CommandContext context, PendingStreamCompletion completion)
+    static void RegisterEnrollmentContributor(CommandContext context, TransactionFrame frame, IUnitOfWork unit)
     {
-        var frame = ActiveFrame();
-        if (frame is null || !ReferenceEquals(frame.Values, context.Values))
+        var providers = context.ServiceProvider?.GetService<ICommandHandlerProviders>();
+        if (providers?.TryGetHandlerFor(context.Command, out var handler) != true ||
+            !handler.Parameters.Any(parameter => parameter.GetCustomAttribute<GeneratedValueAttribute>()?.Freshness == GeneratedValueFreshness.Guarded))
         {
-            return false;
+            return;
         }
 
-        // A nested command's returned events join its owner's unit of work. Its completions must wait for that
-        // owner's commit too, rather than closing a stream while the outer command still holds pending events.
-        var owner = frame;
-        while (owner.Owned is null && owner.Previous is { Completed: false } previous)
+        try
         {
-            owner = previous;
+            frame.EnrollmentContributor = unit.AddEnrollmentContributor(new FreshIdentifierEnrollmentContributor(frame.FreshIdentifiers, unit));
         }
-        owner.Completions.Add(completion);
-
-        return true;
+        catch (Cratis.Chronicle.Transactions.UnitOfWorkEnrollmentContributorsNotSupported exception)
+        {
+            throw new UnitOfWorkEnrollmentContributorsNotSupported(exception);
+        }
     }
 
     static async Task CompleteStreams(TransactionFrame frame, CommandResult result)
@@ -307,6 +346,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public CommandContextValues Values { get; } = values;
         public TransactionFrame? Previous { get; } = previous;
         public OwnedTransaction? Owned { get; set; }
+        public IDisposable? EnrollmentContributor { get; set; }
         public List<PendingStreamCompletion> Completions { get; } = [];
         public bool Completed { get; set; }
     }
