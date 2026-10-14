@@ -21,7 +21,7 @@ public class a_refusal_callback : Specification
         public record Operation : ICommandOperation;
         ";
 
-    protected static ExpectedDiagnostic Warning => new("ARCCHR0023", DiagnosticSeverity.Warning, "registered events", "Acknowledge");
+    protected static ExpectedDiagnostic Warning => new("ARCCHR0027", DiagnosticSeverity.Warning, "registered events", "Acknowledge");
 
     protected static string Callback(string expression, string members = "") => Preamble + $@"
         public class Reactor

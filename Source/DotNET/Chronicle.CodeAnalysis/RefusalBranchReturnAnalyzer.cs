@@ -16,7 +16,7 @@ public class RefusalBranchReturnAnalyzer : DiagnosticAnalyzer
 {
     /// <inheritdoc/>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        [DiagnosticDescriptors.ARCCHR0023_InvalidRefusalBranchReturn];
+        [DiagnosticDescriptors.ARCCHR0027_InvalidRefusalBranchReturn];
 
     /// <inheritdoc/>
     public override void Initialize(AnalysisContext context)
@@ -49,7 +49,7 @@ public class RefusalBranchReturnAnalyzer : DiagnosticAnalyzer
             if (effects.IsInvalid(value))
             {
                 context.ReportDiagnostic(Diagnostic.Create(
-                    DiagnosticDescriptors.ARCCHR0023_InvalidRefusalBranchReturn,
+                    DiagnosticDescriptors.ARCCHR0027_InvalidRefusalBranchReturn,
                     value.Syntax.GetLocation()));
             }
         }

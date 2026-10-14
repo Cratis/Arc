@@ -276,10 +276,10 @@ static class DiagnosticDescriptors
         description: "Automatically injected aggregates use the command's event source id, not a generated append target. Commands with Provide or custom id providers are excluded because their aggregate resolution cannot be proven statically.");
 
     /// <summary>
-    /// ARCCHR0023: An OnRefused callback returns a statically invalid production.
+    /// ARCCHR0027: An OnRefused callback returns a statically invalid production.
     /// </summary>
-    public static readonly DiagnosticDescriptor ARCCHR0023_InvalidRefusalBranchReturn = new(
-        id: "ARCCHR0023",
+    public static readonly DiagnosticDescriptor ARCCHR0027_InvalidRefusalBranchReturn = new(
+        id: "ARCCHR0027",
         title: "Refusal branch must return registered events or acknowledge",
         messageFormat: "This OnRefused callback returns an invalid refusal production. Return registered events, EventForEventSourceId envelopes containing events, or a nonempty collection of those; return null or use Acknowledge to acknowledge without events. Commands, operations, completions and non-event objects are not refusal productions.",
         category: Category,

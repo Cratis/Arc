@@ -34,6 +34,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0023](./ARCCHR0023.md) | Warning / Info | Distinguishing read-model keys with several or no matching command properties; repeated lookup keys. |
 | [ARCCHR0025](./ARCCHR0025.md) | Warning / Info | Read-model or explicit Chronicle service dependencies in keyless event-producing commands. |
 | [ARCCHR0026](./ARCCHR0026.md) | Info | MongoDB collection parameters containing recognizable Chronicle-backed models. |
+| [ARCCHR0027](./ARCCHR0027.md) | Warning | A visible `OnRefused` callback returns a statically invalid refusal production. |
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 
