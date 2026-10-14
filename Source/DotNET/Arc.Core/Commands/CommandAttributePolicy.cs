@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 
 namespace Cratis.Arc.Commands;
@@ -45,7 +46,7 @@ internal static class CommandAttributePolicy
     /// <param name="parameter">The injected parameter.</param>
     /// <param name="isReadModel">Whether the parameter is a recognized read model.</param>
     /// <returns>The shared lookup resolution.</returns>
-    internal static (string? Property, string? Conflict) ResolveLookup(Type commandType, ParameterInfo parameter, bool isReadModel)
+    internal static (string? Property, string? Conflict) ResolveLookup([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] Type commandType, ParameterInfo parameter, bool isReadModel)
     {
         var property = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault()?.Property;
         return AttributePrecedencePolicy.ResolveLookup(property, isReadModel, name => commandType.GetProperties(BindingFlags.Public | BindingFlags.Instance).Any(_ => _.Name == name));
