@@ -7,6 +7,7 @@ using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Aggregates;
 
@@ -77,7 +78,24 @@ public class AggregateRootMutation(
         var freshScope = freshness?.Resolve(eventSequence.Id, EventSourceId, null, false);
         concurrencyScope = freshScope ?? concurrencyScope;
         var declared = aggregateRootContext as IAggregateRootEventSourceContext;
-        if (declared?.EventSource is null && freshScope is null)
+        if (aggregateRootContext.UnitOfWOrk.IsEnforcingReadProtection)
+        {
+            aggregateRootContext.UnitOfWOrk.AddEvents(
+                eventSequence.Id,
+                [
+                    new EventForEventSourceId(EventSourceId, @event, causation)
+                    {
+                        EventSource = declared?.EventSource,
+                        EventStream = declared?.EventStream,
+                        EventStreamType = aggregateRootContext.EventStreamType,
+                        EventStreamId = aggregateRootContext.EventStreamId,
+                        EventSourceType = aggregateRootContext.EventSourceType
+                    }
+                ],
+                [new(EventSourceId, concurrencyScope)],
+                freshScope is null ? ConcurrencyScopeOrigin.Aggregate : ConcurrencyScopeOrigin.Explicit);
+        }
+        else if (declared?.EventSource is null && freshScope is null)
         {
             aggregateRootContext.UnitOfWOrk.AddEvent(
                 eventSequence.Id,

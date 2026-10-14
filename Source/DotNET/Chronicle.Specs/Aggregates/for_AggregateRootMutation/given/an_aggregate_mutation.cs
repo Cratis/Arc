@@ -35,7 +35,7 @@ public class an_aggregate_mutation : Specification
         _eventStreamId = Guid.NewGuid().ToString();
         _eventSourceType = Guid.NewGuid().ToString();
 
-        _unitOfWork = Substitute.For<IUnitOfWork>();
+        _unitOfWork = Substitute.For<Cratis.Arc.Chronicle.Commands.UnitOfWorkWithNamedTags>();
 
         _aggregateRoot = new TestAggregateRoot();
         _aggregateRootContext = Substitute.For<IAggregateRootContext>();

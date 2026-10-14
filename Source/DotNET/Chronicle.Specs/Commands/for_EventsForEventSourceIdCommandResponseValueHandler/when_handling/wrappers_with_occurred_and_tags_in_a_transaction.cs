@@ -35,7 +35,7 @@ public class wrappers_with_occurred_and_tags_in_a_transaction : given.an_events_
         _plainEvent = new TestEvent("Plain");
         _wrappedEvent = new AnotherTestEvent(42);
         _value = [_plainEvent, new EventForEventSourceId(_wrapperEventSourceId, _wrappedEvent) { Occurred = _occurred, Tags = _tags }];
-        _unitOfWork = Substitute.For<IUnitOfWork>();
+        _unitOfWork = Substitute.For<UnitOfWorkWithNamedTags>();
         _eventLog.Id.Returns(EventSequenceId.Log);
     }
 
