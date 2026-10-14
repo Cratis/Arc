@@ -37,6 +37,19 @@ internal sealed class FreshIdentifierScopes(GeneratedValues captures)
         _units.TryGetValue(unit, out var provenance) ? provenance : null;
 
     /// <summary>
+    /// Checks whether a scope represents the immutable whole-source freshness expectation.
+    /// </summary>
+    /// <param name="scope">The scope to classify.</param>
+    /// <param name="source">The append target.</param>
+    /// <returns>Whether the scope requires whole-source emptiness.</returns>
+    internal static bool IsWholeSourceBeforeFirst(ConcurrencyScope scope, EventSourceId source) =>
+        scope.SequenceNumber.IsBeforeFirst && scope.EventSourceId == source &&
+        (scope.EventStreamType is null || scope.EventStreamType == EventStreamType.All) &&
+        (scope.EventStreamId is null || scope.EventStreamId == EventStreamId.Default) &&
+        (scope.EventSourceType is null || scope.EventSourceType == EventSourceType.Default || scope.EventSourceType == EventSourceType.Unspecified) &&
+        scope.EventTypes?.Any() != true;
+
+    /// <summary>
     /// Matches a real append target against guarded captures, without generating another value.
     /// </summary>
     /// <param name="source">The append target.</param>
@@ -142,13 +155,6 @@ internal sealed class FreshIdentifierScopes(GeneratedValues captures)
     /// <param name="source">The source.</param>
     /// <returns>Whether the target has a freshness guard.</returns>
     internal bool HasGuard(EventSequenceId sequence, EventSourceId source) => _scopes.ContainsKey((sequence, source));
-
-    static bool IsWholeSourceBeforeFirst(ConcurrencyScope scope, EventSourceId source) =>
-        scope.SequenceNumber.IsBeforeFirst && scope.EventSourceId == source &&
-        (scope.EventStreamType is null || scope.EventStreamType == EventStreamType.All) &&
-        (scope.EventStreamId is null || scope.EventStreamId == EventStreamId.Default) &&
-        (scope.EventSourceType is null || scope.EventSourceType == EventSourceType.Default || scope.EventSourceType == EventSourceType.Unspecified) &&
-        scope.EventTypes?.Any() != true;
 
     bool RequiresGuard(EventSequenceId sequence, EventSourceId source) => Matches(source) ||
         (CommandTransaction.TryGetActive(out var unit) && For(unit)?.Contains(sequence, source) == true);

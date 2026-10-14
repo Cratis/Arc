@@ -8,4 +8,4 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// </summary>
 /// <param name="innerException">The unsupported enrollment contributor failure.</param>
 public class FreshIdentifierGuardRequiresEnrollmentContributors(Exception innerException)
-    : Exception("Commands with guarded [GeneratedValue] parameters require a unit of work that supports enrollment contributors (Chronicle 19.62.0 or later).", innerException);
+    : Exception("Commands with guarded [GeneratedValue] parameters require a unit of work that supports enrollment contributors (Chronicle 19.65.2 or later).", innerException);

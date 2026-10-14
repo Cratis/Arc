@@ -82,6 +82,33 @@ public static class direct_write_commands
     }
 
     [Command]
+    public record ConflictingRepeatedWrite(bool Batch = false)
+    {
+        public int EnrollmentCallbacks { get; private set; }
+        public void Handle([GeneratedValue] Identifier id, IEventLog log, IUnitOfWorkManager manager)
+        {
+            var counter = new EnrollmentCounter();
+            using var registration = manager.Current.AddEnrollmentContributor(counter);
+            try
+            {
+                manager.Current.AddEvent(log.Id, id, new Created("first"), Causation.Unknown());
+                if (Batch)
+                {
+                    manager.Current.AddEvents(log.Id, [new(id, new Created("conflict"))], [new KeyValuePair<EventSourceId, ConcurrencyScope>(id, ConcurrencyScope.None)]);
+                }
+                else
+                {
+                    manager.Current.AddEvent(log.Id, id, new Created("conflict"), Causation.Unknown(), concurrencyScope: ConcurrencyScope.None);
+                }
+            }
+            finally
+            {
+                EnrollmentCallbacks = counter.Calls;
+            }
+        }
+    }
+
+    [Command]
     public record UnguardedDirectWrite(WriteStyle Style)
     {
         public Task Handle([GeneratedValue(Freshness = GeneratedValueFreshness.Unguarded)] Identifier id, IEventLog log, IUnitOfWorkManager manager) => Write(Style, id, log, manager);
@@ -118,5 +145,16 @@ public static class direct_write_commands
     public record InnerWrite(Identifier Id)
     {
         public Task Handle(IEventLog log, IUnitOfWorkManager manager) => Write(WriteStyle.AppendMany, Id, log, manager);
+    }
+
+    sealed class EnrollmentCounter : IUnitOfWorkEnrollmentContributor
+    {
+        public int Calls { get; private set; }
+        public ConcurrencyScope GetRequiredScope(UnitOfWorkEnrollment enrollment)
+        {
+            Calls++;
+
+            return ConcurrencyScope.NotSet;
+        }
     }
 }
