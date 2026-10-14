@@ -28,6 +28,7 @@ public class MappingSourceConverter(IScreenplayNaming naming)
     {
         PropertyPathSource path => new PathExpressionSyntax(naming.ToPropertyPath(path.Path), SourceLocation.Start),
         ContextSource context => new ContextExpressionSyntax(naming.ToPropertyPath(context.Path), SourceLocation.Start),
+        RefusalSource refusal => new RefusalExpressionSyntax(refusal.Member, SourceLocation.Start),
         LiteralSource literal => LiteralConverter.Convert(literal.Value, naming),
         _ => LiteralConverter.Convert(null, naming)
     };

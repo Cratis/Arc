@@ -26,4 +26,5 @@ ARCCHR0022|Arc.Chronicle|Warning|Command-key aggregate on a generated append tar
 ARCCHR0023|Arc.Chronicle|Warning|Read-model lookup key is not proven; missing matches and repeated keys report Info
 ARCCHR0025|Arc.Chronicle|Warning|Keyless command reads Chronicle state; IReadModels and IEventStore report Info
 ARCCHR0026|Arc.Chronicle|Info|Chronicle model read through a MongoDB collection
+ARCCHR0027|Arc.Chronicle|Warning|Refusal branch must return registered events or acknowledge
 ARC0026|Arc|Error|Invalid explicit query declaration
