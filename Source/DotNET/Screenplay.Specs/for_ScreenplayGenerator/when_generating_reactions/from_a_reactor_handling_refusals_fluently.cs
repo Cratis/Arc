@@ -5,36 +5,40 @@ using Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions.gi
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions;
 
-public class from_a_reactor_handling_refusals_fluently : a_reacting_application
+public class from_a_reactor_handling_refusals_fluently : a_refusing_application
 {
     [Theory]
-    [InlineData("Refused.ByValidation")]
-    [InlineData("Refused.ByAuthorization")]
-    [InlineData("Refused.ByAnyConstraint")]
-    [InlineData("Refused.ByConstraint(\"UniqueAuthor\")")]
-    [InlineData("Refused.Any")]
-    public void should_keep_each_selector_file_backed_in_both_modes(string selector)
+    [InlineData("Refused.ByValidation", "on refused by validation")]
+    [InlineData("Refused.ByAuthorization", "on refused by authorization")]
+    [InlineData("Refused.ByAnyConstraint", "on refused by constraint")]
+    [InlineData("Refused.ByConstraint(\"UniqueAuthor\")", "on refused by constraint UniqueAuthor")]
+    [InlineData("Refused.Any", "on refused\n")]
+    public void should_extract_each_selector_in_both_modes_and_handler_shapes(string selector, string expected)
     {
         foreach (var authoring in new[] { false, true })
         {
-            foreach (var synchronous in new[] { false, true })
+            foreach (var asynchronous in new[] { false, true })
             {
-                var invocation = $"Invoke.Command(new SendWelcome(@event.Name, @event.Country)).OnRefused({selector}, refusal => new AuthorFiled(refusal.Message))";
-                var handler = synchronous ? $"public CommandInvocation Welcome(AuthorRegistered @event) => {invocation};" :
-                    $"public Task<CommandInvocation> Welcome(AuthorRegistered @event) => Task.FromResult({invocation});";
-                GenerateReaction(handler, authoring);
-                AssertRefusalFallback();
+                GenerateRefusal($".OnRefused({selector}, refusal => new AuthorFiled(refusal.Message))", authoring, asynchronous);
+                Result.Source.ShouldContain(expected);
+                Result.Source.ShouldContain("country = $refusal.message");
+                Result.Source.ShouldContain("event AuthorFiled");
+                AssertRefusalExtraction();
             }
         }
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void should_recognize_acknowledgment(bool authoring)
+    [InlineData(".Acknowledge(Refused.ByValidation)")]
+    [InlineData(".OnRefused(Refused.ByValidation, refusal => null)")]
+    [InlineData(".OnRefused(Refused.ByValidation, refusal => { return null; })")]
+    public void should_extract_acknowledgment(string chain)
     {
-        GenerateReaction("public CommandInvocation Welcome(AuthorRegistered @event) => Invoke.Command(new SendWelcome(@event.Name, @event.Country)).Acknowledge(Refused.ByValidation);", authoring);
-        AssertRefusalFallback();
+        GenerateRefusal(chain);
+        Result.Source.ShouldContain("on refused by validation");
+        Result.Source.ShouldContain("acknowledge");
+        Result.Model.Slices.SelectMany(slice => slice.Reactors).Single().Reactions.Single().Invokes.Single().OnRefused.Single().Produces.ShouldBeEmpty();
+        AssertRefusalExtraction();
     }
 
     [Fact]
@@ -52,31 +56,7 @@ public class from_a_reactor_handling_refusals_fluently : a_reacting_application
             """);
 
         Result.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");
-        Result.Diagnostics.Where(_ => _.Code == "SP0071").ShouldBeEmpty();
-        AssertDocument();
-    }
-
-    void GenerateReaction(string handler, bool authoring) => Generate(new ScreenplayOptions { AuthoringOnlyConstructs = authoring },
-    [
-        ("Library/Authors/Registration/Registration.cs", Registration),
-        ("Library/Authors/Welcoming/Welcoming.cs", Welcoming + $$"""
-            public class Welcomer : IReactor
-            {
-                {{handler}}
-            }
-            """)
-    ]);
-
-    void AssertRefusalFallback()
-    {
-        Result.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");
-        Result.Source.ShouldNotContain("invokes SendWelcome");
-        Result.Source.ShouldNotContain("on refused");
-        var report = Result.Diagnostics.Single(_ => _.Code == "SP0071");
-        report.Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);
-        report.Message.ShouldContain("Screenplay#433");
-        report.Message.ShouldNotContain("Arc#3058");
-        Result.Diagnostics.Where(_ => _.Code == "SP0072").ShouldBeEmpty();
+        Result.Diagnostics.Where(report => report.Code == "SP0071").ShouldBeEmpty();
         AssertDocument();
     }
 }
