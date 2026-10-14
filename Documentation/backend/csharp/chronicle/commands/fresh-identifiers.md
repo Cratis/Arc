@@ -74,10 +74,10 @@ An occupied generated destination produces a validation result with:
 
 Arc classifies this result using the generated guard's provenance. An unrelated `BeforeFirst` failure does
 not acquire that detail. Arc's collision and `ConflictingConcurrencyScopes` messages do not include the
-generated value. Conflicts detected by Chronicle while merging previously enrolled requirements can instead
-surface as Chronicle's `ConflictingEnrollmentScope`, whose message includes the identifier and scope. Do not
-log that message as redacted; typed, redacted conflict reporting is tracked in
-[Chronicle #4909](https://github.com/Cratis/Chronicle/issues/4909).
+generated value. Arc also maps conflicts Chronicle detects against an already enrolled generated guard to
+`ConflictingConcurrencyScopes`, using typed scope properties and the command unit's provenance rather than
+parsing messages. Unrelated enrollment conflicts retain Chronicle's own redacted failure; they are not
+classified as generated-identifier conflicts.
 
 Arc never reruns `Handle()`. To retry a collision, submit a **new command invocation**, which generates a new
 value. Do not keep retrying a fixed scenario pin against an occupied source. This policy is not an
@@ -116,8 +116,9 @@ attribute-derived scope therefore cannot narrow an outer generated identifier's 
 Truly caller-supplied scopes remain subject to the explicit conflict check.
 
 After successful enrollment, Chronicle retains the required scope even when that invocation's contributor
-is disposed. A later unscoped write inherits the requirement; an incompatible supplied scope can fail
-inside Chronicle's merge before Arc's contributor runs. Scope-only `AddEvents` entries preserve existing
+is disposed. A later unscoped write inherits the requirement. If Chronicle rejects an incompatible supplied
+scope before Arc's contributor runs, Arc translates conflicts against that recorded generated guard to
+`ConflictingConcurrencyScopes`. Scope-only `AddEvents` entries preserve existing
 requirements but do not call contributors, create a new freshness guard or record generated provenance.
 An identifier captured by a completed nested invocation but never targeted has no enrolled requirement.
 
@@ -185,7 +186,7 @@ than silently continue the first source.
 
 ## Supported Chronicle versions
 
-Direct-write freshness requires Chronicle client **19.62.0 or later**; this Arc version references **19.63.0**. Deploy a Chronicle kernel **19.40.1 or later**
+Direct-write freshness and redacted scope-conflict translation require Chronicle client **19.65.2 or later**. Deploy a Chronicle kernel **19.40.1 or later**
 for retry-time revalidation of expected-empty scopes; upgrading a client alone does not upgrade the kernel.
 Chronicle 19.59.2 and later also normalize equal `BeforeFirst` batch scopes. Use a current compatible kernel
 when several destinations or explicit scope labels share one batch.

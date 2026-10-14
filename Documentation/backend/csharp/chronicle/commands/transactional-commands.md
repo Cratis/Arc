@@ -96,7 +96,7 @@ This awaits enrollment, not commit. Use it only with an active transaction. Outs
 On the command's unit of work, direct `AddEvent`, `AddEvents`, `AddEventWithNamedTags` and all four
 `Transactional` append variants enforce [generated-identifier freshness](fresh-identifiers.md) just like
 returned events. Nested invocations share that protection and an occupied generated target rejects the
-whole pending unit at commit. This requires Chronicle client 19.62.0 or later and contributor support from
+whole pending unit at commit. This integration requires Chronicle client 19.65.2 or later and contributor support from
 custom units. `AddEvents` preflights the whole call; transactional many-event methods stage per event, so
 let a later enrollment rejection escape the handler to roll back earlier pending events.
 
