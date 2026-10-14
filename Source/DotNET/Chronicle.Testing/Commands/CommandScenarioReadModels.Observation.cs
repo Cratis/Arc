@@ -18,7 +18,7 @@ internal sealed partial class CommandScenarioReadModels
     public ISubject<IEnumerable<TReadModel>> Observe<TReadModel>(Expression<Func<TReadModel, bool>>? filter = null)
     {
         // Chronicle validates passive and unknown read models before the forwarding layer merges pins.
-        var observation = _observationLog is null ? inner.Observe<TReadModel>() : _observationLog.Observe<TReadModel>(inner);
+        var observation = _observationLog is null ? inner.Observe<TReadModel>() : _observationLog.Observe<TReadModel>();
         ValidateObservationPins(typeof(TReadModel));
         var predicate = filter?.Compile();
         var source = observation.CombineLatest(_pinsChanged, (set, _) =>
