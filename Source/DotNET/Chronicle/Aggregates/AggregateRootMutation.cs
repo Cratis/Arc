@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Immutable;
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
@@ -137,7 +138,10 @@ public class AggregateRootMutation(
         CommandOperationBoundary.ThrowIfActive();
         var events = UncommittedEvents;
         var eventCount = events.Count;
-        await aggregateRootContext.UnitOfWOrk.Commit();
+        if (!await TransactionalCommandScope.CommitAggregate(aggregateRootContext.UnitOfWOrk))
+        {
+            await aggregateRootContext.UnitOfWOrk.Commit();
+        }
 
         IEnumerable<EventSequenceNumber> sequenceNumbers = [];
         if (aggregateRootContext.UnitOfWOrk.TryGetLastCommittedEventSequenceNumber(

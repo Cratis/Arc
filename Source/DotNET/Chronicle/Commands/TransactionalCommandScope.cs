@@ -35,7 +35,7 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// store.
 /// </remarks>
 [Singleton]
-public class TransactionalCommandScope : ICommandOperationExecutionScope
+public class TransactionalCommandScope : ICommandOperationExecutionScope, ICommandInvocationExecutionScope
 {
     static readonly AsyncLocal<TransactionFrame?> _frames = new();
     static readonly ConcurrentDictionary<Type, bool> _guardedGeneratedParameters = new();
@@ -77,18 +77,46 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     /// <inheritdoc/>
     public void Begin(CommandContext context)
     {
-        CommandDecisionReads.Begin(context.Type);
-        var frame = new TransactionFrame(context.Values, ActiveFrame(), FreshIdentifierScopes.For(context));
+        var previous = ActiveFrame();
+        var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type);
+        if (previous is not null)
+        {
+            lock (previous)
+            {
+                if (previous.Child is { Exited: false } child)
+                {
+                    if (previous.Protection is not null)
+                    {
+                        throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, child.CommandType, context.Type);
+                    }
+                    if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
+                    {
+                        ReadProtectionTelemetry.Record(context.Type, "nested_concurrent");
+                    }
+                }
+                previous.Child = frame;
+            }
+        }
         _frames.Value = frame;
+        CommandDecisionReads.Begin(context.Type);
         if (context.ServiceProvider is not { } serviceProvider)
         {
             return;
         }
-        if (CommandTransaction.TryGetActive(out var activeUnit))
+        var inheritedUnit = previous?.Protection?.UnitOfWork;
+        if (inheritedUnit is not null || CommandTransaction.TryGetActive(out inheritedUnit))
         {
-            // A nested invocation owns its contributor registration, never the shared transaction.
-            frame.UnitOfWork = activeUnit;
-            RegisterEnrollmentContributor(context, frame, activeUnit);
+            // An enforcing unit is retained even after early completion; a nested invocation cannot replace it.
+            frame.UnitOfWork = inheritedUnit;
+            if (previous?.Protection is not null)
+            {
+                frame.Protection = inheritedUnit.EnforceReadProtection();
+                if (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On)
+                {
+                    frame.ReadAllowance = inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
+                }
+            }
+            RegisterEnrollmentContributor(context, frame, inheritedUnit);
             return;
         }
 
@@ -119,6 +147,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         CommandTransaction.Current = unitOfWork;
         frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
         frame.UnitOfWork = unitOfWork;
+        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
+        {
+            frame.Protection = unitOfWork.EnforceReadProtection();
+        }
         RegisterEnrollmentContributor(context, frame, unitOfWork);
     }
 
@@ -141,6 +173,69 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             frame.EnrollmentContributor?.Dispose();
             frame.EnrollmentContributor = null;
         }
+    }
+
+    /// <inheritdoc/>
+    public void End(CommandContext context)
+    {
+        var frame = _frames.Value;
+        while (frame is not null && !ReferenceEquals(frame.Values, context.Values))
+        {
+            frame = frame.Previous;
+        }
+        if (frame?.Exited != false)
+        {
+            return;
+        }
+
+        try
+        {
+            frame.ReadAllowance?.Dispose();
+            frame.Protection?.Dispose();
+        }
+        finally
+        {
+            frame.EnrollmentContributor?.Dispose();
+            frame.Completed = true;
+            frame.Exited = true;
+            if (frame.Previous is { } previous)
+            {
+                lock (previous)
+                {
+                    if (ReferenceEquals(previous.Child, frame))
+                    {
+                        previous.Child = null;
+                    }
+                }
+            }
+            _frames.Value = frame.Previous;
+        }
+    }
+
+    /// <summary>
+    /// Commits an aggregate through the invocation's owner capability when enforcement is active.
+    /// </summary>
+    /// <param name="unit">The aggregate's unit.</param>
+    /// <returns>Whether the protected invocation performed the commit.</returns>
+    /// <exception cref="NestedEarlyCompletionUnderReadProtection">A nested command attempted to complete its parent's unit.</exception>
+    internal static async Task<bool> CommitAggregate(IUnitOfWork unit)
+    {
+        var frame = ActiveFrame();
+        if (frame?.Protection is null || !ReferenceEquals(frame.UnitOfWork, unit))
+        {
+            if (frame?.Previous is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
+            {
+                ReadProtectionTelemetry.Record(frame.CommandType, "nested_early_completion");
+            }
+            return false;
+        }
+        if (frame.Owned is not { } owned)
+        {
+            throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, frame.Previous!.CommandType);
+        }
+
+        await CommitOwned(owned);
+        return true;
     }
 
     /// <summary>
@@ -229,7 +324,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         var observation = owned.Observation;
 
         // IsCompleted also means rollback or a commit that threw. Never interpret it as authoritative commitment.
-        if (unitOfWork.IsCompleted)
+        if (unitOfWork.IsCompleted && !observation.CompletionObserved)
         {
             observation.Disposition = CommandCommitDisposition.Unknown;
         }
@@ -238,26 +333,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         {
             if (!unitOfWork.IsCompleted)
             {
-                var hasEvents = unitOfWork.GetEvents().Any();
-                observation.Disposition = CommandCommitDisposition.Unknown;
-                if (owned.Owner is not null)
-                {
-                    await ((UnitOfWork)unitOfWork).CommitAsOwner(owned.Owner);
-                }
-                else
-                {
-                    if (unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true })
-                    {
-                        throw new ProtectedDecisionRequiresOwnerCapableUnitOfWork();
-                    }
-                    await unitOfWork.Commit();
-                }
-                observation.CompletionObserved = true;
-                observation.Disposition = unitOfWork.GetAppendErrors().Any()
-                    ? CommandCommitDisposition.Unknown
-                    : unitOfWork.GetConstraintViolations().Any() || unitOfWork.GetConcurrencyViolations().Any()
-                        ? CommandCommitDisposition.NotCommitted
-                        : hasEvents ? CommandCommitDisposition.Committed : CommandCommitDisposition.NotCommitted;
+                await CommitOwned(owned);
             }
 
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
@@ -296,7 +372,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         else if (!unitOfWork.IsCompleted)
         {
             observation.Disposition = CommandCommitDisposition.Unknown;
-            if (owned.Owner is not null && unitOfWork is UnitOfWork { HasEnrolledDecisionReads: true } protectedUnit)
+            if (owned.Owner is not null && unitOfWork is UnitOfWork protectedUnit && (protectedUnit.HasEnrolledDecisionReads || protectedUnit.IsEnforcingReadProtection))
             {
                 // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
                 // command rolls back with the capability it claimed when it began. Without decision reads the public
@@ -311,6 +387,31 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
             observation.CompletionObserved = true;
             observation.Disposition = CommandCommitDisposition.NotCommitted;
         }
+    }
+
+    static async Task CommitOwned(OwnedTransaction owned)
+    {
+        var unit = owned.UnitOfWork;
+        var hasEvents = unit.GetEvents().Any();
+        owned.Observation.Disposition = CommandCommitDisposition.Unknown;
+        if (owned.Owner is not null)
+        {
+            await ((UnitOfWork)unit).CommitAsOwner(owned.Owner);
+        }
+        else
+        {
+            if (unit is UnitOfWork { IsEnforcingReadProtection: true } or UnitOfWork { HasEnrolledDecisionReads: true })
+            {
+                throw new ProtectedDecisionRequiresOwnerCapableUnitOfWork();
+            }
+            await unit.Commit();
+        }
+        owned.Observation.CompletionObserved = true;
+        owned.Observation.Disposition = unit.GetAppendErrors().Any()
+            ? CommandCommitDisposition.Unknown
+            : unit.GetConstraintViolations().Any() || unit.GetConcurrencyViolations().Any()
+                ? CommandCommitDisposition.NotCommitted
+                : hasEvents ? CommandCommitDisposition.Committed : CommandCommitDisposition.NotCommitted;
     }
 
     static void RegisterEnrollmentContributor(CommandContext context, TransactionFrame frame, IUnitOfWork unit)
@@ -353,7 +454,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     {
         foreach (var completion in frame.Completions.Distinct())
         {
-            await completion.Complete(result);
+            if (frame.Protection is { } protection)
+            {
+                await protection.RunAfterCommit(_ => completion.Complete(result));
+            }
+            else
+            {
+                await completion.Complete(result);
+            }
             if (!result.IsSuccess)
             {
                 break;
@@ -381,8 +489,13 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public bool ImmediateUncertain { get; set; }
     }
 
-    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers)
+    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers, Type commandType)
     {
+        public Type CommandType { get; } = commandType;
+        public ReadProtectionFrame? Protection { get; set; }
+        public IDisposable? ReadAllowance { get; set; }
+        public TransactionFrame? Child { get; set; }
+        public bool Exited { get; set; }
         public FreshIdentifierScopes FreshIdentifiers { get; } = freshIdentifiers;
         public CommandContextValues Values { get; } = values;
         public TransactionFrame? Previous { get; } = previous;

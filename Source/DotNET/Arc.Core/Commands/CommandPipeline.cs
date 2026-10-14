@@ -458,6 +458,7 @@ public class CommandPipeline(
         }
 
         using var boundary = frame;
+        using var invocationScopes = new InvocationScopes(() => commandContext, () => scopes, () => begunScopeCount);
         try
         {
             EnsureDecisionSupport(serviceProvider);
@@ -1122,5 +1123,33 @@ public class CommandPipeline(
         // reflection. That works under the JIT whatever the dynamic code settings say (an app built with PublishAot runs
         // under the JIT from dotnet run or a test host); only ahead-of-time compiled code cannot create the type.
         return CommandResultFactories.CreateWithoutFactory(correlationId, response, CommandResultFactories.CreateThroughReflection);
+    }
+
+    sealed class InvocationScopes(Func<CommandContext?> context, Func<ICommandExecutionScope[]?> scopes, Func<int> count) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (context() is { } current && scopes() is { } begun)
+            {
+                End(current, begun, count() - 1);
+            }
+        }
+
+        static void End(CommandContext current, ICommandExecutionScope[] begun, int index)
+        {
+            if (index < 0)
+            {
+                return;
+            }
+            try
+            {
+                (begun[index] as ICommandInvocationExecutionScope)?.End(current);
+            }
+            finally
+            {
+                // Even a faulty cleanup cannot leave another scope's invocation resources alive.
+                End(current, begun, index - 1);
+            }
+        }
     }
 }
