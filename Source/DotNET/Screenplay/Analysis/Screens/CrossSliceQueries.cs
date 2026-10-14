@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Analysis.Routes;
 using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.Analysis.Screens;
@@ -14,6 +15,8 @@ public class CrossSliceQueries
     readonly Dictionary<string, List<QueryModel>> _queries = new(StringComparer.Ordinal);
     readonly Dictionary<string, HashSet<string>> _commands = new(StringComparer.Ordinal);
     readonly Dictionary<ScreenModel, Func<ScreenModel>> _pending = new(ReferenceEqualityComparer.Instance);
+    readonly Dictionary<ScreenModel, RouteScreen> _screens = new(ReferenceEqualityComparer.Instance);
+    readonly RouteCatalog _routes = new();
 
     /// <summary>
     /// Declares the commands, queries and source directories of a slice.
@@ -49,6 +52,32 @@ public class CrossSliceQueries
     /// <param name="screen">The placeholder retaining the screen's identity.</param>
     /// <param name="read">The reader of its directives.</param>
     public void Defer(ScreenModel screen, Func<ScreenModel> read) => _pending.Add(screen, read);
+
+    /// <summary>
+    /// Retains the original file identity of a screen before its path is made relative.
+    /// </summary>
+    /// <param name="screen">The retained screen placeholder.</param>
+    /// <param name="namespace">The declaring slice.</param>
+    /// <param name="path">The original source path.</param>
+    public void DeclareScreen(ScreenModel screen, string @namespace, string path) => _screens.Add(screen, new(@namespace, screen.Name, path));
+
+    /// <summary>
+    /// Reads route tables before deferred screen gestures are resolved.
+    /// </summary>
+    /// <param name="files">The user interface file source.</param>
+    /// <param name="roots">The source roots searched recursively.</param>
+    /// <param name="slices">The slices retained after application-wide placement.</param>
+    /// <param name="diagnostics">The omission reporter.</param>
+    public void ReadRoutes(IUserInterfaceFiles files, IEnumerable<string> roots, IReadOnlyList<SliceModel> slices, ScreenplayDiagnostics diagnostics) =>
+        _routes.Read(files, roots, slices.SelectMany(_ => _.Screens).Select(_ => _screens.GetValueOrDefault(_)).OfType<RouteScreen>().ToList(), diagnostics);
+
+    /// <summary>
+    /// Resolves a literal navigation gesture against the route table's screen files.
+    /// </summary>
+    /// <param name="namespace">The navigating screen's slice.</param>
+    /// <param name="literal">The literal router destination.</param>
+    /// <returns>The destination and parameters, or null when not proven.</returns>
+    public ScreenNavigationModel? Navigation(string @namespace, string literal) => _routes.Resolve(@namespace, literal);
 
     /// <summary>
     /// Reads the retained screens against the complete declaration catalog.

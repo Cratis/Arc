@@ -721,16 +721,84 @@ A property is read only when it is written as text, or as an imported query or c
 
 A menu item becomes a toolbar action only when its `command` is exactly `() => show(true)` or `() => { show(true); }`, with exactly one React `useState` tuple for that setter connecting it to the `visible` property of one readable `CommandDialog`. Other setters may have their own tuples and dialog openers. The tuple, setter reference and visibility reference must be in the same enclosing component function, in directly returned JSX without intervening parameter or local shadowing. The reader supports block-bodied named functions and parenthesized arrow functions; scopes it cannot prove get `SP0028` rather than an item. Named `useState` imports must be unaliased and come from `react`; `React.useState` requires a React default or namespace import. Within that component body, the hook or namespace name must occur only in recognized tuple calls, so local hook rebinding or other uses that the reader cannot prove also withhold the item. The dialog's command may belong to another slice. The `MenuItems` container must itself be an unconditional direct child of `DataPage` and contain only unconditional direct item markers; spreads, conditional or mixed children, wrappers, and disabled items are reported rather than emitted. An orphan `MenuItem` outside a `MenuItems` container renders nothing and gets its own `SP0028`. A computed item label is reported with `SP0028` and the proven item is emitted without a label. Icons are omitted. The toolbar is named `actions` for a single page; multiple pages use read-model-based names or positional suffixes, and repeated item names get numeric suffixes. A claimed dialog does not also create a screen-level action, but another unclaimed dialog for the same command still does.
 
-Input opening is not post-success navigation. An unread `CommandDialog onSuccess` callback gets its own `SP0028`; it never becomes a navigation attached to the input-opening item. A recognized `useNavigate` callback reports its literal route, but route-to-screen resolution and parameter bindings are not inferred. `detailsComponent` is a selected-row pane on the same screen, not navigation. It reports Information diagnostic `SP0077`, as do a screen opened through `useDialog` from `@cratis/arc.react/dialogs`, computed `disabled`, and a recovered item's `disableOnUnselected`: Screenplay has no corresponding composition or toolbar enablement. The MVVM `useDialog` takes a request type and a component, so it is not treated as the single-component hook. Computed `disabled` withholds the toolbar item and leaves a readable dialog command as a screen action; `disableOnUnselected` on a recovered item only reports that its enablement is not stated. A details file beside the slice still appears as its own screen. Reading the router's route table is outside this mapping.
+Input opening is not post-success navigation. A resolved `CommandDialog onSuccess` navigation becomes the command action's after-success destination, never navigation attached to the input-opening item. An unread success callback gets its own `SP0028`. See [Navigation](#navigation) for the route-table shapes that prove a destination. `detailsComponent` is a selected-row pane on the same screen, not navigation. It reports Information diagnostic `SP0077`, as do a screen opened through `useDialog` from `@cratis/arc.react/dialogs`, computed `disabled`, and a recovered item's `disableOnUnselected`: Screenplay has no corresponding composition or toolbar enablement. The MVVM `useDialog` takes a request type and a component, so it is not treated as the single-component hook. Computed `disabled` withholds the toolbar item and leaves a readable dialog command as a screen action; `disableOnUnselected` on a recovered item only reports that its enablement is not stated. A details file beside the slice still appears as its own screen. The router's route table supplies navigation destinations; same-screen composition does not.
 
-Cross-slice screen actions, toolbar actions and `data … via query` bindings use qualified references. The generator resolves the proxy import's relative module path to the source directory of the slice declaring that command or query; a matching name in another directory is not enough. It writes the shortest trailing scope of the emitted module/feature/slice path that uniquely identifies a declaration of that name and kind. For example, a listing screen importing `../Registration/RegisterAuthor` writes `action Registration.RegisterAuthor`. If two features each declare that command in a `Registration` slice, it writes `action Authors.Registration.RegisterAuthor`. Own-slice references stay bare. A component binding with an unresolvable module path, an import outside any slice directory, or a name not declared by the imported slice still gets `SP0028`. A reference whose declaration is withheld during emission, or whose emitted scope is ambiguous even when fully qualified, is also omitted with `SP0028`. Unmatched imports alone do not establish query bindings; `SP0036` is reserved and no longer reported.
+Cross-slice screen actions, toolbar actions, navigation destinations and `data … via query` bindings use qualified references. The generator resolves the proxy import's relative module path to the source directory of the slice declaring that command or query; a matching name in another directory is not enough. It writes the shortest trailing scope of the emitted module/feature/slice path that uniquely identifies a declaration of that name and kind. For example, a listing screen importing `../Registration/RegisterAuthor` writes `action Registration.RegisterAuthor`. If two features each declare that command in a `Registration` slice, it writes `action Authors.Registration.RegisterAuthor`. Own-slice references stay bare. A component binding with an unresolvable module path, an import outside any slice directory, or a name not declared by the imported slice still gets `SP0028`. A reference whose declaration is withheld during emission, or whose emitted scope is ambiguous even when fully qualified, is also omitted with `SP0028`. Unmatched imports alone do not establish query bindings; `SP0036` is reserved and no longer reported.
 
-Everything else is **never inferred**: `section`, `summary`, `navigate to`, `layout`, and any structure written in JSX that is not one of the components above. Nothing in the Cratis Components states navigation — a details component is a pane on the same screen — so no `navigate to` is written. A screen that uses none of the components reports `SP0028` once. In a mixed screen, markup outside recognized component spans is also reported: once per distinct component tag, then one report listing distinct HTML tags. This check covers the whole file, including helper components. Content inside a recognized component stays covered by that component's own reports, so dialog inputs do not create extra reports. Fragments without direct content and intrinsic wrappers around recognized components with no direct text or expression children are exempt. A guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Write those directives by hand if you want them, and expect a regeneration to leave them out.
+Everything else is **never inferred**: `section`, `summary`, `layout`, and structure outside the recognized component and navigation shapes. A details component is a pane on the same screen, so it does not establish navigation. A screen that uses none of the components reports `SP0028` once. In a mixed screen, markup outside recognized component spans is also reported: once per distinct component tag, then one report listing distinct HTML tags. This check covers the whole file, including helper components. Content inside a recognized component stays covered by that component's own reports, so dialog inputs do not create extra reports. Fragments without direct content and intrinsic wrappers around recognized components with no direct text or expression children are exempt. A guessed column is worse than an absent one: it puts a confident falsehood into a document whose entire value is that it describes the real application. Write those directives by hand if you want them, and expect a regeneration to leave them out.
 
 Two more rules keep the result honest:
 
 - **Components only, no descending.** A file carrying a second extension — `AddAuthor.stories.tsx`, `AddAuthor.spec.tsx` — is a companion of a component, not a screen. A folder _inside_ a slice folder is a slice of its own under the same convention, so its files belong to it.
 - **Anything uncertain is reported.** The relationship between a file and a slice comes entirely from where the file sits, so `SP0025` is reported whenever sitting there says less than usual: a slice whose source is spread over several folders, one folder holding the source of several slices, or two files claiming a single screen name.
+
+### Navigation
+
+A literal router gesture can identify a destination without guessing from a URL's spelling. The generator reads TSX files importing named `Route`, `Routes`, or `createBrowserRouter` bindings from `react-router` or `react-router-dom` under the common root of each compilation's source paths. Discovery is recursive, including nested `.frontend` folders. It skips `node_modules`, `bin`, `obj`, `dist`, `wwwroot`, other hidden directories, and directory symlinks. The normal slice-directory rule still determines which files are screens; finding a route table does not turn it into a screen.
+
+Supported tables use nested `<Route path="…" element={<Screen />}>` declarations inside `<Routes>`, or direct `createBrowserRouter([...])` calls with literal route objects. Relative child paths join their parent; absolute paths retain their prefix; path-less layout routes pass through the parent path; an `index` route uses that parent path. Router imports may be aliased. The element must be a sole JSX component imported by a named relative import. Its resolved module file, not its component name or the route's spelling, must match exactly one retained screen file.
+
+Two gestures use that table:
+
+- A menu item's `command={() => navigate('/literal')}` becomes `item <name> navigate to <Screen>`, preserving a literal label.
+- A `CommandDialog onSuccess={() => navigate('/literal')}` becomes `navigate to <Screen>` under its command action. If a toolbar already opens that dialog's input, the separate action carries success navigation. Conflicting success behavior among dialogs exposing the same command is reported rather than combined.
+
+The callback must use a `const navigate = useNavigate()` binding imported from either router package in the same directly returned component body, without hook or parameter shadowing. Only absolute, quoted literal destinations are matched. Required whole-segment route parameters such as `:id` become `parameter id from literal "42"` when the gesture supplies `/authors/42`. A destination in another slice uses the same shortest unique emitted scope as other cross-slice screen references.
+
+For example, an application's `App.tsx` can declare:
+
+```tsx
+import { Route, Routes } from 'react-router-dom';
+import { AuthorDetails } from './Authors/Details/AuthorDetails';
+
+export const App = () => (
+    <Routes>
+        <Route path="authors">
+            <Route path=":id" element={<AuthorDetails />} />
+        </Route>
+    </Routes>
+);
+```
+
+This screen excerpt assumes the `RetireAuthor` command proxy and the destination screen already exist in their respective slices:
+
+```tsx
+import { DataPage, CommandDialog } from '@cratis/components';
+import { useNavigate } from 'react-router-dom';
+import { RetireAuthor } from './RetireAuthor';
+
+export const AuthorRetirement = () => {
+    const navigate = useNavigate();
+    return <DataPage title="Authors">
+        <DataPage.MenuItems>
+            <DataPage.MenuItem label="Details" command={() => navigate('/authors/42')} />
+        </DataPage.MenuItems>
+        <CommandDialog command={RetireAuthor} onSuccess={() => navigate('/authors/42')} />
+    </DataPage>;
+};
+```
+
+With the screen in `Authors.Retirement` and its destination in `Authors.Details`, the generated directives are:
+
+```text
+screen AuthorRetirement
+  file Authors/Retirement/AuthorRetirement.tsx
+  title "Authors"
+  toolbar actions
+    item authorDetails navigate to Details.AuthorDetails
+      label "Details"
+      parameter id from literal "42"
+  action RetireAuthor
+    navigate to Details.AuthorDetails
+      route "/authors/42"
+      parameter id from literal "42"
+```
+
+An action's navigation retains the literal destination as `route "…"`. The pinned Screenplay toolbar-item grammar accepts parameters but not a `route` option, so toolbar items omit that option.
+
+Duplicate literal paths, wildcard or optional paths, computed paths or elements, lazy components, `<Navigate>` redirects, non-default `caseSensitive`, a `Routes location` override, spreads, and route children written outside the literal table shapes do not establish destinations. A route table referenced as an element by another table is not read as a root: nested `<Routes>` in another file have an unknown parent prefix. One `SP0028` per route-table file lists what was not read; an unresolved gesture still gets its own `SP0028`. Matching more than one route pattern also withholds navigation rather than choosing a destination. A missing table leaves the previous omission reports unchanged.
+
+`<Link to>`, inline JSX `onClick` navigation outside menu items, row-click navigation, relative destinations such as `navigate('..')`, template literals, variables, and navigation with state or options remain reported, not inferred. Encoded destination segments, query strings, and fragments also remain unmatched. These require gesture or URL readers beyond literal route-to-screen resolution.
 
 ## What is not expressed
 
@@ -745,7 +813,7 @@ These are part of the language, but nothing in C# says them, so a generated docu
 | `capture`                                                                                                      | Describes ingesting an external system. Nothing in an Arc application declares one.                                                                     |
 | `persona`                                                                                                      | Who uses the system is a product decision, not a code artifact.                                                                                         |
 | `seed`                                                                                                         | Sample data is a modeling concern, not something the source states.                                                                                     |
-| The rest of the body of a `screen` — `section`, `summary`, `navigate to`, `layout`, and structure outside known Cratis Components | What a screen _shows and does_ is JSX. Its `file`, its `data` bindings and what known Cratis Components state are generated; the rest would be a guess — see [Screens](#screens). |
+| The rest of the body of a `screen` — `section`, `summary`, `layout`, and structure outside recognized components and navigation gestures | What a screen _shows and does_ is JSX. Its `file`, its `data` bindings and what known Cratis Components state are generated; the rest would be a guess — see [Screens](#screens). |
 | Compliance reasons and personal-data qualifiers | Bare `pii` and `secret` are recovered from `[PII]` and concept-level `[Encrypted]` plus `[NotAudited]`. The generator does not infer reasons, special categories, or criminal-data classification. Non-default secret scope is emitted only in authoring mode; otherwise `SP0061` reports its omission. |
 
 ### Detail Screenplay cannot represent
@@ -756,7 +824,7 @@ These details can remain outside the document because the language has no counte
 | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Event generations, `[Tombstone]`, `[CompensationFor]`                                                 | Screenplay describes the current shape of an event. It has no notion of versioning, of a deletion marker, or of one event compensating another. `SP0014`.                                                                                                                                                                                                                                                                                           |
 | Same-screen `detailsComponent`, screens opened through `useDialog`, toolbar selection or computed enablement | Information diagnostic `SP0077` distinguishes missing Screenplay composition or enablement from unread callbacks. No navigation, dialog template, or component identity is invented. |
-| Menu callbacks, unresolved proxy imports, route destinations and dialog `onSuccess` | `SP0028` reports unread behavior separately from input-opening gestures. Qualified cross-slice commands and queries are emitted when their import owner declares them; unresolved component bindings remain reported. A route string is not a proven screen destination or parameter binding. |
+| Unread menu callbacks, proxy imports, route tables and dialog `onSuccess` | `SP0028` reports unsupported behavior separately from input-opening gestures. Literal menu and success navigation maps only through unambiguous route-table screen imports; parameters come from matching literal path segments. Duplicate, lazy or computed declarations are listed once per table. Missing tables, unresolved bindings, Link targets, inline clicks, row-clicks, relative or computed destinations, and navigation options remain reported. |
 | Screen markup outside recognized Cratis Components | `SP0028` per distinct component tag, plus one list of HTML tags. Fragments and pure wrappers are exempt; unscannable TSX reports once and yields no inferred structure. |
 | Reducer folds (`IReducerFor<T>`)                                                                      | The fold is code. The read model and the events it observes are recovered; the logic that combines them is not. `SP0020`.                                                                                                                                                                                                                                                                                                                           |
 | Unrecoverable reactor observation filters | Recoverable filters are emitted as `from`, including on file-backed triggers. Missing, ambiguous, unsafe, or unexpressible definitions keep executable effects in source rather than broadening observation. `SP0047` explains the refusal; `SP0048` reports an undeclared typed stream. Reducer filters remain unstated on the projection counterpart. |
