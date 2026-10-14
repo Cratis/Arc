@@ -153,6 +153,8 @@ public class CatalogIndexer : IReactor
 }
 ```
 
+Synchronous `CommandInvocation` returns no longer raise `CHR0054` with Chronicle 19.63.0 or later.
+
 Use your command's actual constraint name in place of `UniqueBook`. Register branch event types just like other returned events. The command still runs through validation and authorization; a branch cannot bypass either.
 
 The **first matching branch wins**. It returns a registered event, an `EventForEventSourceId`, or a stable nonempty sequence of those. Use `.Acknowledge(selector)` to acknowledge without producing events; a branch handler that returns `null` also produces no events. Acknowledgment records a handled refusal; it does not prove that the command's work previously completed. Branches cannot return commands, operations, or stream completions.
