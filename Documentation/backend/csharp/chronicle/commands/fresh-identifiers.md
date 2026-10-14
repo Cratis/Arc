@@ -5,7 +5,8 @@ description: Reject a generated append target that already has events, without r
 
 A generated identifier is meant to open a new event source, not accidentally add facts to an existing one.
 With Arc's Chronicle integration, a [`[GeneratedValue]` Handle parameter](../../commands/generated-values.md)
-uses `GeneratedValueFreshness.Guarded` by default. When an Arc-owned append targets that value, Arc requires
+uses `GeneratedValueFreshness.Guarded` by default. When an Arc-owned append or a write through the command's
+unit of work targets that value, Arc requires
 the **whole event source** to be empty before the command's events are appended.
 
 ## What is guarded
@@ -22,6 +23,8 @@ The guard covers:
 - Single or multiple `EventForEventSourceId` wrappers, including collections mixed with plain events.
 - `EventsWithConcurrencyScopes`, preserving compatible explicit whole-source emptiness scopes.
 - Aggregates acquired with `IAggregateRootFactory.Get` using a guarded generated identifier, and their mutations.
+- Direct `IUnitOfWork.AddEvent`, `AddEvents` and `AddEventWithNamedTags` calls on the command's unit of work.
+- `eventLog.Transactional.Append`, `AppendMany`, `AppendWithNamedTags` and `AppendManyWithNamedTags` on that unit.
 
 Values used only in a payload or response add no scope. For example, a generated API key returned to the
 caller does not guard the customer's event source. If several generated parameters have the same value,
@@ -43,8 +46,8 @@ different stream or of another type still occupy that identifier.
 
 Several events for one new source share the same immutable expectation: all can succeed in one transaction.
 Routing metadata, concurrency attributes and the normal concurrency strategy cannot replace it with a later
-tail or a narrowed expectation. Only exact scopes supplied through `EventsWithConcurrencyScopes` are
-checked for conflicts. A compatible explicit whole-source `BeforeFirst` scope merges with the guard,
+tail or a narrowed expectation. Exact scopes supplied through `EventsWithConcurrencyScopes` or direct
+unit-of-work and transactional calls are checked for conflicts. A compatible explicit whole-source `BeforeFirst` scope merges with the guard,
 including scopes emitted by Stage. A different explicit intent, such as a narrowed scope, a tail revision
 or `ConcurrencyScope.None`, fails the command with `ConflictingConcurrencyScopes` before the batch is
 enrolled or appended.
@@ -70,7 +73,11 @@ An occupied generated destination produces a validation result with:
 | `ReasonDetail` | `"GeneratedIdentifierCollision"` |
 
 Arc classifies this result using the generated guard's provenance. An unrelated `BeforeFirst` failure does
-not acquire that detail. Collision and conflicting-scope messages do not include the generated value.
+not acquire that detail. Arc's collision and `ConflictingConcurrencyScopes` messages do not include the
+generated value. Conflicts detected by Chronicle while merging previously enrolled requirements can instead
+surface as Chronicle's `ConflictingEnrollmentScope`, whose message includes the identifier and scope. Do not
+log that message as redacted; typed, redacted conflict reporting is tracked in
+[Chronicle #4909](https://github.com/Cratis/Chronicle/issues/4909).
 
 Arc never reruns `Handle()`. To retry a collision, submit a **new command invocation**, which generates a new
 value. Do not keep retrying a fixed scenario pin against an occupied source. This policy is not an
@@ -96,16 +103,34 @@ not infer entropy from a concept's name or enforce an entropy threshold. Client-
 identifiers are not generated Handle captures: protect their uniqueness with a Chronicle
 [constraint](/chronicle/constraints/), rather than assuming this guard covers them.
 
-## Direct unit-of-work writes are not guarded
+## Direct writes through the command's unit of work
 
-User code calling `IUnitOfWork.AddEvent`, `IUnitOfWork.AddEvents` or `eventLog.Transactional.Append` directly
-inside `Handle()` does **not** receive this automatic freshness guard. Return events through Arc's response
-handlers instead, or supply an explicit whole-source `BeforeFirst` scope yourself. Returning
-[`EventsWithConcurrencyScopes`](events.md#events-with-exact-concurrency-scopes) is the supported workaround
-when the handler must compose explicit intents.
+The direct and transactional APIs listed above receive the same whole-source guard and collision
+classification as returned events. This applies only to the command's actual unit of work, not arbitrary
+new units or external stores. Returned, aggregate and direct events for the same generated source share
+one expectation; an occupied source rejects the whole pending unit, including events for other sources.
 
-An explicitly supplied scope on an otherwise unguarded direct write can reject occupancy, but it does not
-have Arc's generated-target provenance and therefore need not report `GeneratedIdentifierCollision`.
+Nested pipeline invocations share the outer command's unit. Each invocation with a guarded generated
+parameter contributes its live captures while it runs. Successfully enrolled requirements and their
+provenance survive nested completion until the unit completes; only the outer owner commits or rolls back.
+
+Custom `IUnitOfWork` implementations must support Chronicle's enrollment contributors. A handler declaring
+at least one guarded `[GeneratedValue]` parameter fails closed with Arc's
+`UnitOfWorkEnrollmentContributorsNotSupported` if its unit cannot register one. Commands without generated
+parameters, or with only `Unguarded` parameters, do not require this support.
+
+`IUnitOfWork.AddEvents` checks all destinations before staging any event in that call.
+`Transactional.AppendMany` and `AppendManyWithNamedTags` stage per event instead: a later rejection may
+leave earlier events pending. Let the exception escape `Handle()` so Arc rolls back the whole unit.
+Catching the rejection and succeeding can commit earlier enrollments.
+
+### Immediate appends remain outside the guard
+
+Non-transactional `eventLog.Append`, `AppendMany` and their named-tag variants inside `Handle()` bypass
+unit-of-work enrollment. They remain immediate, cannot be rolled back by the command and do **not** receive
+automatic freshness protection. Prefer returned events or `eventLog.Transactional` on the command's unit.
+An immediate caller can supply an explicit whole-source `BeforeFirst` scope and inspect the append result,
+but that write has no automatic generated-target provenance and need not report `GeneratedIdentifierCollision`.
 
 ## Verify an occupied identifier in a spec
 
@@ -140,14 +165,14 @@ Default mode now throws `GeneratedIdentifierCollisionRequiresDecisionReads` befo
 with `new CommandScenario<TCommand>().UseDecisionReads()` before seeding events and pinning the generated value."
 
 Seed an event for the same identifier, including a different stream if your command routes to a specific
-stream. Also exercise an empty source with two returned events: both must append successfully under one guard.
+stream. Also exercise an empty source with two events through your chosen append API: both must append successfully under one guard.
 
 A fixed pin is reused across executions. A second create invocation with the same pin should collide rather
 than silently continue the first source.
 
 ## Supported Chronicle versions
 
-This Arc integration requires Chronicle client **19.59.4**. Deploy a Chronicle kernel **19.40.1 or later**
+Direct-write freshness requires Chronicle client **19.62.0 or later**; this Arc version references **19.63.0**. Deploy a Chronicle kernel **19.40.1 or later**
 for retry-time revalidation of expected-empty scopes; upgrading a client alone does not upgrade the kernel.
 Chronicle 19.59.2 and later also normalize equal `BeforeFirst` batch scopes. Use a current compatible kernel
 when several destinations or explicit scope labels share one batch.

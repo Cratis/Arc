@@ -93,11 +93,19 @@ await eventLog.Transactional.Append(sensorId, new ReadingRegistered(reading));
 
 This awaits enrollment, not commit. Use it only with an active transaction. Outside a command or another explicitly established unit of work, it throws.
 
+On the command's unit of work, direct `AddEvent`, `AddEvents`, `AddEventWithNamedTags` and all four
+`Transactional` append variants enforce [generated-identifier freshness](fresh-identifiers.md) just like
+returned events. Nested invocations share that protection and an occupied generated target rejects the
+whole pending unit at commit. This requires Chronicle client 19.62.0 or later and contributor support from
+custom units. `AddEvents` preflights the whole call; transactional many-event methods stage per event, so
+let a later enrollment rejection escape the handler to roll back earlier pending events.
+
 ```csharp
 var result = await eventLog.Append(sensorId, new ImportAttempted());
 ```
 
-A successful immediate append survives any subsequent failure. The command scope observes failed append operations on its event log and merges attributable failures into the command result; it cannot un-append earlier successes. This is not a guarantee for arbitrary other stores or event sequences.
+A successful immediate append survives any subsequent failure. The command scope observes failed append operations on its event log and merges attributable failures into the command result; it cannot un-append earlier successes. This is not a guarantee for arbitrary other stores or event sequences. Immediate appends also bypass the
+automatic generated-identifier guard; return events or use the command's transactional unit for that protection.
 
 [ARCCHR0007](../code-analysis/index.md#arcchr0007-command-handler-injects-ieventlog) warns on `IEventLog` parameters in `Handle()`, even for reads or deliberate transactional use. Prefer returned events. For an intentional advanced use, narrowly suppress that warning with a documented reason; suppression does not change the append boundary.
 
