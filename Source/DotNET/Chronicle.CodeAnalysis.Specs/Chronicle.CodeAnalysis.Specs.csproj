@@ -22,5 +22,11 @@
         <ProjectReference Include="../Chronicle.CodeAnalysis.CodeFixes/Chronicle.CodeAnalysis.CodeFixes.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
     </ItemGroup>
+    <!-- Exercise the same Chronicle analyzer NuGet supplies to consumer compilations. -->
+    <Target Name="ReferenceChronicleAnalyzer" AfterTargets="ResolveLockFileAnalyzers" BeforeTargets="ResolveAssemblyReferences">
+        <ItemGroup>
+            <Reference Include="@(Analyzer->WithMetadataValue('Filename', 'Cratis.Chronicle.CodeAnalysis'))" />
+        </ItemGroup>
+    </Target>
 </Project>
 

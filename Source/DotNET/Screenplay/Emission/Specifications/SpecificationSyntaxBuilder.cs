@@ -53,6 +53,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     public bool ReactionMetadataEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v19 reaction refusal branches are admitted.
+    /// </summary>
+    public bool ReactionRefusalsEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets where routed occurrences from retained specifications are collected for source declarations.
     /// </summary>
     public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
@@ -274,7 +279,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return specification;
         }
 
-        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled };
+        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled, RefusalsEnabled = ReactionRefusalsEnabled };
         var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
             Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         var reason = specification.Reactor is { } reactor

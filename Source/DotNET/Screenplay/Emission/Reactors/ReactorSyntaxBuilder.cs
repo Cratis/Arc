@@ -40,6 +40,11 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     public bool MetadataEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v19 refusal branches can be emitted.
+    /// </summary>
+    public bool RefusalsEnabled { get; init; } = true;
+
+    /// <summary>
     /// Builds the reactor declaration.
     /// </summary>
     /// <param name="reactor">The reactor to build for.</param>
@@ -53,7 +58,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
         var name = naming.ToDeclarationName(reactor.Name);
         var path = naming.ToFilePath(reactor.SourceFilePath) ?? SourceFilePaths.Conventional(@namespace, name);
         var file = new FileReferenceSyntax(path, SourceLocation.Start);
-        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled };
+        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled, RefusalsEnabled = RefusalsEnabled };
 
         var triggers = reactor.ObservedEvents
             .Select(_ => (Event: _, Name: naming.ToDeclarationName(_)))
@@ -101,14 +106,18 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
 
     void ReportCodeHandling(ReactorModel reactor, string @event, string location)
     {
-        var handles = reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
+        var branches = reactor.Reactions.Where(reaction => reaction.EventName == @event).SelectMany(reaction => reaction.Invokes).Any(invocation => invocation.OnRefused.Count > 0);
+        var handles = branches || reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
         var discards = reactor.DiscardedCommandResultHandlers.Contains(@event, StringComparer.Ordinal);
         if (handles || discards)
         {
             var behavior = handles ? "handles the outcome of" : "discards the outcome of and acknowledges refusals from";
+            var reason = branches && !RefusalsEnabled
+                ? "refusal branches require ESM v19 and exceed ScreenplayOptions.MaximumExecutableModelVersion"
+                : "the complete invocation, selectors, callback effects or their mappings cannot be proved equivalent to declarative 'on refused' branches";
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableReactionRefusalHandling,
-                $"'{reactor.Name}' {behavior} a command it executes for '{@event}' in code; 'on refused' is not admitted by any executable model (Screenplay#433, PLAY0268) and Arc cannot classify refusals in reactors yet (Arc#3058), so the trigger keeps its file reference",
+                $"'{reactor.Name}' {behavior} a command it executes for '{@event}'; {reason}, so the whole trigger keeps its file reference",
                 location);
         }
 
@@ -116,7 +125,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableReactionRedelivery,
-                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is not admitted by any executable model (Screenplay#433, PLAY0268), so the trigger keeps its file reference",
+                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is a specification action, and receipt use alone does not prove a same-delivery redelivery specification, so the trigger keeps its file reference",
                 location);
         }
     }
@@ -155,7 +164,11 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// <param name="invocation">The invocation.</param>
     /// <returns>The <see cref="InvokesSyntax"/>.</returns>
     InvokesSyntax Invokes(InvocationModel invocation) =>
-        new(naming.ToDeclarationName(invocation.CommandName), [.. invocation.Mappings.Select(Mapping)], SourceLocation.Start);
+        new(naming.ToDeclarationName(invocation.CommandName), [.. invocation.Mappings.Select(Mapping)], SourceLocation.Start)
+        {
+            OnRefused = invocation.OnRefused.Select(branch => new InvocationRefusalSyntax(
+                branch.Selector, branch.Constraint, branch.Produces.Count == 0, branch.Produces.Select(Produces), SourceLocation.Start)).ToList()
+        };
 
     /// <summary>
     /// Builds one mapping.

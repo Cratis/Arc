@@ -19,13 +19,7 @@ internal static class EventSourceDeclarations
     /// <param name="enabled">Whether reaction metadata is enabled.</param>
     /// <returns>The source and stream declarations required by observers.</returns>
     internal static IEnumerable<CommandRouteModel> ObservedRoutes(ApplicationModel model, bool enabled = true) =>
-        new ReactionMetadataAdmission(model, enabled).Sources().SelectMany(source =>
-            source.Streams.Count == 0 ? [new CommandRouteModel(source.Source, null, null, null, null) { StoredSource = source.StoredSource }] :
-                source.Streams.Select(stream => new CommandRouteModel(source.Source, stream, null, null, null)
-                {
-                    StoredSource = source.StoredSource,
-                    StoredStream = source.StoredStreams.GetValueOrDefault(stream)
-                }));
+        new ReactionMetadataAdmission(model, enabled).Sources().SelectMany(ObservedRoutes);
 
     /// <summary>
     /// Refuses incompatible identities and combines compatible routes into unique declarations.
@@ -43,6 +37,19 @@ internal static class EventSourceDeclarations
         var admitted = sources.Where(source => !conflicts.Contains(source.Key)).Select(Describe).ToList();
 
         return new(admitted, conflicts);
+    }
+
+    static IEnumerable<CommandRouteModel> ObservedRoutes(ReactorSourceDefinition source)
+    {
+        // Chronicle's All sentinel means unrestricted observation, not a stored stream declaration.
+        var streams = source.Streams.Where(stream => source.StoredStreams.GetValueOrDefault(stream) != "All").ToList();
+
+        return streams.Count == 0 ? [new CommandRouteModel(source.Source, null, null, null, null) { StoredSource = source.StoredSource }] :
+            streams.Select(stream => new CommandRouteModel(source.Source, stream, null, null, null)
+            {
+                StoredSource = source.StoredSource,
+                StoredStream = source.StoredStreams.GetValueOrDefault(stream)
+            });
     }
 
     static bool IncompatibleShapes(IGrouping<string, CommandRouteModel> source) =>
