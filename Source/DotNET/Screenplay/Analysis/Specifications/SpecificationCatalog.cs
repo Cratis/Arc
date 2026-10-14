@@ -46,6 +46,7 @@ public class SpecificationCatalog
         var theories = new SpecificationTheories(models, diagnostics);
         var placement = new SpecificationPlacement(slices);
         var bySlice = new Dictionary<string, List<SpecificationModel>>(StringComparer.Ordinal);
+        var literalRows = new SpecificationLiteralRows(models, diagnostics, heldValues).Read(catalog.Types, placement);
 
         foreach (var type in catalog.Types.Where(type => !theories.Report(type, reader.IsSpecification(type))))
         {
@@ -65,7 +66,8 @@ public class SpecificationCatalog
                 continue;
             }
 
-            if (reader.Read(type, SpecificationPlacement.NameOf(type, slice)) is { } specification)
+            var reading = literalRows.TryGetValue(type, out var row) ? row : reader.Read(type, SpecificationPlacement.NameOf(type, slice));
+            if (reading is { } specification)
             {
                 Add(bySlice, slice, specification);
             }

@@ -612,7 +612,7 @@ public static class ScreenplayDiagnosticCodes
     public const string SpecificationCallerNotRepresentable = "SP0075";
 
     /// <summary>
-    /// A parameterized theory scenario cannot yet be stated as a case table.
+    /// A parameterized scenario stays per row or a theory is omitted because a faithful case table could not be proved.
     /// </summary>
     public const string SpecificationCasesNotFolded = "SP0076";
 

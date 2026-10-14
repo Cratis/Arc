@@ -62,6 +62,11 @@ public class SpecificationDraft
     internal SpecificationEventSources EventSources { get; init; } = new();
 
     /// <summary>
+    /// Gets the primary-constructor bindings used by this reading.
+    /// </summary>
+    internal SpecificationCaseValues? CaseValues { get; init; }
+
+    /// <summary>
     /// Records why a scenario cannot be read.
     /// </summary>
     /// <param name="reason">What made it unreadable.</param>

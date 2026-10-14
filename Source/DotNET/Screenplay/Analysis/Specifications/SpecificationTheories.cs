@@ -124,6 +124,6 @@ internal sealed class SpecificationTheories(SemanticModels models, ScreenplayDia
     /// <param name="location">The scenario or theory symbol's display name.</param>
     void Report(string location) => diagnostics.Information(
         ScreenplayDiagnosticCodes.SpecificationCasesNotFolded,
-        $"The scenario '{location}' is a parameterised [Theory] and is not stated; case tables are not generated yet",
+        $"The scenario '{location}' is a parameterized [Theory] and is not stated; reading its action and assertions with InlineData bindings requires a separate theory-method reader",
         location);
 }

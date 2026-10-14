@@ -575,7 +575,59 @@ slice StateChange Registration
 - **`when`** is its action: a command it executed, or `when append <EventType>` for an event scenario's append.
 - **`then`** is each event it asserted was appended, and **`then error`** a rejection it asserted.
 
-Parameterized `[Theory]` scenarios are not stated; Information `SP0076` names each omitted theory because case tables are not generated yet.
+### Literal-case tables
+
+When body-less concrete classes pass literal values to the primary constructor of one abstract scenario, the generator can state the shared steps once. It reads the base symbolically, reads every row with its constants, and folds only when substituting those values reproduces every row's complete model: the same steps, outcomes and caller. Textual similarity is not enough.
+
+This excerpt assumes `RegisterAuthor` takes a string key and an `AuthorName` concept, and produces `AuthorRegistered` with that same `Name` property:
+
+```csharp
+using System.Threading.Tasks;
+using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Chronicle.Testing.Commands;
+using Cratis.Chronicle.Testing.EventSequences;
+using Cratis.Specifications;
+using Xunit;
+
+namespace Library.Authors.Registration.given;
+
+public abstract class Registering(string name) : Specification
+{
+    readonly CommandScenario<RegisterAuthor> _scenario = new();
+    async Task Because() => await _scenario.Execute(new RegisterAuthor("author", name));
+    [Fact] Task should_append() => _scenario.EventSequence
+        .ShouldHaveAppendedEvent<AuthorRegistered>("author", e => e.Name == name);
+    void Destroy() => _scenario.Dispose();
+}
+
+public class Jane() : Registering("Jane");
+public class John() : Registering("John");
+public class Empty() : Registering("");
+```
+
+Inside the slice, the generated table is:
+
+```screenplay
+specification Registering
+  parameter name AuthorName
+  case Empty
+    name = ""
+  case Jane
+    name = "Jane"
+  case John
+    name = "John"
+  when RegisterAuthor
+    id = "author"
+    name = case.name
+  then AuthorRegistered
+    name = case.name
+```
+
+The parameter uses the single target type it feeds, not necessarily the constructor's primitive type. Cases keep their class names and are ordered deterministically. Screenplay expands them into independent specifications such as `Registering_Jane` under ordinary executable admission; tables do not require a new ESM version. An optional read-model target can receive a literal `null` row value; null command and event fixtures remain inadmissible.
+
+Rows with added steps or assertions, nonliteral constructor arguments, inconsistent target types, or references outside supported whole value positions stay individual, with Information `SP0076` explaining why they were not folded. Direct parameters are currently recovered in constructed command/event/read-model property values and expected-event equalities. Parameterized callers, clocks, redelivery locators and examples cannot be folded. Existing unreadable-scenario diagnostics still apply; an invalid fixture is not made valid by leaving it outside a table.
+
+Parameterized `[Theory]`/`[InlineData]` scenarios are still not stated. Information `SP0076` names each omitted theory: reading an action and its assertions inside a theory method needs a separate reader from the `Establish`/`Because`/`[Fact]` shape.
 
 Both command-testing shapes Arc documents are read: the in-process one driving the pipeline through a scenario (`Scenario.Given…`, `Scenario.Execute`) and the one driving a running host (`EventLog.Append`, `Client.ExecuteCommand`). Event scenarios are also read: `EventScenario.When.ForEventSource(...).Events(...)` or a direct append to its event sequence becomes `when append`, not a command. An append action must state one event. Which calls are which is decided by the type each one sits on, so neither testing package has to be referenced for either to be read.
 
