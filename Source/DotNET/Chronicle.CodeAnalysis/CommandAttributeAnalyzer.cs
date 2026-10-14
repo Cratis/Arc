@@ -71,7 +71,7 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
 
         var command = method.ContainingType;
         if (CommandAttributeSymbols.Find(parameter, AttributePrecedencePolicy.LookUpByName) is not null &&
-            CommandAttributeSymbols.ResolveLookup(command, parameter, ChronicleStateSymbols.IsBacked(parameter.Type, context.Compilation, backedTypes)).Conflict is not null)
+            CommandAttributeSymbols.ResolveLookup(command, parameter, MayBeReadModel(parameter.Type, context.Compilation, backedTypes)).Conflict is not null)
         {
             context.ReportDiagnostic(Diagnostic.Create(_invalidLookup, parameter.Locations.FirstOrDefault(), command.Name));
         }
@@ -87,6 +87,23 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
             ReportReadConflict(context, command, CommandAttributeSymbols.ResolveRead(command, model, method, parameter).Conflict);
         }
     }
+
+    /// <summary>
+    /// Treats a model as a possible read model unless it is provably not one. Projection and reducer
+    /// targets can be declared in referenced projects the analyzer cannot scan, so unseen backing is not
+    /// proof; the runtime check validates those lookups.
+    /// </summary>
+    /// <param name="type">The parameter type.</param>
+    /// <param name="compilation">The compilation.</param>
+    /// <param name="backedTypes">Lazily collected projection and reducer targets.</param>
+    /// <returns>Whether the type may be a read model.</returns>
+    static bool MayBeReadModel(ITypeSymbol type, Compilation compilation, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes) =>
+        ChronicleStateSymbols.IsBacked(type, compilation, backedTypes) || !IsProvablyNotReadModel(type);
+
+    static bool IsProvablyNotReadModel(ITypeSymbol type) =>
+        type.SpecialType != SpecialType.None ||
+        type.TypeKind is TypeKind.Enum or TypeKind.Delegate or TypeKind.Array or TypeKind.Pointer or TypeKind.FunctionPointer or TypeKind.Dynamic ||
+        type.ContainingNamespace?.ToDisplayString() is { } ns && (ns == "System" || ns.StartsWith("System.", StringComparison.Ordinal) || ns == "Microsoft" || ns.StartsWith("Microsoft.", StringComparison.Ordinal));
 
     static void ReportReadConflict(SymbolAnalysisContext context, INamedTypeSymbol command, string? conflict)
     {
