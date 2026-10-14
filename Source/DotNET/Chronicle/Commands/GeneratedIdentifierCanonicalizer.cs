@@ -2,7 +2,10 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Cratis.Concepts;
+
+[assembly: InternalsVisibleTo("Cratis.Arc.Chronicle.Testing")]
 
 namespace Cratis.Arc.Chronicle.Commands;
 

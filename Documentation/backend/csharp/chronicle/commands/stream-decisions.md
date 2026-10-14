@@ -7,6 +7,8 @@ When a command decides from events in one stream, inject `IStreamReads` in `Prov
 
 Use a stream decision when the facts are raw events in one routed stream. For a rule over the folded state of one or more event sources, use a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands); for uniqueness, use a constraint. The cost is the whole stream crossing the wire on every command, so keep streams short. [Choosing how a command's rule holds](../consistency/index.md) compares the mechanisms, and its [scenarios](../consistency/scenarios.md#one-stream-of-raw-events) show this one next to the others.
 
+A stream decision is Chronicle's [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) over one stream: Arc captures the tail before it reads, and the append fails if a matching event arrived after it. [Choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) and [Chronicle's scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) show the same decision from Chronicle's side.
+
 This guide assumes Chronicle is [configured for the application](../index.md). `IStreamReads` and `IEventRoutes` resolve by Arc's service conventions; no additional registration is needed.
 
 ## Read the command's stream
@@ -45,7 +47,7 @@ If you need a folded projection rather than raw stream facts, use the command-aw
 
 ## Reuse a definition-backed route
 
-For a command declaring `[EventSource<TSource>(stream)]`, `ForCommand()` also retains the event source definition and its selected stream. If you need a route outside the current command, inject `IEventRoutes` and resolve it from the same discovered registry. This excerpt assumes your application declares an `IEventSource` named `ReportSource` with an `approval` stream:
+For a command declaring [`[EventSource<TSource>(stream)]`](./event-source-definitions.md), `ForCommand()` also retains the event source definition and its selected stream. If you need a route outside the current command, inject `IEventRoutes` and resolve it from the same discovered registry. This excerpt assumes your application declares an `IEventSource` named `ReportSource` with an `approval` stream:
 
 ```csharp
 EventRoute route = routes.For<ReportSource>("approval").WithStreamId("owner:2026-10");
@@ -85,5 +87,7 @@ scenario.AppendConcurrently(id, route, new ReportApproved());
 ```
 
 For a definition, use `scenario.EventRoutes.For<ReportSource>("approval").WithStreamId(...)`. Routed seeding in the legacy read-model mode is refused with `RoutedEventSeedingRequiresDecisionReads` because that mode cannot retain stream routing.
+
+[Scenarios for each stream shape](./event-source-definition-scenarios.md#decide-against-the-stream) show a stream decision on a definition-routed command, and [how routing works](./event-source-definition-routing.md#the-concurrency-scope-arc-passes) explains the scope it passes.
 
 A nonempty decision append conflicts with a matching queued competitor; a competitor on another stream id succeeds for `Stream()` and conflicts for `StreamType()`. Execute a command that produces a new fact to test that guard: the identical-retry branch deliberately returns no scope.

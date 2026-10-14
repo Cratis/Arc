@@ -12,7 +12,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// <param name="components">The known component imports.</param>
 /// <param name="references">The import-site proxy resolver.</param>
 /// <param name="unread">The per-directive reporter.</param>
-internal sealed class MenuItemReader(TsxSource source, KnownComponents components, ScreenProxyReferences references, UnreadScreenStructure unread)
+/// <param name="navigation">The application-wide literal route resolver.</param>
+internal sealed class MenuItemReader(TsxSource source, KnownComponents components, ScreenProxyReferences references, UnreadScreenStructure unread, Func<string, ScreenNavigationModel?>? navigation = null)
 {
     /// <summary>
     /// The dialog positions already exposed by proven toolbar items.
@@ -169,7 +170,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
 
         foreach (var item in markers.Select(ReadItem).OfType<ScreenToolbarItemModel>())
         {
-            items.Add(item with { Name = ItemName(item.Command.Split('.')[^1], names) });
+            items.Add(item with { Name = ItemName((item.Navigation?.Screen ?? item.Command).Split('.')[^1], names) });
         }
     }
 
@@ -244,6 +245,12 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
         {
             unread.MenuItem(item["label"]?.Literal, null);
             return null;
+        }
+
+        if (callback.Literal is null && _callbacks.Route(callback.Written, item.Position) is { } route && navigation?.Invoke(route) is { } destination)
+        {
+            ReportPresentation(item);
+            return new(destination.Screen, string.Empty, item["label"]?.Literal) { Navigation = destination };
         }
 
         var visibility = callback.Literal is null ? _callbacks.Visibility(item) : null;

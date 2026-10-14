@@ -52,3 +52,5 @@ Use `EventStream = "Transactions"`, or declare the intended alternative stream o
 
 - [ARCCHR0021: Use event source definition routing](./ARCCHR0021.md)
 - [Per-event routing](../commands/events.md#per-event-routing)
+- [Route a command through an event source definition](../commands/event-source-definitions.md): declaring streams and migrating from wrapper strings.
+- [Chronicle's Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/): why the stream a returned event lands on decides which events its concurrency check sees.

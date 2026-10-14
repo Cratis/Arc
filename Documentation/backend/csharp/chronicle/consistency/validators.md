@@ -162,3 +162,4 @@ Custom `ICommandFilter` implementations are not checked at all in protected mode
 - [Read models in commands](../read-models/injecting-into-commands.md): nullability, `Provide()` and the full decision-read contract.
 - [Pitfalls](./pitfalls.md): the other ways a rule fails without an error.
 - [Command validation](../../commands/validation.md): Arc's validation model in general.
+- [Choosing how a rule holds in Chronicle](/chronicle/dynamic-consistency-boundary/choosing/): why a check before the append is not the guard, in Chronicle's Dynamic Consistency Boundary terms.

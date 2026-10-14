@@ -316,6 +316,8 @@ public record ApprovePeriod(EventSourceId ReportId, string Period)
 
 A competing event in that stream after the read rejects the command, including when both commands try the first append. The whole stream crosses the wire on every command, so use this for short streams. See [Stream decisions](../commands/stream-decisions.md).
 
+This example routes with string attributes. To route the same command through an event source definition instead, declare `[EventSource<TSource>(stream)]`; [the scenarios for each stream shape](../commands/event-source-definition-scenarios.md#decide-against-the-stream) show this decision that way, and [Chronicle's Dynamic Consistency Boundary scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) show the Chronicle side.
+
 ### Rich behaviour on one entity
 
 **Rule:** a copy of a book is lent to one member at a time, and further rules about the copy will follow.
@@ -834,4 +836,5 @@ The scope detects any matching event appended after its boundary, whoever wrote 
 
 - [Validators](./validators.md): what a `CommandValidator<T>` can do next to these shapes.
 - [Pitfalls](./pitfalls.md): what goes wrong silently, and the analyzer that reports it.
+- [Route a command through an event source definition](../commands/event-source-definitions.md): where definitions and stream decisions fit.
 - [Choosing how a rule holds in Chronicle](/chronicle/dynamic-consistency-boundary/choosing/): the Chronicle-only view of the same decisions, and its [scenarios](/chronicle/dynamic-consistency-boundary/scenarios/).

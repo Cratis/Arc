@@ -103,18 +103,20 @@ public class ScreenReader(
 
             var screen = new ScreenModel(name, paths.Relative(path) ?? path);
             screens.Add(name, screen);
+            elsewhere.DeclareScreen(screen, @namespace, path);
             elsewhere.Defer(screen, () =>
             {
                 var components = KnownComponents.In(files.Contents(path) ?? string.Empty);
                 var resolved = new ScreenProxyReferences(@namespace, path, components, queries, commands, elsewhere);
-                var stated = structure.Read(@namespace, name, path, queries, commands, resolved);
+                var stated = structure.Read(@namespace, name, path, queries, commands, resolved, route => elsewhere.Navigation(@namespace, route));
                 return screen with
                 {
                     Data = [.. data.Read(@namespace, path)],
                     Titles = stated.Titles,
                     Toolbars = stated.Toolbars,
                     Tables = stated.Tables,
-                    Actions = stated.Actions
+                    Actions = stated.Actions,
+                    AfterSuccess = stated.AfterSuccess
                 };
             });
         }
