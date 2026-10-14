@@ -734,7 +734,7 @@ Two more rules keep the result honest:
 
 ### Navigation
 
-A literal router gesture can identify a destination without guessing from a URL's spelling. The generator reads TSX files importing named `Route`, `Routes`, or `createBrowserRouter` bindings from `react-router` or `react-router-dom` under the common root of each compilation's source paths. Discovery is recursive, including nested `.frontend` folders. It skips `node_modules`, `bin`, `obj`, `dist`, `wwwroot`, other hidden directories, and directory symlinks. The normal slice-directory rule still determines which files are screens; finding a route table does not turn it into a screen.
+A literal router gesture can identify a destination without guessing from a URL's spelling. The generator reads TSX files importing named `Route`, `Routes`, or `createBrowserRouter` bindings from `react-router` or `react-router-dom` under the common root of each compilation's source paths. Discovery is recursive, including nested `.frontend` folders. It skips `node_modules`, `bin`, `obj`, `dist`, `wwwroot`, other hidden directories, and file or directory symlinks, including when an excluded directory is a search root. The normal slice-directory rule still determines which files are screens; finding a route table does not turn it into a screen.
 
 Supported tables use nested `<Route path="…" element={<Screen />}>` declarations inside `<Routes>`, or direct `createBrowserRouter([...])` calls with literal route objects. Relative child paths join their parent; absolute paths retain their prefix; path-less layout routes pass through the parent path; an `index` route uses that parent path. Router imports may be aliased. The element must be a sole JSX component imported by a named relative import. Its resolved module file, not its component name or the route's spelling, must match exactly one retained screen file.
 
@@ -790,13 +790,13 @@ screen AuthorRetirement
       parameter id from literal "42"
   action RetireAuthor
     navigate to Details.AuthorDetails
-      route "/authors/42"
+      route "/authors/:id"
       parameter id from literal "42"
 ```
 
-An action's navigation retains the literal destination as `route "…"`. The pinned Screenplay toolbar-item grammar accepts parameters but not a `route` option, so toolbar items omit that option.
+An action's navigation retains the matched literal route-table pattern as `route "…"`, including its parameter names; the gesture supplies the parameter values. The pinned Screenplay toolbar-item grammar accepts parameters but not a `route` option, so toolbar items omit that option.
 
-Duplicate literal paths, wildcard or optional paths, computed paths or elements, lazy components, `<Navigate>` redirects, non-default `caseSensitive`, a `Routes location` override, spreads, and route children written outside the literal table shapes do not establish destinations. A route table referenced as an element by another table is not read as a root: nested `<Routes>` in another file have an unknown parent prefix. One `SP0028` per route-table file lists what was not read; an unresolved gesture still gets its own `SP0028`. Matching more than one route pattern also withholds navigation rather than choosing a destination. A missing table leaves the previous omission reports unchanged.
+Duplicate literal paths, wildcard or optional paths, computed paths or elements, lazy components, `<Navigate>` redirects, non-default `caseSensitive`, a `Routes location` override, spreads, and route children written outside the literal table shapes do not establish destinations. Unread declarations remain competing route claims: a destination maps only when every declaration that could match it is known and exactly one readable route matches. An unread subtree blocks its parent prefix and descendants; an unknown path at the root or an unknown mount blocks all destinations. A route table reachable through another table's module imports, including wrappers and re-exports, is not treated as an absolute root. Multiple `<Routes>` containers in one file also have unproven mount prefixes. One `SP0028` per route-table file lists what was not read; an unresolved gesture still gets its own `SP0028`. Matching more than one route pattern also withholds navigation rather than choosing a destination. A missing table leaves the previous omission reports unchanged.
 
 `<Link to>`, inline JSX `onClick` navigation outside menu items, row-click navigation, relative destinations such as `navigate('..')`, template literals, variables, and navigation with state or options remain reported, not inferred. Encoded destination segments, query strings, and fragments also remain unmatched. These require gesture or URL readers beyond literal route-to-screen resolution.
 

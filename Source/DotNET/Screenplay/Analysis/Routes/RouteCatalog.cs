@@ -22,15 +22,16 @@ internal sealed class RouteCatalog
     /// <param name="diagnostics">The omission reporter.</param>
     internal void Read(IUserInterfaceFiles files, IEnumerable<string> roots, IReadOnlyList<RouteScreen> screens, ScreenplayDiagnostics diagnostics)
     {
-        var tables = roots.Where(_ => !string.IsNullOrWhiteSpace(_)).Distinct(StringComparer.Ordinal)
+        var contents = roots.Where(_ => !string.IsNullOrWhiteSpace(_)).Distinct(StringComparer.Ordinal)
             .SelectMany(files.Under).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-            .Select(path => Table(path, files.Contents(path), screens)).OfType<RouteTable>().ToList();
+            .ToDictionary(path => path, files.Contents, StringComparer.Ordinal);
+        var tables = contents.Select(file => Table(file.Key, file.Value, screens)).OfType<RouteTable>().ToList();
         foreach (var table in tables)
         {
             table.Read();
         }
 
-        RetainRootTables(tables);
+        RetainClaims(tables, new RouteModuleReferences(files, contents));
         ReportDuplicates(tables);
         foreach (var table in tables.Where(_ => _.Issues.Any()))
         {
@@ -49,20 +50,20 @@ internal sealed class RouteCatalog
     /// <returns>The navigation model, or null when the route or its destination is ambiguous.</returns>
     internal ScreenNavigationModel? Resolve(string @namespace, string literal)
     {
-        var matches = _entries.Select(entry => (Entry: entry, Parameters: RoutePaths.Match(entry.Path, literal)))
-            .Where(_ => _.Parameters is not null).ToList();
-        if (matches.Count != 1 || matches[0].Entry.Screen is not { } screen)
+        var matches = _entries.Where(entry => RoutePaths.CouldMatch(entry, literal)).ToList();
+        if (matches.Count != 1 || matches[0].Screen is not { } screen || matches[0].Path is not { } pattern ||
+            RoutePaths.Match(pattern, literal) is not { } parameters)
         {
             return null;
         }
 
         var name = screen.Namespace == @namespace ? screen.Name : $"{screen.Namespace}.{screen.Name}";
-        return new(name, literal, matches[0].Parameters!);
+        return new(name, pattern, parameters);
     }
 
     static RouteTable? Table(string path, string? text, IReadOnlyList<RouteScreen> screens)
     {
-        if (text is null)
+        if (text?.Contains("react-router", StringComparison.Ordinal) is not true)
         {
             return null;
         }
@@ -72,29 +73,28 @@ internal sealed class RouteCatalog
         return imports.Values.Any(RouteTable.IsRouter) ? new(path, source, imports, screens) : null;
     }
 
-    void RetainRootTables(List<RouteTable> tables)
+    void RetainClaims(List<RouteTable> tables, RouteModuleReferences references)
     {
-        var nested = tables.SelectMany(_ => _.ReferencedFiles).ToHashSet(StringComparer.Ordinal);
+        var nested = references.NestedIn(tables.Select(_ => _.Path));
         foreach (var table in tables)
         {
             if (nested.Contains(RouteElements.WithoutExtension(table.Path)))
             {
-                table.Omit("nested Routes in another file with an unknown parent prefix");
+                table.UnknownMount("nested Routes in another file with an unknown parent prefix");
             }
-            else
-            {
-                _entries.AddRange(table.Entries);
-            }
+
+            _entries.AddRange(table.Entries);
         }
     }
 
     void ReportDuplicates(List<RouteTable> tables)
     {
-        var repeated = _entries.GroupBy(_ => _.Path, StringComparer.OrdinalIgnoreCase).Where(_ => _.Count() > 1)
+        var repeated = _entries.Where(_ => _.Path is not null && !_.IncludesDescendants)
+            .GroupBy(_ => _.Path, StringComparer.OrdinalIgnoreCase).Where(_ => _.Count() > 1)
             .Select(_ => _.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var table in tables)
         {
-            foreach (var entry in table.Entries.Where(_ => repeated.Contains(_.Path)))
+            foreach (var entry in table.Entries.Where(_ => _.Path is not null && repeated.Contains(_.Path)))
             {
                 table.Omit($"duplicate path '{entry.Path}'");
             }

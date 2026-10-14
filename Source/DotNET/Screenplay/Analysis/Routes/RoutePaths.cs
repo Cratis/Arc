@@ -47,6 +47,26 @@ internal static partial class RoutePaths
         return expected.Length == actual.Length ? Bind(expected, actual) : null;
     }
 
+    /// <summary>
+    /// Tests whether a claim can compete, including unread subtrees and unknown mounts.
+    /// </summary>
+    /// <param name="entry">The readable or unread route claim.</param>
+    /// <param name="literal">The gesture destination.</param>
+    /// <returns>Whether the claim cannot be ruled out.</returns>
+    internal static bool CouldMatch(RouteEntry entry, string literal)
+    {
+        if (entry.Path is null)
+        {
+            return true;
+        }
+
+        var expected = Segments(entry.Path);
+        var actual = Segments(literal);
+        return entry.IncludesDescendants
+            ? actual.Length >= expected.Length && Bind(expected, actual[..expected.Length]) is not null
+            : Match(entry.Path, literal) is not null;
+    }
+
     static string Normalize(string path) => path.Length > 1 ? path.TrimEnd('/') : path;
 
     static string[] Segments(string path) => Normalize(path).Split('/', StringSplitOptions.RemoveEmptyEntries);

@@ -30,12 +30,13 @@ internal static class RouteTableRoots
         var routes = router.Where(_ => _.Name == "Routes").ToList();
         if (route.Count == 1 && routes.Count == 1)
         {
-            return RouteJsxReader.Read(source, route[0].Local, routes[0].Local);
+            return RouteJsxReader.Read(source, route[0].Local, routes[0].Local, omit);
         }
 
         if (route.Count + routes.Count > 0)
         {
             omit("Route/Routes imports without one literal Routes container binding");
+            return [RouteNode.Unread];
         }
 
         return [];

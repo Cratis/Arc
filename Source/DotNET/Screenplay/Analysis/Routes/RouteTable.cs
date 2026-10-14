@@ -17,7 +17,6 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
     readonly RouteElements _elements = new(path, imports, screens);
     readonly List<RouteEntry> _entries = [];
     readonly HashSet<string> _issues = new(StringComparer.Ordinal);
-    readonly HashSet<string> _referencedFiles = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the module path.
@@ -28,11 +27,6 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
     /// Gets the literal route claims, including unread destinations.
     /// </summary>
     internal IReadOnlyList<RouteEntry> Entries => _entries;
-
-    /// <summary>
-    /// Gets the files referenced as route elements, including layouts outside emitted slices.
-    /// </summary>
-    internal IEnumerable<string> ReferencedFiles => _referencedFiles;
 
     /// <summary>
     /// Gets the omission reasons, reported together once per module.
@@ -56,16 +50,11 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
         if (source.Problem is { } problem)
         {
             Omit($"unscannable {problem.Construct} at line {problem.Line}");
+            _entries.Add(new(null, null));
             return;
         }
 
-        var nodes = RouteTableRoots.Read(source, imports, Omit).ToList();
-        foreach (var node in nodes.SelectMany(Descendants))
-        {
-            RecordElement(node);
-        }
-
-        foreach (var node in nodes)
+        foreach (var node in RouteTableRoots.Read(source, imports, Omit))
         {
             ReadNode(node, "/");
         }
@@ -77,7 +66,16 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
     /// <param name="reason">What could not be read.</param>
     internal void Omit(string reason) => _issues.Add(reason);
 
-    static IEnumerable<RouteNode> Descendants(RouteNode node) => new[] { node }.Concat(node.Children.SelectMany(Descendants));
+    /// <summary>
+    /// Retains an unknown mount as a competing claim rather than dropping its routes.
+    /// </summary>
+    /// <param name="reason">The unread mount reason.</param>
+    internal void UnknownMount(string reason)
+    {
+        Omit(reason);
+        _entries.Clear();
+        _entries.Add(new(null, null));
+    }
 
     static string? Written(RouteNode node, string name) => node.Properties.TryGetValue(name, out var value) ? value.Written : null;
 
@@ -115,6 +113,7 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
         if (!node.IsReadable)
         {
             Omit("computed or spread route declarations or children");
+            _entries.Add(new(parent, null, IncludesDescendants: true));
             return null;
         }
 
@@ -122,6 +121,7 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
         if (routePath is null)
         {
             Omit($"unsupported path/index '{Written(node, "path") ?? Written(node, "index")}'");
+            _entries.Add(new(parent, null, IncludesDescendants: true));
             return null;
         }
 
@@ -136,16 +136,8 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
         }
 
         Omit($"non-default caseSensitive route '{path}'");
-        _entries.Add(new(path, null));
+        _entries.Add(new(path, null, IncludesDescendants: node.Children.Count > 0));
         return false;
-    }
-
-    void RecordElement(RouteNode node)
-    {
-        if (Written(node, "element") is { } expression && _elements.File(expression) is { } file)
-        {
-            _referencedFiles.Add(file);
-        }
     }
 
     void ReadElement(RouteNode node, string path)
@@ -153,9 +145,10 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
         var expression = Written(node, "element");
         var file = expression is not null ? _elements.File(expression) : null;
         var screen = node.Properties.ContainsKey("lazy") ? null : _elements.Screen(file);
-        if (screen is not null || node.Children.Count == 0)
+        var unread = node.Properties.ContainsKey("lazy") || (expression is not null && file is null);
+        if (unread || screen is not null || node.Children.Count == 0)
         {
-            _entries.Add(new(path, screen));
+            _entries.Add(new(path, screen, IncludesDescendants: unread && node.Children.Count > 0));
         }
 
         ReportElement(node, path, expression, screen);
