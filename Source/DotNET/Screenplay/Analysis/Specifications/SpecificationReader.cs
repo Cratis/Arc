@@ -123,7 +123,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
                 ? "the event it appends is put together somewhere this cannot read"
                 : "the command it issues is put together somewhere this cannot read");
         }
-        else if (draft.Then.Count == 0 && draft.Errors.Count == 0 && draft.Returns is null)
+        else if (draft.Then.Count == 0 && draft.Errors.Count == 0 && draft.Returns is null && !draft.Denied)
         {
             draft.CannotRead(draft.AssertsResponse
                 ? "it asserts only CommandResult.Response, and not as an unconditional equality with concrete values the document can state as then returns"
@@ -147,6 +147,7 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
             steps,
             new SpecificationModel(name, [.. draft.Given], draft.When, [.. draft.Then], [.. draft.Errors])
             {
+                Denied = draft.Denied,
                 AssertsResponse = draft.AssertsResponse,
                 Returns = draft.Returns,
                 Caller = caller.Caller,
