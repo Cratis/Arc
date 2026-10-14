@@ -5,6 +5,8 @@ description: Return a stream completion from a command or reactor to prevent fur
 
 Return `CompleteStream` when a stream must accept no more events. Arc completes it after the command's returned events commit; your handler does not need to inject `IEventLog`.
 
+A completed stream accepts no more events, which is a different tool from the append check of Chronicle's [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/): completion closes the stream, the boundary rejects an append that missed an event. A [command routed through an event source definition](./event-source-definitions.md) declares the stream it completes; [the per-process scenario](./event-source-definition-scenarios.md#a-stream-per-process) shows a complete example.
+
 This requires the `Cratis.Arc.Chronicle` integration and Chronicle kernel **19.39 or later** for event-source-scoped completion. An older kernel fails the completion; Arc never falls back to closing every source. Import `Cratis.Arc.Chronicle.Streams` for the completion value.
 
 ## Complete the command's routed stream
