@@ -314,15 +314,11 @@ public static class ScreenplayDiagnosticCodes
     public const string UndeclarableShape = "SP0035";
 
     /// <summary>
-    /// A screen reads through a query a different slice of the application declares.
+    /// Reserved diagnostic for cross-slice query bindings; no longer reported.
     /// </summary>
     /// <remarks>
-    /// A screen aggregating several read models is what an Event Modeling screen routinely is, and an import naming a
-    /// query the model really holds is a binding rather than the noise every other unmatched import is. A <c>data</c>
-    /// directive names a query by the bare name its slice declares it under, though, and an application declares
-    /// <c>All</c> once per read model, so writing one down would say which query only by accident
-    /// (Cratis/Screenplay#28). Naming the screen, the query and the slice declaring it is what a reader needs to see
-    /// the binding the document is missing, and what turns it into one the moment a reference can carry the slice.
+    /// Resolved cross-slice queries now use qualified references. Unread component bindings continue to report
+    /// <see cref="ScreenStructureNotInferred"/>; unmatched imports alone do not establish a query binding.
     /// </remarks>
     public const string CrossSliceQueryBinding = "SP0036";
 

@@ -10,9 +10,9 @@ namespace Cratis.Arc.Screenplay.Analysis.Screens;
 /// </summary>
 /// <param name="source">The scanned module.</param>
 /// <param name="components">The known component imports.</param>
-/// <param name="commands">The commands declared by the slice.</param>
+/// <param name="references">The import-site proxy resolver.</param>
 /// <param name="unread">The per-directive reporter.</param>
-internal sealed class MenuItemReader(TsxSource source, KnownComponents components, IReadOnlyCollection<CommandModel> commands, UnreadScreenStructure unread)
+internal sealed class MenuItemReader(TsxSource source, KnownComponents components, ScreenProxyReferences references, UnreadScreenStructure unread)
 {
     /// <summary>
     /// The dialog positions already exposed by proven toolbar items.
@@ -69,15 +69,14 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
     /// Reads page menus before dialog actions, with stable names even when a table stays unread.
     /// </summary>
     /// <param name="pages">The pages in source order.</param>
-    /// <param name="queries">The slice queries.</param>
     /// <returns>The recovered toolbars.</returns>
-    internal IReadOnlyList<ScreenToolbarModel> ReadPages(IReadOnlyList<JsxElement> pages, IReadOnlyCollection<QueryModel> queries)
+    internal IReadOnlyList<ScreenToolbarModel> ReadPages(IReadOnlyList<JsxElement> pages)
     {
         var toolbars = new List<ScreenToolbarModel>();
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var page in pages.Where(_ => _.IsReadable))
         {
-            var name = ItemName(ToolbarName(page, pages, queries), names);
+            var name = ItemName(ToolbarName(page, pages), names);
             if (Read(page, name) is { } toolbar)
             {
                 toolbars.Add(toolbar);
@@ -92,18 +91,16 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
     /// </summary>
     /// <param name="page">The page.</param>
     /// <param name="pages">The screen's pages.</param>
-    /// <param name="queries">The slice queries.</param>
     /// <returns>The toolbar name.</returns>
-    string ToolbarName(JsxElement page, IReadOnlyList<JsxElement> pages, IReadOnlyCollection<QueryModel> queries)
+    string ToolbarName(JsxElement page, IReadOnlyList<JsxElement> pages)
     {
         if (pages.Count == 1)
         {
             return "actions";
         }
 
-        var proxy = page["query"]?.Identifier is { } local ? components.Proxy(local) : null;
-        var query = queries.FirstOrDefault(_ => _.Name == proxy);
-        return query is null ? $"actions{pages.ToList().IndexOf(page) + 1}" : $"{query.ReturnType.Name}Actions";
+        var query = page["query"]?.Identifier is { } local ? references.Query(local) : null;
+        return query is null ? $"actions{pages.ToList().IndexOf(page) + 1}" : $"{query.Type.Name}Actions";
     }
 
     /// <summary>
@@ -172,7 +169,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
 
         foreach (var item in markers.Select(ReadItem).OfType<ScreenToolbarItemModel>())
         {
-            items.Add(item with { Name = ItemName(item.Command, names) });
+            items.Add(item with { Name = ItemName(item.Command.Split('.')[^1], names) });
         }
     }
 
@@ -285,7 +282,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
     }
 
     /// <summary>
-    /// Resolves the unique visible dialog to a command of this slice.
+    /// Resolves the unique visible dialog through its command proxy's import site.
     /// </summary>
     /// <param name="item">The menu item.</param>
     /// <param name="visibility">The state visibility binding.</param>
@@ -333,8 +330,7 @@ internal sealed class MenuItemReader(TsxSource source, KnownComponents component
             return null;
         }
 
-        var proxy = components.Proxy(local);
-        return commands.FirstOrDefault(_ => _.Name == proxy)?.Name;
+        return references.Command(local);
     }
 
     /// <summary>
