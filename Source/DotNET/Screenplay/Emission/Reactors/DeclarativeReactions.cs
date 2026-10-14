@@ -97,7 +97,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
 
         var declared = events[0].Properties.Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
 
-        return produces.Mappings.All(_ => declared.Contains(_.Property) && !_reserved.Contains(naming.ToPropertyName(_.Property)) && RoundTrips(_.Source));
+        return (produces.Destination is null || RoundTrips(produces.Destination)) && produces.Mappings.All(_ => declared.Contains(_.Property) && !_reserved.Contains(naming.ToPropertyName(_.Property)) && RoundTrips(_.Source));
     }
 
     /// <summary>

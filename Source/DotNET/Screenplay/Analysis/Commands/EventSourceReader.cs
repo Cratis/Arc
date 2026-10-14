@@ -25,98 +25,100 @@ public static class EventSourceReader
     /// Reads the event source a command declares.
     /// </summary>
     /// <param name="command">The type declaring the command.</param>
-    /// <returns>The <see cref="EventSourceBindingModel"/>, or <see langword="null"/> when the command declares no event source.</returns>
-    public static EventSourceBindingModel? Read(INamedTypeSymbol command)
+    /// <returns>The binding, or null when the command declares no event source.</returns>
+    public static EventSourceBindingModel? Read(INamedTypeSymbol command) => Read(command, null);
+
+    /// <summary>
+    /// Reads the event source a reactor or reducer observes with <c>[FromEventSource&lt;TSource&gt;(stream)]</c>.
+    /// </summary>
+    /// <param name="observer">The type declaring the observer.</param>
+    /// <returns>The filter, or null when the observer declares none.</returns>
+    public static ObservedEventSourceModel? ReadObserved(INamedTypeSymbol observer) => ReadObserved(observer, null);
+
+    /// <summary>
+    /// Reads the concurrency scope the event source definition declares for what a command appends.
+    /// </summary>
+    /// <param name="command">The type declaring the command.</param>
+    /// <returns>The scope, or null when no representable dimension is declared.</returns>
+    public static ConcurrencyModel? ReadConcurrency(INamedTypeSymbol command) => ReadConcurrency(command, null);
+
+    /// <summary>
+    /// Reads names through attribute expressions as well as their constant values.
+    /// </summary>
+    /// <param name="command">The declaring command.</param>
+    /// <param name="models">The semantic models resolving const references.</param>
+    /// <returns>The declared binding.</returns>
+    internal static EventSourceBindingModel? Read(INamedTypeSymbol command, SemanticModels? models)
     {
         var declaration = command.GetAttribute(WellKnownTypeNames.ArcEventSourceAttributeOfT);
         if (declaration?.AttributeClass is not { TypeArguments: [INamedTypeSymbol definition] })
         {
             return null;
         }
-
         var stream = declaration.GetArgument(0) as string;
-        var declared = definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
-            .FirstOrDefault(_ => string.Equals(_.GetArgument(0) as string, stream, StringComparison.Ordinal));
+        var declared = DeclaredStream(definition, stream);
+        var name = EventSourceNames.Stream(declaration, definition, models);
 
-        return new(SourceNameOf(definition), stream, stream is null || declared is not null, DimensionsOf(definition, declared).HasFlag(StreamIdDimension));
+        return new(SourceNameOf(definition, models), name, stream is null || (name is not null && declared is not null && EventSourceNames.Stream(declared, definition, models) == name), DimensionsOf(definition, declared).HasFlag(StreamIdDimension))
+        {
+            StoredSource = EventSourceNames.StoredSource(definition),
+            StoredStream = stream
+        };
     }
 
     /// <summary>
-    /// Reads the event source a reactor or reducer is filtered to with <c>[FromEventSource&lt;TSource&gt;(stream)]</c>.
+    /// Reads an observer's source and stream names from direct const references.
     /// </summary>
-    /// <param name="observer">The type declaring the reactor or reducer.</param>
-    /// <returns>The <see cref="ObservedEventSourceModel"/>, or <see langword="null"/> when the observer is not filtered to an event source.</returns>
-    /// <remarks>
-    /// The attribute is not inherited, so only the type itself is asked. The definition is read through its own
-    /// attributes and nothing is resolved beyond them, so a definition that names itself or another definition
-    /// cannot send the reader round in a circle. A stream that is not a constant string cannot be a declared stream
-    /// and is carried as <see langword="null"/> and undeclared rather than dropped.
-    /// </remarks>
-    public static ObservedEventSourceModel? ReadObserved(INamedTypeSymbol observer)
+    /// <param name="observer">The declaring observer.</param>
+    /// <param name="models">The semantic models resolving attribute syntax.</param>
+    /// <returns>The observation filter.</returns>
+    internal static ObservedEventSourceModel? ReadObserved(INamedTypeSymbol observer, SemanticModels? models)
     {
         var declaration = observer.GetAttribute(WellKnownTypeNames.FromEventSourceAttributeOfT);
         if (declaration?.AttributeClass is not { TypeArguments: [INamedTypeSymbol definition] })
         {
             return null;
         }
-
         var stream = declaration.GetArgument(0) as string;
-        var declared = stream is not null && definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
-            .Any(_ => string.Equals(_.GetArgument(0) as string, stream, StringComparison.Ordinal));
+        var name = EventSourceNames.Stream(declaration, definition, models);
+        var declared = stream is not null && name is not null && definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
+            .Any(attribute => string.Equals(attribute.GetArgument(0) as string, stream, StringComparison.Ordinal) && EventSourceNames.Stream(attribute, definition, models) == name);
 
-        return new(SourceNameOf(definition), stream, declared);
+        return new(SourceNameOf(definition, models), name, declared);
     }
 
     /// <summary>
-    /// Reads the concurrency scope the event source definition declares for what a command appends.
+    /// Reads concurrency dimensions using recovered model names.
     /// </summary>
-    /// <param name="command">The type declaring the command.</param>
-    /// <returns>The <see cref="ConcurrencyModel"/>, or <see langword="null"/> when the command declares no event source or the definition narrows nothing Screenplay can state.</returns>
-    /// <remarks>
-    /// The scope is the stream's own dimensions when it declares any, otherwise the event source's. The stream id
-    /// dimension has no value at declaration time, since it is only known when a command appends, so it cannot be
-    /// stated and is reported through <see cref="EventSourceBindingModel.ConcurrentByStreamId"/>.
-    /// </remarks>
-    public static ConcurrencyModel? ReadConcurrency(INamedTypeSymbol command)
+    /// <param name="command">The declaring command.</param>
+    /// <param name="models">The semantic models resolving stream constants.</param>
+    /// <returns>The concurrency scope.</returns>
+    internal static ConcurrencyModel? ReadConcurrency(INamedTypeSymbol command, SemanticModels? models)
     {
         var declaration = command.GetAttribute(WellKnownTypeNames.ArcEventSourceAttributeOfT);
         if (declaration?.AttributeClass is not { TypeArguments: [INamedTypeSymbol definition] })
         {
             return null;
         }
-
         var stream = declaration.GetArgument(0) as string;
-        var declared = definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
-            .FirstOrDefault(_ => string.Equals(_.GetArgument(0) as string, stream, StringComparison.Ordinal));
-        var dimensions = DimensionsOf(definition, declared);
-
+        var dimensions = DimensionsOf(definition, DeclaredStream(definition, stream));
         var sourceId = dimensions.HasFlag(SourceIdDimension);
-        var sourceType = dimensions.HasFlag(SourceTypeDimension) ? SourceNameOf(definition) : null;
-        var streamType = dimensions.HasFlag(StreamTypeDimension) ? stream : null;
+        var sourceType = dimensions.HasFlag(SourceTypeDimension) ? SourceNameOf(definition, models) : null;
+        var streamType = dimensions.HasFlag(StreamTypeDimension) ? EventSourceNames.Stream(declaration, definition, models) : null;
 
-        return sourceId || sourceType is not null || streamType is not null
-            ? new(sourceId, sourceType, streamType, null, [])
-            : null;
+        return sourceId || sourceType is not null || streamType is not null ? new(sourceId, sourceType, streamType, null, []) : null;
     }
 
     /// <summary>
-    /// Reads the stored source name using Chronicle's definition naming convention.
+    /// Reads the recoverable model source name.
     /// </summary>
     /// <param name="definition">The actual source definition.</param>
-    /// <returns>The unsanitized stored source name.</returns>
-    internal static string SourceNameOf(INamedTypeSymbol definition)
-    {
-        if (definition.GetAttribute(WellKnownTypeNames.EventSourceDefinitionAttribute)?.GetArgument(0) is string name)
-        {
-            return name;
-        }
+    /// <param name="models">The models recognizing const-backed definitions.</param>
+    /// <returns>The model name, or the unrecoverable stored name.</returns>
+    internal static string SourceNameOf(INamedTypeSymbol definition, SemanticModels? models = null) => EventSourceNames.Source(definition, models);
 
-        const string suffix = "EventSource";
-
-        return definition.Name.Length > suffix.Length && definition.Name.EndsWith(suffix, StringComparison.Ordinal)
-            ? definition.Name[..^suffix.Length]
-            : definition.Name;
-    }
+    static AttributeData? DeclaredStream(INamedTypeSymbol definition, string? stream) => definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
+        .FirstOrDefault(attribute => string.Equals(attribute.GetArgument(0) as string, stream, StringComparison.Ordinal));
 
     static int DimensionsOf(INamedTypeSymbol definition, AttributeData? stream)
     {

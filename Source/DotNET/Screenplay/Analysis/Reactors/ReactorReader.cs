@@ -71,7 +71,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     /// <param name="models">The <see cref="SemanticModels"/> every handler is read through.</param>
     /// <returns>The reactions, empty when the type is not a reactor or none of its handlers can be stated.</returns>
     public static IEnumerable<ReactionModel> ReactionsOf(INamedTypeSymbol type, SemanticModels models) =>
-        IsReactor(type) ? ReactionsOf(type, [.. Handlers(type)], EventSourceReader.ReadObserved(type), models) : [];
+        IsReactor(type) ? ReactionsOf(type, [.. Handlers(type)], EventSourceReader.ReadObserved(type, models), models) : [];
 
     /// <summary>
     /// Gets the names of the events a reactor observes.
@@ -89,7 +89,8 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     public ReactorModel Read(INamedTypeSymbol type)
     {
         var handlers = Handlers(type).ToList();
-        var eventSource = EventSourceReader.ReadObserved(type);
+        var eventSource = EventSourceReader.ReadObserved(type, models);
+        var routesAppends = ReactorMetadataReader.RoutesAppends(type, handlers, models);
 
         var reactor = new ReactorModel(
             type.Name,
@@ -99,15 +100,15 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
             eventSource)
         {
             Reactions = ObservesTheEventLog(type)
-                ? new ReactionReader(models) { Constraints = _constraintCoverage ??= ConstraintCoverage.Read(Definitions, models) }.Read(type, handlers) : [],
+                ? new ReactionReader(models) { Constraints = _constraintCoverage ??= ConstraintCoverage.Read(Definitions, models) }.Read(type, handlers, routesAppends) : [],
             RefusalHandlingHandlers = [.. handlers.Where(HandlesACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             DiscardedCommandResultHandlers = [.. handlers.Where(DiscardsACommandOutcome).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
             RedeliveryHandlers = [.. handlers.Where(UsesDeliveryReceipts).Select(_ => _.Parameters[0].Type.Name).Distinct(StringComparer.Ordinal)],
-            HasUnrepresentableAppendRoute = ReactorMetadataReader.RoutesAppends(type) &&
+            HasUnrepresentableAppendRoute = routesAppends &&
                 handlers.Exists(handler => HandlerBodies.EventTypesIn(handler.ReturnType).Any())
         };
 
-        return new ReactorMetadataReader(Definitions).Read(type, reactor);
+        return new ReactorMetadataReader(Definitions, models).Read(type, reactor);
     }
 
     /// <summary>

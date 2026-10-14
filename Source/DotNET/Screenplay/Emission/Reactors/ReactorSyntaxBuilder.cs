@@ -144,7 +144,10 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     /// <param name="produces">The production.</param>
     /// <returns>The <see cref="ProducesSyntax"/>.</returns>
     ProducesSyntax Produces(ProducesModel produces) =>
-        new(naming.ToDeclarationName(produces.EventName), null, [.. produces.Mappings.Select(Mapping)], SourceLocation.Start);
+        new(naming.ToDeclarationName(produces.EventName), null, [.. produces.Mappings.Select(Mapping)], SourceLocation.Start)
+        {
+            For = produces.Destination is { } destination ? _sources.Convert(destination) : null
+        };
 
     /// <summary>
     /// Builds a command a reaction executes.

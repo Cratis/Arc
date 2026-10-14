@@ -18,7 +18,6 @@ public class from_unrepresentable_metadata : a_filtered_application
     [InlineData(Definition, "[Cratis.Chronicle.EventSources.FromEventSource<AuthorEventSource>(\"Missing\")]")]
     [InlineData(Definition, "[Cratis.Chronicle.EventSources.FromEventSource<AuthorEventSource>(\"All\")]")]
     [InlineData("[Cratis.Chronicle.EventSources.EventSource(\"Default\")] public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;", "[EventSourceType(\"Default\")]")]
-    [InlineData("[Cratis.Chronicle.EventSources.EventSource(\"Stored-name\")] public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;", "[EventSourceType(\"Stored-name\")]")]
     [InlineData("[Cratis.Chronicle.EventSources.EventSource(\"Author\\n\")] public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;", "[EventSourceType(\"Author\\n\")]")]
     [InlineData("[Cratis.Chronicle.EventSources.EventSource(\"Author\")] [Cratis.Chronicle.EventSources.EventStream(\"Unsafe-name\")] public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;", "[EventSourceType(\"Author\")]")]
     [InlineData("[Cratis.Chronicle.EventSources.EventSource(\"Author\")] [Cratis.Chronicle.EventSources.EventStream(\"Onboarding\")] [Cratis.Chronicle.EventSources.EventStream(\"Onboarding\")] public class AuthorEventSource : Cratis.Chronicle.EventSources.IEventSource;", "[EventSourceType(\"Author\")]")]
