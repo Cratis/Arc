@@ -31,6 +31,11 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     public bool MetadataEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v19 refusal branches are admitted.
+    /// </summary>
+    public bool RefusalsEnabled { get; init; }
+
+    /// <summary>
     /// Gets every declarative reaction the document states, with the reactor stating it.
     /// </summary>
     /// <returns>The reactions.</returns>
@@ -52,7 +57,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     {
         var name = naming.ToDeclarationName(@event);
         var reactions = reactor.Reactions.Where(_ => naming.ToDeclarationName(_.EventName) == name).ToList();
-        if (reactions is not [var reaction] || reaction.UnprovenBatch is not null || !new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor, reaction))
+        if (reactions is not [var reaction] || reaction.UnprovenBatch is not null || (!RefusalsEnabled && reaction.Invokes.Any(invocation => invocation.OnRefused.Count > 0)) || !new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor, reaction))
         {
             return null;
         }
