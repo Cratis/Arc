@@ -8,12 +8,14 @@ using System.Runtime.ExceptionServices;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Reducers;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -62,6 +64,9 @@ public static class ReadModelServiceCollectionExtensions
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
+        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes));
+        services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
+            new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
 
         // This public entry point also registers DecisionRead<T>. Never leave it bound to Chronicle's raw reader.
         services.AddCommandAwareDecisionReads();
@@ -115,11 +120,12 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
+    /// <param name="key">An optional per-parameter key, instead of the command key.</param>
     /// <returns>The resolved read model instance, or null when it does not exist.</returns>
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
-    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
+    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels, ReadModelKey? key = null)
     {
-        var eventSourceId = commandContext.GetEventSourceId();
+        var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
         if (eventSourceId == EventSourceId.Unspecified)
         {
             // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
