@@ -76,12 +76,21 @@ public class SpecificationReader(SemanticModels models, ScreenplayDiagnostics di
     /// left out of a scenario that was itself left out describes a document that says something it does not say, and
     /// there are far more values than scenarios - so the noise would be the loudest thing in the report.
     /// </remarks>
-    public SpecificationModel? Read(INamedTypeSymbol type, string name)
+    public SpecificationModel? Read(INamedTypeSymbol type, string name) => Read(type, name, null);
+
+    /// <summary>
+    /// Reads a shared scenario symbolically or with one row's literal bindings.
+    /// </summary>
+    /// <param name="type">The scenario type.</param>
+    /// <param name="name">The specification name.</param>
+    /// <param name="caseValues">The constructor parameter bindings.</param>
+    /// <returns>The recovered scenario, or null when it cannot be stated.</returns>
+    internal SpecificationModel? Read(INamedTypeSymbol type, string name, SpecificationCaseValues? caseValues)
     {
         var location = type.ToDisplayString();
         var steps = SpecificationMembers.StepsOf(type);
         var readModel = SpecificationMembers.ReadModelOf(steps);
-        var draft = new SpecificationDraft { EventSources = new(models, _held) };
+        var draft = new SpecificationDraft { EventSources = new(models, _held), CaseValues = caseValues };
         var stated = new ScreenplayDiagnostics();
 
         var reader = new SpecificationStepReader(models, new(stated, new GeneratedIdentities(models)), _held);

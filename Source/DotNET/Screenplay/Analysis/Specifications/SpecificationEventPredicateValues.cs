@@ -59,7 +59,7 @@ static class SpecificationEventPredicateValues
         var recovered = new List<(PropertyMappingModel Value, Location Source)>();
         var properties = new HashSet<string>(StringComparer.Ordinal);
         var unstatable = new List<string>();
-        if (!TryRead(body, eventType, parameter, semanticModel, recovered, properties, unstatable))
+        if (!TryRead(body, eventType, parameter, semanticModel, draft, recovered, properties, unstatable))
         {
             reason = unstatable.Count > 0
                 ? $"an expected event predicate states {unstatable[0]}"
@@ -88,6 +88,7 @@ static class SpecificationEventPredicateValues
         ITypeSymbol eventType,
         IParameterSymbol parameter,
         SemanticModel semanticModel,
+        SpecificationDraft draft,
         List<(PropertyMappingModel Value, Location Source)> values,
         HashSet<string> properties,
         List<string> unstatable)
@@ -95,8 +96,8 @@ static class SpecificationEventPredicateValues
         expression = Unwrap(expression);
         if (expression is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalAndExpression } conjunction)
         {
-            return TryRead(conjunction.Left, eventType, parameter, semanticModel, values, properties, unstatable) &&
-                   TryRead(conjunction.Right, eventType, parameter, semanticModel, values, properties, unstatable);
+            return TryRead(conjunction.Left, eventType, parameter, semanticModel, draft, values, properties, unstatable) &&
+                   TryRead(conjunction.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable);
         }
 
         if (expression is not BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } equality)
@@ -104,8 +105,8 @@ static class SpecificationEventPredicateValues
             return false;
         }
 
-        return TryRead(equality.Left, equality.Right, eventType, parameter, semanticModel, values, properties, unstatable) ||
-               TryRead(equality.Right, equality.Left, eventType, parameter, semanticModel, values, properties, unstatable);
+        return TryRead(equality.Left, equality.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable) ||
+               TryRead(equality.Right, equality.Left, eventType, parameter, semanticModel, draft, values, properties, unstatable);
     }
 
     static bool TryRead(
@@ -114,6 +115,7 @@ static class SpecificationEventPredicateValues
         ITypeSymbol eventType,
         IParameterSymbol parameter,
         SemanticModel semanticModel,
+        SpecificationDraft draft,
         List<(PropertyMappingModel Value, Location Source)> values,
         HashSet<string> properties,
         List<string> unstatable)
@@ -123,8 +125,23 @@ static class SpecificationEventPredicateValues
         if (memberExpression is not MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiver } member ||
             !SymbolEqualityComparer.Default.Equals(semanticModel.GetSymbolInfo(receiver).Symbol, parameter) ||
             semanticModel.GetSymbolInfo(member).Symbol is not IPropertySymbol property ||
-            !SymbolEqualityComparer.Default.Equals(property.ContainingType, eventType) ||
-            semanticModel.GetConstantValue(valueExpression) is not { HasValue: true } constant)
+            !SymbolEqualityComparer.Default.Equals(property.ContainingType, eventType))
+        {
+            return false;
+        }
+
+        if (draft.CaseValues?.TryRead(valueExpression, semanticModel, property.Type, allowsNull: false, out var bound) == true)
+        {
+            if (bound is null || !properties.Add(property.Name))
+            {
+                return false;
+            }
+
+            values.Add((new(property.Name, bound), valueExpression.GetLocation()));
+            return true;
+        }
+
+        if (semanticModel.GetConstantValue(valueExpression) is not { HasValue: true } constant)
         {
             return false;
         }
