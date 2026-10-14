@@ -275,5 +275,17 @@ static class DiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Automatically injected aggregates use the command's event source id, not a generated append target. Commands with Provide or custom id providers are excluded because their aggregate resolution cannot be proven statically.");
 
+    /// <summary>
+    /// ARCCHR0023: An OnRefused callback returns a statically invalid production.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0023_InvalidRefusalBranchReturn = new(
+        id: "ARCCHR0023",
+        title: "Refusal branch must return registered events or acknowledge",
+        messageFormat: "This OnRefused callback returns an invalid refusal production. Return registered events, EventForEventSourceId envelopes containing events, or a nonempty collection of those; return null or use Acknowledge to acknowledge without events. Commands, operations, completions and non-event objects are not refusal productions.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A refusal branch is validated in full before any branch events are appended. Statically visible invalid results fail the reactor delivery at runtime. This rule checks visible lambdas, anonymous methods and source method-group bodies, including conditional returns and literal batches; opaque helpers remain runtime-validated.");
+
     const string Category = "Arc.Chronicle";
 }
