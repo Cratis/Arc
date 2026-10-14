@@ -28,6 +28,17 @@ public class UserInterfaceFiles : IUserInterfaceFiles
     }
 
     /// <inheritdoc/>
+    public IEnumerable<string> Under(string directory)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory) || !IsSourceDirectory(directory))
+        {
+            return [];
+        }
+
+        return Descend(directory);
+    }
+
+    /// <inheritdoc/>
     public string? Contents(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
@@ -47,5 +58,17 @@ public class UserInterfaceFiles : IUserInterfaceFiles
         {
             return null;
         }
+    }
+
+    static IEnumerable<string> Descend(string directory) => Directory.EnumerateFiles(directory, "*.tsx")
+        .Where(file => !Path.GetFileName(file).StartsWith('.') && !File.GetAttributes(file).HasFlag(FileAttributes.ReparsePoint))
+        .Concat(Directory.EnumerateDirectories(directory).Where(IsSourceDirectory).SelectMany(Descend));
+
+    static bool IsSourceDirectory(string directory)
+    {
+        var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(directory));
+        return (name == ".frontend" || !name.StartsWith('.')) &&
+            name is not ("node_modules" or "bin" or "obj" or "dist" or "wwwroot") &&
+            !File.GetAttributes(directory).HasFlag(FileAttributes.ReparsePoint);
     }
 }
