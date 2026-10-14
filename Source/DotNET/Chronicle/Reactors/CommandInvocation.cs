@@ -2,12 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Commands;
+using Cratis.Chronicle.Reactors.SideEffects;
 
 namespace Cratis.Arc.Chronicle.Reactors;
 
 /// <summary>
 /// A returned command with ordered, invocation-local refusal branches.
 /// </summary>
+[ReactorSideEffect]
 public sealed class CommandInvocation
 {
     readonly RefusalBranch[] _branches;
