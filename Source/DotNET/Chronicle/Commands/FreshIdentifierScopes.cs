@@ -37,14 +37,6 @@ internal sealed class FreshIdentifierScopes(GeneratedValues captures)
         _units.TryGetValue(unit, out var provenance) ? provenance : null;
 
     /// <summary>
-    /// Checks whether concurrency attributes express an explicit caller intent.
-    /// </summary>
-    /// <param name="context">The command context.</param>
-    /// <returns>Whether the command declares explicit concurrency.</returns>
-    internal static bool DeclaresConcurrency(CommandContext context) => context.Type.GetCustomAttributes(false)
-        .Any(attribute => attribute is EventStreamIdAttribute { Concurrency: true } or EventStreamTypeAttribute { Concurrency: true } or EventSourceTypeAttribute { Concurrency: true });
-
-    /// <summary>
     /// Matches a real append target against guarded captures, without generating another value.
     /// </summary>
     /// <param name="source">The append target.</param>
@@ -59,7 +51,7 @@ internal sealed class FreshIdentifierScopes(GeneratedValues captures)
     /// <param name="sequence">The destination sequence.</param>
     /// <param name="source">The destination source.</param>
     /// <param name="scope">The caller's scope.</param>
-    /// <param name="explicitScope">Whether the scope is an explicit intent rather than a routing default.</param>
+    /// <param name="explicitScope">Whether the caller supplied an exact scope in EventsWithConcurrencyScopes, rather than a scope derived from routing or concurrency attributes.</param>
     /// <returns>The composed scope.</returns>
     /// <exception cref="ConflictingConcurrencyScopes">An explicit intent differs from whole-source emptiness.</exception>
     internal ConcurrencyScope? Resolve(EventSequenceId sequence, EventSourceId source, ConcurrencyScope? scope, bool explicitScope)

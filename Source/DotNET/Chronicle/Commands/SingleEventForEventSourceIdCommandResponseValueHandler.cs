@@ -55,7 +55,7 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
             concurrencyScopeStrategies.GetFor(eventLog),
             eventForEventSourceId.EventSourceId,
             routing);
-        var concurrencyScope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, eventForEventSourceId.EventSourceId, derived.Scope, derived.Origin == DerivedConcurrencyScopeOrigin.Explicit);
+        var concurrencyScope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, eventForEventSourceId.EventSourceId, derived.Scope, false);
         if (!eventLog.TryEnrollForCommand(
                 eventForEventSourceId.EventSourceId,
                 eventForEventSourceId.Event,

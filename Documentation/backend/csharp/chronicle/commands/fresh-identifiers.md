@@ -42,10 +42,19 @@ actual append destination. It has no stream, source-type or event-type narrowing
 different stream or of another type still occupy that identifier.
 
 Several events for one new source share the same immutable expectation: all can succeed in one transaction.
-Routing metadata and the normal concurrency strategy cannot replace it with a later tail. A compatible
-explicit whole-source `BeforeFirst` scope merges with it, including scopes emitted by Stage. A different
-explicit intent, such as a narrowed scope, a tail revision or `ConcurrencyScope.None`, fails the command
-with `ConflictingConcurrencyScopes` before the batch is enrolled or appended.
+Routing metadata, concurrency attributes and the normal concurrency strategy cannot replace it with a later
+tail or a narrowed expectation. Only exact scopes supplied through `EventsWithConcurrencyScopes` are
+checked for conflicts. A compatible explicit whole-source `BeforeFirst` scope merges with the guard,
+including scopes emitted by Stage. A different explicit intent, such as a narrowed scope, a tail revision
+or `ConcurrencyScope.None`, fails the command with `ConflictingConcurrencyScopes` before the batch is
+enrolled or appended.
+
+Without a transaction, Arc keeps each generated source's events in one atomic append. If unrelated legacy
+routes require individual appends, the generated source's events must be contiguous in the returned
+collection. Interleaving them with another source would require splitting the freshness guard or changing
+event order, so Arc rejects that shape with `GeneratedIdentifierEventsCannotBeSplit` before any append.
+Return the generated source's events together, use `EventsWithConcurrencyScopes`, or use a command
+transaction.
 
 An aggregate factory checks whole-source emptiness before constructing, rehydrating or activating the
 aggregate. That read is an early rejection, not the atomic guarantee: mutation still enrolls the whole-source

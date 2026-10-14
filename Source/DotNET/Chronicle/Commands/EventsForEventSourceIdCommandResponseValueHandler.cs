@@ -3,7 +3,6 @@
 
 using System.Collections;
 using Cratis.Arc.Commands;
-using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
@@ -31,6 +30,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// Without an active command transaction, a collection is appended as one batch, so a refusal appends nothing.
 /// The exception is an event source id with no resolved concurrency guard whose events target several routes:
 /// those events append one at a time because Chronicle carries only one guard per event source id in a batch.
+/// Generated sources still append atomically in that fallback; an interleaved generated source is rejected
+/// before any effect rather than splitting its freshness guard or changing event order.
 /// </para>
 /// </remarks>
 [method: ActivatorUtilitiesConstructor]
@@ -97,6 +98,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
     /// <inheritdoc/>
     /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
+    /// <exception cref="GeneratedIdentifierEventsCannotBeSplit">An immediate fallback cannot keep a generated source atomic without reordering events.</exception>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         // Resolve every event's routing and guard first. Events for one event source id share one scope, so guards that
@@ -116,22 +118,15 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
                 continue;
             }
 
-            if (appendAsBatch)
-            {
-                return await AppendAsBatch(commandContext, targets, concurrencyScopes);
-            }
-
-            var result = await eventLog.AppendForCommand(target.EventSourceId, target.Event, target.Routing, concurrencyScope, target.Tags, target.Occurred, target.NamedTags);
-            if (!result.IsSuccess)
-            {
-                return result.ToCommandResult(commandContext, eventLog.Id);
-            }
+            return appendAsBatch
+                ? await AppendAsBatch(commandContext, targets, concurrencyScopes)
+                : await AppendImmediately(commandContext, targets, concurrencyScopes);
         }
 
         return CommandResult.Success(commandContext.CorrelationId);
     }
 
-    static bool CanAppendAsBatch(IEnumerable<AppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopes) =>
+    static bool CanAppendAsBatch(IEnumerable<CommandAppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopes) =>
         targets.GroupBy(_ => _.EventSourceId).All(group =>
             concurrencyScopes[group.Key] is not null || group.Select(_ => RouteKey(_.Routing)).Distinct().Count() == 1);
 
@@ -140,10 +135,10 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             ? (routing.EventSource, routing.EventStream, null, routing.EventStreamId, null)
             : (null, null, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType);
 
-    async Task<(List<AppendTarget> Targets, List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)> DerivedGuards)> ResolveTargets(CommandContext commandContext, IEnumerable value)
+    async Task<(List<CommandAppendTarget> Targets, List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)> DerivedGuards)> ResolveTargets(CommandContext commandContext, IEnumerable value)
     {
         var strategy = concurrencyScopeStrategies.GetFor(eventLog);
-        var targets = new List<AppendTarget>();
+        var targets = new List<CommandAppendTarget>();
         var derivedGuards = new List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)>();
         foreach (var target in value.Cast<object>().Select(item => ResolveTarget(commandContext, item)))
         {
@@ -152,14 +147,14 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             // The caller's own choice is resolved once per id, however many events it takes.
             var derived = derivedGuards.Find(_ => _.EventSourceId == target.EventSourceId && _.Derived.Origin == DerivedConcurrencyScopeOrigin.Explicit).Derived
                 ?? await ConcurrencyScopeBuilder.BuildFor(commandContext, strategy, target.EventSourceId, target.Routing);
-            var scope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, target.EventSourceId, derived.Scope, derived.Origin == DerivedConcurrencyScopeOrigin.Explicit);
+            var scope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, target.EventSourceId, derived.Scope, false);
             derivedGuards.Add((target.EventSourceId, scope == derived.Scope ? derived : new(scope, DerivedConcurrencyScopeOrigin.Explicit)));
         }
 
         return (targets, derivedGuards);
     }
 
-    AppendTarget ResolveTarget(CommandContext commandContext, object item)
+    CommandAppendTarget ResolveTarget(CommandContext commandContext, object item)
     {
         // A wrapper keeps its own tags and occurrence time; a plain event has none of its own.
         var wrapper = item as EventForEventSourceId;
@@ -170,14 +165,29 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
             : new(commandContext.GetEventSourceId(), item, null, null, routing, namedTags);
     }
 
-    async Task<CommandResult> AppendAsBatch(CommandContext commandContext, IEnumerable<AppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopes)
+    async Task<CommandResult> AppendAsBatch(CommandContext commandContext, IEnumerable<CommandAppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopes)
     {
         var wrappers = targets.Select(_ => CommandTransactionAppender.CreateRoutedEvent(_.EventSourceId, _.Event, _.Routing, _.NamedTags, _.Tags, _.Occurred)).ToArray();
-        var scopes = concurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value ?? ConcurrencyScope.NotSet);
+        var scopes = wrappers.Select(_ => _.EventSourceId).Distinct().ToDictionary(source => source, source => concurrencyScopes[source] ?? ConcurrencyScope.NotSet);
         var result = await eventLog.AppendRoutedBatch(wrappers, scopes);
 
         return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult(commandContext, eventLog.Id);
     }
 
-    sealed record AppendTarget(EventSourceId EventSourceId, object Event, IEnumerable<string>? Tags, DateTimeOffset? Occurred, EventRouting Routing, IEnumerable<NamedTag> NamedTags);
+    async Task<CommandResult> AppendImmediately(CommandContext context, List<CommandAppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> scopes)
+    {
+        foreach (var batch in ImmediateCommandAppendBatches.Create(targets, FreshIdentifierScopes.For(context), eventLog.Id))
+        {
+            var target = batch[0];
+            var result = batch.Length > 1
+                ? await AppendAsBatch(context, batch, scopes)
+                : (await eventLog.AppendForCommand(target.EventSourceId, target.Event, target.Routing, scopes[target.EventSourceId], target.Tags, target.Occurred, target.NamedTags)).ToCommandResult(context, eventLog.Id);
+            if (!result.IsSuccess)
+            {
+                return result;
+            }
+        }
+
+        return CommandResult.Success(context.CorrelationId);
+    }
 }

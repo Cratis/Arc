@@ -34,7 +34,7 @@ public class SingleEventCommandResponseValueHandler(
     {
         var eventSourceId = commandContext.GetEventSourceId();
         var concurrencyScope = await ConcurrencyScopeBuilder.BuildFor(commandContext, concurrencyScopeStrategies.GetFor(eventLog), eventSourceId);
-        concurrencyScope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, eventSourceId, concurrencyScope, FreshIdentifierScopes.DeclaresConcurrency(commandContext));
+        concurrencyScope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, eventSourceId, concurrencyScope, false);
         var routing = CommandTransactionAppender.ResolveRouting(null, commandContext);
         if (!eventLog.TryEnrollForCommand(eventSourceId, value, commandContext, concurrencyScope, routing: routing))
         {
