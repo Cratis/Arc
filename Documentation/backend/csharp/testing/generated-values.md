@@ -88,9 +88,47 @@ scenario.GeneratedValues.Last<OrderId>("orderId").ShouldEqual(((CommandResult<Or
 ```
 
 A pin supplies the same value on every execution; it is not a queue of identifiers.
+For a guarded generated append target, reusing an occupied pin rejects the command with
+`ConcurrencyViolation` and `ReasonDetail = "GeneratedIdentifierCollision"`.
+
 `Last<T>(name)` selects the latest capture with that name and **declared** type, failing if none exists.
 `All<T>(name)` returns a read-only snapshot in resolution order across executions, or an empty list.
 Both include validated pins and nested-command captures. Avoid logging or tracing these values.
+
+## Prove a generated-identifier collision
+
+Call `UseDecisionReads()` when creating the scenario, **before seeding events**. Its `Given.ForEventSource(id).Events(...)`
+seeds the command's event log; default mode seeds only read-model state, so the freshness guard cannot see those events.
+Pin the occupied identifier, execute once, and assert the collision detail and unchanged log tail.
+
+This excerpt uses the `CreateSource`, `Identifier`, `Created` and `ResultShape` types from the
+[fresh-identifier spec context](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/Commands/for_CommandScenario_with_fresh_identifiers/given/a_fresh_identifier_scenario.cs).
+Import `Cratis.Arc.Testing.Commands`, `Cratis.Arc.Chronicle.Testing.Commands`, `Cratis.Arc.Validation`
+and `Cratis.Specifications`:
+
+```csharp
+await using var scenario = new CommandScenario<CreateSource>().UseDecisionReads();
+var id = new Identifier(Guid.Parse("fb6dd43a-b161-44b1-9baa-7b2e4a071680"));
+scenario.PinGeneratedValue("id", id);
+scenario.Given.ForEventSource(id).Events(new Created("existing"));
+var tailBefore = await scenario.EventLog.GetTailSequenceNumber();
+var command = new CreateSource(ResultShape.Wrapper);
+
+var result = await scenario.Execute(command);
+
+result.ValidationResults.Single().Reason.ShouldEqual(ValidationResultReason.ConcurrencyViolation);
+result.ValidationResults.Single().ReasonDetail.ShouldEqual("GeneratedIdentifierCollision");
+(await scenario.EventLog.GetTailSequenceNumber()).ShouldEqual(tailBefore);
+command.Calls.ShouldEqual(1);
+```
+
+Default mode now fails fast with `GeneratedIdentifierCollisionRequiresDecisionReads`: "The scenario cannot
+prove a generated-identifier collision without UseDecisionReads(). Create the scenario with
+`new CommandScenario<TCommand>().UseDecisionReads()` before seeding events and pinning the generated value."
+This setup error is thrown by `Execute` before the command enters the pipeline, not returned in `CommandResult`.
+`Unguarded` pins, ids with no seeded events and decision-read mode do not trigger it.
+
+See [Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for whole-source semantics and the direct-write exclusion.
 
 ## Fix the clock and tenant
 

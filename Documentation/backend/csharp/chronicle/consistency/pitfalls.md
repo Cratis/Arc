@@ -422,3 +422,4 @@ A scenario without `UseDecisionReads()` does not exercise protected decision rea
 - [Choosing how a command's rule holds](./index.md): the decision matrix.
 - [Scenarios](./scenarios.md): the correct shape for each rule.
 - [Code analysis](../code-analysis/index.md): every `ARCCHR` rule.
+- [Chronicle's Dynamic Consistency Boundary FAQ](/chronicle/dynamic-consistency-boundary/faq/): the same guards seen from Chronicle's side. See also [how event source definitions bound a command's append](../commands/event-source-definitions.md#what-the-definition-guards).

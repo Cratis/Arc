@@ -61,3 +61,5 @@ The analyzer recognizes literal strings, including routing-concept constructors 
 - [ARCCHR0020: Wrapper event stream is not declared](./ARCCHR0020.md)
 - [Per-event routing](../commands/events.md#per-event-routing)
 - [Concurrency](../commands/concurrency.md)
+- [Route a command through an event source definition](../commands/event-source-definitions.md#wrapper-named-streams): the migration this rule suggests.
+- [Chronicle's Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/): the boundary the definition's concurrency dimensions give an append.

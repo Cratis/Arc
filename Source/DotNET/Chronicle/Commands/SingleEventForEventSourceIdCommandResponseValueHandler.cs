@@ -50,11 +50,12 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
 
         // The scope belongs to the stream being written to, not to the command's own event source.
         var routing = CommandTransactionAppender.ResolveRouting(eventForEventSourceId, commandContext, eventSources);
-        var concurrencyScope = (await ConcurrencyScopeBuilder.BuildFor(
+        var derived = await ConcurrencyScopeBuilder.BuildFor(
             commandContext,
             concurrencyScopeStrategies.GetFor(eventLog),
             eventForEventSourceId.EventSourceId,
-            routing)).Scope;
+            routing);
+        var concurrencyScope = FreshIdentifierScopes.For(commandContext).Resolve(eventLog.Id, eventForEventSourceId.EventSourceId, derived.Scope, false);
         if (!eventLog.TryEnrollForCommand(
                 eventForEventSourceId.EventSourceId,
                 eventForEventSourceId.Event,
@@ -76,7 +77,7 @@ public class SingleEventForEventSourceIdCommandResponseValueHandler(
 
             if (!result.IsSuccess)
             {
-                return result.ToCommandResult();
+                return result.ToCommandResult(commandContext, eventLog.Id);
             }
         }
 

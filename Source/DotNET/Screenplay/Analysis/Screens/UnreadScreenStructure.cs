@@ -117,6 +117,12 @@ public class UnreadScreenStructure(ScreenplayDiagnostics diagnostics, string @na
     public void MenuRoute(string route) => Report($"has a menu item that navigates to route '{route}'; which screen a route shows is not read, so no navigate to or parameter binding is written");
 
     /// <summary>
+    /// Reports navigation written in an unsupported JSX gesture rather than in a menu or dialog success callback.
+    /// </summary>
+    /// <param name="gesture">The unsupported gesture.</param>
+    public void NavigationGesture(string gesture) => Report($"has {gesture}, which is not read, so no navigate to is written for that gesture");
+
+    /// <summary>
     /// Reports a screen opened as a dialog rather than a dialog template.
     /// </summary>
     /// <param name="screenName">The component name.</param>

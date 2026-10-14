@@ -50,6 +50,7 @@ public class AggregateRoot : IAggregateRoot
 
         return new AggregateRootCommitResult
         {
+            FreshIdentifiers = result.FreshIdentifiers,
             Events = result.Events,
             SequenceNumbers = result.SequenceNumbers,
             ConstraintViolations = result.ConstraintViolations,

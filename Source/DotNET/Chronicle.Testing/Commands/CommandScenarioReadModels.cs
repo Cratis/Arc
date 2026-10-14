@@ -122,6 +122,14 @@ internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEven
     /// <returns>True if state has been seeded.</returns>
     internal bool HasSeededState() => _events.Count > 0 || _instances.Count > 0;
 
+    /// <summary>
+    /// Checks whether prior events were seeded for a canonical generated identifier.
+    /// </summary>
+    /// <param name="identifier">The canonical generated identifier.</param>
+    /// <returns>True if at least one prior event was seeded for that exact source.</returns>
+    internal bool HasSeededEventsFor(string identifier) =>
+        _events.TryGetValue(identifier, out var events) && events.Count > 0;
+
     static async Task<object?> ProjectReadModel(Type readModelType, EventSourceId eventSourceId, IEnumerable<object> events)
     {
         // ReadModelScenario<T> is Chronicle's own engine for materializing a read model from events through its real

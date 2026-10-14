@@ -46,3 +46,8 @@ The rule of thumb: **return the fact that happened.** The event source id (see [
 | [Returning EventSourceId](./returning-event-source-id.md) | Explicitly deciding the event source id by returning it from a command tuple. |
 | [Transactional commands](./transactional-commands.md) | Atomic enrollment, immediate appends, nested commands, and aggregate commit boundaries. |
 | [Concurrency](./concurrency.md) | Declaring a concurrency scope on commands using metadata attributes and interfaces. |
+| [Event source definitions](./event-source-definitions.md) | Routing a command's events through a typed event source definition: streams, stream ids and the boundary it gives the append. |
+| [Event source definition scenarios](./event-source-definition-scenarios.md) | A stream per entity, per owner and period, and per process, with a stream decision and a completed stream. |
+| [How event source definition routing works](./event-source-definition-routing.md) | How Arc resolves the definition, stream, stream id and concurrency scope. |
+| [Stream decisions](./stream-decisions.md) | Reading a routed stream and returning events guarded at the tail the decision used. |
+| [Completing streams](./completing-streams.md) | Closing a stream from a command or a reactor. |

@@ -168,6 +168,8 @@ internal static class CommandTransactionAppender
         IEnumerable<NamedTag>? namedTags = default)
     {
         routing ??= ResolveRouting(null, commandContext);
+        var freshness = FreshIdentifierScopes.For(commandContext);
+        concurrencyScope = freshness.Resolve(eventLog.Id, eventSourceId, concurrencyScope, false);
         var mergedTags = MergeEventTags(commandContext, namedTags);
         if (!CommandTransaction.TryGetActive(out var unitOfWork))
         {
@@ -175,12 +177,14 @@ internal static class CommandTransactionAppender
             return false;
         }
 
-        if (routing.EventSource is not null)
+        if (routing.EventSource is not null || freshness.HasGuard(eventLog.Id, eventSourceId))
         {
             var eventForEventSource = new EventForEventSourceId(eventSourceId, @event, eventLog.CreateCommandCausation(commandContext))
             {
                 EventSource = routing.EventSource,
                 EventStream = routing.EventStream,
+                EventSourceType = routing.EventSource is null ? routing.EventSourceType ?? EventSourceType.Default : EventSourceType.Default,
+                EventStreamType = routing.EventSource is null ? routing.EventStreamType ?? EventStreamType.All : EventStreamType.All,
                 EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
                 Subject = routing.Subject,
                 Occurred = occurred,
@@ -223,6 +227,8 @@ internal static class CommandTransactionAppender
                 occurred,
                 routing.Subject);
         }
+
+        freshness.Enrolled(unitOfWork, eventLog.Id, eventSourceId);
 
         return true;
     }

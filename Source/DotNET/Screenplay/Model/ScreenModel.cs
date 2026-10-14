@@ -29,7 +29,7 @@ public record ScreenModel(string Name, string FilePath)
     public IEnumerable<string> Titles { get; init; } = [];
 
     /// <summary>
-    /// Gets the command input openers recovered from data page menus.
+    /// Gets the command input openers and literal navigation items recovered from data page menus.
     /// </summary>
     public IEnumerable<ScreenToolbarModel> Toolbars { get; init; } = [];
 
@@ -42,4 +42,9 @@ public record ScreenModel(string Name, string FilePath)
     /// Gets the resolved commands the screen runs, in the order its components state them.
     /// </summary>
     public IEnumerable<string> Actions { get; init; } = [];
+
+    /// <summary>
+    /// Gets navigation performed after a command succeeds, keyed by the action reference.
+    /// </summary>
+    public IReadOnlyDictionary<string, ScreenNavigationModel> AfterSuccess { get; init; } = new Dictionary<string, ScreenNavigationModel>();
 }

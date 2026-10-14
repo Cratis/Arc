@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -31,11 +32,17 @@ public class AggregateRootFactory(
     public async Task<TAggregateRoot> Get<TAggregateRoot>(EventSourceId id, EventStreamId? streamId = default, EventSourceType? eventSourceType = default)
         where TAggregateRoot : IAggregateRoot
     {
+        var eventSequence = eventStore.GetEventSequence(EventSequenceId.Log);
+        var freshness = TransactionalCommandScope.CurrentFreshIdentifiers;
+        if (freshness?.Matches(id) == true && await eventSequence.HasEventsFor(id))
+        {
+            throw new GeneratedIdentifierCollision();
+        }
+
         // TODO: Create Issue: Must dispose of unit of work in some way or else it's a memory leak.
         var unitOfWork = unitOfWorkManager.HasCurrent ? unitOfWorkManager.Current : unitOfWorkManager.Begin(CorrelationId.New());
 
         var aggregateRoot = ActivatorUtilities.CreateInstance<TAggregateRoot>(serviceProvider);
-        var eventSequence = eventStore.GetEventSequence(EventSequenceId.Log);
         var eventStreamType = aggregateRoot.GetEventStreamType();
         streamId ??= EventStreamId.Default;
         var routing = AggregateRootEventSourceRouting.Resolve(typeof(TAggregateRoot), serviceProvider.GetRequiredService<IEventSources>, eventSourceType);
@@ -62,6 +69,7 @@ public class AggregateRootFactory(
             // sequence number would accept a concurrent writer's own first event, which sits at that very number.
             EventSequenceNumber.BeforeFirst)
         {
+            FreshIdentifiers = freshness,
             EventSource = routing?.EventSource,
             EventStream = routing?.EventStream
         };
