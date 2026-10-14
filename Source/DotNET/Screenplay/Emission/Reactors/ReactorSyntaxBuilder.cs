@@ -108,7 +108,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             var behavior = handles ? "handles the outcome of" : "discards the outcome of and acknowledges refusals from";
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableReactionRefusalHandling,
-                $"'{reactor.Name}' {behavior} a command it executes for '{@event}' in code; 'on refused' is not admitted by any executable model (Screenplay#433, PLAY0268) and Arc cannot classify refusals in reactors yet (Arc#3058), so the trigger keeps its file reference",
+                $"'{reactor.Name}' {behavior} a command it executes for '{@event}' in code; 'on refused' is not admitted by any executable model (Screenplay#433, PLAY0268), so the trigger keeps its file reference",
                 location);
         }
 
@@ -116,7 +116,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnrepresentableReactionRedelivery,
-                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is not admitted by any executable model (Screenplay#433, PLAY0268), so the trigger keeps its file reference",
+                $"'{reactor.Name}' uses ReactorDelivery receipts for '{@event}' to track deliveries or recover from redelivery in code; 'when redelivered' is a specification action, and receipt use alone does not prove a same-delivery redelivery specification, so the trigger keeps its file reference",
                 location);
         }
     }
