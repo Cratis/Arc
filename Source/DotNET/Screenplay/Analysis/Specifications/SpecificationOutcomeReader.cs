@@ -45,6 +45,12 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             .Where(_ => _.Model is not null)
             .ToList();
 
+        if (new SpecificationDenialReader(models, diagnostics).Read(
+                bodies.Select(item => (item.Body, item.Model!)), type, ActionOf(draft), draft))
+        {
+            return;
+        }
+
         var rejected = bodies.Exists(_ => Rejects(_.Body, _.Model!));
         draft.AssertsResponse = bodies.Exists(item => item.Body.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(member =>
             SpecificationReturnValues.ReadsResponse(member, item.Model!)));
@@ -177,8 +183,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
             var rejection = SpecificationAssertions.IsRejection(invocation, method, semanticModel);
             if (SpecificationAssertions.IsUnsupportedFailure(invocation, method))
             {
-                if (!rejected || string.Equals(method.Name, "ShouldNotBeAuthorized", StringComparison.Ordinal) ||
-                    string.Equals(method.Name, "ShouldHaveExceptions", StringComparison.Ordinal))
+                if (!rejected || string.Equals(method.Name, "ShouldHaveExceptions", StringComparison.Ordinal))
                 {
                     draft.CannotRead($"'{method.Name}' does not assert a validation or constraint rejection, and its failure outcome cannot be stated faithfully");
                     return;

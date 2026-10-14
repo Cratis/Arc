@@ -274,7 +274,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </remarks>
     SpecificationModel? WithReactionsAccountedFor(SpecificationModel specification)
     {
-        if (Application is null || specification.When is not { } action || specification.Errors.Any())
+        if (Application is null || specification.When is not { } action || specification.Errors.Any() || specification.Denied)
         {
             return specification;
         }
@@ -535,7 +535,8 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
                 ? Event(appended)
                 : null,
             GivenCaller = Caller(specification.Caller),
-            ThenReturns = Returns(specification.Returns)
+            ThenReturns = Returns(specification.Returns),
+            ThenDenied = specification.Denied ? new(SourceLocation.Start) : null
         };
     }
 

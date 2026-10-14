@@ -42,6 +42,11 @@ public class SpecificationDraft
     public SpecificationStateModel? When { get; set; }
 
     /// <summary>
+    /// Gets or sets whether the scenario asserts only an authorization denial.
+    /// </summary>
+    public bool Denied { get; set; }
+
+    /// <summary>
     /// Gets or sets whether an assertion reads the command response.
     /// </summary>
     public bool AssertsResponse { get; set; }
