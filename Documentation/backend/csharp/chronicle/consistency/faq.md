@@ -107,8 +107,46 @@ The command's event source id is the key of its decision read and the stream its
 
 Use `CommandScenario<T>().UseDecisionReads()`, seed real events with `Given`, and queue a competing event with `AppendConcurrently(...)`. It appends after the command read its state and before the command commits. A scenario without decision mode can queue competing appends for explicit scopes or stream decisions, but it does not exercise protected decision reads. See [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
 
+## Event source definitions and stream decisions
+
+### Does an event source definition make my rule hold?
+
+No. A definition gives the append a boundary: the event source id narrowed by the dimensions it declares. That boundary covers the whole source or stream whatever the event type, a coarse, aggregate-like boundary in DCB terms. Arc resolves the expected tail after `Handle()` returns, so the check cannot bind your decision to what you read. Use a constraint, a stream decision, a protected decision, an aggregate or an exact scope for that. See [what the definition guards](../commands/event-source-definitions.md#what-the-definition-guards).
+
+### What is the difference between a definition, `[EventSourceType]` and an explicit concurrency scope?
+
+| | `[EventSource<TSource>(stream)]` | `[EventSourceType]` and `[EventStreamType]` | Explicit scope (`EventsWithConcurrencyScopes`) |
+| --- | --- | --- | --- |
+| What it is | A typed definition with named streams and dimensions | Strings on the command | A scope you build from a revision you read |
+| Validated | An undeclared stream fails; contradicting string attributes fail | No: any string is accepted | Not against a definition |
+| Concurrency dimensions | Declared once on the definition | Chosen per command with `concurrency: true` | You state them in the scope |
+| Binds the decision to what it read | No | No | Yes, as far as where you captured the revision |
+| Wins over the others | Is the default | Overrides the definition when `concurrency: true` | Replaces every derived scope |
+
+Use a definition for routing and the default boundary, a stream decision or an explicit scope when the decision depends on what it read. Existing string attributes remain supported on commands that declare no definition. See [migrate from string routing](../commands/event-source-definitions.md#migrate-from-string-routing).
+
+### What is the difference between a stream decision and a decision read?
+
+| | Stream decision (`IStreamReads`) | Decision read (`DecisionRead<T>`, `IDecisionReads`) |
+| --- | --- | --- |
+| Facts | Raw events in one routed stream | A projection folded from the events of one or more keys |
+| Declared with | A route: a definition or string routing attributes, plus a stream id | `[ProtectedDecision]` on the command |
+| Boundary | The stream's tail, captured before the read | The log's tail, captured before the fold, for the folded event types |
+| Narrowed by event type | No: every event in the stream conflicts | Yes: the event types the model folds |
+| Read timing | In `Provide()`, before `Handle()` | Before `Handle()` for a parameter or `Provide()`; during `Handle()` for `IDecisionReads.Get` in the body |
+| Cost | The whole stream crosses the wire per command | A fresh fold of the key's history per read |
+| Result | `decision.Append(...)` returns events with the exact scope | The event or result you return, guarded by the read |
+
+A stream decision requires a specific event source id, stream type and stream id; otherwise it throws `StreamDecisionRequiresSpecificRoute`. Do not use a stream decision and a decision read on the same event source in one command: Chronicle refuses to combine an explicit scope with a decision read there.
+
+Use a stream decision when the facts live in one short routed stream, and a protected decision for a rule over folded state or over several keys. See [stream decisions](../commands/stream-decisions.md) and [the decision matrix](./index.md#decision-matrix-by-rule-shape).
+
+### Can one command guard two streams of the same event source?
+
+Not with independent guards. `EventsWithConcurrencyScopes` carries one scope per event source id per command. Guard the whole stream type with `reads.StreamType(...)`, or split the command. See [keep one exact scope per source](../commands/stream-decisions.md#keep-one-exact-scope-per-source).
+
 ## Dynamic Consistency Boundary
 
 ### How does this relate to the Dynamic Consistency Boundary?
 
-Chronicle expresses the DCB append condition: a concurrency scope plays the part of one query item with a position, and an append of several event sources is atomic. Chronicle does not use tags in a scope, so a fact about two entities is written as one event per entity. See [Dynamic Consistency Boundary](./index.md#dynamic-consistency-boundary), the [concept in Chronicle](/chronicle/dynamic-consistency-boundary/), [Chronicle's choosing guide](/chronicle/dynamic-consistency-boundary/choosing/) and [its FAQ](/chronicle/dynamic-consistency-boundary/faq/).
+Chronicle expresses the DCB append condition: a concurrency scope plays the part of one query item with a position, and an append of several event sources is atomic. Chronicle does not use tags in a scope, so a fact about two entities is written as one event per entity. See [Dynamic Consistency Boundary](./index.md#dynamic-consistency-boundary), the [concept in Chronicle](/chronicle/dynamic-consistency-boundary/), [Chronicle's choosing guide](/chronicle/dynamic-consistency-boundary/choosing/), [its scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) and [its FAQ](/chronicle/dynamic-consistency-boundary/faq/). For where event source definitions and stream decisions fit, see [Route a command through an event source definition](../commands/event-source-definitions.md).

@@ -11,6 +11,8 @@ On model-bound commands, you declare concurrency intent directly on the command 
 The attributes on this page choose which dimensions bound the check Arc builds for the returned events. That check reads the tail after `Handle()` returns, so it cannot bind your decision to the state `Handle()` read. To make a stateful rule hold, use a constraint, a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands), a [stream decision](./stream-decisions.md), an aggregate, or an explicit scope. [Choosing how a command's rule holds](../consistency/index.md) compares them.
 :::
 
+A [Dynamic Consistency Boundary](/chronicle/dynamic-consistency-boundary/) is the guarantee that an append fails if an event matching the decision's query arrived after the position it read; [choosing a mechanism](/chronicle/dynamic-consistency-boundary/choosing/) compares the ways to get it. The attributes on this page are the string form of the boundary. An [event source definition](./event-source-definitions.md) declares the same dimensions once, with a named stream, and is the typed alternative.
+
 A [guarded generated append target](fresh-identifiers.md) is an exception to automatic tail capture:
 Arc uses an immutable whole-source `BeforeFirst` scope. Existing events produce `ConcurrencyViolation`
 with `ReasonDetail = "GeneratedIdentifierCollision"`, regardless of routing metadata.

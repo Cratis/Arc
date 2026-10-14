@@ -13,7 +13,7 @@ To make a rule hold, use the first row of this list that fits:
 
 1. **Uniqueness or create-once:** a Chronicle constraint. The kernel enforces it for every writer.
 2. **A rule over the state of one or more event sources:** mark the command `[ProtectedDecision]` and take a `DecisionRead<T>` (or `IDecisionReads` for other keys).
-3. **A rule over one routed stream of raw events:** a stream decision with `IStreamReads`.
+3. **A rule over one routed stream of raw events:** a stream decision with `IStreamReads`, on a command routed through an [event source definition](../commands/event-source-definitions.md) or string routing attributes.
 4. **Rich behaviour on one entity:** an aggregate root, with its result returned from `Commit()`.
 5. **The caller supplies the revision it saw:** an explicit scope with `EventsWithConcurrencyScopes`.
 6. **A rare violation is acceptable:** the default append, and a reactor that repairs the result.
@@ -109,6 +109,10 @@ The book's id is the command's event source id and therefore the decision read's
 Only the facts that `BookStock` folds are guarded. Every `CopyAdded`, `BookBorrowed` and `BookReturned` must be appended to the book's event source, or the model never sees them. See [pitfalls](./pitfalls.md#the-model-folds-a-different-key-than-the-one-the-facts-are-written-to).
 
 Tests that exercise a protected decision use `CommandScenario<T>().UseDecisionReads()` with real seeded events and `AppendConcurrently(...)`. See [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
+
+## Where event source definitions fit
+
+An [event source definition](../commands/event-source-definitions.md) is how a command names the event source and stream it appends to, and with `[EventSource<TSource>(stream)]` it gives the append a typed concurrency boundary: the event source id narrowed by the dimensions the definition declares. That boundary is the default append check, so a definition alone is not a row in the matrix above. It is the routing a [stream decision](../commands/stream-decisions.md) reads from and the place a completed stream is declared. [Scenarios for each stream shape](../commands/event-source-definition-scenarios.md) and [how routing works](../commands/event-source-definition-routing.md) show the whole path.
 
 ## What each mechanism guards
 
@@ -237,4 +241,5 @@ Each row, with the diagnostics that catch it and how to fix it, is on [pitfalls]
 - [Pitfalls](./pitfalls.md): silent and loud failures, with the analyzer that reports each.
 - [FAQ](./faq.md): short answers.
 - [Read models in commands](../read-models/injecting-into-commands.md): the reference for plain reads and the decision-read contract.
+- [Route a command through an event source definition](../commands/event-source-definitions.md): the typed routing and boundary a stream decision reads from.
 - [Concurrency](../commands/concurrency.md), [stream decisions](../commands/stream-decisions.md), [transactional commands](../commands/transactional-commands.md) and [aggregate roots in commands](../aggregates/injecting-into-commands.md): the reference pages for each mechanism.
