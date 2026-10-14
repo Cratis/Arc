@@ -39,6 +39,7 @@ public class when_recognizing_self_reducers : Specification
         public static DerivedEventModel Reduce(DerivedAdded @event, DerivedEventModel? current) => new();
     }
 
+#pragma warning disable CHR0051, CHR0058 // Intentionally invalid self-reducer shapes, to specify which shapes are not recognized.
     record NonNullable
     {
         public static NonNullable Reduce(Added @event, NonNullable current) => current;
@@ -58,6 +59,7 @@ public class when_recognizing_self_reducers : Specification
     {
         public static Optional Reduce(Added @event, Optional? current = null) => new();
     }
+#pragma warning restore CHR0051, CHR0058
 
     record Generic<T>
     {
