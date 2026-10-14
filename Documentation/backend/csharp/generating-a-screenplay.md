@@ -525,7 +525,7 @@ slice StateChange Registration
 
 - **`given`** is what the specification started from — the events it seeded, and the read model it pinned.
 - **`when`** is its action: a command it executed, or `when append <EventType>` for an event scenario's append.
-- **`then`** is each event it asserted was appended, and **`then error`** a rejection it asserted.
+- **`then`** is each event it asserted was appended, **`then error`** a validation or constraint rejection, and **`then denied`** an authorization denial.
 
 Parameterized `[Theory]` scenarios are not stated; Information `SP0076` names each omitted theory because case tables are not generated yet.
 
@@ -560,7 +560,13 @@ A direct event-sequence append supplying concrete source and stream names become
 
 Routes must fit the source and stream types the document declares. Computed routing, unproven composite stream-id construction, nonportable literals, or incompatible types retain `SP0039` rather than a guessed route. ESM v8 admits routes on `given`, `when append`, and `then`; the generator withholds a routed scenario with `SP0060` only when default output is capped below v8, or its source has the reserved name `Default`.
 
-A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()`, `IsSuccess.ShouldBeFalse()`, and `ShouldNotBeSuccessful()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
+An unconditional `result.ShouldNotBeAuthorized()` on the stable result of the scenario's `Execute` becomes `then denied`. The command must have an emitted `authorize` gate, every referenced role or named policy must be recovered exactly, and the scenario must supply an exactly recovered `given caller`. The standard authentication-only gate is also supported. A partial or synthesized named policy is not proof of denial. Screenplay's reference runner checks the stated caller against those policies and expects the typed `Unauthorized` outcome, not a validation error.
+
+A denial cannot accompany event, read-model, response or error assertions. An unconditional `ShouldNotBeSuccessful()` on the same command result adds nothing to denial and may accompany it. No separate `then no events` is emitted: Screenplay does not allow that form beside `then denied`. Other assertions that cannot be proven redundant withhold the scenario. `SP0039` names the reason: caller not recovered, policy not recovered exactly, denial combined with another outcome, or "denial not explained by any stated policy" for a command without an emitted gate. Conditional denial assertions, unrelated helpers with the same name, and assertions on another or reassigned result also retain `SP0039`.
+
+`ShouldHaveExceptions()` remains unsupported. `ShouldNotBeSuccessful()` and `IsSuccess.ShouldBeFalse()` alone do not identify a validation, constraint or authorization category and retain `SP0039`; beside a separate validation assertion they add no reason.
+
+A rejection the source asserts without naming a reason is written as bare `then error`, not `then error ""`. This includes `IsValid.ShouldBeFalse()` and `ShouldHaveValidationErrors()`. The bare form binds and matches a validation or constraint rejection without asserting its message. The source gives no code or presentation message, and inventing either would put meaning in the document the application never states.
 
 A scenario that compares the command response with concrete values becomes `then returns`:
 
@@ -795,6 +801,7 @@ These details can remain outside the document because the language has no counte
 | Enum aliases sharing one number | The ordinal-first member is kept so scenario constants still name a declaration. Warning `SP0069` names the kept and dropped aliases. |
 | Parameterized `[Theory]` scenario | Information `SP0076` names the omitted theory; case tables are not generated yet. Ordinary `[Fact]` scenarios in the same class remain eligible. |
 | Unsupported command scenario caller | An authorized scenario is withheld with Warning `SP0039` when its caller or any referenced policy cannot be recovered exactly. An open command scenario is retained without a caller, with Information `SP0075` naming the unsupported setup. |
+| Unrepresentable command denial or failure | `ShouldNotBeAuthorized()` becomes `then denied` only with an emitted authorization gate, exact policies and caller, and no other outcome. Otherwise Warning `SP0039` names the missing caller, inexact policy, combined outcome, or denial not explained by any stated policy. Exception assertions and uncategorized failures remain unsupported. |
 | Unexpected generated-document binding errors | The document compiles but fails executable semantic binding. Warning diagnostic `SP0056` includes each binder error's code, message, line and column; the generated text is retained for inspection. |
 
 If a generated `.play` is missing something you expected, the diagnostics are the first place to look — the omission is almost always reported.

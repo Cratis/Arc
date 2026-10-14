@@ -148,6 +148,18 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
             : null;
     }
 
+    /// <summary>
+    /// Determines whether an assertion reads only the result assigned by the scenario action.
+    /// </summary>
+    /// <param name="subject">The asserted result expression.</param>
+    /// <param name="semanticModel">The model owning the assertion.</param>
+    /// <param name="scenario">The scenario containing the result.</param>
+    /// <param name="action">The command execution assigning the result.</param>
+    /// <returns>Whether the result is exactly the action's stable result.</returns>
+    internal bool IsActionResult(ExpressionSyntax subject, SemanticModel semanticModel, INamedTypeSymbol scenario, InvocationExpressionSyntax action) =>
+        models.For(action.SyntaxTree) is { } actionModel && ResultOf(action, actionModel) is { } result &&
+        IsResult(subject, result, semanticModel) && WrittenOnlyBy(result, action, scenario);
+
     static SyntaxNode? Outer(ExpressionSyntax expression) => Wrapper(expression).Parent;
 
     static ExpressionSyntax Receiver(ExpressionSyntax expression) => expression switch

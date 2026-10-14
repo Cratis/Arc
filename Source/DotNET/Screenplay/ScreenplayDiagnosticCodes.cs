@@ -375,6 +375,8 @@ public static class ScreenplayDiagnosticCodes
     /// Reported as a warning during both analysis and emission, at the declaring specification type (or its slice
     /// when no source declaration is available). Emission can also withhold a scenario whose command or concrete
     /// event sources cannot be represented, or whose generated fixtures or response expectations were not recovered.
+    /// A denial also requires an emitted authorization gate, exactly recovered policies and caller, and no other
+    /// outcome; an absent gate, inexact policy or caller, or combined outcome is reported here.
     /// </para>
     /// </remarks>
     public const string UnreadableSpecification = "SP0039";
