@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Commands;
 
@@ -24,6 +26,11 @@ public static class CommandDecisionPolicy
     /// Resolution alone does not enable reads or append guards.
     /// </summary>
     public static ReadProtectionMode ReadProtection => Active()?.ReadProtection ?? ReadProtectionMode.Off;
+
+    /// <summary>
+    /// Gets the compile-time declaration before the operational runtime cap is applied.
+    /// </summary>
+    public static ReadProtectionMode DeclaredReadProtection => Active()?.DeclaredReadProtection ?? ReadProtectionMode.Off;
 
     /// <summary>
     /// Gets whether a command invocation is active.
@@ -51,15 +58,18 @@ public static class CommandDecisionPolicy
     /// Begins an invocation before filters, validators, and dependency construction.
     /// </summary>
     /// <param name="commandType">The command type.</param>
+    /// <param name="serviceProvider">The invocation's services, when available, for its operational runtime cap.</param>
     /// <returns>A lease restoring the enclosing invocation.</returns>
     /// <remarks>
     /// A command declaring conflicting profiles runs as protected, so every protected refusal applies, and
     /// <see cref="ThrowIfConflicting"/> reports the conflict as the command's result.
     /// </remarks>
-    internal static IDisposable Begin(Type commandType)
+    internal static IDisposable Begin(Type commandType, IServiceProvider? serviceProvider = null)
     {
         var profile = _profiles.GetOrAdd(commandType, ResolveProfile);
-        var frame = new Frame(profile.Mode, profile.ReadProtection, profile.Conflict, commandType, Active());
+        var maximum = ReadProtectionConfiguration.MaximumMode(serviceProvider?.GetService<IConfiguration>());
+        var effective = profile.ReadProtection > maximum ? maximum : profile.ReadProtection;
+        var frame = new Frame(profile.Mode, effective, profile.ReadProtection, profile.Conflict, commandType, Active());
         _current.Value = frame;
         return new Lease(frame);
     }
@@ -113,10 +123,11 @@ public static class CommandDecisionPolicy
 
     sealed record Profile(CommandDecisionMode Mode, ReadProtectionMode ReadProtection, string? Conflict);
 
-    sealed class Frame(CommandDecisionMode mode, ReadProtectionMode readProtection, string? conflict, Type commandType, Frame? previous)
+    sealed class Frame(CommandDecisionMode mode, ReadProtectionMode readProtection, ReadProtectionMode declaredReadProtection, string? conflict, Type commandType, Frame? previous)
     {
         public CommandDecisionMode Mode { get; } = mode;
         public ReadProtectionMode ReadProtection { get; } = readProtection;
+        public ReadProtectionMode DeclaredReadProtection { get; } = declaredReadProtection;
         public string? Conflict { get; } = conflict;
         public Type CommandType { get; } = commandType;
         public Frame? Previous { get; } = previous;

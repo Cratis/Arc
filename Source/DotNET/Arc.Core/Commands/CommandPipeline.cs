@@ -328,7 +328,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ExecuteHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), requestServices);
         try
         {
             EnsureDecisionSupport(requestServices);
@@ -368,7 +368,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), requestServices);
         try
         {
             EnsureDecisionSupport(requestServices);
@@ -435,7 +435,7 @@ public class CommandPipeline(
     async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, Activity? activity, CancellationToken cancellationToken)
     {
         using var execution = CommandValidationExecution.Suspend();
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), serviceProvider);
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
@@ -739,7 +739,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, Activity? activity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), serviceProvider);
         using var validation = CommandValidationExecution.Begin(command.GetType());
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);

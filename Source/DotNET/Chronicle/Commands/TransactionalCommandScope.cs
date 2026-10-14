@@ -77,6 +77,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <inheritdoc/>
     public void Begin(CommandContext context)
     {
+        if (CommandDecisionPolicy.DeclaredReadProtection > CommandDecisionPolicy.ReadProtection)
+        {
+            ReadProtectionTelemetry.Record(context.Type, "mode_lowered", reason: $"{CommandDecisionPolicy.DeclaredReadProtection} → {CommandDecisionPolicy.ReadProtection}");
+        }
         var previous = ActiveFrame();
         var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type);
         if (previous is not null)
