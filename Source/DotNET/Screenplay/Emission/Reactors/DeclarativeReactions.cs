@@ -33,7 +33,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     /// <summary>
     /// Gets whether ESM v19 refusal branches are admitted.
     /// </summary>
-    public bool RefusalsEnabled { get; init; }
+    public bool RefusalsEnabled { get; init; } = true;
 
     /// <summary>
     /// Gets every declarative reaction the document states, with the reactor stating it.
@@ -124,6 +124,8 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
         return declared.SetEquals(mapped) &&
             !(command.Authoring?.Generated ?? []).Any(_ => mapped.Contains(_.Name)) &&
             !mapped.Any(_ => _reserved.Contains(naming.ToPropertyName(_))) &&
-            invocation.Mappings.All(_ => RoundTrips(_.Source));
+            invocation.Mappings.All(_ => RoundTrips(_.Source)) &&
+            new RefusalBranchAdmission(naming, application).Allows(invocation, command) &&
+            invocation.OnRefused.SelectMany(branch => branch.Produces).All(CanState);
     }
 }
