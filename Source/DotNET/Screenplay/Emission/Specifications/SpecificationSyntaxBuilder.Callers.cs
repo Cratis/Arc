@@ -75,7 +75,15 @@ public partial class SpecificationSyntaxBuilder
         if (authorized)
         {
             reason ??= specification.Caller is null ? "no caller was recovered for its authorized command" : null;
-            reason ??= InexactPolicy(command!.Authorization!);
+            var policyFailure = InexactPolicy(command!.Authorization!);
+            reason ??= specification.Denied && policyFailure is not null
+                ? $"{policyFailure}; denial cannot be decided from the stated caller"
+                : policyFailure;
+        }
+
+        if (specification.Denied && reason is null)
+        {
+            reason = new SpecificationDenialProof(naming).Failure(command!.Authorization!, Application!.Policies, Caller(specification.Caller)!);
         }
 
         if (reason is null)

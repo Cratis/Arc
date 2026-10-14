@@ -44,6 +44,12 @@ internal sealed class SpecificationDenialReader(SemanticModels models, Screenpla
             }
         }
 
+        if (new SpecificationCommandDenialReader(models).Failure(draft) is { } commandFailure)
+        {
+            draft.CannotRead(commandFailure);
+            return true;
+        }
+
         draft.Denied = true;
         return true;
     }
