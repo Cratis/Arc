@@ -69,8 +69,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         }
 
         whole.AggregateRoots.Report(diagnostics);
-        whole.Elsewhere.Report(diagnostics);
-        var joined = SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics);
+        var joined = whole.Elsewhere.Apply(SliceUnion.OneBuilderPerReadModel(SliceUnion.Of(projects.SelectMany(_ => _.Slices), diagnostics), diagnostics));
         var slices = ReadModelPlacement.Place(
             Specified(projects, joined, diagnostics, new HeldValues(whole.Models)),
             whole.ReadModels,

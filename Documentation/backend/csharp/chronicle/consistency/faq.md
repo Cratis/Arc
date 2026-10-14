@@ -105,7 +105,7 @@ The command's event source id is the key of its decision read and the stream its
 
 ### How do I test that a rule holds under concurrency?
 
-Use `CommandScenario<T>().UseDecisionReads()`, seed real events with `Given`, and queue a competing event with `AppendConcurrently(...)`. It appends after the command read its state and before the command commits. A scenario without decision mode does not exercise the guard. See [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
+Use `CommandScenario<T>().UseDecisionReads()`, seed real events with `Given`, and queue a competing event with `AppendConcurrently(...)`. It appends after the command read its state and before the command commits. A scenario without decision mode can queue competing appends for explicit scopes or stream decisions, but it does not exercise protected decision reads. See [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
 
 ## Dynamic Consistency Boundary
 
