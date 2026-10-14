@@ -113,18 +113,18 @@ The initial emission includes events and read models seeded through `Given`. In 
 
 Pins win over projected instances for their seeded key. To merge a pin safely, the read model must expose a readable identifier: Chronicle's `[Key]`, then `[Subject]`, then a property named `Id`, including attributes on positional record parameters. If a pinned instance has no readable identifier or its identifier value is null, `Observe` throws `PinnedReadModelCannotBeObserved`, naming the type and advising you to seed events instead of pinning, or give the read model a key property. The identifier must also have a value in each emitted instance; a null key fails the stream rather than producing an ambiguous merge. For a named key property, you can populate it explicitly with `[SetFromContext<BalanceChanged>(nameof(EventContext.EventSourceId))]`. Adding an unsupported pin to an active observation also fails the stream. Event-only observation does not require an identifier property. Unknown and passive read models retain Chronicle's own observation errors.
 
-### Children and decision mode
+### Children, joins, and shared command scenarios
 
-The default scenario mode cannot reliably observe read models with `ChildrenFrom` mappings: Chronicle can report **“Could not resolve parent key…”** even though `GetInstanceById` projects the children successfully. Its observation store does not share the event scenario's storage. [Chronicle #4816](https://github.com/Cratis/Chronicle/issues/4816) tracks the shared read-model surface needed to remove this limitation. Flat event-source-keyed model-bound projections and fluent set/add projections work in default mode.
+Default-mode observation supports model-bound `ChildrenFrom` mappings, cross-source joins, fluent projections, and reducers. The private event scenario observes through its own read-model surface, so the fold uses the same storage as its event history. You do not need decision mode to observe children or joins.
 
-For children, use the shared store from a [decision-mode command scenario](./chronicle.md#protected-decision-scenarios). `CommandScenario.UseDecisionReads()` activates the internal `EnableDecisionReads` hook; there is no public `QueryScenario.EnableDecisionReads()` method. Share its services and context with the query **before seeding or initializing either scenario**. This setup excerpt assumes `ChangeBalance` and `AccountBalance` are your application's command and read model:
+To observe appends from a command scenario, share its services and context with the query **before seeding or initializing either scenario**. The setup works in default mode or with a [decision-mode command scenario](./chronicle.md#protected-decision-scenarios). Add `UseDecisionReads()` when the command needs protected decision reads; there is no public `QueryScenario.EnableDecisionReads()` method. This setup excerpt assumes `ChangeBalance` and `AccountBalance` are your application's command and read model:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Arc.Testing.Queries;
 
-await using var commands = new CommandScenario<ChangeBalance>().UseDecisionReads();
+await using var commands = new CommandScenario<ChangeBalance>();
 await using var queries = new QueryScenario<AccountBalance>();
 foreach (var resource in queries.Context.Values.Distinct().OfType<IDisposable>())
 {
@@ -142,4 +142,4 @@ foreach (var (key, value) in commands.Context)
 }
 ```
 
-Now seed with `queries.Given.ForEventSource(id).Events(...)`, observe with `queries.Observe(...)`, and execute commands through `commands.Execute(...)`. Both scenarios use one log and owning observation store, so children project correctly and command appends reach the observation. The scenario does not emulate Chronicle's observer lifecycle, persistent storage, or transport; use hosted integration specs for those boundaries.
+Now seed with `queries.Given.ForEventSource(id).Events(...)`, observe with `queries.Observe(...)`, and execute commands through `commands.Execute(...)`. In default mode, the shared observation history combines the read-model seeds and successful command appends without changing the command log. In decision mode, both scenarios use the same log for seeds, commands, and observation. The scenario does not emulate Chronicle's observer lifecycle, persistent storage, or transport; use hosted integration specs for those boundaries.

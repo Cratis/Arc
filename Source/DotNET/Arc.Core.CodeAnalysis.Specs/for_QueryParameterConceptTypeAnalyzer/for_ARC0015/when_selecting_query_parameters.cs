@@ -39,6 +39,21 @@ public class when_selecting_query_parameters
     }
 
     [Theory]
+    [InlineData("Order current")]
+    [InlineData("Order? current")]
+    public async Task should_ignore_self_parameter_helpers(string parameter) => await VerifyCS.VerifyAnalyzerAsync($$"""
+        #nullable enable
+        using Cratis.Arc.Queries.ModelBound;
+        using Cratis.Concepts;
+        namespace TestApp;
+        public record OrderId(string Value) : ConceptAs<string>(Value);
+        [ReadModel] public record Order(OrderId Id)
+        {
+            public static Order Fold(string id, {{parameter}}) => new((OrderId)id);
+        }
+        """);
+
+    [Theory]
     [InlineData("BeginReplay")]
     [InlineData("EndReplay")]
     [InlineData("BeginReplayPartition")]

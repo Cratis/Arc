@@ -415,7 +415,7 @@ The guard also does not protect a writer that decides without one. A guard detec
 
 ## Tests without decision mode
 
-A scenario without `UseDecisionReads()` does not exercise decision reads or concurrent writers. Pinned read models cannot supply a guard, and `AppendConcurrently` throws. Seed real events and queue the competing event; see [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
+A scenario without `UseDecisionReads()` does not exercise protected decision reads. `AppendConcurrently` still queues a competing writer before the command commits, so you can test an explicit concurrency scope or stream decision. Pinned read models cannot supply a decision guard. For protected decision reads, seed real events and opt into [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
 
 ## Where to go next
 

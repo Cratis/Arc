@@ -14,12 +14,15 @@ Prefer [command operations](./operations/index.md), rather than a custom scope a
 Arc discovers `ICommandExecutionScope` implementations and resolves them from the command's service scope. Once a handler and context are available, the pipeline:
 
 1. Materializes the scope instances and calls synchronous `Begin(context)` on each.
-2. Runs filters, resolves provided data and handler arguments, awaits `Handle()`, and processes its response.
-3. Calls asynchronous `Complete(context, result)` in reverse scope order, including when validation fails or execution throws.
+2. Awaits `BeginAsync(context)` sequentially on scopes implementing `IAsyncCommandExecutionScope`, in the same order.
+3. Runs filters, resolves provided data and handler arguments, awaits `Handle()`, and processes its response.
+4. Calls asynchronous `Complete(context, result)` in reverse scope order, including when validation fails or execution throws.
 
 `Begin` is synchronous so ambient state it establishes can flow into execution. Each materialized scope completes once, but its `Begin` may never have run if an earlier scope threw. Missing-handler or context/scope-construction failures before scopes are available do not run this lifecycle. Pre-flight `Validate` does not run execution scopes.
 
-Relative discovery order is unspecified; keep scopes independent. An exception in one `Complete` is merged into the result and does not prevent remaining scopes from completing.
+For asynchronous initialization, implement `IAsyncCommandExecutionScope` alongside the ordinary lifecycle. All synchronous begins finish first, so ambient state is established before asynchronous work starts. Context values are already built. Honor `context.CancellationToken`; cancellation or initialization failure skips filters and follows the same completion cleanup as other execution failures. Set ambient `AsyncLocal` state in synchronous `Begin`, not inside `BeginAsync`: changes inside an async method do not flow back to its caller. Pre-flight `Validate` skips both synchronous and asynchronous execution scopes.
+
+With no asynchronous scopes, the existing lifecycle is unchanged. Relative discovery order is unspecified; keep scopes independent. An exception in one `Complete` is merged into the result and does not prevent remaining scopes from completing.
 
 ```mermaid
 flowchart LR

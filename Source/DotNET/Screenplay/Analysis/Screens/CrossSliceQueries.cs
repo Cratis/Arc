@@ -124,19 +124,14 @@ public class CrossSliceQueries
     /// <returns>The declaring slice, or null when no slice is proven to declare it.</returns>
     /// <remarks>
     /// The screen's own slice wins when it claims the imported directory, which keeps a folder holding the source of
-    /// several slices bound the way it always was. An import whose module path names no slice directory, but whose name
-    /// the screen's own slice declares, also stays the slice's own binding, as before references could reach across slices.
+    /// several slices bound the way it always was. An unresolvable module path or a directory claimed by no slice
+    /// cannot establish ownership, even when the screen's own slice declares the imported name.
     /// </remarks>
     string? Owner(string @namespace, string path, ScreenImport import, Func<string, bool> declares)
     {
         var claimants = ModulePaths.Resolve(ScreenFiles.DirectoryOf(path), import.Module) is { } resolved &&
             _owners.TryGetValue(ScreenFiles.DirectoryOf(resolved), out var owners) ? owners : [];
         var owner = claimants.Contains(@namespace) ? @namespace : claimants.FirstOrDefault();
-        if (owner is null)
-        {
-            return declares(@namespace) ? @namespace : null;
-        }
-
-        return declares(owner) ? owner : null;
+        return owner is not null && declares(owner) ? owner : null;
     }
 }
