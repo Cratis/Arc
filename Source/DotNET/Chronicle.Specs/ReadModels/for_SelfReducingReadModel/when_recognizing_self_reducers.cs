@@ -39,6 +39,9 @@ public class when_recognizing_self_reducers : Specification
         public static DerivedEventModel Reduce(DerivedAdded @event, DerivedEventModel? current) => new();
     }
 
+    // The shapes below are deliberately ineligible self reducers: the spec proves recognition rejects them,
+    // so Chronicle's self-reducer analyzers (CHR0051, CHR0058) are expected to flag them.
+#pragma warning disable CHR0051, CHR0058
     record NonNullable
     {
         public static NonNullable Reduce(Added @event, NonNullable current) => current;
@@ -58,6 +61,7 @@ public class when_recognizing_self_reducers : Specification
     {
         public static Optional Reduce(Added @event, Optional? current = null) => new();
     }
+#pragma warning restore CHR0051, CHR0058
 
     record Generic<T>
     {
