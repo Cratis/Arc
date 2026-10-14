@@ -21,7 +21,14 @@ public partial class SpecificationSyntaxBuilder
         return reactions is null ? null : WithFollowingAssertions(reactions);
     }
 
-    IEnumerable<SpecificationModel> FoldCases(IReadOnlyList<(SpecificationModel Original, SpecificationModel? Prepared)> rows)
+    (SpecificationModel Original, SpecificationModel? Prepared, SpecificationSyntax? Syntax) PrepareAndBuild(SpecificationModel original)
+    {
+        var prepared = Prepare(original);
+
+        return (original, prepared, prepared is null ? null : Build(prepared));
+    }
+
+    IEnumerable<SpecificationSyntax> FoldCases(IReadOnlyList<(SpecificationModel Original, SpecificationModel? Prepared, SpecificationSyntax? Syntax)> rows)
     {
         var folded = new HashSet<SpecificationCaseTable>();
         foreach (var row in rows.Where(row => row.Prepared is not null))
@@ -29,7 +36,7 @@ public partial class SpecificationSyntaxBuilder
             var table = SpecificationCaseTable.For(row.Original);
             if (table is null)
             {
-                yield return row.Prepared!;
+                yield return row.Syntax!;
                 continue;
             }
 
@@ -37,7 +44,7 @@ public partial class SpecificationSyntaxBuilder
             {
                 if (folded.Add(table))
                 {
-                    yield return table.Symbolic;
+                    yield return Syntax(table.Symbolic);
                 }
             }
             else
@@ -46,12 +53,12 @@ public partial class SpecificationSyntaxBuilder
                     ScreenplayDiagnosticCodes.SpecificationCasesNotFolded,
                     $"The scenario '{row.Original.Name}' stays per row because emission changes or omits a row, or the table's parameter or expanded case names would collide",
                     row.Original.Name);
-                yield return row.Prepared!;
+                yield return row.Syntax!;
             }
         }
     }
 
-    bool CanFold(SpecificationCaseTable table, IReadOnlyList<(SpecificationModel Original, SpecificationModel? Prepared)> rows)
+    bool CanFold(SpecificationCaseTable table, IReadOnlyList<(SpecificationModel Original, SpecificationModel? Prepared, SpecificationSyntax? Syntax)> rows)
     {
         var members = rows.Where(row => ReferenceEquals(SpecificationCaseTable.For(row.Original), table)).ToList();
         if (table.Parameters.Count == 0 || table.Rows.Select(row => row.Name).Distinct(StringComparer.Ordinal).Count() != table.Rows.Count ||
@@ -61,11 +68,26 @@ public partial class SpecificationSyntaxBuilder
             return false;
         }
 
-        var names = rows.Where(row => row.Prepared is not null && !ReferenceEquals(SpecificationCaseTable.For(row.Original), table))
-            .Select(row => naming.ToDeclarationName(row.Prepared!.Name)).ToHashSet(StringComparer.Ordinal);
+        var candidates = rows.Select(row => row.Original).Concat(Application?.Slices.SelectMany(slice => slice.Specifications) ?? []);
+        var names = candidates.Where(candidate => !ReferenceEquals(SpecificationCaseTable.For(candidate), table))
+            .SelectMany(PotentialNames).ToHashSet(StringComparer.Ordinal);
         var name = naming.ToDeclarationName(table.Symbolic.Name);
 
         return !names.Contains(name) && table.Rows.All(row => !names.Contains($"{name}_{row.Name}"));
+    }
+
+    IEnumerable<string> PotentialNames(SpecificationModel specification)
+    {
+        yield return naming.ToDeclarationName(specification.Name);
+        if (SpecificationCaseTable.For(specification) is { } table)
+        {
+            var name = naming.ToDeclarationName(table.Symbolic.Name);
+            yield return name;
+            foreach (var row in table.Rows)
+            {
+                yield return $"{name}_{row.Name}";
+            }
+        }
     }
 
     List<SpecificationParameterSyntax> CaseParameters(SpecificationModel specification) =>

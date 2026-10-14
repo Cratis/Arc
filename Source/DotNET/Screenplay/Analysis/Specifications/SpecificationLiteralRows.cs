@@ -86,8 +86,17 @@ internal sealed class SpecificationLiteralRows(SemanticModels models, Screenplay
         var parameters = declaration.ParameterList!.Parameters.Select(parameter => model.GetDeclaredSymbol(parameter)).OfType<IParameterSymbol>().ToList();
         var symbolicValues = new SpecificationCaseValues(parameters);
         var symbolic = new SpecificationReader(models, new(), held).Read(shared, SpecificationPlacement.NameOf(shared, slice), symbolicValues);
-        symbolicValues.Complete(declaration, model);
+        foreach (var part in shared.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()).OfType<ClassDeclarationSyntax>())
+        {
+            symbolicValues.Complete(part, models.For(part.SyntaxTree)!);
+        }
         var reason = symbolicValues.Failure ?? (symbolic is null ? "the shared scenario cannot be read symbolically" : null);
+        if (reason is not null)
+        {
+            ReadOrdinaryRows(rows, slice, result, reason);
+            return;
+        }
+
         var readings = new List<(string Name, SpecificationModel Model, IReadOnlyList<PropertyMappingModel> Values)>();
         foreach (var row in rows)
         {
@@ -106,6 +115,19 @@ internal sealed class SpecificationLiteralRows(SemanticModels models, Screenplay
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.SpecificationCasesNotFolded,
                 $"The scenario '{row.Name}' stays per row because {reason ?? "not every row can be read"}",
+                row.ToDisplayString());
+        }
+    }
+
+    void ReadOrdinaryRows(List<INamedTypeSymbol> rows, string slice, Dictionary<INamedTypeSymbol, SpecificationModel?> result, string reason)
+    {
+        var reader = new SpecificationReader(models, diagnostics, held);
+        foreach (var row in rows)
+        {
+            result[row] = reader.Read(row, SpecificationPlacement.NameOf(row, slice));
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.SpecificationCasesNotFolded,
+                $"The scenario '{row.Name}' stays per row because {reason}",
                 row.ToDisplayString());
         }
     }

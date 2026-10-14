@@ -6,7 +6,7 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 
 /// <summary>
-/// Compares complete recovered scenarios, substituting only symbolic value positions.
+/// Compares modeled scenario values, excluding analysis evidence and provenance, substituting only symbolic value positions.
 /// </summary>
 internal static class SpecificationCaseComparison
 {
@@ -16,11 +16,11 @@ internal static class SpecificationCaseComparison
     /// <param name="expected">The symbolic or concrete expected model.</param>
     /// <param name="actual">The row model.</param>
     /// <param name="values">The normalized row values replacing parameters.</param>
-    /// <returns>Whether every step, outcome, caller and fixture agrees.</returns>
+    /// <returns>Whether modeled steps, outcomes, responses, generated fixtures and callers agree.</returns>
     internal static bool Matches(SpecificationModel expected, SpecificationModel actual, IReadOnlyDictionary<string, MappingSourceModel>? values = null) =>
         States(expected.Given, actual.Given, values) && State(expected.When, actual.When, values) &&
         States(expected.Then, actual.Then, values) && expected.Errors.SequenceEqual(actual.Errors, StringComparer.Ordinal) &&
-        expected.Reactor == actual.Reactor && expected.AssertsResponse == actual.AssertsResponse &&
+        expected.Reactor == actual.Reactor && expected.Denied == actual.Denied && expected.AssertsResponse == actual.AssertsResponse &&
         Returns(expected.Returns, actual.Returns, values) && Mappings(expected.GeneratedValues, actual.GeneratedValues, values) &&
         expected.GenerationFailure == actual.GenerationFailure && expected.CallerFailure == actual.CallerFailure &&
         Caller(expected.Caller, actual.Caller);

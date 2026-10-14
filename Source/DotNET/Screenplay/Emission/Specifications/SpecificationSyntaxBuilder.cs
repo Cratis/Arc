@@ -71,9 +71,9 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// <returns>The specifications, ordered by name.</returns>
     public IEnumerable<SpecificationSyntax> Build(IEnumerable<SpecificationModel> specifications)
     {
-        var rows = specifications.Select(original => (Original: original, Prepared: Prepare(original))).ToList();
+        var rows = specifications.Select(PrepareAndBuild).ToList();
 
-        return FoldCases(rows).Select(Build).OrderBy(specification => specification.Name, StringComparer.Ordinal).ToList();
+        return FoldCases(rows).OrderBy(specification => specification.Name, StringComparer.Ordinal).ToList();
     }
 
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$", RegexOptions.None, 1000)]
@@ -513,7 +513,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             RoutedOccurrences?.Add(occurrence);
         }
 
-        return new(
+        return Syntax(specification);
+    }
+
+    /// <summary>
+    /// Creates syntax without registering routed occurrences a second time when rows are folded.
+    /// </summary>
+    /// <param name="specification">The already admitted scenario.</param>
+    /// <returns>The specification syntax.</returns>
+    SpecificationSyntax Syntax(SpecificationModel specification) => new(
             naming.ToDeclarationName(specification.Name),
             [.. Events(specification.Given)],
             When(specification),
@@ -532,7 +540,6 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             Parameters = CaseParameters(specification),
             Cases = CaseRows(specification)
         };
-    }
 
     /// <summary>
     /// Builds the response a scenario expects.

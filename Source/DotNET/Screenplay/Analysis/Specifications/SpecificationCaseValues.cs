@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -53,8 +52,14 @@ internal sealed class SpecificationCaseValues(IReadOnlyList<IParameterSymbol> pa
     internal bool TryRead(ExpressionSyntax expression, SemanticModel model, ITypeSymbol target, bool allowsNull, out MappingSourceModel? source)
     {
         source = null;
-        var value = MappingSourceReader.Unwrap(expression);
-        if (value is not IdentifierNameSyntax || model.GetSymbolInfo(value).Symbol is not IParameterSymbol parameter ||
+        var value = expression;
+        while (value is ParenthesizedExpressionSyntax parenthesized)
+        {
+            value = parenthesized.Expression;
+        }
+        if (value is not IdentifierNameSyntax ||
+            expression.Parent is ArgumentSyntax { RefKindKeyword.RawKind: not 0 } ||
+            model.GetSymbolInfo(value).Symbol is not IParameterSymbol parameter ||
             !parameters.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate, parameter)))
         {
             return false;
