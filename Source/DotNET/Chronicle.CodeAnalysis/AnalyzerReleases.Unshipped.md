@@ -23,4 +23,8 @@ ARCCHR0019|Arc.Chronicle|Warning|Read-model fold may be exposed as a query
 ARCCHR0020|Arc.Chronicle|Warning|Wrapper names a stream its event source definition does not declare
 ARCCHR0021|Arc.Chronicle|Info|Legacy wrapper routing drops a matching event source definition
 ARCCHR0022|Arc.Chronicle|Warning|Command-key aggregate on a generated append target
+ARCCHR0029|Arc.Chronicle|Error|Conflicting protected, unprotected and key guard declarations
+ARCCHR0030|Arc.Chronicle|Error|Unprotected and Consistency on the same read-policy level
+ARCCHR0031|Arc.Chronicle|Error|LookUpBy requires a read-model parameter and an existing command property
+ARCCHR0032|Arc.Chronicle|Info|Inert Consistency or redundant KeyGuard Off on a protected command
 ARC0026|Arc|Error|Invalid explicit query declaration

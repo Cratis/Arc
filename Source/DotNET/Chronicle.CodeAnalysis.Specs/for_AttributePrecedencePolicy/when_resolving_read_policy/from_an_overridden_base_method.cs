@@ -1,0 +1,23 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+#pragma warning disable MA0136 // These declarations are source snippets, independent of platform line endings.
+
+namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_AttributePrecedencePolicy.when_resolving_read_policy;
+
+public class from_an_overridden_base_method : given.a_declaration
+{
+    void Establish()
+    {
+        _action = "read_policy";
+        _source = """
+            public class Model;
+            [KeyGuard(KeyGuardMode.On)] public class Command : Base { public string Key { get; } = "key"; public override void Handle(Model model) { } } public class Base { [Unprotected] public virtual void Handle(Model model) { } }
+            """;
+    }
+
+    void Because() => Resolve();
+
+    [Fact] void should_resolve_by_reflection() => _runtime.ShouldEqual("2:False:");
+    [Fact] void should_resolve_by_roslyn() => _roslyn.ShouldEqual("2:False:");
+}

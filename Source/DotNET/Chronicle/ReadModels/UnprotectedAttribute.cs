@@ -10,4 +10,23 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// acknowledgement for tooling; parameter-level runtime opt-out is not supported.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Parameter | AttributeTargets.Method)]
-public sealed class UnprotectedAttribute : Attribute, IUnprotectedDecisionAttribute;
+public sealed class UnprotectedAttribute : Attribute, IUnprotectedDecisionAttribute
+{
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UnprotectedAttribute"/> class without a reason.
+    /// </summary>
+    public UnprotectedAttribute()
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UnprotectedAttribute"/> class with an advisory read reason.
+    /// </summary>
+    /// <param name="reason">Why the read is intentionally advisory.</param>
+    public UnprotectedAttribute(string reason) => Reason = reason;
+
+    /// <summary>
+    /// Gets the optional reason the read is advisory.
+    /// </summary>
+    public string? Reason { get; }
+}

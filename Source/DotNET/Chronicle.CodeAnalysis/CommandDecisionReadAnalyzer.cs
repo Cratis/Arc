@@ -16,7 +16,6 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis;
 public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
 {
     const string CommandAttribute = "Cratis.Arc.Commands.ModelBound.CommandAttribute";
-    const string UnprotectedAttribute = "Cratis.Arc.Chronicle.ReadModels.UnprotectedAttribute";
     const string ChronicleReadModels = "Cratis.Chronicle.ReadModels.IReadModels";
     const string DecisionReads = "Cratis.Chronicle.ReadModels.IDecisionReads";
     const string EventLog = "Cratis.Chronicle.EventSequences.IEventLog";
@@ -45,6 +44,21 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
             start.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
         });
     }
+
+    /// <summary>
+    /// Tests the existing Chronicle-backed read-model predicate for declaration validation.
+    /// </summary>
+    /// <param name="type">The parameter type.</param>
+    /// <param name="backedTypes">Lazily discovered projection and reducer targets.</param>
+    /// <returns>Whether Chronicle backs the model.</returns>
+    internal static bool IsReadModel(ITypeSymbol type, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes) => IsChronicleBacked(type, backedTypes);
+
+    /// <summary>
+    /// Discovers the existing projection and reducer targets for declaration validation.
+    /// </summary>
+    /// <param name="compilation">The current compilation.</param>
+    /// <returns>The Chronicle-backed model types.</returns>
+    internal static ImmutableHashSet<INamedTypeSymbol> FindBackedTypes(Compilation compilation) => ProjectionAndReducerTargets(compilation);
 
     static void AnalyzeParameter(SyntaxNodeAnalysisContext context, Lazy<ImmutableHashSet<INamedTypeSymbol>> backedTypes)
     {
@@ -157,7 +171,7 @@ public sealed class CommandDecisionReadAnalyzer : DiagnosticAnalyzer
     static bool IsCommand(INamedTypeSymbol type) => HasCommandAttribute(type) &&
         type.GetMembers("Handle").OfType<IMethodSymbol>().Any(_ => ProducesEvents(_.ReturnType) || _.Parameters.Any(p => IsAggregate(p.Type)));
 
-    static bool HasUnprotected(ISymbol symbol) => symbol.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == UnprotectedAttribute);
+    static bool HasUnprotected(ISymbol symbol) => CommandAttributeSymbols.HasUnprotected(symbol);
 
     static bool IsDecision(ITypeSymbol type) =>
         type.OriginalDefinition.ToDisplayString() == "Cratis.Chronicle.ReadModels.DecisionRead<T>" || Implements(type, DecisionReads);
