@@ -24,6 +24,11 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
     internal string Path => path;
 
     /// <summary>
+    /// Gets whether the table's lexical containers prove it creates or renders its own router.
+    /// </summary>
+    internal bool IsExplicitRoot => RouteRootProof.IsExplicitRoot(source, imports);
+
+    /// <summary>
     /// Gets the literal route claims, including unread destinations.
     /// </summary>
     internal IReadOnlyList<RouteEntry> Entries => _entries;
@@ -39,8 +44,8 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
     /// <param name="binding">The import binding.</param>
     /// <returns>Whether it is a supported route-table import.</returns>
     internal static bool IsRouter(ScreenImportBinding binding) =>
-        (string.Equals(binding.Module, "react-router", StringComparison.Ordinal) || string.Equals(binding.Module, "react-router-dom", StringComparison.Ordinal)) &&
-        (string.Equals(binding.Name, "Route", StringComparison.Ordinal) || string.Equals(binding.Name, "Routes", StringComparison.Ordinal) || string.Equals(binding.Name, "createBrowserRouter", StringComparison.Ordinal));
+        RouteRootProof.IsRouterPackage(binding) && (string.Equals(binding.Name, "Route", StringComparison.Ordinal) ||
+            string.Equals(binding.Name, "Routes", StringComparison.Ordinal) || RouteRootProof.IsFactory(binding));
 
     /// <summary>
     /// Reads all literal table roots in this module.
@@ -73,8 +78,10 @@ internal sealed class RouteTable(string path, TsxSource source, IReadOnlyDiction
     internal void UnknownMount(string reason)
     {
         Omit(reason);
-        _entries.Clear();
-        _entries.Add(new(null, null));
+        for (var index = 0; index < _entries.Count; index++)
+        {
+            _entries[index] = _entries[index] with { Screen = null, HasUnknownPrefix = true };
+        }
     }
 
     static string? Written(RouteNode node, string name) => node.Properties.TryGetValue(name, out var value) ? value.Written : null;

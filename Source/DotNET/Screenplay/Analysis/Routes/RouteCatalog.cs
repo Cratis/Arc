@@ -31,7 +31,7 @@ internal sealed class RouteCatalog
             table.Read();
         }
 
-        RetainClaims(tables, new RouteModuleReferences(files, contents));
+        RetainClaims(tables);
         ReportDuplicates(tables);
         foreach (var table in tables.Where(_ => _.Issues.Any()))
         {
@@ -70,17 +70,16 @@ internal sealed class RouteCatalog
 
         var source = TsxSource.Scan(text);
         var imports = ScreenImports.Bindings(source);
-        return imports.Values.Any(RouteTable.IsRouter) ? new(path, source, imports, screens) : null;
+        return imports.Values.Any(RouteTable.IsRouter) && RouteRootProof.HasDeclarations(source, imports) ? new(path, source, imports, screens) : null;
     }
 
-    void RetainClaims(List<RouteTable> tables, RouteModuleReferences references)
+    void RetainClaims(List<RouteTable> tables)
     {
-        var nested = references.NestedIn(tables.Select(_ => _.Path));
         foreach (var table in tables)
         {
-            if (nested.Contains(RouteElements.WithoutExtension(table.Path)))
+            if (tables.Count > 1 && !table.IsExplicitRoot)
             {
-                table.UnknownMount("nested Routes in another file with an unknown parent prefix");
+                table.UnknownMount("route table without a lexical router root has an unknown parent prefix");
             }
 
             _entries.AddRange(table.Entries);
@@ -89,12 +88,12 @@ internal sealed class RouteCatalog
 
     void ReportDuplicates(List<RouteTable> tables)
     {
-        var repeated = _entries.Where(_ => _.Path is not null && !_.IncludesDescendants)
+        var repeated = _entries.Where(_ => _.Path is not null && !_.IncludesDescendants && !_.HasUnknownPrefix)
             .GroupBy(_ => _.Path, StringComparer.OrdinalIgnoreCase).Where(_ => _.Count() > 1)
             .Select(_ => _.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var table in tables)
         {
-            foreach (var entry in table.Entries.Where(_ => _.Path is not null && repeated.Contains(_.Path)))
+            foreach (var entry in table.Entries.Where(_ => _.Path is not null && !_.HasUnknownPrefix && repeated.Contains(_.Path)))
             {
                 table.Omit($"duplicate path '{entry.Path}'");
             }

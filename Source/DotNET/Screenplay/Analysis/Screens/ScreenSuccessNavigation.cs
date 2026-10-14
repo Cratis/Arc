@@ -46,6 +46,10 @@ internal sealed class ScreenSuccessNavigation(MenuCallbacks callbacks, Func<stri
         .Select(entry => (entry.Key, Navigation: Resolve(entry.Key, entry.Value)))
         .Where(_ => _.Navigation is not null).ToDictionary(_ => _.Key, _ => _.Navigation!, StringComparer.Ordinal);
 
+    static bool Agrees(ScreenNavigationModel left, ScreenNavigationModel right) =>
+        left.Screen == right.Screen && left.Route == right.Route && left.Parameters.Count == right.Parameters.Count &&
+        left.Parameters.All(parameter => right.Parameters.TryGetValue(parameter.Key, out var value) && parameter.Value == value);
+
     ScreenNavigationModel? Resolve(string command, List<ScreenNavigationModel?> destinations)
     {
         var known = destinations.OfType<ScreenNavigationModel>().ToList();
@@ -54,7 +58,7 @@ internal sealed class ScreenSuccessNavigation(MenuCallbacks callbacks, Func<stri
             return null;
         }
 
-        if (known.Count == destinations.Count && known.TrueForAll(_ => _.Screen == known[0].Screen && _.Route == known[0].Route))
+        if (known.Count == destinations.Count && known.TrueForAll(_ => Agrees(_, known[0])))
         {
             return known[0];
         }

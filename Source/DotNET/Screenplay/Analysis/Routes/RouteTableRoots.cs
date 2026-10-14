@@ -20,7 +20,7 @@ internal static class RouteTableRoots
     internal static IEnumerable<RouteNode> Read(TsxSource source, IReadOnlyDictionary<string, ScreenImportBinding> imports, Action<string> omit)
     {
         var router = imports.Values.Where(RouteTable.IsRouter).ToList();
-        return Jsx(source, router, omit).Concat(router.Where(_ => _.Name == "createBrowserRouter")
+        return Jsx(source, router, omit).Concat(router.Where(RouteRootProof.IsFactory)
             .SelectMany(_ => RouteObjectReader.Read(source, _.Local)));
     }
 

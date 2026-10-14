@@ -62,9 +62,26 @@ internal static partial class RoutePaths
 
         var expected = Segments(entry.Path);
         var actual = Segments(literal);
+        if (entry.HasUnknownPrefix)
+        {
+            return UnknownPrefixMatch(expected, actual, entry.IncludesDescendants);
+        }
+
         return entry.IncludesDescendants
             ? actual.Length >= expected.Length && Bind(expected, actual[..expected.Length]) is not null
             : Match(entry.Path, literal) is not null;
+    }
+
+    static bool UnknownPrefixMatch(string[] expected, string[] actual, bool descendants)
+    {
+        if (actual.Length < expected.Length)
+        {
+            return false;
+        }
+
+        return descendants
+            ? Enumerable.Range(0, actual.Length - expected.Length + 1).Any(start => Bind(expected, actual[start..(start + expected.Length)]) is not null)
+            : Bind(expected, actual[(actual.Length - expected.Length)..]) is not null;
     }
 
     static string Normalize(string path) => path.Length > 1 ? path.TrimEnd('/') : path;

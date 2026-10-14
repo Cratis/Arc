@@ -7,7 +7,7 @@ using Cratis.Arc.Screenplay.Analysis.Screens;
 namespace Cratis.Arc.Screenplay.Analysis.Routes;
 
 /// <summary>
-/// Reads direct createBrowserRouter calls whose first and only argument is a literal route array.
+/// Reads direct router factory calls whose first and only argument is a literal route array.
 /// </summary>
 internal static partial class RouteObjectReader
 {
@@ -20,6 +20,15 @@ internal static partial class RouteObjectReader
     internal static IEnumerable<RouteNode> Read(TsxSource source, string factory) => CallRegex().Matches(source.Code).Cast<Match>()
         .Where(_ => _.Groups["name"].Value == factory && source.IsCode(_.Index))
         .SelectMany(call => Call(source, call.Index + call.Length - 1));
+
+    /// <summary>
+    /// Determines whether a factory binding is actually called, rather than merely imported.
+    /// </summary>
+    /// <param name="source">The scanned module.</param>
+    /// <param name="factory">The imported local factory name.</param>
+    /// <returns>Whether the module calls this factory.</returns>
+    internal static bool HasCalls(TsxSource source, string factory) => CallRegex().Matches(source.Code).Cast<Match>()
+        .Any(_ => _.Groups["name"].Value == factory && source.IsCode(_.Index));
 
     static List<RouteNode> Call(TsxSource source, int opening)
     {
