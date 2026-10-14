@@ -39,6 +39,11 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     /// <inheritdoc/>
     public bool IsCommitParticipant => true;
 
+    /// <summary>
+    /// Gets freshness captures for the active invocation, without requiring a command outside the pipeline.
+    /// </summary>
+    internal static FreshIdentifierScopes? CurrentFreshIdentifiers => ActiveFrame()?.FreshIdentifiers;
+
     /// <inheritdoc/>
     public CommandCommitDisposition GetCommitDisposition(CommandContext context)
     {
@@ -68,7 +73,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
     public void Begin(CommandContext context)
     {
         CommandDecisionReads.Begin(context.Type);
-        var frame = new TransactionFrame(context.Values, ActiveFrame());
+        var frame = new TransactionFrame(context.Values, ActiveFrame(), FreshIdentifierScopes.For(context));
         _frames.Value = frame;
         if (context.ServiceProvider is not { } serviceProvider || CommandTransaction.TryGetActive(out _))
         {
@@ -146,7 +151,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         // everything enrolled in the command's transaction below.
         foreach (var failedAppend in failedAppends.DistinctBy(_ => _.Result))
         {
-            result.MergeWith(failedAppend.Result.ToCommandResult());
+            var sequence = context.ServiceProvider?.GetService<IEventLog>()?.Id;
+            result.MergeWith(sequence is not null ? failedAppend.Result.ToCommandResult(context, sequence) : failedAppend.Result.ToCommandResult());
         }
 
         var unitOfWork = owned.UnitOfWork;
@@ -191,6 +197,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
                 var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
                 var mapped = new AggregateRootCommitResult
                 {
+                    FreshIdentifiers = commitResult.FreshIdentifiers,
                     ConstraintViolations = commitResult.ConstraintViolations,
                     ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
                     Errors = commitResult.Errors,
@@ -294,8 +301,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope
         public bool ImmediateUncertain { get; set; }
     }
 
-    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous)
+    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers)
     {
+        public FreshIdentifierScopes FreshIdentifiers { get; } = freshIdentifiers;
         public CommandContextValues Values { get; } = values;
         public TransactionFrame? Previous { get; } = previous;
         public OwnedTransaction? Owned { get; set; }

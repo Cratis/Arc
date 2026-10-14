@@ -73,8 +73,11 @@ public class AggregateRootMutation(
             scope.EventSourceType,
             eventTypes);
 
+        var freshness = (aggregateRootContext as AggregateRootContext)?.FreshIdentifiers;
+        var freshScope = freshness?.Resolve(eventSequence.Id, EventSourceId, null, false);
+        concurrencyScope = freshScope ?? concurrencyScope;
         var declared = aggregateRootContext as IAggregateRootEventSourceContext;
-        if (declared?.EventSource is null)
+        if (declared?.EventSource is null && freshScope is null)
         {
             aggregateRootContext.UnitOfWOrk.AddEvent(
                 eventSequence.Id,
@@ -94,8 +97,8 @@ public class AggregateRootMutation(
                 [
                     new EventForEventSourceId(EventSourceId, @event, causation)
                     {
-                        EventSource = declared.EventSource,
-                        EventStream = declared.EventStream,
+                        EventSource = declared?.EventSource,
+                        EventStream = declared?.EventStream,
                         EventStreamType = aggregateRootContext.EventStreamType,
                         EventStreamId = aggregateRootContext.EventStreamId,
                         EventSourceType = aggregateRootContext.EventSourceType
@@ -104,6 +107,7 @@ public class AggregateRootMutation(
                 [new(EventSourceId, concurrencyScope)]);
         }
 
+        freshness?.Enrolled(aggregateRootContext.UnitOfWOrk, eventSequence.Id, EventSourceId);
         UncommittedEvents = UncommittedEvents.Add(@event);
 
         await mutator.Mutate(@event);

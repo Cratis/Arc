@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Tenancy;
 using Cratis.Arc.Validation;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,7 +49,7 @@ internal sealed class GeneratedValueResolution
 
         await Validate(commandType, name, type, value, services, context.CancellationToken);
         context.CancellationToken.ThrowIfCancellationRequested();
-        context.GeneratedValues.Add(name, type, value);
+        context.GeneratedValues.Add(name, type, value, parameter.GetCustomAttribute<GeneratedValueAttribute>()!.Freshness);
         fixture?.Record(commandType, context.GeneratedValues[^1]);
         return value;
     }

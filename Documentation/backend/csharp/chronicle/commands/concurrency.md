@@ -11,7 +11,11 @@ On model-bound commands, you declare concurrency intent directly on the command 
 The attributes on this page choose which dimensions bound the check Arc builds for the returned events. That check reads the tail after `Handle()` returns, so it cannot bind your decision to the state `Handle()` read. To make a stateful rule hold, use a constraint, a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands), a [stream decision](./stream-decisions.md), an aggregate, or an explicit scope. [Choosing how a command's rule holds](../consistency/index.md) compares them.
 :::
 
-That automatic path is the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
+A [guarded generated append target](fresh-identifiers.md) is an exception to automatic tail capture:
+Arc uses an immutable whole-source `BeforeFirst` scope. Existing events produce `ConcurrencyViolation`
+with `ReasonDetail = "GeneratedIdentifierCollision"`, regardless of routing metadata.
+
+That automatic path is otherwise the default. If the decision must remain bound to a revision it already read, return [`EventsWithConcurrencyScopes`](./events.md#events-with-exact-concurrency-scopes) and supply that exact revision with the returned events.
 
 ## Concurrency Metadata Attributes
 
@@ -228,6 +232,8 @@ This is opt-in. Returning ordinary events or `EventForEventSourceId` values keep
 
 ## Exact scopes replace automatic capture
 
-When `Handle()` returns `EventsWithConcurrencyScopes`, its supplied scopes replace automatic capture. Remove `concurrency: true` from `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` on that command, but keep their routing values. A later automatically captured tail would defeat the purpose of guarding the revision used by the decision.
+When `Handle()` returns `EventsWithConcurrencyScopes`, its supplied scopes replace automatic capture.
+For a guarded generated target, an equal whole-source `BeforeFirst` intent merges with the freshness guard;
+a differing explicit intent fails with `ConflictingConcurrencyScopes`. Remove `concurrency: true` from `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` on that command, but keep their routing values. A later automatically captured tail would defeat the purpose of guarding the revision used by the decision.
 
 For `[EventSource<TSource>(stream)]`, keep the concurrency dimensions on the shared definition. The exact returned scope intentionally takes precedence for this command without changing the policy for other commands using the same definition. Chronicle carries one scope per event source id per command, so two stream decisions for the same source cannot supply independent guards.

@@ -26,4 +26,9 @@ public sealed class GeneratedValueAttribute : Attribute
     /// Gets the explicit name, or null to use the parameter name.
     /// </summary>
     public string? Name { get; }
+
+    /// <summary>
+    /// Gets or sets the freshness policy when the generated value is used as an append target.
+    /// </summary>
+    public GeneratedValueFreshness Freshness { get; set; } = GeneratedValueFreshness.Guarded;
 }
