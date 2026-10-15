@@ -18,16 +18,20 @@ namespace Cratis.Arc.MongoDB;
 /// <param name="clientFactory">The <see cref="IMongoDBClientFactory"/> for creating MongoDB clients.</param>
 /// <param name="databaseNameResolver">The <see cref="IMongoDatabaseNameResolver"/> for resolving the database name.</param>
 /// <param name="logger">The logger.</param>
+/// <param name="connections">Optional <see cref="IMongoDBConnections"/>, so watches follow configured connection resolution.</param>
 /// <remarks>
 /// The watch is partitioned by the resolved database name so a multi-tenant application — where the name resolver
 /// appends the tenant to the database name — gets one change stream per tenant database rather than sharing the
 /// first caller's. A single shared watcher that cached one database served every tenant the first tenant's data.
+/// With connection resolution the watch is also partitioned by server, since two tenants may resolve to databases of the
+/// same name on different servers.
 /// </remarks>
 [Singleton]
 public class MongoDBWatcher(
     IMongoDBClientFactory clientFactory,
     IMongoDatabaseNameResolver databaseNameResolver,
-    ILogger<MongoDBWatcher> logger) : IMongoDBWatcher, IDisposable
+    ILogger<MongoDBWatcher> logger,
+    IMongoDBConnections? connections = null) : IMongoDBWatcher, IDisposable
 {
     readonly ConcurrentDictionary<string, Lazy<DatabaseWatch>> _watches = new();
     readonly CancellationTokenSource _cts = new();
@@ -36,11 +40,13 @@ public class MongoDBWatcher(
     public IMongoDBObserveBuilder<TDocument> Observe<TDocument>(
         Expression<Func<TDocument, bool>>? filter = null)
     {
-        var databaseName = databaseNameResolver.Resolve();
+        var connection = connections?.Resolve();
+        var databaseName = connection?.DatabaseName ?? databaseNameResolver.Resolve();
+        var key = connection is null ? databaseName : $"{string.Join(',', connection.Client.Settings.Servers)}/{databaseName}";
         var lazyWatch = _watches.GetOrAdd(
-            databaseName,
-            static (name, self) => new Lazy<DatabaseWatch>(() => self.StartWatch(name)),
-            this);
+            key,
+            static (_, state) => new Lazy<DatabaseWatch>(() => state.Self.StartWatch(state.Name, state.Client)),
+            (Self: this, Name: databaseName, connection?.Client));
 
         DatabaseWatch watch;
         try
@@ -53,7 +59,7 @@ public class MongoDBWatcher(
             // the watch failed — e.g. the client factory threw transiently — evict this exact entry so the next
             // Observe retries a fresh connection instead of replaying the cached failure for the process lifetime.
             // The keyed overload removes only while the stored value is still this poisoned Lazy, never a newer one.
-            _watches.TryRemove(new KeyValuePair<string, Lazy<DatabaseWatch>>(databaseName, lazyWatch));
+            _watches.TryRemove(new KeyValuePair<string, Lazy<DatabaseWatch>>(key, lazyWatch));
             throw;
         }
 
@@ -77,9 +83,9 @@ public class MongoDBWatcher(
         GC.SuppressFinalize(this);
     }
 
-    DatabaseWatch StartWatch(string databaseName)
+    DatabaseWatch StartWatch(string databaseName, IMongoClient? client)
     {
-        var client = clientFactory.Create();
+        client ??= clientFactory.Create();
         var watch = new DatabaseWatch(client.GetDatabase(databaseName));
         _ = Task.Run(() => WatchDatabaseAsync(databaseName, watch));
         return watch;

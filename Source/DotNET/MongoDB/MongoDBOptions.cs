@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
+using Cratis.Arc.Connections;
 
 namespace Cratis.Arc.MongoDB;
 
@@ -36,4 +37,14 @@ public class MongoDBOptions
     /// When not set, the value from the connection string is preserved.
     /// </remarks>
     public bool? DirectConnection { get; set; }
+
+    /// <summary>
+    /// Gets or sets how connections are resolved per tenant.
+    /// </summary>
+    /// <remarks>
+    /// When nothing is configured, <see cref="Server"/> and <see cref="Database"/> are used as they are. A resolved
+    /// connection string replaces <see cref="Server"/>, a resolved database replaces the database name, and a resolved
+    /// identity becomes the credential — a user name and password for SCRAM, or an access token for MONGODB-OIDC.
+    /// </remarks>
+    public ConnectionResolutionOptions ConnectionResolution { get; set; } = new();
 }
