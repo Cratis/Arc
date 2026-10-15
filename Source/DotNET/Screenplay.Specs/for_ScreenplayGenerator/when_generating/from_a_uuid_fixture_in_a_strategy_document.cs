@@ -53,13 +53,13 @@ public class from_a_uuid_fixture_in_a_strategy_document : a_pinned_uuid_value
     }
 
     [Fact]
-    void should_not_raise_fixture_requirements_for_a_withheld_strategy()
+    void should_apply_fixture_requirements_after_admitting_a_validated_strategy()
     {
         GeneratePin("aaaaaaaa-bbbb-1ccc-7ddd-eeeeeeeeeeee", new(), NanoId + CodeRules);
-        Result.Source.ShouldNotContain("generate nanoid");
-        Result.Source.ShouldContain("specification WhenAllocatingAndAReceiptIsPinned");
-        Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V7);
+        Result.Source.ShouldContain("generate nanoid");
+        Result.Source.ShouldContain("not empty");
+        Result.Source.ShouldNotContain("specification WhenAllocatingAndAReceiptIsPinned");
+        Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V20);
         AssertDocument();
-        Run("WhenAllocatingAndAReceiptIsPinned").Passed.ShouldBeTrue();
     }
 }

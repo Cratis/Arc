@@ -53,6 +53,13 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
+        var generatedConcepts = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
+            (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
+            .ToHashSet(StringComparer.Ordinal);
+        model = model with
+        {
+            Concepts = model.Concepts.Select(concept => concept with { HasGeneratedUses = concept.HasGeneratedUses || generatedConcepts.Contains(concept.Name) }).ToList()
+        };
         var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
         if (options.AuthoringOnlyConstructs)
         {
@@ -73,7 +80,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             model = AuthoringDeclarations.Resolve(model, diagnostics, options.AuthoringOnlyConstructs);
         }
 
-        model = new ExecutableValidationRules(diagnostics).Apply(model);
+        model = new ExecutableValidationRules(diagnostics).Apply(model, generatedConcepts);
 
         var domain = ToName(model.Domain, options.Domain);
         var conceptDiagnostics = new ScreenplayDiagnostics();

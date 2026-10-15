@@ -40,6 +40,21 @@ public record ConceptModel(
     internal GenerationModel? Generation { get; init; }
 
     /// <summary>
+    /// Gets whether command recovery encountered this concept as a generated value, including unavailable values.
+    /// </summary>
+    internal bool HasGeneratedUses { get; init; }
+
+    /// <summary>
+    /// Gets whether every executable default validator rule was recovered.
+    /// </summary>
+    internal bool ValidationRecoveryComplete { get; init; } = true;
+
+    /// <summary>
+    /// Gets source attachments preserving validators whose UUID rules have no declarative counterpart.
+    /// </summary>
+    internal IReadOnlyList<ValidationRuleModel> ValidatorSources { get; init; } = [];
+
+    /// <summary>
     /// Gets the source anchor for generation withholding diagnostics.
     /// </summary>
     internal string? GenerationLocation { get; init; }

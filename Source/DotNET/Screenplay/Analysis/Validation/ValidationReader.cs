@@ -75,6 +75,23 @@ public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagn
     }
 
     /// <summary>
+    /// Checks whether the default constructor rules were completely recovered.
+    /// </summary>
+    /// <param name="validator">The validator to inspect.</param>
+    /// <returns>Whether generation may rely on its recovered rules.</returns>
+    internal bool IsComplete(INamedTypeSymbol validator) => ValidationRecovery.IsComplete(validator, models);
+
+    /// <summary>
+    /// Preserves the complete validator when its rules cannot be represented by the language's algebra.
+    /// </summary>
+    /// <param name="validator">The original validator.</param>
+    /// <returns>An opaque source attachment, or null when no portable source is available.</returns>
+    internal ValidationRuleModel? SourceReference(INamedTypeSymbol validator) =>
+        paths?.Relative(validator.SourceFilePath()) is { } path && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal)
+            ? new("Value", ValidationRuleKind.Rule, validator.Name, null) { SourceFilePath = path }
+            : null;
+
+    /// <summary>
     /// Reads every rule chain within one constructor declaration.
     /// </summary>
     /// <param name="declaration">The declaration to read.</param>
@@ -87,9 +104,15 @@ public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagn
             return;
         }
 
-        foreach (var statement in declaration.DescendantNodes().OfType<ExpressionStatementSyntax>())
+        var registrations = declaration.DescendantNodes().OfType<ExpressionStatementSyntax>().Select(statement => statement.Expression);
+        if (declaration is ConstructorDeclarationSyntax { ExpressionBody.Expression: { } expression })
         {
-            var chain = InvocationChain.Unwind(statement.Expression);
+            registrations = registrations.Prepend(expression);
+        }
+
+        foreach (var registration in registrations)
+        {
+            var chain = InvocationChain.Unwind(registration);
             var forEach = chain is not null && string.Equals(chain.RootName, RuleForEach, StringComparison.Ordinal);
 
             if (chain is null || (!forEach && !string.Equals(chain.RootName, RuleFor, StringComparison.Ordinal)))

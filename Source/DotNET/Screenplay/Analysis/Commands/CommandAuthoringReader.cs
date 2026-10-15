@@ -36,6 +36,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
 
     /// <summary>
+    /// Gets the shared concept-validation admission check for explicit generation.
+    /// </summary>
+    internal Func<ITypeSymbol, string?> ValidationFailure { get; init; } = _ => null;
+
+    /// <summary>
     /// Determines whether a local or parameter is never reassigned or passed by reference.
     /// </summary>
     /// <param name="symbol">The local or parameter to check.</param>
@@ -69,7 +74,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
 
-        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes };
+        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes, ValidationFailure = ValidationFailure };
         parameters.ReadStrategies(handlers, location);
         result = result with { GeneratedParameters = parameters.HasParameters, UnavailableGenerated = parameters.Unavailable };
 
@@ -135,7 +140,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
                     ? model.GetTypeInfo(value).Type ?? local.Type
                     : local.Type;
-                generated.Add(new(local.Name, types.Resolve(generatedType)));
+                generated.Add(new(local.Name, types.ResolveGenerated(generatedType)));
                 if (ValidatedTypes.Contains(local.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
                 {
                     validatedGenerated.Add(local.Name);
@@ -196,7 +201,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 return result with { Generated = [], GeneratedWithValidators = [], Operations = [] };
             }
 
-            generated.Add(new(name, types.Resolve(responseType)));
+            generated.Add(new(name, types.ResolveGenerated(responseType)));
             if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
             {
                 validatedGenerated.Add(name);

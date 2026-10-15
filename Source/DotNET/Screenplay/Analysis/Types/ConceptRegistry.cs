@@ -29,6 +29,8 @@ public class ConceptRegistry
     readonly Dictionary<string, ConceptModel> _concepts = new(StringComparer.Ordinal);
     readonly Dictionary<string, List<ValidationRuleModel>> _validations = new(StringComparer.Ordinal);
     readonly HashSet<string> _pii = new(StringComparer.Ordinal);
+    readonly HashSet<string> _incompleteValidation = new(StringComparer.Ordinal);
+    readonly Dictionary<string, List<ValidationRuleModel>> _validatorSources = new(StringComparer.Ordinal);
     readonly HashSet<string> _partialSecrets = new(StringComparer.Ordinal);
     readonly HashSet<string> _ambiguous = new(StringComparer.Ordinal);
     readonly Dictionary<string, ITypeSymbol> _enumerations = new(StringComparer.Ordinal);
@@ -54,7 +56,9 @@ public class ConceptRegistry
             .Select(_ => _ with
             {
                 IsPii = _.IsPii || _pii.Contains(_.Name),
-                Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : []
+                Validations = _validations.TryGetValue(_.Name, out var rules) ? rules : [],
+                ValidationRecoveryComplete = !_incompleteValidation.Contains(_.Name),
+                ValidatorSources = _validatorSources.GetValueOrDefault(_.Name) ?? []
             })
             .OrderBy(_ => _.Name, StringComparer.Ordinal)
     ];
@@ -150,6 +154,26 @@ public class ConceptRegistry
         }
 
         declared.AddRange(rules);
+    }
+
+    /// <summary>
+    /// Records that generation cannot rely on the concept's recovered validation.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    internal void MarkValidationIncomplete(string name) => _incompleteValidation.Add(name);
+
+    /// <summary>
+    /// Records the original validator source for non-declarative fallback.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    /// <param name="sources">The source attachments.</param>
+    internal void AddValidatorSources(string name, IEnumerable<ValidationRuleModel> sources)
+    {
+        if (!_validatorSources.TryGetValue(name, out var existing))
+        {
+            _validatorSources[name] = existing = [];
+        }
+        existing.AddRange(sources);
     }
 
     /// <summary>
