@@ -45,7 +45,7 @@ public static class EntityFrameworkCoreArcBuilderExtensions
 
         var builder = new EntityFrameworkCoreBuilder(arcBuilder.Services, arcBuilder.Types);
 
-        arcBuilder.Configuration.GetSection(ConfigurationPath.Combine(DefaultSectionPaths)).Bind(builder.Options);
+        BindFromConfiguration(arcBuilder.Configuration.GetSection(ConfigurationPath.Combine(DefaultSectionPaths)), builder.Options);
         configureOptions?.Invoke(builder.Options);
         configureEfCore?.Invoke(builder);
 
@@ -74,6 +74,14 @@ public static class EntityFrameworkCoreArcBuilderExtensions
         }
 
         return arcBuilder;
+    }
+
+    static void BindFromConfiguration(IConfigurationSection section, EntityFrameworkCoreOptions options)
+    {
+        // Bound property by property: JsonConverters holds converter instances, which configuration cannot describe.
+        options.ConnectionString = section.GetValue(nameof(EntityFrameworkCoreOptions.ConnectionString), options.ConnectionString);
+        options.AutoDiscoverDbContexts = section.GetValue(nameof(EntityFrameworkCoreOptions.AutoDiscoverDbContexts), options.AutoDiscoverDbContexts);
+        section.GetSection(nameof(EntityFrameworkCoreOptions.ConnectionResolution)).Bind(options.ConnectionResolution);
     }
 
     static void AddConnectionResolution(IServiceCollection services, ConnectionResolutionOptions options)
