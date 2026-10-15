@@ -25,9 +25,19 @@ public record ProducesModel(
     public UnavailableGeneratedValueModel? UnavailableDestination { get; init; }
 
     /// <summary>
-    /// Gets the proven explicit destination of a reaction production.
+    /// Gets the proven explicit destination of an event production.
     /// </summary>
     public MappingSourceModel? Destination { get; init; }
+
+    /// <summary>
+    /// Gets the complete effective route overriding command defaults for this production.
+    /// </summary>
+    public CommandRouteModel? Route { get; init; }
+
+    /// <summary>
+    /// Gets generated value paths used by explicit destination or route expressions, including unadmitted expressions.
+    /// </summary>
+    public IReadOnlyList<string> DestinationDependencies { get; init; } = [];
 
     /// <summary>
     /// Gets the source event type identity, when the construction was analyzed.

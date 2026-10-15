@@ -14,6 +14,7 @@ public class AuthoringSources
     readonly Dictionary<ISymbol, UnavailableGeneratedValueModel> _unavailable = new(SymbolEqualityComparer.Default);
     readonly Dictionary<ISymbol, string> _paths = new(SymbolEqualityComparer.Default);
     readonly HashSet<ISymbol> _decisionReads = new(SymbolEqualityComparer.Default);
+    readonly HashSet<ISymbol> _generated = new(SymbolEqualityComparer.Default);
     readonly Dictionary<ExpressionSyntax, string> _expressions = new();
 
     /// <summary>
@@ -91,6 +92,35 @@ public class AuthoringSources
         }
 
         return string.Join('.', members.Prepend(path));
+    }
+
+    /// <summary>
+    /// Registers a proven generated source without confusing it with a read-model alias.
+    /// </summary>
+    /// <param name="symbol">The generated parameter or local.</param>
+    /// <param name="path">Its emitted generated property.</param>
+    internal void AddGenerated(ISymbol symbol, string path)
+    {
+        Add(symbol, path);
+        _generated.Add(symbol);
+    }
+
+    /// <summary>
+    /// Reads only generated origins, excluding read-model dependencies that cannot supply routing inputs.
+    /// </summary>
+    /// <param name="expression">The candidate generated value.</param>
+    /// <param name="model">The model resolving its origin.</param>
+    /// <returns>The generated property path, or null.</returns>
+    internal string? ReadGeneratedPath(ExpressionSyntax expression, SemanticModel model)
+    {
+        var current = MappingSourceReader.Unwrap(expression);
+        if (_expressions.TryGetValue(current, out var generated))
+        {
+            return generated;
+        }
+        var symbol = model.GetSymbolInfo(current).Symbol;
+
+        return symbol is not null && _generated.Contains(symbol) ? _paths[symbol] : null;
     }
 
     UnavailableGeneratedValueModel? UnavailableIn(SyntaxNode expression, SemanticModel model, HashSet<ISymbol> visited, ParameterBindings? bindings = null)

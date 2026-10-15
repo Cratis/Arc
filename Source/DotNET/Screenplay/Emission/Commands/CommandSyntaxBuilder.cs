@@ -52,7 +52,7 @@ public class CommandSyntaxBuilder(
 
         var identifier = properties.Exists(_ => _.IsIdentifier) ? selectedIdentifier : null;
         var productions = command.Produces.ToList();
-        if (productions.Exists(_ => !_.UsesCommandContext))
+        if (productions.Exists(_ => !_.UsesCommandContext && _.Destination is null))
         {
             properties = [.. properties.Select(_ => _ with { IsIdentifier = false })];
         }

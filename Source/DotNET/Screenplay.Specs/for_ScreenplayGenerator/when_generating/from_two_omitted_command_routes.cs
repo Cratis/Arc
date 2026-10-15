@@ -52,7 +52,7 @@ public class from_two_omitted_command_routes : a_generated_document
     }
 
     [Fact]
-    public void should_identify_each_unproven_returned_destination()
+    public void should_recover_each_tuple_using_its_command_identifier()
     {
         Generate((Analyzed.SlicePath, IdentifierSources.With("""
             [Command] public record RegisterAuthor(AuthorId Id, string Name)
@@ -64,7 +64,8 @@ public class from_two_omitted_command_routes : a_generated_document
                 public (AuthorId, AuthorRegistered) Handle() => (Id, new AuthorRegistered(Name));
             }
             """)));
-        AssertRoutes(Result.Diagnostics, ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult);
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableEventSourceIdResult).ShouldBeFalse();
+        Result.Source.Split("for id", StringSplitOptions.None).Length.ShouldEqual(3);
         AssertDocument();
     }
 

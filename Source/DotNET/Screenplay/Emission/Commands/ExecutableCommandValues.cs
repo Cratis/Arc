@@ -174,6 +174,14 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         var productions = new List<ProducesModel>();
         foreach (var production in command.Produces)
         {
+            var destinationPaths = production.DestinationDependencies
+                .Concat(production.Destination is PropertyPathSource destination ? [destination.Path] : [])
+                .Concat(production.Route?.StreamId is { } streamId ? [streamId] : []);
+            if (destinationPaths.Any(path => blocked.Any(name => Reads(path, name))))
+            {
+                Report(command, location, $"Production '{production.EventName}' was omitted because its explicit destination or route reads an unadmitted generated value; it was not redirected to command context");
+                continue;
+            }
             if (production.When is not null && blocked.Any(name => Reads(production.When, name)))
             {
                 Report(command, location, $"Production '{production.EventName}' was omitted because its when condition reads an unadmitted generated value");
