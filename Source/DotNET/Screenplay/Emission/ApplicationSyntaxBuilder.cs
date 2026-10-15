@@ -60,6 +60,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         {
             Concepts = model.Concepts.Select(concept => concept with { HasGeneratedUses = concept.HasGeneratedUses || generatedConcepts.Contains(concept.Name) }).ToList()
         };
+        model = ProductionRouteAdmission.Apply(model, diagnostics, options.MaximumExecutableModelVersion);
         var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
         if (options.AuthoringOnlyConstructs)
         {

@@ -114,7 +114,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
             {
                 _validated.Add(name);
             }
-            Sources.Add(parameter, name);
+            Sources.AddGenerated(parameter, name);
         }
 
         return _unavailable.Count == 0;

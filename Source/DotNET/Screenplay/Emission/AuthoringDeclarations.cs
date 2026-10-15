@@ -19,7 +19,7 @@ public static class AuthoringDeclarations
         var commands = model.Slices.SelectMany(slice => slice.Commands).ToArray();
         var systems = commands.SelectMany(command => command.Authoring?.Operations ?? []).GroupBy(operation => operation.System, StringComparer.Ordinal)
             .Where(group => group.Select(operation => operation.SystemTypeIdentity).Distinct(StringComparer.Ordinal).Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
-        var routes = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>().ToArray();
+        var routes = commands.SelectMany(ProductionRouteAdmission.Routes).ToArray();
         var conflictingSources = EventSourceDeclarations.Resolve(routes, EventSourceDeclarations.ObservedRoutes(model)).ConflictingSources.ToHashSet(StringComparer.Ordinal);
 
         var reads = commands.SelectMany(command => command.Authoring?.Reads ?? []).ToArray();
@@ -194,6 +194,17 @@ public static class AuthoringDeclarations
 
                 return true;
             }).ToList();
+            var productions = command.Produces.Select(production =>
+            {
+                if (production.Route is not { } overrideRoute || !sources.Contains(overrideRoute.Source))
+                {
+                    return production;
+                }
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': production '{production.EventName}' has colliding source or stream declarations; its destination and entire route were withheld", slice.Namespace);
+
+                return production with { Route = null, Destination = null, UsesCommandContext = false, CanInline = false };
+            }).ToList();
+            command = command with { Produces = productions };
             var route = authoring.Route;
             if (route?.Source == "Default")
             {
@@ -205,7 +216,7 @@ public static class AuthoringDeclarations
                 diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': source '{route.Source}' has colliding declarations with incompatible identity or stream-id types (PLAY0273) and its routes were left out", slice.Namespace);
                 route = null;
             }
-            else if (route is not null && command.Produces.Any(production => !production.UsesCommandContext))
+            else if (route is not null && command.Produces.Any(production => !production.UsesCommandContext && production.Destination is null))
             {
                 diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandRoute, $"Command '{command.Name}': an explicitly routed or unproven production's source and stream routing is not proven to be the command's, so its entire route was left out", slice.Namespace);
                 route = null;

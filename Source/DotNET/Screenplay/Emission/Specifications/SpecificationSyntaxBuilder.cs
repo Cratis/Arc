@@ -133,6 +133,15 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return null;
         }
         specification = pinned;
+        if (EventRoutes && command?.Produces.Any(production => production.Route is not null) == true && !specification.Errors.Any())
+        {
+            if (SpecificationProductionRoutes.Apply(specification, command) is not { } routed)
+            {
+                Diagnostics?.Warning(ScreenplayDiagnosticCodes.UnreadableSpecification, $"The scenario '{specification.Name}' was left out because its per-production destinations and effective routes are not complete ordered concrete fixtures", location);
+                return null;
+            }
+            specification = routed;
+        }
         if (HasUnrepresentableCommandSources(evidence, command, specification))
         {
             Diagnostics?.Warning(
@@ -429,7 +438,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         {
             return new([], new HashSet<string>(StringComparer.Ordinal));
         }
-        var routes = application.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route).OfType<CommandRouteModel>();
+        var routes = application.Slices.SelectMany(slice => slice.Commands).SelectMany(Commands.ProductionRouteAdmission.Routes);
         var stated = SpecificationRouteDeclarations.Read(application, (RoutedOccurrences ?? []).Concat(occurrences));
 
         return EventSourceDeclarations.Resolve(routes.Concat(stated), EventSourceDeclarations.ObservedRoutes(application, ReactionMetadataEnabled));
@@ -447,7 +456,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
         if (EventRoutes && state.Route is { Source: not null } route)
         {
             var declaredType = Application?.Slices.SelectMany(slice => slice.Commands)
-                .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
+                .SelectMany(Commands.ProductionRouteAdmission.Routes)
                 .FirstOrDefault(candidate => candidate.Identity.HasSameSourceAs(route.Identity))?.IdentifierType;
             if (declaredType is not null)
             {
@@ -530,16 +539,16 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             SourceLocation.Start,
             [.. ReadModels(specification.Given)],
             [.. ReadModels(specification.Then)])
-        {
-            WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
+    {
+        WhenAppended = specification.When is { Kind: SpecificationStateKind.Event } appended
                 ? Event(appended)
                 : null,
-            GivenCaller = Caller(specification.Caller),
-            ThenReturns = Returns(specification.Returns),
-            ThenDenied = specification.Denied ? new(SourceLocation.Start) : null,
-            Parameters = CaseParameters(specification),
-            Cases = CaseRows(specification)
-        };
+        GivenCaller = Caller(specification.Caller),
+        ThenReturns = Returns(specification.Returns),
+        ThenDenied = specification.Denied ? new(SourceLocation.Start) : null,
+        Parameters = CaseParameters(specification),
+        Cases = CaseRows(specification)
+    };
 
     /// <summary>
     /// Builds the response a scenario expects.
