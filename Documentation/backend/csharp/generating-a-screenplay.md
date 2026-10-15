@@ -454,11 +454,12 @@ and the document is returned as it stands so the line can be read (Library)
 A document that compiles is also passed to Screenplay's executable semantic binder. Each unexpected binding error becomes `SP0056`, carrying the binder's code, message, line and column. It identifies a generator defect, not an application defect. `PLAY0268` alone does **not** mean an expected limitation: Screenplay also uses it for malformed bindings, including incompatible condition operands. The generator accepts only the pinned binder's known admission messages:
 
 - In both modes: legacy handler attachments; read models without an unambiguous keyed query or conventional `*Id` property; queries with unsupported scope, implementation, caller-argument, or return shapes; concept compliance attributes whose execution needs portable data-subject semantics. Admitted collection and observable queries receive no exemption for unresolved references.
-- In both modes, temporarily: same-named queries in different slices reach a [known binder limit](https://github.com/Cratis/Screenplay/issues/624). Their names are preserved; only that exact ambiguity message is accepted until the binder fix ships.
 - With authoring-only constructs enabled: the explicit refusal of operations and systems, or property-path stream-id mappings.
 - Legacy concurrency messages (`PLAY0271`) remain accepted for unrouted commands. Routed commands carrying legacy concurrency fail default verification. Legacy read messages remain accepted only in authoring mode. Informational diagnostics do not produce `SP0056`.
 
 Before accepting a known limitation, the generator checks the loaded Screenplay compiler's contract catalog: the code must be neither retired nor reserved, and its supported severities must include Error. A compiler upgrade that removes that status stops the exemption. Message matching stays exact because the contract lists codes, titles and severities, not the individual reasons that distinguish an admission limit from malformed output.
+
+Queries with the same name in different slices keep their names and bind by slice. An ambiguous query reference receives no exemption.
 
 The classifier matches the complete reason after a declaration name, or the complete authoring-feature refusal message. Unknown or changed messages fail closed. Operand/type mismatches, undeclared operands, ambiguous references across slices, and invalid parent keys produce `SP0056` even when Screenplay reports them as `PLAY0268`.
 

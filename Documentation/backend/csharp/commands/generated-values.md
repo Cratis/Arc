@@ -228,10 +228,11 @@ parameter. This factory path alone does not make the whole application NativeAOT
 ## Validation and captures
 
 Arc resolves the concept's discoverable validator from the command's scoped provider and runs it
-asynchronously with the command's cancellation token. Error failures reject the value with
-`GeneratedValueRejected`. This is a server defect, not invalid request input, so the command result contains
-an exception rather than a 400 validation failure. Warnings and information allow execution; warning logs
-contain names and types only.
+asynchronously with the command's cancellation token. A failing rule of any severity (Error, Warning or
+Information) rejects the generated or fixture-pinned value with `GeneratedValueRejected`. Warnings and
+information are not advisory for generated values: the server chose the value, so breaking a concept rule
+is a server defect, matching the Screenplay reference. Because it is not invalid request input, the command
+result contains an exception rather than a 400 validation failure.
 
 `CommandContext.GeneratedValues` exposes validated captures in parameter resolution order. Each entry has a
 zero-based `Order`, a `Name`, its declared `Type`, its `Value`, and the immutable `Freshness` policy.
