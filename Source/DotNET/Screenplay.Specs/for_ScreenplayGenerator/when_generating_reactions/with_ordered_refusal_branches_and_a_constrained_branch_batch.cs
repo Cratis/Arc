@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission;
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions.given;
 using Cratis.Screenplay.Semantics;
 
@@ -50,6 +51,26 @@ public class with_ordered_refusal_branches_and_a_constrained_branch_batch : a_re
         Result.Diagnostics.Single(report => report.Code == "SP0070").Message.ShouldContain("ESM v22");
         Result.Diagnostics.Where(report => report.Code == "SP0071").ShouldBeEmpty();
         AssertDocument();
+    }
+
+    [Fact]
+    public void should_withhold_a_branch_if_its_rejecting_constraint_is_removed()
+    {
+        GenerateRefusal(Chain, sources: [(ConstraintPath, Constraint)]);
+        var model = Result.Model with
+        {
+            Slices = Result.Model.Slices.Select(slice => slice with
+            {
+                Constraints = slice.Constraints.Where(constraint => !constraint.Name.StartsWith("FilingConstraint", StringComparison.Ordinal)).ToList()
+            }).ToList()
+        };
+        var emitted = new ScreenplayEmitter().Emit(model, new ScreenplayOptions());
+
+        emitted.Source.ShouldNotContain("reaction batches atomic");
+        emitted.Source.ShouldNotContain("on refused");
+        emitted.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");
+        emitted.Diagnostics.Single(report => report.Code == "SP0070").Message.ShouldContain("not represented in the document");
+        emitted.Diagnostics.Where(report => report.Code == "SP0071").ShouldBeEmpty();
     }
 
     [Theory]

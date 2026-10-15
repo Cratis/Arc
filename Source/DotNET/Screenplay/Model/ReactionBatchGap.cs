@@ -11,9 +11,19 @@ namespace Cratis.Arc.Screenplay.Model;
 internal record ReactionBatchGap(ReactionBatchGapKind Kind, string Message)
 {
     /// <summary>
+    /// Gets whether legacy per-fact appends can expose a partial batch.
+    /// </summary>
+    internal bool RequiresAtomic { get; init; } = true;
+
+    /// <summary>
+    /// Gets every rejecting constraint that must be retained in an atomic document.
+    /// </summary>
+    internal IReadOnlyList<ConstraintModel> RequiredConstraints { get; init; } = [];
+
+    /// <summary>
     /// Determines whether the available append semantics cannot represent this batch.
     /// </summary>
     /// <param name="atomic">Whether atomic reaction batches are admitted.</param>
     /// <returns>True when the batch must remain code.</returns>
-    internal bool Withheld(bool atomic) => !atomic || Kind != ReactionBatchGapKind.Rejection;
+    internal bool Withheld(bool atomic) => atomic ? Kind != ReactionBatchGapKind.Rejection : RequiresAtomic;
 }

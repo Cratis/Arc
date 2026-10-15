@@ -21,6 +21,7 @@ internal sealed class ConstraintCoverage
 
     static readonly HashSet<string> _targetMethods = new(StringComparer.Ordinal) { "Unique", "On", "ClosesStreamOn", "RemovedWith" };
 
+    readonly ConstraintBatchRequirements _requirements = new();
     readonly Dictionary<string, string> _targeted = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> _closing = new(StringComparer.Ordinal);
     string? _unknownReason;
@@ -76,8 +77,9 @@ internal sealed class ConstraintCoverage
             return new(ReactionBatchGapKind.Closing, closing);
         }
 
-        return events.Skip(1).Select(RejectionReason).FirstOrDefault(_ => _ is not null) is { } rejection
-            ? new(ReactionBatchGapKind.Rejection, rejection) : null;
+        var rejection = events.Skip(1).Select(RejectionReason).FirstOrDefault(_ => _ is not null);
+
+        return _requirements.For(events, rejection);
     }
 
     static IEnumerable<INamedTypeSymbol> TypesIn(INamespaceOrTypeSymbol scope) =>
@@ -163,6 +165,11 @@ internal sealed class ConstraintCoverage
         {
             Unknown(constraint);
             return;
+        }
+
+        if (method.Name == "Unique")
+        {
+            _requirements.Read(constraint, invocation, method, model);
         }
 
         if (_targetMethods.Contains(method.Name))

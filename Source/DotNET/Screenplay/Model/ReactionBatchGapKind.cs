@@ -9,7 +9,7 @@ namespace Cratis.Arc.Screenplay.Model;
 internal enum ReactionBatchGapKind
 {
     /// <summary>
-    /// A later event can be rejected after a prefix has been appended in legacy mode.
+    /// The batch has rejecting constraints that must be represented and may require atomic appends.
     /// </summary>
     Rejection = 0,
 
@@ -21,5 +21,10 @@ internal enum ReactionBatchGapKind
     /// <summary>
     /// A constraint's effects could not be read.
     /// </summary>
-    Unreadable = 2
+    Unreadable = 2,
+
+    /// <summary>
+    /// A rejecting constraint is not represented by the emitted document.
+    /// </summary>
+    Unrepresented = 3
 }

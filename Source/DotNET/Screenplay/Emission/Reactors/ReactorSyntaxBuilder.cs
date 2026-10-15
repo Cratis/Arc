@@ -99,6 +99,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
             var reason = gap.Kind == ReactionBatchGapKind.Closing
                 ? "closing reaction batches are not yet admitted (Cratis/Screenplay#770)"
                 : gap.Kind == ReactionBatchGapKind.Unreadable ? "its constraint behavior cannot be proven"
+                : gap.Kind == ReactionBatchGapKind.Unrepresented ? "a rejecting constraint is not represented in the document"
                 : "atomic reaction batches require ESM v22 and exceed ScreenplayOptions.MaximumExecutableModelVersion";
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnprovenReactionBatchConstraints,
@@ -106,18 +107,18 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
                 reactor.MetadataLocation ?? location);
         }
 
-        if (reaction is null && gap is null)
+        if (reaction is null)
         {
-            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location);
+            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location, gap is not null);
         }
 
         return Trigger(name, reaction, file);
     }
 
-    void ReportCodeHandling(ReactorModel reactor, string @event, string location)
+    void ReportCodeHandling(ReactorModel reactor, string @event, string location, bool batchGap)
     {
         var branches = reactor.Reactions.Where(reaction => reaction.EventName == @event).SelectMany(reaction => reaction.Invokes).Any(invocation => invocation.OnRefused.Count > 0);
-        var handles = branches || reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
+        var handles = (!batchGap || !branches) && (branches || reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal));
         var discards = reactor.DiscardedCommandResultHandlers.Contains(@event, StringComparer.Ordinal);
         if (handles || discards)
         {

@@ -84,7 +84,9 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     /// <returns>The first withheld batch reason, or null.</returns>
     internal ReactionBatchGap? UnprovenBatch(ReactionModel reaction) =>
         new[] { reaction.UnprovenBatch }.Concat(reaction.Invokes.SelectMany(invocation => invocation.OnRefused).Select(branch => branch.UnprovenBatch))
-            .OfType<ReactionBatchGap>().FirstOrDefault(gap => gap.Withheld(AtomicBatchesEnabled));
+            .OfType<ReactionBatchGap>().Select(gap => gap.Withheld(AtomicBatchesEnabled) ? gap :
+                AtomicBatchesEnabled ? ReactionBatchConstraintAdmission.Missing(gap, application) : null)
+            .OfType<ReactionBatchGap>().FirstOrDefault();
 
     /// <summary>
     /// Determines whether a value is written into the document exactly as the source states it.

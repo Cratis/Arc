@@ -591,7 +591,7 @@ public static class ScreenplayDiagnosticCodes
     public const string EnumAliasNotRepresentable = "SP0069";
 
     /// <summary>
-    /// A returned direct or refusal batch has unreadable constraints, early stream closure, or requires atomic
+    /// A returned direct or refusal batch has unrepresented or unreadable constraints, early stream closure, or requires atomic
     /// reaction appends above the executable version cap.
     /// </summary>
     public const string UnprovenReactionBatchConstraints = "SP0070";
