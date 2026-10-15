@@ -62,8 +62,8 @@ internal class CommandValueAdmission(ScreenplayDiagnostics diagnostics)
 
     void ReportImplicitContracts(CommandAuthoringModel authoring, ApplicationModel model, HashSet<string> blocked, SemanticVersion? cap)
     {
-        foreach (var (concept, reason) in model.Concepts.Where(concept => concept.Generation is null && authoring.Generated.Any(property =>
-            blocked.Contains(property.Name) && property.Type.Name == concept.Name))
+        var blockedConcepts = authoring.Generated.Where(property => blocked.Contains(property.Name)).Select(property => property.Type.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var (concept, reason) in model.Concepts.Where(concept => concept.Generation is null && blockedConcepts.Contains(concept.Name))
             .Select(concept => (Concept: concept, Reason: GenerationAdmission.Failure(concept, cap))).Where(result => result.Reason is not null))
         {
             diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}; its generation contract remains in code", concept.GenerationLocation ?? concept.Name);

@@ -59,7 +59,11 @@ internal static class ExecutableGenerationFixtures
     {
         var type = command?.Authoring?.Generated.SingleOrDefault(property => property.Name == pin.Property)?.Type.Name;
         var concept = concepts.SingleOrDefault(concept => concept.Name == type);
-        if (concept is null || !model.Concepts.Any(candidate => candidate.Name == type && NeedsProof(candidate)))
+        if (concept is null)
+        {
+            return null;
+        }
+        if (!model.Concepts.Any(candidate => candidate.Name == type && NeedsProof(candidate)))
         {
             return null;
         }

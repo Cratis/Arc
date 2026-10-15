@@ -123,8 +123,6 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         return null;
     }
 
-    static bool IsPortable(string? path) => path is not null && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal);
-
     /// <summary>
     /// Reads one call of a rule chain.
     /// </summary>
@@ -254,7 +252,16 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
         var path = paths?.Relative(source);
 
-        return IsPortable(path) ? path : null;
+        if (path is null)
+        {
+            return null;
+        }
+        if (Path.IsPathRooted(path))
+        {
+            return null;
+        }
+
+        return path.Contains(':', StringComparison.Ordinal) ? null : path;
     }
 
     /// <summary>

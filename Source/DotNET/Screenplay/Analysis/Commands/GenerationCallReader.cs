@@ -120,7 +120,7 @@ internal static class GenerationCallReader
 
     static GenerationModel? Pattern(IInvocationOperation call)
     {
-        if (Value(call, "pattern") is not string pattern || !HasPatternContext(call, pattern))
+        if (Value(call, "pattern") is not string pattern || !HasPatternContext(call))
         {
             return null;
         }
@@ -132,8 +132,15 @@ internal static class GenerationCallReader
         return new("pattern") { Pattern = pattern, Checksum = algorithm };
     }
 
-    static bool HasPatternContext(IInvocationOperation call, string pattern) =>
-        call.TargetMethod.Parameters.Any(parameter => parameter.Type.Is("Cratis.Concepts.GenerationContext")) || !GenerationPatternContext.UsesDates(pattern);
+    static bool HasPatternContext(IInvocationOperation call)
+    {
+        if (call.TargetMethod.Parameters.Any(parameter => parameter.Type.Is("Cratis.Concepts.GenerationContext")))
+        {
+            return true;
+        }
+
+        return Value(call, "pattern") is string pattern && !GenerationPatternContext.UsesDates(pattern);
+    }
 
     static GenerationModel? Integer(IInvocationOperation call) => Value(call, "minimum") is long minimum && Value(call, "maximum") is long maximum
         ? new("random") { Range = $"{minimum.ToString(CultureInfo.InvariantCulture)}..{maximum.ToString(CultureInfo.InvariantCulture)}" } : null;
