@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions.given;
+using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating_reactions;
 
@@ -51,10 +52,24 @@ public class with_opaque_refusal_callbacks : a_refusing_application
     }
 
     [Fact]
-    public void should_not_recover_an_unsafe_refusal_event_batch()
+    public void should_recover_a_constrained_refusal_event_batch_atomically()
     {
         GenerateRefusal(".OnRefused(Refused.Any, refusal => new object[] { new AuthorFiled(refusal.Message), new WelcomeSent(@event.Name) })");
-        AssertRefusalFallback();
+        Result.Source.ShouldContain("produces WelcomeSent");
+        Result.Diagnostics.Where(report => report.Code == "SP0070").ShouldBeEmpty();
+        AssertRefusalExtraction(atomic: true);
+    }
+
+    [Fact]
+    public void should_report_the_constrained_refusal_batch_below_v22()
+    {
+        GenerateRefusal(".OnRefused(Refused.Any, refusal => new object[] { new AuthorFiled(refusal.Message), new WelcomeSent(@event.Name) })", cap: SemanticVersion.V21);
+        Result.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");
+        Result.Source.ShouldNotContain("reaction batches");
+        Result.Source.ShouldNotContain("on refused");
+        Result.Diagnostics.Single(report => report.Code == "SP0070").Message.ShouldContain("ESM v22");
+        Result.Diagnostics.Where(report => report.Code == "SP0071").ShouldBeEmpty();
+        AssertDocument();
     }
 
     [Fact]

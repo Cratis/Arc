@@ -10,7 +10,7 @@ public class from_a_constrained_event_later_in_a_returned_batch : a_returned_eve
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void should_withhold_the_batch_and_its_scenario(bool authoring)
+    public void should_state_the_atomic_batch_and_its_scenario(bool authoring)
     {
         Generate(new ScreenplayOptions { AuthoringOnlyConstructs = authoring },
             [
@@ -25,7 +25,7 @@ public class from_a_constrained_event_later_in_a_returned_batch : a_returned_eve
             (ScenarioPath, Scenario)
             ]);
 
-        AssertWithheld();
-        Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("AuthorFiled");
+        AssertAtomicBatch();
+        Run(ScenarioName).Passed.ShouldBeTrue();
     }
 }

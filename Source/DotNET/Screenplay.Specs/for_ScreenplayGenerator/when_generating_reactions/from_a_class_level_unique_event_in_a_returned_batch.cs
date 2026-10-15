@@ -12,7 +12,7 @@ public class from_a_class_level_unique_event_in_a_returned_batch : a_returned_ev
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void should_withhold_later_or_repeated_unique_event_types(bool repeated, bool authoring)
+    public void should_state_later_or_repeated_unique_event_types_atomically(bool repeated, bool authoring)
     {
         var events = repeated
             ? "new AuthorFiled(@event.Country), new AuthorFiled(@event.Country)"
@@ -30,7 +30,14 @@ public class from_a_class_level_unique_event_in_a_returned_batch : a_returned_ev
             (ScenarioPath, Scenario)
         ]);
 
-        AssertWithheld();
-        Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("AuthorFiled");
+        AssertAtomicBatch(scenario: !repeated);
+        if (repeated)
+        {
+            Result.Source.ShouldNotContain($"specification {ScenarioName}");
+        }
+        else
+        {
+            Run(ScenarioName).Passed.ShouldBeTrue();
+        }
     }
 }

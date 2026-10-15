@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Screenplay.Analysis.Events;
+using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
@@ -59,15 +60,24 @@ internal sealed class ConstraintCoverage
     /// </summary>
     /// <param name="events">The produced event types in return order.</param>
     /// <returns>The reason equivalence is unproven, or null.</returns>
-    internal string? UnprovenBatch(IReadOnlyList<INamedTypeSymbol> events)
+    internal ReactionBatchGap? UnprovenBatch(IReadOnlyList<INamedTypeSymbol> events)
     {
         if (events.Count < 2)
         {
             return null;
         }
 
-        return _unknownReason ?? events.Skip(1).Select(RejectionReason).FirstOrDefault(_ => _ is not null) ??
-            events.SkipLast(1).Select(ClosingReason).FirstOrDefault(_ => _ is not null);
+        if (_unknownReason is { } unreadable)
+        {
+            return new(ReactionBatchGapKind.Unreadable, unreadable);
+        }
+        if (events.SkipLast(1).Select(ClosingReason).FirstOrDefault(_ => _ is not null) is { } closing)
+        {
+            return new(ReactionBatchGapKind.Closing, closing);
+        }
+
+        return events.Skip(1).Select(RejectionReason).FirstOrDefault(_ => _ is not null) is { } rejection
+            ? new(ReactionBatchGapKind.Rejection, rejection) : null;
     }
 
     static IEnumerable<INamedTypeSymbol> TypesIn(INamespaceOrTypeSymbol scope) =>

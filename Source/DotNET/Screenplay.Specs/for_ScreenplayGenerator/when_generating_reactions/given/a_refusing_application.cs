@@ -49,12 +49,20 @@ public class a_refusing_application : a_reacting_application
         ]);
     }
 
-    protected void AssertRefusalExtraction()
+    protected void AssertRefusalExtraction(bool atomic = false)
     {
         Result.Source.ShouldContain("invokes SendWelcome");
         Result.Source.ShouldNotContain("file Authors/Welcoming/Welcoming.cs");
         Result.Diagnostics.Where(report => report.Code == "SP0071").ShouldBeEmpty();
-        Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V19);
+        Bound.Value!.Model.SemanticVersion.ShouldEqual(atomic ? SemanticVersion.V22 : SemanticVersion.V19);
+        if (atomic)
+        {
+            Result.Source.ShouldContain("reaction batches atomic");
+        }
+        else
+        {
+            Result.Source.ShouldNotContain("reaction batches");
+        }
         AssertDocument();
     }
 

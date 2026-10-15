@@ -72,7 +72,8 @@ public record ScreenplayOptions
     /// </summary>
     /// <remarks>
     /// Defaults to null, admitting the latest supported constructs. A cap below v7 keeps commands in their legacy
-    /// form without generated values or responses. A cap below v14 withholds equality query filters. Earlier
+    /// form without generated values or responses. A cap below v14 withholds equality query filters. A cap below
+    /// v22 keeps legacy per-fact reaction batches and withholds batches requiring atomic appends. Earlier
     /// executable constructs and authoring-only admission limitations are unchanged; the cap does not guarantee
     /// that a document binds.
     /// </remarks>

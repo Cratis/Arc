@@ -14,9 +14,9 @@ public class from_a_second_on_target_in_a_unique_builder : a_returned_event_batc
     {
         GenerateBatch("new AuthorWelcomed(@event.Name, \"Welcome\"), new AuthorFiled(@event.Country)", Constraint("=> builder.Unique(unique => unique.On<AuthorRegistered>(e => e.Country).On<AuthorFiled>(e => e.Country));"), authoring);
 
-        AssertWithheld();
+        AssertAtomicBatch();
         Result.Source.ShouldContain("unique country on AuthorRegistered");
         Result.Source.ShouldContain("unique country on AuthorFiled");
-        Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("AuthorFiled");
+        Run(ScenarioName).Passed.ShouldBeTrue();
     }
 }

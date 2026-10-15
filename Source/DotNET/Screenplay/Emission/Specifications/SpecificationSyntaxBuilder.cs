@@ -62,6 +62,11 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// </summary>
     public ICollection<SpecificationStateModel>? RoutedOccurrences { get; init; }
 
+    /// <summary>
+    /// Gets whether ESM v22 atomic reaction batches are admitted.
+    /// </summary>
+    internal bool ReactionAtomicBatchesEnabled { get; init; } = true;
+
     bool EventRoutes => AuthoringOnlyConstructs || ExecutableRoutes;
 
     /// <summary>
@@ -280,7 +285,7 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
             return specification;
         }
 
-        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled, RefusalsEnabled = ReactionRefusalsEnabled };
+        var reactions = new DeclarativeReactions(naming, Application) { MetadataEnabled = ReactionMetadataEnabled, RefusalsEnabled = ReactionRefusalsEnabled, AtomicBatchesEnabled = ReactionAtomicBatchesEnabled };
         var location = SpecificationEvidence.For(specification)?.SourceType.ToDisplayString() ??
             Application.Slices.FirstOrDefault(slice => slice.Specifications.Contains(specification))?.Namespace;
         var reason = specification.Reactor is { } reactor

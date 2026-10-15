@@ -53,6 +53,7 @@ public class from_a_reactor_returning_an_event : a_reacting_application
                     greeting = "Welcome"
         """);
 
+    [Fact] void should_not_declare_reaction_batches() => Result.Source.ShouldNotContain("reaction batches");
     [Fact] void should_not_point_at_the_file() => Result.Source.ShouldNotContain("file Authors/Welcoming");
     [Fact] void should_state_the_scenario() => Result.Source.ShouldContain($"specification {Name}");
     [Fact] void should_append_the_delivered_event() => Result.Source.ShouldContain("when append AuthorRegistered");

@@ -65,6 +65,16 @@ public class from_a_reactor_returning_a_collection_of_events : a_reacting_applic
     }
 
     [Fact]
+    public void should_declare_atomic_reaction_batches()
+    {
+        GenerateWith(Reactor);
+
+        Result.Source.ShouldContain("reaction batches atomic");
+        Bound.Value!.Model.SemanticVersion.ShouldEqual(Cratis.Screenplay.Semantics.SemanticVersion.V22);
+        AssertDocument();
+    }
+
+    [Fact]
     public void should_leave_out_a_scenario_stating_part_of_an_event()
     {
         GenerateWith(Reactor, (Path, Scenario(Welcomed.Replace(" && e.Greeting == \"Welcome\"", string.Empty, StringComparison.Ordinal) + Filed)));

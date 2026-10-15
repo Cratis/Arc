@@ -10,13 +10,12 @@ public class from_an_intra_batch_conflict : a_returned_event_batch
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void should_withhold_events_that_can_conflict_together(bool authoring)
+    public void should_state_events_that_can_conflict_together_atomically(bool authoring)
     {
         GenerateBatch("new AuthorFiled(@event.Country), new AuthorFiled(@event.Country)", Constraint("=> builder.Unique<AuthorFiled>();"), authoring);
 
-        Result.Source.ShouldContain("file Authors/Welcoming/Welcoming.cs");
-        Result.Source.ShouldNotContain("produces AuthorFiled");
-        Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("FilingConstraint");
-        AssertDocument();
+        Result.Source.ShouldContain("produces AuthorFiled");
+        AssertAtomicBatch(scenario: false);
+        Result.Source.ShouldNotContain($"specification {ScenarioName}");
     }
 }
