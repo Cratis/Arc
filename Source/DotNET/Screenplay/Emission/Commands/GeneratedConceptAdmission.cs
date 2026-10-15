@@ -31,7 +31,9 @@ internal static class GeneratedConceptAdmission
             return false;
         }
 
-        return property.Name != authoring.Identifier || RandomBits(concept.Generation) >= 64;
+        return property.Name != authoring.Identifier || (concept.Generation?.Kind == "pattern" || concept.Generation?.Kind == "random"
+            ? GenerationAdmission.CheckRules(concept, identifier: true) is null
+            : RandomBits(concept.Generation) >= 64);
     }
 
     static double RandomBits(GenerationModel? generation) => generation?.Kind switch

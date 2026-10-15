@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Globalization;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -27,7 +28,9 @@ internal static class GenerationCallReader
         ["Ulid"] = call => HasOnly(call, "context") ? new("ulid") : null,
         ["TypeId"] = call => HasOnly(call, "prefix", "context") ? TypeId(call) : null,
         ["NanoId"] = call => HasOnly(call, "size", "alphabet") ? NanoId(call) : null,
-        ["Bytes"] = call => HasOnly(call, "count", "encoding") ? Bytes(call) : null
+        ["Bytes"] = call => HasOnly(call, "count", "encoding") ? Bytes(call) : null,
+        ["Pattern"] = call => HasOnly(call, "pattern", "context", "checksum") ? Pattern(call) : null,
+        ["Integer"] = call => HasOnly(call, "minimum", "maximum") ? Integer(call) : null
     };
 
     static readonly Dictionary<int, string> _encodings = new()
@@ -46,6 +49,13 @@ internal static class GenerationCallReader
     public static GenerationModel? Read(ExpressionSyntax expression, SemanticModel model)
     {
         expression = UnwrapParentheses(expression);
+        if (expression is CastExpressionSyntax cast)
+        {
+            var strategy = Read(cast.Expression, model);
+
+            return model.GetTypeInfo(cast.Type).Type?.SpecialType == SpecialType.System_Int32 &&
+                strategy?.Kind == "random" && BoundsWithinInt32(cast.Expression, model) ? strategy : null;
+        }
         if (expression is not InvocationExpressionSyntax call || model.GetOperation(call) is not IInvocationOperation invocation)
         {
             return null;
@@ -66,7 +76,7 @@ internal static class GenerationCallReader
     public static ExpressionSyntax UnwrapParentheses(ExpressionSyntax expression) => expression is ParenthesizedExpressionSyntax parenthesized
         ? UnwrapParentheses(parenthesized.Expression) : expression;
 
-    static bool IsStatableInvocation(IInvocationOperation invocation) => invocation.TargetMethod.IsStatic && invocation.Arguments.All(IsStatable);
+    static bool IsStatableInvocation(IInvocationOperation invocation) => invocation.TargetMethod.IsStatic && invocation.TargetMethod.DeclaringSyntaxReferences.IsEmpty && invocation.Arguments.All(IsStatable);
 
     static GenerationModel? GuidCall(IInvocationOperation call) => call.TargetMethod.Name switch
     {
@@ -86,16 +96,34 @@ internal static class GenerationCallReader
             return argument.Value is IParameterReferenceOperation parameter && parameter.Parameter.Type.Is("Cratis.Concepts.GenerationContext");
         }
 
-        return argument.Syntax is ArgumentSyntax { Expression: LiteralExpressionSyntax } || IsEncoding(argument);
+        return argument.Syntax is ArgumentSyntax { Expression: LiteralExpressionSyntax or PrefixUnaryExpressionSyntax { Operand: LiteralExpressionSyntax } } || IsEncoding(argument);
     }
 
-    static bool IsEncoding(IArgumentOperation argument) => argument.Value is IFieldReferenceOperation { Field.ContainingType: var type } && type.Is("Cratis.Concepts.ValueEncoding");
+    static bool IsEncoding(IArgumentOperation argument) => argument.Value is IFieldReferenceOperation { Field.ContainingType: var type } && (type.Is("Cratis.Concepts.ValueEncoding") || type.Is("Cratis.Concepts.Checksum"));
 
     static object? Value(IInvocationOperation call, string name) => call.Arguments.SingleOrDefault(argument => argument.Parameter?.Name == name)?.Value.ConstantValue.Value;
 
     static bool HasOnly(IInvocationOperation call, params string[] names) => call.Arguments.All(argument => names.Contains(argument.Parameter!.Name, StringComparer.Ordinal));
 
     static GenerationModel? Fundamentals(string name, IInvocationOperation call) => _fundamentals.TryGetValue(name, out var read) ? read(call) : null;
+
+    static GenerationModel? Pattern(IInvocationOperation call)
+    {
+        if (Value(call, "pattern") is not string pattern || Value(call, "checksum") is not int checksum || checksum is < 0 or > 3)
+        {
+            return null;
+        }
+
+        return new("pattern") { Pattern = pattern, Checksum = checksum switch { 1 => "luhn", 2 => "mod11", 3 => "mod97", _ => null } };
+    }
+
+    static GenerationModel? Integer(IInvocationOperation call) => Value(call, "minimum") is long minimum && Value(call, "maximum") is long maximum
+        ? new("random") { Range = $"{minimum.ToString(CultureInfo.InvariantCulture)}..{maximum.ToString(CultureInfo.InvariantCulture)}" } : null;
+
+    static bool BoundsWithinInt32(ExpressionSyntax expression, SemanticModel model) =>
+        model.GetOperation(UnwrapParentheses(expression)) is IInvocationOperation call &&
+        Value(call, "minimum") is long minimum && minimum is >= int.MinValue and <= int.MaxValue &&
+        Value(call, "maximum") is long maximum && maximum is >= int.MinValue and <= int.MaxValue;
 
     static GenerationModel? CryptographicCall(IInvocationOperation call) => call.TargetMethod.Name == "GetHexString" ? Hex(call) : null;
 

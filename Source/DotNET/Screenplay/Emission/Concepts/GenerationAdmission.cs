@@ -38,12 +38,13 @@ internal static class GenerationAdmission
         {
             return "generation with compliance markers is not executable yet (Cratis/Screenplay#616 phase 4)";
         }
-        var required = concept.Validations.Any() ? SemanticVersion.V20 : SemanticVersion.V15;
+        var v21 = concept.Generation?.RequiresV21 == true || concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum);
+        var required = v21 ? SemanticVersion.V21 : concept.Validations.Any() ? SemanticVersion.V20 : SemanticVersion.V15;
         if ((concept.Validations.Any() || !IsImplicit(concept)) && cap is { } version && !version.IsAtLeast(required))
         {
             return $"generation requires ESM v{required}, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}; validation rules are retained";
         }
-        if (!concept.Validations.Any())
+        if (!v21 && !concept.Validations.Any())
         {
             return null;
         }
@@ -70,19 +71,31 @@ internal static class GenerationAdmission
         Size = generation.Size,
         Alphabet = generation.Alphabet,
         Count = generation.Count,
-        Encoding = generation.Encoding
+        Encoding = generation.Encoding,
+        Pattern = generation.Pattern,
+        Checksum = generation.Checksum,
+        Range = generation.Range,
+        Rule = generation.Rule,
+        Code = generation.Body is { } body ? new CodeBlockSyntax("csharp", body, SourceLocation.Start) : null
     };
 
     /// <summary>
     /// Builds an isolated generation contract for the language's binder and reference runner.
     /// </summary>
     /// <param name="concept">The emitted concept, including all rules.</param>
+    /// <param name="identifier">Whether the probe must prove identifier entropy.</param>
     /// <returns>The source of a command returning one generated value.</returns>
-    internal static string ProbeSource(ConceptSyntax concept) =>
+    internal static string ProbeSource(ConceptSyntax concept, bool identifier = false) =>
         new ScreenplayPrinter().Print(new ApplicationSyntax([], [concept], [], [], SourceLocation.Start)) +
-        $"\nmodule GenerationProbe\n  feature Generation\n    slice StateChange Allocate\n      command Allocate\n        value {concept.Name} generated\n        returns value\n";
+        $"\nmodule GenerationProbe\n  feature Generation\n    slice StateChange Allocate\n      command Allocate\n        value {concept.Name} generated{(identifier ? " identifier" : string.Empty)}\n        returns value\n";
 
-    static string? CheckRules(ConceptModel concept)
+    /// <summary>
+    /// Asks the language binder to prove the complete strategy and optionally identifier entropy.
+    /// </summary>
+    /// <param name="concept">The recovered contract.</param>
+    /// <param name="identifier">Whether an identifier is being admitted.</param>
+    /// <returns>The language errors, or null.</returns>
+    internal static string? CheckRules(ConceptModel concept, bool identifier = false)
     {
         var naming = new ScreenplayNaming();
         var diagnostics = new ScreenplayDiagnostics();
@@ -96,7 +109,7 @@ internal static class GenerationAdmission
         {
             Generation = concept.Generation is { } generation && !IsImplicit(concept) ? Syntax(generation) : null
         };
-        var source = ProbeSource(declaration);
+        var source = ProbeSource(declaration, identifier);
         var verification = new ScreenplayVerifier().Verify(source);
         var errors = verification.Errors.Concat(verification.BindingDiagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)).ToList();
 

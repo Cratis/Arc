@@ -28,14 +28,14 @@ internal class GenerationStrategyReader(SemanticModels models)
         }
         if (!HasSupportedBacking(type))
         {
-            return "backing type is not UUID or String";
+            return "backing type is not UUID, String, Int64 or Int32";
         }
         if (FactoryBodyOf(type) is not { } factory)
         {
             return "New() has no readable IGeneratable<T> implementation or IGeneratableInContext<T> implementation";
         }
 
-        return ReadFactory(type, factory) is null ? "New() body is not a recognized generation form or its literal strategy arguments are invalid" : null;
+        return ReadFactory(type, factory) is null ? "New() body is not a recognized generation form or self-contained String rule: only literals, locals, context.Now/context.Tenant, GenerateValue and the supported BCL types are admitted; raw Default, ambient state and external dependencies are not supported" : null;
     }
 
     /// <summary>
@@ -86,7 +86,7 @@ internal class GenerationStrategyReader(SemanticModels models)
 
     static bool HasSelfArgument(INamedTypeSymbol contract, INamedTypeSymbol type) => contract.TypeArguments is [var self] && SymbolEqualityComparer.Default.Equals(self, type);
 
-    static bool HasSupportedBacking(INamedTypeSymbol type) => type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && (backing.Is("System.Guid") || backing.SpecialType == SpecialType.System_String);
+    static bool HasSupportedBacking(INamedTypeSymbol type) => type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments is [var backing] && (backing.Is("System.Guid") || backing.SpecialType is SpecialType.System_String or SpecialType.System_Int64 or SpecialType.System_Int32);
 
     static IMethodSymbol? FactoryOf(INamedTypeSymbol type)
     {
@@ -130,7 +130,10 @@ internal class GenerationStrategyReader(SemanticModels models)
         return ReadFactory(type, new(declaration, factoryModel));
     }
 
-    GenerationModel? ReadFactory(INamedTypeSymbol type, FactoryBody factory) => UuidGenerationForms.ReturnedBy(factory.Declaration) is { } returned ? Read(returned, type, factory.Model) : null;
+    GenerationModel? ReadFactory(INamedTypeSymbol type, FactoryBody factory) => HasSupportedBacking(type)
+        ? (UuidGenerationForms.ReturnedBy(factory.Declaration) is { } returned ? Read(returned, type, factory.Model) : null) ??
+            new GenerationRuleReader(_forms).Read(type, factory.Declaration, factory.Model)
+        : null;
 
     sealed record FactoryBody(MethodDeclarationSyntax Declaration, SemanticModel Model);
 }

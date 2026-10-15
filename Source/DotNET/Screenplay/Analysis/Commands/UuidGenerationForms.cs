@@ -33,18 +33,40 @@ internal class UuidGenerationForms(SemanticModels models)
     /// <returns>The proven strategy, or null.</returns>
     public GenerationModel? Strategy(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
     {
-        if (expression.DescendantNodesAndSelf().Any(node => node is CastExpressionSyntax))
+        if (PrimitiveOf(expression, type, model) is not { } primitive)
+        {
+            return null;
+        }
+        var casts = primitive.DescendantNodesAndSelf().OfType<CastExpressionSyntax>().ToArray();
+        var backing = type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments.SingleOrDefault()?.SpecialType;
+        if (casts.Length > 0 && (backing != SpecialType.System_Int32 || casts.Length != 1 || GenerationCallReader.UnwrapParentheses(primitive) != casts[0]))
+        {
+            return null;
+        }
+        var generation = GenerationCallReader.Read(primitive, model);
+        if (generation?.Kind == "random" && (backing is not (SpecialType.System_Int32 or SpecialType.System_Int64) || (backing == SpecialType.System_Int32 && casts.Length != 1)))
         {
             return null;
         }
 
+        return generation;
+    }
+
+    /// <summary>
+    /// Removes only a constructor or conversion proved to forward the primitive unchanged.
+    /// </summary>
+    /// <param name="expression">The returned concept expression.</param>
+    /// <param name="type">The concept being constructed.</param>
+    /// <param name="model">The model resolving its constructor.</param>
+    /// <returns>The primitive expression, or null for an unproved conversion.</returns>
+    public ExpressionSyntax? PrimitiveOf(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
+    {
         expression = GenerationCallReader.UnwrapParentheses(expression);
 
         return expression switch
         {
-            BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation when ConstructsConcept(creation, type, model) =>
-                GenerationCallReader.Read(argument.Expression, model),
-            _ when ThroughConversion(expression, type, model) => GenerationCallReader.Read(expression, model),
+            BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation when ConstructsConcept(creation, type, model) => argument.Expression,
+            _ when ThroughConversion(expression, type, model) => expression,
             _ => null
         };
     }
@@ -64,10 +86,6 @@ internal class UuidGenerationForms(SemanticModels models)
 
     bool ThroughConversion(ExpressionSyntax expression, INamedTypeSymbol type, SemanticModel model)
     {
-        if (GenerationCallReader.Read(expression, model) is null)
-        {
-            return false;
-        }
         if (model.GetConversion(expression).MethodSymbol is not { Parameters: [var parameter] } method || !SymbolEqualityComparer.Default.Equals(method.ReturnType, type))
         {
             return false;

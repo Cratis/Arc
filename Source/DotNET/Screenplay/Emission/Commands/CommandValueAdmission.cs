@@ -51,11 +51,20 @@ internal class CommandValueAdmission(ScreenplayDiagnostics diagnostics)
         {
             diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}; its generation contract remains in code", concept.GenerationLocation ?? concept.Name);
         }
+        foreach (var property in authoring.Generated.Where(property => blocked.Contains(property.Name) && property.Name == authoring.Identifier))
+        {
+            var concept = model.Concepts.SingleOrDefault(concept => concept.Name == property.Type.Name);
+            if (concept?.Generation?.RequiresV21 == true)
+            {
+                var reason = concept.Generation.Kind == "rule" ? "opaque rule bodies have unknown identifier entropy" : GenerationAdmission.CheckRules(concept, identifier: true);
+                diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Generated identifier '{property.Name}': {reason}; generation remains in code", concept.GenerationLocation ?? location);
+            }
+        }
         if (blocked.Count > 0)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnreadableCommandResponse,
-                $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' must be required scalar generatable concepts with completely recovered, non-opaque, non-refuted concept validation; non-default strategies require ESM v15 and concept rules require ESM v20 (cap v{maximumVersion?.ToString() ?? "latest"}); compliance markers and generated identifiers below 64 random bits remain refused (PLAY0268/PLAY0684); those values, dependent responses, mappings, and production conditions were left in code",
+                $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' must be required scalar generatable concepts with completely recovered, non-opaque, non-refuted concept validation; non-default strategies require ESM v15 and concept rules require ESM v20; pattern, random, rule and checksum require ESM v21 (cap v{maximumVersion?.ToString() ?? "latest"}); compliance markers and generated identifiers below 64 random bits remain refused (PLAY0268/PLAY0684); those values, dependent responses, mappings, and production conditions were left in code",
                 $"{location}.{command.Name}");
         }
 

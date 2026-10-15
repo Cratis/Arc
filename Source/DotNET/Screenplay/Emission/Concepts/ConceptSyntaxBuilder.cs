@@ -85,10 +85,23 @@ public class ConceptSyntaxBuilder(
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
     }
 
-    static IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept) =>
-        (concept.HasGeneratedUses || concept.Generation is not null) && concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 &&
+    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept)
+    {
+        if (concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum) &&
+            MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V21))
+        {
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.GenerationNotRecoverable,
+                $"Concept '{concept.Name}': checksum validation requires ESM v21, but the cap is ESM v{cap}; the original validator is retained",
+                concept.Name);
+
+            return concept.ValidatorSources.Concat(concept.Validations.Where(rule => rule.Kind != Model.ValidationRuleKind.Checksum));
+        }
+
+        return (concept.HasGeneratedUses || concept.Generation is not null) && concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 &&
             (concept.Validations.Any() || !concept.ValidationRecoveryComplete)
             ? concept.ValidatorSources : concept.Validations;
+    }
 
     /// <summary>
     /// Gets the compliance annotations the concept's value carries.

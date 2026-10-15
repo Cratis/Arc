@@ -76,6 +76,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
     static SyntaxRuleKind ToKind(ModelRuleKind kind) => kind switch
     {
         ModelRuleKind.Rule => SyntaxRuleKind.Rule,
+        ModelRuleKind.Checksum => SyntaxRuleKind.Checksum,
         ModelRuleKind.Max => SyntaxRuleKind.Max,
         ModelRuleKind.Min => SyntaxRuleKind.Min,
         ModelRuleKind.GreaterThan => SyntaxRuleKind.GreaterThan,

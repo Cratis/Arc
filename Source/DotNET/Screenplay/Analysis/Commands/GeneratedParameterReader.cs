@@ -170,7 +170,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
         var location = LocationOf(parameter);
         diagnostics.Information(
             ScreenplayDiagnosticCodes.GenerationNotRecoverable,
-            $"[GeneratedValue] parameter '{parameter.Name}' of '{parameter.Type.Name}': {failure}; generation remains in code. Screenplay cannot execute generate rule bodies, context member use, pattern or random yet (Cratis/Screenplay#616)",
+            $"[GeneratedValue] parameter '{parameter.Name}' of '{parameter.Type.Name}': {failure}; generation remains in code. Only self-contained supported contracts can be recovered (Cratis/Screenplay#616)",
             location);
     }
 

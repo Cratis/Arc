@@ -180,6 +180,13 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             return 2;
         }
 
+        if (!forEach && property == "Value" && name == "Must" && !conditional && ChecksumValidation.Read(call, semanticModel) is { } checksum)
+        {
+            rules.Add(new(property, ValidationRuleKind.Checksum, checksum, null));
+
+            return 1;
+        }
+
         if (!forEach && !property.Contains('.', StringComparison.Ordinal) && name == "Must" &&
             call.ArgumentList.Arguments is [var argument] &&
             argument.Expression is IdentifierNameSyntax or MemberAccessExpressionSyntax &&
