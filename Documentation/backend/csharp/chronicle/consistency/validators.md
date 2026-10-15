@@ -1,165 +1,126 @@
 ---
-title: Validators and protected decisions
-description: What a CommandValidator can and cannot do for a rule that depends on state, why it never guards the rule, and what a protected decision accepts.
+title: Validators and read protection
+description: Put a state-dependent rule in a CommandValidator with the read model as a constructor parameter. Under On the read is guarded; under Off it is a hint.
 ---
 
-Use this page when you are about to put a state check in a `CommandValidator<T>`, or when a protected command fails because of a validator. A validator checks the shape of the input. It is not where a stateful rule is made to hold.
+Use this page when you write a rule such as "no copies left" or "the member has too many loans". Under read protection `On`, the place for that rule is a `CommandValidator<T>` that takes the read model as a constructor parameter. `Handle()` then says only what happens.
 
 ## Where each kind of rule goes
 
 | Rule | Put it in | Why |
 | --- | --- | --- |
-| The input is well formed (a name is not empty, a number is in range) | A validator without dependencies, data annotations or a `ConceptValidator<T>` | It needs no state, so there is nothing to race |
-| A value is unique | A constraint with `.WithMessage(...)` | The kernel enforces it for every writer and Arc returns your message |
-| The outcome depends on stored state | `Handle()` or `Provide()` of a `[ProtectedDecision]` command, returning `Result<TEvent, ValidationResult>` | The read is a decision read, so it is guarded |
-| The user should see a hint before submitting | A query, or an advisory validator over a plain read | It is a hint; the rule is enforced elsewhere |
+| The input is well formed (a name is not empty, a number is in range) | A validator without state, data annotations or a `ConceptValidator<T>` | It needs no state, so there is nothing to race |
+| A value is unique | A constraint with `.WithMessage(...)` | The kernel enforces it for every writer. Arc returns your message |
+| The command may proceed only if stored state allows it | A `CommandValidator<T>` with the read model as a constructor parameter, under `On` | The parameter is a protected read, so the approval is guarded |
+| The rule needs a value computed inside `Handle()` | `Handle()` returning `Result<TEvent, ValidationResult>` | The read parameter of `Handle()` is protected too |
+| The user should see a hint before submitting | A query, or a validator over an `[Unprotected]` read | It is a hint. The rule is enforced elsewhere |
 
-## What a validator can see
-
-A validator can take any service, including the read model Arc resolves for the command's key, as a constructor parameter. That read model is a **plain read**: Arc loads it from Chronicle's read model store before the validator runs.
+## A validator with a read model
 
 ```csharp
-using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections.ModelBound;
+using Cratis.Concepts;
 using FluentValidation;
+
+public record Isbn(string Value) : EventSourceId(Value);
+
+public record MemberId(Guid Value) : ConceptAs<Guid>(Value);
 
 [EventType]
 public record CopyAdded();
 
 [EventType]
-public record BookBorrowed(Guid MemberId);
+public record BookBorrowed(MemberId Member);
 
 public record BookStock(
     EventSourceId Id,
     [Increment<CopyAdded>, Decrement<BookBorrowed>] int Available);
 
 [Command]
-[Unprotected]
-public record BorrowBookWithHint(EventSourceId BookId, Guid MemberId)
+public record BorrowBook(Isbn Isbn, MemberId Member)
 {
-    public BookBorrowed Handle() => new(MemberId);
+    public BookBorrowed Handle() => new(Member);
 }
 
-public class BorrowBookWithHintValidator : CommandValidator<BorrowBookWithHint>
+public class BorrowBookValidator : CommandValidator<BorrowBook>
 {
-    public BorrowBookWithHintValidator(BookStock? stock) =>
-        RuleFor(command => command.BookId)
+    public BorrowBookValidator(BookStock? stock) =>
+        RuleFor(command => command.Isbn)
             .Must(_ => stock is { Available: > 0 })
             .WithMessage("No copies of this book are available.");
 }
 ```
 
-`[Unprotected]` on the command says that the plain read is deliberate; it silences [ARCCHR0011](../code-analysis/index.md#arcchr0011-unguarded-legacy-decision-reads). It does not make the read safe.
+Under `On` this is guarded:
 
-## A validator never guards the rule
+1. Arc starts the command's unit of work and turns on read protection before the filters run.
+2. Arc constructs the validator inside that unit. Its `BookStock` parameter is a protected read: Chronicle captures the position, folds the model, and enrols the guard before the validator sees the value.
+3. The validator approves. `Handle()` returns the event. `Handle()` and the validator share the same instance and the same guard.
+4. At commit, if a `CopyAdded` or `BookBorrowed` for that book arrived after the position captured in step 2, nothing is written. The caller gets a `400` with the reason `concurrencyViolation` and the detail `ReadChanged`.
 
-The pipeline runs the filters, including validators, then `Provide()`, then `Handle()`, then commits. A plain read does nothing in that sequence to remember where the event log was when it was read. So with `BorrowBookWithHint`:
+A validator that rejects writes nothing, so a rejection needs no guard and is never retried by Arc.
+
+The message reaches the client the same way as any validator message. The same rules apply to a nullable parameter: use `BookStock?` when absence is a business condition, and a non-nullable parameter when the command cannot run without the model. See [Nullable means you handle absence](../read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
+
+## What a validator may and may not do under On
+
+| In a validator | Under `On` |
+| --- | --- |
+| A read-model constructor parameter | Protected |
+| `[Unprotected("why")]` on the parameter or the model | Advisory. It guards nothing |
+| `IReadModels`, `IEventStore` or `IEventLog` used in a rule | Refused. Take the model as a parameter instead |
+| `IMongoCollection<T>` of a Chronicle-backed model | Refused. Use `[Unique]` for uniqueness |
+| A service such as a price list | Unknown. It is outside the guarantee |
+| A validator registered by hand as scoped, singleton, a factory or an instance | Refused. Let convention discovery register it, which makes it transient |
+
+The last row is the one that surprises people. Under `On`, Arc builds a fresh validator for every command so that its read-model parameters belong to that command's unit. A validator that the container supplies from another registration is refused with this error:
+
+```text
+Discoverable validator 'BorrowBookValidator' cannot run while read protection is On because Arc did not construct it for this invocation. Let convention discovery register it as transient; do not use a scoped, singleton, factory or instance registration.
+```
+
+Other constructor parameters, such as `ILogger<T>`, are resolved from the container.
+
+## The validate endpoint
+
+`{url}/validate` runs the filters and validators, and nothing else: no `Provide()`, no `Handle()`, no commit. Reads there are fresh, but nothing is guarded or written, because nothing commits. A successful validation does not promise that executing the command will succeed. The next execution reads again and guards again.
+
+That makes a validator the right place for early feedback: the user sees "no copies left" as soon as the form is validated, and the same rule holds when the command executes.
+
+## Under Off and Measure
+
+Under `Off` the validator runs as it always did, and its read-model parameter is a plain read. It is a hint:
 
 1. Two members submit at the same time. Both validators read `Available: 1`.
 2. Both validators pass. Both `Handle()` methods return `BookBorrowed`.
-3. Both events are appended. The default check only covers the window between the tail read at commit and the write.
+3. Both events are appended.
 
-The same applies to every plain read: a materialized projection (it can also lag), a passive projection or reducer (fresh at read time, but it captures nothing), and `IReadModels` called inside the validator. Reading the same model in `Handle()` instead does not change that: the validator and `Handle()` see the same scoped instance, and neither is guarded. The cure is not a different place for the plain read. It is a different kind of read.
+A validator over a plain read is acceptable only when something else holds the rule: a constraint, an aggregate, a stream decision, an explicit scope, or a repair you accept. Mark the command's read `[Unprotected("why")]` to say so. [ARCCHR0011](../code-analysis/ARCCHR0011.md) reports plain reads in event-producing commands under `Off`.
 
-### An advisory validator over a plain read
+`Measure` behaves like `Off` for the validator, and reports what `On` would do.
 
-Keep a validator like `BorrowBookWithHintValidator` only when it is a hint and something else holds the rule: a constraint, an aggregate, a stream decision, an explicit scope, or a repair that you accept. Then the validator's job is a fast, friendly early answer, and a rare race ends in the guard rejecting the append.
+### Commands marked [ProtectedDecision]
 
-If nothing else holds the rule, move it.
+A `[ProtectedDecision]` command that is not under `On` keeps the earlier rule: Arc runs a discoverable validator only if it has exactly one public constructor and that constructor has no parameters, and refuses any other, because a plain read there would not be guarded. Under `On`, a validator with read-model parameters is allowed, as described above. If you are moving such a command to `On`, move its state checks from `Handle()` to a validator, and drop `DecisionRead<T>` for a plain parameter.
 
-## Move the rule into a protected decision
+### What Arc does not check
 
-Replace the validator's read with a `DecisionRead<T>` in `Handle()`, and return a `Result` that declines:
-
-```csharp
-using Cratis.Arc.Chronicle.ReadModels;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
-using Cratis.Chronicle.Events;
-using Cratis.Chronicle.ReadModels;
-using Cratis.Monads;
-
-[Command]
-[ProtectedDecision]
-public record BorrowBookDecision(EventSourceId BookId, Guid MemberId)
-{
-    public Result<BookBorrowed, ValidationResult> Handle(DecisionRead<BookStock> stock) =>
-        stock.Instance is not { Available: > 0 }
-            ? ValidationResult.Error("No copies of this book are available.")
-            : new BookBorrowed(MemberId);
-}
-```
-
-The message reaches the client the same way a validator's message does. If two members race, the second receives a validation result with the reason `concurrencyViolation` and a message that the book "changed after it was read". A decision read works only if the model is admitted: a flat, event-source-keyed projection with an `Id` property, not a reducer. If it is not, use a stream decision, an aggregate or a constraint. The [decision matrix](./index.md#decision-matrix-by-rule-shape) lists the choices.
-
-## What a protected command accepts
-
-A `[ProtectedDecision]` command runs a discoverable validator (`CommandValidator<T>`, `ConceptValidator<T>` or any `IDiscoverableValidator<T>` in the command's graph) only if the validator has **exactly one public constructor, and that constructor has no parameters**. Any constructor dependency is refused: a read model, `DecisionRead<T>`, `IDecisionReads`, `ILogger`, `ICommandContext`. So is a validator with more than one public constructor, and a validator instance that the service provider supplies and Arc did not construct, or whose rules changed after Arc constructed it.
-
-```csharp
-using Cratis.Arc.Commands;
-using FluentValidation;
-
-public class BorrowBookDecisionValidator : CommandValidator<BorrowBookDecision>
-{
-    public BorrowBookDecisionValidator() =>
-        RuleFor(command => command.MemberId)
-            .NotEmpty()
-            .WithMessage("A member is required.");
-}
-```
-
-This validator is parameterless and runs. The one below is refused:
-
-```csharp
-using Cratis.Arc.Commands;
-using FluentValidation;
-
-public class BorrowBookDecisionStockValidator : CommandValidator<BorrowBookDecision>
-{
-    public BorrowBookDecisionStockValidator(BookStock stock) =>
-        RuleFor(command => command.BookId)
-            .Must(_ => stock.Available > 0)
-            .WithMessage("No copies of this book are available.");
-}
-```
-
-What happens when a validator is refused:
-
-- The command fails with an error, which the client sees as an HTTP 500 response. It is not a validation failure.
-- Neither `Provide()` nor `Handle()` runs, and the unit of work rolls back.
-- The `X-Allowed-Severity` request header cannot allow it.
-- The same refusal applies to the `{url}/validate` endpoint.
-- There is no build-time diagnostic for the refusal. You find it when the command runs, so exercise every protected command in a scenario.
-
-[ARCCHR0011](../code-analysis/index.md#arcchr0011-unguarded-legacy-decision-reads) reports Chronicle-backed constructor parameters of a `CommandValidator<T>` on an event-producing `[Command]` at Info severity, and its message points at `Provide()` and `Handle()`. It does not report other validator base types, and a quiet analyzer does not mean the validator is accepted. [ARC0006](../../code-analysis/ARC0006.md) warns on non-nullable parameters of `[ReadModel]` types and `IProjectionFor<T>` targets, validators included. It is about absence, not about guarding.
-
-### What Arc certifies, and what it does not
-
-Arc certifies two things about an accepted validator: its only public constructor is parameterless, and Arc ran it, so the instance still has the rules and rule components that the constructor gave it. A decorator or any code that adds, removes or replaces a rule on Arc's instance is refused.
-
-It does not certify that the rules read nothing but their input. Keeping validators free of decision state is your responsibility, including:
+Arc certifies what it can see: the validator was constructed for this invocation. It does not certify that its rules read nothing but the parameters you declared. Keep these out of the validators of a protected command:
 
 - static members and service locators read by a rule;
 - property injection, or code that resolves the validator and sets a field a rule reads;
+- a decorator that returns the inner instance after changing its state;
 - `ApplyCondition` on an existing rule, a changed cascade mode, or rules added to a nested child validator.
 
-Custom `ICommandFilter` implementations are not checked at all in protected mode. Do not read decision state in one.
-
-### The validate endpoint
-
-`{url}/validate` runs the filters and nothing else: no `Provide()`, no `Handle()`, no unit of work. A successful validation does not promise that executing the command will commit. The next execution folds fresh state. Decision reads on the validate path are real folds that are not enrolled, because nothing commits.
-
-## Testing
-
-`CommandScenario<T>().UseDecisionReads()` applies the same validator rule: parameterless validators run and validators with constructor dependencies are refused. Seed real events, because a pinned read model cannot supply a guard. See [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
+Custom `ICommandFilter` implementations are not checked at all. Do not read decision state in one.
 
 ## Where to go next
 
-- [Read models in commands](../read-models/injecting-into-commands.md): nullability, `Provide()` and the full decision-read contract.
-- [Pitfalls](./pitfalls.md): the other ways a rule fails without an error.
+- [Reads](./reads.md): what each read becomes under `On`.
+- [Scenarios](./scenarios/index.md): the same pattern for each rule shape.
+- [Pitfalls](./pitfalls.md): what fails silently.
 - [Command validation](../../commands/validation.md): Arc's validation model in general.
-- [Choosing how a rule holds in Chronicle](/chronicle/dynamic-consistency-boundary/choosing/): why a check before the append is not the guard, in Chronicle's Dynamic Consistency Boundary terms.
+- [Choosing how a rule holds in Chronicle](/chronicle/dynamic-consistency-boundary/choosing/): why a check before the append is not the guard.
