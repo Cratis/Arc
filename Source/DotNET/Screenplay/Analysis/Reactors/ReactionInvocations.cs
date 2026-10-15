@@ -81,12 +81,12 @@ internal class ReactionInvocations(SemanticModels models, ConstraintCoverage? co
         {
             return null;
         }
-        var productions = operation.TargetMethod.Name == "Acknowledge" ? [] :
-            Argument(operation, 1) is { } callback ? new RefusalBodies(models, constraints).Read(callback, model, handler, selector.Selector == "constraint", routesAppends) : null;
+        var branch = operation.TargetMethod.Name == "Acknowledge" ? new InvocationRefusalModel(selector.Selector, selector.Constraint, []) :
+            Argument(operation, 1) is { } callback ? new RefusalBodies(models, constraints).Read(callback, model, handler, selector, routesAppends) : null;
 
-        return productions is null ? null : invocation with
+        return branch is null ? null : invocation with
         {
-            OnRefused = [.. invocation.OnRefused, new(selector.Selector, selector.Constraint, productions)]
+            OnRefused = [.. invocation.OnRefused, branch]
         };
     }
 }

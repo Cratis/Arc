@@ -35,7 +35,7 @@ public class with_refusal_property_mappings : a_refusing_application
     {
         GenerateRefusal($".OnRefused(Refused.ByValidation, {callback})");
         Result.Model.Slices.SelectMany(slice => slice.Reactors).Single().Reactions.Single().Invokes.Single().OnRefused.Single().Produces.Count.ShouldEqual(2);
-        AssertRefusalExtraction();
+        AssertRefusalExtraction(atomic: true);
     }
 
     [Fact]

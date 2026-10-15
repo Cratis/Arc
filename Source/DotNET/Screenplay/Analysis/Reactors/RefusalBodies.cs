@@ -24,10 +24,10 @@ internal class RefusalBodies(SemanticModels models, ConstraintCoverage? constrai
     /// <param name="callback">The lambda or method group.</param>
     /// <param name="model">The model resolving the callback.</param>
     /// <param name="handler">The reactor handler supplying captured trigger values.</param>
-    /// <param name="constraint">Whether the selector admits constraint values.</param>
+    /// <param name="selector">The refusal category and optional constraint name.</param>
     /// <param name="routesAppends">Whether bare events inherit unsupported append routing.</param>
-    /// <returns>The productions, empty for acknowledgment, or null for any unproven effect.</returns>
-    internal IReadOnlyList<ProducesModel>? Read(ExpressionSyntax callback, SemanticModel model, IMethodSymbol handler, bool constraint, bool routesAppends)
+    /// <returns>The branch with its batch coverage, or null for any unproven effect.</returns>
+    internal InvocationRefusalModel? Read(ExpressionSyntax callback, SemanticModel model, IMethodSymbol handler, (string Selector, string? Constraint) selector, bool routesAppends)
     {
         if (Callback(callback, model) is not { } body || models.For(body.Body.SyntaxTree) is not { } bodyModel ||
             PureReturn(body.Body) is not { } returned)
@@ -36,10 +36,10 @@ internal class RefusalBodies(SemanticModels models, ConstraintCoverage? constrai
         }
         if (returned.IsKind(SyntaxKind.NullLiteralExpression))
         {
-            return [];
+            return new(selector.Selector, selector.Constraint, []);
         }
 
-        return Productions(returned, bodyModel, handler, body.Refusal, constraint, routesAppends);
+        return Productions(returned, bodyModel, handler, body.Refusal, selector, routesAppends);
     }
 
     static (SyntaxNode Body, IParameterSymbol Refusal)? Callback(ExpressionSyntax expression, SemanticModel model)
@@ -81,7 +81,7 @@ internal class RefusalBodies(SemanticModels models, ConstraintCoverage? constrai
         };
     }
 
-    List<ProducesModel>? Productions(ExpressionSyntax returned, SemanticModel model, IMethodSymbol handler, IParameterSymbol refusal, bool constraint, bool routesAppends)
+    InvocationRefusalModel? Productions(ExpressionSyntax returned, SemanticModel model, IMethodSymbol handler, IParameterSymbol refusal, (string Selector, string? Constraint) selector, bool routesAppends)
     {
         var items = ReactionReader.ItemsOf(returned) ?? [returned];
         if (items.Count == 0)
@@ -94,12 +94,11 @@ internal class RefusalBodies(SemanticModels models, ConstraintCoverage? constrai
             return null;
         }
         var known = effects.OfType<ReactionEffect>().ToList();
-        if (constraints?.UnprovenBatch([.. known.Select(effect => effect.Type)]) is not null)
-        {
-            return null;
-        }
-        var productions = known.ConvertAll(effect => Production(effect, model, handler, refusal, constraint));
+        var productions = known.ConvertAll(effect => Production(effect, model, handler, refusal, selector.Selector == "constraint"));
 
-        return productions.Exists(production => production is null) ? null : productions.OfType<ProducesModel>().ToList();
+        return productions.Exists(production => production is null) ? null : new(selector.Selector, selector.Constraint, productions.OfType<ProducesModel>().ToList())
+        {
+            UnprovenBatch = constraints?.UnprovenBatch([.. known.Select(effect => effect.Type)])
+        };
     }
 }

@@ -106,6 +106,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new DomainSyntax(domain, SourceLocation.Start),
             Types: [.. declaredTypes])
         {
+            ReactionProductionMode = (options.MaximumExecutableModelVersion is not { } batchCap || batchCap.IsAtLeast(SemanticVersion.V22)) && AtomicReactionBatches.Required(modules)
+                ? ReactionProductionMode.Atomic : null,
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
                 .Select(operation => operation.System).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
                 .Select(system => new SystemSyntax(system, null, SourceLocation.Start)).ToList() : [],
@@ -233,10 +235,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new EventSyntaxBuilder(naming, _types, _names),
             new QuerySyntaxBuilder(naming, _types, _authorize) { AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, Diagnostics = diagnostics, MaximumExecutableModelVersion = options.MaximumExecutableModelVersion },
             new ConstraintSyntaxBuilder(naming),
-            new ReactorSyntaxBuilder(naming, diagnostics) { Application = model, MetadataEnabled = options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10), RefusalsEnabled = options.MaximumExecutableModelVersion is not { } refusalCap || refusalCap.IsAtLeast(SemanticVersion.V19) },
+            new ReactorSyntaxBuilder(naming, diagnostics) { Application = model, MetadataEnabled = options.MaximumExecutableModelVersion is not { } metadataCap || metadataCap.IsAtLeast(SemanticVersion.V10), RefusalsEnabled = options.MaximumExecutableModelVersion is not { } refusalCap || refusalCap.IsAtLeast(SemanticVersion.V19), AtomicBatchesEnabled = options.MaximumExecutableModelVersion is not { } atomicCap || atomicCap.IsAtLeast(SemanticVersion.V22) },
             new ProjectionSyntaxBuilder(naming, diagnostics, _names),
             new ScreenSyntaxBuilder(naming, _types),
-            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ReactionMetadataEnabled = options.MaximumExecutableModelVersion is not { } reactionCap || reactionCap.IsAtLeast(SemanticVersion.V10), ReactionRefusalsEnabled = options.MaximumExecutableModelVersion is not { } branchCap || branchCap.IsAtLeast(SemanticVersion.V19), ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
+            new SpecificationSyntaxBuilder(naming) { Application = model, Diagnostics = diagnostics, AuthoringOnlyConstructs = options.AuthoringOnlyConstructs, ReactionMetadataEnabled = options.MaximumExecutableModelVersion is not { } reactionCap || reactionCap.IsAtLeast(SemanticVersion.V10), ReactionRefusalsEnabled = options.MaximumExecutableModelVersion is not { } branchCap || branchCap.IsAtLeast(SemanticVersion.V19), ReactionAtomicBatchesEnabled = options.MaximumExecutableModelVersion is not { } atomicReactionCap || atomicReactionCap.IsAtLeast(SemanticVersion.V22), ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8), RoutedOccurrences = routedOccurrences })
         {
             InlineEvents = inlineEvents,
             DeclaredReadModels = declaredReadModels

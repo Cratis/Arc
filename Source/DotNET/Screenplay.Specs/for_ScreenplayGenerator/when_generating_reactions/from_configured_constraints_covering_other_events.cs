@@ -29,7 +29,7 @@ public class from_configured_constraints_covering_other_events : a_returned_even
         Result.Source.ShouldContain("produces AuthorFiled");
         Result.Source.ShouldContain($"specification {ScenarioName}");
         Result.Diagnostics.Where(_ => _.Code == "SP0070").ShouldBeEmpty();
-        AssertDocument();
+        AssertAtomicBatch();
         Run(ScenarioName).Passed.ShouldBeTrue();
     }
 }

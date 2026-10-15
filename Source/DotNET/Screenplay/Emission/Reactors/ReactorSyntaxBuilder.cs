@@ -45,6 +45,11 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     public bool RefusalsEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v22 atomic reaction batches can be emitted.
+    /// </summary>
+    internal bool AtomicBatchesEnabled { get; init; } = true;
+
+    /// <summary>
     /// Builds the reactor declaration.
     /// </summary>
     /// <param name="reactor">The reactor to build for.</param>
@@ -58,7 +63,7 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
         var name = naming.ToDeclarationName(reactor.Name);
         var path = naming.ToFilePath(reactor.SourceFilePath) ?? SourceFilePaths.Conventional(@namespace, name);
         var file = new FileReferenceSyntax(path, SourceLocation.Start);
-        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled, RefusalsEnabled = RefusalsEnabled };
+        var declarative = Application is null ? null : new DeclarativeReactions(naming, Application) { MetadataEnabled = MetadataEnabled, RefusalsEnabled = RefusalsEnabled, AtomicBatchesEnabled = AtomicBatchesEnabled };
 
         var triggers = reactor.ObservedEvents
             .Select(_ => (Event: _, Name: naming.ToDeclarationName(_)))
@@ -88,26 +93,32 @@ public class ReactorSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostic
     ReactionTriggerSyntax BuildTrigger(ReactorModel reactor, string @event, string name, DeclarativeReactions? declarative, FileReferenceSyntax file, string location)
     {
         var reaction = declarative?.For(reactor, @event);
-        if (reactor.Reactions.FirstOrDefault(_ => _.EventName == @event && _.UnprovenBatch is not null) is { } batch)
+        var gap = reactor.Reactions.Where(_ => _.EventName == @event).Select(model => declarative?.UnprovenBatch(model)).OfType<ReactionBatchGap>().FirstOrDefault();
+        if (gap is not null)
         {
+            var reason = gap.Kind == ReactionBatchGapKind.Closing
+                ? "closing reaction batches are not yet admitted (Cratis/Screenplay#770)"
+                : gap.Kind == ReactionBatchGapKind.Unreadable ? "its constraint behavior cannot be proven"
+                : gap.Kind == ReactionBatchGapKind.Unrepresented ? "a rejecting constraint is not represented in the document"
+                : "atomic reaction batches require ESM v22 and exceed ScreenplayOptions.MaximumExecutableModelVersion";
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnprovenReactionBatchConstraints,
-                $"The reaction of '{reactor.Name}' to '{@event}' keeps its file reference: Chronicle appends its {batch.Produces.Count()} returned events as one batch, but a Screenplay reaction appends each fact separately, and {batch.UnprovenBatch}",
+                $"The reaction of '{reactor.Name}' to '{@event}' keeps its file reference: {reason}; {gap.Message}",
                 reactor.MetadataLocation ?? location);
         }
 
         if (reaction is null)
         {
-            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location);
+            ReportCodeHandling(reactor, @event, reactor.MetadataLocation ?? location, gap is not null);
         }
 
         return Trigger(name, reaction, file);
     }
 
-    void ReportCodeHandling(ReactorModel reactor, string @event, string location)
+    void ReportCodeHandling(ReactorModel reactor, string @event, string location, bool batchGap)
     {
         var branches = reactor.Reactions.Where(reaction => reaction.EventName == @event).SelectMany(reaction => reaction.Invokes).Any(invocation => invocation.OnRefused.Count > 0);
-        var handles = branches || reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal);
+        var handles = (!batchGap || !branches) && (branches || reactor.RefusalHandlingHandlers.Contains(@event, StringComparer.Ordinal));
         var discards = reactor.DiscardedCommandResultHandlers.Contains(@event, StringComparer.Ordinal);
         if (handles || discards)
         {

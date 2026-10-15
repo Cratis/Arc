@@ -36,6 +36,11 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     public bool RefusalsEnabled { get; init; } = true;
 
     /// <summary>
+    /// Gets whether ESM v22 atomic reaction batches are admitted.
+    /// </summary>
+    internal bool AtomicBatchesEnabled { get; init; } = true;
+
+    /// <summary>
     /// Gets every declarative reaction the document states, with the reactor stating it.
     /// </summary>
     /// <returns>The reactions.</returns>
@@ -57,7 +62,7 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     {
         var name = naming.ToDeclarationName(@event);
         var reactions = reactor.Reactions.Where(_ => naming.ToDeclarationName(_.EventName) == name).ToList();
-        if (reactions is not [var reaction] || reaction.UnprovenBatch is not null || (!RefusalsEnabled && reaction.Invokes.Any(invocation => invocation.OnRefused.Count > 0)) || !new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor, reaction))
+        if (reactions is not [var reaction] || UnprovenBatch(reaction) is not null || (!RefusalsEnabled && reaction.Invokes.Any(invocation => invocation.OnRefused.Count > 0)) || !new ReactionMetadataAdmission(application, MetadataEnabled).CanExecute(reactor, reaction))
         {
             return null;
         }
@@ -71,6 +76,17 @@ public class DeclarativeReactions(IScreenplayNaming naming, ApplicationModel app
     /// <returns>The declaration names of the observed events.</returns>
     public IReadOnlySet<string> Observed() =>
         application.Slices.SelectMany(_ => _.Reactors).SelectMany(_ => _.ObservedEvents).Select(naming.ToDeclarationName).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Finds a direct or refusal batch whose required semantics are not admitted.
+    /// </summary>
+    /// <param name="reaction">The reaction to check.</param>
+    /// <returns>The first withheld batch reason, or null.</returns>
+    internal ReactionBatchGap? UnprovenBatch(ReactionModel reaction) =>
+        new[] { reaction.UnprovenBatch }.Concat(reaction.Invokes.SelectMany(invocation => invocation.OnRefused).Select(branch => branch.UnprovenBatch))
+            .OfType<ReactionBatchGap>().Select(gap => gap.Withheld(AtomicBatchesEnabled) ? gap :
+                AtomicBatchesEnabled ? ReactionBatchConstraintAdmission.Missing(gap, application) : null)
+            .OfType<ReactionBatchGap>().FirstOrDefault();
 
     /// <summary>
     /// Determines whether a value is written into the document exactly as the source states it.

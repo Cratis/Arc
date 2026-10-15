@@ -28,6 +28,8 @@ public class from_a_closing_event_in_a_returned_batch : a_returned_event_batch
         {
             AssertWithheld();
             Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("closes the stream");
+            Result.Diagnostics.Single(_ => _.Code == "SP0070").Message.ShouldContain("Cratis/Screenplay#770");
+            Result.Source.ShouldNotContain("reaction batches atomic");
         }
 
         AssertDocument();

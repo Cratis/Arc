@@ -44,6 +44,16 @@ public class with_ordered_refusal_branches : a_refusing_application
     }
 
     [Fact]
+    public void should_not_combine_separate_single_production_branches_into_a_batch()
+    {
+        GenerateRefusal(".OnRefused(Refused.ByValidation, refusal => new AuthorFiled(@event.Country))" +
+            ".OnRefused(Refused.ByAuthorization, refusal => new AuthorWelcomed(@event.Name, \"Welcome\"))");
+
+        Result.Source.ShouldNotContain("reaction batches");
+        AssertRefusalExtraction();
+    }
+
+    [Fact]
     public void should_keep_a_named_constraint_for_an_unrelated_event_as_code()
     {
         GenerateRefusal(".Acknowledge(Refused.ByConstraint(\"Other\"))", sources:

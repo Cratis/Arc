@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis;
 using Cratis.Arc.Screenplay.Analysis.Constraints;
+using Cratis.Arc.Screenplay.Model;
 
 namespace Cratis.Arc.Screenplay.for_ConstraintCoverage.when_reading;
 
@@ -30,6 +31,8 @@ public class with_unreadable_targets
         var @event = compilation.GetTypeByMetadataName("Library.E")!;
         var coverage = ConstraintCoverage.Read([rule, @event], new SemanticModels([compilation]));
 
-        coverage.UnprovenBatch([@event, @event]).ShouldContain("constraint 'Rule' cannot be read");
+        var gap = coverage.UnprovenBatch([@event, @event]);
+        gap!.Message.ShouldContain("constraint 'Rule' cannot be read");
+        gap.Kind.ShouldEqual(ReactionBatchGapKind.Unreadable);
     }
 }
