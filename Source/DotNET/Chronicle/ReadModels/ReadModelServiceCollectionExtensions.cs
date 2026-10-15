@@ -109,6 +109,7 @@ public static class ReadModelServiceCollectionExtensions
         services.TryAddSingleton<ReadProtectionMeasureQueue>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ReadProtectionMeasureQueue>(sp => sp.GetRequiredService<ReadProtectionMeasureQueue>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandExceptionMapper, ReadProtectionCommandExceptionMapper>());
         services.TryAddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>();
         services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
             sp.GetRequiredService<IEventStore>().GetDecisionReads(),

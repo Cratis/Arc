@@ -45,7 +45,7 @@ public static class CommandDecisionPolicy
     /// <summary>
     /// Gets whether this invocation is explicitly protected.
     /// </summary>
-    public static bool IsProtected => Mode == CommandDecisionMode.Protected;
+    public static bool IsProtected => Mode == CommandDecisionMode.Protected || ReadProtection == ReadProtectionMode.On;
 
     /// <summary>
     /// Gets whether discoverable validators are held to the protected-mode boundary, so only those Arc can certify run:

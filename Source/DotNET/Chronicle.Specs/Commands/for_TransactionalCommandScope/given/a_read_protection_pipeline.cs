@@ -37,6 +37,7 @@ public class a_read_protection_pipeline : Specification
         _services = Substitute.For<IServiceProvider>();
         _services.GetService(typeof(IUnitOfWorkManager)).Returns(manager);
         _services.GetService(typeof(IEventStore)).Returns(_store);
+        _services.GetService(typeof(ICommandProtectedDecisionSupport)).Returns(Substitute.For<ICommandProtectedDecisionSupport>());
         _services.GetService(typeof(AuthorizationDeclarations)).Returns(new AuthorizationDeclarations(
             new KnownInstancesOf<IAnonymousEvaluator>([]), new KnownInstancesOf<IAuthorizationAttributeEvaluator>([])));
         _filters = Substitute.For<ICommandFilters>();

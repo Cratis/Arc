@@ -56,9 +56,11 @@ public class DiscoverableValidators : IDiscoverableValidators
     {
         if (_validatorTypesByModelType.TryGetValue(modelType, out var value))
         {
-            var instance = CommandDecisionPolicy.RefusesDiscoverableValidators
-                ? ConstructForProtectedDecision(serviceProvider, value)
-                : Construct(serviceProvider, value);
+            var instance = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On
+                ? ConstructForReadProtection(serviceProvider, value)
+                : CommandDecisionPolicy.RefusesDiscoverableValidators
+                    ? ConstructForProtectedDecision(serviceProvider, value)
+                    : Construct(serviceProvider, value);
             validator = (instance as IValidator)!;
             return true;
         }
@@ -73,6 +75,26 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="validatorType">The validator type.</param>
     /// <returns>The public constructors.</returns>
     internal static ConstructorInfo[] PublicConstructorsOf(Type validatorType) => validatorType.GetConstructors();
+
+    /// <summary>
+    /// Constructs a fresh validator using command-aware parameter resolution.
+    /// </summary>
+    /// <param name="serviceProvider">The executing command's provider.</param>
+    /// <param name="validatorType">The validator type.</param>
+    /// <returns>The freshly constructed validator.</returns>
+    internal static object ConstructDependencies(IServiceProvider serviceProvider, Type validatorType)
+    {
+        var constructor = PublicConstructorsOf(validatorType)
+            .OrderByDescending(_ => _.GetParameters().Length)
+            .First();
+
+        var arguments = ParameterDependencyResolver.Resolve(
+            serviceProvider,
+            constructor.GetParameters(),
+            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
+
+        return constructor.Invoke(BindingFlags.DoNotWrapExceptions, null, arguments, null);
+    }
 
     /// <summary>
     /// Gets the model type a validator declares through <see cref="IDiscoverableValidator{T}"/>.
@@ -154,24 +176,23 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
+    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The provider did not construct a transient validator through Arc for this invocation.</exception>
+    static object ConstructForReadProtection(IServiceProvider serviceProvider, Type validatorType)
+    {
+        var registered = serviceProvider.GetService(validatorType);
+        if (registered is null)
+        {
+            return ConstructDependencies(serviceProvider, validatorType);
+        }
+
+        return ProtectedValidatorConstruction.IsConstructedForInvocation(registered)
+            ? registered
+            : throw DiscoverableValidatorRefusedInProtectedDecision.NotTransientForReadProtection(validatorType);
+    }
+
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
         // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
-        var registered = serviceProvider.GetService(validatorType);
-        if (registered is not null)
-        {
-            return registered;
-        }
-
-        var constructor = PublicConstructorsOf(validatorType)
-            .OrderByDescending(_ => _.GetParameters().Length)
-            .First();
-
-        var arguments = ParameterDependencyResolver.Resolve(
-            serviceProvider,
-            constructor.GetParameters(),
-            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
-
-        return constructor.Invoke(arguments);
+        return serviceProvider.GetService(validatorType) ?? ConstructDependencies(serviceProvider, validatorType);
     }
 }

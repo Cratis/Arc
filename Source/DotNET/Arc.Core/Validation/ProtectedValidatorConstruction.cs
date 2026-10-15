@@ -35,6 +35,7 @@ internal static class ProtectedValidatorConstruction
     const int InitialSnapshotCapacity = 16;
 
     static readonly ConditionalWeakTable<object, object[]> _constructed = new();
+    static readonly ConditionalWeakTable<object, object> _invocationConstructions = new();
     static readonly ConcurrentDictionary<Type, ConstructorInfo?> _parameterlessConstructors = new();
 
     /// <summary>
@@ -86,24 +87,44 @@ internal static class ProtectedValidatorConstruction
     /// </remarks>
     internal static void ConstructDependencyFreeValidatorsThroughArc(this IServiceCollection services, ITypes types)
     {
-        var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).Where(IsDependencyFree).ToHashSet();
+        var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).ToHashSet();
         for (var index = 0; index < services.Count; index++)
         {
             var descriptor = services[index];
             if (!descriptor.IsKeyedService &&
                 descriptor.ImplementationType is { } implementationType &&
                 implementationType == descriptor.ServiceType &&
-                validatorTypes.Contains(implementationType))
+                validatorTypes.Contains(implementationType) &&
+                (descriptor.Lifetime == ServiceLifetime.Transient || IsDependencyFree(implementationType)))
             {
                 var lifetime = descriptor.Lifetime;
                 services[index] = new ServiceDescriptor(
                     implementationType,
-                    _ => lifetime == ServiceLifetime.Transient && !CommandDecisionPolicy.RefusesDiscoverableValidators
-                        ? ConstructUncertified(implementationType)
-                        : Construct(implementationType),
+                    provider => CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && lifetime == ServiceLifetime.Transient
+                        ? ConstructForInvocation(provider, implementationType)
+                        : IsDependencyFree(implementationType)
+                            ? lifetime == ServiceLifetime.Transient && !CommandDecisionPolicy.RefusesDiscoverableValidators
+                                ? ConstructUncertified(implementationType)
+                                : Construct(implementationType)
+                            : ActivatorUtilities.CreateInstance(provider, implementationType),
                     lifetime);
             }
         }
+    }
+
+    /// <summary>
+    /// Checks that a registered validator was constructed fresh for this invocation through Arc's transient binding.
+    /// </summary>
+    /// <param name="validator">The registered validator.</param>
+    /// <returns>Whether the validator belongs to this invocation.</returns>
+    internal static bool IsConstructedForInvocation(object validator) =>
+        _invocationConstructions.TryGetValue(validator, out var token) && ReferenceEquals(token, CommandDecisionPolicy.Token);
+
+    static object ConstructForInvocation(IServiceProvider provider, Type validatorType)
+    {
+        var validator = DiscoverableValidators.ConstructDependencies(provider, validatorType);
+        _invocationConstructions.Add(validator, CommandDecisionPolicy.Token!);
+        return validator;
     }
 
     static object ConstructUncertified(Type validatorType) =>

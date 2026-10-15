@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.ReadModels;
@@ -10,7 +11,7 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolv
 public class when_measure_observes_a_redirect : given.a_parameter_lookup
 {
     MeterListener _listener;
-    readonly List<string> _categories = [];
+    readonly ConcurrentQueue<string> _categories = new();
     ReadModelKey _result;
 
     void Establish()
@@ -30,7 +31,7 @@ public class when_measure_observes_a_redirect : given.a_parameter_lookup
         {
             foreach (var tag in tags)
             {
-                if (tag.Key == "category") _categories.Add((string)tag.Value!);
+                if (tag.Key == "category") _categories.Enqueue((string)tag.Value!);
             }
         });
         _listener.Start();

@@ -49,6 +49,11 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// </summary>
     internal static FreshIdentifierScopes? CurrentFreshIdentifiers => ActiveFrame()?.FreshIdentifiers;
 
+    /// <summary>
+    /// Gets the enforcing unit retained until invocation exit, including after an early aggregate commit.
+    /// </summary>
+    internal static IUnitOfWork? CurrentProtectedUnit => ActiveFrame()?.Protection?.UnitOfWork;
+
     /// <inheritdoc/>
     public CommandCommitDisposition GetCommitDisposition(CommandContext context)
     {
@@ -352,9 +357,12 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
                     ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
                     Errors = commitResult.Errors,
                     ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ValidationResult.Error(
-                        $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
+                        frame.Protection is not null
+                            ? $"{_.ReadModelType.Name} '{_.Key}' changed after {context.Type.Name} read it. Nothing from this command was written; submit it again."
+                            : $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
                         state: new { readModel = _.ReadModelType.Name, key = (string)_.Key },
-                        reason: ValidationResultReason.ConcurrencyViolation))).ToArray()
+                        reason: ValidationResultReason.ConcurrencyViolation,
+                        reasonDetail: frame.Protection is not null ? "ReadChanged" : null))).ToArray()
                 };
                 result.MergeWith(mapped.ToCommandResult(result.CorrelationId));
             }
