@@ -18,6 +18,23 @@ namespace Cratis.Arc.Screenplay.Emission.Validation;
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unmappable is reported to.</param>
 public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnostics diagnostics)
 {
+    static readonly Dictionary<ModelRuleKind, SyntaxRuleKind> _kinds = new()
+    {
+        [ModelRuleKind.Rule] = SyntaxRuleKind.Rule,
+        [ModelRuleKind.Checksum] = SyntaxRuleKind.Checksum,
+        [ModelRuleKind.Max] = SyntaxRuleKind.Max,
+        [ModelRuleKind.Min] = SyntaxRuleKind.Min,
+        [ModelRuleKind.GreaterThan] = SyntaxRuleKind.GreaterThan,
+        [ModelRuleKind.GreaterThanOrEqual] = SyntaxRuleKind.GreaterThanOrEqual,
+        [ModelRuleKind.LessThan] = SyntaxRuleKind.LessThan,
+        [ModelRuleKind.LessThanOrEqual] = SyntaxRuleKind.LessThanOrEqual,
+        [ModelRuleKind.Equal] = SyntaxRuleKind.Equal,
+        [ModelRuleKind.Length] = SyntaxRuleKind.Length,
+        [ModelRuleKind.Matches] = SyntaxRuleKind.Matches,
+        [ModelRuleKind.AllGreaterThan] = SyntaxRuleKind.AllGreaterThan,
+        [ModelRuleKind.AllGreaterThanOrEqual] = SyntaxRuleKind.AllGreaterThanOrEqual
+    };
+
     /// <summary>
     /// Builds the validation blocks for a set of rules.
     /// </summary>
@@ -73,23 +90,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
     /// </summary>
     /// <param name="kind">The kind to convert.</param>
     /// <returns>The Screenplay rule kind.</returns>
-    static SyntaxRuleKind ToKind(ModelRuleKind kind) => kind switch
-    {
-        ModelRuleKind.Rule => SyntaxRuleKind.Rule,
-        ModelRuleKind.Checksum => SyntaxRuleKind.Checksum,
-        ModelRuleKind.Max => SyntaxRuleKind.Max,
-        ModelRuleKind.Min => SyntaxRuleKind.Min,
-        ModelRuleKind.GreaterThan => SyntaxRuleKind.GreaterThan,
-        ModelRuleKind.GreaterThanOrEqual => SyntaxRuleKind.GreaterThanOrEqual,
-        ModelRuleKind.LessThan => SyntaxRuleKind.LessThan,
-        ModelRuleKind.LessThanOrEqual => SyntaxRuleKind.LessThanOrEqual,
-        ModelRuleKind.Equal => SyntaxRuleKind.Equal,
-        ModelRuleKind.Length => SyntaxRuleKind.Length,
-        ModelRuleKind.Matches => SyntaxRuleKind.Matches,
-        ModelRuleKind.AllGreaterThan => SyntaxRuleKind.AllGreaterThan,
-        ModelRuleKind.AllGreaterThanOrEqual => SyntaxRuleKind.AllGreaterThanOrEqual,
-        _ => SyntaxRuleKind.NotEmpty
-    };
+    static SyntaxRuleKind ToKind(ModelRuleKind kind) => _kinds.GetValueOrDefault(kind, SyntaxRuleKind.NotEmpty);
 
     /// <summary>
     /// Converts the operand of a rule.

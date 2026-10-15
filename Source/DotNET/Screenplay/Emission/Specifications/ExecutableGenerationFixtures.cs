@@ -50,19 +50,26 @@ internal static class ExecutableGenerationFixtures
         {
             return specification with { GenerationFailure = "its UUID generation fixture must be version 4 with the RFC variant in an ESM v15 or v20 document" };
         }
-        foreach (var pin in specification.GeneratedValues)
+        var failure = specification.GeneratedValues.Select(pin => FixtureFailure(pin, command, model, concepts)).FirstOrDefault(reason => reason is not null);
+
+        return failure is null ? specification : specification with { GenerationFailure = failure };
+    }
+
+    static string? FixtureFailure(PropertyMappingModel pin, CommandModel? command, ApplicationModel model, IReadOnlyList<ConceptSyntax> concepts)
+    {
+        var type = command?.Authoring?.Generated.SingleOrDefault(property => property.Name == pin.Property)?.Type.Name;
+        var concept = concepts.SingleOrDefault(concept => concept.Name == type);
+        if (concept is null || !model.Concepts.Any(candidate => candidate.Name == type && NeedsProof(candidate)))
         {
-            var type = command?.Authoring?.Generated.SingleOrDefault(property => property.Name == pin.Property)?.Type.Name;
-            var concept = concepts.SingleOrDefault(concept => concept.Name == type);
-            if (concept is not null && model.Concepts.Any(candidate => candidate.Name == type && (candidate.Generation?.RequiresV21 == true || candidate.Validations.Any())) &&
-                (pin.Source is not LiteralSource { Value: { } value } || !GeneratedFixtureRules.Accepts(concept, value)))
-            {
-                return specification with { GenerationFailure = $"its generated fixture '{pin.Property}' fails concept '{type}' shape or rules (Rejected(Contract)); it is not a client validation error" };
-            }
+            return null;
         }
 
-        return specification;
+        return AcceptsFixture(concept, pin) ? null : $"its generated fixture '{pin.Property}' fails concept '{type}' shape or rules (Rejected(Contract)); it is not a client validation error";
     }
+
+    static bool NeedsProof(ConceptModel concept) => concept.Generation?.RequiresV21 == true || concept.Validations.Any();
+
+    static bool AcceptsFixture(ConceptSyntax concept, PropertyMappingModel pin) => pin.Source is LiteralSource { Value: { } value } && GeneratedFixtureRules.Accepts(concept, value);
 
     static bool IsInvalidUuid(PropertyMappingModel pin, CommandModel? command, ApplicationModel model)
     {

@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.Emission.Validation;
 
@@ -24,15 +26,17 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="model">The recovered application.</param>
     /// <param name="generatedConcepts">The concepts used for generation before admission pruning.</param>
+    /// <param name="cap">The executable generation version boundary.</param>
     /// <returns>The model without weakening a generated concept's rules.</returns>
-    internal ApplicationModel Apply(ApplicationModel model, IReadOnlySet<string> generatedConcepts)
+    internal ApplicationModel Apply(ApplicationModel model, IReadOnlySet<string> generatedConcepts, SemanticVersion? cap = null)
     {
         var exercised = model.Slices.SelectMany(slice => slice.Specifications)
             .Where(specification => specification.When is { Kind: SpecificationStateKind.Command } issued &&
                 ResponseOnlyScenarios.CanBeStated(specification, model.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == issued.Name)))
             .Select(specification => specification.When!.Name).ToHashSet(StringComparer.Ordinal);
         var commands = model.Slices.SelectMany(slice => slice.Commands).Where(command => exercised.Contains(command.Name)).ToList();
-        var opaqueConcepts = model.Concepts.Where(concept => (generatedConcepts.Contains(concept.Name) || concept.Generation is not null) &&
+        var owningConcepts = model.Concepts.Where(concept => OwnsValidation(concept, generatedConcepts, cap)).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
+        var opaqueConcepts = model.Concepts.Where(concept => owningConcepts.Contains(concept.Name) &&
             (concept.Validations.Any(rule => rule.Kind == ValidationRuleKind.Rule) ||
              (concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 && (concept.Validations.Any() || !concept.ValidationRecoveryComplete))))
             .Select(concept => concept.Name).ToList();
@@ -40,7 +44,7 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
 
         return model with
         {
-            Concepts = model.Concepts.Select(concept => generatedConcepts.Contains(concept.Name) || concept.Generation is not null ? concept : concept with
+            Concepts = model.Concepts.Select(concept => owningConcepts.Contains(concept.Name) ? concept : concept with
             {
                 Validations = Retain(concept.Validations, $"concept '{concept.Name}'", concept.Name, commands.Where(command => Carries(command, concept.Name, model)).Select(command => command.Name).ToList())
             }).ToList(),
@@ -54,6 +58,20 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
                 }).ToList()
             }).ToList()
         };
+    }
+
+    static bool OwnsValidation(ConceptModel concept, IReadOnlySet<string> generatedConcepts, SemanticVersion? cap)
+    {
+        if (generatedConcepts.Contains(concept.Name))
+        {
+            return true;
+        }
+        if (concept.Generation is not { } generation)
+        {
+            return false;
+        }
+
+        return !generation.RequiresV21 || GenerationAdmission.Failure(concept, cap) is null;
     }
 
     static bool Carries(CommandModel command, string concept, ApplicationModel model)

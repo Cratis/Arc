@@ -12,6 +12,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Validation;
 /// </summary>
 internal static class ChecksumValidation
 {
+    static readonly Dictionary<int, string> _algorithms = new() { [1] = "luhn", [2] = "mod11", [3] = "mod97" };
+
     /// <summary>
     /// Reads an algorithm without evaluating or approximating arbitrary predicates.
     /// </summary>
@@ -20,25 +22,55 @@ internal static class ChecksumValidation
     /// <returns>The portable algorithm name, or null.</returns>
     internal static string? Read(InvocationExpressionSyntax call, SemanticModel model)
     {
-        if (call.ArgumentList.Arguments is not [{ Expression: SimpleLambdaExpressionSyntax lambda }] ||
-            lambda.ExpressionBody is not InvocationExpressionSyntax body || model.GetOperation(body) is not IInvocationOperation invocation ||
-            !invocation.TargetMethod.ContainingType.Is("Cratis.Concepts.GenerateValue") || invocation.TargetMethod.Name != "HasValidChecksum" ||
-            !invocation.TargetMethod.DeclaringSyntaxReferences.IsEmpty || invocation.Arguments.Length != 2)
+        if (!IsStringConcept(call, model))
         {
             return null;
         }
-        var parameter = model.GetDeclaredSymbol(lambda.Parameter);
-        var value = invocation.Arguments[0].Value;
-        var checksum = invocation.Arguments[1].Value;
-        var validator = model.GetEnclosingSymbol(call.SpanStart)?.ContainingType;
-        var concept = ValidationReader.ValidatedTypeOf(validator!)?.FindBase(WellKnownTypeNames.ConceptAs);
-        if (concept?.TypeArguments is not [{ SpecialType: SpecialType.System_String }] ||
-            value is not IParameterReferenceOperation reference || !SymbolEqualityComparer.Default.Equals(reference.Parameter, parameter) ||
-            checksum is not IFieldReferenceOperation field || !field.Field.ContainingType.Is("Cratis.Concepts.Checksum"))
+        if (call.ArgumentList.Arguments is not [{ Expression: SimpleLambdaExpressionSyntax lambda }])
         {
             return null;
         }
 
-        return field.ConstantValue.Value switch { 1 => "luhn", 2 => "mod11", 3 => "mod97", _ => null };
+        return ReadPredicate(lambda, model);
+    }
+
+    static string? ReadPredicate(SimpleLambdaExpressionSyntax lambda, SemanticModel model)
+    {
+        if (lambda.ExpressionBody is not InvocationExpressionSyntax body || model.GetOperation(body) is not IInvocationOperation invocation)
+        {
+            return null;
+        }
+        if (!IsChecksumCall(invocation) || !UsesValue(invocation, model.GetDeclaredSymbol(lambda.Parameter)))
+        {
+            return null;
+        }
+
+        return AlgorithmOf(invocation.Arguments[1].Value);
+    }
+
+    static bool IsStringConcept(SyntaxNode call, SemanticModel model)
+    {
+        var validator = model.GetEnclosingSymbol(call.SpanStart)?.ContainingType;
+        var concept = ValidationReader.ValidatedTypeOf(validator!)?.FindBase(WellKnownTypeNames.ConceptAs);
+
+        return concept?.TypeArguments is [{ SpecialType: SpecialType.System_String }];
+    }
+
+    static bool IsChecksumCall(IInvocationOperation call) => call.Arguments.Length == 2 && IsChecksumMethod(call.TargetMethod);
+
+    static bool IsChecksumMethod(IMethodSymbol method) => method.Name == "HasValidChecksum" &&
+        method.DeclaringSyntaxReferences.IsEmpty && method.ContainingType.Is("Cratis.Concepts.GenerateValue");
+
+    static bool UsesValue(IInvocationOperation call, ISymbol? parameter) => call.Arguments[0].Value is IParameterReferenceOperation reference &&
+        SymbolEqualityComparer.Default.Equals(reference.Parameter, parameter);
+
+    static string? AlgorithmOf(IOperation value)
+    {
+        if (value is not IFieldReferenceOperation field || !field.Field.ContainingType.Is("Cratis.Concepts.Checksum"))
+        {
+            return null;
+        }
+
+        return field.ConstantValue.Value is int algorithm ? _algorithms.GetValueOrDefault(algorithm) : null;
     }
 }

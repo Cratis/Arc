@@ -123,6 +123,8 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         return null;
     }
 
+    static bool IsPortable(string? path) => path is not null && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal);
+
     /// <summary>
     /// Reads one call of a rule chain.
     /// </summary>
@@ -180,31 +182,19 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
             return 2;
         }
 
-        if (!forEach && property == "Value" && name == "Must" && !conditional && ChecksumValidation.Read(call, semanticModel) is { } checksum)
-        {
-            rules.Add(new(property, ValidationRuleKind.Checksum, checksum, null));
-
-            return 1;
-        }
-
-        if (!forEach && !property.Contains('.', StringComparison.Ordinal) && name == "Must" &&
-            call.ArgumentList.Arguments is [var argument] &&
-            argument.Expression is IdentifierNameSyntax or MemberAccessExpressionSyntax &&
-            semanticModel.GetSymbolInfo(argument.Expression).Symbol is IMethodSymbol predicate &&
-            predicate.SourceFilePath() is { } source && !GeneratedSource.Is(source) &&
-            paths?.Relative(source) is { } path && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal))
+        if (!forEach && name == "Must" && ReadCustomRule(call, property, semanticModel, conditional) is { } custom)
         {
             if (conditional)
             {
                 diagnostics.Warning(
                     ScreenplayDiagnosticCodes.UnmappableValidationRule,
-                    $"The named rule '{predicate.Name}' on '{property}' executes conditionally, but a named rule carries no condition, so it was left out",
+                    $"The named rule '{custom.Value}' on '{property}' executes conditionally, but a named rule carries no condition, so it was left out",
                     location);
 
                 return -1;
             }
 
-            rules.Add(new(property, ValidationRuleKind.Rule, predicate.Name, null) { SourceFilePath = path });
+            rules.Add(custom);
 
             return 1;
         }
@@ -232,6 +222,39 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         rules.Add(new(property, kind, _operands.Read(call, name, semanticModel, location), null));
 
         return 1;
+    }
+
+    ValidationRuleModel? ReadCustomRule(InvocationExpressionSyntax call, string property, SemanticModel model, bool conditional)
+    {
+        var checksum = !conditional && property == "Value" ? ChecksumValidation.Read(call, model) : null;
+
+        return checksum is not null ? new(property, ValidationRuleKind.Checksum, checksum, null) : ReadNamedRule(call, property, model);
+    }
+
+    ValidationRuleModel? ReadNamedRule(InvocationExpressionSyntax call, string property, SemanticModel model)
+    {
+        if (property.Contains('.', StringComparison.Ordinal) || call.ArgumentList.Arguments is not [var argument])
+        {
+            return null;
+        }
+        if (argument.Expression is not (IdentifierNameSyntax or MemberAccessExpressionSyntax) || model.GetSymbolInfo(argument.Expression).Symbol is not IMethodSymbol predicate)
+        {
+            return null;
+        }
+        var path = PredicatePath(predicate);
+
+        return path is null ? null : new(property, ValidationRuleKind.Rule, predicate.Name, null) { SourceFilePath = path };
+    }
+
+    string? PredicatePath(IMethodSymbol predicate)
+    {
+        if (predicate.SourceFilePath() is not { } source || GeneratedSource.Is(source))
+        {
+            return null;
+        }
+        var path = paths?.Relative(source);
+
+        return IsPortable(path) ? path : null;
     }
 
     /// <summary>

@@ -40,6 +40,8 @@ internal static class GenerationCallReader
         [2] = "base32"
     };
 
+    static readonly Dictionary<int, string?> _checksums = new() { [0] = null, [1] = "luhn", [2] = "mod11", [3] = "mod97" };
+
     /// <summary>
     /// Reads a direct generation invocation without evaluating application code.
     /// </summary>
@@ -48,24 +50,12 @@ internal static class GenerationCallReader
     /// <returns>The recovered strategy, or null when the call cannot be stated.</returns>
     public static GenerationModel? Read(ExpressionSyntax expression, SemanticModel model)
     {
-        expression = UnwrapParentheses(expression);
-        if (expression is CastExpressionSyntax cast)
+        return UnwrapParentheses(expression) switch
         {
-            var strategy = Read(cast.Expression, model);
-
-            return model.GetTypeInfo(cast.Type).Type?.SpecialType == SpecialType.System_Int32 &&
-                strategy?.Kind == "random" && BoundsWithinInt32(cast.Expression, model) ? strategy : null;
-        }
-        if (expression is not InvocationExpressionSyntax call || model.GetOperation(call) is not IInvocationOperation invocation)
-        {
-            return null;
-        }
-        if (!IsStatableInvocation(invocation))
-        {
-            return null;
-        }
-
-        return _readers.TryGetValue(invocation.TargetMethod.ContainingType.FullMetadataName(), out var read) ? read(invocation) : null;
+            CastExpressionSyntax cast => ReadInt32Cast(cast, model),
+            InvocationExpressionSyntax call => ReadInvocation(model.GetOperation(call) as IInvocationOperation),
+            _ => null
+        };
     }
 
     /// <summary>
@@ -75,6 +65,27 @@ internal static class GenerationCallReader
     /// <returns>The expression inside its parentheses.</returns>
     public static ExpressionSyntax UnwrapParentheses(ExpressionSyntax expression) => expression is ParenthesizedExpressionSyntax parenthesized
         ? UnwrapParentheses(parenthesized.Expression) : expression;
+
+    static GenerationModel? ReadInt32Cast(CastExpressionSyntax cast, SemanticModel model)
+    {
+        if (model.GetTypeInfo(cast.Type).Type?.SpecialType != SpecialType.System_Int32)
+        {
+            return null;
+        }
+        var strategy = Read(cast.Expression, model);
+
+        return strategy?.Kind == "random" && BoundsWithinInt32(cast.Expression, model) ? strategy : null;
+    }
+
+    static GenerationModel? ReadInvocation(IInvocationOperation? invocation)
+    {
+        if (invocation is null || !IsStatableInvocation(invocation))
+        {
+            return null;
+        }
+
+        return _readers.TryGetValue(invocation.TargetMethod.ContainingType.FullMetadataName(), out var read) ? read(invocation) : null;
+    }
 
     static bool IsStatableInvocation(IInvocationOperation invocation) => invocation.TargetMethod.IsStatic && invocation.TargetMethod.DeclaringSyntaxReferences.IsEmpty && invocation.Arguments.All(IsStatable);
 
@@ -109,13 +120,20 @@ internal static class GenerationCallReader
 
     static GenerationModel? Pattern(IInvocationOperation call)
     {
-        if (Value(call, "pattern") is not string pattern || Value(call, "checksum") is not int checksum || checksum is < 0 or > 3)
+        if (Value(call, "pattern") is not string pattern || !HasPatternContext(call, pattern))
+        {
+            return null;
+        }
+        if (Value(call, "checksum") is not int checksum || !_checksums.TryGetValue(checksum, out var algorithm))
         {
             return null;
         }
 
-        return new("pattern") { Pattern = pattern, Checksum = checksum switch { 1 => "luhn", 2 => "mod11", 3 => "mod97", _ => null } };
+        return new("pattern") { Pattern = pattern, Checksum = algorithm };
     }
+
+    static bool HasPatternContext(IInvocationOperation call, string pattern) =>
+        call.TargetMethod.Parameters.Any(parameter => parameter.Type.Is("Cratis.Concepts.GenerationContext")) || !GenerationPatternContext.UsesDates(pattern);
 
     static GenerationModel? Integer(IInvocationOperation call) => Value(call, "minimum") is long minimum && Value(call, "maximum") is long maximum
         ? new("random") { Range = $"{minimum.ToString(CultureInfo.InvariantCulture)}..{maximum.ToString(CultureInfo.InvariantCulture)}" } : null;

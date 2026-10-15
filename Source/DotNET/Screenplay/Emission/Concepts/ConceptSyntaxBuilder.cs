@@ -85,22 +85,29 @@ public class ConceptSyntaxBuilder(
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
     }
 
-    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept)
+    static IEnumerable<ValidationRuleModel> UuidValidationContract(ConceptModel concept) => NeedsUuidSource(concept) ? concept.ValidatorSources : concept.Validations;
+
+    static bool NeedsUuidSource(ConceptModel concept) => concept.Primitive == ScreenplayPrimitive.Uuid && UsesGeneration(concept) && HasValidatorSource(concept);
+
+    static bool UsesGeneration(ConceptModel concept) => concept.HasGeneratedUses || concept.Generation is not null;
+
+    static bool HasValidatorSource(ConceptModel concept) => concept.ValidatorSources.Count > 0 && (concept.Validations.Any() || !concept.ValidationRecoveryComplete);
+
+    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept) => IsChecksumCapped(concept)
+        ? CappedChecksumContract(concept) : UuidValidationContract(concept);
+
+    bool IsChecksumCapped(ConceptModel concept) => MaximumExecutableModelVersion is { } cap &&
+        !cap.IsAtLeast(SemanticVersion.V21) && concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum);
+
+    IEnumerable<ValidationRuleModel> CappedChecksumContract(ConceptModel concept)
     {
-        if (concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum) &&
-            MaximumExecutableModelVersion is { } cap && !cap.IsAtLeast(SemanticVersion.V21))
-        {
-            diagnostics.Information(
-                ScreenplayDiagnosticCodes.GenerationNotRecoverable,
-                $"Concept '{concept.Name}': checksum validation requires ESM v21, but the cap is ESM v{cap}; the original validator is retained",
-                concept.Name);
+        var retained = concept.ValidatorSources.Count > 0 ? "the original validator is retained" : "the validator remains in code; no portable source attachment is available";
+        diagnostics.Information(
+            ScreenplayDiagnosticCodes.GenerationNotRecoverable,
+            $"Concept '{concept.Name}': checksum validation requires ESM v21, but the cap is ESM v{MaximumExecutableModelVersion}; {retained}",
+            concept.Name);
 
-            return concept.ValidatorSources.Concat(concept.Validations.Where(rule => rule.Kind != Model.ValidationRuleKind.Checksum));
-        }
-
-        return (concept.HasGeneratedUses || concept.Generation is not null) && concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 &&
-            (concept.Validations.Any() || !concept.ValidationRecoveryComplete)
-            ? concept.ValidatorSources : concept.Validations;
+        return concept.ValidatorSources.Concat(concept.Validations.Where(rule => rule.Kind != Model.ValidationRuleKind.Checksum));
     }
 
     /// <summary>

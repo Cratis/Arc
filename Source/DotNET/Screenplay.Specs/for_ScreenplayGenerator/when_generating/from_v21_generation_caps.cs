@@ -31,6 +31,22 @@ public class from_v21_generation_caps : a_generation_strategy
     }
 
     [Theory]
+    [InlineData("GenerateValue.Pattern(\"[AB]{64}\")")]
+    [InlineData("string.Concat(\"prefix\", Guid.NewGuid().ToString())")]
+    public void should_explain_the_actual_cap_refusal_for_identifiers(string call)
+    {
+        var source = Source(call).Replace(
+            "public AuthorRegistered Handle([GeneratedValue(\"receipt\")] AuthorId value) => new(Name, value);",
+            "public (AuthorId, AuthorRegistered) Handle([GeneratedValue(\"receipt\")] AuthorId value) => (value, new(Name, value));",
+            StringComparison.Ordinal);
+        Generate(new ScreenplayOptions { MaximumExecutableModelVersion = SemanticVersion.V20 }, (Analyzed.SlicePath, source));
+        var diagnostic = Result.Diagnostics.Single(diagnostic => diagnostic.Message.StartsWith("Generated identifier 'receipt':", StringComparison.Ordinal));
+        diagnostic.Message.ShouldContain("generation requires ESM v21");
+        diagnostic.Message.ShouldNotContain(": ;");
+        AssertPartialDocument();
+    }
+
+    [Theory]
     [InlineData("GenerateValue.Pattern(\"[AB]{20}\")", "string", false)]
     [InlineData("GenerateValue.Pattern(\"[AB]{64}\")", "string", true)]
     [InlineData("GenerateValue.Integer(1, 9)", "long", false)]

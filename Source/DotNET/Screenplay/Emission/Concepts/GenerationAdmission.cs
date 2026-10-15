@@ -24,33 +24,8 @@ internal static class GenerationAdmission
     /// <param name="concept">The complete recovered concept.</param>
     /// <param name="cap">The requested executable version cap.</param>
     /// <returns>The refusal, including a language witness when refuted, or null.</returns>
-    internal static string? Failure(ConceptModel concept, SemanticVersion? cap)
-    {
-        if (concept.Primitive == ScreenplayPrimitive.Uuid && concept.Validations.Any())
-        {
-            return "UUID concept validation has no admissible non-opaque rule in Screenplay 4.164; the original validator is retained as a source attachment";
-        }
-        if (!concept.ValidationRecoveryComplete || concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Rule))
-        {
-            return "its default concept validation is unreadable, conditional or opaque; the complete executable validation contract could not be recovered";
-        }
-        if (concept.Generation is not null && !IsImplicit(concept) && (concept.IsPii || concept.IsSensitive))
-        {
-            return "generation with compliance markers is not executable yet (Cratis/Screenplay#616 phase 4)";
-        }
-        var v21 = concept.Generation?.RequiresV21 == true || concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum);
-        var required = v21 ? SemanticVersion.V21 : concept.Validations.Any() ? SemanticVersion.V20 : SemanticVersion.V15;
-        if ((concept.Validations.Any() || !IsImplicit(concept)) && cap is { } version && !version.IsAtLeast(required))
-        {
-            return $"generation requires ESM v{required}, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}; validation rules are retained";
-        }
-        if (!v21 && !concept.Validations.Any())
-        {
-            return null;
-        }
-
-        return CheckRules(concept);
-    }
+    internal static string? Failure(ConceptModel concept, SemanticVersion? cap) =>
+        ValidationFailure(concept) ?? ComplianceFailure(concept) ?? VersionFailure(concept, cap) ?? ProofFailure(concept);
 
     /// <summary>
     /// Checks whether the strategy is the unmodified UUID default.
@@ -115,4 +90,47 @@ internal static class GenerationAdmission
 
         return errors.Count > 0 ? string.Join("; ", errors.Select(error => $"{error.Code}: {error.Message}")) : null;
     }
+
+    static string? ValidationFailure(ConceptModel concept)
+    {
+        if (concept.Primitive == ScreenplayPrimitive.Uuid && concept.Validations.Any())
+        {
+            return "UUID concept validation has no admissible non-opaque rule in Screenplay 4.164; the original validator is retained as a source attachment";
+        }
+
+        return HasOpaqueValidation(concept) ? "its default concept validation is unreadable, conditional or opaque; the complete executable validation contract could not be recovered" : null;
+    }
+
+    static bool HasOpaqueValidation(ConceptModel concept) => !concept.ValidationRecoveryComplete || concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Rule);
+
+    static string? ComplianceFailure(ConceptModel concept)
+    {
+        if (concept.Generation is null || IsImplicit(concept))
+        {
+            return null;
+        }
+
+        return concept.IsPii || concept.IsSensitive ? "generation with compliance markers is not executable yet (Cratis/Screenplay#616 phase 4)" : null;
+    }
+
+    static string? VersionFailure(ConceptModel concept, SemanticVersion? cap)
+    {
+        if (cap is not { } version || !HasExplicitContract(concept))
+        {
+            return null;
+        }
+        var required = RequiredVersion(concept);
+
+        return version.IsAtLeast(required) ? null : $"generation requires ESM v{required}, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}; validation rules are retained";
+    }
+
+    static bool HasExplicitContract(ConceptModel concept) => concept.Validations.Any() || !IsImplicit(concept);
+
+    static bool RequiresV21(ConceptModel concept) => concept.Generation?.RequiresV21 == true || concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum);
+
+    static SemanticVersion RequiredVersion(ConceptModel concept) => RequiresV21(concept) ? SemanticVersion.V21 : ValidationVersion(concept);
+
+    static SemanticVersion ValidationVersion(ConceptModel concept) => concept.Validations.Any() ? SemanticVersion.V20 : SemanticVersion.V15;
+
+    static string? ProofFailure(ConceptModel concept) => RequiresV21(concept) || concept.Validations.Any() ? CheckRules(concept) : null;
 }

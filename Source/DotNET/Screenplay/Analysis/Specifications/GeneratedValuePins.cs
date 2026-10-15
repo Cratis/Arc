@@ -229,20 +229,27 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         return StatableValues.TryState(concept, value, out _) ? new LiteralSource(value) : null;
     }
 
-    LiteralSource? V21Literal(ExpressionSyntax expression, INamedTypeSymbol concept, SemanticModel model)
+    LiteralSource? V21Literal(ExpressionSyntax expression, INamedTypeSymbol concept, SemanticModel model) =>
+        PrimitiveLiteral(expression, concept, model) ?? HeldV21Literal(expression, concept, model);
+
+    LiteralSource? PrimitiveLiteral(ExpressionSyntax expression, INamedTypeSymbol concept, SemanticModel model) =>
+        new UuidGenerationForms(models).PrimitiveOf(expression, concept, model) is { } primitive
+            ? SpecificationEventSources.ReadLiteral(primitive, model) : null;
+
+    LiteralSource? HeldV21Literal(ExpressionSyntax expression, INamedTypeSymbol concept, SemanticModel model)
     {
-        if (new UuidGenerationForms(models).PrimitiveOf(expression, concept, model) is { } primitive)
-        {
-            return SpecificationEventSources.ReadLiteral(primitive, model);
-        }
         var symbol = model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol;
-        if (symbol is null || held.InitializerOf(symbol, model.Compilation) is not { } initializer || models.For(initializer.SyntaxTree) is not { } initializerModel)
+        if (symbol is null)
+        {
+            return null;
+        }
+        var initializer = held.InitializerOf(symbol, model.Compilation);
+        if (initializer is null)
         {
             return null;
         }
 
-        return new UuidGenerationForms(models).PrimitiveOf(initializer, concept, initializerModel) is { } value
-            ? SpecificationEventSources.ReadLiteral(value, initializerModel) : null;
+        return models.For(initializer.SyntaxTree) is { } initializerModel ? PrimitiveLiteral(initializer, concept, initializerModel) : null;
     }
 
     LiteralSource? Literal(ExpressionSyntax expression, SemanticModel model) =>

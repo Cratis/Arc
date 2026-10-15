@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text.Json;
 using Cratis.Arc.Screenplay.for_ScreenplayGenerator.given;
 using Cratis.Screenplay.Semantics;
 
@@ -28,6 +29,29 @@ public class from_pattern_generation : a_generation_strategy
             .Replace("AuthorId New()", "AuthorId New(GenerationContext context)", StringComparison.Ordinal);
         Generate((Analyzed.SlicePath, source));
         AssertStrategy("generate pattern \"{yyyy}{MM}[A-Z]{16}\"");
+    }
+
+    [Theory]
+    [InlineData("{yyyy}[AB]{20}")]
+    [InlineData("{yy}[AB]{20}")]
+    [InlineData("{MM}[AB]{20}")]
+    [InlineData("{dd}[AB]{20}")]
+    public void should_refuse_dates_without_a_factory_context(string pattern)
+    {
+        Generate((Analyzed.SlicePath, Source($"GenerateValue.Pattern({JsonSerializer.Serialize(pattern)})")));
+        Result.Source.ShouldNotContain("generate ");
+        Result.Source.ShouldNotContain("receipt AuthorId generated");
+        Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).ShouldBeTrue();
+        AssertPartialDocument();
+    }
+
+    [Theory]
+    [InlineData("\\{yyyy\\}[AB]{20}")]
+    [InlineData("[{MM}][AB]{20}")]
+    public void should_not_treat_literal_braces_as_date_references(string pattern)
+    {
+        Generate((Analyzed.SlicePath, Source($"GenerateValue.Pattern({JsonSerializer.Serialize(pattern)})")));
+        AssertStrategy("generate pattern");
     }
 
     [Theory]

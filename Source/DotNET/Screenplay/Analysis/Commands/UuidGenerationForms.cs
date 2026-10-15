@@ -37,19 +37,14 @@ internal class UuidGenerationForms(SemanticModels models)
         {
             return null;
         }
-        var casts = primitive.DescendantNodesAndSelf().OfType<CastExpressionSyntax>().ToArray();
         var backing = type.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments.SingleOrDefault()?.SpecialType;
-        if (casts.Length > 0 && (backing != SpecialType.System_Int32 || casts.Length != 1 || GenerationCallReader.UnwrapParentheses(primitive) != casts[0]))
+        if (!AllowsCasts(primitive, backing))
         {
             return null;
         }
         var generation = GenerationCallReader.Read(primitive, model);
-        if (generation?.Kind == "random" && (backing is not (SpecialType.System_Int32 or SpecialType.System_Int64) || (backing == SpecialType.System_Int32 && casts.Length != 1)))
-        {
-            return null;
-        }
 
-        return generation;
+        return HasMatchingBacking(generation, primitive, backing) ? generation : null;
     }
 
     /// <summary>
@@ -68,6 +63,36 @@ internal class UuidGenerationForms(SemanticModels models)
             BaseObjectCreationExpressionSyntax { Initializer: null, ArgumentList.Arguments: [var argument] } creation when ConstructsConcept(creation, type, model) => argument.Expression,
             _ when ThroughConversion(expression, type, model) => expression,
             _ => null
+        };
+    }
+
+    static bool AllowsCasts(ExpressionSyntax primitive, SpecialType? backing)
+    {
+        var casts = primitive.DescendantNodesAndSelf().OfType<CastExpressionSyntax>().ToArray();
+        if (casts.Length == 0)
+        {
+            return true;
+        }
+        if (backing != SpecialType.System_Int32)
+        {
+            return false;
+        }
+
+        return casts.Length == 1 && GenerationCallReader.UnwrapParentheses(primitive) == casts[0];
+    }
+
+    static bool HasMatchingBacking(GenerationModel? generation, ExpressionSyntax primitive, SpecialType? backing)
+    {
+        if (generation?.Kind != "random")
+        {
+            return true;
+        }
+
+        return backing switch
+        {
+            SpecialType.System_Int64 => true,
+            SpecialType.System_Int32 => GenerationCallReader.UnwrapParentheses(primitive) is CastExpressionSyntax,
+            _ => false
         };
     }
 
