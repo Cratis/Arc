@@ -50,7 +50,7 @@ internal sealed class ConstraintBatchRequirements
 
         var identities = events.Select(EventProducers.IdentityOf).ToHashSet(StringComparer.Ordinal);
         var required = _rules.Where(rule => rule.Targets.Overlaps(identities)).ToList();
-        if (required.FirstOrDefault(rule => rule.Rule is null) is { Rule: null, Name: { } name })
+        if (required.Find(rule => rule.Rule is null) is { Rule: null, Name: { } name })
         {
             return new(ReactionBatchGapKind.Unrepresented, $"constraint '{name}' is not represented in the document")
             {
