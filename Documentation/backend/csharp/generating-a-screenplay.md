@@ -149,7 +149,11 @@ An event used by exactly one production site can appear as `produces event <Name
 
 Both forms preserve descriptions, documentation, rename pins, and the persisted payload shape. Inlining changes where the declaration appears, not its executable meaning. Scoped embedded documents still import an inline event declared outside their scope, and the board keeps its schema and flow links.
 
-The generator emits `identifier` and explicit `for` destinations only when every production demonstrably uses command context. A directly returned `(TEvent, TResponse)` tuple preserves that destination when the response cannot be an event source identifier, including returns through `Task` or `ValueTask`. Arc handles the event through command context and returns the separate response to the caller; an ordinary response does not replace the event source. A response typed as an event source identifier, `object`, or an interface does not prove this routing. A routed wrapper, an unproven tuple destination, explicit append, or aggregate fetched for another identity keeps standalone productions without `for`; `SP0051` reports the unrepresented destination once per command, even when the command has no identifier, rather than retargeting it. In both default and authoring modes, the command's whole source and stream route is also withheld with `SP0054`, regardless of identifier type, because it would claim the production lands on the command's source and stream.
+The generator retains `identifier` and explicit `for` destinations when every production uses proven command context or has an admitted explicit destination and effective route. A directly returned `(TEvent, TResponse)` tuple keeps command context when its response cannot be an event source identifier, including returns through `Task` or `ValueTask`. A returned Chronicle identity tuple can instead select a proven required input. An arbitrary `Guid` or string response is not treated as an identity; `object`, interfaces and unknown union branches cannot prove the destination.
+
+Returned `EventForEventSourceId` wrappers can supply per-production `for` and `stream` overrides, including arrays, literal lists and mixed plain-event/wrapper tuples or collections. Each occurrence keeps its own destination and route, even when the same event type appears several times. Plain siblings retain command defaults and state their own `for`. See [Event sources and streams](#event-sources-and-streams) for admission limits.
+
+Unproven destinations, explicit appends and aggregates fetched for another identity keep the conservative standalone-event fallback. Information diagnostic `SP0051` reports the omitted destination once per command rather than redirecting it. An unproven override also withholds the command route with `SP0054` in both output modes: keeping it would claim routing the generator could not establish.
 
 ## Read models
 
@@ -366,7 +370,57 @@ A route tells you where a command's facts land, not just which event type it pro
 
 Command stream ids can come from a direct required scalar command property or a portable literal attribute. A template containing exactly one property placeholder and no surrounding text, such as `[EventStreamId("{Name}")]`, maps that direct required portable property. Explicitly typed composite parts in an application model are emitted together, in declaration order. Other C# formatting templates are not assumed to have Screenplay's escaped composite encoding: an unproven template remains in code with `SP0054`, rather than becoming a different stream id.
 
-A command keeps its route only when every production demonstrably uses command context. An explicitly routed or unproven production withholds the whole route with `SP0054` in both modes, including for `Uuid`, UUID-backed concepts, and routes without an identifier type.
+### Per-production destinations and routes
+
+A returned `EventForEventSourceId` can override the command's destination and classification independently. For example, this command records an audit fact on its own source and a registration on a different source:
+
+```csharp
+using Cratis.Arc.Commands.ModelBound;
+using Cratis.Chronicle.Events;
+using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.Keys;
+
+[EventType] public record AuthorAudited(string Name);
+[EventType] public record AuthorRegistered(string Name);
+
+[Command, EventSourceType("Account"), EventStreamType("Main")]
+public record RegisterAuthor([Key] string Id, string OtherId, string Month, string Name)
+{
+    public object[] Handle() =>
+    [
+        new AuthorAudited(Name),
+        new EventForEventSourceId(OtherId, new AuthorRegistered(Name))
+        {
+            EventSourceType = "Ledger",
+            EventStreamType = "Postings",
+            EventStreamId = Month
+        }
+    ];
+}
+```
+
+Its generated command body includes these productions; the document also declares `Account.Main` and the scalar-keyed `Ledger.Postings` stream:
+
+```screenplay
+produces event AuthorAudited
+  for id
+  name String = name
+produces event AuthorRegistered
+  for otherId
+  stream Ledger.Postings
+    streamId = month
+  name String = name
+```
+
+The destination must be a proven required scalar command property or admitted generated identifier. Types remain nominal: a UUID-backed identity concept is not silently converted to bare `Uuid` to satisfy another source's identifier. Key-only fan-out without an admitted stream or generated command identifier stays withheld because the pinned binder cannot admit it. A complete override can be recovered even when the command declares no default route. Constructor argument names are bound by parameter, not written order.
+
+Legacy source, stream and key sentinels inherit the corresponding command values. Definition routing is coupled instead: `EventSource = typeof(TSource)` selects that definition and its own `EventStream`; a stream-only definition override uses the command's definition. Legacy source/stream type strings clear definition routing. Definition and constant-backed stored names retain their model names and `id` pins; unknown ownership or incompatible declarations are refused. The emitted override states the complete effective route, including an inherited stream id, rather than assuming that changing streams clears its key.
+
+Stream keys admit direct required portable inputs and nonempty NFC literals. Proven scalar conversions preserve nominal types, including UUID `ToString()`/`ToString("D")` and integer-backed concepts formatted with `CultureInfo.InvariantCulture`; other formatters are not assumed equivalent. A single-placeholder **attribute** template can map an input, but wrapper text such as `EventStreamId = "{Month}"` is literal text, not an inferred template. Computed ids, multipart formatting, nested or optional inputs, generated stream keys, unreturned constructions, collection spreads and unsupported metadata such as subject, occurrence time, tags or causation stay in code. An unavailable generated dependency in a destination or route withholds the whole production, never retargets it; dependent successful scenarios are withheld too.
+
+Overrides require ESM v10. A `MaximumExecutableModelVersion` cap of v7, v8 or v9 withholds overrides in **both** modes, with located `SP0054` naming v10 and the cap. `SP0051` preserves the unknown-destination fallback; command defaults are not substituted for an omitted override. Unchanged default-only routes still need only v8. When an explicit destination needs a production stream identical to the default stream, Screenplay can report the redundant-route advisory `PLAY0664`; removing that stream would make non-identifier fan-out unbindable.
+
+Recovery does not establish renderer support. In particular, Stage must refuse unkeyed overrides under keyed defaults until its Arc adapter prevents sentinel key inheritance. The generator describes Arc's actual effective key; it does not promise render-and-recover equivalence.
 
 Property-path mappings and routes on handler commands remain authoring-only (`PLAY0268`). Generated-property mappings, incompatible source or stream declarations, and the reserved source name `Default` cannot be emitted faithfully (`PLAY0273`); `SP0054` identifies the reason and the complete route is withheld. No partial stream-id mapping or orphan source declaration is emitted.
 
@@ -980,13 +1034,13 @@ These details can remain outside the document because the language has no counte
 | Query paging and sorting, custom routes                                                               | These say how a model is served rather than what it is. The parameters the host fills in are left out, and a route template — `[Path]`, `[Route]`, or a template on an HTTP verb — has no counterpart. `SP0041`.                                                                                                                                                                                                                                    |
 | Several command identity candidates | The generator cannot choose between key properties or event source identities. No `identifier` is emitted. Information diagnostic `SP0049`. |
 | An unreadable command identity | A self-provided identity must directly return a required scalar command property; an optional or collection key cannot be an identifier. Information diagnostic `SP0050`. |
-| An explicit or unprovable production destination | A production cannot be proven to use the command's event source. Its `for` destination and the command's identifier modifier are omitted rather than guessed. Information diagnostic `SP0051`. |
+| An unprovable production destination | Proven returned wrappers and identity tuples can emit per-production destinations and effective routes. Unproven routing, key-only fan-out without an admitted stream/generated identifier, and overrides below an ESM v10 cap retain the conservative fallback instead. Information diagnostic `SP0051`. |
 | Generated values and responses outside supported shapes | Admitted values and responses are emitted by default. A generated value needs a required scalar generatable concept with completely recovered, non-opaque validation and no compliance markers; rule-free non-default strategies require ESM v15 and validated strategies require ESM v20; a response must be a direct property or fully readable record. Unsupported shapes and pre-generation references remain in code. Information diagnostic `SP0052`. |
 | Unrecovered `[GeneratedValue]` strategies | Supported UUID, ULID, TypeID, NanoID and byte strategies are recovered. Rule bodies, context-member use, pattern/random and invalid literal arguments keep the legacy command with located Information diagnostic `SP0073`. A cap below v15 withholds non-default concept generation; a cap below v20 withholds validated generation without deleting its rules. Refuted rules report `PLAY0688` with a witness in `SP0073`. Non-opaque unproven rules remain stated with Information `SP0078` carrying `PLAY0689`. |
 | Unrecoverable generation pins | Successful `[GeneratedValue]` scenarios need literal UUID or strategy-shaped text pins for every generated parameter. Missing, mismatched, computed, conditional, repeated or nested-command pins and `AllowGeneration()` omit the scenario with Warning `SP0039`; the command keeps its admitted generation contract. |
 | Unreadable returned operations | Operations are authoring-only. Unsupported construction, input mappings, batch spreads, or ambiguous external systems remain in code; readable literal batch members can still be described. Information diagnostic `SP0053`. |
 | Event-source definition routes | Readable source and stream routes are emitted by default at ESM v8. `SP0044` describes an unavailable route or preserved legacy concurrency; a cap below v8 retains the previous default output. |
-| Unreadable source or stream routes | Computed stream ids, unproven formatting templates, generated mappings, conflicting declarations, and the reserved source name `Default` cannot be stated without guessing. An explicitly routed or unproven production also withholds the entire command route, regardless of identifier type: the route would claim the event lands on the command's source and stream. Information diagnostic `SP0054` reports the omission in both modes. Property-path mappings and handler-command routes remain authoring-only. |
+| Unreadable source or stream routes | Computed stream ids, unproven formatting, generated keys, conflicting declarations, reserved classifications and unsupported wrapper metadata stay in code. An unproven or capped production override also withholds the command route rather than claiming the command's defaults for that event. Information diagnostic `SP0054` reports the omission in both modes. Admitted production overrides require ESM v10; default routes require v8. Property-path mappings and handler-command routes remain authoring-only. |
 | Unreadable reads or provisioning | Reads and requirements are authoring-only. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`. |
 | Same-named concepts with different meanings | Primitive type, generation strategy, enumeration names and numbers, `pii`, `secret`, and encryption scope must agree. The first declaration is kept; warning diagnostic `SP0031` names each conflicting type rather than silently merging its compliance claims. |
 | Protected concepts in emitted identity positions | The identifier, route or event-production destination remains stated, but its concept's `pii`/`secret` annotations are omitted globally. Information diagnostic `SP0059` names each retained use. An analyzed identity that is not emitted does not cause this omission. |
