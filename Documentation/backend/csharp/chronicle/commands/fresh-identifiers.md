@@ -148,10 +148,9 @@ but that write has no automatic generated-target provenance and need not report 
 
 ## Verify an occupied identifier in a spec
 
-Create a [command scenario](../../testing/generated-values.md) with `UseDecisionReads()` **before seeding**,
-then pin the generated parameter by name. In this mode, `Given.ForEventSource(id).Events(...)` seeds the same
-event log the freshness guard checks. Default mode seeds read-model state only and leaves that log empty;
-it cannot prove that a generated identifier is occupied.
+Create a [command scenario](../../testing/generated-values.md), then pin the generated parameter by name.
+Guarded generated parameters automatically select the in-process log before seeding.
+`Given.ForEventSource(id).Events(...)` seeds the same event log the freshness guard checks.
 
 This excerpt uses `CreateSource`, `Identifier`, `Created` and `ResultShape` from the
 [fresh-identifier spec context](https://github.com/Cratis/Arc/blob/main/Source/DotNET/Chronicle.Specs/Commands/for_CommandScenario_with_fresh_identifiers/given/a_fresh_identifier_scenario.cs).
@@ -159,7 +158,7 @@ Import `Cratis.Arc.Testing.Commands`, `Cratis.Arc.Chronicle.Testing.Commands`, `
 and `Cratis.Specifications`:
 
 ```csharp
-await using var scenario = new CommandScenario<CreateSource>().UseDecisionReads();
+await using var scenario = new CommandScenario<CreateSource>();
 var id = new Identifier(Guid.Parse("fb6dd43a-b161-44b1-9baa-7b2e4a071680"));
 scenario.PinGeneratedValue("id", id);
 scenario.Given.ForEventSource(id).Events(new Created("existing"));
@@ -173,10 +172,6 @@ result.ValidationResults.Single().ReasonDetail.ShouldEqual("GeneratedIdentifierC
 (await scenario.EventLog.GetTailSequenceNumber()).ShouldEqual(tailBefore);
 command.Calls.ShouldEqual(1);
 ```
-
-Default mode now throws `GeneratedIdentifierCollisionRequiresDecisionReads` before handling the command:
-"The scenario cannot prove a generated-identifier collision without UseDecisionReads(). Create the scenario
-with `new CommandScenario<TCommand>().UseDecisionReads()` before seeding events and pinning the generated value."
 
 Seed an event for the same identifier, including a different stream if your command routes to a specific
 stream. Also exercise an empty source with two events through your chosen append API: both must append successfully under one guard.

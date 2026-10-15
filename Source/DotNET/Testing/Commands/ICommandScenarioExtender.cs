@@ -13,7 +13,7 @@ namespace Cratis.Arc.Testing.Commands;
 /// Implementations are discovered automatically by <see cref="CommandScenario{TCommand}"/> at construction time
 /// using the <see cref="Types.ITypes"/> type discovery system. Any class in any loaded assembly
 /// that implements this interface will be instantiated (via a parameterless constructor) and its
-/// <see cref="Extend"/> method called before the first command is executed.
+/// <see cref="Extend(Type, IServiceCollection, IDictionary{string, object})"/> method called before the first command is executed.
 /// </para>
 /// <para>
 /// Use this interface to register additional services into the test service collection and store
@@ -29,4 +29,12 @@ public interface ICommandScenarioExtender
     /// <param name="services">The <see cref="IServiceCollection"/> for the scenario.</param>
     /// <param name="context">The scenario context dictionary, keyed by <see cref="string"/>.</param>
     void Extend(IServiceCollection services, IDictionary<string, object> context);
+
+    /// <summary>
+    /// Extends the scenario for its command before any state is seeded.
+    /// </summary>
+    /// <param name="commandType">The command under test.</param>
+    /// <param name="services">The services of the scenario.</param>
+    /// <param name="context">The scenario context.</param>
+    void Extend(Type commandType, IServiceCollection services, IDictionary<string, object> context) => Extend(services, context);
 }

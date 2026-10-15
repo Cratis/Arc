@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel;
 using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
@@ -78,7 +79,8 @@ public static class CommandScenarioChronicleExtensions
             new(scenario);
 
         /// <summary>
-        /// Opts into one real in-process event log for seeded events, decision reads and command commits.
+        /// Enables one real in-process event log for seeded events, decision reads and command commits.
+        /// No longer needed for commands with decision dependencies or read protection: these enable it automatically.
         /// </summary>
         /// <remarks>
         /// Call before seeding events or executing. The legacy EventScenario cannot be used in this mode: seed events with
@@ -88,6 +90,7 @@ public static class CommandScenarioChronicleExtensions
         /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
         /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public CommandScenario<TCommand> UseDecisionReads()
         {
             if (scenario.IsInitialized)

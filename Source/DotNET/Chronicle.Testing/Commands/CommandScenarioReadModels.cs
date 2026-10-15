@@ -90,6 +90,10 @@ internal sealed partial class CommandScenarioReadModels(IReadModels inner, IEven
         (TReadModel)await GetInstanceById(typeof(TReadModel), key, sessionId);
 
     /// <inheritdoc/>
+    public Task<TReadModel> GetInstanceById<TReadModel>(EventSourceId eventSourceId, EventStreamId eventStreamId) =>
+        inner.GetInstanceById<TReadModel>(eventSourceId, eventStreamId);
+
+    /// <inheritdoc/>
     public Task Register() => inner.Register();
 
     /// <inheritdoc/>

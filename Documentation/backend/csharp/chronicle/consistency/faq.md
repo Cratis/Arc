@@ -150,7 +150,7 @@ A uniqueness check without a constraint, reads under `Off`, `Measure`, `[Unprote
 
 ### How do I test that a rule holds under concurrency?
 
-Use `CommandScenario<T>().UseDecisionReads()`, seed real events with `Given`, and queue a competing event with `AppendConcurrently(...)`. See [Test the race](./scenarios/testing.md).
+Use `new CommandScenario<T>()`, seed real events with `Given`, and queue a competing event with `AppendConcurrently(...)`. See [Test the race](./scenarios/testing.md).
 
 ## Event source definitions and stream decisions
 

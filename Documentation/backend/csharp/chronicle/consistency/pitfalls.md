@@ -21,7 +21,7 @@ Use this page when a rule holds in every test and still breaks in production. Th
 | [Results you must check](#results-you-must-check-when-you-use-chronicle-directly) | Nothing | Check `IsSuccess` |
 | [The first append into a scope](#the-first-append-into-a-scope) | Nothing | Opt in |
 | [Where the guard stops](#where-the-guard-stops) | Nothing | Outside the guarantee |
-| [Tests without the in-process log](#tests-without-the-in-process-log) | Nothing | `UseDecisionReads()` |
+| [Tests without the in-process log](#tests-without-the-in-process-log) | Nothing | A command declaring read protection and real seeded events |
 
 All examples on this page share one namespace.
 
@@ -364,7 +364,7 @@ The guard also does not protect a writer that decides without one. A guard detec
 
 ## Tests without the in-process log
 
-A scenario without `UseDecisionReads()` does not exercise guarded reads. `AppendConcurrently` still queues a competing writer before the command commits, so you can test an explicit concurrency scope or a stream decision. Pinned read models cannot supply a guard. For protected reads, seed real events and use the in-process log. See [Test the race](./scenarios/testing.md).
+`new CommandScenario<T>()` automatically selects the in-process log when the command declares read protection or decision dependencies. That setup does not protect an `Off` command by itself. `AppendConcurrently` queues a competing writer before the command commits, so test a command whose declaration and reads actually enroll a guard. Pinned read models cannot supply a guard; seed real events instead. See [Test the race](./scenarios/testing.md).
 
 ## Where to go next
 

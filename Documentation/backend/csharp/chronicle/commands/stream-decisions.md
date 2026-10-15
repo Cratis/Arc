@@ -77,13 +77,13 @@ Exact scopes replace automatic concurrency capture. Remove `concurrency: true` f
 
 ## Seed and interfere on the same route
 
-Enable decision reads before seeding so the command and its reads share one in-process event log. This excerpt uses `ApproveReport` and `ReportApproved` from the first example:
+The command's stream-decision dependency automatically selects one in-process event log before seeding. This excerpt uses `ApproveReport` and `ReportApproved` from the first example:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Testing.Commands;
 
-await using var scenario = new CommandScenario<ApproveReport>().UseDecisionReads();
+await using var scenario = new CommandScenario<ApproveReport>();
 var id = EventSourceId.New();
 var route = new EventRoute("reports", "approval", "owner:2026-10");
 scenario.Given.ForEventSource(id).OnRoute(route).Events(new ReportApproved());

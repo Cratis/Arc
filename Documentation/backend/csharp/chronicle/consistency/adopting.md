@@ -105,7 +105,7 @@ Switch one project at a time.
 
 1. Set `<CratisReadProtection>On</CratisReadProtection>` for the project.
 2. Build. Fix [ARCCHR0024](../code-analysis/ARCCHR0024.md), [ARCCHR0028](../code-analysis/ARCCHR0028.md) and [ARCCHR0033](../code-analysis/ARCCHR0033.md) warnings. [ARCCHR0011](../code-analysis/ARCCHR0011.md) no longer applies under `On`.
-3. Run the project's tests. Command scenarios that race two writers need `UseDecisionReads()` for the in-process log; see [Test the race](./scenarios/testing.md).
+3. Run the project's tests. Command scenarios automatically select the in-process log from the command's read-protection mode and dependencies; see [Test the race](./scenarios/testing.md).
 4. Exercise every command once. Refusals happen when a command runs, not at startup.
 
 Under `On`, discoverable validators with constructor dependencies must be registered by convention, which makes them transient. A validator registered by hand as scoped, singleton, a factory or an instance is refused. See [Validators](./validators.md).

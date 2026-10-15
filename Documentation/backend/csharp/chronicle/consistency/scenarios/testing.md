@@ -7,12 +7,12 @@ Use this page when you want a test that proves a rule holds under concurrency: t
 
 | You want to test | Use |
 | --- | --- |
-| A guarded read changed before commit | `CommandScenario<T>().UseDecisionReads()`, `Given.ForEventSource(...)`, `AppendConcurrently(...)` |
+| A guarded read changed before commit | `new CommandScenario<T>()`, `Given.ForEventSource(...)`, `AppendConcurrently(...)` |
 | An explicit scope or a stream decision | The same, with a route for a stream |
 | A validator's rule | The same scenario. The validator reads the same log |
-| A plain scenario without a race | `CommandScenario<T>` without `UseDecisionReads()`. Pinned read models stand in for reads |
+| A plain `Off` command without protected dependencies | `new CommandScenario<T>()`. Pinned read models stand in for reads |
 
-`UseDecisionReads()` gives the scenario one real in-process event log, so seeded events, guarded reads and commits all see the same history. Call it before seeding or executing. Pinned read models cannot supply a guard, so seed real events instead.
+The scenario automatically selects one real in-process event log for commands with read protection `On` or `Measure`, protected decisions, decision dependencies, per-stream read models or guarded generated parameters. Seeded events, guarded reads and commits see the same history. Pinned read models cannot supply a guard, so seed real events instead.
 
 ## A race on one entity
 
@@ -42,7 +42,7 @@ public record BookStock(
     EventSourceId Id,
     [Increment<BookAdded>, Decrement<BookBorrowed>] int Available);
 
-[Command]
+[Command, ReadProtection(ReadProtectionMode.On)]
 public record BorrowBook(Isbn Isbn, MemberId Member)
 {
     public BookBorrowed Handle() => new(Member);
@@ -61,7 +61,7 @@ public class when_borrowing_the_last_copy_while_another_member_borrows_it
     [Fact]
     public async Task should_reject_the_command_with_a_concurrency_violation()
     {
-        await using var scenario = new CommandScenario<BorrowBook>().UseDecisionReads();
+        await using var scenario = new CommandScenario<BorrowBook>();
         var isbn = new Isbn("978-0-00-000001-0");
         scenario.Given.ForEventSource(isbn).Events(new BookAdded());
         scenario.AppendConcurrently(isbn, new BookBorrowed(new MemberId(Guid.NewGuid())));
