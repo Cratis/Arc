@@ -291,8 +291,25 @@ Non-opaque rules that Screenplay cannot prove still accompany generation and rep
 `SP0078` (`PLAY0689`); each concrete pin is checked. Opaque validation cannot be reference-executed, so
 recovery keeps the validator and withholds generation and unsupported scenarios. A V19-or-earlier cap
 also withholds validated generation and its pins, without deleting rules to fit the older consumer.
-Rule-free pins keep their previous model version and behavior. See
+Existing rule-free pins keep their previous model version and behavior. See
 [Validated generation](../generating-a-screenplay.md#validated-generation-and-esm-v20).
+
+### Pattern, random and inline-rule fixtures
+
+ESM v21 recovery also accepts literal text pins for pattern and inline-rule generation, and integral pins
+for signed random generation. A random `ConceptAs<long>` can be pinned with a direct construction such as
+`new ReceiptId(4L)`; the value must lie inside its recovered inclusive range. Pattern pins must belong to
+the exact pattern support, including appended checksum digits. Arc asks Screenplay's reference runner to
+check these fixtures rather than sampling the factory or duplicating its pattern evaluator.
+
+An inline rule's pin supplies the primitive result without executing the C# body; recovered concept
+validation still applies. Cratis C# rule bodies use Fundamentals' native generation context, including
+Tenant formatting and compound `GenerateValue.*(context)` calls. Neither a fixed clock nor a pin proves
+an opaque body's entropy, so recovery never admits a rule-generated identifier.
+
+Invalid or missing fixtures leave the successful scenario out with `SP0039`. A V20-or-earlier cap
+withholds v21 generation and dependent scenarios in both output modes, keeping the validator rather than
+deleting checksum rules. Your original Arc specs remain runnable; the cap limits the recovered model.
 
 ## Next steps
 
