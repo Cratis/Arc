@@ -92,7 +92,7 @@ internal static class ProtectedValidatorConstruction
     internal static void ConstructDependencyFreeValidatorsThroughArc(this IServiceCollection services, ITypes types)
     {
         var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).ToHashSet();
-        var lastBindings = new Dictionary<Type, ServiceDescriptor>();
+        var boundThroughArc = new HashSet<ServiceDescriptor>();
         for (var index = 0; index < services.Count; index++)
         {
             var descriptor = services[index];
@@ -101,7 +101,6 @@ internal static class ProtectedValidatorConstruction
                 continue;
             }
 
-            lastBindings[descriptor.ServiceType] = descriptor;
             if (descriptor.ImplementationType is { } implementationType &&
                 implementationType == descriptor.ServiceType &&
                 IsDependencyFree(implementationType))
@@ -113,12 +112,13 @@ internal static class ProtectedValidatorConstruction
                         ? ConstructUncertified(implementationType)
                         : Construct(implementationType),
                     lifetime);
+                boundThroughArc.Add(services[index]);
             }
         }
 
-        services.AddSingleton(new ConventionTransientValidators(lastBindings.Values
-            .Where(_ => _.Lifetime == ServiceLifetime.Transient && _.ImplementationType == _.ServiceType)
-            .Select(_ => _.ServiceType)));
+        // Read the final bindings when the built provider first needs them, so a validator registered again after
+        // this call is judged by the registration the provider actually uses.
+        services.AddSingleton(_ => new ConventionTransientValidators(ConventionTransientsIn(services, validatorTypes, boundThroughArc)));
     }
 
     /// <summary>
@@ -131,6 +131,22 @@ internal static class ProtectedValidatorConstruction
     internal static bool IsConventionTransient(IServiceProvider serviceProvider, Type validatorType) =>
         serviceProvider.GetService(typeof(ConventionTransientValidators)) is ConventionTransientValidators conventionTransients &&
         conventionTransients.Contains(validatorType);
+
+    static IEnumerable<Type> ConventionTransientsIn(IServiceCollection services, HashSet<Type> validatorTypes, HashSet<ServiceDescriptor> boundThroughArc)
+    {
+        var lastBindings = new Dictionary<Type, ServiceDescriptor>();
+        foreach (var descriptor in services)
+        {
+            if (!descriptor.IsKeyedService && validatorTypes.Contains(descriptor.ServiceType))
+            {
+                lastBindings[descriptor.ServiceType] = descriptor;
+            }
+        }
+
+        return lastBindings.Values
+            .Where(_ => _.Lifetime == ServiceLifetime.Transient && (boundThroughArc.Contains(_) || _.ImplementationType == _.ServiceType))
+            .Select(_ => _.ServiceType);
+    }
 
     static object ConstructUncertified(Type validatorType) =>
         ParameterlessConstructorOf(validatorType)!.Invoke(BindingFlags.DoNotWrapExceptions, null, null, null);

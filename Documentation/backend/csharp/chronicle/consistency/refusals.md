@@ -95,7 +95,7 @@ An immediate append is refused for the whole invocation, including after an aggr
 | Failure | Cause | Fix |
 | --- | --- | --- |
 | `NestedEarlyCompletionUnderReadProtection` | A nested command committed the outer command's unit (an aggregate `Commit()`) | Commit in the outer command |
-| `ConcurrentNestedCommandsUnderReadProtection` | The outer command started a nested command while another nested command was still running | Run nested commands one after another |
+| `ConcurrentNestedCommandsUnderReadProtection` | A nested command started while another nested command of the same outer command was still running, and the outer command, the new command or any running one has read protection `On` | Run nested commands one after another |
 
 ### Declarations
 

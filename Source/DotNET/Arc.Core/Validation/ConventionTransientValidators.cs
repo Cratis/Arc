@@ -4,8 +4,8 @@
 namespace Cratis.Arc.Validation;
 
 /// <summary>
-/// Holds the discoverable validators whose binding, when Arc inspected the service collection, was a plain transient
-/// binding of the validator to itself.
+/// Holds the discoverable validators whose final binding in the service collection, read when the built provider first
+/// needs it, is a plain transient binding of the validator to itself.
 /// </summary>
 /// <param name="validatorTypes">The validator types bound that way.</param>
 internal sealed class ConventionTransientValidators(IEnumerable<Type> validatorTypes)

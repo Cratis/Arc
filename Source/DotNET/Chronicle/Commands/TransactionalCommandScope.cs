@@ -93,19 +93,20 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         {
             lock (previous)
             {
-                if (previous.Child is { Exited: false } child)
+                // Every live sibling is checked: a sibling that ended earlier must not hide one that is still running.
+                foreach (var sibling in previous.Children)
                 {
                     // The owner boundary belongs to every command declaring On, not only to an enforcing outer unit.
-                    if (previous.Protection is not null || child.ReadProtected || readProtected)
+                    if (previous.Protection is not null || sibling.ReadProtected || readProtected)
                     {
-                        throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, child.CommandType, context.Type);
-                    }
-                    if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
-                    {
-                        ReadProtectionTelemetry.Record(context.Type, "nested_concurrent");
+                        throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, sibling.CommandType, context.Type);
                     }
                 }
-                previous.Child = frame;
+                if (previous.Children.Count > 0 && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
+                {
+                    ReadProtectionTelemetry.Record(context.Type, "nested_concurrent");
+                }
+                previous.Children.Add(frame);
             }
         }
         _frames.Value = frame;
@@ -215,10 +216,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             {
                 lock (previous)
                 {
-                    if (ReferenceEquals(previous.Child, frame))
-                    {
-                        previous.Child = null;
-                    }
+                    previous.Children.Remove(frame);
                 }
             }
             _frames.Value = frame.Previous;
@@ -536,7 +534,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         public bool ReadProtected { get; } = readProtected;
         public ReadProtectionFrame? Protection { get; set; }
         public IDisposable? ReadAllowance { get; set; }
-        public TransactionFrame? Child { get; set; }
+        public List<TransactionFrame> Children { get; } = [];
         public bool Exited { get; set; }
         public FreshIdentifierScopes FreshIdentifiers { get; } = freshIdentifiers;
         public CommandContextValues Values { get; } = values;

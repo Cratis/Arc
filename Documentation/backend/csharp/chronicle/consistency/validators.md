@@ -101,6 +101,8 @@ The last row is the one that surprises people. Under `On`, Arc builds a fresh va
 Discoverable validator 'BorrowBookValidator' cannot run while read protection is On because Arc did not construct it for this invocation. Let convention discovery register it as transient; do not use a scoped, singleton, factory or instance registration.
 ```
 
+Arc checks the registration the container actually uses, which is the last one. Registering a validator again by hand after `AddCratisArc()` replaces the convention registration, so that validator is refused under `On` unless the new registration is again a plain transient binding of the validator to itself.
+
 Other constructor parameters, such as `ILogger<T>`, are resolved from the container.
 
 ## The validate endpoint
