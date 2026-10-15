@@ -76,7 +76,7 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
 
     static string? ValidationFailure(CommandModel command, ApplicationModel model, List<string> opaqueConcepts, Dictionary<string, ConceptValidationContract> contracts)
     {
-        var concept = opaqueConcepts.FirstOrDefault(concept => Carries(command, concept, model));
+        var concept = opaqueConcepts.Find(concept => Carries(command, concept, model));
         if (concept is null)
         {
             return null;
