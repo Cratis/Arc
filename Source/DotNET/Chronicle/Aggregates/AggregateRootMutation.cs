@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
@@ -138,6 +139,7 @@ public class AggregateRootMutation(
         CommandOperationBoundary.ThrowIfActive();
         var events = UncommittedEvents;
         var eventCount = events.Count;
+        using var measurementCommit = ReadProtectionMeasurement.Committing();
         if (!await TransactionalCommandScope.CommitAggregate(aggregateRootContext.UnitOfWOrk))
         {
             await aggregateRootContext.UnitOfWOrk.Commit();

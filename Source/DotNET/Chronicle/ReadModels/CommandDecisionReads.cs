@@ -25,6 +25,10 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     }
 
     /// <inheritdoc/>
+    public DecisionReadDescription Describe<T>()
+        where T : class => inner.Describe<T>();
+
+    /// <inheritdoc/>
     public DecisionReadAdmission Admit<T>()
         where T : class => Admit<T>(false);
 
@@ -33,6 +37,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
         where T : class
     {
         // Only [ProtectedDecision] changes the Chronicle contract. Unmarked and [Unprotected] callers keep detached reads.
+        ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, detached: true);
         RefuseProtectedDetachedRead();
 
         return inner.GetDetached<T>(key, cancellationToken);
@@ -140,6 +145,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     async Task<DecisionRead<T>> Get<T>(ReadModelKey key, StreamScope? streamScope, CancellationToken cancellationToken)
         where T : class
     {
+        ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, streamScope?.EventStreamType, streamScope?.EventStreamId, streamScope?.EventSourceType);
         try
         {
             return await GetForInvocation<T>(key, streamScope, cancellationToken);

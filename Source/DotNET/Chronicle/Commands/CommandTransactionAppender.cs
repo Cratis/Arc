@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
@@ -178,6 +179,7 @@ internal static class CommandTransactionAppender
             return false;
         }
 
+        if (concurrencyScope is not null) ReadProtectionMeasurement.Current?.Scope(eventSourceId, concurrencyScope, "Explicit scope");
         if (unitOfWork.IsEnforcingReadProtection)
         {
             var declared = ConcurrencyScopeBuilder.DeclaredFor(commandContext);

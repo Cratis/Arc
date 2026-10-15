@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
@@ -70,6 +71,7 @@ public class StreamReads(IEventLog eventLog, ICommandContextAccessor commandCont
         }
 
         var built = scope.Build();
+        ReadProtectionMeasurement.Current?.Scope(id, built, "Stream decision", isRead: true);
         if (enforcing)
         {
             var store = commandContext.Current.ServiceProvider!.GetRequiredService<IEventStore>();

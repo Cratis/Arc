@@ -62,7 +62,13 @@ internal static class CommandReadModelLookup
             : RequiredKey(context.GetEventSourceId(), parameter.ParameterType);
     }
 
-    static void ObserveRedirect(CommandContext context, Type model, ReadModelKey commandKey)
+    /// <summary>
+    /// Observes a convention redirect from the key the legacy path actually resolved, without selecting another model.
+    /// </summary>
+    /// <param name="context">The measured invocation.</param>
+    /// <param name="model">The model's shape.</param>
+    /// <param name="commandKey">The actual legacy key.</param>
+    internal static void ObserveRedirect(CommandContext context, Type model, ReadModelKey commandKey)
     {
         try
         {

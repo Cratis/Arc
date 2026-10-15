@@ -21,8 +21,10 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
     public bool TryResolve(IServiceProvider serviceProvider, ParameterInfo parameter, out object? dependency)
     {
         dependency = null;
-        if (!_readModelTypes.Contains(parameter.ParameterType) ||
-            (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Off &&
+        var isReadModel = _readModelTypes.Contains(parameter.ParameterType);
+        ReadProtectionMeasurement.Current?.Parameter(parameter, isReadModel);
+        if (!isReadModel ||
+            (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On &&
              !Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any()))
         {
             return false;

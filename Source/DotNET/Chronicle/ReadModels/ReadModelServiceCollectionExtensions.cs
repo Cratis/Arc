@@ -17,6 +17,7 @@ using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Reducers;
 using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -105,6 +106,8 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>These same services for further registrations.</returns>
     public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
     {
+        services.TryAddSingleton<ReadProtectionMeasureQueue>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ReadProtectionMeasureQueue>(sp => sp.GetRequiredService<ReadProtectionMeasureQueue>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
         services.TryAddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>();
         services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
@@ -137,6 +140,7 @@ public static class ReadModelServiceCollectionExtensions
             throw new UnableToResolveReadModelFromCommandContext(readModelType);
         }
 
+        ReadProtectionMeasurement.Current?.StoredRead(readModelType, (ReadModelKey)eventSourceId);
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
 
         // A never-created or removed read model resolves to null; there is nothing to release (decrypt).

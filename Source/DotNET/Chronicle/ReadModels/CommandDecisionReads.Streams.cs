@@ -20,6 +20,7 @@ internal sealed partial class CommandDecisionReads
     public Task<DecisionRead<T>> GetDetached<T>(EventSourceId eventSourceId, EventStreamType eventStreamType, EventStreamId eventStreamId, EventSourceType? eventSourceType = default, CancellationToken cancellationToken = default)
         where T : class
     {
+        ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, eventSourceId, eventStreamType, eventStreamId, eventSourceType, detached: true);
         RefuseProtectedDetachedRead();
 
         return inner.GetDetached<T>(eventSourceId, eventStreamType, eventStreamId, eventSourceType, cancellationToken);

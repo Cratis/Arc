@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Validation;
@@ -71,7 +72,7 @@ public class a_read_protection_pipeline : Specification
             Substitute.For<ICommandContextModifier>(),
             builder,
             resolver,
-            new KnownInstancesOf<ICommandExecutionScope>([_scope]),
+            new KnownInstancesOf<ICommandExecutionScope>([_scope, new ReadProtectionMeasureScope()]),
             Substitute.For<IServiceScopeFactory>(),
             activity);
     }

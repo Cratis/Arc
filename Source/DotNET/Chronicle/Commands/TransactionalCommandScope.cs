@@ -395,6 +395,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
     static async Task CommitOwned(OwnedTransaction owned)
     {
+        using var measurementCommit = ReadProtectionMeasurement.Committing();
         var unit = owned.UnitOfWork;
         var hasEvents = unit.GetEvents().Any();
         owned.Observation.Disposition = CommandCommitDisposition.Unknown;
