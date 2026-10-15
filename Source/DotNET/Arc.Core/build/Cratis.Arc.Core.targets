@@ -1,6 +1,6 @@
 <Project>
     <!-- Emits the assembly rollout declaration without changing command execution. -->
-    <ItemGroup Condition="'$(CratisReadProtection)' == 'Off' Or '$(CratisReadProtection)' == 'Measure' Or '$(CratisReadProtection)' == 'On'">
+    <ItemGroup Condition="$([System.Text.RegularExpressions.Regex]::IsMatch('$(CratisReadProtection)', '^(Off|Measure|On)$'))">
         <AssemblyAttribute Include="Cratis.Arc.Commands.ReadProtectionAttribute">
             <_Parameter1>Cratis.Arc.Commands.ReadProtectionMode.$(CratisReadProtection)</_Parameter1>
             <_Parameter1_IsLiteral>true</_Parameter1_IsLiteral>
@@ -9,7 +9,7 @@
 
     <Target Name="_CratisArcValidateReadProtection"
             BeforeTargets="CoreGenerateAssemblyInfo"
-            Condition="'$(CratisReadProtection)' != '' And '$(CratisReadProtection)' != 'Off' And '$(CratisReadProtection)' != 'Measure' And '$(CratisReadProtection)' != 'On'">
+            Condition="'$(CratisReadProtection)' != '' And !$([System.Text.RegularExpressions.Regex]::IsMatch('$(CratisReadProtection)', '^(Off|Measure|On)$'))">
         <Error Text="CratisReadProtection must be Off, Measure, or On." />
     </Target>
 

@@ -50,7 +50,7 @@ public sealed class ChronicleMongoCollectionAnalyzer : DiagnosticAnalyzer
         context.ReportDiagnostic(ChronicleStateSymbols.Diagnostic(
             DiagnosticDescriptors.ARCCHR0026_ChronicleModelThroughMongoCollection,
             parameter,
-            DiagnosticSeverity.Info,
+            ReadProtectionSymbols.CommandFor(method) is { } command && ReadProtectionSymbols.Mode(command) == 2 ? DiagnosticSeverity.Warning : DiagnosticSeverity.Info,
             parameter.Name,
             model.Name));
     }

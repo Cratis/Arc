@@ -58,11 +58,20 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
 
         if (!IsCommand(type))
         {
-            ReportInert(context, type, "ReadProtection applies only to commands or assemblies");
+            // A non-sealed base can carry the supported inherited command declaration.
+            if (type.IsSealed || type.IsStatic)
+            {
+                ReportInert(context, type, "ReadProtection applies only to commands or assemblies");
+            }
         }
-        else if (profile.Mode == 1 && declaration.ConstructorArguments.FirstOrDefault().Value is 0 or 2)
+        else if (profile.Mode == 1 && declaration.ConstructorArguments.FirstOrDefault().Value is 2)
         {
-            ReportInert(context, type, "ReadProtection Off or On is redundant on a ProtectedDecision command");
+            ReportInert(context, type, "ReadProtection On is redundant on a ProtectedDecision command");
+        }
+        else if (declaration.ConstructorArguments.FirstOrDefault().Value is 0 &&
+                 CommandAttributeSymbols.Find(type.ContainingAssembly, AttributePrecedencePolicy.ReadProtectionName)?.ConstructorArguments.FirstOrDefault().Value is null or 0)
+        {
+            ReportInert(context, type, "ReadProtection Off is redundant when the assembly is already Off");
         }
     }
 
@@ -97,7 +106,11 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
         if (resolution.Conflict is not null)
         {
-            var suggestion = properties.OrderBy(_ => EditDistance(propertyName, _.Name)).ThenBy(_ => _.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
+            var key = parameter.Type is INamedTypeSymbol candidateModel ? ChronicleStateSymbols.ModelKey(candidateModel, context.Compilation) : null;
+            var suggestion = properties.Where(property =>
+                    (key is null || SymbolEqualityComparer.Default.Equals(property.Type, key.Type)) &&
+                    EditDistance(propertyName, property.Name) <= 2)
+                .OrderBy(property => EditDistance(propertyName, property.Name)).ThenBy(property => property.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
             var diagnosticProperties = ImmutableDictionary<string, string?>.Empty.Add("SuggestedProperty", suggestion);
             context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_MissingLookupProperty, parameter.Locations.FirstOrDefault(), diagnosticProperties, parameter.Name, propertyName, command.Name, suggestion ?? "an existing command property"));
             return;

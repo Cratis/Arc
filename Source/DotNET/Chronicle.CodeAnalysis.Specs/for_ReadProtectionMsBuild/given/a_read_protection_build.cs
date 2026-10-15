@@ -8,6 +8,9 @@ namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_ReadProtectionMsBuild.give
 public class a_read_protection_build : for_AttributePrecedencePolicy.given.a_declaration
 {
     protected string _buildMode = string.Empty;
+    protected bool _expectFailure;
+    protected string _output = string.Empty;
+    protected int _exitCode;
 
     protected async Task GenerateAndResolve()
     {
@@ -50,7 +53,13 @@ public class a_read_protection_build : for_AttributePrecedencePolicy.given.a_dec
             }
         }
 
-        Assert.True(process.ExitCode == 0, await output + await errors);
+        _exitCode = process.ExitCode;
+        _output = await output + await errors;
+        if (_expectFailure)
+        {
+            return;
+        }
+        Assert.True(_exitCode == 0, _output);
         _source = await File.ReadAllTextAsync(assemblyInfo) + " public class Command; public class Model;";
         Resolve();
     }

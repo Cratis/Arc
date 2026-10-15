@@ -23,7 +23,7 @@ internal static class CommandAttributePolicy
             attributes.Any(_ => _ is IProtectedDecisionAttribute),
             attributes.Any(_ => _ is IUnprotectedDecisionAttribute),
             ReadProtection(attributes),
-            ReadProtection(commandType.Assembly.GetCustomAttributes()));
+            commandType.Assembly.GetCustomAttribute<ReadProtectionAttribute>() is { } assemblyDeclaration ? (int)assemblyDeclaration.Mode : null);
     }
 
     /// <summary>

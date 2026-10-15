@@ -30,8 +30,8 @@ public class when_analyzing_lookup_keys
         await Verify("[Command] public record Change(OwnerId Owner) { public Changed Handle(State state) => new(); }");
 
     [Fact]
-    public async Task should_not_report_a_unique_distinguishing_property() =>
-        await Verify("[Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState state) => new(); }");
+    public async Task should_report_a_unique_distinguishing_property_as_an_off_redirect() =>
+        await Verify("[Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState state) => new(); }", Info().WithArguments("Off and Measure", "Owner", "Member"));
 
     [Fact]
     public async Task should_not_treat_primitives_as_distinguishing() =>
@@ -78,11 +78,11 @@ public class when_analyzing_lookup_keys
 
     [Fact]
     public async Task should_not_report_different_models_matching_one_distinguishing_property() =>
-        await Verify("[FromEvent<Changed>] public record OtherMemberState([property: Key] MemberId Id); [Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState first, OtherMemberState second) => new(); }");
+        await Verify("[FromEvent<Changed>] public record OtherMemberState([property: Key] MemberId Id); [Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState first, OtherMemberState second) => new(); }");
 
     [Fact]
     public async Task should_report_repeated_models_matching_one_distinguishing_property() =>
-        await Verify("[Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState first, MemberState second) => new(); }", Info().WithArguments("second", "first", "Member"));
+        await Verify("[Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(MemberState first, MemberState second) => new(); }", Info().WithArguments("second", "first", "Member"));
 
     [Fact]
     public async Task should_report_models_in_provide() =>
@@ -102,7 +102,7 @@ public class when_analyzing_lookup_keys
 
     [Fact]
     public async Task should_keep_separate_distinguishing_keys_quiet() =>
-        await Verify("[Command] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(State state, MemberState member) => new(); }");
+        await Verify("[Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)] public record Change(OwnerId Owner, MemberId Member) { public Changed Handle(State state, MemberState member) => new(); }");
 
     static DiagnosticBuilder Warning() => AnalyzerVerifier<CommandReadModelLookupAnalyzer>.Diagnostic("ARCCHR0023").WithSeverity(DiagnosticSeverity.Warning);
     static DiagnosticBuilder Info() => AnalyzerVerifier<CommandReadModelLookupAnalyzer>.Diagnostic("ARCCHR0023").WithSeverity(DiagnosticSeverity.Info);

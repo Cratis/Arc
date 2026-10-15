@@ -70,6 +70,9 @@ public sealed class UseEventSourceDefinitionAnalyzer : DiagnosticAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(
             DiagnosticDescriptors.ARCCHR0013_UseEventSourceDefinition,
             location,
+            ImmutableDictionary<string, string?>.Empty
+                .Add("Definition", definition.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+                .Add("Stream", streamName),
             type.Name,
             sourceName,
             replacement));

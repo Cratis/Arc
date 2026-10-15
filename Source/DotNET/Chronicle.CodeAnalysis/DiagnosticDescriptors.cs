@@ -93,7 +93,8 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A command expresses appends by returning events from its Handle method (a single event, a tuple of event and result, a Result, or a collection). Injecting IEventLog into the handler bypasses Arc's append pipeline and its correlation and ordering guarantees. Return the events instead of appending through IEventLog directly. To close a stream, return CompleteStream from Handle instead of calling IEventLog.CompleteStream.");
+        description: "A command expresses appends by returning events from Handle. Under On, immediate appends are refused even in an Unprotected method body; return the events or use IEventLog.Transactional. To close a stream, return CompleteStream.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0007");
 
     /// <summary>
     /// ARCCHR0008: Command key marked with the data annotations Key attribute.
@@ -141,7 +142,8 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "Plain Chronicle read models and IReadModels.GetInstanceById do not enroll a decision guard. This advisory identifies statically recognizable reads in event-producing commands, their Provide methods and validators; it cannot prove runtime dataflow or external I/O. A decision over a single event stream is guarded by reading it through IStreamReads, whose StreamDecision carries the exact concurrency scope for the append.");
+        description: "Under Off, plain Chronicle state dependencies are advisory rather than guarded. Enable On and take the model as a parameter, preferably in a CommandValidator constructor for state-dependent rules. Explicit Unprotected declarations acknowledge advisory reads. Measure and On are not reported by this Off-only rule.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0011");
 
     /// <summary>
     /// ARCCHR0012: An immediate append cannot be covered by the command's decision guard.
@@ -149,11 +151,12 @@ static class DiagnosticDescriptors
     public static readonly DiagnosticDescriptor ARCCHR0012_ImmediateAppendAfterDecisionRead = new(
         id: "ARCCHR0012",
         title: "Immediate append bypasses protected decision",
-        messageFormat: "Command '{0}' uses a protected decision read and immediately appends through IEventLog. Return the event or use IEventLog.Transactional; an immediate append cannot be rolled back after a decision conflict. For a decision over one event stream, return StreamDecision.Append from Handle (see the stream decisions documentation).",
+        messageFormat: "Command '{0}' immediately appends through IEventLog while its decision is protected. Return the event or use IEventLog.Transactional; an immediate append cannot be rolled back after a decision conflict. On refuses immediate appends, including in Unprotected method bodies. For a stream decision, return StreamDecision.Append from Handle.",
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "A plain IEventLog.Append or AppendMany writes before decision scopes are checked at the owner's commit. This advisory does not track aliases, helpers or appends outside the command body. A decision over a single event stream is guarded by reading it through IStreamReads and returning StreamDecision.Append, which carries the exact concurrency scope.");
+        description: "Immediate Chronicle appends bypass the owning command's guarded commit. This rule is Info for explicit protected decisions and Warning under On. Transactional appends are excluded; method-level Unprotected permits advisory reads, not immediate appends.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0012");
 
     /// <summary>
     /// ARCCHR0013: A legacy event source type attribute spells out a declared event source definition.
@@ -165,7 +168,8 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "A string naming an event source or stream type can drift from the definition. This advisory is only reported when a definition in the same compilation has exactly that name and, when the type names a stream, declares that stream. A string with no matching definition is left alone.");
+        description: "A string naming an event source or stream type can drift from the definition. The code fix uses the uniquely matching definition in this compilation, retaining a declared stream. Unmatched names are left alone.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0013");
 
     /// <summary>
     /// ARCCHR0014: A reactor or reducer is filtered to a stream its event source definition does not declare.
@@ -297,7 +301,8 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "A distinguishing read-model key type can reveal ambiguous or missing command properties. Repeated default-key parameters are advisory. This rule does not change runtime lookup or prove dataflow.");
+        description: "On selects a unique property of the model key type and refuses ambiguity. Off and Measure keep the command key unless LookUpBy redirects it. Explicit LookUpBy is not reported; repeated inferred keys are advisory. Runtime dataflow is not proven.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0023");
 
     /// <summary>
     /// ARCCHR0025: A keyless event-producing command depends on Chronicle state.
@@ -321,7 +326,8 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "This advisory recognizes IMongoCollection<T> parameters where T has Chronicle model-bound projection metadata, a source-declared projection or reducer, or a recognizable self-reduction. It does not inspect queries or prove runtime dataflow.");
+        description: "IMongoCollection of a Chronicle-backed model is Info outside On and Warning under On, where runtime parameter admission refuses it. This recognizes model-bound metadata and source-declared backing without inspecting MongoDB queries.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0026");
 
     /// <summary>
     /// ARCCHR0029: Conflicting protected and advisory command declarations.
@@ -398,8 +404,87 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "ReadProtection on a non-command type and Unprotected on a provably non-model parameter have no effect. Off and On declarations on ProtectedDecision commands are redundant.",
+        description: "ReadProtection on a sealed non-command type and Unprotected on a provably non-model parameter have no effect. On is redundant on ProtectedDecision commands. Off is redundant only when the assembly is already Off.",
         helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0032");
+
+    /// <summary>
+    /// ARCCHR0024: A statically known model shape cannot be protected.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0024_ReadCannotBeProtected = new(
+        id: "ARCCHR0024",
+        title: "Read-model shape cannot be protected",
+        messageFormat: "Command '{0}' reads '{1}' ({2}) {3}, so protection is not proven. {4}. If it is only context, mark the parameter [Unprotected(\"why\")].",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "In Measure or On, statically refused projection and reducer shapes need a different protected model or an explicit advisory declaration. Unfiltered reducers without constructor dependencies are admitted. Runtime registration and delivery choices not visible in source are not inferred.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0024");
+
+    /// <summary>
+    /// ARCCHR0028: An On command reaches an unguarded Chronicle API.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0028_RawReadUnderOn = new(
+        id: "ARCCHR0028",
+        title: "Chronicle read is not proven protected",
+        messageFormat: "Command '{0}' calls '{1}' while read protection is On; this read is not proven protected. Take a read model as a parameter, use IDecisionReads.Get in Provide, or mark the method [Unprotected(\"why\")].",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Raw Chronicle reads, detached reads and explicit read allowances in application On commands bypass automatic protected parameter resolution. Advisory method bodies are excluded, but AllowReads itself remains an explicit, reviewable bypass.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0028");
+
+    /// <summary>
+    /// ARCCHR0033: An aggregate and a plain read use the same command key.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0033_ReadAndAggregateOnSameSource = new(
+        id: "ARCCHR0033",
+        title: "Aggregate and read-model parameter share a source",
+        messageFormat: "Command '{0}' takes aggregate '{1}' and read-model parameter '{2}' on key '{3}'; their combined protection is not proven. Use the aggregate's state, or read a different source explicitly.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "On refuses an aggregate and a protected plain read of the same source. Only automatic dependencies whose command key is statically the same are reported; explicit providers and advisory reads are excluded.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0033");
+
+    /// <summary>
+    /// ARCCHR0034: Method-level Unprotected does not cover injected parameters.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0034_UnprotectedBodyHasReadParameters = new(
+        id: "ARCCHR0034",
+        title: "Unprotected method does not opt out read-model parameters",
+        messageFormat: "Method '{0}' is Unprotected, but read-model parameter '{1}' is resolved before its body. Mark the parameter or model [Unprotected(\"why\")] if that read is advisory.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "A method-level advisory declaration covers only the method body. It never changes the protection of read-model parameters resolved before invocation.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0034");
+
+    /// <summary>
+    /// ARCCHR0035: Aggregate commit completes protection too early.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0035_EarlyProtectedCommit = new(
+        id: "ARCCHR0035",
+        title: "Protected aggregate is committed before the outer decision ends",
+        messageFormat: "Command '{0}' calls aggregate.Commit() {1}; subsequent protection is not proven. Read before committing and return Commit() last in the outer command.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "In On, aggregate Commit completes the unit. A nested command must leave completion to its owner; reads or appends after Commit in the same straight-line block are refused. Opaque helpers and arbitrary control flow are not inferred.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0035",
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
+    /// <summary>
+    /// ARCCHR0036: Exact scopes are not proven to cover a read of the same source (0027 is occupied).
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0036_ExactScopeCoverageNotProven = new(
+        id: "ARCCHR0036",
+        title: "Exact scope coverage of a protected read is not proven",
+        messageFormat: "Command '{0}' returns exact scopes or a stream decision beside read-model parameter '{1}' on key '{2}'; coverage of that read is not proven. Widen the exact scope to cover the read, or remove the exact scope.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Measure and On commands returning exact concurrency scopes must cover the source, types, dimensions and read boundary of every protected read on that source. This signature heuristic reports only automatic reads on the command source; explicit providers and advisory parameters are excluded.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0036");
 
     const string Category = "Arc.Chronicle";
 }

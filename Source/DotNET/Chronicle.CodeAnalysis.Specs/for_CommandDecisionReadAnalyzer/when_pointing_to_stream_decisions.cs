@@ -51,7 +51,7 @@ public class when_pointing_to_stream_decisions
                 }
             }
             """, AnalyzerVerifier<CommandDecisionReadAnalyzer>.Diagnostic("ARCCHR0012")
-                .WithSeverity(DiagnosticSeverity.Info).WithArguments("StreamDecision.Append", "stream decisions documentation"));
+                .WithSeverity(DiagnosticSeverity.Info).WithArguments("StreamDecision.Append", "Unprotected method bodies"));
 
     [Fact]
     public async Task should_still_report_an_unprotected_read_when_events_are_returned_with_a_stream_completion() =>
