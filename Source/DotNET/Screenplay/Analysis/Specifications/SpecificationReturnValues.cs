@@ -413,6 +413,13 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
             return literal;
         }
 
+        if (expected is INamedTypeSymbol concept && new GenerationStrategyReader(models).Read(concept)?.Kind == "random" &&
+            new UuidGenerationForms(models).PrimitiveOf(expression, concept, semanticModel) is { } primitive &&
+            semanticModel.GetConstantValue(primitive) is { HasValue: true, Value: int or long } integer)
+        {
+            return new LiteralSource(integer.Value);
+        }
+
         var unwrapped = expression;
         while (unwrapped is ParenthesizedExpressionSyntax parenthesized)
         {

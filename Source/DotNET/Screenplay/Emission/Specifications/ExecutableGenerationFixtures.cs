@@ -54,8 +54,8 @@ internal static class ExecutableGenerationFixtures
         {
             var type = command?.Authoring?.Generated.SingleOrDefault(property => property.Name == pin.Property)?.Type.Name;
             var concept = concepts.SingleOrDefault(concept => concept.Name == type);
-            if (concept is not null && model.Concepts.Any(candidate => candidate.Name == type && candidate.Validations.Any()) &&
-                (pin.Source is not LiteralSource { Value: string text } || !GeneratedFixtureRules.Accepts(concept, text)))
+            if (concept is not null && model.Concepts.Any(candidate => candidate.Name == type && (candidate.Generation?.RequiresV21 == true || candidate.Validations.Any())) &&
+                (pin.Source is not LiteralSource { Value: { } value } || !GeneratedFixtureRules.Accepts(concept, value)))
             {
                 return specification with { GenerationFailure = $"its generated fixture '{pin.Property}' fails concept '{type}' shape or rules (Rejected(Contract)); it is not a client validation error" };
             }

@@ -43,7 +43,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
 
     static PinResult InvalidPin(string? name) => new(
         null,
-        $"PinGeneratedValue('{name ?? "?"}') is not a single unconditional literal UUID or text pin before execution; replace New() or computed values with a literal pin");
+        $"PinGeneratedValue('{name ?? "?"}') is not a single unconditional literal UUID, text or integral pin before execution; replace New() or computed values with a literal pin");
 
     static string? NameOf(ConfigurationCall configuration)
     {
@@ -139,7 +139,7 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
     {
         if (configuration.Method.Name == "AllowGeneration")
         {
-            return new(null, "AllowGeneration() has no concrete fixture; use PinGeneratedValue with a literal UUID or text value");
+            return new(null, "AllowGeneration() has no concrete fixture; use PinGeneratedValue with a literal UUID, text or integral value");
         }
         if (!TargetsIssuedCommand(configuration, command, issued))
         {
@@ -198,12 +198,19 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         {
             return null;
         }
-        if (Literal(expression, model) is not { Value: string text })
+        var generation = new GenerationStrategyReader(models).Read(concept);
+        var literal = generation?.RequiresV21 == true ? V21Literal(expression, concept, model) : Literal(expression, model);
+        if (literal is null)
         {
             return null;
         }
 
-        return ReadTextValue(concept, text);
+        if (generation?.Kind == "random" && literal.Value is int or long)
+        {
+            return literal;
+        }
+
+        return literal.Value is string text ? ReadTextValue(concept, text) : null;
     }
 
     LiteralSource? ReadTextValue(INamedTypeSymbol concept, string text)
@@ -214,12 +221,28 @@ internal class GeneratedValuePins(SemanticModels models, HeldValues held)
         {
             return null;
         }
-        if (!GenerationFixtureShape.Matches(generation, value))
+        if (!generation.RequiresV21 && !GenerationFixtureShape.Matches(generation, value))
         {
             return null;
         }
 
         return StatableValues.TryState(concept, value, out _) ? new LiteralSource(value) : null;
+    }
+
+    LiteralSource? V21Literal(ExpressionSyntax expression, INamedTypeSymbol concept, SemanticModel model)
+    {
+        if (new UuidGenerationForms(models).PrimitiveOf(expression, concept, model) is { } primitive)
+        {
+            return SpecificationEventSources.ReadLiteral(primitive, model);
+        }
+        var symbol = model.GetSymbolInfo(MappingSourceReader.Unwrap(expression)).Symbol;
+        if (symbol is null || held.InitializerOf(symbol, model.Compilation) is not { } initializer || models.For(initializer.SyntaxTree) is not { } initializerModel)
+        {
+            return null;
+        }
+
+        return new UuidGenerationForms(models).PrimitiveOf(initializer, concept, initializerModel) is { } value
+            ? SpecificationEventSources.ReadLiteral(value, initializerModel) : null;
     }
 
     LiteralSource? Literal(ExpressionSyntax expression, SemanticModel model) =>

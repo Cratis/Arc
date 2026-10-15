@@ -3,6 +3,7 @@
 
 using System.Text.Json;
 using Cratis.Arc.Screenplay.Emission.Concepts;
+using Cratis.Screenplay.Diagnostics;
 using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Semantics.Execution;
 using Cratis.Screenplay.Syntax;
@@ -20,8 +21,13 @@ internal static class GeneratedFixtureRules
     /// <param name="concept">The emitted validated concept.</param>
     /// <param name="value">The fixture text.</param>
     /// <returns>Whether the reference runner accepts the generated fixture.</returns>
-    internal static bool Accepts(ConceptSyntax concept, string value)
+    internal static bool Accepts(ConceptSyntax concept, object value)
     {
+        if (concept.Generation?.Checksum is { } algorithm)
+        {
+            var checksum = new ValidationRuleSyntax(ValidationRuleSyntax.ConceptValue, ValidationRuleKind.Checksum, new LiteralExpressionSyntax(algorithm, SourceLocation.Start), null, SourceLocation.Start);
+            concept = concept with { Validations = [.. concept.Validations, new DeclarativeValidateSyntax([checksum], SourceLocation.Start)] };
+        }
         var literal = JsonSerializer.Serialize(value);
         var source = GenerationAdmission.ProbeSource(concept) +
             $"      specification Fixture\n        when Allocate\n          generated value = {literal}\n        then returns {literal}\n";
