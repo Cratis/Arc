@@ -38,7 +38,8 @@ public class a_protected_read : Specification
         var artifacts = new InMemoryClientArtifactsProvider
         {
             EventTypes = [typeof(StockChanged), typeof(LoanCountChanged), typeof(BookBorrowed)],
-            ModelBoundProjections = [typeof(BookStock), typeof(MemberLoans)]
+            ModelBoundProjections = [typeof(BookStock), typeof(MemberLoans)],
+            EventSources = [typeof(Library)]
         };
         _store = new EventStoreForTesting(null, artifacts);
         _resolver = new ChronicleParameterDependencyResolver([typeof(BookStock), typeof(MemberLoans)]);
@@ -121,6 +122,10 @@ public class a_protected_read : Specification
         _store.Dispose();
         CommandTransaction.Current = null;
     }
+
+    [Cratis.Chronicle.EventSources.EventSource("library", Concurrency = Cratis.Chronicle.EventSources.ConcurrencyDimensions.EventSourceId)]
+    [Cratis.Chronicle.EventSources.EventStream("loans", Concurrency = Cratis.Chronicle.EventSources.ConcurrencyDimensions.EventSourceId | Cratis.Chronicle.EventSources.ConcurrencyDimensions.EventStreamType)]
+    public class Library : Cratis.Chronicle.EventSources.IEventSource;
 
     public record BookId(string Value) : EventSourceId(Value);
     public record MemberId(string Value) : Cratis.Concepts.ConceptAs<string>(Value);
