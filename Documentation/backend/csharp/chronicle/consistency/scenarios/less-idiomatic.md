@@ -164,10 +164,8 @@ public record CourseId(string Value) : EventSourceId(Value);
 public record StudentEnrolled(CourseId Course, MemberId Student);
 
 [Command]
-public record EnrollStudent(CourseId Course, MemberId Student) : ICanProvideEventSourceId
+public record EnrollStudent(CourseId Course, MemberId Student)
 {
-    public EventSourceId GetEventSourceId() => Course;
-
     public IEnumerable<EventForEventSourceId> Handle()
     {
         var enrolled = new StudentEnrolled(Course, Student);

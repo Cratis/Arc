@@ -95,7 +95,7 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
             return;
         }
 
-        var command = method.ContainingType;
+        var command = ReadProtectionSymbols.CommandFor(method) ?? method.ContainingType;
         var resolution = CommandAttributeSymbols.ResolveLookup(command, parameter, mayBeModel);
         if (!mayBeModel)
         {
@@ -106,22 +106,16 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
         var properties = CommandAttributeSymbols.PublicProperties(command).ToArray();
         if (resolution.Conflict is not null)
         {
-            var key = parameter.Type is INamedTypeSymbol candidateModel ? ChronicleStateSymbols.ModelKey(candidateModel, context.Compilation) : null;
-            var suggestion = properties.Where(property =>
-                    (key is null || SymbolEqualityComparer.Default.Equals(property.Type, key.Type)) &&
-                    EditDistance(propertyName, property.Name) <= 2)
+            var suggestion = properties.Where(property => EditDistance(propertyName, property.Name) <= 2)
                 .OrderBy(property => EditDistance(propertyName, property.Name)).ThenBy(property => property.Name, StringComparer.Ordinal).FirstOrDefault()?.Name;
-            var diagnosticProperties = ImmutableDictionary<string, string?>.Empty.Add("SuggestedProperty", suggestion);
+            var diagnosticProperties = ImmutableDictionary<string, string?>.Empty
+                .Add("SuggestedProperty", suggestion)
+                .Add("SuggestedCommandType", command.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
             context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_MissingLookupProperty, parameter.Locations.FirstOrDefault(), diagnosticProperties, parameter.Name, propertyName, command.Name, suggestion ?? "an existing command property"));
-            return;
         }
 
-        var property = properties.First(_ => _.Name == propertyName);
-        var modelKey = parameter.Type is INamedTypeSymbol model ? ChronicleStateSymbols.ModelKey(model, context.Compilation) : null;
-        if (modelKey is not null && !SymbolEqualityComparer.Default.Equals(property.Type, modelKey.Type))
-        {
-            context.ReportDiagnostic(Diagnostic.Create(DiagnosticDescriptors.ARCCHR0031_LookupKeyTypeMismatch, parameter.Locations.FirstOrDefault(), parameter.Name, property.Name, property.Type.Name, parameter.Type.Name, modelKey.Type.Name));
-        }
+        // Explicit lookup keys are canonicalized independently of the model's CLR Id type at runtime.
+        // Even non-concept values have the runtime's ToEventSourceId/ToString fallback.
     }
 
     /// <summary>

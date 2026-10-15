@@ -27,7 +27,8 @@ public class when_applying_declaration_advisories
         new ExpectedDiagnostic("ARCCHR0031", DiagnosticSeverity.Error, "CustomerKey"));
 
     [Fact]
-    public Task should_not_suggest_a_close_name_with_the_wrong_key_type() => CodeFixVerifier<CommandAttributeAnalyzer, UseNameofForLookUpByCodeFixProvider>.VerifyNoCodeFixAsync(
+    public Task should_suggest_a_close_name_whose_key_is_converted_at_runtime() => CodeFixVerifier<CommandAttributeAnalyzer, UseNameofForLookUpByCodeFixProvider>.VerifyCodeFixAsync(
         "using Cratis.Arc.Commands; public class Command { public int Customer { get; set; } public void Handle([LookUpBy(\"Custome\")] Model model) { } } public record Model(string Id);",
+        "using Cratis.Arc.Commands; public class Command { public int Customer { get; set; } public void Handle([LookUpBy(nameof(global::Command.Customer))] Model model) { } } public record Model(string Id);",
         new ExpectedDiagnostic("ARCCHR0031", DiagnosticSeverity.Error, "Custome"));
 }

@@ -94,11 +94,10 @@ A read-model parameter reads the instance whose `Id` equals a key from the comma
 ```csharp
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Projections.ModelBound;
-using Cratis.Monads;
+using FluentValidation;
 
 public record AccountId(string Value) : EventSourceId(Value);
 
@@ -113,38 +112,35 @@ public record AccountBalance(
     [Increment<Deposited>, Decrement<Withdrawn>] decimal Balance);
 
 [Command]
-public record Transfer(AccountId From, AccountId To, decimal Amount) : ICanProvideEventSourceId
+public record Transfer(AccountId From, AccountId To, decimal Amount)
 {
-    const decimal MaximumBalance = 1_000_000m;
+    public IEnumerable<EventForEventSourceId> Handle() =>
+    [
+        new(From, new Withdrawn(Amount)),
+        new(To, new Deposited(Amount))
+    ];
+}
 
-    public EventSourceId GetEventSourceId() => From;
-
-    public Result<IEnumerable<EventForEventSourceId>, ValidationResult> Handle(
-        [LookUpBy(nameof(From))] AccountBalance? source,
-        [LookUpBy(nameof(To))] AccountBalance? target)
+public class TransferValidator : CommandValidator<Transfer>
+{
+    public TransferValidator(
+        [LookUpBy(nameof(Transfer.From))] AccountBalance? source,
+        [LookUpBy(nameof(Transfer.To))] AccountBalance? target)
     {
-        if (source is null || source.Balance < Amount)
-        {
-            return ValidationResult.Error("The source account has insufficient funds.");
-        }
-
-        if (target is not null && target.Balance + Amount > MaximumBalance)
-        {
-            return ValidationResult.Error("The target account cannot hold that much.");
-        }
-
-        return new[]
-        {
-            new EventForEventSourceId(From, new Withdrawn(Amount)),
-            new EventForEventSourceId(To, new Deposited(Amount))
-        };
+        RuleFor(command => command.Amount)
+            .Must(amount => source is not null && source.Balance >= amount)
+            .WithMessage("The source account has insufficient funds.")
+            .Must(amount => target is null || target.Balance + amount <= 1_000_000m)
+            .WithMessage("The target account cannot hold that much.");
     }
 }
 ```
 
 Each parameter is its own guard: one on the event source `From`, one on the event source `To`. Without the attributes, `Transfer` has two properties of the model's `Id` type, and `AmbiguousReadModelLookup` refuses it ([ARCCHR0023](../code-analysis/ARCCHR0023.md) reports it at build time).
 
-`[LookUpBy]` names a public property of the command, and the property's type must be the type of the model's `Id`. A name that does not exist, or a parameter that is not a read model, is `InvalidLookUpBy`, and [ARCCHR0031](../code-analysis/ARCCHR0031.md) reports it, and a property of another type, at build time.
+`[LookUpBy]` names a public property of the command, including on a validator constructor parameter. Arc converts the value to the wire key; the property's CLR type need not equal the model's `Id` type. Concepts are unwrapped, `Guid` values are formatted as identifiers, and `EventSourceId`-derived values use their underlying key. For example, a `ConceptAs<Guid>` property can select a model with a `Guid Id`, and the reverse works too. Other values use the runtime's string conversion. Null or empty keys are still refused.
+
+A name that does not exist, or a parameter that is not a read model, is `InvalidLookUpBy`; [ARCCHR0031](../code-analysis/ARCCHR0031.md) reports these declarations at build time. The exact-type convention in the table applies only when you omit `[LookUpBy]`.
 
 ## The model must be keyed by the entity you append to
 

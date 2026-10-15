@@ -171,6 +171,8 @@ public class a_measure_pipeline : a_read_protection_pipeline
             where T : class => FailDescription ? throw new InvalidOperationException("description failure") : new(Admit<T>(), [eventType], false);
         public DecisionReadAdmission Admit<T>()
             where T : class => typeof(T) == typeof(JoinedStock) ? new(false, DecisionReadRefusalReason.Hierarchy) : new(true, null);
+        public DecisionReadAdmission AdmitForStream<T>()
+            where T : class => Admit<T>();
         public Task<DecisionRead<T>> Get<T>(ReadModelKey key, CancellationToken cancellationToken = default)
             where T : class => GetDetached<T>(key, cancellationToken);
         public Task<DecisionRead<T>> GetDetached<T>(ReadModelKey key, CancellationToken cancellationToken = default)

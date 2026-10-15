@@ -59,12 +59,15 @@ Start with the counter, grouped by `category` and `command`.
 | `immediate_append` | The command appended through an `IEventLog` and `On` would refuse it | Return the event from `Handle()`, or use `IEventLog.Transactional` |
 | `displacement` | An explicit scope or stream decision sits beside a read of the same source | The two must be reconciled under `On` |
 | `scope_refusal` | `On` would refuse the command: its explicit scope is narrower than the read, captured after it, or incomplete | Widen the scope, or remove it |
+| `coarsened` | Reads of the same source would drop stream dimensions; `reason=stream_dims_dropped` | A whole-source read beside a stream read, or reads of different streams, chooses a whole-source guard |
 | `nested_concurrent`, `nested_early_completion` | A nested command ran in parallel with a sibling, or tried to commit the outer unit | Run nested commands one after another and commit in the outer command |
 | `self_write` | One of the command's own events matches what it read | Informational. Own events are excluded from `matching_events_since_start` |
 | `matching_events_since_start` | An event written by someone else matched the read between its start and the scan. `On` might have returned `400` | A real race. This is the data that shows where protection matters |
 | `conflict_today` | An append of this command already failed | Informational |
 | `measurement_unavailable` | A measurement could not be taken. `reason` says why | Raise the timeouts, or ignore it |
 | `mode_lowered` | The run-time cap lowered the declared mode | See [Cap the mode at run time](#cap-the-mode-at-run-time) |
+
+Measure does not currently emit `routing_replaced` or `routing_kept_separately`: its observed scopes do not retain the distinction between explicit guards, default routing and declared routing, including scopes derived inside Chronicle at commit. It also cannot report declared-routing coarsening from those observations. It does not emit `nested_overlap`: append notifications arrive after commit, not when an outer command stages an event before a nested read. Absence of these categories is not evidence that the cases are safe under `On`.
 
 ### Fixing refused reads
 

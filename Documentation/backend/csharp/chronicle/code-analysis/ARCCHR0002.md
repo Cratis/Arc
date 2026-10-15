@@ -26,6 +26,8 @@ Without a decision, Arc uses the first matching property. That choice also decid
 | The subject is computed or fixed | Implement `ICanProvideEventSourceId` and return the id |
 | The command appends to both entities | Return `EventForEventSourceId` for each event. Each event then carries its own id and the rule does not apply |
 
+The analyzer also recognizes a single wrapper or a sequence of wrappers in the success branch of `Result<TEvent, TError>`, including `Task<Result<TEvent, TError>>`. No `ICanProvideEventSourceId` is needed for those return values. An error branch carrying a wrapper does not give an untargeted success event a destination.
+
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.Events;

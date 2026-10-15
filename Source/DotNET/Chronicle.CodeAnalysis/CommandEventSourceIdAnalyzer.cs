@@ -181,7 +181,7 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
 
     static bool ReturnsExplicitEventSource(IMethodSymbol method)
     {
-        var returnType = UnwrapTask(method.ReturnType);
+        var returnType = UnwrapResponse(method.ReturnType);
         if (returnType is null)
         {
             return false;
@@ -217,13 +217,18 @@ public class CommandEventSourceIdAnalyzer : DiagnosticAnalyzer
         return elements.Any(element => IsOrDerivesFromEventSourceId(element.Type));
     }
 
-    static ITypeSymbol? UnwrapTask(ITypeSymbol returnType)
+    static ITypeSymbol? UnwrapResponse(ITypeSymbol returnType)
     {
-        if (returnType is INamedTypeSymbol namedType &&
-            namedType.Name == "Task" &&
-            namedType.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks")
+        if (returnType is INamedTypeSymbol namedType)
         {
-            return namedType.TypeArguments.Length == 1 ? namedType.TypeArguments[0] : null;
+            if (namedType.Name == "Task" && namedType.ContainingNamespace?.ToDisplayString() == "System.Threading.Tasks")
+            {
+                return namedType.TypeArguments.Length == 1 ? UnwrapResponse(namedType.TypeArguments[0]) : null;
+            }
+            if (namedType.Name == "Result" && namedType.Arity == 2 && namedType.ContainingNamespace?.ToDisplayString() == "Cratis.Monads")
+            {
+                return UnwrapResponse(namedType.TypeArguments[0]);
+            }
         }
 
         return returnType;

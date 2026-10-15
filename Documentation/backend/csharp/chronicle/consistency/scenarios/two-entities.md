@@ -1,6 +1,6 @@
 ---
 title: Two entities
-description: A rule over two entities at once, written as two read model parameters and one batch with one event for each entity.
+description: A rule over two entities at once, written as two read model parameters in a validator and one batch with one event for each entity.
 ---
 
 Use this when one rule depends on the state of two entities: a member's loan limit and a book's last copy, or a course's capacity and a student's limit.
@@ -8,8 +8,8 @@ Use this when one rule depends on the state of two entities: a member's loan lim
 | | |
 | --- | --- |
 | Rule | A member may hold three loans, and a book cannot be borrowed when no copy is left |
-| Mechanism | Two read model parameters, each with `[LookUpBy]`, and one event for each entity in one atomic batch. The rule is in `Handle()`, which returns a `Result` |
-| Alternatives | `IDecisionReads` in `Provide()` when the second key is computed. Explicit scopes in one batch (Chronicle used directly) |
+| Mechanism | Two validator constructor parameters, each with `[LookUpBy]`, and one event for each entity in one atomic batch |
+| Alternatives | `IDecisionReads` in `Provide()` when the second key is computed. `Handle()` returning a `Result` when the rule needs a value computed there. Explicit scopes in one batch (Chronicle used directly) |
 | Not | Two aggregates, each guarding only its own source. One model that folds both entities: it is refused |
 
 ## A member and a book
@@ -17,11 +17,10 @@ Use this when one rule depends on the state of two entities: a member's loan lim
 ```csharp
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Projections.ModelBound;
-using Cratis.Monads;
+using FluentValidation;
 
 public record Isbn(string Value) : EventSourceId(Value);
 
@@ -40,39 +39,35 @@ public record LoanTaken(Isbn Book);
 public record LoanReturned(Isbn Book);
 
 public record BookStock(
-    Isbn Id,
+    EventSourceId Id,
     [Increment<BookAdded>, Decrement<BookBorrowed>] int Available);
 
 public record MemberLoans(
-    MemberId Id,
+    EventSourceId Id,
     [Increment<LoanTaken>, Decrement<LoanReturned>] int Active);
 
 [Command]
-public record BorrowBook(Isbn Isbn, MemberId Member) : ICanProvideEventSourceId
+public record BorrowBook(Isbn Isbn, MemberId Member)
 {
-    public const int MaximumLoans = 3;
+    public IEnumerable<EventForEventSourceId> Handle() =>
+    [
+        new(Isbn, new BookBorrowed(Member)),
+        new(Member, new LoanTaken(Isbn))
+    ];
+}
 
-    public EventSourceId GetEventSourceId() => Isbn;
-
-    public Result<IEnumerable<EventForEventSourceId>, ValidationResult> Handle(
-        [LookUpBy(nameof(Isbn))] BookStock? stock,
-        [LookUpBy(nameof(Member))] MemberLoans? loans)
+public class BorrowBookValidator : CommandValidator<BorrowBook>
+{
+    public BorrowBookValidator(
+        [LookUpBy(nameof(BorrowBook.Isbn))] BookStock? stock,
+        [LookUpBy(nameof(BorrowBook.Member))] MemberLoans? loans)
     {
-        if (stock is not { Available: > 0 })
-        {
-            return ValidationResult.Error("No copies left.");
-        }
-
-        if (loans is { Active: >= MaximumLoans })
-        {
-            return ValidationResult.Error("The member has reached the loan limit.");
-        }
-
-        return new[]
-        {
-            new EventForEventSourceId(Isbn, new BookBorrowed(Member)),
-            new EventForEventSourceId(Member, new LoanTaken(Isbn))
-        };
+        RuleFor(command => command.Isbn)
+            .Must(_ => stock is { Available: > 0 })
+            .WithMessage("No copies left.");
+        RuleFor(command => command.Member)
+            .Must(_ => loans is null || loans.Active < 3)
+            .WithMessage("The member has reached the loan limit.");
     }
 }
 ```
@@ -82,14 +77,14 @@ guard isbn:   types=[BookAdded, BookBorrowed], after <tail before the BookStock 
 guard member: types=[LoanTaken, LoanReturned], after <tail before the MemberLoans read>
 ```
 
-The rule needs both models and returns events for two entities, so it is in `Handle()`, which returns a `Result` that declines before anything is appended. Both guards are checked in the one atomic append. If either side changed, nothing is written and the message names the model that changed.
+The validator reads and checks both entities. `Handle()` says only what happens. Both guards are checked in the one atomic append. If either side changed, nothing is written and the message names the model that changed.
 
 Things to get right:
 
-- The command appends to two entities, so it returns `EventForEventSourceId` for each. It also implements `ICanProvideEventSourceId` to say which entity is its subject, because the analyzer does not see through a `Result` return type ([ARCCHR0002](../../code-analysis/ARCCHR0002.md)).
+- Each `EventForEventSourceId` carries its own destination. No `ICanProvideEventSourceId` is needed, including when `Handle()` returns these values inside a `Result` or a `Task` ([ARCCHR0002](../../code-analysis/ARCCHR0002.md)).
 - Each entity gets an event of its own type. `BookBorrowed` goes to the book and `LoanTaken` goes to the member. Do not write the same event type to both: each model would fold the other entity's copy.
 - The model of each entity must be keyed by that entity and folded from events appended to it. `MemberLoans` counts `LoanTaken` on the member's own stream.
-- A model's `Id` has the same type as the command property `[LookUpBy]` names. `BookStock` has an `Isbn Id` and the command's `Isbn` property is an `Isbn`; [ARCCHR0031](../../code-analysis/ARCCHR0031.md) reports a mismatch.
+- `[LookUpBy]` names a property of the command, even on a validator constructor. Arc converts its value to the wire key: an `Isbn` can select a model with an `EventSourceId Id`. The CLR types need not be identical.
 
 ### The trap: a model keyed by an event property
 
@@ -103,16 +98,15 @@ The fix is the example above: append `LoanTaken` to the member.
 
 ## A course and a student
 
-Course capacity and a per-student limit. This is the same pattern, with a command whose subject is the course.
+Course capacity and a per-student limit use the same pattern.
 
 ```csharp
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Projections.ModelBound;
-using Cratis.Monads;
+using FluentValidation;
 
 public record CourseId(string Value) : EventSourceId(Value);
 
@@ -129,45 +123,38 @@ public record CourseJoined(CourseId Course);
 
 [FromEvent<CourseDefined>]
 public record CourseSeats(
-    CourseId Id,
+    EventSourceId Id,
     int Capacity,
     [Increment<SeatTaken>] int Taken);
 
 public record StudentCourses(
-    StudentId Id,
+    EventSourceId Id,
     [Increment<CourseJoined>] int Count);
 
 [Command]
-public record SubscribeToCourse(CourseId Course, StudentId Student) : ICanProvideEventSourceId
+public record SubscribeToCourse(CourseId Course, StudentId Student)
 {
-    public const int MaximumCourses = 3;
+    public IEnumerable<EventForEventSourceId> Handle() =>
+    [
+        new(Course, new SeatTaken(Student)),
+        new(Student, new CourseJoined(Course))
+    ];
+}
 
-    public EventSourceId GetEventSourceId() => Course;
-
-    public Result<IEnumerable<EventForEventSourceId>, ValidationResult> Handle(
-        [LookUpBy(nameof(Course))] CourseSeats? course,
-        [LookUpBy(nameof(Student))] StudentCourses? student)
+public class SubscribeToCourseValidator : CommandValidator<SubscribeToCourse>
+{
+    public SubscribeToCourseValidator(
+        [LookUpBy(nameof(SubscribeToCourse.Course))] CourseSeats? course,
+        [LookUpBy(nameof(SubscribeToCourse.Student))] StudentCourses? student)
     {
-        if (course is null)
-        {
-            return ValidationResult.Error("The course does not exist.");
-        }
-
-        if (course.Taken >= course.Capacity)
-        {
-            return ValidationResult.Error("The course is full.");
-        }
-
-        if (student is { Count: >= MaximumCourses })
-        {
-            return ValidationResult.Error("The student is already in three courses.");
-        }
-
-        return new[]
-        {
-            new EventForEventSourceId(Course, new SeatTaken(Student)),
-            new EventForEventSourceId(Student, new CourseJoined(Course))
-        };
+        RuleFor(command => command.Course)
+            .Must(_ => course is not null)
+            .WithMessage("The course does not exist.")
+            .Must(_ => course is null || course.Taken < course.Capacity)
+            .WithMessage("The course is full.");
+        RuleFor(command => command.Student)
+            .Must(_ => student is null || student.Count < 3)
+            .WithMessage("The student is already in three courses.");
     }
 }
 ```

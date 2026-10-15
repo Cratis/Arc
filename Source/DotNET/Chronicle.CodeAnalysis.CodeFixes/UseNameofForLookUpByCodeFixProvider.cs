@@ -48,7 +48,9 @@ public class UseNameofForLookUpByCodeFixProvider : CodeFixProvider
             return;
         }
 
-        var command = symbol.ContainingSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var command = diagnostic.Properties.TryGetValue("SuggestedCommandType", out var commandType) && commandType is not null
+            ? commandType
+            : symbol.ContainingSymbol.ContainingType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         var identifier = SyntaxFacts.GetKeywordKind(property) != SyntaxKind.None ? $"@{property}" : property;
         var expression = ParseExpression($"nameof({command}.{identifier})").WithTriviaFrom(argument.Expression);
         var action = CodeAction.Create(

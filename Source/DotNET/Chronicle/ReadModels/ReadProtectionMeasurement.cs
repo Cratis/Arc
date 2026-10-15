@@ -258,6 +258,9 @@ internal sealed class ReadProtectionMeasurement
         catch (Exception failure) { Unavailable(failure.GetType().Name); }
     }
 
+    static (string? Type, string? Id) StreamDimensions(MeasuredRead read) =>
+        (read.StreamType is { IsAll: false } type ? type.Value : null, read.StreamId is { IsDefault: false } id ? id.Value : null);
+
     static string Refusal(DecisionReadDescription description) => description.UsesPinnedGenerationDelivery ? "GenerationDeliveryNotSupported" : description.Admission.Reason?.ToString() ?? "Admission unavailable";
 
     void Initialize(IServiceProvider? services)
@@ -335,6 +338,11 @@ internal sealed class ReadProtectionMeasurement
             {
                 Unavailable("Read observation limit");
                 return;
+            }
+            if (read.Model is not null && read.Source is { IsSpecified: true } source &&
+                _reads.Exists(previous => previous.Model is not null && previous.Source?.Value == source.Value && StreamDimensions(previous) != StreamDimensions(read)))
+            {
+                Record("coarsened", read.Model, "stream_dims_dropped");
             }
             _reads.Add(read);
             foreach (var scope in _scopes.Where(_ => read.Model is not null && _.Label == read.Source)) ObserveDisplacement(read, scope.Scope, scope.Reason);

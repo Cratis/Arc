@@ -38,7 +38,7 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0027](./ARCCHR0027.md) | Warning | A visible `OnRefused` callback returns a statically invalid refusal production. |
 | [ARCCHR0028](./ARCCHR0028.md) | Warning | Raw Chronicle reads and explicit read bypasses under On. |
 | [ARCCHR0029](./ARCCHR0029.md) | Error | Conflicting protected and advisory declarations. |
-| [ARCCHR0031](./ARCCHR0031.md) | Error | Invalid explicit LookUpBy property or key type. |
+| [ARCCHR0031](./ARCCHR0031.md) | Error | Invalid explicit LookUpBy property or non-model parameter. |
 | [ARCCHR0032](./ARCCHR0032.md) | Info | Inert or redundant declarations. |
 | [ARCCHR0033](./ARCCHR0033.md) | Warning | Aggregate and protected plain read on the same key under On. |
 | [ARCCHR0034](./ARCCHR0034.md) | Info | Method-level advisory does not cover read parameters. |
@@ -54,7 +54,7 @@ A command that has `[EventStreamId(value)]` and also implements `ICanProvideEven
 | [ARCCHR0008](./ARCCHR0008.md) | Rewrite to the fully qualified Chronicle Key attribute. |
 | [ARCCHR0010](./ARCCHR0010.md#quick-fix) | Compiler-checked local replacement with `EventSourceId<Guid>` for supported direct tuple syntax. |
 | [ARCCHR0013](./ARCCHR0013.md) | Replace matching source/stream attributes with a typed event source definition. |
-| [ARCCHR0031](./ARCCHR0031.md) | Use nameof for a nearby, type-compatible lookup property. |
+| [ARCCHR0031](./ARCCHR0031.md) | Use nameof for a nearby command lookup property. |
 | [ARCCHR0021](./ARCCHR0021.md#quick-fix) | Replace legacy wrapper route strings with the matching definition and stream. |
 | [ARCCHR0015](./ARCCHR0015.md#quick-fix) | Compiler-checked replacement of a nullable event with an explicit event-or-validation result and rejection placeholders. |
 | [ARCCHR0016](./ARCCHR0016.md#quick-fix) | Remove `concurrency: true` from the attribute. |

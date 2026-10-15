@@ -30,7 +30,7 @@ ARCCHR0026|Arc.Chronicle|Info|Chronicle model read through a MongoDB collection;
 ARCCHR0027|Arc.Chronicle|Warning|Refusal branch must return registered events or acknowledge
 ARCCHR0028|Arc.Chronicle|Warning|Raw Chronicle reads and explicit bypasses under On
 ARCCHR0029|Arc.Chronicle|Error|Conflicting ProtectedDecision, ReadProtection and Unprotected declarations
-ARCCHR0031|Arc.Chronicle|Error|LookUpBy requires a read-model parameter and a public command property matching its key type
+ARCCHR0031|Arc.Chronicle|Error|LookUpBy requires a read-model parameter and a public command property
 ARCCHR0032|Arc.Chronicle|Info|Inert or redundant ReadProtection and Unprotected declarations
 ARCCHR0033|Arc.Chronicle|Warning|Aggregate and protected plain read on the same key under On
 ARCCHR0034|Arc.Chronicle|Info|Method-level advisory does not cover read-model parameters
