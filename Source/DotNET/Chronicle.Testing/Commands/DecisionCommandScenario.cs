@@ -135,14 +135,33 @@ internal sealed class DecisionCommandScenario
     /// </summary>
     /// <returns>The append operation.</returns>
     /// <exception cref="CompetingEventCouldNotBeAppended">A competing append failed.</exception>
-    public async Task AppendCompetingEvents()
+    public Task AppendCompetingEvents()
     {
         // A nested command shares this scenario but must not drain the outer command's competitor queue.
-        if (_executionDepth != 1)
+        if (_executionDepth != 1 || _competitors.Count == 0)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        // A competing writer must not inherit the owner's read-protection frame or unit of work.
+        // A distinct correlation alone does not isolate Chronicle's ambient append refusals under On.
+        if (ExecutionContext.IsFlowSuppressed())
+        {
+            return Task.Run(AppendCompetingEventsOutsideCommand);
+        }
+
+        // Flow must be restored on this thread right after scheduling, so the task is started inside and returned after.
+        Task competing;
+        using (ExecutionContext.SuppressFlow())
+        {
+            competing = Task.Run(AppendCompetingEventsOutsideCommand);
+        }
+
+        return competing;
+    }
+
+    async Task AppendCompetingEventsOutsideCommand()
+    {
         _setupOrCompeting = true;
         try
         {

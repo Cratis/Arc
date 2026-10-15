@@ -25,6 +25,10 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     }
 
     /// <inheritdoc/>
+    public DecisionReadDescription Describe<T>()
+        where T : class => inner.Describe<T>();
+
+    /// <inheritdoc/>
     public DecisionReadAdmission Admit<T>()
         where T : class => Admit<T>(false);
 
@@ -33,6 +37,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
         where T : class
     {
         // Only [ProtectedDecision] changes the Chronicle contract. Unmarked and [Unprotected] callers keep detached reads.
+        ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, detached: true);
         RefuseProtectedDetachedRead();
 
         return inner.GetDetached<T>(key, cancellationToken);
@@ -40,7 +45,11 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
 
     /// <inheritdoc/>
     public Task<DecisionRead<T>> Get<T>(ReadModelKey key, CancellationToken cancellationToken = default)
-        where T : class => Get<T>(key, null, cancellationToken);
+        where T : class => Get<T>(key, null, null, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<DecisionRead<T>> GetFor<T>(IUnitOfWork unitOfWork, ReadModelKey key, CancellationToken cancellationToken = default)
+        where T : class => Get<T>(key, null, unitOfWork, cancellationToken);
 
     /// <summary>
     /// Enforces enrollment for protected commands.
@@ -48,7 +57,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     /// <exception cref="DecisionReadCouldNotBeAcquired">A protected command requested a detached read.</exception>
     static void RefuseProtectedDetachedRead()
     {
-        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Protected)
+        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Protected && CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On)
         {
             throw new DecisionReadCouldNotBeAcquired(new DetachedDecisionReadRefused());
         }
@@ -73,7 +82,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
             return;
         }
 
-        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy)
+        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Legacy && CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On)
         {
             throw new ProtectedDecisionReadRequiresProtectedCommand();
         }
@@ -96,7 +105,8 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
         {
             return null;
         }
-        if (!CommandTransaction.TryGetActive(out var unitOfWork))
+        var unitOfWork = TransactionalCommandScope.CurrentProtectedUnit;
+        if (unitOfWork is null && !CommandTransaction.TryGetActive(out unitOfWork))
         {
             throw new DecisionReadRequiresUnitOfWork();
         }
@@ -134,46 +144,63 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     /// <typeparam name="T">The read model type.</typeparam>
     /// <param name="key">The cache's source key.</param>
     /// <param name="streamScope">The optional stream dimensions.</param>
+    /// <param name="requestedUnit">The explicitly requested receiving unit, when supplied.</param>
     /// <param name="cancellationToken">Optional cancellation.</param>
     /// <returns>The invocation's decision read.</returns>
     /// <exception cref="DecisionReadCouldNotBeAcquired">The protected read could not be acquired.</exception>
-    async Task<DecisionRead<T>> Get<T>(ReadModelKey key, StreamScope? streamScope, CancellationToken cancellationToken)
+    /// <exception cref="ReadIncomplete">The fresh fold did not reach its probe.</exception>
+    async Task<DecisionRead<T>> Get<T>(ReadModelKey key, StreamScope? streamScope, IUnitOfWork? requestedUnit, CancellationToken cancellationToken)
         where T : class
     {
+        ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, streamScope?.EventStreamType, streamScope?.EventStreamId, streamScope?.EventSourceType);
         try
         {
-            return await GetForInvocation<T>(key, streamScope, cancellationToken);
+            return await GetForInvocation<T>(key, streamScope, requestedUnit, cancellationToken);
         }
-        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired))
+        catch (DecisionReadRefused exception) when (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && exception.Reason == DecisionReadRefusalReason.FoldIncomplete)
+        {
+            throw new ReadIncomplete(typeof(T), key);
+        }
+        catch (Exception ex) when (CommandDecisionPolicy.IsProtected && CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On && ex is not (OperationCanceledException or DecisionReadCouldNotBeAcquired))
         {
             throw new DecisionReadCouldNotBeAcquired(ex);
         }
     }
 
-    async Task<DecisionRead<T>> GetForInvocation<T>(ReadModelKey key, StreamScope? streamScope, CancellationToken cancellationToken)
+    async Task<DecisionRead<T>> GetForInvocation<T>(ReadModelKey key, StreamScope? streamScope, IUnitOfWork? requestedUnit, CancellationToken cancellationToken)
         where T : class
     {
         var validation = CommandValidationExecution.Current;
-        var invocation = validation is { } validating
-            ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, CommandDecisionPolicy.Token, null))
-            : CurrentInvocation();
+        var invocation = InvocationForCurrentPolicy();
         VerifyInvocation(invocation);
         if (!CommandDecisionPolicy.IsActive)
         {
             // Outside a command, preserve Chronicle's ambient unit-of-work contract.
-            return await ReadAmbient<T>(key, streamScope, cancellationToken);
+            return requestedUnit is null
+                ? await ReadAmbient<T>(key, streamScope, cancellationToken)
+                : await ReadEnrolled<T>(requestedUnit, key, streamScope, cancellationToken);
         }
 
         var mode = CommandDecisionPolicy.Mode == CommandDecisionMode.Unprotected ? ReadMode.Unprotected :
             validation is not null ? ReadMode.Validation : ReadMode.Protected;
         var unitOfWork = UnitOfWorkFor(mode);
+        if (unitOfWork is { IsCompleted: true } && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
+        {
+            throw new ReadAfterProtectedCommit(typeof(T).Name);
+        }
+        if (requestedUnit is not null && unitOfWork is not null && !ReferenceEquals(requestedUnit, unitOfWork))
+        {
+            throw new ReadProtectionUnitMismatch();
+        }
 
         // Include the target and stream: supplied providers and sibling streams must not share a cached fold.
         var cacheKey = (typeof(T), (string)key, mode, (string)eventStore.Name, (string)eventStore.Namespace, streamScope);
         async Task<object> CreateRead() => mode == ReadMode.Unprotected
             ? await ReadAdvisory<T>(key, streamScope, cancellationToken)
-            : await ReadDetached<T>(key, streamScope, cancellationToken);
-        var task = invocation!.Reads.GetOrAdd(
+            : mode == ReadMode.Protected && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On
+                ? await ReadEnrolled<T>(unitOfWork!, key, streamScope, cancellationToken)
+                : await ReadDetached<T>(key, streamScope, cancellationToken);
+        var task = CacheFor(invocation!, unitOfWork).Reads.GetOrAdd(
             cacheKey,
             static (_, readFactory) => new Lazy<Task<object>>(readFactory, LazyThreadSafetyMode.ExecutionAndPublication),
             CreateRead);
@@ -181,7 +208,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
 
         // Use the command's owner, not an ambient Chronicle manager, and re-enroll cached tokens intentionally.
         unitOfWork?.AddDecisionRead(read);
-        invocation.Issued.TryAdd(read, 0);
+        invocation!.Issued.TryAdd(read, 0);
 
         return read;
     }

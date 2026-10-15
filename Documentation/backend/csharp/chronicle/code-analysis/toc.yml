@@ -3,7 +3,7 @@
 - name: ARCCHR0001 - Incorrect aggregate root event handler signature
   href: ARCCHR0001.md
 - name: ARCCHR0002 - Ambiguous command identity
-  href: index.md#arcchr0002-ambiguous-command-identity
+  href: ARCCHR0002.md
 - name: ARCCHR0003 - Reactor must not reach the default event log
   href: ARCCHR0003.md
 - name: ARCCHR0004 - [EventType] repeats the type name as its id
@@ -13,17 +13,21 @@
 - name: ARCCHR0006 - Reactor handler invoking ICommandPipeline.Execute does not say what replay should do
   href: ARCCHR0006.md
 - name: ARCCHR0007 - Command handler injects IEventLog
-  href: index.md#arcchr0007-command-handler-injects-ieventlog
+  href: ARCCHR0007.md
 - name: ARCCHR0008 - Command key marked with the data annotations Key attribute
   href: ARCCHR0008.md
 - name: ARCCHR0009 - Command property reads as a secret and should be marked [NotAudited]
   href: ARCCHR0009.md
 - name: ARCCHR0010 - Raw Guid response does not set the event source id
   href: ARCCHR0010.md
-- name: ARCCHR0011 - Unguarded legacy decision read
-  href: index.md#arcchr0011-unguarded-legacy-decision-reads
-- name: ARCCHR0012 - Immediate append with a decision read
-  href: index.md#arcchr0012-immediate-append-with-a-decision-read
+- name: ARCCHR0011 - Plain read model in an Off command is unprotected
+  href: ARCCHR0011.md
+- name: ARCCHR0012 - Immediate append bypasses protected decision
+  href: ARCCHR0012.md
+- name: ARCCHR0013 - Use the event source definition
+  href: ARCCHR0013.md
+- name: ARCCHR0014 - Observed event stream is not declared
+  href: ARCCHR0014.md
 - name: ARCCHR0015 - Command handler must not return a nullable event
   href: ARCCHR0015.md
 - name: ARCCHR0016 - Concurrency flag ignored with exact scopes
@@ -42,9 +46,31 @@
   href: ARCCHR0022.md
 - name: ARCCHR0023 - Read-model lookup key is not proven
   href: ARCCHR0023.md
+- name: ARCCHR0024 - Read-model shape cannot be protected
+  href: ARCCHR0024.md
 - name: ARCCHR0025 - Keyless command reads Chronicle state
   href: ARCCHR0025.md
 - name: ARCCHR0026 - Chronicle model read through a MongoDB collection
   href: ARCCHR0026.md
 - name: ARCCHR0027 - Refusal branch must return registered events or acknowledge
   href: ARCCHR0027.md
+- name: ARCCHR0028 - Chronicle read is not proven protected
+  href: ARCCHR0028.md
+- name: ARCCHR0029 - Conflicting read protection
+  href: ARCCHR0029.md
+- name: ARCCHR0031 - Invalid read-model lookup
+  href: ARCCHR0031.md
+- name: ARCCHR0032 - Inert or redundant declaration
+  href: ARCCHR0032.md
+- name: ARCCHR0033 - Aggregate and read-model parameter share a source
+  href: ARCCHR0033.md
+- name: ARCCHR0034 - Method advisory does not cover parameters
+  href: ARCCHR0034.md
+- name: ARCCHR0035 - Protected aggregate committed too early
+  href: ARCCHR0035.md
+- name: ARCCHR0036 - Exact scope coverage is not proven
+  href: ARCCHR0036.md
+- name: ARCCHR0037 - Read model stream is not on the command route
+  href: ARCCHR0037.md
+- name: ARCCHR0038 - Stream read guard widens
+  href: ARCCHR0038.md

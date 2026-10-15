@@ -8,13 +8,16 @@ using System.Runtime.ExceptionServices;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Arc.Queries;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Reducers;
+using Cratis.Types;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -62,6 +65,9 @@ public static class ReadModelServiceCollectionExtensions
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
         // non-nullable read model be surfaced as a validation failure (HTTP 400), coexisting with any other provider.
         services.AddReadModelsForCommand(new ChronicleReadModelForCommandResolver(readModelTypes));
+        services.AddSingleton(new ChronicleParameterDependencyResolver(readModelTypes));
+        services.TryAddSingleton<IInstancesOf<ICanResolveParameterDependency>>(sp =>
+            new KnownInstancesOf<ICanResolveParameterDependency>([sp.GetRequiredService<ChronicleParameterDependencyResolver>()]));
 
         // This public entry point also registers DecisionRead<T>. Never leave it bound to Chronicle's raw reader.
         services.AddCommandAwareDecisionReads();
@@ -100,7 +106,10 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>These same services for further registrations.</returns>
     public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
     {
+        services.TryAddSingleton<ReadProtectionMeasureQueue>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ReadProtectionMeasureQueue>(sp => sp.GetRequiredService<ReadProtectionMeasureQueue>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandExceptionMapper, ReadProtectionCommandExceptionMapper>());
         services.TryAddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>();
         services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
             sp.GetRequiredService<IEventStore>().GetDecisionReads(),
@@ -115,11 +124,16 @@ public static class ReadModelServiceCollectionExtensions
     /// <param name="readModelType">Type of read model to resolve.</param>
     /// <param name="commandContext">The <see cref="CommandContext"/> to resolve from.</param>
     /// <param name="readModels">The <see cref="IReadModels"/> service.</param>
+    /// <param name="key">An optional per-parameter key, instead of the command key.</param>
     /// <returns>The resolved read model instance, or null when it does not exist.</returns>
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
-    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels)
+    internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels, ReadModelKey? key = null)
     {
-        var eventSourceId = commandContext.GetEventSourceId();
+        if (PerStreamReadModelBinding.IsDeclared(readModelType))
+        {
+            return PerStreamReadModelBinding.Resolve(readModelType, commandContext, commandContext.ServiceProvider!);
+        }
+        var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
         if (eventSourceId == EventSourceId.Unspecified)
         {
             // A read model is keyed by the command's event source id, so an unspecified id (the command carried no
@@ -131,6 +145,7 @@ public static class ReadModelServiceCollectionExtensions
             throw new UnableToResolveReadModelFromCommandContext(readModelType);
         }
 
+        ReadProtectionMeasurement.Current?.StoredRead(readModelType, (ReadModelKey)eventSourceId);
         var readModel = readModels.GetInstanceById(readModelType, eventSourceId).GetAwaiter().GetResult();
 
         // A never-created or removed read model resolves to null; there is nothing to release (decrypt).
@@ -153,6 +168,11 @@ public static class ReadModelServiceCollectionExtensions
         where T : class
     {
         var context = services.GetRequiredService<ICommandContextAccessor>().Current;
+        if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
+        {
+            var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
+            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+        }
         var key = context.GetEventSourceId();
         if (key == EventSourceId.Unspecified)
         {

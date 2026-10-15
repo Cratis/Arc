@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
@@ -12,6 +13,7 @@ internal sealed partial class CommandDecisionReads
 {
     static readonly AsyncLocal<Invocation?> _invocation = new();
     static readonly ConditionalWeakTable<object, Invocation> _validationInvocations = new();
+    static readonly ConditionalWeakTable<IUnitOfWork, ReadCache> _unitReads = new();
 
     /// <summary>
     /// Starts an invocation with its own cache and provenance.
@@ -49,6 +51,15 @@ internal sealed partial class CommandDecisionReads
         }
     }
 
+    static Invocation? InvocationForCurrentPolicy() => CommandValidationExecution.Current is { } validating
+        ? _validationInvocations.GetValue(validating.Token, _ => new Invocation(validating.CommandType, CommandDecisionPolicy.Token, null))
+        : CurrentInvocation();
+
+    static ReadCache CacheFor(Invocation invocation, IUnitOfWork? unit) =>
+        CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && unit is not null
+            ? _unitReads.GetValue(unit, static _ => new ReadCache())
+            : invocation.Cache;
+
     static Invocation? CurrentInvocation()
     {
         var invocation = _invocation.Value;
@@ -68,18 +79,23 @@ internal sealed partial class CommandDecisionReads
     /// <param name="previous">The enclosing invocation, if any.</param>
     sealed class Invocation(Type commandType, object? policyToken, Invocation? previous)
     {
-        ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace, StreamScope? Stream), Lazy<Task<object>>>? _reads;
         ConcurrentDictionary<IDecisionRead, byte>? _issued;
+
+        public ReadCache Cache { get; } = new();
 
         public Type CommandType { get; } = commandType;
         public object? PolicyToken { get; } = policyToken;
         public Invocation? Previous { get; } = previous;
         public bool Completed { get; set; }
-        public ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace, StreamScope? Stream), Lazy<Task<object>>> Reads =>
-            LazyInitializer.EnsureInitialized(ref _reads, static () => new());
         public ConcurrentDictionary<IDecisionRead, byte> Issued =>
             LazyInitializer.EnsureInitialized(ref _issued, static () => new(ReferenceEqualityComparer.Instance));
 
         public bool HasIssued(IDecisionRead read) => Volatile.Read(ref _issued)?.ContainsKey(read) == true;
+    }
+
+    sealed class ReadCache
+    {
+        public ConcurrentDictionary<(Type Model, string Key, ReadMode Mode, string Store, string Namespace, StreamScope? Stream), Lazy<Task<object>>> Reads { get; } = new();
+        public ConcurrentDictionary<IDecisionRead, Lazy<Task<object?>>> Instances { get; } = new(ReferenceEqualityComparer.Instance);
     }
 }

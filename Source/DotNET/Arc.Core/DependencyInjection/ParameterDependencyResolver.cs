@@ -26,7 +26,7 @@ static class ParameterDependencyResolver
         object? dependency;
         try
         {
-            dependency = serviceProvider.GetService(parameter.ParameterType);
+            dependency = ResolveParameter(serviceProvider, parameter);
         }
         catch (InvalidOperationException failure)
         {
@@ -81,6 +81,22 @@ static class ParameterDependencyResolver
     /// <returns>The resolved dependencies in parameter order.</returns>
     public static object?[] Resolve(IServiceProvider serviceProvider, ParameterInfo[] parameters, Func<ParameterInfo, Exception> createException) =>
         parameters.Select(parameter => Resolve(serviceProvider, parameter, createException)).ToArray();
+
+    static object? ResolveParameter(IServiceProvider serviceProvider, ParameterInfo parameter)
+    {
+        if (serviceProvider.GetService<IInstancesOf<ICanResolveParameterDependency>>() is { } resolvers)
+        {
+            foreach (var resolver in resolvers)
+            {
+                if (resolver.TryResolve(serviceProvider, parameter, out var dependency))
+                {
+                    return dependency;
+                }
+            }
+        }
+
+        return serviceProvider.GetService(parameter.ParameterType);
+    }
 
     static bool IsNullable(ParameterInfo parameter) =>
         new NullabilityInfoContext().Create(parameter).WriteState == NullabilityState.Nullable;

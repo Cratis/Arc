@@ -328,7 +328,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ExecuteHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), requestServices);
         try
         {
             EnsureDecisionSupport(requestServices);
@@ -368,7 +368,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), requestServices);
         try
         {
             EnsureDecisionSupport(requestServices);
@@ -435,7 +435,7 @@ public class CommandPipeline(
     async Task<CommandResult> ExecuteCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, Activity? activity, CancellationToken cancellationToken)
     {
         using var execution = CommandValidationExecution.Suspend();
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), serviceProvider);
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
         using var principalLease = new AuthorizationPrincipalLease();
@@ -458,6 +458,7 @@ public class CommandPipeline(
         }
 
         using var boundary = frame;
+        using var invocationScopes = new InvocationScopes(() => commandContext, () => scopes, () => begunScopeCount);
         try
         {
             EnsureDecisionSupport(serviceProvider);
@@ -738,7 +739,7 @@ public class CommandPipeline(
 
     async Task<CommandResult> ValidateCore(object command, IServiceProvider serviceProvider, ValidationResultSeverity? allowedSeverity, PreparedAuthorization? suppliedAuthorization, Activity? activity, CancellationToken cancellationToken)
     {
-        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType());
+        using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), serviceProvider);
         using var validation = CommandValidationExecution.Begin(command.GetType());
         var correlationId = GetCorrelationId();
         var result = CommandResult.Success(correlationId);
@@ -1122,5 +1123,33 @@ public class CommandPipeline(
         // reflection. That works under the JIT whatever the dynamic code settings say (an app built with PublishAot runs
         // under the JIT from dotnet run or a test host); only ahead-of-time compiled code cannot create the type.
         return CommandResultFactories.CreateWithoutFactory(correlationId, response, CommandResultFactories.CreateThroughReflection);
+    }
+
+    sealed class InvocationScopes(Func<CommandContext?> context, Func<ICommandExecutionScope[]?> scopes, Func<int> count) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (context() is { } current && scopes() is { } begun)
+            {
+                End(current, begun, count() - 1);
+            }
+        }
+
+        static void End(CommandContext current, ICommandExecutionScope[] begun, int index)
+        {
+            if (index < 0)
+            {
+                return;
+            }
+            try
+            {
+                (begun[index] as ICommandInvocationExecutionScope)?.End(current);
+            }
+            finally
+            {
+                // Even a faulty cleanup cannot leave another scope's invocation resources alive.
+                End(current, begun, index - 1);
+            }
+        }
     }
 }

@@ -117,7 +117,7 @@ Pins win over projected instances for their seeded key. To merge a pin safely, t
 
 Default-mode observation supports model-bound `ChildrenFrom` mappings, cross-source joins, fluent projections, and reducers. The private event scenario observes through its own read-model surface, so the fold uses the same storage as its event history. You do not need decision mode to observe children or joins.
 
-To observe appends from a command scenario, share its services and context with the query **before seeding or initializing either scenario**. The setup works in default mode or with a [decision-mode command scenario](./chronicle.md#protected-decision-scenarios). Add `UseDecisionReads()` when the command needs protected decision reads; there is no public `QueryScenario.EnableDecisionReads()` method. This setup excerpt assumes `ChangeBalance` and `AccountBalance` are your application's command and read model:
+To observe appends from a command scenario, share its services and context with the query **before seeding or initializing either scenario**. The setup works in default mode or with a [decision-mode command scenario](./chronicle.md#protected-decision-scenarios). The command scenario automatically selects decision mode when its command needs it; there is no public `QueryScenario.EnableDecisionReads()` method. This setup excerpt assumes `ChangeBalance` and `AccountBalance` are your application's command and read model:
 
 ```csharp
 using Cratis.Arc.Chronicle.Testing.Commands;

@@ -85,7 +85,7 @@ public class CommandScenario<TCommand> : IDisposable, IAsyncDisposable
                              $"Failed to create an instance of command scenario extender '{extenderType.FullName}'. " +
                              "Ensure it has a public parameterless constructor.")))
         {
-            extender.Extend(Services, Context);
+            extender.Extend(typeof(TCommand), Services, Context);
         }
     }
 

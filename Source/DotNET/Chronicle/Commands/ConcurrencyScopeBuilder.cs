@@ -37,6 +37,11 @@ public static class ConcurrencyScopeBuilder
         IConcurrencyScopeStrategy strategy,
         EventSourceId eventSourceId)
     {
+        if (CommandTransaction.TryGetActive(out var unit) && unit.IsEnforcingReadProtection)
+        {
+            return null;
+        }
+
         var commandType = commandContext.Command.GetType();
 
         var eventStreamIdAttribute = commandType.GetCustomAttributes(typeof(EventStreamIdAttribute), false).FirstOrDefault() as EventStreamIdAttribute;
@@ -72,6 +77,29 @@ public static class ConcurrencyScopeBuilder
     }
 
     /// <summary>
+    /// Gets declared routing dimensions without acquiring a concurrency tail.
+    /// </summary>
+    /// <param name="context">The command carrying routing declarations.</param>
+    /// <returns>The declared dimensions, or null to use the event's definition.</returns>
+    internal static ConcurrencyDimensions? DeclaredFor(CommandContext context)
+    {
+        var attributes = context.Type.GetCustomAttributes(false);
+        var dimensions = ConcurrencyDimensions.None;
+        if (attributes.OfType<EventStreamIdAttribute>().Any(_ => _.Concurrency)) dimensions |= ConcurrencyDimensions.EventStreamId;
+        if (attributes.OfType<EventStreamTypeAttribute>().Any(_ => _.Concurrency)) dimensions |= ConcurrencyDimensions.EventStreamType;
+        if (attributes.OfType<EventSourceTypeAttribute>().Any(_ => _.Concurrency)) dimensions |= ConcurrencyDimensions.EventSourceType;
+        if (dimensions != ConcurrencyDimensions.None)
+        {
+            // Legacy attribute scopes always include the destination source.
+            return dimensions | ConcurrencyDimensions.EventSourceId;
+        }
+
+        return context.Values.TryGetValue(WellKnownCommandContextKeys.ConcurrencyDimensions, out var value) && value is ConcurrencyDimensions declared && declared != ConcurrencyDimensions.None
+            ? declared
+            : null;
+    }
+
+    /// <summary>
     /// Builds the guard for one event, from the routing that event is actually written with.
     /// </summary>
     /// <param name="commandContext">The command context containing the command.</param>
@@ -94,6 +122,11 @@ public static class ConcurrencyScopeBuilder
         EventSourceId eventSourceId,
         EventRouting routing)
     {
+        if (CommandTransaction.TryGetActive(out var unit) && unit.IsEnforcingReadProtection)
+        {
+            return new(null, DerivedConcurrencyScopeOrigin.DerivedByEventSequence);
+        }
+
         var commandType = commandContext.Command.GetType();
         var declaresConcurrency = commandType.GetCustomAttributes(false).Any(_ => _ is EventStreamIdAttribute { Concurrency: true } or EventStreamTypeAttribute { Concurrency: true } or EventSourceTypeAttribute { Concurrency: true });
         if (declaresConcurrency)

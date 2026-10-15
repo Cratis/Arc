@@ -57,9 +57,17 @@ public class CommandEventLogInjectionAnalyzer : DiagnosticAnalyzer
                     namedTypeSymbol.Name,
                     method.Name,
                     parameter.Name,
-                    CompletesStream(context, method, parameter) ? ReturnCompleteStreamAdvice : ReturnEventsAdvice));
+                    Advice(context, namedTypeSymbol, method, parameter)));
             }
         }
+    }
+
+    static string Advice(SymbolAnalysisContext context, INamedTypeSymbol command, IMethodSymbol method, IParameterSymbol parameter)
+    {
+        var advice = CompletesStream(context, method, parameter) ? ReturnCompleteStreamAdvice : ReturnEventsAdvice;
+        return ReadProtectionSymbols.Mode(command) == 2
+            ? advice + "; read protection On refuses immediate appends even from an Unprotected method body. Use IEventLog.Transactional when returning events is not possible"
+            : advice;
     }
 
     static bool CompletesStream(SymbolAnalysisContext context, IMethodSymbol method, IParameterSymbol parameter) =>

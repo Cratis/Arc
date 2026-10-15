@@ -3,6 +3,7 @@
 
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
@@ -14,12 +15,17 @@ internal sealed partial class CommandDecisionReads
 
     /// <inheritdoc/>
     public Task<DecisionRead<T>> Get<T>(EventSourceId eventSourceId, EventStreamType eventStreamType, EventStreamId eventStreamId, EventSourceType? eventSourceType = default, CancellationToken cancellationToken = default)
-        where T : class => Get<T>(eventSourceId.Value, new(eventSourceId, eventStreamType, eventStreamId, eventSourceType), cancellationToken);
+        where T : class => Get<T>(eventSourceId.Value, new(eventSourceId, eventStreamType, eventStreamId, eventSourceType), null, cancellationToken);
+
+    /// <inheritdoc/>
+    public Task<DecisionRead<T>> GetFor<T>(IUnitOfWork unitOfWork, EventSourceId eventSourceId, EventStreamType eventStreamType, EventStreamId eventStreamId, EventSourceType? eventSourceType = default, CancellationToken cancellationToken = default)
+        where T : class => Get<T>(eventSourceId.Value, new(eventSourceId, eventStreamType, eventStreamId, eventSourceType), unitOfWork, cancellationToken);
 
     /// <inheritdoc/>
     public Task<DecisionRead<T>> GetDetached<T>(EventSourceId eventSourceId, EventStreamType eventStreamType, EventStreamId eventStreamId, EventSourceType? eventSourceType = default, CancellationToken cancellationToken = default)
         where T : class
     {
+        ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, eventSourceId, eventStreamType, eventStreamId, eventSourceType, detached: true);
         RefuseProtectedDetachedRead();
 
         return inner.GetDetached<T>(eventSourceId, eventStreamType, eventStreamId, eventSourceType, cancellationToken);
@@ -34,6 +40,11 @@ internal sealed partial class CommandDecisionReads
         where T : class => scope is null
             ? inner.GetDetached<T>(key, cancellationToken)
             : inner.GetDetached<T>(scope.EventSourceId, scope.EventStreamType, scope.EventStreamId, scope.EventSourceType, cancellationToken);
+
+    Task<DecisionRead<T>> ReadEnrolled<T>(IUnitOfWork unit, ReadModelKey key, StreamScope? scope, CancellationToken cancellationToken)
+        where T : class => scope is null
+            ? inner.GetFor<T>(unit, key, cancellationToken)
+            : inner.GetFor<T>(unit, scope.EventSourceId, scope.EventStreamType, scope.EventStreamId, scope.EventSourceType, cancellationToken);
 
     async Task<DecisionRead<T>> ReadAdvisory<T>(ReadModelKey key, StreamScope? scope, CancellationToken cancellationToken)
         where T : class

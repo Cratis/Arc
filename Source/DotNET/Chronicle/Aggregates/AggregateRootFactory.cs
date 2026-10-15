@@ -34,13 +34,38 @@ public class AggregateRootFactory(
     {
         var eventSequence = eventStore.GetEventSequence(EventSequenceId.Log);
         var freshness = TransactionalCommandScope.CurrentFreshIdentifiers;
-        if (freshness?.Matches(id) == true && await eventSequence.HasEventsFor(id))
+        if (freshness?.Matches(id) == true)
         {
-            throw new GeneratedIdentifierCollision();
+            if (CommandTransaction.Current is UnitOfWork { IsEnforcingReadProtection: true } protectedUnit)
+            {
+                using var allowance = protectedUnit.AllowReads(ReadAllowance.Contributed, "Fresh aggregate identifier");
+                if (protectedUnit.IsCompleted)
+                {
+                    throw new ReadAfterProtectedCommit(typeof(TAggregateRoot).Name);
+                }
+                if (await eventSequence.HasEventsFor(id))
+                {
+                    throw new GeneratedIdentifierCollision();
+                }
+                protectedUnit.EnrolContributedRead(new(
+                    ConcurrencyScopeOrigin.Explicit,
+                    id,
+                    freshness.Resolve(eventSequence.Id, id, null, false)!,
+                    eventStore.Name,
+                    eventStore.Namespace,
+                    eventSequence.Id,
+                    "Fresh aggregate identifier"));
+            }
+            else if (await eventSequence.HasEventsFor(id))
+            {
+                throw new GeneratedIdentifierCollision();
+            }
         }
 
         // TODO: Create Issue: Must dispose of unit of work in some way or else it's a memory leak.
-        var unitOfWork = unitOfWorkManager.HasCurrent ? unitOfWorkManager.Current : unitOfWorkManager.Begin(CorrelationId.New());
+        var unitOfWork = CommandTransaction.Current is UnitOfWork { IsEnforcingReadProtection: true } commandUnit
+            ? commandUnit
+            : unitOfWorkManager.HasCurrent ? unitOfWorkManager.Current : unitOfWorkManager.Begin(CorrelationId.New());
 
         var aggregateRoot = ActivatorUtilities.CreateInstance<TAggregateRoot>(serviceProvider);
         var eventStreamType = aggregateRoot.GetEventStreamType();

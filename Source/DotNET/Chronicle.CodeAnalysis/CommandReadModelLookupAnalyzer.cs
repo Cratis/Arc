@@ -61,6 +61,11 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
             !ChronicleStateSymbols.IsKeyedService(parameter, context.Compilation) &&
             ChronicleStateSymbols.IsBacked(parameter.Type, context.Compilation, backedTypes)))
         {
+            if (PerStreamReadModelSymbols.Declaration(parameter.Type) is not null ||
+                CommandAttributeSymbols.Find(parameter, "Cratis.Arc.Commands.LookUpByAttribute") is not null)
+            {
+                continue;
+            }
             var modelKey = ChronicleStateSymbols.ModelKey((INamedTypeSymbol)parameter.Type, context.Compilation);
             if (modelKey is null)
             {
@@ -78,7 +83,17 @@ public sealed class CommandReadModelLookupAnalyzer : DiagnosticAnalyzer
                 Report(context, parameter, command, matches.Length > 1 ? DiagnosticSeverity.Warning : DiagnosticSeverity.Info, reason);
                 continue;
             }
-            var lookupKey = distinguishing ? matches[0] : commandKey;
+            if (ReadProtectionSymbols.Mode(command) == 2 && matches.Length > 1)
+            {
+                Report(context, parameter, command, DiagnosticSeverity.Warning, $"several properties match '{modelKey.Type.Name}' ({string.Join(", ", matches.Select(property => property.Name))}); use [LookUpBy(nameof(Command.Property))] to select the intended key");
+                continue;
+            }
+            if (ReadProtectionSymbols.Mode(command) != 2 && distinguishing && matches.Length == 1)
+            {
+                Report(context, parameter, command, DiagnosticSeverity.Info, $"Off and Measure use command key '{commandKey.Name}', not matching property '{matches[0].Name}'; declare [LookUpBy] to redirect this read");
+                continue;
+            }
+            var lookupKey = ReadProtectionSymbols.Mode(command) == 2 && matches.Length == 1 ? matches[0] : commandKey;
             if (!resolvedByModel.TryGetValue(parameter.Type, out var resolved))
             {
                 resolved = new Dictionary<IPropertySymbol, IParameterSymbol>(SymbolEqualityComparer.Default);

@@ -97,8 +97,8 @@ Both include validated pins and nested-command captures. Avoid logging or tracin
 
 ## Prove a generated-identifier collision
 
-Call `UseDecisionReads()` when creating the scenario, **before seeding events**. Its `Given.ForEventSource(id).Events(...)`
-seeds the command's event log; default mode seeds only read-model state, so the freshness guard cannot see those events.
+Guarded generated parameters automatically enable the in-process log when you create the scenario.
+`Given.ForEventSource(id).Events(...)` seeds the command's event log, so the freshness guard sees those events.
 Pin the occupied identifier, execute once, and assert the collision detail and unchanged log tail.
 
 This excerpt uses the `CreateSource`, `Identifier`, `Created` and `ResultShape` types from the
@@ -107,7 +107,7 @@ Import `Cratis.Arc.Testing.Commands`, `Cratis.Arc.Chronicle.Testing.Commands`, `
 and `Cratis.Specifications`:
 
 ```csharp
-await using var scenario = new CommandScenario<CreateSource>().UseDecisionReads();
+await using var scenario = new CommandScenario<CreateSource>();
 var id = new Identifier(Guid.Parse("fb6dd43a-b161-44b1-9baa-7b2e4a071680"));
 scenario.PinGeneratedValue("id", id);
 scenario.Given.ForEventSource(id).Events(new Created("existing"));
@@ -122,11 +122,8 @@ result.ValidationResults.Single().ReasonDetail.ShouldEqual("GeneratedIdentifierC
 command.Calls.ShouldEqual(1);
 ```
 
-Default mode now fails fast with `GeneratedIdentifierCollisionRequiresDecisionReads`: "The scenario cannot
-prove a generated-identifier collision without UseDecisionReads(). Create the scenario with
-`new CommandScenario<TCommand>().UseDecisionReads()` before seeding events and pinning the generated value."
-This setup error is thrown by `Execute` before the command enters the pipeline, not returned in `CommandResult`.
-`Unguarded` pins, ids with no seeded events and decision-read mode do not trigger it.
+The scenario selects this log before any events are seeded; no separate setup call is needed.
+`Unguarded` generated parameters do not enable freshness protection.
 
 See [Fresh identifiers](../chronicle/commands/fresh-identifiers.md) for whole-source semantics and the direct-write exclusion.
 

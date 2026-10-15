@@ -1,30 +1,27 @@
 ---
-title: Pitfalls that break a rule
-description: Silent and loud ways a command's rule fails to hold, the analyzer that reports each one, and the fix.
+title: Pitfalls that fail silently
+description: The ways a rule stops holding without an error, with the analyzer that reports each and the fix.
 ---
 
-Use this page to check a command you wrote, or to find out why a rule did not hold. A **silent** failure leaves the command successful and the rule broken. A **loud** failure rejects the command or throws. Most dangerous pitfalls are silent, and several have no analyzer.
+Use this page when a rule holds in every test and still breaks in production. These failures do not raise an error. Failures that do raise one, such as a refused read or a conflict, are on [Refusals](./refusals.md).
 
 ## Summary
 
-| Pitfall | Failure | Reported by | Fix |
-| --- | --- | --- | --- |
-| [A uniqueness check instead of a constraint](#a-uniqueness-check-instead-of-a-constraint) | Silent | Nothing | Constraint |
-| [A plain read next to a protected decision](#a-plain-read-next-to-a-protected-decision) | Silent | ARCCHR0011 (Info) | `DecisionRead<T>` |
-| [An immediate append in a protected command](#an-immediate-append-in-a-protected-command) | Silent: partial commit | ARCCHR0007 (Warning), ARCCHR0012 (Info) | Return the events |
-| [An aggregate commit whose result is ignored](#an-aggregate-commit-whose-result-is-ignored) | Silent | Nothing | Return `Commit()` |
-| [No event source id, or two candidates](#no-event-source-id-or-two-candidates) | Silent | ARCCHR0002 (Warning) for two candidates | `EventSourceId` or `ICanProvideEventSourceId` |
-| [A decision-read model without an Id](#a-decision-read-model-without-an-id) | Loud: error response when the command runs | Nothing at build time | An `Id` property |
-| [A model that folds a different key than the facts are written to](#the-model-folds-a-different-key-than-the-one-the-facts-are-written-to) | Silent | Nothing | Write the facts to the read key |
-| [`concurrency: true` as a guard](#concurrency-true-is-not-the-guard) | Silent | ARCCHR0016 (Warning) only with exact scopes; ARCCHR0011 (Info) for a plain read | A real guard |
-| [A decision read on the wrong kind of command](#a-decision-read-on-the-wrong-kind-of-command) | Loud when unmarked, silent when `[Unprotected]` | Nothing | `[ProtectedDecision]` |
-| [Results you must check](#results-you-must-check-when-you-use-chronicle-directly) | Silent | Nothing | Check `IsSuccess`, commit before you respond |
-| [A validator with constructor dependencies](./validators.md#what-a-protected-command-accepts) | Loud: HTTP 500 | Nothing at build time; ARCCHR0011 (Info) points the way | Parameterless validator, or move the rule |
-| [The first append into a scope](#the-first-append-into-a-scope) | Silent | Nothing | Opt in |
-| [Where the guard stops](#where-the-guard-stops) | Silent | Nothing | Outside the guarantee |
-| [Tests without decision mode](#tests-without-decision-mode) | Silent | Nothing | `UseDecisionReads()` |
-
-Two failures are loud by design. A conflict rejects the command with the reason `concurrencyViolation` and is never retried; the caller reads again and resubmits. A read shape that decision reads refuse fails the command each time it runs; `DecisionReadAdmissions` in your specs finds it before production for `DecisionRead<T>` parameters of protected commands; a model read through `IDecisionReads.Get<T>` needs its own `Admit<T>()` check or a scenario that runs it (see [protected decision scenarios](../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads)).
+| Pitfall | Reported by | Fix |
+| --- | --- | --- |
+| [A uniqueness check instead of a constraint](#a-uniqueness-check-instead-of-a-constraint) | Nothing | Constraint |
+| [A read that is not protected](#a-read-that-is-not-protected) | [ARCCHR0011](../code-analysis/ARCCHR0011.md) (Info, `Off`) | Turn read protection `On` |
+| [An immediate append under Off](#an-immediate-append-under-off) | [ARCCHR0007](../code-analysis/ARCCHR0007.md) | Return the events |
+| [An aggregate commit whose result is ignored](#an-aggregate-commit-whose-result-is-ignored) | Nothing | Return `Commit()` |
+| [No event source id, or two candidates](#no-event-source-id-or-two-candidates) | [ARCCHR0002](../code-analysis/ARCCHR0002.md) for two candidates | `EventSourceId` or `ICanProvideEventSourceId` |
+| [A model that folds a different key than the facts are written to](#the-model-folds-a-different-key-than-the-one-the-facts-are-written-to) | Nothing | Write the facts to the key you read |
+| [`concurrency: true` as a guard](#concurrency-true-is-not-the-guard) | [ARCCHR0016](../code-analysis/ARCCHR0016.md) only with exact scopes | A real guard |
+| [An advisory reason that stopped being true](#an-advisory-reason-that-stopped-being-true) | [ARCCHR0032](../code-analysis/ARCCHR0032.md) for inert declarations | Review `[Unprotected]` |
+| [A lowered mode](#a-lowered-or-measured-mode) | A startup Warning | Remove the cap |
+| [Results you must check](#results-you-must-check-when-you-use-chronicle-directly) | Nothing | Check `IsSuccess` |
+| [The first append into a scope](#the-first-append-into-a-scope) | Nothing | Opt in |
+| [Where the guard stops](#where-the-guard-stops) | Nothing | Outside the guarantee |
+| [Tests without the in-process log](#tests-without-the-in-process-log) | Nothing | A command declaring read protection and real seeded events |
 
 All examples on this page share one namespace.
 
@@ -59,9 +56,29 @@ public record MemberLoans(
     [Increment<LoanTaken>, Decrement<LoanReturned>] int Active);
 ```
 
+## Choosing the wrong stream boundary
+
+| Rule lives in… | Use |
+| --- | --- |
+| Folded state of one stream on the command's own route | [Per-stream model](./scenarios/per-stream.md) |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate, without reads of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
+
+These cases differ: do not treat a safe widening as a missed conflict.
+
+| Pitfall | Outcome | Fix |
+| --- | --- | --- |
+| Source-level `Concurrency = EventSourceId` falls back onto a stream command | The guard widens to the source; other months can conflict. [ARCCHR0038](../code-analysis/ARCCHR0038.md) reports it | Use no declared concurrency for the model's exact event types, or declare all three source-id/stream dimensions on the stream |
+| A per-stream model is queried by key alone | Loud refusal: `ReadModelRequiresStreamScope` | Use the plain `IReadModels.GetInstanceById<T>(EventSourceId, EventStreamId)` overload; no watcher |
+| A command parameter's route does not match its model declaration | Loud `ReadModelStreamNotOnCommandRoute` in every mode; [ARCCHR0037](../code-analysis/ARCCHR0037.md) | Match the definition and stream and declare an explicit stream id |
+| A writer bypasses the definition route and omits its source type | Its events are neither folded nor guarded by the model: silent and outside the guarantee | Route every writer through the same definition |
+
 ## A uniqueness check instead of a constraint
 
-A check followed by an append leaves a gap. Two requests both see "not taken" and both append.
+A check followed by an append leaves a gap, with or without read protection. Two requests both see "not taken" and both append.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -83,75 +100,32 @@ public record RegisterCheckedMember(string Email)
 }
 ```
 
-Nothing reports it, and it works in every test that runs one request at a time. Use a [constraint](./scenarios.md#a-unique-value). The same holds for a validator that asks the question.
+`IMemberDirectory` is an unknown dependency: read protection cannot see it, so nothing reports it, and it works in every test that runs one request at a time. Use a [constraint](./scenarios/unique-and-once.md). The same holds for a validator that asks the question.
 
-## A plain read next to a protected decision
+## A read that is not protected
 
-A protected command guards the decision reads it takes. A plain read in the same command is advisory, and the difference is one type name:
+Read protection guards the reads it can see. These stay silent:
 
-```csharp
-using Cratis.Arc.Chronicle.ReadModels;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
-using Cratis.Chronicle.Events;
-using Cratis.Monads;
+| Situation | Why it is silent |
+| --- | --- |
+| The command or its project is `Off` or `Measure` | A plain read is a snapshot. `Measure` only reports |
+| A read marked `[Unprotected]` | It is declared advisory. Nothing guards it, and a reviewer must judge the reason |
+| A service, another database or an HTTP call | Unknown. Outside the guarantee |
+| A model type marked `[Unprotected]` | Every command that reads it treats it as advisory |
 
-[Command]
-[ProtectedDecision]
-public record BorrowBookPlainRead(EventSourceId BookId, Guid MemberId)
-{
-    public Result<BookBorrowed, ValidationResult> Handle(BookStock stock) =>
-        stock.Available <= 0
-            ? ValidationResult.Error("No copies of this book are available.")
-            : new BookBorrowed(MemberId);
-}
-```
-
-The command is marked, it compiles and it runs, and it guards nothing: `BookStock` is a plain read, so two members can both see `Available: 1`. Arc refuses nothing. It reports the parameter as [ARCCHR0011](../code-analysis/index.md#arcchr0011-unguarded-legacy-decision-reads) at Info severity. [ARC0006](../../code-analysis/ARC0006.md) warns on a non-nullable parameter only for types marked `[ReadModel]` or targeted by an `IProjectionFor<T>` in the same compilation, so it does not report this model-bound `BookStock`.
-
-Take every state the rule depends on as a `DecisionRead<T>`, or as `IDecisionReads.Get<T>` for another key. Raise ARCCHR0011 to a warning in projects that rely on protected decisions:
+Under `Off`, [ARCCHR0011](../code-analysis/ARCCHR0011.md) reports plain reads in event-producing commands at Info severity, which is easy to miss in a build log. Raise it for projects that have not moved yet:
 
 ```ini
 [*.cs]
 dotnet_diagnostic.ARCCHR0011.severity = warning
+dotnet_diagnostic.ARCCHR0012.severity = warning
 ```
 
-## An immediate append in a protected command
+## An immediate append under Off
 
-`IEventLog.Append` writes at once, before the owner commits and ignoring the decision read. If the commit then conflicts, the immediate event stays.
+Injecting `IEventLog` and calling `Append` writes at once. The append reads the tail at the moment you call it, ignores the command's unit of work and its guards, and stays in the log if the command later fails. Arc watches the appends: a failed immediate append fails the command, but a successful one cannot be undone.
 
-```csharp
-using Cratis.Arc.Chronicle.ReadModels;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
-using Cratis.Chronicle.Events;
-using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.ReadModels;
-using Cratis.Monads;
-
-[EventType]
-public record BorrowingRecorded(EventSourceId BookId);
-
-[Command]
-[ProtectedDecision]
-public record BorrowBookImmediate(EventSourceId BookId, Guid MemberId)
-{
-    public async Task<Result<BookBorrowed, ValidationResult>> Handle(
-        DecisionRead<BookStock> stock,
-        IEventLog eventLog)
-    {
-        if (stock.Instance is not { Available: > 0 })
-        {
-            return ValidationResult.Error("No copies of this book are available.");
-        }
-
-        await eventLog.Append(MemberId.ToString("D"), new BorrowingRecorded(BookId));
-        return new BookBorrowed(MemberId);
-    }
-}
-```
-
-Arc reports [ARCCHR0007](../code-analysis/index.md#arcchr0007-command-handler-injects-ieventlog) as a warning on the `IEventLog` parameter and [ARCCHR0012](../code-analysis/index.md#arcchr0012-immediate-append-with-a-decision-read) as Info on the call. A successful immediate append counts as committed, so the command ends with a partially committed state. Return the events, or stage them with `eventLog.Transactional.Append(...)`, as in the [scenarios](./scenarios.md#an-injected-event-log).
+Under `On` this is refused (`ImmediateAppendWhileReadsAreProtected`). Under `Off` and `Measure` it is silent. [ARCCHR0007](../code-analysis/ARCCHR0007.md) reports `IEventLog` parameters on `Handle()` and `Provide()`, and [ARCCHR0012](../code-analysis/ARCCHR0012.md) reports the direct append in a `[ProtectedDecision]` command and under `On`. Return the event from `Handle()`, or stage it with `eventLog.Transactional.Append(...)`.
 
 ## An aggregate commit whose result is ignored
 
@@ -204,13 +178,13 @@ public record LendCopyReturningTheResult(EventSourceId CopyId, Guid MemberId)
 }
 ```
 
-The first command ends successfully even when the copy was already lent: the failure is in the result that nothing reads. The second returns it, and Arc turns it into the command's outcome. The same silent success follows if an aggregate applies an event and then calls `Failed(...)`: the applied event is already staged, and automatic completion does not read the failure list.
+The first command ends successfully even when the copy was already lent: the failure is in the result that nothing reads. The second returns it, and Arc turns it into the command's outcome.
 
-`Commit()` is also the last staging step. It commits the whole command unit, so do not stage anything afterwards. Do not combine an aggregate with `[ProtectedDecision]` reads: `Commit()` throws once a decision read is enrolled. For aggregate events and returned events on one event source, the ordered-batch path throws and the older `AddEvent` path silently replaces the earlier scope; choose one way to write.
+`Commit()` is also the last staging step. It commits the whole command unit, so do not stage anything afterwards. Under `On`, a read or an append after `Commit()` is refused, and [ARCCHR0035](../code-analysis/ARCCHR0035.md) reports it at build time.
 
 ## No event source id, or two candidates
 
-A command with no event source id property gets a new random id on every call, so nothing can ever conflict. A raw `Guid` is not an event source id:
+A command with no event source id property gets a new random id on every call, so nothing can ever conflict. A raw `Guid` is not an event source id.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -226,7 +200,7 @@ public record RecordPaymentToRandomStream(Guid AccountId, decimal Amount)
 }
 ```
 
-Declare the id as `EventSourceId` (or an `EventSourceId<T>`-derived type) so the event goes to the account's stream. When a command has two such properties, Arc silently uses the first one declared, which also becomes the decision-read key, and [ARCCHR0002](../code-analysis/index.md#arcchr0002-ambiguous-command-identity) is the only signal (a warning). `[Key]` on one of them does not silence it:
+Declare the id as `EventSourceId` (or a type derived from it) so the event goes to the account's stream. When a command has two such properties, Arc uses the first one declared, which also becomes the key of a read, and [ARCCHR0002](../code-analysis/ARCCHR0002.md) is the only signal (a warning). `[Key]` on one of them does not silence it.
 
 ```csharp
 using Cratis.Arc.Commands.ModelBound;
@@ -250,59 +224,31 @@ public record RecordLoanWithAKey(EventSourceId Member, EventSourceId Book) : ICa
 }
 ```
 
-The second command is the fix: `ICanProvideEventSourceId` names the stream explicitly (`[Key]` marks a candidate but does not silence the warning). The key also decides which instance a `DecisionRead<T>` reads, so the choice is part of the rule. See [resolving the event source id](../resolving-event-source-id.md).
-
-## A decision-read model without an Id
-
-A decision read matches the command's key to the model's `Id` property, which must be a string-like or `Guid` property.
-
-```csharp
-using Cratis.Arc.Chronicle.ReadModels;
-using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
-using Cratis.Chronicle.Events;
-using Cratis.Chronicle.Projections.ModelBound;
-using Cratis.Chronicle.ReadModels;
-using Cratis.Monads;
-
-public record BookStockWithoutId(
-    string Isbn,
-    [Increment<CopyAdded>, Decrement<BookBorrowed>] int Available);
-
-[Command]
-[ProtectedDecision]
-public record BorrowBookWithoutId(EventSourceId BookId, Guid MemberId)
-{
-    public Result<BookBorrowed, ValidationResult> Handle(DecisionRead<BookStockWithoutId> stock) =>
-        stock.Instance is not { Available: > 0 }
-            ? ValidationResult.Error("No copies of this book are available.")
-            : new BookBorrowed(MemberId);
-}
-```
-
-This compiles. When the command runs, Chronicle refuses the model with the reason `KeyConversion`, and the command fails with `DecisionReadCouldNotBeAcquired` every time. The same happens for a reducer, a join, a child collection, `FromEvery`, a key from an event property, or a projection with no event types. Rename the key to `Id`, or use a stream decision, an aggregate or a constraint. Add `DecisionReadAdmissions.ShouldAdmitDecisionReadsIn(...)` to your specs; it checks the `DecisionRead<T>` parameters of protected commands, and a model read with `IDecisionReads.Get<T>(key)` needs its own `Admit<T>()` check or a scenario that runs it.
+The second command is the fix: `ICanProvideEventSourceId` names the stream explicitly. See [resolving the event source id](../resolving-event-source-id.md). A command that appends to both entities returns `EventForEventSourceId` for each; the analyzer accepts that too.
 
 ## The model folds a different key than the one the facts are written to
 
-A decision read folds the events of its key. Events written to another event source are invisible to it.
+A guarded read folds the events of its key. Events written to another event source are invisible to it.
 
 ```csharp
-using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
-using Cratis.Chronicle.ReadModels;
-using Cratis.Monads;
+using FluentValidation;
 
 [Command]
-[ProtectedDecision]
 public record TakeLoanOnItsOwnStream(EventSourceId Member, string Isbn)
 {
-    public Result<EventForEventSourceId, ValidationResult> Handle(DecisionRead<MemberLoans> loans) =>
-        loans.Instance is { Active: >= 3 }
-            ? ValidationResult.Error("The member has reached the loan limit.")
-            : new EventForEventSourceId(EventSourceId.New(), new LoanTaken(Isbn));
+    public EventForEventSourceId Handle() => new(EventSourceId.New(), new LoanTaken(Isbn));
+}
+
+public class TakeLoanOnItsOwnStreamValidator : CommandValidator<TakeLoanOnItsOwnStream>
+{
+    public TakeLoanOnItsOwnStreamValidator(MemberLoans? loans) =>
+        RuleFor(command => command.Isbn)
+            .Must(_ => loans is not { Active: >= 3 })
+            .WithMessage("The member has reached the loan limit.");
 }
 ```
 
@@ -310,9 +256,10 @@ public record TakeLoanOnItsOwnStream(EventSourceId Member, string Isbn)
 
 ## `concurrency: true` is not the guard
 
-`concurrency: true` on `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` narrows the check that Arc builds for returned events. That check reads the tail after `Handle()`, so it cannot bind your decision to what you read.
+`concurrency: true` on `[EventSourceType]`, `[EventStreamType]` and `[EventStreamId]` narrows the check Arc builds for returned events. That check reads the tail after `Handle()`, so it cannot bind your decision to what you read.
 
 ```csharp
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
@@ -321,6 +268,7 @@ using Cratis.Monads;
 
 [Command]
 [EventSourceType("Book", concurrency: true)]
+[Unprotected("deliberately advisory")]
 public record BorrowBookNarrowed(EventSourceId BookId, Guid MemberId)
 {
     public async Task<Result<BookBorrowed, ValidationResult>> Handle(IReadModels readModels)
@@ -333,17 +281,20 @@ public record BorrowBookNarrowed(EventSourceId BookId, Guid MemberId)
 }
 ```
 
-The plain `IReadModels` read is reported by [ARCCHR0011](../code-analysis/index.md#arcchr0011-unguarded-legacy-decision-reads) at Info severity; nothing reports the belief that the flag protects the decision. Use `concurrency: true` to choose which dimensions bound the default check, not to protect a decision. [ARCCHR0016](../code-analysis/ARCCHR0016.md) reports the flag only when the same command also returns exact scopes, where it has no effect.
+Use `concurrency: true` to choose which dimensions bound the default check, not to protect a decision. [ARCCHR0016](../code-analysis/ARCCHR0016.md) reports the flag only when the same command also returns exact scopes, where it has no effect.
 
-## A decision read on the wrong kind of command
+## An advisory reason that stopped being true
 
-| Command | `DecisionRead<T>` behaviour | Failure |
-| --- | --- | --- |
-| `[ProtectedDecision]` | Guarded read | None |
-| `[Unprotected]` | An unguarded read, shared within the invocation | Silent |
-| Unmarked | Refused with `ProtectedDecisionReadRequiresProtectedCommand` | Loud |
+`[Unprotected("why")]` is a promise that a stale read is acceptable. The reason is only text. Put the attribute on the parameter rather than the model type unless every command that reads the type can tolerate staleness, and review the reasons when a model starts to feed a decision. [ARCCHR0032](../code-analysis/ARCCHR0032.md) reports declarations that have no effect.
 
-Mark the command `[ProtectedDecision]` before you take `DecisionRead<T>`. A command with both attributes runs as protected and then throws `CommandCannotBeBothProtectedAndUnprotected`.
+## A lowered or measured mode
+
+Two settings leave the application looking protected while it is not:
+
+- `Measure` reports what `On` would do. It never guards.
+- `ReadProtection:MaximumMode` lowers the mode at run time. Arc logs a Warning at startup for each lowered command and reports `mode_lowered` in Measure telemetry, but the commands run unprotected.
+
+Check that no cap is set in production configuration unless you set it on purpose. See [Adopting read protection](./adopting.md#cap-the-mode-at-run-time).
 
 ## Results you must check when you use Chronicle directly
 
@@ -376,12 +327,12 @@ public static class DirectAppends
 ```
 
 - `Append` returns an `AppendResult`: a constraint violation or a concurrency violation is a value, not an exception. `IgnoresTheResult` reports success whatever happened. Check `IsSuccess`.
-- A scope with no sequence number and no `ExpectingNoMatchingEvent()` is skipped by the kernel, and `ConcurrencyCheckPerformed` is `false`. Set a sequence number, or use `ExpectingNoMatchingEvent()`.
+- A scope with no sequence number and no `ExpectingNoMatchingEvent()` is skipped by the kernel, and `ConcurrencyCheckPerformed` is `false`.
 - With `IDecisionReads.Get<T>` and a unit of work, commit with `IUnitOfWorkCompletionFeature.CommitAsync()` before you respond. The request middleware commits only after the endpoint has returned, and it reports no concurrency violation to the caller.
 - A plain `Append` after `Get<T>` in the same request is written immediately and bypasses the read's guard. Use `Transactional.Append`.
 - In an Arc project, qualify Chronicle's `ConcurrencyScopeBuilder`: `Cratis.Arc.Chronicle.Commands` has a static class with the same name.
 
-The [Level 3 scenarios](./scenarios.md#level-3-chronicle-used-directly-in-an-arc-app) show the correct shapes.
+[Chronicle used directly](./scenarios/chronicle-direct.md) shows the correct shapes.
 
 ## The first append into a scope
 
@@ -397,7 +348,7 @@ public static class FirstAppendCheck
 }
 ```
 
-The option rejects appends that succeed today, and its default is planned to change in the next major version. Read [concurrency in Chronicle](/chronicle/events/concurrency/) before you turn it on. A new aggregate and a protected decision read already check their first append.
+The option rejects appends that succeed today, and its default is planned to change in the next major version. Read [concurrency in Chronicle](/chronicle/events/concurrency/) before you turn it on. A new aggregate and a guarded read already check their first append.
 
 ## Where the guard stops
 
@@ -409,17 +360,16 @@ The guard covers the events in the read set. It does not cover:
 - a unique-constraint index update that fails after the append is durable: Chronicle logs it, a later duplicate can pass, and a reindex repairs it;
 - constraints across namespaces: tenants in different namespaces can claim the same value.
 
-Do not design a rule that relies on any of these.
+The guard also does not protect a writer that decides without one. A guard detects every matching event appended after its boundary, whoever wrote it. It only protects decisions that carry a guard, so the rule holds only when every writer that decides on it is guarded, or when it is a constraint, which the kernel checks for every append.
 
-The guard also does not protect a writer that decides without one. A guard detects every matching event appended after its boundary, whoever wrote it. It only protects decisions that carry a guard: a writer that decides without one can still break the rule. The rule holds only when every writer that decides on it is guarded, or when it is a constraint, which the kernel checks for every append.
+## Tests without the in-process log
 
-## Tests without decision mode
-
-A scenario without `UseDecisionReads()` does not exercise protected decision reads. `AppendConcurrently` still queues a competing writer before the command commits, so you can test an explicit concurrency scope or stream decision. Pinned read models cannot supply a decision guard. For protected decision reads, seed real events and opt into [protected decision scenarios](../../testing/chronicle.md#protected-decision-scenarios).
+`new CommandScenario<T>()` automatically selects the in-process log when the command declares read protection or decision dependencies. That setup does not protect an `Off` command by itself. `AppendConcurrently` queues a competing writer before the command commits, so test a command whose declaration and reads actually enroll a guard. Pinned read models cannot supply a guard; seed real events instead. See [Test the race](./scenarios/testing.md).
 
 ## Where to go next
 
 - [Choosing how a command's rule holds](./index.md): the decision matrix.
-- [Scenarios](./scenarios.md): the correct shape for each rule.
+- [Refusals](./refusals.md): the failures that raise an error.
+- [Scenarios](./scenarios/index.md): the correct shape for each rule.
 - [Code analysis](../code-analysis/index.md): every `ARCCHR` rule.
-- [Chronicle's Dynamic Consistency Boundary FAQ](/chronicle/dynamic-consistency-boundary/faq/): the same guards seen from Chronicle's side. See also [how event source definitions bound a command's append](../commands/event-source-definitions.md#what-the-definition-guards).
+- [Chronicle's Dynamic Consistency Boundary FAQ](/chronicle/dynamic-consistency-boundary/faq/): the same guards from Chronicle's side.

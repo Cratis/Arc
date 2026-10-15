@@ -12,6 +12,7 @@ using Cratis.Arc.Observability;
 using Cratis.DependencyInjection;
 using Cratis.Tasks;
 using Cratis.Traces;
+using Microsoft.Extensions.DependencyInjection;
 using OneOf;
 
 namespace Cratis.Arc.Commands;
@@ -56,6 +57,7 @@ public class CommandProvideInvoker : ICommandProvideInvoker
         try
         {
             var arguments = ResolveArguments(context, provideMethod, serviceProvider);
+            using var body = serviceProvider.GetService<ICommandProtectedDecisionSupport>()?.BeginMethodBody(provideMethod);
             var invocationResult = Invoke(provideMethod, context.Command, arguments);
             var (_, value) = await AwaitableHelpers.AwaitIfNeeded(invocationResult);
             return Flatten(value);

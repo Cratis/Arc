@@ -1,9 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
+using Cratis.Arc.Commands.ModelBound;
 using Cratis.Arc.Testing.Commands;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
@@ -67,6 +72,16 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// The context key for the serializer registration owned by this extender.
     /// </summary>
     internal const string EventSerializerRegistrationKey = "Chronicle.EventSerializerRegistration";
+
+    /// <inheritdoc/>
+    public void Extend(Type commandType, IServiceCollection services, IDictionary<string, object> context)
+    {
+        Extend(services, context);
+        if (NeedsDecisionReads(commandType))
+        {
+            EnableDecisionReads(services, context);
+        }
+    }
 
     /// <inheritdoc/>
     public void Extend(IServiceCollection services, IDictionary<string, object> context)
@@ -217,4 +232,29 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         context[AppendedEventsKey] = commandEvents;
         context[ReadModelsKey] = readModels;
     }
+
+    static bool NeedsDecisionReads(Type commandType)
+    {
+        // Provision before the test registers its host configuration. The real pipeline still applies
+        // the operational cap on every execution; provisioning a store never enables a guard by itself.
+        using var profile = CommandDecisionPolicy.Begin(commandType);
+        if (CommandDecisionPolicy.Mode == CommandDecisionMode.Protected || CommandDecisionPolicy.ReadProtection != ReadProtectionMode.Off)
+        {
+            return true;
+        }
+
+        var dependencies = commandType.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+            .Where(_ => _.Name == "Handle" || _.Name == "Provide")
+            .SelectMany(_ => _.GetParameters());
+        var validators = TypesServiceCollectionExtensions.CurrentTypeUniverse().FindMultiple(typeof(IDiscoverableValidator<>))
+            .Where(_ => typeof(IDiscoverableValidator<>).MakeGenericType(commandType).IsAssignableFrom(_));
+        return dependencies.Concat(validators.SelectMany(_ => _.GetConstructors()).SelectMany(_ => _.GetParameters()))
+            .Any(_ => IsDecisionDependency(_.ParameterType) ||
+                _.GetCustomAttribute<GeneratedValueAttribute>()?.Freshness == GeneratedValueFreshness.Guarded);
+    }
+
+    static bool IsDecisionDependency(Type type) =>
+        type == typeof(IDecisionReads) || type == typeof(IStreamReads) || type == typeof(StreamDecision) ||
+        (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>)) ||
+        PerStreamReadModelBinding.IsDeclared(type);
 }

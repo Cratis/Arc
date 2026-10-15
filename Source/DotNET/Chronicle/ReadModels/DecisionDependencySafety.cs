@@ -1,8 +1,11 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reflection;
+using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.ReadModels;
+using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
@@ -40,6 +43,19 @@ internal sealed class DecisionDependencySafety : ICommandDependencySafety, IComm
             }
             CommandDecisionReads.VerifyProvided(dependency);
         }
+    }
+
+    /// <inheritdoc/>
+    public IDisposable? BeginMethodBody(MethodInfo method)
+    {
+        if (method.GetCustomAttribute<UnprotectedAttribute>() is not { } advisory ||
+            TransactionalCommandScope.CurrentProtectedUnit is not { } unit)
+        {
+            return null;
+        }
+
+        ReadProtectionTelemetry.Record(method.DeclaringType!, "advisory_read", reason: advisory.Reason ?? "Declared advisory method");
+        return unit.AllowReads(ReadAllowance.Advisory, advisory.Reason ?? "Declared advisory method");
     }
 
     static bool IsDecisionRead(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(DecisionRead<>);

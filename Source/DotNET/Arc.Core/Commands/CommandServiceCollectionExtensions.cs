@@ -21,6 +21,7 @@ public static class CommandServiceCollectionExtensions
         services.AddSingleton<CommandContextManager>();
         services.AddSingleton<ICommandContextModifier>(sp => sp.GetRequiredService<CommandContextManager>());
         services.AddSingleton<ICommandContextAccessor>(sp => sp.GetRequiredService<CommandContextManager>());
+        services.AddHostedService<ReadProtectionStartup>();
         services.AddSingleton<CommandPipeline>();
         services.AddSingleton<ICommandPipeline>(sp => sp.GetRequiredService<CommandPipeline>());
         services.AddSingleton<ICommandPipelineWithCancellation>(sp => sp.GetRequiredService<CommandPipeline>());

@@ -11,6 +11,7 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Specs" />
+        <InternalsVisibleTo Include="Cratis.Arc.Chronicle.CodeAnalysis.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Generators.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.ProxyGenerator.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.TypeDiscovery.Specs" />
@@ -68,5 +69,6 @@
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QueryArgumentDescriptor.cs" Link="Queries/QueryArgumentDescriptor.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/ModelBoundQueryMethod.cs" Link="Queries/ModelBound/ModelBoundQueryMethod.cs" />
         <Compile Include="$(MSBuildThisFileDirectory)../Shared/QuerySelectionPolicy.cs" Link="Queries/ModelBound/QuerySelectionPolicy.cs" />
+        <Compile Include="$(MSBuildThisFileDirectory)../Shared/AttributePrecedencePolicy.cs" Link="Commands/AttributePrecedencePolicy.cs" />
     </ItemGroup>
 </Project>

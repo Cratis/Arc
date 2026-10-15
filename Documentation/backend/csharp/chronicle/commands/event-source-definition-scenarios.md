@@ -44,9 +44,13 @@ public record RecordTransaction(EventSourceId AccountId, decimal Amount)
 
 The event lands on event source `AccountId`, event source type `Account`, stream type `Transactions`, default stream id. The dimension is on the event source, so the `Transactions` stream inherits it. The append is checked against all events for the same event source id, of any type.
 
-This is the default append check: it does not bind `Handle()`'s decision to what it read. For a balance rule, use a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands) or an [aggregate](../aggregates/injecting-into-commands.md).
+This is the default append check: it does not bind `Handle()`'s decision to what it read. For a balance rule, use a read model parameter under [read protection](../consistency/getting-started.md) `On`, or an [aggregate](../aggregates/injecting-into-commands.md).
 
 **Alternatives:** `[EventStreamType("Transactions")]` and `[EventSourceType("Account")]` strings (ARCCHR0013 suggests the definition); an aggregate root when the account has rich behaviour; an exact scope when the caller supplies the revision it saw.
+
+### Per-stream monthly state
+
+For a monthly withdrawal limit, add `[EventStream<AccountEventSource>("Transactions")]` to a source-keyed withdrawals model and route the command with `[EventStreamId("{Month}")]`. Take the model in a validator under `On`; no decision token belongs on the command. The [complete monthly-limit example](../consistency/scenarios/per-stream.md#a-monthly-limit) uses a definition without source-wide `Concurrency`, so October is guarded and November does not conflict. The source-wide policy in the per-entity example above would widen that guard to the account's whole history.
 
 ## A stream per owner and period
 
@@ -78,7 +82,7 @@ public record ApproveReport(EventSourceId ReportId, string Owner, DateOnly Perio
 
 For `Owner = "acme"` and `Period = 2026-10-01`, the append targets event source `ReportId`, stream type `Approval`, stream id `acme:2026-10-01`. The `Approval` stream declares its own dimensions, so the check is narrowed to events with that stream type and stream id for the report. A write to `acme:2026-11-01` is not part of it.
 
-The template reads public properties of the command. Arc resolves it after validation, so a validator that rejects a blank `Owner` runs first. Keep the id deterministic: two commands that compute different ids for the same period do not conflict.
+The template reads public properties of the command. Arc normally resolves it after validation. A per-stream validator parameter needs the route earlier, so Arc resolves it before constructing that validator; a blank part returns `400` naming the property without reading. Keep the id deterministic: two commands that compute different ids for the same period do not conflict.
 
 **Alternatives:** `ICanProvideEventStreamId` when code computes the id and a template cannot express it; `[EventStreamType]` and `[EventStreamId]` strings without a definition.
 
@@ -86,7 +90,7 @@ The template reads public properties of the command. Arc resolves it after valid
 
 **Shape:** the same report, but approving twice must not record a second approval, and two simultaneous approvals must not both succeed.
 
-**Recommended:** a [stream decision](./stream-decisions.md), because the rule is "has this fact already happened in this stream" and the facts are raw events in one short stream. Alternatives: a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands) when the rule needs folded state or several keys, and a constraint when the rule is only uniqueness.
+**Recommended:** a [stream decision](./stream-decisions.md), because the rule is "has this fact already happened in this stream" and the facts are raw events in one short stream. Alternatives: a read model parameter under [read protection](../consistency/getting-started.md) `On` when the rule needs folded state or several keys, and a constraint when the rule is only uniqueness.
 
 Add the stream decision. `ForCommand()` reads the stream the command declares, definition and template included, and `Append(...)` returns the events with an exact scope at the tail it read.
 
@@ -141,6 +145,44 @@ var route = scenario.EventRoutes.For<ReportEventSource>("Approval").WithStreamId
 scenario.AppendConcurrently(id, route, new ReportApproved());
 ```
 
+### Per-stream approval state
+
+When the rule needs a count or a folded status, use a per-stream model instead of reading raw events. This excerpt reuses `ReportEventSource` and `ReportApproved` above. Under `On`, the validator prevents a second approval and a concurrent approval in the same owner/period refuses the commit with `ReadChanged`; another period does not conflict.
+
+```csharp
+using Cratis.Arc.Commands;
+using Cratis.Arc.Queries.ModelBound;
+using Cratis.Chronicle.Projections.ModelBound;
+using Cratis.Chronicle.ReadModels;
+using FluentValidation;
+
+public record ReportId(string Value) : EventSourceId(Value);
+
+[ReadModel, EventStream<ReportEventSource>("Approval")]
+public record PeriodApproval(
+    ReportId Id,
+    [Increment<ReportApproved>] int Approvals,
+    [SetValue<ReportApproved>(true)] bool Approved);
+
+[Command, ReadProtection(ReadProtectionMode.On)]
+[EventSource<ReportEventSource>("Approval")]
+[EventStreamId("{Owner}:{Period}")]
+public record ApprovePeriod(ReportId Report, string Owner, DateOnly Period)
+{
+    public ReportApproved Handle() => new();
+}
+
+public class ApprovePeriodValidator : CommandValidator<ApprovePeriod>
+{
+    public ApprovePeriodValidator(PeriodApproval? approval) =>
+        RuleFor(command => command.Report)
+            .Must(_ => approval?.Approved != true)
+            .WithMessage("This period is already approved.");
+}
+```
+
+The same shape can enforce a required number of approvals using `Approvals`. Keep the [stream decision](#decide-against-the-stream) for the raw “approved once” check when no folded model is needed. Do not combine its later boundary with a validator-first read.
+
 ## A stream per process
 
 **Shape:** each customer onboarding is its own process with its own id. When the process ends, nothing more may be appended to it, and another customer's process with the same id stays open.
@@ -164,7 +206,7 @@ public record OnboardingStepCompleted(string Step);
 [EventType]
 public record OnboardingFinished;
 
-[Command]
+[Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)]
 [EventSource<CustomerEventSource>("Onboarding")]
 [EventStreamId("{ProcessId}")]
 public record CompleteOnboardingStep(EventSourceId CustomerId, string ProcessId, string Step)
@@ -172,7 +214,7 @@ public record CompleteOnboardingStep(EventSourceId CustomerId, string ProcessId,
     public OnboardingStepCompleted Handle() => new(Step);
 }
 
-[Command]
+[Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)]
 [EventSource<CustomerEventSource>("Onboarding")]
 [EventStreamId("{ProcessId}")]
 public record FinishOnboarding(EventSourceId CustomerId, string ProcessId)
@@ -182,6 +224,39 @@ public record FinishOnboarding(EventSourceId CustomerId, string ProcessId)
 ```
 
 `CompleteOnboardingStep` appends to event source `CustomerId`, stream type `Onboarding`, stream id `ProcessId`. `FinishOnboarding` appends the final event and then completes that stream.
+
+### Per-stream onboarding state
+
+This excerpt reuses the onboarding definitions and commands above. `OnboardingProgress` counts completed steps in this customer's process. The validators enforce the order `identity → address → consent` and require all three before `FinishOnboarding` returns its final event and `CompleteStream`.
+
+```csharp
+[ReadModel, EventStream<CustomerEventSource>("Onboarding")]
+public record OnboardingProgress(
+    EventSourceId Id,
+    [Increment<OnboardingStepCompleted>] int Steps);
+
+public class CompleteOnboardingStepValidator : CommandValidator<CompleteOnboardingStep>
+{
+    public CompleteOnboardingStepValidator(OnboardingProgress? progress)
+    {
+        string[] steps = ["identity", "address", "consent"];
+        var completed = progress?.Steps ?? 0;
+        RuleFor(command => command.Step)
+            .Must(step => completed < steps.Length && step == steps[completed])
+            .WithMessage("Complete the next onboarding step in order.");
+    }
+}
+
+public class FinishOnboardingValidator : CommandValidator<FinishOnboarding>
+{
+    public FinishOnboardingValidator(OnboardingProgress? progress) =>
+        RuleFor(command => command.ProcessId)
+            .Must(_ => progress?.Steps == 3)
+            .WithMessage("Complete every onboarding step first.");
+}
+```
+
+The per-stream model is read before either validator runs and is guarded under `On`. Concurrent activity in this process refuses the commit; another process id does not. Completion still happens only after commit, not as part of the atomic append.
 
 ### Complete the stream
 
@@ -198,5 +273,5 @@ A reactor or another command can close the same stream from a route instead of r
 ## Where to go next
 
 - [How routing works](./event-source-definition-routing.md): what Arc does from the attribute to the append.
-- [Choosing how a command's rule holds](../consistency/index.md) and its [scenarios](../consistency/scenarios.md#one-stream-of-raw-events): when a stream decision is the right guard.
+- [Choosing how a command's rule holds](../consistency/index.md) and its [scenarios](../consistency/scenarios/per-stream.md#a-period-approval): when a stream decision is the right guard.
 - [Chronicle's Dynamic Consistency Boundary scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) and [event sources](/chronicle/event-sources/): stream metadata plays the role of DCB tags, and a definition is the typed way to choose which dimensions guard an append.

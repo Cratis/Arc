@@ -28,7 +28,7 @@ public class when_scheme_selection_precedes_transaction_binding : Specification
     bool _sameManager;
     bool _requestServicesRestored;
     bool _authorized;
-    bool _succeeded;
+    CommandResult _result;
     int _unitOfWorkBegins;
     IUnitOfWorkManager? _selectedManager;
     IUnitOfWork? _selectedUnit;
@@ -74,7 +74,7 @@ public class when_scheme_selection_precedes_transaction_binding : Specification
         {
             var tenant = services.GetRequiredService<ITenantIdAccessor>().Current.Value;
             var manager = Substitute.For<IUnitOfWorkManager>();
-            var unit = Substitute.For<IUnitOfWork>();
+            var unit = Substitute.For<UnitOfWorkWithNamedTags>();
             manager.HasCurrent.Returns(false);
             manager.Begin(Arg.Any<CorrelationId>()).Returns(_ =>
             {
@@ -107,7 +107,7 @@ public class when_scheme_selection_precedes_transaction_binding : Specification
         {
             var result = await app.Services.GetRequiredService<ICommandPipeline>().Execute(new TenantCommand());
             _authorized = result.IsAuthorized;
-            _succeeded = result.IsSuccess;
+            _result = result;
             _restoredTenant = tenantIds.Current.Value;
             _requestServicesRestored = ReferenceEquals(native.RequestServices, requestScope.ServiceProvider);
             _sameManager = ReferenceEquals(oldManager, _selectedManager);
@@ -124,7 +124,7 @@ public class when_scheme_selection_precedes_transaction_binding : Specification
 
     [Fact] void should_have_prebound_the_default_request_manager_to_a() => _preboundTenant.ShouldEqual("tenant-A");
     [Fact] void should_admit_the_scheme_selected_command() => _authorized.ShouldBeTrue();
-    [Fact] void should_complete_the_command_transaction() => _succeeded.ShouldBeTrue();
+    [Fact] void should_complete_the_command_transaction() => Assert.True(_result.IsSuccess, $"{string.Join(Environment.NewLine, _result.ExceptionMessages)}{Environment.NewLine}{_result.ExceptionStackTrace}");
     [Fact] void should_begin_the_real_transactional_scope_with_b() => _begunTenant.ShouldEqual("tenant-B");
     [Fact] void should_handle_under_the_selected_tenant() => TenantCommand.HandledTenant.ShouldEqual("tenant-B");
     [Fact] void should_not_reuse_the_default_requests_unit_of_work_manager() => _sameManager.ShouldBeFalse();
