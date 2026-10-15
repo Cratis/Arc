@@ -9,10 +9,18 @@ namespace Cratis.Arc.Screenplay.Emission.Concepts;
 /// <summary>
 /// Shares the effective validation rules and mandatory preservation decision at an executable version cap.
 /// </summary>
-/// <param name="Rules">The exact rules the concept declaration will state.</param>
-/// <param name="VersionFailure">The cap refusal requiring preservation, or null for the ordinary contract.</param>
-internal sealed record ConceptValidationContract(IReadOnlyList<ValidationRuleModel> Rules, string? VersionFailure)
+internal sealed record ConceptValidationContract
 {
+    /// <summary>
+    /// Gets the exact rules the concept declaration will state.
+    /// </summary>
+    internal required IReadOnlyList<ValidationRuleModel> Rules { get; init; }
+
+    /// <summary>
+    /// Gets the cap refusal requiring preservation, or null for the ordinary contract.
+    /// </summary>
+    internal string? VersionFailure { get; init; }
+
     /// <summary>
     /// Gets whether rules must stay intact even when that prevents scenario execution.
     /// </summary>
@@ -30,7 +38,7 @@ internal sealed record ConceptValidationContract(IReadOnlyList<ValidationRuleMod
     /// <param name="cap">The requested executable version boundary.</param>
     /// <returns>The effective contract, including any non-executable cap fallback.</returns>
     internal static ConceptValidationContract For(ConceptModel concept, SemanticVersion? cap) => IsChecksumCapped(concept, cap)
-        ? CappedChecksum(concept, cap) : new([.. UuidRules(concept)], null);
+        ? CappedChecksum(concept, cap) : new() { Rules = [.. UuidRules(concept)] };
 
     static bool IsChecksumCapped(ConceptModel concept, SemanticVersion? cap) => cap is { } version &&
         !version.IsAtLeast(SemanticVersion.V21) && concept.Validations.Any(rule => rule.Kind == ValidationRuleKind.Checksum);
@@ -41,7 +49,7 @@ internal sealed record ConceptValidationContract(IReadOnlyList<ValidationRuleMod
         var reason = $"checksum validation requires ESM v21, but the cap is ESM v{cap}; {retained}";
         var rules = concept.ValidatorSources.Concat(concept.Validations.Where(rule => rule.Kind != ValidationRuleKind.Checksum));
 
-        return new([.. rules], reason);
+        return new() { Rules = [.. rules], VersionFailure = reason };
     }
 
     static IEnumerable<ValidationRuleModel> UuidRules(ConceptModel concept) => NeedsUuidSource(concept) ? concept.ValidatorSources : concept.Validations;
