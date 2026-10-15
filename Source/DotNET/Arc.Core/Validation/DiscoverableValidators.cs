@@ -82,16 +82,10 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The executing command's provider.</param>
     /// <param name="validatorType">The validator type.</param>
     /// <returns>The freshly constructed validator.</returns>
-    internal static object ConstructDependencies(IServiceProvider serviceProvider, Type validatorType)
+    static object ConstructDependencies(IServiceProvider serviceProvider, Type validatorType)
     {
-        var constructor = PublicConstructorsOf(validatorType)
-            .OrderByDescending(_ => _.GetParameters().Length)
-            .First();
-
-        var arguments = ParameterDependencyResolver.Resolve(
-            serviceProvider,
-            constructor.GetParameters(),
-            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
+        var constructor = ConstructorOf(validatorType);
+        var arguments = ResolveArguments(serviceProvider, validatorType, constructor);
 
         return constructor.Invoke(BindingFlags.DoNotWrapExceptions, null, arguments, null);
     }
@@ -176,23 +170,48 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The <see cref="IServiceProvider"/> to resolve dependencies from.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>The constructed validator instance.</returns>
-    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The provider did not construct a transient validator through Arc for this invocation.</exception>
+    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The validator has a registration other than a plain transient binding.</exception>
+    /// <remarks>
+    /// The refusal depends on how the validator is registered, not on which model it validates: a validator of a child
+    /// model reached through nested validation follows the same rule as the command's own validator. A plain transient
+    /// binding is constructed fresh by Arc for the invocation, without consulting the provider, so its read-model
+    /// dependencies resolve as protected reads. An unregistered validator is constructed the same way. Any other
+    /// registration may share or supply an instance Arc did not construct for this invocation, and is refused.
+    /// </remarks>
     static object ConstructForReadProtection(IServiceProvider serviceProvider, Type validatorType)
     {
-        var registered = serviceProvider.GetService(validatorType);
-        if (registered is null)
+        if (ProtectedValidatorConstruction.IsConventionTransient(serviceProvider, validatorType) ||
+            serviceProvider.GetService(validatorType) is null)
         {
             return ConstructDependencies(serviceProvider, validatorType);
         }
 
-        return ProtectedValidatorConstruction.IsConstructedForInvocation(registered)
-            ? registered
-            : throw DiscoverableValidatorRefusedInProtectedDecision.NotTransientForReadProtection(validatorType);
+        throw DiscoverableValidatorRefusedInProtectedDecision.NotTransientForReadProtection(validatorType);
     }
 
     static object Construct(IServiceProvider serviceProvider, Type validatorType)
     {
         // An explicitly registered validator wins, matching ActivatorUtilities.GetServiceOrCreateInstance.
-        return serviceProvider.GetService(validatorType) ?? ConstructDependencies(serviceProvider, validatorType);
+        var registered = serviceProvider.GetService(validatorType);
+        if (registered is not null)
+        {
+            return registered;
+        }
+
+        var constructor = ConstructorOf(validatorType);
+        var arguments = ResolveArguments(serviceProvider, validatorType, constructor);
+
+        return constructor.Invoke(arguments);
     }
+
+    static ConstructorInfo ConstructorOf(Type validatorType) =>
+        PublicConstructorsOf(validatorType)
+            .OrderByDescending(_ => _.GetParameters().Length)
+            .First();
+
+    static object?[] ResolveArguments(IServiceProvider serviceProvider, Type validatorType, ConstructorInfo constructor) =>
+        ParameterDependencyResolver.Resolve(
+            serviceProvider,
+            constructor.GetParameters(),
+            parameter => new CannotResolveValidatorDependency(validatorType, parameter));
 }

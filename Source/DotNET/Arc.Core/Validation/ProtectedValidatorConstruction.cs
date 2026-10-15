@@ -35,7 +35,6 @@ internal static class ProtectedValidatorConstruction
     const int InitialSnapshotCapacity = 16;
 
     static readonly ConditionalWeakTable<object, object[]> _constructed = new();
-    static readonly ConditionalWeakTable<object, object> _invocationConstructions = new();
     static readonly ConcurrentDictionary<Type, ConstructorInfo?> _parameterlessConstructors = new();
 
     /// <summary>
@@ -70,67 +69,68 @@ internal static class ProtectedValidatorConstruction
         MatchesSnapshot(validator, snapshot);
 
     /// <summary>
-    /// Makes the container construct convention-bound, dependency-free discoverable validators and transient
-    /// read-protected command validators through Arc, so a resolved validator can be certified.
+    /// Makes the container construct every convention-bound, dependency-free discoverable validator through Arc, so a
+    /// validator the container resolves can be certified, and records which validators are bound by convention as
+    /// transient.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> holding the bindings.</param>
     /// <param name="types">The <see cref="ITypes"/> to discover validators from.</param>
     /// <remarks>
-    /// Only a plain type binding of a validator to itself is replaced, preserving its lifetime. Dependency-taking
-    /// validators are replaced only for commands declaring read protection On; their other registrations stay unchanged.
-    /// A factory, instance or other implementation registration is left untouched and is therefore not certified.
+    /// Only a plain type binding of a validator to itself is replaced; it constructs the same instance through the
+    /// same parameterless constructor with the same lifetime. A factory, instance or other implementation registration
+    /// is left untouched and is therefore not certified. Validators that take dependencies keep their bindings.
     /// <para>
     /// Only a transient validator resolved outside a protected decision skips the certificate: nothing shares that
     /// instance with a later protected decision, so the rule snapshot would be wasted work on every other pipeline. A
     /// scoped or singleton validator is always certified, because a later protected decision may reuse the instance.
     /// </para>
+    /// <para>
+    /// The record of plain transient bindings is what read protection On relies on: such a validator, whatever model
+    /// it validates, is constructed fresh by Arc for the invocation, while any other registration shape is refused.
+    /// </para>
     /// </remarks>
     internal static void ConstructDependencyFreeValidatorsThroughArc(this IServiceCollection services, ITypes types)
     {
         var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).ToHashSet();
+        var lastBindings = new Dictionary<Type, ServiceDescriptor>();
         for (var index = 0; index < services.Count; index++)
         {
             var descriptor = services[index];
-            if (!descriptor.IsKeyedService &&
-                descriptor.ImplementationType is { } implementationType &&
+            if (descriptor.IsKeyedService || !validatorTypes.Contains(descriptor.ServiceType))
+            {
+                continue;
+            }
+
+            lastBindings[descriptor.ServiceType] = descriptor;
+            if (descriptor.ImplementationType is { } implementationType &&
                 implementationType == descriptor.ServiceType &&
-                validatorTypes.Contains(implementationType) &&
-                (IsDependencyFree(implementationType) ||
-                 (descriptor.Lifetime == ServiceLifetime.Transient && IsForReadProtectedCommand(implementationType))))
+                IsDependencyFree(implementationType))
             {
                 var lifetime = descriptor.Lifetime;
                 services[index] = new ServiceDescriptor(
                     implementationType,
-                    provider => CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && lifetime == ServiceLifetime.Transient
-                        ? ConstructForInvocation(provider, implementationType)
-                        : IsDependencyFree(implementationType)
-                            ? lifetime == ServiceLifetime.Transient && !CommandDecisionPolicy.RefusesDiscoverableValidators
-                                ? ConstructUncertified(implementationType)
-                                : Construct(implementationType)
-                            : ActivatorUtilities.CreateInstance(provider, implementationType),
+                    _ => lifetime == ServiceLifetime.Transient && !CommandDecisionPolicy.RefusesDiscoverableValidators
+                        ? ConstructUncertified(implementationType)
+                        : Construct(implementationType),
                     lifetime);
             }
         }
+
+        services.AddSingleton(new ConventionTransientValidators(lastBindings.Values
+            .Where(_ => _.Lifetime == ServiceLifetime.Transient && _.ImplementationType == _.ServiceType)
+            .Select(_ => _.ServiceType)));
     }
 
     /// <summary>
-    /// Checks that a registered validator was constructed fresh for this invocation through Arc's transient binding.
+    /// Determines whether a validator is bound to itself as transient, so Arc may construct it fresh for an invocation
+    /// instead of taking an instance from the provider.
     /// </summary>
-    /// <param name="validator">The registered validator.</param>
-    /// <returns>Whether the validator belongs to this invocation.</returns>
-    internal static bool IsConstructedForInvocation(object validator) =>
-        _invocationConstructions.TryGetValue(validator, out var token) && ReferenceEquals(token, CommandDecisionPolicy.Token);
-
-    static bool IsForReadProtectedCommand(Type validatorType) => validatorType.GetInterfaces()
-        .Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>) &&
-            CommandAttributePolicy.ResolveCommand(_.GenericTypeArguments[0]).ReadProtection == (int)ReadProtectionMode.On);
-
-    static object ConstructForInvocation(IServiceProvider provider, Type validatorType)
-    {
-        var validator = DiscoverableValidators.ConstructDependencies(provider, validatorType);
-        _invocationConstructions.Add(validator, CommandDecisionPolicy.Token!);
-        return validator;
-    }
+    /// <param name="serviceProvider">The executing command's provider.</param>
+    /// <param name="validatorType">The validator type.</param>
+    /// <returns>True when the validator's binding is a plain transient binding; otherwise false.</returns>
+    internal static bool IsConventionTransient(IServiceProvider serviceProvider, Type validatorType) =>
+        serviceProvider.GetService(typeof(ConventionTransientValidators)) is ConventionTransientValidators conventionTransients &&
+        conventionTransients.Contains(validatorType);
 
     static object ConstructUncertified(Type validatorType) =>
         ParameterlessConstructorOf(validatorType)!.Invoke(BindingFlags.DoNotWrapExceptions, null, null, null);
