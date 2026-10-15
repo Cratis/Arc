@@ -11,6 +11,7 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" />
         <ProjectReference Include="../Arc/Arc.csproj" />
         <ProjectReference Include="../Chronicle/Chronicle.csproj" />
+        <ProjectReference Include="../MongoDB/MongoDB.csproj" />
         <ProjectReference Include="../Chronicle.Testing/Chronicle.Testing.csproj" />
     </ItemGroup>
 </Project>
