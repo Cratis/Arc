@@ -45,13 +45,11 @@ internal class CommandValueAdmission(ScreenplayDiagnostics diagnostics)
     {
         var authoring = command.Authoring!;
         var blocked = authoring.Generated.Where(property => !GeneratedConceptAdmission.Allows(property, authoring, model, maximumVersion)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (var concept in model.Concepts.Where(concept => concept.Generation is null && authoring.Generated.Any(property =>
-            blocked.Contains(property.Name) && property.Type.Name == concept.Name)))
+        foreach (var (concept, reason) in model.Concepts.Where(concept => concept.Generation is null && authoring.Generated.Any(property =>
+            blocked.Contains(property.Name) && property.Type.Name == concept.Name))
+            .Select(concept => (Concept: concept, Reason: GenerationAdmission.Failure(concept, maximumVersion))).Where(result => result.Reason is not null))
         {
-            if (GenerationAdmission.Failure(concept, maximumVersion) is { } reason)
-            {
-                diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}; its generation contract remains in code", concept.GenerationLocation ?? concept.Name);
-            }
+            diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}; its generation contract remains in code", concept.GenerationLocation ?? concept.Name);
         }
         if (blocked.Count > 0)
         {
