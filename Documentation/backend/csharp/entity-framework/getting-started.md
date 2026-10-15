@@ -101,6 +101,9 @@ The callback takes **two arguments**, `IServiceProvider` and `DbContextOptionsBu
 | `ConnectionString` | `""` | Shared connection for discovery and builder registration without an explicit connection |
 | `AutoDiscoverDbContexts` | `true` | Discover eligible contexts when the connection string is nonempty |
 | `JsonConverters` | Empty list | Append converters to EF's JSON conversion options; see [JSON conversion](./json.md#registering-custom-converters) |
+| `ConnectionResolution` | Nothing resolved | Resolve the connection per tenant; see [connection resolution](./connection-resolution.md) |
+
+`ConnectionString`, `AutoDiscoverDbContexts` and `ConnectionResolution` also bind from the `Cratis:EntityFrameworkCore` configuration section; `configureOptions` runs after binding and wins.
 
 ## Direct service registration
 

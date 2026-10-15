@@ -49,6 +49,9 @@ builder.UseCratisMongoDB(configureMongoDB: mongodb =>
 
 ## When to Use a Custom Resolver
 
+A custom name resolver only changes the database name. To change the server or the credentials per tenant, use [connection resolution](./connection-resolution.md).
+
+
 - Match existing naming conventions.
 - Add environment or region prefixes.
 - Integrate with legacy database layouts.

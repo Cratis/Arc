@@ -8,3 +8,5 @@
   href: tenant-context.md
 - name: Database Isolation
   href: database-resolvers.md
+- name: Connection Resolution
+  href: connection-resolution.md
