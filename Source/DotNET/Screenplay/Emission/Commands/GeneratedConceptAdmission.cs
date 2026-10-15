@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
 
@@ -21,41 +22,17 @@ internal static class GeneratedConceptAdmission
     /// <returns>Whether generation may be emitted.</returns>
     public static bool Allows(PropertyModel property, CommandAuthoringModel authoring, ApplicationModel model, SemanticVersion? maximumVersion)
     {
-        if (!IsRequiredUnvalidated(property, authoring) || model.Concepts.SingleOrDefault(concept => concept.Name == property.Type.Name) is not { } concept)
+        if (property.Type.IsOptional || property.Type.IsCollection || model.Concepts.SingleOrDefault(concept => concept.Name == property.Type.Name) is not { } concept)
         {
             return false;
         }
-        if (!IsGeneratable(concept, maximumVersion))
+        if ((concept.Generation is null && concept.Primitive != ScreenplayPrimitive.Uuid) || GenerationAdmission.Failure(concept, maximumVersion) is not null)
         {
             return false;
         }
 
         return property.Name != authoring.Identifier || RandomBits(concept.Generation) >= 64;
     }
-
-    static bool IsRequiredUnvalidated(PropertyModel property, CommandAuthoringModel authoring) =>
-        !property.Type.IsOptional && !property.Type.IsCollection && !authoring.GeneratedWithValidators.Contains(property.Name, StringComparer.Ordinal);
-
-    static bool IsGeneratable(ConceptModel concept, SemanticVersion? maximumVersion)
-    {
-        if (concept.Validations.Any())
-        {
-            return false;
-        }
-        if (concept.Generation is null || concept.Generation.Kind == "uuid")
-        {
-            return concept.Primitive == ScreenplayPrimitive.Uuid;
-        }
-
-        if (HasCompliance(concept))
-        {
-            return false;
-        }
-
-        return maximumVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V15);
-    }
-
-    static bool HasCompliance(ConceptModel concept) => concept.IsPii || concept.IsSensitive;
 
     static double RandomBits(GenerationModel? generation) => generation?.Kind switch
     {

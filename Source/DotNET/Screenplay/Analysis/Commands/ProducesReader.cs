@@ -73,7 +73,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                     var first = produces.Count;
                     var aggregateUsesCommandContext = usesCommandContext &&
                         ProductionDestinations.AggregateUsesCommandContext(behavior, body, semanticModel, command, identifier);
-                    ReadBehavior(command, behavior, location, produces, aggregateUsesCommandContext);
+                    ReadBehavior(command, behavior, location, produces, aggregateUsesCommandContext, sources);
                     if (!InlineProductionShape.IsUnconditional(body))
                     {
                         for (var index = first; index < produces.Count; index++)
@@ -127,7 +127,9 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         string.Equals(left.EventName, right.EventName, StringComparison.Ordinal) &&
         Equals(left.When, right.When) &&
         left.Mappings.SequenceEqual(right.Mappings) &&
-        left.EventTypeIdentity == right.EventTypeIdentity;
+        left.EventTypeIdentity == right.EventTypeIdentity &&
+        Equals(left.UnavailableCondition, right.UnavailableCondition) &&
+        Equals(left.UnavailableDestination, right.UnavailableDestination);
 
     /// <summary>
     /// Reads every event constructed within one handler body.
@@ -162,11 +164,15 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             }
 
             var before = diagnostics.All.Count;
-            var when = _conditions.Resolve(creation, body, scope, type, location);
+            var unavailableCondition = UnavailableProductionDependencies.Condition(creation, body, sources, semanticModel, scope.Bindings);
+            var unavailableDestination = UnavailableProductionDependencies.Destination(creation, body, sources, semanticModel);
+            var when = unavailableCondition is null ? _conditions.Resolve(creation, body, scope, type, location) : null;
             var mappings = _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings, sources).ToList();
             produces.Add(new(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
+                UnavailableCondition = unavailableCondition,
+                UnavailableDestination = unavailableDestination,
                 UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
@@ -182,6 +188,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     /// <param name="location">Where the command lives, for use in diagnostics.</param>
     /// <param name="produces">The productions collected so far.</param>
     /// <param name="usesCommandContext">Whether the reached aggregate belongs to the command context.</param>
+    /// <param name="sources">The generated input identities from the calling handler.</param>
     /// <remarks>
     /// The behavior is written wherever the aggregate root is, and a project that was not handed over is one whose
     /// source cannot be read at all. Saying so is the difference between a command stated as producing nothing and a
@@ -192,11 +199,12 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         AggregateRootInvocation behavior,
         string location,
         List<ProducesModel> produces,
-        bool usesCommandContext)
+        bool usesCommandContext,
+        AuthoringSources? sources)
     {
         if (models.For(behavior.Body.SyntaxTree) is { } semanticModel)
         {
-            ReadBody(command, behavior.Body, semanticModel, location, produces, behavior, usesCommandContext);
+            ReadBody(command, behavior.Body, semanticModel, location, produces, behavior, usesCommandContext, sources);
 
             return;
         }

@@ -20,7 +20,8 @@ internal static class ExecutableGenerationFixtures
     /// <returns>The application with unrepresentable fixtures marked for scenario withholding.</returns>
     public static ApplicationModel Apply(ApplicationModel model, IReadOnlyList<ConceptSyntax> concepts)
     {
-        if (!concepts.Any(concept => concept.Generation is not null))
+        if (!concepts.Any(concept => concept.Generation is not null) && !model.Slices.SelectMany(slice => slice.Commands)
+            .SelectMany(command => command.Authoring?.Generated ?? []).Any(property => model.Concepts.Any(concept => concept.Name == property.Type.Name && concept.Validations.Any())))
         {
             return model;
         }
@@ -29,12 +30,12 @@ internal static class ExecutableGenerationFixtures
         {
             Slices = model.Slices.Select(slice => slice with
             {
-                Specifications = slice.Specifications.Select(specification => Check(specification, model)).ToList()
+                Specifications = slice.Specifications.Select(specification => Check(specification, model, concepts)).ToList()
             }).ToList()
         };
     }
 
-    static SpecificationModel Check(SpecificationModel specification, ApplicationModel model)
+    static SpecificationModel Check(SpecificationModel specification, ApplicationModel model, IReadOnlyList<ConceptSyntax> concepts)
     {
         if (specification.GenerationFailure is not null)
         {
@@ -45,9 +46,22 @@ internal static class ExecutableGenerationFixtures
             return specification;
         }
         var command = model.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == issued.Name);
-        var invalid = specification.GeneratedValues.Any(pin => IsInvalidUuid(pin, command, model));
+        if (specification.GeneratedValues.Any(pin => IsInvalidUuid(pin, command, model)))
+        {
+            return specification with { GenerationFailure = "its UUID generation fixture must be version 4 with the RFC variant in an ESM v15 or v20 document" };
+        }
+        foreach (var pin in specification.GeneratedValues)
+        {
+            var type = command?.Authoring?.Generated.SingleOrDefault(property => property.Name == pin.Property)?.Type.Name;
+            var concept = concepts.SingleOrDefault(concept => concept.Name == type);
+            if (concept is not null && model.Concepts.Any(candidate => candidate.Name == type && candidate.Validations.Any()) &&
+                (pin.Source is not LiteralSource { Value: string text } || !GeneratedFixtureRules.Accepts(concept, text)))
+            {
+                return specification with { GenerationFailure = $"its generated fixture '{pin.Property}' fails concept '{type}' shape or rules (Rejected(Contract)); it is not a client validation error" };
+            }
+        }
 
-        return invalid ? specification with { GenerationFailure = "its UUID generation fixture must be version 4 with the RFC variant in an ESM v15 document" } : specification;
+        return specification;
     }
 
     static bool IsInvalidUuid(PropertyMappingModel pin, CommandModel? command, ApplicationModel model)

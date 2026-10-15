@@ -22,5 +22,7 @@ public class from_a_generated_name_colliding_after_normalization : a_generated_d
     [Fact] void should_not_emit_the_response() => Result.Source.ShouldNotContain("returns");
     [Fact] void should_not_infer_the_generated_destination() => Result.Source.ShouldNotContain("for id");
     [Fact] void should_report_the_collision() => Result.Diagnostics.Any(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnreadableCommandResponse && diagnostic.Message.Contains("collides", StringComparison.Ordinal)).ShouldBeTrue();
-    [Fact] void should_bind_and_round_trip_the_legacy_document() => AssertDocument();
+    [Fact] void should_withhold_the_event_rather_than_redirect_it() => Result.Source.ShouldNotContain("produces AuthorRegistered");
+    [Fact] void should_keep_the_handler_pointer() => Result.Source.ShouldContain("handler");
+    [Fact] void should_round_trip_with_only_the_known_handler_admission_refusal() => AssertPartialDocument();
 }

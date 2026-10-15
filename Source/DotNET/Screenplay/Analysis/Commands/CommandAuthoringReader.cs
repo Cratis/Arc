@@ -36,6 +36,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
 
     /// <summary>
+    /// Gets the shared concept-validation admission check for explicit generation.
+    /// </summary>
+    internal Func<ITypeSymbol, string?> ValidationFailure { get; init; } = _ => null;
+
+    /// <summary>
     /// Determines whether a local or parameter is never reassigned or passed by reference.
     /// </summary>
     /// <param name="symbol">The local or parameter to check.</param>
@@ -69,8 +74,9 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
 
-        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes };
-        var recoverableGeneration = parameters.ReadStrategies(handlers, location);
+        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes, ValidationFailure = ValidationFailure };
+        parameters.ReadStrategies(handlers, location);
+        result = result with { GeneratedParameters = parameters.HasParameters, UnavailableGenerated = parameters.Unavailable };
 
         if (!enabled)
         {
@@ -93,18 +99,14 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         var returned = ReturnedBy(body);
         var straight = IsStraight(body);
-        if (!recoverableGeneration)
-        {
-            return returned is null || !straight ? result : result with { Operations = ReturnedOperations(command, returned, model, location) };
-        }
-        if (!parameters.Bind(command, body, model))
-        {
-            Sources = new();
-            return result;
-        }
+        parameters.Bind(command, body, model);
         var generated = parameters.Generated.ToList();
         var validatedGenerated = parameters.Validated.ToList();
-        result = result with { GeneratedParameters = parameters.HasParameters };
+        result = result with
+        {
+            GeneratedParameters = parameters.HasParameters,
+            UnavailableGenerated = parameters.Unavailable
+        };
         foreach (var variable in parameters.LegacyLocals(body))
         {
             if (variable.Initializer?.Value is not { } value || model.GetDeclaredSymbol(variable) is not ILocalSymbol local)
@@ -138,7 +140,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
                     ? model.GetTypeInfo(value).Type ?? local.Type
                     : local.Type;
-                generated.Add(new(local.Name, types.Resolve(generatedType)));
+                generated.Add(new(local.Name, types.ResolveGenerated(generatedType)));
                 if (ValidatedTypes.Contains(local.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
                 {
                     validatedGenerated.Add(local.Name);
@@ -181,6 +183,12 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
             return result;
         }
 
+        if (Sources.UnavailableIn(response, model) is { } unavailable)
+        {
+            Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The response depends on unavailable generated input '{unavailable.Name}' ({unavailable.Failure}) and was left in code", location);
+            return result;
+        }
+
         var responseType = ResponseValueType(model.GetTypeInfo(response).Type ?? model.GetTypeInfo(response).ConvertedType);
         if (CreatesLegacyGeneratableConcept(response, responseType, model, parameters.HasParameters))
         {
@@ -193,7 +201,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 return result with { Generated = [], GeneratedWithValidators = [], Operations = [] };
             }
 
-            generated.Add(new(name, types.Resolve(responseType)));
+            generated.Add(new(name, types.ResolveGenerated(responseType)));
             if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
             {
                 validatedGenerated.Add(name);
@@ -420,9 +428,6 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         return new(responses, operations);
     }
-
-    IReadOnlyList<OperationModel> ReturnedOperations(INamedTypeSymbol command, ExpressionSyntax returned, SemanticModel model, string location) =>
-        ReadReturnedParts(command, returned, model, location).Operations;
 
     bool ContainsOperation(ITypeSymbol type) => CommandOperationReader.IsOperation(type) || type.Is("Cratis.Arc.Commands.CommandOperations") ||
         (type is INamedTypeSymbol named && named.TypeArguments.Any(ContainsOperation));

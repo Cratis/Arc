@@ -82,6 +82,7 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
 
     CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
+        command = new UnavailableCommandValues(diagnostics).Apply(command, model, $"{location}.{command.Name}");
         if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent)
         {
             command = AuthoringDeclarations.WithoutReadModels(command, model, readIntent.Reads.Select(read => read.Name).ToHashSet(StringComparer.Ordinal), diagnostics, location);

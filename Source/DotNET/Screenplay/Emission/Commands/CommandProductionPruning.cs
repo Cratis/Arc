@@ -30,9 +30,10 @@ internal static class CommandProductionPruning
         var required = omitted.FirstOrDefault(mapping => declaration?.Properties.SingleOrDefault(property => property.Name == mapping.Property)?.Type.IsOptional != true);
         if (required is not null)
         {
+            var reason = required.Source is UnavailableValueSource source ? $"generated input '{source.Input.Name}' ({source.Input.Failure})" : "value";
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnmappableCommandProduction,
-                $"Production '{production.EventName}' was left out because required event property '{required.Property}' depends on an unavailable value; removing its mapping would leave the production incomplete",
+                $"Production '{production.EventName}' was left out because required event property '{required.Property}' depends on an unavailable {reason}; removing its mapping would leave the production incomplete",
                 location);
 
             return null;
@@ -84,9 +85,10 @@ internal static class CommandProductionPruning
                     return true;
                 }
 
+                var reason = specification.GenerationFailure ?? $"command '{issued.Name}' lost an event production whose outcome cannot be stated faithfully";
                 diagnostics.Information(
                     ScreenplayDiagnosticCodes.UnreadableSpecification,
-                    $"The scenario '{specification.Name}' was left out because command '{issued.Name}' lost an event production whose outcome cannot be stated faithfully",
+                    $"The scenario '{specification.Name}' was left out because {reason}",
                     pair.Second.Namespace);
 
                 return false;

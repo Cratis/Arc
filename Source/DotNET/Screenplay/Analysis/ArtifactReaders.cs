@@ -138,6 +138,7 @@ public class ArtifactReaders
                 Authoring = new(models, types, paths, diagnostics, whole.AuthoringOnlyConstructs)
                 {
                     ExecutableRoutes = whole.ExecutableRoutes,
+                    ValidationFailure = new Commands.GeneratedValidationAdmission(models, types, whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types).ToList(), whole.MaximumExecutableModelVersion).Failure,
                     ValidatedTypes = whole.Compilations.SelectMany(compilation => ArtifactCatalog.From(compilation).Types)
                         .Select(ValidationReader.ValidatedTypeOf).OfType<ITypeSymbol>().Select(type => type.ToDisplayString()).ToHashSet(StringComparer.Ordinal)
                 }

@@ -628,4 +628,9 @@ public static class ScreenplayDiagnosticCodes
     /// Unread callbacks, routes and post-success behavior remain <see cref="ScreenStructureNotInferred"/>.
     /// </remarks>
     public const string ScreenCompositionNotRepresentable = "SP0077";
+
+    /// <summary>
+    /// A recovered generated-concept rule is executable but its consistency is unproven.
+    /// </summary>
+    public const string UnprovenGeneratedConceptRule = "SP0078";
 }

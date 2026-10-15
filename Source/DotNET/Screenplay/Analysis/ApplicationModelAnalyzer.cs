@@ -53,6 +53,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
         {
             Files = userInterfaceFiles,
             AuthoringOnlyConstructs = options.AuthoringOnlyConstructs,
+            MaximumExecutableModelVersion = options.MaximumExecutableModelVersion,
             ExecutableRoutes = options.MaximumExecutableModelVersion is not { } cap || cap.IsAtLeast(SemanticVersion.V8)
         };
         var diagnostics = whole.Diagnostics;

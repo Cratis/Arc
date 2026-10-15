@@ -13,6 +13,11 @@ public record CommandAuthoringModel
     /// </summary>
     public bool GeneratedParameters { get; init; }
 
+    /// <summary>
+    /// Gets declared generated inputs whose strategy or binding cannot be recovered.
+    /// </summary>
+    public IReadOnlyList<UnavailableGeneratedValueModel> UnavailableGenerated { get; init; } = [];
+
     /// <summary>Gets the generated UUID concepts.</summary>
     public IReadOnlyList<PropertyModel> Generated { get; init; } = [];
 

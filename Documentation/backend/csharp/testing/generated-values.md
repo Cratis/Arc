@@ -271,6 +271,29 @@ contract. Non-default strategies need an ESM v15 cap or later, and Screenplay v1
 generated identifier whose event source already has facts. These checks do not add strategy-shape
 validation to Arc's runtime pins, which use normal concept validation.
 
+A literal pin does not supply a missing generation strategy. When the factory is unrecoverable
+(`SP0073`), a scenario pinning that value is withheld whole with `SP0039`; no fixture is emitted against
+an invented caller parameter or UUID strategy. Successful scenarios are also withheld when their command
+loses an event production, including dependent event, response and route assertions. A provably independent
+pre-generation rejection scenario can remain. These omissions apply in authoring-only output and under
+version caps too; they do not prevent your original Arc specs from pinning a custom factory.
+
+### Pins for validated generated concepts
+
+Recoverable String-backed concept rules accompany their strategy in ESM v20. A pin must satisfy the
+concept's rules as well as its encoding and size. When a successful Arc scenario pins a value that
+violates either, recovery leaves the scenario out with located `SP0039`; it preserves the validator,
+strategy and pin text rather than weakening the contract. The Screenplay reference evaluator classifies
+an invalid generated fixture as `Rejected(Contract)`, never a client validation failure or a reason to
+redraw the value.
+
+Non-opaque rules that Screenplay cannot prove still accompany generation and report Information
+`SP0078` (`PLAY0689`); each concrete pin is checked. Opaque validation cannot be reference-executed, so
+recovery keeps the validator and withholds generation and unsupported scenarios. A V19-or-earlier cap
+also withholds validated generation and its pins, without deleting rules to fit the older consumer.
+Rule-free pins keep their previous model version and behavior. See
+[Validated generation](../generating-a-screenplay.md#validated-generation-and-esm-v20).
+
 ## Next steps
 
 - [Migrate generated identifiers](../../../upgrading/generated-values.mdx) when a handler still calls `New()` inside `Handle()`.

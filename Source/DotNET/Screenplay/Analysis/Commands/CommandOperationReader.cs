@@ -51,6 +51,12 @@ public class CommandOperationReader(TypeRegistry types, SourcePaths paths, Scree
             yield break;
         }
 
+        if (sources.UnavailableIn(expression, model) is { } unavailable)
+        {
+            Report($"The returned operation has an input not readable because it depends on unavailable generated input '{unavailable.Name}' ({unavailable.Failure}); the whole operation was left in code", location);
+            yield break;
+        }
+
         if (expression is not BaseObjectCreationExpressionSyntax { Initializer: null } creation ||
             model.GetTypeInfo(creation).Type is not INamedTypeSymbol { IsRecord: true } type || !IsOperation(type) ||
             model.GetSymbolInfo(creation).Symbol is not IMethodSymbol constructor || creation.ArgumentList is not { } arguments)

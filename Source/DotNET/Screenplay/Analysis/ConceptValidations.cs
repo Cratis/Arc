@@ -19,9 +19,9 @@ public static class ConceptValidations
     /// <param name="readers">The readers holding the concepts and the validators.</param>
     public static void Link(ArtifactCatalog catalog, ArtifactReaders readers)
     {
-        var declared = readers.Types.Concepts.Select(_ => _.Name).ToHashSet(StringComparer.Ordinal);
+        var declared = readers.Types.Concepts.ToDictionary(concept => concept.Name, StringComparer.Ordinal);
 
-        foreach (var type in catalog.Types.Where(_ => declared.Contains(_.Name)))
+        foreach (var type in catalog.Types.Where(_ => declared.ContainsKey(_.Name)))
         {
             if (type.FindBase(WellKnownTypeNames.ConceptAs) is null)
             {
@@ -29,6 +29,17 @@ public static class ConceptValidations
             }
 
             readers.Types.AddValidations(type.Name, readers.Validators.For(type));
+            var concept = declared[type.Name];
+            if (concept.Generation is null && !concept.HasGeneratedUses)
+            {
+                continue;
+            }
+
+            readers.Types.AddValidatorSources(type.Name, readers.Validators.SourcesFor(type));
+            if (!readers.Validators.IsComplete(type))
+            {
+                readers.Types.MarkValidationIncomplete(type.Name);
+            }
         }
     }
 }
