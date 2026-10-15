@@ -44,7 +44,7 @@ public record RecordTransaction(EventSourceId AccountId, decimal Amount)
 
 The event lands on event source `AccountId`, event source type `Account`, stream type `Transactions`, default stream id. The dimension is on the event source, so the `Transactions` stream inherits it. The append is checked against all events for the same event source id, of any type.
 
-This is the default append check: it does not bind `Handle()`'s decision to what it read. For a balance rule, use a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands) or an [aggregate](../aggregates/injecting-into-commands.md).
+This is the default append check: it does not bind `Handle()`'s decision to what it read. For a balance rule, use a read model parameter under [read protection](../consistency/getting-started.md) `On`, or an [aggregate](../aggregates/injecting-into-commands.md).
 
 **Alternatives:** `[EventStreamType("Transactions")]` and `[EventSourceType("Account")]` strings (ARCCHR0013 suggests the definition); an aggregate root when the account has rich behaviour; an exact scope when the caller supplies the revision it saw.
 
@@ -86,7 +86,7 @@ The template reads public properties of the command. Arc resolves it after valid
 
 **Shape:** the same report, but approving twice must not record a second approval, and two simultaneous approvals must not both succeed.
 
-**Recommended:** a [stream decision](./stream-decisions.md), because the rule is "has this fact already happened in this stream" and the facts are raw events in one short stream. Alternatives: a [protected decision](../read-models/injecting-into-commands.md#decision-reads-for-event-dependent-commands) when the rule needs folded state or several keys, and a constraint when the rule is only uniqueness.
+**Recommended:** a [stream decision](./stream-decisions.md), because the rule is "has this fact already happened in this stream" and the facts are raw events in one short stream. Alternatives: a read model parameter under [read protection](../consistency/getting-started.md) `On` when the rule needs folded state or several keys, and a constraint when the rule is only uniqueness.
 
 Add the stream decision. `ForCommand()` reads the stream the command declares, definition and template included, and `Append(...)` returns the events with an exact scope at the tail it read.
 
@@ -198,5 +198,5 @@ A reactor or another command can close the same stream from a route instead of r
 ## Where to go next
 
 - [How routing works](./event-source-definition-routing.md): what Arc does from the attribute to the append.
-- [Choosing how a command's rule holds](../consistency/index.md) and its [scenarios](../consistency/scenarios.md#one-stream-of-raw-events): when a stream decision is the right guard.
+- [Choosing how a command's rule holds](../consistency/index.md) and its [scenarios](../consistency/scenarios/per-stream.md#a-period-approval): when a stream decision is the right guard.
 - [Chronicle's Dynamic Consistency Boundary scenarios](/chronicle/dynamic-consistency-boundary/scenarios/) and [event sources](/chronicle/event-sources/): stream metadata plays the role of DCB tags, and a definition is the typed way to choose which dimensions guard an append.

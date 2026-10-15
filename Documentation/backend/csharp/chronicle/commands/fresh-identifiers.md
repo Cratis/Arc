@@ -142,7 +142,7 @@ Catching the rejection and succeeding can commit earlier enrollments.
 
 Non-transactional `eventLog.Append`, `AppendMany` and their named-tag variants inside `Handle()` bypass
 unit-of-work enrollment. They remain immediate, cannot be rolled back by the command and do **not** receive
-automatic freshness protection. Prefer returned events or `eventLog.Transactional` on the command's unit.
+automatic freshness protection. Prefer returned events or `eventLog.Transactional` on the command's unit. Under read protection `On`, an immediate append is refused with `ImmediateAppendWhileReadsAreProtected`.
 An immediate caller can supply an explicit whole-source `BeforeFirst` scope and inspect the append result,
 but that write has no automatic generated-target provenance and need not report `GeneratedIdentifierCollision`.
 

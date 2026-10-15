@@ -64,10 +64,10 @@ Arc reads the event source's tail when the aggregate is resolved, before `Handle
 
 - It does not guard a rule across aggregates. Two aggregates for two keys each guard only their own source.
 - It has no snapshots: every command reads the key's handled events again, so a key with a long history gets slower.
-- It cannot be combined with `[ProtectedDecision]` reads in one command.
+- Under read protection `On`, it cannot be combined with a plain read of the **same** event source in one command (`ReadAndAggregateOnSameSource`); a read of a different source is fine. Outside `On`, it cannot be combined with `[ProtectedDecision]` reads.
 - A handler that ignores the result of `Commit()` reports success when the aggregate rejected the command. Return it, as above.
 
-[Choosing how a command's rule holds](../consistency/index.md) compares aggregates with constraints, protected decisions and stream decisions, and its [pitfalls](../consistency/pitfalls.md#an-aggregate-commit-whose-result-is-ignored) show the silent failures.
+[Choosing how a command's rule holds](../consistency/index.md) compares aggregates with constraints, read protection and stream decisions. See [Rich aggregate](../consistency/scenarios/aggregate.md) for how an aggregate behaves under `On`. Its [pitfalls](../consistency/pitfalls.md#an-aggregate-commit-whose-result-is-ignored) show the silent failures.
 
 ## Verify the boundary
 
