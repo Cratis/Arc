@@ -104,9 +104,15 @@ public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagn
             return;
         }
 
-        foreach (var statement in declaration.DescendantNodes().OfType<ExpressionStatementSyntax>())
+        var registrations = declaration.DescendantNodes().OfType<ExpressionStatementSyntax>().Select(statement => statement.Expression);
+        if (declaration is ConstructorDeclarationSyntax { ExpressionBody.Expression: { } expression })
         {
-            var chain = InvocationChain.Unwind(statement.Expression);
+            registrations = registrations.Prepend(expression);
+        }
+
+        foreach (var registration in registrations)
+        {
+            var chain = InvocationChain.Unwind(registration);
             var forEach = chain is not null && string.Equals(chain.RootName, RuleForEach, StringComparison.Ordinal);
 
             if (chain is null || (!forEach && !string.Equals(chain.RootName, RuleFor, StringComparison.Ordinal)))
