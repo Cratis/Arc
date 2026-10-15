@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Cratis.Arc.Connections;
 
 /// <summary>
@@ -30,6 +32,7 @@ public class ConnectionResolverOptions
     /// The type is created through dependency injection, so it can take any registered service in its constructor.
     /// It can only be set from code.
     /// </remarks>
+    [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
     public Type? CustomType { get; set; }
 
     /// <summary>
@@ -79,7 +82,7 @@ public class ConnectionResolverOptions
     /// </summary>
     /// <typeparam name="TResolver">The <see cref="IConnectionResolver"/> type.</typeparam>
     /// <returns>The <see cref="ConnectionResolverOptions"/> for continuation.</returns>
-    public ConnectionResolverOptions UseCustom<TResolver>()
+    public ConnectionResolverOptions UseCustom<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TResolver>()
         where TResolver : IConnectionResolver
     {
         Resolver = ConnectionResolverType.Custom;

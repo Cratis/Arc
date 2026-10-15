@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -30,7 +31,7 @@ public class ConnectionResolverFactory(IServiceProvider serviceProvider) : IConn
         _ => new DefaultConnectionResolver()
     };
 
-    IConnectionResolver CreateCustom(Type? type)
+    IConnectionResolver CreateCustom([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] Type? type)
     {
         if (type is null || !typeof(IConnectionResolver).IsAssignableFrom(type))
         {
