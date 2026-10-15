@@ -27,7 +27,7 @@ internal class EventSourceSyntaxBuilder(IScreenplayNaming naming)
     /// <returns>The unique source declarations.</returns>
     internal List<EventSourceSyntax> Build(ApplicationModel model, IEnumerable<SpecificationStateModel> occurrences, bool metadataEnabled)
     {
-        var routes = model.Slices.SelectMany(slice => slice.Commands).Select(command => command.Authoring?.Route).OfType<CommandRouteModel>();
+        var routes = model.Slices.SelectMany(slice => slice.Commands).SelectMany(Commands.ProductionRouteAdmission.Routes);
         var declarations = EventSourceDeclarations.Resolve(routes.Concat(SpecificationRouteDeclarations.Read(model, occurrences)), EventSourceDeclarations.ObservedRoutes(model, metadataEnabled));
 
         return declarations.Sources.OrderBy(source => source.Identity.Source, StringComparer.Ordinal).Select(BuildSource).ToList();

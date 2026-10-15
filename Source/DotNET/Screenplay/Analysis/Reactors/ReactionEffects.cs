@@ -5,7 +5,6 @@ using Cratis.Arc.Screenplay.Analysis.Commands;
 using Cratis.Arc.Screenplay.Analysis.Events;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Reactors;
 
@@ -41,48 +40,12 @@ internal static class ReactionEffects
 
     static ReactionEffect? ReadWrapper(BaseObjectCreationExpressionSyntax wrapper, SemanticModel model, IMethodSymbol handler)
     {
-        if (wrapper is not { Initializer: null, ArgumentList.Arguments.Count: 2 })
-        {
-            return null;
-        }
-        if (model.GetOperation(wrapper) is not IObjectCreationOperation operation)
-        {
-            return null;
-        }
-        if (ArgumentAt(operation, 0) is not { } destinationArgument)
-        {
-            return null;
-        }
-        if (ArgumentAt(operation, 1) is not { Expression: BaseObjectCreationExpressionSyntax creation })
-        {
-            return null;
-        }
-        if (EventPayload(creation, model) is not { } type)
-        {
-            return null;
-        }
-        if (ReactionMappings.Destination(destinationArgument.Expression, model, handler) is not { } destination)
+        if (wrapper.Initializer is not null || ExplicitEventDestination.Read(wrapper, model) is not { } envelope ||
+            ReactionMappings.Destination(envelope.Destination, model, handler) is not { } destination)
         {
             return null;
         }
 
-        return new(creation, type, (INamedTypeSymbol)operation.Type!, destination);
-    }
-
-    static ArgumentSyntax? ArgumentAt(IObjectCreationOperation operation, int ordinal) =>
-        operation.Arguments.FirstOrDefault(argument => argument.Parameter?.Ordinal == ordinal)?.Syntax as ArgumentSyntax;
-
-    static INamedTypeSymbol? EventPayload(BaseObjectCreationExpressionSyntax creation, SemanticModel model)
-    {
-        if (model.GetTypeInfo(creation).Type is not INamedTypeSymbol type)
-        {
-            return null;
-        }
-        if (!EventReader.IsEvent(type))
-        {
-            return null;
-        }
-
-        return InlineProductionShape.IsSupported(creation, model) ? type : null;
+        return new(envelope.Event, envelope.EventType, envelope.WrapperType, destination);
     }
 }

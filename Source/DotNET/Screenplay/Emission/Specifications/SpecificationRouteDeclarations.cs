@@ -42,7 +42,7 @@ internal static class SpecificationRouteDeclarations
     {
         var route = state.Route!;
         var identity = route.Identity!;
-        var declarations = commands.Select(command => command.Authoring?.Route).OfType<CommandRouteModel>()
+        var declarations = commands.SelectMany(Commands.ProductionRouteAdmission.Routes)
             .Where(candidate => candidate.Identity.StoredSource == identity.StoredSource).ToList();
         var existing = declarations.Find(candidate => candidate.Identity == identity);
 

@@ -6,6 +6,7 @@ using Cratis.Arc.Screenplay.Analysis.Events;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
@@ -51,19 +52,30 @@ internal static class UnavailableProductionDependencies
             return null;
         }
 
-        foreach (var ancestor in body.DescendantNodesAndSelf().Where(node =>
-            (node is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [_, var payload] } && LocalValueOrigins.Reaches(payload.Expression, creation, model)) ||
-            (node is TupleExpressionSyntax tuple && tuple.Arguments.Any(argument => model.GetTypeInfo(argument.Expression).Type is { } type && EventReader.IsEvent(type) && LocalValueOrigins.Reaches(argument.Expression, creation, model)))))
+        foreach (var wrapper in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>().Where(wrapper =>
+            model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId")))
         {
-            if (ancestor is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var destination, ..] } wrapper &&
-                model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") &&
-                sources.UnavailableIn(destination.Expression, model) is { } unavailable)
+            if (model.GetOperation(wrapper) is not IObjectCreationOperation operation ||
+                operation.Arguments.FirstOrDefault(argument => argument.Parameter?.Ordinal == 1)?.Syntax is not ArgumentSyntax payload ||
+                !LocalValueOrigins.Reaches(payload.Expression, creation, model))
+            {
+                continue;
+            }
+            var dependencies = operation.Arguments.Where(argument => argument.Parameter?.Ordinal != 1).Select(argument => argument.Syntax)
+                .Concat(wrapper.Initializer is null ? [] : new SyntaxNode[] { wrapper.Initializer });
+            if (dependencies.Select(expression => sources.UnavailableIn(expression, model)).FirstOrDefault(value => value is not null) is { } unavailable)
             {
                 return unavailable;
             }
-            if (ancestor is TupleExpressionSyntax tuple && !EventResponseTuples.UsesCommandContext(model.GetTypeInfo(tuple).Type ?? model.GetTypeInfo(tuple).ConvertedType))
+        }
+        foreach (var ancestor in body.DescendantNodesAndSelf().OfType<TupleExpressionSyntax>().Where(tuple => tuple.Arguments.Any(argument =>
+            model.GetTypeInfo(argument.Expression).Type is { } type && EventReader.IsEvent(type) && LocalValueOrigins.Reaches(argument.Expression, creation, model))))
+        {
+            var type = model.GetTypeInfo(ancestor);
+            var identity = ReturnedProductionShape.IdentityOf(ancestor, model);
+            if (!EventResponseTuples.UsesCommandContext(type.ConvertedType ?? type.Type))
             {
-                foreach (var argument in tuple.Arguments.Where(argument => IsIdentity(model.GetTypeInfo(argument.Expression).Type)))
+                foreach (var argument in ancestor.Arguments.Where(argument => argument.Expression == identity || ReturnedProductionShape.IsIdentity(model.GetTypeInfo(argument.Expression).Type)))
                 {
                     if (sources.UnavailableIn(argument.Expression, model) is { } dependency)
                     {
@@ -115,7 +127,4 @@ internal static class UnavailableProductionDependencies
         BlockSyntax block => block.Statements.Count > 0 && AlwaysExits(block.Statements[^1]),
         _ => false
     };
-
-    static bool IsIdentity(ITypeSymbol? type) => type is not null &&
-        (type.Is("Cratis.Chronicle.Events.EventSourceId") || type.FindBase("Cratis.Chronicle.Events.EventSourceId`1") is not null);
 }
