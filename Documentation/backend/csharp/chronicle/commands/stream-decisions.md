@@ -43,7 +43,7 @@ The empty append represents an **identical retry**: approval was already recorde
 
 `StreamDecision.Events` contains `AppendedEvent` values; `EventsOf<TEvent>()` selects payloads and `Has<TEvent>()` checks for a type. The reader captures `Tail` **before** fetching events and discards events beyond that tail. `IsEmpty` means the tail was unavailable, and the scope uses `ExpectingNoMatchingEvent()` to protect the first append. Source type, stream type and stream id filters are identical for the read and guard.
 
-If you need a folded projection rather than raw stream facts, use the command-aware [`IDecisionReads` stream overload](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream). Under read protection `On`, or in a `[ProtectedDecision]` command, it enrolls the projection read in the same transaction; injected `DecisionRead<T>` parameters are not automatically narrowed to the command route.
+If you need folded state on the command's own route, use a [per-stream read model](../consistency/scenarios/per-stream.md) declared with `[EventStream<TSource>(stream)]` as a plain parameter. Under `On` its read is guarded; `Off` and `Measure` read the same stream without a guard. A `DecisionRead<T>` parameter of that declared model also uses the command route. For another stream or source, use the command-aware [`IDecisionReads` stream overload](../read-models/injecting-into-commands.md#read-a-projection-within-one-stream) in `Provide()`. Under `On`, or in a `[ProtectedDecision]` command, it enrolls in the same transaction. Models without a per-stream declaration keep their key-based injection.
 
 ## Reuse a definition-backed route
 

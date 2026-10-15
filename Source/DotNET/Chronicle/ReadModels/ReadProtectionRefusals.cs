@@ -30,6 +30,8 @@ internal static class ReadProtectionRefusals
             DecisionReadRefusalReason.FromEventProperty or DecisionReadRefusalReason.NotEventSourceKeyed => ("keyed by an event property", "append a fact to the entity it is keyed by, or use a constraint"),
             DecisionReadRefusalReason.GenerationDeliveryNotSupported => ("using Pinned generation delivery", "use Compatibility delivery for this projection"),
             DecisionReadRefusalReason.KeyConversion => ("with an unsupported key type", $"give {model.Name} a string or Guid Id"),
+            DecisionReadRefusalReason.ReadModelRequiresStreamScope => ("scoped to one event stream and was read without it", "take it as a parameter of a command routed to that stream"),
+            DecisionReadRefusalReason.StreamScopeDoesNotMatchReadModel => ("with a stream scope that differs from its declaration", "use the model's declared source and stream types"),
             DecisionReadRefusalReason.StreamKeyRequiresStreamScope => ("keyed by a stream", "use IDecisionReads.Get with an explicit source, stream type and stream id in Provide"),
             DecisionReadRefusalReason.NotEventLog => ("from another event sequence", "read a model of the event log"),
             DecisionReadRefusalReason.AmbiguousProjection => ("without exactly one backing definition", "register exactly one projection or admitted reducer for the model"),

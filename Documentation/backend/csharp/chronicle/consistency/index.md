@@ -48,7 +48,7 @@ Read protection has two layers, and the names are close. **Read protection in Ch
 | Rule over one key's history, stock or count on one key | A read model parameter under `On`, the rule in a validator | An aggregate | A validator over a plain read under `Off` | A constraint: it cannot count |
 | Rule spanning two keys (course capacity and student limit) | Two read-model parameters, one event per key in one batch | Explicit scopes in the same batch (Chronicle used directly) | Two aggregates, each guarding only its own source | One model that folds both keys: it is refused |
 | Editing conflict | Explicit scope carrying the revision the client saw | A read model parameter when the edit does not depend on what the client saw | `concurrency: true` alone: it reads the tail after `Handle()` | A read model, which folds state to detect what a revision number already tells you |
-| One stream, for example approvals per period | Per-stream read model (coming in this release) or a stream decision | A read-model parameter over the whole source | Reading the stream with an injected read model under `Off` | A whole-source read when only one period matters |
+| One stream, for example approvals per period | Per-stream read model or a stream decision | A read-model parameter over the whole source | Reading the stream with an injected read model under `Off` | A whole-source read when only one period matters |
 | Rich behaviour (many invariants) | Aggregate root | Several validators over one model | Ignoring the result of `Commit()` | A read model for each invariant |
 | A rare violation is acceptable | Default append and a reactor that repairs | `concurrency: true` to narrow the default check | Assuming the repair runs before harm is done | Any guard |
 | UX hint ("no copies left") | A query, or `[Unprotected("why")]` on the read | None needed | Treating the hint as the rule | A guarded read |
@@ -56,6 +56,17 @@ Read protection has two layers, and the names are close. **Read protection in Ch
 | Hot key with a long history | Key by period, or use a constraint | An aggregate (it reads the key's handled events on every command) | A guarded read on a key that never stops growing | A flat model over years of events |
 
 "Never rely on" means the mechanism can fail silently: the command succeeds and the rule is broken.
+
+## Choose a stream or source model
+
+| Rule lives in… | Use |
+| --- | --- |
+| Folded state of one stream on the command's own route | [Per-stream model](./scenarios/per-stream.md) |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate, without reads of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
 
 ## Decision flowchart
 

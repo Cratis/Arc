@@ -36,4 +36,6 @@ ARCCHR0033|Arc.Chronicle|Warning|Aggregate and protected plain read on the same 
 ARCCHR0034|Arc.Chronicle|Info|Method-level advisory does not cover read-model parameters
 ARCCHR0035|Arc.Chronicle|Warning|Aggregate Commit in nested command or before later reads/appends under On
 ARCCHR0036|Arc.Chronicle|Warning|Exact scope coverage of same-source protected read is not proven
+ARCCHR0037|Arc.Chronicle|Error|Per-stream read model does not match the command route
+ARCCHR0038|Arc.Chronicle|Info|Per-stream read guard widens to the whole source
 ARC0026|Arc|Error|Invalid explicit query declaration

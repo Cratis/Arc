@@ -486,5 +486,31 @@ static class DiagnosticDescriptors
         description: "Measure and On commands returning exact concurrency scopes must cover the source, types, dimensions and read boundary of every protected read on that source. This signature heuristic reports only automatic reads on the command source; explicit providers and advisory parameters are excluded.",
         helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0036");
 
+    /// <summary>
+    /// ARCCHR0037: A stream model does not belong to the command's route.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0037_ReadModelStreamNotOnCommandRoute = new(
+        id: "ARCCHR0037",
+        title: "Read model stream is not on the command route",
+        messageFormat: "Command '{0}' reads '{1}' ({2}), scoped to {3}/{4}, but {5}. Route the command to that stream with an explicit EventStreamId, or use IDecisionReads in Provide for another stream.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description: "Per-stream model parameters, including validator constructor parameters, bind only to the command's own source and stream. LookUpBy cannot redirect a stream model. This applies in Off, Measure and On.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0037");
+
+    /// <summary>
+    /// ARCCHR0038: Combining reads or declared routing can widen a stream guard.
+    /// </summary>
+    public static readonly DiagnosticDescriptor ARCCHR0038_StreamReadGuardWidens = new(
+        id: "ARCCHR0038",
+        title: "Stream read guard widens",
+        messageFormat: "Command '{0}' reads per-stream model '{1}', but {2}; the guard is not proven narrow and can widen to the whole source. Use only stream state when other periods must not conflict.",
+        category: Category,
+        defaultSeverity: DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description: "Under Measure or On, a whole-source read on the command source, a read on another stream, or effective declared Concurrency without both stream dimensions can widen a stream read guard. Widening causes extra conflicts, not missed changes.",
+        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0038");
+
     const string Category = "Arc.Chronicle";
 }

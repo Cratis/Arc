@@ -1,37 +1,40 @@
 ---
 title: One stream
-description: A rule over one stream of an entity, such as one month of an account or one approval period, written as a stream read in Provide or as a stream decision.
+description: Enforce a monthly limit with a per-stream read model and a validator, or check raw facts with a stream decision.
 ---
 
-Use this when the facts that decide a command live in one stream of an entity, not in its whole history: the withdrawals of one month, the approval of one period.
+Use a per-stream read model when a rule depends on the folded state of one stream on the command's own route. October's withdrawals should not make November's command conflict. Declare the model's stream, take it as a plain parameter, and put the rule in a validator. Under `On`, Arc guards that stream.
 
-| Rule | Mechanism |
+## Choose the boundary
+
+| Rule lives in… | Use |
 | --- | --- |
-| At most 5000 may be withdrawn per account per month | A stream-scoped read in `Provide()` ([below](#a-monthly-limit)) |
-| A report is approved once per owner per month | A stream decision ([below](#a-period-approval)) |
-
-## Per-stream read models
-
-A read model that belongs to one stream of an event source, so that reading it guards only that stream, is coming in this release. It will replace the stream-scoped read in [A monthly limit](#a-monthly-limit) and will be an alternative to the stream decision in [A period approval](#a-period-approval). Both of the shapes below keep working.
+| Folded state of one stream on the command's own route | Per-stream model |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate. Do not also read a model of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
 
 ## A monthly limit
 
 | | |
 | --- | --- |
-| Rule | At most 5000 may be withdrawn per account per month. The months are streams of one account |
-| Mechanism | `IDecisionReads.Get` with the source, stream type and stream id, in `Provide()` |
-| Alternatives | A stream decision (raw events, the whole stream crosses the wire). A read of the whole source: it works, but a deposit in another month conflicts |
-| Not | A plain `T` parameter for a stream-keyed projection: it is refused |
+| Rule | At most 5000 may be withdrawn per account per month |
+| Mechanism | A per-stream model and a `CommandValidator<T>` under `On` |
+| Alternatives | A stream decision for short raw-event checks; a whole-source model when every month must count |
+| Not | A key-only read of a per-stream model: Chronicle refuses it |
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSources;
 using Cratis.Chronicle.Projections.ModelBound;
 using Cratis.Chronicle.ReadModels;
-using Cratis.Monads;
+using FluentValidation;
 
 [EventSource("BankAccount")]
 [EventStream("Transactions")]
@@ -42,48 +45,60 @@ public record AccountId(string Value) : EventSourceId(Value);
 [EventType]
 public record MoneyWithdrawn(decimal Amount);
 
+[ReadModel, EventStream<BankAccountEventSource>("Transactions")]
 public record MonthlyWithdrawals(
-    EventSourceId Id,
-    [AddFrom<MoneyWithdrawn>(nameof(MoneyWithdrawn.Amount))] decimal Total);
+    AccountId Id,
+    [AddFrom<MoneyWithdrawn>(nameof(MoneyWithdrawn.Amount))] decimal Total)
+{
+    public static async Task<MonthlyWithdrawals?> ForMonth(AccountId account, string month, IReadModels models)
+    {
+        var instance = await models.GetInstanceById<MonthlyWithdrawals>(account, (EventStreamId)month);
+        return instance is null ? null : await models.Release(instance);
+    }
+}
 
-[Command]
+[Command, ReadProtection(ReadProtectionMode.On)]
 [EventSource<BankAccountEventSource>("Transactions")]
 [EventStreamId("{Month}")]
 public record Withdraw(AccountId Account, string Month, decimal Amount)
 {
-    public const decimal MonthlyLimit = 5000m;
+    public MoneyWithdrawn Handle() => new(Amount);
+}
 
-    public Task<DecisionRead<MonthlyWithdrawals>> Provide(IDecisionReads reads) =>
-        reads.Get<MonthlyWithdrawals>(Account, "Transactions", Month, "BankAccount");
-
-    public Result<MoneyWithdrawn, ValidationResult> Handle(DecisionRead<MonthlyWithdrawals> month) =>
-        (month.Instance?.Total ?? 0m) + Amount > MonthlyLimit
-            ? ValidationResult.Error("The monthly withdrawal limit would be exceeded.")
-            : new MoneyWithdrawn(Amount);
+public class WithdrawValidator : CommandValidator<Withdraw>
+{
+    public WithdrawValidator(MonthlyWithdrawals? month) =>
+        RuleFor(command => command.Amount)
+            .Must(amount => (month?.Total ?? 0m) + amount <= 5000m)
+            .WithMessage("Monthly limit reached");
 }
 ```
 
+The model keeps the account as its `Id`; the month selects the fold, not a new model key. Chronicle makes the model passive, so a stored instance never mixes months. Arc resolves `{Month}` before constructing the validator. A missing or blank `Month` returns `400` naming that property, without reading. The validator rejects an exceeded limit; `Handle()` only returns the event.
+
 ```text
-guard account: types=[MoneyWithdrawn], streamType=Transactions, streamId=2026-10, after <tail before the read>
+guard account: types=[MoneyWithdrawn], sourceType=BankAccount, streamType=Transactions, streamId=2026-10, after <position before the read>
 ```
 
-A withdrawal in another month, or a deposit in this one, does not conflict.
+If another withdrawal arrives in October after the validator's read, commit returns `400`, `concurrencyViolation`, `ReadChanged`, and writes nothing. November activity does not conflict. Validator and `Handle()` parameters of the same model share one enrolled fold and released instance. A cached read is still checked when it is enrolled again.
 
-What to know:
+Under `Off` and `Measure`, the same parameter folds only that month but supplies no guard. Measure reports the stream dimensions and `coarsened` when another read drops them. Existing models without the stream declaration keep their existing behavior.
 
-- The key and stream are explicit in the call. The fold and the guard use the same dimensions. An injected `DecisionRead<T>` or plain parameter is not narrowed to the command's stream.
-- This rule needs a value computed from the read, so it is in `Handle()` and returns a `Result`. `Handle()` runs after `Provide()`, so the read is made before the rule decides.
-- A second read of the same source with a different stream widens the guard to every month. A whole-source read of the same source drops the stream dimensions altogether. See [How it works](../how-it-works.md#several-reads).
-- The stream type must be specific, not `All`. Chronicle's [stream-scoped decision read](/chronicle/read-models/decision-reads/#scoped-to-one-event-stream) lists the key requirements.
+### Query one month
+
+`ForMonth` is a model-bound query on the `[ReadModel]` record above. It calls the plain stream overload, which takes the source and stream types from the declaration. It returns October for that account, not a stored whole-account total. It guards nothing. Do not use a key-only lookup, collection read or `Watch` for this model; Chronicle refuses them.
+
+### Keep the route exact
+
+- The command needs a matching source type and stream type, and an explicit, non-default stream id. `[EventSource<BankAccountEventSource>("Transactions")]` keeps writers aligned. Matching string routes work too.
+- Another definition, stream, `All`, or a missing stream id is refused in every mode with `ReadModelStreamNotOnCommandRoute`. [ARCCHR0037](../../code-analysis/ARCCHR0037.md) catches source-visible mismatches.
+- Do not put `[LookUpBy]` on a per-stream parameter. The source always comes from the command's route. Read another account or month explicitly through `IDecisionReads` in `Provide()`; see [stream reads](../../read-models/injecting-into-commands.md#read-a-projection-within-one-stream).
+- A whole-source read on the same account chooses a whole-source guard. Another stream read can widen it too. Declared `Concurrency` that omits stream dimensions can also widen it; [ARCCHR0038](../../code-analysis/ARCCHR0038.md) reports source-visible cases. Use no declared policy for the model's exact event types, or stream-level `EventSourceId | EventStreamType | EventStreamId` for an any-event stream boundary.
+- The declaration's source type filters both fold and guard. Events written without that source type are not included. Every writer must use the same definition route. Revisions and redactions remain outside the guard.
 
 ## A period approval
 
-| | |
-| --- | --- |
-| Rule | A monthly report can be approved once. Approving decides on the events of its own approval stream |
-| Mechanism | A stream decision: `IStreamReads` in `Provide()`, `decision.Append(...)` in `Handle()` |
-| Alternatives | A per-stream read model, an aggregate for each period |
-| Not | A read of the whole source beside the stream decision: the stream scope is narrower than the read, so the command is refused |
+Use a stream decision for the raw question “has this report been approved in this short stream?”. Use a per-stream model when you need an approval count or folded status; the [period approval model](../../commands/event-source-definition-scenarios.md#per-stream-approval-state) shows that alternative.
 
 ```csharp
 using Cratis.Arc.Chronicle.Commands;
@@ -116,16 +131,12 @@ public record ApproveReport(ReportId Report, string Owner, string Month)
 }
 ```
 
-```text
-guard report: any type, streamType=Approval, streamId=owner-1:2026-10, after <tail of the stream before the read>
-```
+The decision reads and guards `Approval/owner-1:2026-10` for this report. Any competing event in that stream after the read refuses the append, including the first append. Another month does not conflict. The whole stream crosses the wire, so keep it short. The empty append is an identical retry: approval was already recorded, so nothing is written or checked again.
 
-A competing event in that stream after the read rejects the command, including when both commands try the first append. Every event type in the stream counts. The whole stream crosses the wire on every command, so use this for short streams. Adding a whole-source read model to this command refuses it with `ExplicitScopeDoesNotCoverReads`, and [ARCCHR0036](../../code-analysis/ARCCHR0036.md) reports it at build time.
-
-The empty append is an identical retry: approval was already recorded, so there is nothing to write. It succeeds without checking the stream again.
+Choose a stream decision or a per-stream validator, not both. The validator reads before `Provide()`; a later stream-decision boundary may not cover it and is refused with `ExplicitScopeDoesNotCoverReads`. [ARCCHR0036](../../code-analysis/ARCCHR0036.md) warns about that combination. An aggregate plus a per-stream read of the same source is refused too.
 
 ## Related
 
+- [Process streams and ordered onboarding](../../commands/event-source-definition-scenarios.md#per-stream-onboarding-state)
 - [Stream decisions](../../commands/stream-decisions.md)
-- [Route a command through an event source definition](../../commands/event-source-definitions.md)
-- [Chronicle: scenarios](/chronicle/dynamic-consistency-boundary/scenarios/)
+- [Chronicle: per-stream models](/chronicle/read-models/per-stream/)

@@ -3,6 +3,7 @@
 
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis;
@@ -83,11 +84,28 @@ public sealed class ReadProtectionParameterAnalyzer : DiagnosticAnalyzer
         {
             Report(context, DiagnosticDescriptors.ARCCHR0033_ReadAndAggregateOnSameSource, parameter, command.Name, aggregate.Name, parameter.Name, key.Name);
         }
-        if (RawGuidResponseAnalysis.HandleMethods(command).Any(handler => HasExactScopes(handler.ReturnType, context.Compilation)))
+        var streamModel = PerStreamReadModelSymbols.Declaration(model) is not null;
+        var streamDecision = dependencies.Any(dependency => dependency.Parameters.Any(candidate =>
+            ReadProtectionSymbols.Is(candidate.Type, "Cratis.Arc.Chronicle.Streams.StreamDecision", context.Compilation)) ||
+            ReadProtectionSymbols.Is(RawGuidResponseAnalysis.UnwrapAwaitable(dependency.ReturnType, context.Compilation), "Cratis.Arc.Chronicle.Streams.StreamDecision", context.Compilation));
+        if ((streamModel && streamDecision && method.MethodKind == MethodKind.Constructor) ||
+            (RawGuidResponseAnalysis.HandleMethods(command).Any(handler => HasExactScopes(handler.ReturnType, context.Compilation)) &&
+             !(streamModel && method.Name == "Handle" && HasCommandStreamDecision(dependencies, context.Compilation))))
         {
             Report(context, DiagnosticDescriptors.ARCCHR0036_ExactScopeCoverageNotProven, parameter, command.Name, parameter.Name, key.Name);
         }
     }
+
+    static bool HasCommandStreamDecision(IEnumerable<IMethodSymbol> dependencies, Compilation compilation) => dependencies.Any(dependency =>
+        dependency.Name == "Provide" && dependency.DeclaringSyntaxReferences.Any(reference =>
+            reference.GetSyntax() is MethodDeclarationSyntax
+            {
+                ExpressionBody.Expression: InvocationExpressionSyntax
+                {
+                    Expression: MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax receiver } member
+                }
+            } && member.Name.Identifier.ValueText == "ForCommand" && dependency.Parameters.Any(parameter => parameter.Name == receiver.Identifier.ValueText &&
+                ReadProtectionSymbols.Is(parameter.Type, "Cratis.Arc.Chronicle.Streams.IStreamReads", compilation))));
 
     static bool HasExactScopes(ITypeSymbol type, Compilation compilation)
     {

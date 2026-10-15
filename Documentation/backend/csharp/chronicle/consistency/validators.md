@@ -65,6 +65,21 @@ A validator that rejects writes nothing, so a rejection needs no guard and is ne
 
 The message reaches the client the same way as any validator message. The same rules apply to a nullable parameter: use `BookStock?` when absence is a business condition, and a non-nullable parameter when the command cannot run without the model. See [Nullable means you handle absence](../read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
 
+## A validator for one stream
+
+A plain constructor parameter whose model declares `[EventStream<TSource>(stream)]` reads the command's own stream, including its resolved stream-id template. Under `On`, validator and `Handle()` share one enrolled fold. Under `Off` or `Measure`, the fold stays stream-scoped but is unguarded. A missing template part returns `400` naming the property before any read; a mismatched route is a configuration error in every mode. Do not use `[LookUpBy]` to redirect a per-stream parameter.
+
+| Rule lives in… | Use |
+| --- | --- |
+| Folded state of one stream on the command's own route | [Per-stream model and validator](./scenarios/per-stream.md#a-monthly-limit) |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate, without reads of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
+
+A validator runs before `Provide()`. Do not also acquire a later stream decision for the same source: its boundary may not cover the validator's earlier read. [ARCCHR0036](../code-analysis/ARCCHR0036.md) warns about that combination.
+
 ## Several keys in one validator
 
 Put `[LookUpBy(nameof(Command.Property))]` on each constructor parameter. The name is resolved on the command, not on the validator. Each read gets its own guard, and `Handle()` can return one `EventForEventSourceId` for each entity without implementing `ICanProvideEventSourceId`. See [Two entities](./scenarios/two-entities.md) and [the transfer example](./reads.md#choose-the-key-with-lookupby).

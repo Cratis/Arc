@@ -31,6 +31,12 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
             var model = parameter.ParameterType.GetGenericArguments()[0];
             throw new ReadCannotBeProtected(serviceProvider.GetRequiredService<ICommandContextAccessor>().Current.Type, parameter.Name!, model, "through IMongoCollection", $"inject {model.Name}");
         }
+        if (isReadModel && PerStreamReadModelBinding.IsDeclared(parameter.ParameterType))
+        {
+            var commandContext = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
+            dependency = PerStreamReadModelBinding.Resolve(parameter.ParameterType, commandContext, serviceProvider, parameter);
+            return true;
+        }
         if (!isReadModel ||
             (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On &&
              !Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().Any()))

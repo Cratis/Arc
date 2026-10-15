@@ -35,6 +35,17 @@ An aggregate fits one entity with many rules and transitions. A read model with 
 
 When the cost of the violation is lower than the cost of the guard and a reactor can repair it. See [Rules that need no guard](./scenarios/no-guard.md).
 
+### When should I use a per-stream model?
+
+| Rule lives in… | Use |
+| --- | --- |
+| Folded state of one stream on the command's own route | [Per-stream model](./scenarios/per-stream.md) |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate, without reads of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
+
 ## Modes
 
 ### What are Off, Measure and On?
@@ -81,7 +92,7 @@ It names the command property that selects the instance a parameter reads. Use i
 
 ### What happens if I do not turn read protection on?
 
-A plain parameter stays a plain read, as it always was. Nothing is guarded, and nothing is refused. Set `<CratisReadProtection>On</CratisReadProtection>`, or move there through `Measure`.
+A plain parameter stays a plain read, as it always was. Nothing is guarded. A model declaring `[EventStream<TSource>(stream)]` still requires a matching command route and explicit stream id: an undefined stream read is refused in every mode. Models without that declaration retain their existing behavior. Set `<CratisReadProtection>On</CratisReadProtection>`, or move there through `Measure`.
 
 ### Do I still need `DecisionRead<T>` and `[ProtectedDecision]`?
 

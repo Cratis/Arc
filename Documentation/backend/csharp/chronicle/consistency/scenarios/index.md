@@ -23,6 +23,17 @@ Start here. These scenarios use `[Command]` records that return events, constrai
 | Do not overwrite changes the user did not see | An explicit scope with the revision | [Editing conflict](./editing-conflict.md) |
 | A rare violation, a hint, external data, a hot key | No guard, or the right shape of data | [Rules that need no guard](./no-guard.md) |
 
+## Choose a stream or source model
+
+| Rule lives in… | Use |
+| --- | --- |
+| Folded state of one stream on the command's own route | [Per-stream model](./per-stream.md) |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate, without reads of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
+
 ## Less idiomatic and Chronicle direct
 
 These work, and Arc supports them. Under `On` some are refused; the pages say which.

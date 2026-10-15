@@ -16,6 +16,8 @@ boundary, or remove the exact scope and let protected reads supply their guards.
 When an explicit scope intentionally covers every read, suppress with a
 justification after checking coverage.
 
+A per-stream model in a validator is read before `Provide()`. A stream decision acquired there can have a later boundary and fail with `ExplicitScopeDoesNotCoverReads`; that validator-first signature is reported too. Prefer the per-stream model alone for folded state, or the stream decision alone for raw facts. A direct `Provide(IStreamReads reads) => reads.ForCommand()` with a per-stream `Handle()` parameter on that same route is not reported for this combination.
+
 ## Boundaries
 
 Advisory reads, different statically known keys, custom source providers and

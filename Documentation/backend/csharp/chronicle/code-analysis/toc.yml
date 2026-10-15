@@ -70,3 +70,7 @@
   href: ARCCHR0035.md
 - name: ARCCHR0036 - Exact scope coverage is not proven
   href: ARCCHR0036.md
+- name: ARCCHR0037 - Read model stream is not on the command route
+  href: ARCCHR0037.md
+- name: ARCCHR0038 - Stream read guard widens
+  href: ARCCHR0038.md

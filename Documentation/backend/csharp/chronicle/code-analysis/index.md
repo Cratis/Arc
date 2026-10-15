@@ -43,7 +43,9 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0033](./ARCCHR0033.md) | Warning | Aggregate and protected plain read on the same key under On. |
 | [ARCCHR0034](./ARCCHR0034.md) | Info | Method-level advisory does not cover read parameters. |
 | [ARCCHR0035](./ARCCHR0035.md) | Warning | Early aggregate commit under On. |
-| [ARCCHR0036](./ARCCHR0036.md) | Warning | Exact scope coverage of a protected read is not proven. |
+| [ARCCHR0036](./ARCCHR0036.md) | Warning | Exact scope coverage of a protected read is not proven, including validator-first stream reads. |
+| [ARCCHR0037](./ARCCHR0037.md) | Error | Per-stream model parameter does not match the command route, or uses LookUpBy. |
+| [ARCCHR0038](./ARCCHR0038.md) | Info | Per-stream model guard widens through another read or declared concurrency. |
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
 

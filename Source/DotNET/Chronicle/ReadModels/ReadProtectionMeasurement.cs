@@ -127,7 +127,7 @@ internal sealed class ReadProtectionMeasurement
                 _advisory[type] = advisory is null ? null : advisory.Reason ?? "Declared advisory";
                 _explicitLookups[type] = parameter.IsDefined(typeof(LookUpByAttribute), true);
             }
-            Classify(type, advisory?.Reason, advisory is not null);
+            if (!PerStreamReadModelBinding.IsDeclared(type)) Classify(type, advisory?.Reason, advisory is not null);
             return;
         }
         var api = typeof(IReadModels).IsAssignableFrom(type) || typeof(IEventStore).IsAssignableFrom(type) || typeof(IEventSequence).IsAssignableFrom(type)
@@ -194,6 +194,23 @@ internal sealed class ReadProtectionMeasurement
                 Record("refused_read", typeof(T), Refusal(description));
             }
         });
+
+    /// <summary>
+    /// Records a plain stream fold without acquiring a decision token.
+    /// </summary>
+    /// <typeparam name="T">The declared stream model.</typeparam>
+    /// <param name="reader">The reader used only for local admission.</param>
+    /// <param name="source">The route's source.</param>
+    /// <param name="streamType">The route's stream type.</param>
+    /// <param name="streamId">The route's stream id.</param>
+    /// <param name="sourceType">The route's source type.</param>
+    /// <param name="advisory">Whether this dependency opts out.</param>
+    internal void StreamRead<T>(IDecisionReads reader, EventSourceId source, EventStreamType streamType, EventStreamId streamId, EventSourceType sourceType, bool advisory)
+        where T : class
+    {
+        if (advisory) Record("advisory_read", typeof(T), "Declared advisory");
+        else DecisionRead<T>(reader, source, streamType, streamId, sourceType);
+    }
 
     /// <summary>
     /// Observes an already computed scope, never resolving a second strategy result.

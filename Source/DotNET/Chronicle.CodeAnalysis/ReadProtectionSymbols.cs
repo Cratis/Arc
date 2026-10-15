@@ -101,6 +101,11 @@ internal static class ReadProtectionSymbols
         {
             return properties.FirstOrDefault(property => property.Name == (lookup.ConstructorArguments.FirstOrDefault().Value as string));
         }
+        if (PerStreamReadModelSymbols.Declaration(parameter.Type) is not null)
+        {
+            return HasCommandKey();
+        }
+        IPropertySymbol? HasCommandKey() => ChronicleStateSymbols.HasProvider(command, compilation) ? null : properties.FirstOrDefault(property => ChronicleStateSymbols.IsKey(property, compilation));
         if (Mode(command) == 2 && parameter.Type is INamedTypeSymbol model && ChronicleStateSymbols.ModelKey(model, compilation) is { } key)
         {
             var matches = properties.Where(property => SymbolEqualityComparer.Default.Equals(property.Type, key.Type)).ToArray();

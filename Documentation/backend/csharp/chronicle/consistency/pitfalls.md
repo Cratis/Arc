@@ -56,6 +56,26 @@ public record MemberLoans(
     [Increment<LoanTaken>, Decrement<LoanReturned>] int Active);
 ```
 
+## Choosing the wrong stream boundary
+
+| Rule lives in… | Use |
+| --- | --- |
+| Folded state of one stream on the command's own route | [Per-stream model](./scenarios/per-stream.md) |
+| The entity's whole history, such as a balance | Whole-source model. Combining it with a per-stream model gives a whole-source guard |
+| “Has fact X happened in this short stream?”, without a model | Stream decision |
+| Rich behaviour across the whole entity | Aggregate, without reads of the same source |
+| Another month or another source | `IDecisionReads` stream overload in `Provide()` |
+| Uniqueness across sources | Constraint |
+
+These cases differ: do not treat a safe widening as a missed conflict.
+
+| Pitfall | Outcome | Fix |
+| --- | --- | --- |
+| Source-level `Concurrency = EventSourceId` falls back onto a stream command | The guard widens to the source; other months can conflict. [ARCCHR0038](../code-analysis/ARCCHR0038.md) reports it | Use no declared concurrency for the model's exact event types, or declare all three source-id/stream dimensions on the stream |
+| A per-stream model is queried by key alone | Loud refusal: `ReadModelRequiresStreamScope` | Use the plain `IReadModels.GetInstanceById<T>(EventSourceId, EventStreamId)` overload; no watcher |
+| A command parameter's route does not match its model declaration | Loud `ReadModelStreamNotOnCommandRoute` in every mode; [ARCCHR0037](../code-analysis/ARCCHR0037.md) | Match the definition and stream and declare an explicit stream id |
+| A writer bypasses the definition route and omits its source type | Its events are neither folded nor guarded by the model: silent and outside the guarantee | Route every writer through the same definition |
+
 ## A uniqueness check instead of a constraint
 
 A check followed by an append leaves a gap, with or without read protection. Two requests both see "not taken" and both append.

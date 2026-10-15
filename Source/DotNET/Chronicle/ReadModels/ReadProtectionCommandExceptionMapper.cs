@@ -4,6 +4,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Cratis.Arc.Commands;
+using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
@@ -27,6 +28,12 @@ public class ReadProtectionCommandExceptionMapper : ICommandExceptionMapper
             exception = inner;
         }
 
+        if (exception is DecisionReadRefused { Reason: DecisionReadRefusalReason.ReadModelRequiresStreamScope } refused)
+        {
+            var failure = new ReadCannotBeProtected(context.Type, "read", refused.ReadModelType, "scoped to one event stream and was read without it", "take it as a parameter of a command routed to that stream");
+            result = CommandResult.Error(context.CorrelationId, failure);
+            return true;
+        }
         if (exception is not (ReadRefusedWhileReadsAreProtected or DetachedReadWhileReadsAreProtected or
             ImmediateAppendWhileReadsAreProtected or ReadAfterProtectedCommit or ExplicitScopeDoesNotCoverReads or
             DeclaredRoutingNotCoveredByExplicitScope or ReadOfSourceWithStagedEvents))

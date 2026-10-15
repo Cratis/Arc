@@ -230,9 +230,23 @@ Revisions, redactions, projection definition changes, other event sequences, ext
 
 Arc claims ownership of the command's Chronicle unit of work and commits or rolls it back as owner. A direct `Commit()` or `Rollback()` of that unit from command code is refused with `ProtectedUnitOfWorkRequiresOwner`. Immediate `IEventLog.Append*` calls inside a handler are not part of the guarded commit: under `On` they are refused; return events instead.
 
+### Read models scoped to one event stream
+
+Declare `[EventStream<TSource>(stream)]` from `Cratis.Chronicle.ReadModels` on a source-keyed model when it always represents one stream. Take it as a plain parameter in `Handle()`, `Provide()` or a `CommandValidator<T>` constructor. Arc derives the source id, source type, stream type and stream id from the command's route, including `[EventStreamId("{Month}")]` templates. The [monthly-limit example](../consistency/scenarios/per-stream.md#a-monthly-limit) includes the declaration, validator and a `ForMonth` query.
+
+| Mode | Per-stream parameter |
+| --- | --- |
+| `On` | Fresh stream fold, enrolled before the value is returned; validator and handler share one fold |
+| `Off` or `Measure` | Plain stream fold, no guard |
+| `On` with `[Unprotected("why")]` on the parameter or model | Advisory stream fold, no guard |
+
+A different source or stream, `All`, or a missing/default stream id is refused in every mode with `ReadModelStreamNotOnCommandRoute`. A missing template part returns `400` naming the command property before reading. `[LookUpBy]` is refused on per-stream parameters: the source belongs to the command's route, not the lookup convention. A `DecisionRead<T>` of a declared per-stream model uses that same route; other models remain key-based.
+
+The model is implicitly passive. Queries use `IReadModels.GetInstanceById<T>(EventSourceId, EventStreamId)`, which supplies no guard; key-only reads and watchers are refused. Combining a stream model with a whole-source read on the same source chooses a whole-source guard. All writers must use the definition route: events without its source type are neither folded nor guarded.
+
 ### Read a projection within one stream
 
-When a projection-based decision concerns only one event stream, inject the command-aware `IDecisionReads` and pass the source id, stream type and stream id explicitly. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
+For another stream or source, or a projection without a per-stream declaration, inject the command-aware `IDecisionReads` and pass the source id, stream type and stream id explicitly. This command fragment assumes an admitted event-source-keyed `PeriodState` projection with an integer `Value`, and a registered `PeriodValueDecided(int Value)` event:
 
 ```csharp
 using Cratis.Arc.Chronicle.ReadModels;
@@ -255,7 +269,7 @@ public record DecideWithinPeriod(EventSourceId Id, string Period)
 
 Under `On` the command needs no attribute. Outside `On`, add `[ProtectedDecision]`. The fold and its append guard use those same dimensions. `Provide()` returns the issued token to `Handle()`; Arc enrolls it in the command transaction and caches identical reads only within that invocation. A whole-source read or another stream's read does not share that cache entry. The optional event source type narrows both the fold and guard. Keep it aligned with the returned event route.
 
-Use `AdmitForStream<T>()` to check the projection shape without reading. Chronicle also admits consistently stream-id-keyed projections through this overload; reading them through a key-only `Get<T>` refuses with `StreamKeyRequiresStreamScope`. An injected `DecisionRead<T>` parameter stays key-based: Arc does not automatically narrow it to the command's stream. Use the explicit stream overload for that decision.
+Use `AdmitForStream<T>()` to check the projection shape without reading. Chronicle also admits consistently stream-id-keyed projections through this overload; reading them through a key-only `Get<T>` refuses with `StreamKeyRequiresStreamScope`. An injected `DecisionRead<T>` is narrowed automatically only when `T` declares `[EventStream<TSource>(stream)]`; otherwise it stays key-based. Use the explicit stream overload for another stream or source.
 
 The stream type must be specific, not `EventStreamType.All`. See Chronicle's [stream-scoped decision-read contract](/chronicle/read-models/decision-reads/#scoped-to-one-event-stream) for default-id behavior, key requirements and merged guard widening. The kernel must acknowledge stream scoping; unsupported scoping fails rather than silently folding the whole source.
 

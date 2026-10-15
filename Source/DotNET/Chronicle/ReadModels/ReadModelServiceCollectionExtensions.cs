@@ -129,6 +129,10 @@ public static class ReadModelServiceCollectionExtensions
     /// <exception cref="UnableToResolveReadModelFromCommandContext">Thrown when the command context carries no usable event source id to resolve the read model by; it surfaces as a validation failure (HTTP 400).</exception>
     internal static object? ResolveReadModel(Type readModelType, CommandContext commandContext, IReadModels readModels, ReadModelKey? key = null)
     {
+        if (PerStreamReadModelBinding.IsDeclared(readModelType))
+        {
+            return PerStreamReadModelBinding.Resolve(readModelType, commandContext, commandContext.ServiceProvider!);
+        }
         var eventSourceId = key is null ? commandContext.GetEventSourceId() : (EventSourceId)key.Value;
         if (eventSourceId == EventSourceId.Unspecified)
         {
@@ -164,6 +168,11 @@ public static class ReadModelServiceCollectionExtensions
         where T : class
     {
         var context = services.GetRequiredService<ICommandContextAccessor>().Current;
+        if (PerStreamReadModelBinding.IsDeclared(typeof(T)))
+        {
+            var route = PerStreamReadModelBinding.Route(typeof(T), context, services);
+            return services.GetRequiredService<IDecisionReads>().Get<T>(context.GetEventSourceId(), route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+        }
         var key = context.GetEventSourceId();
         if (key == EventSourceId.Unspecified)
         {
