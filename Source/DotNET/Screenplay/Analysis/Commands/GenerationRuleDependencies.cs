@@ -61,8 +61,10 @@ internal class GenerationRuleDependencies(INamedTypeSymbol concept, SemanticMode
             return false;
         }
 
-        return symbol.IsStatic && name.Parent is not MemberAccessExpressionSyntax;
+        return symbol.IsStatic && !IsQualifiedMemberName(name);
     }
+
+    static bool IsQualifiedMemberName(IdentifierNameSyntax name) => name.Parent is MemberAccessExpressionSyntax member && member.Name == name;
 
     static bool AllowedMember(ISymbol symbol)
     {

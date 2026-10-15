@@ -85,29 +85,15 @@ public class ConceptSyntaxBuilder(
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
     }
 
-    static IEnumerable<ValidationRuleModel> UuidValidationContract(ConceptModel concept) => NeedsUuidSource(concept) ? concept.ValidatorSources : concept.Validations;
-
-    static bool NeedsUuidSource(ConceptModel concept) => concept.Primitive == ScreenplayPrimitive.Uuid && UsesGeneration(concept) && HasValidatorSource(concept);
-
-    static bool UsesGeneration(ConceptModel concept) => concept.HasGeneratedUses || concept.Generation is not null;
-
-    static bool HasValidatorSource(ConceptModel concept) => concept.ValidatorSources.Count > 0 && (concept.Validations.Any() || !concept.ValidationRecoveryComplete);
-
-    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept) => IsChecksumCapped(concept)
-        ? CappedChecksumContract(concept) : UuidValidationContract(concept);
-
-    bool IsChecksumCapped(ConceptModel concept) => MaximumExecutableModelVersion is { } cap &&
-        !cap.IsAtLeast(SemanticVersion.V21) && concept.Validations.Any(rule => rule.Kind == Model.ValidationRuleKind.Checksum);
-
-    IEnumerable<ValidationRuleModel> CappedChecksumContract(ConceptModel concept)
+    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept)
     {
-        var retained = concept.ValidatorSources.Count > 0 ? "the original validator is retained" : "the validator remains in code; no portable source attachment is available";
-        diagnostics.Information(
-            ScreenplayDiagnosticCodes.GenerationNotRecoverable,
-            $"Concept '{concept.Name}': checksum validation requires ESM v21, but the cap is ESM v{MaximumExecutableModelVersion}; {retained}",
-            concept.Name);
+        var contract = ConceptValidationContract.For(concept, MaximumExecutableModelVersion);
+        if (contract.VersionFailure is { } reason)
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}", concept.Name);
+        }
 
-        return concept.ValidatorSources.Concat(concept.Validations.Where(rule => rule.Kind != Model.ValidationRuleKind.Checksum));
+        return contract.Rules;
     }
 
     /// <summary>

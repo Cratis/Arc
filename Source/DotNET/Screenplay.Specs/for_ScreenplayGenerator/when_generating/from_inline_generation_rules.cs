@@ -11,6 +11,7 @@ public class from_inline_generation_rules : a_generation_strategy
 {
     [Theory]
     [InlineData("public static AuthorId New(GenerationContext context) => new(context.Now.ToString(\"yyyyMMdd\"));", "return context.Now.ToString(\"yyyyMMdd\");")]
+    [InlineData("public static AuthorId New(GenerationContext context) => new(string.Empty.ToLowerInvariant());", "return string.Empty.ToLowerInvariant();")]
     [InlineData("public static AuthorId New(GenerationContext context) { var id = Guid.NewGuid(); return new(id.ToString()); }", "var id = Guid.NewGuid(); return id.ToString();")]
     [InlineData("public static AuthorId New(GenerationContext context) { var now = context.Now; return new(now.ToString(\"yyyy\")); }", "var now = context.Now; return now.ToString(\"yyyy\");")]
     [InlineData("public static AuthorId New(GenerationContext context) => new($\"{context.Tenant}:{GenerateValue.Ulid(context)}\");", "return $\"{context.Tenant}:{GenerateValue.Ulid(context)}\";")]
@@ -57,6 +58,8 @@ public class from_inline_generation_rules : a_generation_strategy
     [Theory]
     [InlineData("using G = System.Guid;", "G.NewGuid().ToString()")]
     [InlineData("using static System.Math;", "string.Concat(Abs(-42))")]
+    [InlineData("using static System.String;", "Empty.ToLowerInvariant()")]
+    [InlineData("using static System.String;", "string.Concat(Empty.Length)")]
     public void should_refuse_import_dependent_rule_bodies(string import, string expression)
     {
         var source = import + "\n" + RuleSource($"public static AuthorId New(GenerationContext context) => new({expression});");
