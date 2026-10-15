@@ -21,6 +21,16 @@ public class when_analyzing_collection_dependencies
             Info().WithArguments("states", "State", "not proven"));
 
     [Fact]
+    public async Task should_warn_under_on() =>
+        await Verify("[Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)] public record Change(OwnerId Id) { public Changed Handle(MongoDB.Driver.IMongoCollection<State> states) => new(); }",
+            AnalyzerVerifier<ChronicleMongoCollectionAnalyzer>.Diagnostic("ARCCHR0026").WithSeverity(DiagnosticSeverity.Warning));
+
+    [Fact]
+    public async Task should_warn_for_a_validator_dependency_under_on() =>
+        await Verify("[Command, Cratis.Arc.Commands.ReadProtection(Cratis.Arc.Commands.ReadProtectionMode.On)] public record Change { public Changed Handle() => new(); } public class Validator(MongoDB.Driver.IMongoCollection<State> states) : Cratis.Arc.Commands.CommandValidator<Change>;",
+            AnalyzerVerifier<ChronicleMongoCollectionAnalyzer>.Diagnostic("ARCCHR0026").WithSeverity(DiagnosticSeverity.Warning));
+
+    [Fact]
     public async Task should_advise_for_a_constructor_dependency() =>
         await Verify("[Command] public record Change { public Changed Handle() => new(); } public class Validator : Cratis.Arc.Commands.CommandValidator<Change> { public Validator(MongoDB.Driver.IMongoCollection<State> states) { } }", Info());
 

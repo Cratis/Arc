@@ -396,7 +396,7 @@ This is a concurrency-routing example, not a complete first-administrator busine
 
 When the matching history is empty, `BeforeFirst` expresses “no matching event may exist”; `Unavailable` is not a protected empty revision. Arc enrolls the ordered events and exact scopes together. If a matching activation event appears after the read, commit rejects the returned batch. A concurrent invitation without an activation is outside this scope.
 
-`ICanProvideEventSourceId` deliberately selects `MemberId` as the input-time command identity, including for any identity-bound dependencies. The returned wrappers still target their explicit member and invitation ids. This removes the two-property ambiguity reported by [ARCCHR0002](../code-analysis/index.md#arcchr0002-ambiguous-command-identity); `EventsWithConcurrencyScopes` is not a recognized exemption in the current analyzer.
+`ICanProvideEventSourceId` deliberately selects `MemberId` as the input-time command identity, including for any identity-bound dependencies. The returned wrappers still target their explicit member and invitation ids. This removes the two-property ambiguity reported by [ARCCHR0002](../code-analysis/ARCCHR0002.md); `EventsWithConcurrencyScopes` is not a recognized exemption in the current analyzer.
 
 The narrow ARCCHR0007 suppression documents an intentional read-only `IEventLog` dependency; the analyzer matches the parameter type, not whether a method writes.
 

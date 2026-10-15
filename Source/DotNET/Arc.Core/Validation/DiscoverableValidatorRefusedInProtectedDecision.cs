@@ -25,6 +25,14 @@ public class DiscoverableValidatorRefusedInProtectedDecision : Exception
     }
 
     /// <summary>
+    /// Creates the refusal for a registered validator that cannot be constructed fresh through command parameter resolution.
+    /// </summary>
+    /// <param name="validatorType">The refused validator.</param>
+    /// <returns>The refusal.</returns>
+    internal static DiscoverableValidatorRefusedInProtectedDecision NotTransientForReadProtection(Type validatorType) =>
+        new($"Discoverable validator '{validatorType}' cannot run while read protection is On because Arc did not construct it for this invocation. Let convention discovery register it as transient; do not use a scoped, singleton, factory or instance registration.");
+
+    /// <summary>
     /// Creates the exception for a validator instance the service provider supplied but Arc did not construct.
     /// </summary>
     /// <param name="validatorType">The discoverable validator type that was refused.</param>

@@ -13,7 +13,12 @@ For a distinguishing concept type different from the command key type:
 
 - Several matching properties produce a **Warning** naming the candidates.
 - No matching property produces **Info**.
-- Exactly one matching property is not reported.
+- Under On, exactly one matching property is selected and is not reported.
+- Under Off/Measure, a unique matching property produces **Info**: the read still
+  uses the command key unless `[LookUpBy]` explicitly redirects it.
+
+Under On, ambiguity is reported even for primitive key types. Explicit `[LookUpBy]`
+parameters are excluded from this heuristic and validated by ARCCHR0031.
 
 A second parameter resolving to the same inferred key produces **Info**. Reading
 several views of one entity can be intentional; this advisory does not prove a bug.
@@ -22,14 +27,13 @@ base are not distinguishing types. Derived domain identity types are distinguish
 
 ## Resolve the diagnostic
 
-Use `Provide()` to read the intended entity explicitly and pass the plain model to
-`Handle()`. See [read-model injection](../read-models/injecting-into-commands.md).
+Use `[LookUpBy(nameof(Command.Property))]` on the read-model parameter to select
+the intended entity in every mode, or use `Provide()` for a computed key. See [read-model injection](../read-models/injecting-into-commands.md).
 Suppress a repeated-key advisory with a justification when both parameters intentionally
 represent the same entity. There is no automatic code fix.
 
-This analyzer does not introduce other-key lookup conventions or change runtime
-resolution. A unique matching command property is a signature hint, not proof that
-runtime lookup uses it.
+This analyzer does not change runtime resolution. On selects a unique matching
+property; Off and Measure retain the command key without an explicit `[LookUpBy]`.
 
 ## Boundaries
 

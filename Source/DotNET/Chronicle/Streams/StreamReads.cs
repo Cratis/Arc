@@ -3,9 +3,13 @@
 
 using System.Collections.Immutable;
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
+using Cratis.Chronicle;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.Transactions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.Streams;
 
@@ -36,6 +40,13 @@ public class StreamReads(IEventLog eventLog, ICommandContextAccessor commandCont
         ct.ThrowIfCancellationRequested();
         var sourceType = route.EventSourceType == EventSourceType.Default || route.EventSourceType == EventSourceType.Unspecified ? null : route.EventSourceType;
         var streamId = wholeType ? null : route.EventStreamId;
+        var unit = CommandTransaction.Current as UnitOfWork;
+        var enforcing = unit?.IsEnforcingReadProtection == true;
+        if (enforcing && unit!.IsCompleted)
+        {
+            throw new ReadAfterProtectedCommit("Stream decision");
+        }
+        using var allowance = enforcing ? unit!.AllowReads(ReadAllowance.Contributed, "Stream decision") : null;
         var tail = await eventLog.GetTailSequenceNumber(id, sourceType, route.EventStreamType, streamId).WaitAsync(ct);
         var events = await eventLog.GetForEventSourceIdAndEventTypes(id, [], route.EventStreamType, streamId, sourceType).WaitAsync(ct);
         IImmutableList<AppendedEvent> captured = tail.IsUnavailable ? [] : events.Where(@event => @event.Context.SequenceNumber <= tail).ToImmutableList();
@@ -59,6 +70,14 @@ public class StreamReads(IEventLog eventLog, ICommandContextAccessor commandCont
             scope.WithSequenceNumber(tail);
         }
 
-        return new(id, route, tail, captured, scope.Build());
+        var built = scope.Build();
+        ReadProtectionMeasurement.Current?.Scope(id, built, "Stream decision", isRead: true);
+        if (enforcing)
+        {
+            var store = commandContext.Current.ServiceProvider!.GetRequiredService<IEventStore>();
+            unit!.EnrolContributedRead(new(ConcurrencyScopeOrigin.Explicit, id, built, store.Name, store.Namespace, eventLog.Id, "Stream decision"));
+        }
+
+        return new(id, route, tail, captured, built);
     }
 }

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.ComponentModel;
 using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Testing.Commands;
 using Cratis.Chronicle.Events;
@@ -78,16 +79,23 @@ public static class CommandScenarioChronicleExtensions
             new(scenario);
 
         /// <summary>
-        /// Opts into one real in-process event log for seeded events, decision reads and command commits.
+        /// Enables one real in-process event log for seeded events, decision reads and command commits.
+        /// No longer needed for commands with decision dependencies or read protection: these enable it automatically.
         /// </summary>
         /// <remarks>
         /// Call before seeding events or executing. The legacy EventScenario cannot be used in this mode: seed events with
         /// <c>Given.ForEventSource(...).Events(...)</c>. Non-decision reads resolve a pinned read model or materialize from the
         /// same log the protected decision reads fold; protected decision reads always fold the log.
+        /// <para>
+        /// No longer needed: a scenario enables the in-process log itself for commands that declare read protection On or
+        /// Measure, are protected decisions, or take decision dependencies. It is kept, hidden, so existing tests keep
+        /// compiling; only an Off command without such dependencies still needs it, for example to append concurrently.
+        /// </para>
         /// </remarks>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>
         /// <exception cref="DecisionScenarioCannotOrderCustomExecutionScopes">Custom execution scopes cannot be safely ordered around the owner.</exception>
+        [EditorBrowsable(EditorBrowsableState.Never)]
         public CommandScenario<TCommand> UseDecisionReads()
         {
             if (scenario.IsInitialized)

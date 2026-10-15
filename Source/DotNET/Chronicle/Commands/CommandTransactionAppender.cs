@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
@@ -8,6 +9,7 @@ using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.EventSequences.Concurrency;
 using Cratis.Chronicle.EventSources;
+using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.Commands;
 
@@ -177,7 +179,44 @@ internal static class CommandTransactionAppender
             return false;
         }
 
-        if (routing.EventSource is not null || freshness.HasGuard(eventLog.Id, eventSourceId))
+        if (concurrencyScope is not null) ReadProtectionMeasurement.Current?.Scope(eventSourceId, concurrencyScope, "Explicit scope");
+        if (unitOfWork.IsEnforcingReadProtection)
+        {
+            var declared = ConcurrencyScopeBuilder.DeclaredFor(commandContext);
+            var origin = concurrencyScope is null ? ConcurrencyScopeOrigin.Routing : ConcurrencyScopeOrigin.Explicit;
+            if (routing.EventSource is not null)
+            {
+                var wrapper = new EventForEventSourceId(eventSourceId, @event, eventLog.CreateCommandCausation(commandContext))
+                {
+                    EventSource = routing.EventSource,
+                    EventStream = routing.EventStream,
+                    EventStreamId = routing.EventStreamId ?? EventStreamId.Default,
+                    DeclaredConcurrency = declared,
+                    Subject = routing.Subject,
+                    Occurred = occurred,
+                    Tags = tags ?? [],
+                    NamedTags = mergedTags
+                };
+                unitOfWork.AddEvents(eventLog.Id, [wrapper], [new(eventSourceId, concurrencyScope ?? ConcurrencyScope.NotSet)], origin);
+            }
+            else
+            {
+                unitOfWork.AddEventWithOptions(eventLog.Id, eventSourceId, @event, eventLog.CreateCommandCausation(commandContext), new(
+                    routing.EventStreamType,
+                    routing.EventStreamId,
+                    routing.EventSourceType,
+                    concurrencyScope,
+                    origin,
+                    tags,
+                    mergedTags,
+                    occurred,
+                    routing.Subject)
+                {
+                    DeclaredConcurrency = declared
+                });
+            }
+        }
+        else if (routing.EventSource is not null || freshness.HasGuard(eventLog.Id, eventSourceId))
         {
             var eventForEventSource = new EventForEventSourceId(eventSourceId, @event, eventLog.CreateCommandCausation(commandContext))
             {

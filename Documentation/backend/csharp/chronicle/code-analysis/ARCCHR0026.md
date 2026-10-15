@@ -6,7 +6,8 @@ description: Identify collection dependencies whose model is recognizably backed
 ## Rule
 
 An injected `IMongoCollection<T>` reads the MongoDB sink directly. When `T` is
-recognizably backed by Chronicle, this analyzer reports **Info** on the parameter.
+recognizably backed by Chronicle, this analyzer reports **Info** outside On and
+**Warning** under On, where runtime parameter admission refuses the collection.
 A read through this collection is **not proven protected**. The analyzer does not
 inspect queries or prove that the result contributes to a command decision.
 
@@ -22,8 +23,9 @@ the lookup and decision-read boundaries. This replacement alone does not prove
 that the command's decision is protected.
 
 An invariant that must hold independently of a command's read belongs in a Chronicle
-constraint. Intentional sink queries can retain the collection dependency and suppress
-this advisory with a justification. There is no automatic code fix.
+constraint. Outside On, intentional sink queries can retain the collection dependency
+and suppress this advisory with a justification. Under On, inject an admitted model
+instead; a suppression does not bypass runtime refusal. There is no automatic code fix.
 
 ## Boundaries
 

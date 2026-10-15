@@ -28,7 +28,7 @@ public class with_occurred_and_tags_in_a_transaction : given.a_single_event_for_
         _occurred = new DateTimeOffset(2019, 3, 14, 9, 26, 53, TimeSpan.Zero);
         _tags = ["imported"];
         _value = new EventForEventSourceId(_eventSourceId, _testEvent) { Occurred = _occurred, Tags = _tags };
-        _unitOfWork = Substitute.For<IUnitOfWork>();
+        _unitOfWork = Substitute.For<UnitOfWorkWithNamedTags>();
         _eventLog.Id.Returns(EventSequenceId.Log);
     }
 
