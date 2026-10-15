@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.EntityFrameworkCore.Concepts;
+using Cratis.Arc.EntityFrameworkCore.Connections;
 using Cratis.Arc.EntityFrameworkCore.Mapping;
 using Cratis.Arc.EntityFrameworkCore.Observe;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +52,11 @@ public static class ReadOnlyDbContextExtensions
             if (serviceProvider.GetService<IEntityChangeTracker>() is not null)
             {
                 options.AddObservation(serviceProvider);
+            }
+
+            if (serviceProvider.GetService<ConnectionResolutionInterceptor>() is { } connectionResolution)
+            {
+                options.AddInterceptors(connectionResolution);
             }
         });
 
