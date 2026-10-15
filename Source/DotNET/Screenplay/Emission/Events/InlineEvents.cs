@@ -36,9 +36,9 @@ public class InlineEvents
         var productions = model.Slices.SelectMany(_ => _.Commands).SelectMany(_ => _.Produces).ToList();
         foreach (var slice in model.Slices)
         {
-            foreach (var command in slice.Commands.Where(_ => HasIdentifier(_) && _.Produces.All(production => production.UsesCommandContext)))
+            foreach (var command in slice.Commands.Where(_ => HasIdentifier(_) && _.Produces.All(production => production.UsesCommandContext || production.Destination is not null)))
             {
-                foreach (var production in command.Produces.Where(_ => _.CanInline && _.UsesCommandContext && _.When is null))
+                foreach (var production in command.Produces.Where(_ => _.CanInline && (_.UsesCommandContext || _.Destination is not null) && _.When is null))
                 {
                     var declarations = slice.Events.Where(_ => _.TypeIdentity == production.EventTypeIdentity).ToList();
                     if (declarations is not [var declaration] || !declaration.CanInline ||

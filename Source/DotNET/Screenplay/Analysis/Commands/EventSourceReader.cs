@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis.Commands;
 
@@ -116,6 +117,41 @@ public static class EventSourceReader
     /// <param name="models">The models recognizing const-backed definitions.</param>
     /// <returns>The model name, or the unrecoverable stored name.</returns>
     internal static string SourceNameOf(INamedTypeSymbol definition, SemanticModels? models = null) => EventSourceNames.Source(definition, models);
+
+    /// <summary>
+    /// Reads a wrapper's explicit definition and verifies exact stream ownership.
+    /// </summary>
+    /// <param name="definition">The selected source definition.</param>
+    /// <param name="stream">The selected stream expression.</param>
+    /// <param name="models">The models resolving declaration names.</param>
+    /// <param name="model">The model resolving the wrapper expression.</param>
+    /// <returns>The binding, or null for an undeclared or ambiguous stream.</returns>
+    internal static EventSourceBindingModel? ReadDefinition(INamedTypeSymbol definition, ExpressionSyntax stream, SemanticModels models, SemanticModel model) =>
+        ProductionValues.Text(stream, model) is { } stored ? ReadStoredDefinition(definition, stored, models) : null;
+
+    /// <summary>
+    /// Resolves an exact stored stream name through its owning definition's naming proof.
+    /// </summary>
+    /// <param name="definition">The registered definition type.</param>
+    /// <param name="stored">The exact stored stream classification.</param>
+    /// <param name="models">The models resolving declaration constants.</param>
+    /// <returns>The binding, or null for unresolved ownership.</returns>
+    internal static EventSourceBindingModel? ReadStoredDefinition(INamedTypeSymbol definition, string stored, SemanticModels models)
+    {
+        var declared = definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
+            .Where(attribute => (attribute.GetArgument(0) as string) == stored).ToList();
+        if (definition.FindInterface("Cratis.Chronicle.EventSources.IEventSource") is null || declared is not [var declaration] ||
+            EventSourceNames.Stream(declaration, definition, models) is not { } name)
+        {
+            return null;
+        }
+
+        return new(SourceNameOf(definition, models), name, true, false)
+        {
+            StoredSource = EventSourceNames.StoredSource(definition),
+            StoredStream = stored
+        };
+    }
 
     static AttributeData? DeclaredStream(INamedTypeSymbol definition, string? stream) => definition.GetAttributes(WellKnownTypeNames.EventStreamDefinitionAttribute)
         .FirstOrDefault(attribute => string.Equals(attribute.GetArgument(0) as string, stream, StringComparison.Ordinal));

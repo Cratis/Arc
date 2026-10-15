@@ -255,5 +255,5 @@ internal class ReactionMetadataAdmission(ApplicationModel? application, bool ena
         .All(stream => definition.Streams.Contains(stream, StringComparer.Ordinal));
 
     IEnumerable<CommandRouteModel> DeclaredRoutes() => application is null ? [] : application.Slices.SelectMany(slice => slice.Commands)
-        .Select(command => command.Authoring?.Route).OfType<CommandRouteModel>();
+        .SelectMany(Commands.ProductionRouteAdmission.Routes);
 }

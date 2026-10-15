@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.Events;
+using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -36,6 +37,16 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     readonly ProducesConditionResolver _conditions = new(diagnostics);
 
     /// <summary>
+    /// Gets the shared registry used to preserve explicit destination and stream key types.
+    /// </summary>
+    internal TypeRegistry? Types { get; init; }
+
+    /// <summary>
+    /// Gets analyzed definitions used to resolve stored legacy route names without guessing aliases.
+    /// </summary>
+    internal IReadOnlyList<INamedTypeSymbol> Definitions { get; init; } = [];
+
+    /// <summary>
     /// Reads everything the handlers of a command produce.
     /// </summary>
     /// <param name="command">The type declaring the command.</param>
@@ -51,11 +62,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
 
         foreach (var handler in handlers)
         {
-            if (!generatedIdentity && !EventResponseTuples.UsesCommandContext(handler.ReturnType))
-            {
-                ReportEventSourceIdResult(command, handler, location);
-            }
-
+            var firstProduction = produces.Count;
             foreach (var body in HandlerBodies.Of(handler))
             {
                 if (models.For(body.SyntaxTree) is not { } semanticModel)
@@ -82,6 +89,11 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                         }
                     }
                 }
+            }
+            if (!generatedIdentity && !EventResponseTuples.UsesCommandContext(handler.ReturnType) &&
+                (produces.Count == firstProduction || produces.Skip(firstProduction).Any(production => !production.UsesCommandContext && production.Destination is null)))
+            {
+                ReportEventSourceIdResult(command, handler, location);
             }
         }
 
@@ -126,6 +138,9 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
     static bool IsSame(ProducesModel left, ProducesModel right) =>
         string.Equals(left.EventName, right.EventName, StringComparison.Ordinal) &&
         Equals(left.When, right.When) &&
+        Equals(left.Destination, right.Destination) &&
+        Equals(left.Route, right.Route) &&
+        left.DestinationDependencies.SequenceEqual(right.DestinationDependencies) &&
         left.Mappings.SequenceEqual(right.Mappings) &&
         left.EventTypeIdentity == right.EventTypeIdentity &&
         Equals(left.UnavailableCondition, right.UnavailableCondition) &&
@@ -168,7 +183,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
             var unavailableDestination = UnavailableProductionDependencies.Destination(creation, body, sources, semanticModel);
             var when = unavailableCondition is null ? _conditions.Resolve(creation, body, scope, type, location) : null;
             var mappings = _mappings.Read(creation, semanticModel, command, type, location, scope.Bindings, sources).ToList();
-            produces.Add(new(type.Name, when, mappings)
+            var production = new ProducesModel(type.Name, when, mappings)
             {
                 EventTypeIdentity = EventProducers.IdentityOf(type),
                 UnavailableCondition = unavailableCondition,
@@ -176,7 +191,10 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
                 UsesCommandContext = usesCommandContext && new ReturnedEventDestinations(semanticModel, body, sources).Read(creation, behavior is not null, generatedIdentity),
                 CanInline = diagnostics.All.Count == before && when is null &&
                     InlineProductionShape.IsUnconditional(body) && InlineProductionShape.IsSupported(creation, semanticModel)
-            });
+            };
+            produces.Add(behavior is null && Types is not null
+                ? new ReturnedProductionRoutes(models, Types) { Definitions = Definitions }.Apply(production, creation, body, semanticModel, command, sources, generatedIdentity)
+                : production);
         }
     }
 

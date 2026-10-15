@@ -23,6 +23,10 @@ public static class ProductionDestinations
     /// <returns>Whether command-context routing is established.</returns>
     public static bool ThroughCommandContext(BaseObjectCreationExpressionSyntax creation, SyntaxNode body, SemanticModel model, bool aggregate, bool generatedIdentity = false)
     {
+        if (!ValueConversions.Preserves(creation, model, method => method.ContainingType.Is("Cratis.Monads.Result`2")))
+        {
+            return false;
+        }
         if (creation.Ancestors().TakeWhile(ancestor => !ReferenceEquals(ancestor, body))
             .Any(ancestor => ancestor is AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax))
         {
@@ -38,6 +42,7 @@ public static class ProductionDestinations
             }
 
             if (node is TupleExpressionSyntax tuple &&
+                !(ReturnedProductionShape.Reaches(creation, body, model) && ReturnedProductionShape.IdentityOf(tuple, model) is null) &&
                 (!tuple.Arguments.Any(argument => MappingSourceReader.Unwrap(argument.Expression) == creation) ||
                  (!EventResponseTuples.UsesCommandContext(model.GetTypeInfo(tuple).Type ?? model.GetTypeInfo(tuple).ConvertedType) &&
                   (!generatedIdentity || (tuple.Parent is not ReturnStatementSyntax && !ReferenceEquals(tuple, body))))))

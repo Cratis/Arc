@@ -145,7 +145,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 {
                     validatedGenerated.Add(local.Name);
                 }
-                Sources.Add(local, local.Name);
+                Sources.AddGenerated(local, local.Name);
             }
         }
 
