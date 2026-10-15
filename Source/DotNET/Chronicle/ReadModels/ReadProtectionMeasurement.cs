@@ -291,10 +291,10 @@ internal sealed class ReadProtectionMeasurement
         EventLog = services.GetService<IEventLog>();
         Queue = services.GetService<ReadProtectionMeasureQueue>();
         var configuration = services.GetService<IConfiguration>();
-        if (double.TryParse(configuration?["Arc:ReadProtection:MeasureTailTimeout"], out var milliseconds) && double.IsFinite(milliseconds)) TailTimeout = TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 1, 5000));
-        if (double.TryParse(configuration?["Arc:ReadProtection:MeasureScanTimeout"], out var scanMilliseconds) && double.IsFinite(scanMilliseconds)) ScanTimeout = TimeSpan.FromMilliseconds(Math.Clamp(scanMilliseconds, 1, 5000));
-        if (int.TryParse(configuration?["Arc:ReadProtection:MeasureScanLimit"], out var limit)) ScanLimit = Math.Clamp(limit, 1, 500);
-        if (double.TryParse(configuration?["Arc:ReadProtection:MeasureSampleRate"], out var rate) && double.IsFinite(rate)) SampleRate = Math.Clamp(rate, 0, 1);
+        if (double.TryParse(configuration?["ReadProtection:MeasureTailTimeout"], out var milliseconds) && double.IsFinite(milliseconds)) TailTimeout = TimeSpan.FromMilliseconds(Math.Clamp(milliseconds, 1, 5000));
+        if (double.TryParse(configuration?["ReadProtection:MeasureScanTimeout"], out var scanMilliseconds) && double.IsFinite(scanMilliseconds)) ScanTimeout = TimeSpan.FromMilliseconds(Math.Clamp(scanMilliseconds, 1, 5000));
+        if (int.TryParse(configuration?["ReadProtection:MeasureScanLimit"], out var limit)) ScanLimit = Math.Clamp(limit, 1, 500);
+        if (double.TryParse(configuration?["ReadProtection:MeasureSampleRate"], out var rate) && double.IsFinite(rate)) SampleRate = Math.Clamp(rate, 0, 1);
         if (EventLog is null)
         {
             Unavailable("No event log");

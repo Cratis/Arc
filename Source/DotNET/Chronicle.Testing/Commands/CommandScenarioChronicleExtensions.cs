@@ -86,6 +86,11 @@ public static class CommandScenarioChronicleExtensions
         /// Call before seeding events or executing. The legacy EventScenario cannot be used in this mode: seed events with
         /// <c>Given.ForEventSource(...).Events(...)</c>. Non-decision reads resolve a pinned read model or materialize from the
         /// same log the protected decision reads fold; protected decision reads always fold the log.
+        /// <para>
+        /// No longer needed: a scenario enables the in-process log itself for commands that declare read protection On or
+        /// Measure, are protected decisions, or take decision dependencies. It is kept, hidden, so existing tests keep
+        /// compiling; only an Off command without such dependencies still needs it, for example to append concurrently.
+        /// </para>
         /// </remarks>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeExecution">The scenario has already initialized.</exception>
         /// <exception cref="DecisionReadsMustBeEnabledBeforeSeeding">Legacy state has been seeded.</exception>

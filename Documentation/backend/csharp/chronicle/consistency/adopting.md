@@ -28,7 +28,7 @@ Under `Measure`, reads, lookups, scopes, results and status codes stay as they a
 
 Measure is best-effort. A command whose tail read timed out, or whose scan was dropped, is reported as `measurement_unavailable` and counts as no evidence either way. The report is a set of hypotheses, not a guarantee.
 
-Measure settings are runtime configuration, under the `Arc:ReadProtection` section:
+Measure settings are runtime configuration, in the same `ReadProtection` section as the [run-time cap](#cap-the-mode-at-run-time):
 
 | Key | Default | Meaning |
 | --- | --- | --- |

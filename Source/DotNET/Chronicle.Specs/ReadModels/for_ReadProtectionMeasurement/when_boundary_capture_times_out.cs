@@ -16,8 +16,8 @@ public class when_boundary_capture_times_out : given.a_measure_pipeline
     {
         _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Arc:ReadProtection:MeasureTailTimeout"] = "1",
-            ["Arc:ReadProtection:MeasureSampleRate"] = "1"
+            ["ReadProtection:MeasureTailTimeout"] = "1",
+            ["ReadProtection:MeasureSampleRate"] = "1"
         }).Build();
         _log.GetTailSequenceNumber().Returns(new TaskCompletionSource<EventSequenceNumber>().Task);
     }

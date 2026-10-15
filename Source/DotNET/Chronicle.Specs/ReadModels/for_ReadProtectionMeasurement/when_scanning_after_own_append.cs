@@ -21,8 +21,8 @@ public class when_scanning_after_own_append : given.a_measure_pipeline
         _services.GetService(typeof(ReadProtectionMeasureQueue)).Returns(_queue);
         _configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Arc:ReadProtection:MeasureSampleRate"] = "1",
-            ["Arc:ReadProtection:MeasureTailTimeout"] = "5000"
+            ["ReadProtection:MeasureSampleRate"] = "1",
+            ["ReadProtection:MeasureTailTimeout"] = "5000"
         }).Build();
         _log.GetTailSequenceNumber((EventSourceId)"subject", null, null, null, Arg.Any<IEnumerable<EventType>>()).Returns((EventSequenceNumber)102ul);
         var foreign = Metadata(101);
