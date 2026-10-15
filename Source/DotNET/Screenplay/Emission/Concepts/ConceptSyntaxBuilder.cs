@@ -86,7 +86,7 @@ public class ConceptSyntaxBuilder(
     }
 
     static IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept) =>
-        concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 &&
+        (concept.HasGeneratedUses || concept.Generation is not null) && concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 &&
             (concept.Validations.Any() || !concept.ValidationRecoveryComplete)
             ? concept.ValidatorSources : concept.Validations;
 

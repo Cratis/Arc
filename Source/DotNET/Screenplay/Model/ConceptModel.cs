@@ -40,6 +40,11 @@ public record ConceptModel(
     internal GenerationModel? Generation { get; init; }
 
     /// <summary>
+    /// Gets whether command recovery encountered this concept as a generated value, including unavailable values.
+    /// </summary>
+    internal bool HasGeneratedUses { get; init; }
+
+    /// <summary>
     /// Gets whether every executable default validator rule was recovered.
     /// </summary>
     internal bool ValidationRecoveryComplete { get; init; } = true;

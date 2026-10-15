@@ -109,7 +109,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
                 continue;
             }
 
-            _generated.Add(new(name, types.Resolve(parameter.Type)));
+            _generated.Add(new(name, types.ResolveGenerated(parameter.Type)));
             if (ValidatedTypes.Contains(parameter.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
             {
                 _validated.Add(name);
@@ -159,7 +159,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
 
     void AddUnavailable(IParameterSymbol parameter, string name, string failure)
     {
-        var input = new UnavailableGeneratedValueModel(name, types.Resolve(parameter.Type), LocationOf(parameter), failure);
+        var input = new UnavailableGeneratedValueModel(name, types.ResolveGenerated(parameter.Type), LocationOf(parameter), failure);
         _unavailable.RemoveAll(existing => existing.Name == input.Name && existing.Location == input.Location);
         _unavailable.Add(input);
         Sources.AddUnavailable(parameter, input);

@@ -30,6 +30,7 @@ public class TypeRegistry
     readonly PersonalDataMarkings _personalData = new();
     readonly FlagsEnumUses _flags = new();
     readonly HashSet<string> _unmappable = new(StringComparer.Ordinal);
+    readonly HashSet<string> _generatedConcepts = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Gets the full name of every type that had to be referred to by a name that does not say what it is.
@@ -56,7 +57,8 @@ public class TypeRegistry
     /// </summary>
     public IEnumerable<ConceptModel> Concepts => _concepts.Concepts.Select(concept => concept with
     {
-        UnmarkedPiiUses = _personalData.UnmarkedUses(concept.Name)
+        UnmarkedPiiUses = _personalData.UnmarkedUses(concept.Name),
+        HasGeneratedUses = _generatedConcepts.Contains(concept.Name)
     });
 
     /// <summary>
@@ -164,6 +166,19 @@ public class TypeRegistry
     /// <param name="rules">The rules to record.</param>
     public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules) =>
         _concepts.AddValidations(conceptName, rules);
+
+    /// <summary>
+    /// Resolves a command-generated type while preserving its generation use through admission failure.
+    /// </summary>
+    /// <param name="type">The generated type.</param>
+    /// <returns>The resolved type reference.</returns>
+    internal TypeReferenceModel ResolveGenerated(ITypeSymbol type)
+    {
+        var resolved = Resolve(type);
+        _generatedConcepts.Add(resolved.Name);
+
+        return resolved;
+    }
 
     /// <summary>
     /// Records that a concept's executable validation was not fully recovered.

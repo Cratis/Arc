@@ -140,7 +140,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 var generatedType = variable.Parent is VariableDeclarationSyntax { Type.IsVar: true }
                     ? model.GetTypeInfo(value).Type ?? local.Type
                     : local.Type;
-                generated.Add(new(local.Name, types.Resolve(generatedType)));
+                generated.Add(new(local.Name, types.ResolveGenerated(generatedType)));
                 if (ValidatedTypes.Contains(local.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
                 {
                     validatedGenerated.Add(local.Name);
@@ -201,7 +201,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
                 return result with { Generated = [], GeneratedWithValidators = [], Operations = [] };
             }
 
-            generated.Add(new(name, types.Resolve(responseType)));
+            generated.Add(new(name, types.ResolveGenerated(responseType)));
             if (ValidatedTypes.Contains(responseType.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()))
             {
                 validatedGenerated.Add(name);

@@ -56,6 +56,10 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
         var generatedConcepts = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
             (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
             .ToHashSet(StringComparer.Ordinal);
+        model = model with
+        {
+            Concepts = model.Concepts.Select(concept => concept with { HasGeneratedUses = concept.HasGeneratedUses || generatedConcepts.Contains(concept.Name) }).ToList()
+        };
         var eventRoutes = options.AuthoringOnlyConstructs || options.MaximumExecutableModelVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8);
         if (options.AuthoringOnlyConstructs)
         {

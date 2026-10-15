@@ -31,6 +31,49 @@ public class from_uuid_generated_concept_rules : a_validated_generation
         AssertPartialDocument();
     }
 
+    [Fact]
+    void should_preserve_the_fallback_for_a_legacy_generated_use_without_a_strategy()
+    {
+        var source = "using FluentValidation;\n" + IdentifierSources.With("""
+            public class AuthorIdValidator : Cratis.Arc.Validation.ConceptValidator<AuthorId>
+            {
+                public AuthorIdValidator() { RuleFor(value => value.Value).NotEmpty(); }
+            }
+            [Command] public record RegisterAuthor(AuthorId ExistingId, string Name)
+            {
+                public (AuthorId, AuthorRegistered) Handle()
+                {
+                    var authorId = new AuthorId(Guid.NewGuid());
+                    return (authorId, new(Name));
+                }
+            }
+            """);
+        Generate((Analyzed.SlicePath, source));
+        var concept = Result.Model.Concepts.Single();
+        concept.Generation.ShouldBeNull();
+        concept.HasGeneratedUses.ShouldBeTrue();
+        concept.ValidatorSources.ShouldContainSingleItem();
+        Result.Source.ShouldContain("rule AuthorIdValidator");
+        Result.Source.ShouldNotContain("generated");
+        AssertPartialDocument();
+    }
+
+    [Fact]
+    void should_preserve_the_fallback_for_a_declared_strategy_without_a_generated_use()
+    {
+        var source = ValidatedSource("Guid.NewGuid()", "RuleFor(value => value.Value).NotEmpty();", "Guid")
+            .Replace("RegisterAuthor(string Name)", "RegisterAuthor(string Name, AuthorId Value)", StringComparison.Ordinal)
+            .Replace("[GeneratedValue(\"receipt\")] AuthorId value", string.Empty, StringComparison.Ordinal)
+            .Replace("new(Name, value)", "new(Name, Value)", StringComparison.Ordinal);
+        Generate((Analyzed.SlicePath, source));
+        var concept = Result.Model.Concepts.Single();
+        concept.Generation.ShouldNotBeNull();
+        concept.HasGeneratedUses.ShouldBeFalse();
+        concept.ValidatorSources.ShouldContainSingleItem();
+        Result.Source.ShouldContain("rule AuthorIdValidator");
+        AssertPartialDocument();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
