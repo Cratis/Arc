@@ -140,7 +140,8 @@ public class AggregateRootMutation(
         var events = UncommittedEvents;
         var eventCount = events.Count;
         using var measurementCommit = ReadProtectionMeasurement.Committing();
-        if (!await TransactionalCommandScope.CommitAggregate(aggregateRootContext.UnitOfWOrk))
+        var committedByOwner = await TransactionalCommandScope.CommitAggregate(aggregateRootContext.UnitOfWOrk);
+        if (!committedByOwner)
         {
             await aggregateRootContext.UnitOfWOrk.Commit();
         }
@@ -168,6 +169,9 @@ public class AggregateRootMutation(
 
         // Report this aggregate's own events, not the whole unit of work, so Events and SequenceNumbers correspond
         // one-to-one. Violations and errors are legitimately unit-of-work wide and stay sourced from it.
-        return AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, events, sequenceNumbers);
+        var result = AggregateRootCommitResult.CreateFrom(aggregateRootContext.UnitOfWOrk, events, sequenceNumbers);
+
+        // A protected read that changed is reported as such, as it is when the command commits at completion.
+        return committedByOwner ? TransactionalCommandScope.ReportReadChanges(aggregateRootContext.UnitOfWOrk, result) : result;
     }
 }

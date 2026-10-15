@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels.for_CommandDecisionReads;
+using Cratis.Arc.Commands;
 using Cratis.Chronicle.Transactions;
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_protected_walkthroughs;
@@ -37,5 +38,43 @@ public class when_reusing_cached_reads : given.a_protected_read
         {
             _scope.End(_context);
         }
+    }
+
+    [Fact]
+    public async Task should_keep_guarding_a_read_a_nested_command_reused_from_the_unit()
+    {
+        await Seed();
+        using var policy = DecisionPolicyForSpecs.Begin(typeof(Borrow));
+        Begin(new Borrow(_book, _member));
+        CommandResult result;
+        try
+        {
+            var parameter = typeof(Borrow).GetMethod(nameof(Borrow.Handle))!.GetParameters()[0];
+            var outer = Resolve(parameter);
+            object? reused;
+            using (DecisionPolicyForSpecs.Begin(typeof(Borrow)))
+            {
+                CommandDecisionReads.Begin(typeof(Borrow));
+                try
+                {
+                    reused = Resolve(parameter);
+                }
+                finally
+                {
+                    CommandDecisionReads.End();
+                }
+            }
+            reused.ShouldBeSame(outer);
+            await Compete();
+            Stage();
+            result = await Complete();
+        }
+        finally
+        {
+            _scope.End(_context);
+        }
+        result.ValidationResults.Single().ReasonDetail.ShouldEqual("ReadChanged");
+        var events = await _store.EventLog.GetFromSequenceNumber(Cratis.Chronicle.Events.EventSequenceNumber.First, _book);
+        events.Count(@event => @event.Content is BookBorrowed).ShouldEqual(0);
     }
 }

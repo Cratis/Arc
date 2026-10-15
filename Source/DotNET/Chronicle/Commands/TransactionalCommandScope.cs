@@ -87,14 +87,16 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             ReadProtectionTelemetry.Record(context.Type, "mode_lowered", reason: $"{CommandDecisionPolicy.DeclaredReadProtection} → {CommandDecisionPolicy.ReadProtection}");
         }
         var previous = ActiveFrame();
-        var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type);
+        var readProtected = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On;
+        var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type, readProtected);
         if (previous is not null)
         {
             lock (previous)
             {
                 if (previous.Child is { Exited: false } child)
                 {
-                    if (previous.Protection is not null)
+                    // The owner boundary belongs to every command declaring On, not only to an enforcing outer unit.
+                    if (previous.Protection is not null || child.ReadProtected || readProtected)
                     {
                         throw new ConcurrentNestedCommandsUnderReadProtection(previous.CommandType, child.CommandType, context.Type);
                     }
@@ -120,10 +122,12 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             if (previous?.Protection is not null)
             {
                 frame.Protection = inheritedUnit.EnforceReadProtection();
-                if (CommandDecisionPolicy.ReadProtection != ReadProtectionMode.On)
-                {
-                    frame.ReadAllowance = inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
-                }
+
+                // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
+                // opened by its caller's body or by an enclosing command that does not enable read protection.
+                frame.ReadAllowance = readProtected
+                    ? ReadRegions.SuspendInherited()
+                    : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
             }
             RegisterEnrollmentContributor(context, frame, inheritedUnit);
             return;
@@ -230,7 +234,13 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     internal static async Task<bool> CommitAggregate(IUnitOfWork unit)
     {
         var frame = ActiveFrame();
-        if (frame?.Protection is null || !ReferenceEquals(frame.UnitOfWork, unit))
+        var ownsUnit = frame is not null && ReferenceEquals(frame.UnitOfWork, unit);
+        if (ownsUnit && frame!.Owned is null && frame.Previous is { } parent && (frame.Protection is not null || frame.ReadProtected))
+        {
+            // A nested command declaring On must not complete its parent's unit, whether or not the parent enforces.
+            throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, parent.CommandType);
+        }
+        if (!ownsUnit || frame!.Protection is null)
         {
             if (frame?.Previous is not null && CommandDecisionPolicy.ReadProtection == ReadProtectionMode.Measure)
             {
@@ -240,12 +250,24 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
         if (frame.Owned is not { } owned)
         {
-            throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, frame.Previous!.CommandType);
+            throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, frame.Previous?.CommandType ?? frame.CommandType);
         }
 
         await CommitOwned(owned);
         return true;
     }
+
+    /// <summary>
+    /// Reports decision-read conflicts of an early aggregate commit made through the protected owner as read changes,
+    /// as completion does for a commit made at the end of the command.
+    /// </summary>
+    /// <param name="unit">The aggregate's unit.</param>
+    /// <param name="result">The aggregate's commit result.</param>
+    /// <returns>The result, with conflicting reads reported as read changes.</returns>
+    internal static AggregateRootCommitResult ReportReadChanges(IUnitOfWork unit, AggregateRootCommitResult result) =>
+        !result.IsSuccess && ActiveFrame() is { Protection: not null, Owned: not null } frame && ReferenceEquals(frame.UnitOfWork, unit)
+            ? WithReadChanges(result, unit, frame.CommandType, enforcing: true)
+            : result;
 
     /// <summary>
     /// Matches live guarded captures from every active invocation sharing the command's unit.
@@ -348,23 +370,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
             if (!commitResult.IsSuccess)
             {
-                var conflicts = unitOfWork is UnitOfWork protectedUnit ? protectedUnit.GetDecisionConflicts().ToArray() : [];
-                var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
-                var mapped = new AggregateRootCommitResult
-                {
-                    FreshIdentifiers = commitResult.FreshIdentifiers,
-                    ConstraintViolations = commitResult.ConstraintViolations,
-                    ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
-                    Errors = commitResult.Errors,
-                    ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ValidationResult.Error(
-                        frame.Protection is not null
-                            ? $"{_.ReadModelType.Name} '{_.Key}' changed after {context.Type.Name} read it. Nothing from this command was written; submit it again."
-                            : $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
-                        state: new { readModel = _.ReadModelType.Name, key = (string)_.Key },
-                        reason: ValidationResultReason.ConcurrencyViolation,
-                        reasonDetail: frame.Protection is not null ? "ReadChanged" : null))).ToArray()
-                };
-                result.MergeWith(mapped.ToCommandResult(result.CorrelationId));
+                result.MergeWith(WithReadChanges(commitResult, unitOfWork, context.Type, frame.Protection is not null).ToCommandResult(result.CorrelationId));
             }
 
             if (result.IsSuccess && frame.Completions.Count > 0)
@@ -399,6 +405,28 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             observation.CompletionObserved = true;
             observation.Disposition = CommandCommitDisposition.NotCommitted;
         }
+    }
+
+    static AggregateRootCommitResult WithReadChanges(AggregateRootCommitResult commitResult, IUnitOfWork unitOfWork, Type commandType, bool enforcing)
+    {
+        var conflicts = unitOfWork is UnitOfWork protectedUnit ? protectedUnit.GetDecisionConflicts().ToArray() : [];
+        var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
+        return new AggregateRootCommitResult
+        {
+            Events = commitResult.Events,
+            SequenceNumbers = commitResult.SequenceNumbers,
+            FreshIdentifiers = commitResult.FreshIdentifiers,
+            ConstraintViolations = commitResult.ConstraintViolations,
+            ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
+            Errors = commitResult.Errors,
+            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ValidationResult.Error(
+                enforcing
+                    ? $"{_.ReadModelType.Name} '{_.Key}' changed after {commandType.Name} read it. Nothing from this command was written; submit it again."
+                    : $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
+                state: new { readModel = _.ReadModelType.Name, key = (string)_.Key },
+                reason: ValidationResultReason.ConcurrencyViolation,
+                reasonDetail: enforcing ? "ReadChanged" : null))).ToArray()
+        };
     }
 
     static async Task CommitOwned(OwnedTransaction owned)
@@ -502,9 +530,10 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         public bool ImmediateUncertain { get; set; }
     }
 
-    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers, Type commandType)
+    sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers, Type commandType, bool readProtected)
     {
         public Type CommandType { get; } = commandType;
+        public bool ReadProtected { get; } = readProtected;
         public ReadProtectionFrame? Protection { get; set; }
         public IDisposable? ReadAllowance { get; set; }
         public TransactionFrame? Child { get; set; }
