@@ -39,9 +39,10 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
         if (creation.Ancestors().OfType<BaseObjectCreationExpressionSyntax>().FirstOrDefault(candidate =>
             model.GetTypeInfo(candidate).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId")) is { } wrapper)
         {
+            var usesCommandContext = production.UsesCommandContext;
             production = production with
             {
-                UsesCommandContext = production.UsesCommandContext && wrapper.Initializer is null,
+                UsesCommandContext = false,
                 DestinationDependencies = wrapper.DescendantNodes().OfType<ExpressionSyntax>()
                     .Where(expression => !creation.Span.Contains(expression.Span))
                     .Select(expression => sources?.ReadGeneratedPath(expression, model)).OfType<string>().Distinct(StringComparer.Ordinal).ToList()
@@ -50,6 +51,10 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
                 !ReturnedProductionShape.Reaches(wrapper, body, model))
             {
                 return production;
+            }
+            if (usesCommandContext && wrapper.Initializer is null)
+            {
+                return production with { UsesCommandContext = true };
             }
             var path = ProductionValues.Path(envelope.Destination, model, command, sources);
             if (path is null)
@@ -65,6 +70,10 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
             if (route is null && !generatedIdentity)
             {
                 return production;
+            }
+            if (usesCommandContext && route is not null && fallback is not null && SameEffectiveRoute(route, fallback))
+            {
+                return production with { UsesCommandContext = true };
             }
 
             return production with
@@ -110,4 +119,8 @@ internal class ReturnedProductionRoutes(SemanticModels models, TypeRegistry type
             return type is null ? null : types.Resolve(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
         }
     }
+
+    static bool SameEffectiveRoute(CommandRouteModel route, CommandRouteModel fallback) => route.Identity == fallback.Identity &&
+        route.StreamIdType == fallback.StreamIdType && route.StreamId == fallback.StreamId && route.StreamIdLiteral == fallback.StreamIdLiteral &&
+        route.StreamIdParts.SequenceEqual(fallback.StreamIdParts);
 }

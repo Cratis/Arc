@@ -32,45 +32,13 @@ internal static class ReturnedProductionShape
             {
                 return false;
             }
-            if (node is ReturnStatementSyntax)
+            if (!SupportedAncestor(node, expression, model))
+            {
+                return false;
+            }
+            if (node is ReturnStatementSyntax || node == body)
             {
                 return true;
-            }
-            if (node != expression && node is BaseObjectCreationExpressionSyntax creation &&
-                model.GetTypeInfo(creation).Type is { } type &&
-                !type.Is("System.Collections.Generic.List`1") && !type.Is("System.Threading.Tasks.ValueTask`1") && !type.Is("Cratis.Monads.Result`2"))
-            {
-                return false;
-            }
-            if (node is InvocationExpressionSyntax invocation &&
-                (model.GetSymbolInfo(invocation).Symbol is not IMethodSymbol method || method.Name != "FromResult" ||
-                    (!method.ContainingType.Is("System.Threading.Tasks.Task") && !method.ContainingType.Is("System.Threading.Tasks.ValueTask"))))
-            {
-                return false;
-            }
-            if (node is TupleExpressionSyntax tuple && !SupportedTuple(tuple, model))
-            {
-                return false;
-            }
-            if (node is CollectionExpressionSyntax collection && collection.Elements.Any(element => element is not ExpressionElementSyntax item || !DirectEffect(item.Expression, model)))
-            {
-                return false;
-            }
-            if (node is InitializerExpressionSyntax initializer && !initializer.Expressions.All(item => DirectEffect(item, model)))
-            {
-                return false;
-            }
-            if (node is BaseObjectCreationExpressionSyntax list && model.GetTypeInfo(list).Type.Is("System.Collections.Generic.List`1") && list.ArgumentList?.Arguments.Count > 0)
-            {
-                return false;
-            }
-            if (node is StatementSyntax or AnonymousFunctionExpressionSyntax or LocalFunctionStatementSyntax or AssignmentExpressionSyntax or VariableDeclaratorSyntax or CastExpressionSyntax or BinaryExpressionSyntax or PrefixUnaryExpressionSyntax or PostfixUnaryExpressionSyntax)
-            {
-                return false;
-            }
-            if (node == body)
-            {
-                return body is ExpressionSyntax;
             }
         }
 
@@ -107,6 +75,26 @@ internal static class ReturnedProductionShape
     /// <returns>Whether its plain events retain command context.</returns>
     internal static bool UsesCommandContext(TupleExpressionSyntax tuple, SemanticModel model) =>
         IdentityOf(tuple, model) is null && SupportedTuple(tuple, model);
+
+    static bool SupportedAncestor(SyntaxNode node, ExpressionSyntax returned, SemanticModel model) => node switch
+    {
+        ReturnStatementSyntax or ArrowExpressionClauseSyntax or ParenthesizedExpressionSyntax or ArgumentSyntax or ArgumentListSyntax or ExpressionElementSyntax => true,
+        BaseObjectCreationExpressionSyntax creation => creation == returned || ReturnContainer(creation, model),
+        TupleExpressionSyntax tuple => SupportedTuple(tuple, model),
+        CollectionExpressionSyntax collection => collection.Elements.All(element => element is ExpressionElementSyntax item && DirectEffect(item.Expression, model)),
+        InitializerExpressionSyntax initializer => initializer.Expressions.All(item => DirectEffect(item, model)),
+        ArrayCreationExpressionSyntax { Initializer: not null } or ImplicitArrayCreationExpressionSyntax => true,
+        InvocationExpressionSyntax invocation => model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "FromResult" &&
+            (method.ContainingType.Is("System.Threading.Tasks.Task") || method.ContainingType.Is("System.Threading.Tasks.ValueTask")),
+        AwaitExpressionSyntax awaited => model.GetTypeInfo(awaited.Expression).Type is { } type &&
+            (type.Is("System.Threading.Tasks.Task`1") || type.Is("System.Threading.Tasks.ValueTask`1")),
+        _ => false
+    };
+
+    static bool ReturnContainer(BaseObjectCreationExpressionSyntax creation, SemanticModel model) =>
+        model.GetTypeInfo(creation).Type is { } type &&
+        ((type.Is("System.Collections.Generic.List`1") && creation.ArgumentList?.Arguments.Count is not > 0 && creation.Initializer is not null) ||
+         ((type.Is("System.Threading.Tasks.ValueTask`1") || type.Is("Cratis.Monads.Result`2")) && creation.Initializer is null));
 
     static bool SupportedTuple(TupleExpressionSyntax tuple, SemanticModel model)
     {
