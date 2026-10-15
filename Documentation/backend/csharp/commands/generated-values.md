@@ -301,6 +301,21 @@ production remains, the model keeps a handler file reference, which is not execu
 Enabling authoring-only constructs or raising the executable version cap does not recover an unknown
 factory. Keep the original handler and use the diagnostics to identify what the partial model cannot run.
 
+## Validated generation in a Screenplay model
+
+A concept validator does not by itself prevent recovery. An empty validator keeps the existing generation
+contract; a String-backed concept with completely recoverable rules can carry both `generate` and
+`validate` in ESM v20. Screenplay checks that the strategy and rules agree. Proven rules are admitted;
+non-opaque unproven rules stay in the model with Information `SP0078` (`PLAY0689`). Refuted rules withhold
+generation and dependent claims with `SP0073` and the `PLAY0688` witness, while preserving validation.
+
+Unreadable, conditional or opaque validation stays outside executable generation. UUID validator rules
+such as Guid `NotEmpty` also remain outside Screenplay's declarative algebra: recovery preserves the
+original validator through a source attachment rather than pretending UUID is text. This does not change
+Arc's runtime validation behavior. A cap below ESM v20 withholds validated generation, not its rules, in
+both output modes. See [Validated generation](../generating-a-screenplay.md#validated-generation-and-esm-v20)
+for the admission and fallback details.
+
 ## Next steps
 
 - [Pin generated values in command specs](../testing/generated-values.md) so a spec can choose the value or assert its time part.
