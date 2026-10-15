@@ -5,6 +5,7 @@ using Cratis.Arc.Screenplay.Analysis.Aggregates;
 using Cratis.Arc.Screenplay.Analysis.ReadModels;
 using Cratis.Arc.Screenplay.Analysis.Screens;
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Screenplay.Semantics;
 using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Screenplay.Analysis;
@@ -65,6 +66,11 @@ public record WholeApplication(IReadOnlyList<Compilation> Compilations, Screenpl
     /// Gets the queries screens read through that a slice other than their own declares.
     /// </summary>
     public CrossSliceQueries Elsewhere { get; } = new();
+
+    /// <summary>
+    /// Gets the generation admission boundary used during dependency recovery.
+    /// </summary>
+    internal SemanticVersion? MaximumExecutableModelVersion { get; init; }
 
     /// <summary>
     /// Creates what an application of a single project holds.

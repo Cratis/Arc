@@ -75,6 +75,23 @@ public class ValidationReader(SemanticModels models, ScreenplayDiagnostics diagn
     }
 
     /// <summary>
+    /// Checks whether the default constructor rules were completely recovered.
+    /// </summary>
+    /// <param name="validator">The validator to inspect.</param>
+    /// <returns>Whether generation may rely on its recovered rules.</returns>
+    internal bool IsComplete(INamedTypeSymbol validator) => ValidationRecovery.IsComplete(validator, models);
+
+    /// <summary>
+    /// Preserves the complete validator when its rules cannot be represented by the language's algebra.
+    /// </summary>
+    /// <param name="validator">The original validator.</param>
+    /// <returns>An opaque source attachment, or null when no portable source is available.</returns>
+    internal ValidationRuleModel? SourceReference(INamedTypeSymbol validator) =>
+        paths?.Relative(validator.SourceFilePath()) is { } path && !Path.IsPathRooted(path) && !path.Contains(':', StringComparison.Ordinal)
+            ? new("Value", ValidationRuleKind.Rule, validator.Name, null) { SourceFilePath = path }
+            : null;
+
+    /// <summary>
     /// Reads every rule chain within one constructor declaration.
     /// </summary>
     /// <param name="declaration">The declaration to read.</param>

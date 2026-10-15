@@ -57,6 +57,11 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
     public IReadOnlyList<string> Validated => _validated;
 
     /// <summary>
+    /// Gets the shared validation admission check, evaluated before dependency recovery.
+    /// </summary>
+    internal Func<ITypeSymbol, string?> ValidationFailure { get; init; } = _ => null;
+
+    /// <summary>
     /// Reads every declared generation strategy, reporting all refusals.
     /// </summary>
     /// <param name="handlers">The command handlers.</param>
@@ -67,7 +72,7 @@ internal class GeneratedParameterReader(SemanticModels models, TypeRegistry type
         _location = location;
         _parameters = handlers.SelectMany(handler => handler.Parameters).Where(parameter => parameter.HasAttribute(WellKnownTypeNames.GeneratedValueAttribute)).ToList();
         var strategies = new GenerationStrategyReader(models);
-        var failures = _parameters.Select(parameter => (Parameter: parameter, Failure: strategies.Failure(parameter))).Where(item => item.Failure is not null).ToList();
+        var failures = _parameters.Select(parameter => (Parameter: parameter, Failure: strategies.Failure(parameter) ?? ValidationFailure(parameter.Type))).Where(item => item.Failure is not null).ToList();
         foreach (var (parameter, failure) in failures)
         {
             _failures[parameter] = failure!;

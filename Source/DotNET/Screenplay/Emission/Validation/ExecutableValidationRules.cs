@@ -17,22 +17,37 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="model">The application, including scenarios and composite types.</param>
     /// <returns>The model with only admitted named rules.</returns>
-    public ApplicationModel Apply(ApplicationModel model)
+    public ApplicationModel Apply(ApplicationModel model) => Apply(model, new HashSet<string>());
+
+    /// <summary>
+    /// Preserves generated-concept contracts even when opaque rules prevent scenario execution.
+    /// </summary>
+    /// <param name="model">The recovered application.</param>
+    /// <param name="generatedConcepts">The concepts used for generation before admission pruning.</param>
+    /// <returns>The model without weakening a generated concept's rules.</returns>
+    internal ApplicationModel Apply(ApplicationModel model, IReadOnlySet<string> generatedConcepts)
     {
         var exercised = model.Slices.SelectMany(slice => slice.Specifications)
             .Where(specification => specification.When is { Kind: SpecificationStateKind.Command } issued &&
                 ResponseOnlyScenarios.CanBeStated(specification, model.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == issued.Name)))
             .Select(specification => specification.When!.Name).ToHashSet(StringComparer.Ordinal);
         var commands = model.Slices.SelectMany(slice => slice.Commands).Where(command => exercised.Contains(command.Name)).ToList();
+        var opaqueConcepts = model.Concepts.Where(concept => (generatedConcepts.Contains(concept.Name) || concept.Generation is not null) &&
+            (concept.Validations.Any(rule => rule.Kind == ValidationRuleKind.Rule) ||
+             (concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 && (concept.Validations.Any() || !concept.ValidationRecoveryComplete))))
+            .Select(concept => concept.Name).ToList();
+        var unsupported = commands.Where(command => opaqueConcepts.Exists(concept => Carries(command, concept, model))).Select(command => command.Name).ToHashSet(StringComparer.Ordinal);
 
         return model with
         {
-            Concepts = model.Concepts.Select(concept => concept with
+            Concepts = model.Concepts.Select(concept => generatedConcepts.Contains(concept.Name) || concept.Generation is not null ? concept : concept with
             {
                 Validations = Retain(concept.Validations, $"concept '{concept.Name}'", concept.Name, commands.Where(command => Carries(command, concept.Name, model)).Select(command => command.Name).ToList())
             }).ToList(),
             Slices = model.Slices.Select(slice => slice with
             {
+                Specifications = slice.Specifications.Select(specification => specification.When is { } issued && unsupported.Contains(issued.Name)
+                    ? specification with { GenerationFailure = "its generated concept has opaque validation that reference execution cannot evaluate; the validator was preserved" } : specification).ToList(),
                 Commands = slice.Commands.Select(command => command with
                 {
                     Validations = Retain(command.Validations, $"command '{command.Name}'", $"{slice.Namespace}.{command.Name}", exercised.Contains(command.Name) ? [command.Name] : [])
@@ -43,7 +58,8 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
 
     static bool Carries(CommandModel command, string concept, ApplicationModel model)
     {
-        var pending = new Queue<string>(command.Properties.Concat(command.Authoring?.Generated ?? []).Select(property => property.Type.Name));
+        var pending = new Queue<string>(command.Properties.Concat(command.Authoring?.Generated ?? []).Select(property => property.Type.Name)
+            .Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []));
         var visited = new HashSet<string>(StringComparer.Ordinal);
         while (pending.TryDequeue(out var name))
         {

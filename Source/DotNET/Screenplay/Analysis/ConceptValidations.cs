@@ -29,6 +29,11 @@ public static class ConceptValidations
             }
 
             readers.Types.AddValidations(type.Name, readers.Validators.For(type));
+            readers.Types.AddValidatorSources(type.Name, readers.Validators.SourcesFor(type));
+            if (!readers.Validators.IsComplete(type))
+            {
+                readers.Types.MarkValidationIncomplete(type.Name);
+            }
         }
     }
 }

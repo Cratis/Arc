@@ -166,6 +166,19 @@ public class TypeRegistry
         _concepts.AddValidations(conceptName, rules);
 
     /// <summary>
+    /// Records that a concept's executable validation was not fully recovered.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    internal void MarkValidationIncomplete(string name) => _concepts.MarkValidationIncomplete(name);
+
+    /// <summary>
+    /// Preserves references to validators outside the declarative UUID validation algebra.
+    /// </summary>
+    /// <param name="name">The concept name.</param>
+    /// <param name="sources">The complete validator source attachments.</param>
+    internal void AddValidatorSources(string name, IEnumerable<ValidationRuleModel> sources) => _concepts.AddValidatorSources(name, sources);
+
+    /// <summary>
     /// Records an analyzed property's personal-data marking and any unmarked concept use.
     /// </summary>
     /// <param name="property">The property to record.</param>

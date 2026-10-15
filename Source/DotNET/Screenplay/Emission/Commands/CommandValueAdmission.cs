@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
 
@@ -44,11 +45,19 @@ internal class CommandValueAdmission(ScreenplayDiagnostics diagnostics)
     {
         var authoring = command.Authoring!;
         var blocked = authoring.Generated.Where(property => !GeneratedConceptAdmission.Allows(property, authoring, model, maximumVersion)).Select(property => property.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (var concept in model.Concepts.Where(concept => concept.Generation is null && authoring.Generated.Any(property =>
+            blocked.Contains(property.Name) && property.Type.Name == concept.Name)))
+        {
+            if (GenerationAdmission.Failure(concept, maximumVersion) is { } reason)
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}; its generation contract remains in code", concept.GenerationLocation ?? concept.Name);
+            }
+        }
         if (blocked.Count > 0)
         {
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnreadableCommandResponse,
-                $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' must be required scalar generatable concepts with no concept validators, validation rules or compliance markers (PLAY0268); non-default strategies require ESM v15 (cap v{maximumVersion?.ToString() ?? "latest"}) and generated identifiers require at least 64 random bits (PLAY0684); those values, dependent responses, mappings, and production conditions were left in code",
+                $"Generated values '{string.Join(", ", blocked.Order(StringComparer.Ordinal))}' must be required scalar generatable concepts with completely recovered, non-opaque, non-refuted concept validation; non-default strategies require ESM v15 and concept rules require ESM v20 (cap v{maximumVersion?.ToString() ?? "latest"}); compliance markers and generated identifiers below 64 random bits remain refused (PLAY0268/PLAY0684); those values, dependent responses, mappings, and production conditions were left in code",
                 $"{location}.{command.Name}");
         }
 
@@ -60,7 +69,5 @@ internal class CommandValueAdmission(ScreenplayDiagnostics diagnostics)
     static bool HasCommandValues(CommandAuthoringModel authoring) => authoring.Generated.Count > 0 || authoring.Response is not null || authoring.ResponseFields.Count > 0;
 
     static bool WithholdsStrategy(CommandAuthoringModel authoring, ApplicationModel model, SemanticVersion? maximumVersion) =>
-        IsBelow(maximumVersion, SemanticVersion.V15) && authoring.Generated.Any(property => HasStrategy(property.Type.Name, model));
-
-    static bool HasStrategy(string name, ApplicationModel model) => model.Concepts.Any(concept => concept.Name == name && concept.Generation is { Kind: not "uuid" });
+        authoring.Generated.Any(property => !GeneratedConceptAdmission.Allows(property, authoring, model, maximumVersion));
 }

@@ -36,6 +36,11 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     public IReadOnlySet<string> ValidatedTypes { get; init; } = new HashSet<string>();
 
     /// <summary>
+    /// Gets the shared concept-validation admission check for explicit generation.
+    /// </summary>
+    internal Func<ITypeSymbol, string?> ValidationFailure { get; init; } = _ => null;
+
+    /// <summary>
     /// Determines whether a local or parameter is never reassigned or passed by reference.
     /// </summary>
     /// <param name="symbol">The local or parameter to check.</param>
@@ -69,7 +74,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
         var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
 
-        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes };
+        var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes, ValidationFailure = ValidationFailure };
         parameters.ReadStrategies(handlers, location);
         result = result with { GeneratedParameters = parameters.HasParameters, UnavailableGenerated = parameters.Unavailable };
 

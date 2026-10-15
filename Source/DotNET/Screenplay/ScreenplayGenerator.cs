@@ -112,6 +112,10 @@ public class ScreenplayGenerator(IApplicationModelAnalyzer analyzer, IScreenplay
         var verification = _verifier.Verify(source);
         if (verification.Compiles)
         {
+            foreach (var warning in verification.BindingDiagnostics.Where(diagnostic => diagnostic.Code == "PLAY0689"))
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnprovenGeneratedConceptRule, $"{warning.Code}: {warning.Message}", $"{location}:{warning.Location.Line}");
+            }
             foreach (var error in verification.UnexpectedBindingErrors(authoringOnlyConstructs))
             {
                 diagnostics.Warning(
