@@ -35,7 +35,9 @@ public class when_provide_uses_decision_reads : given.a_measure_pipeline
             Stage(context);
         }
         _off = await Run(false, Handle, _offProvider);
+        Assert.False(_off.HasExceptions, string.Join(Environment.NewLine, _off.ExceptionMessages) + _off.ExceptionStackTrace);
         _measure = await Run(true, Handle, _measureProvider);
+        Assert.False(_measure.HasExceptions, string.Join(Environment.NewLine, _measure.ExceptionMessages) + _measure.ExceptionStackTrace);
     }
 
     [Fact] void should_call_each_provider_once() => (_offProvider.Calls, _measureProvider.Calls).ShouldEqual((1, 1));

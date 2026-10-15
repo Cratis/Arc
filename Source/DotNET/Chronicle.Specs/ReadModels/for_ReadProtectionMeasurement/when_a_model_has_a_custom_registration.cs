@@ -37,7 +37,9 @@ public class when_a_model_has_a_custom_registration : given.a_measure_pipeline
             Stage(context);
         }
         _off = await Run(false, Handle, new CustomProvide());
+        Assert.False(_off.HasExceptions, string.Join(Environment.NewLine, _off.ExceptionMessages) + _off.ExceptionStackTrace);
         _measure = await Run(true, Handle, new CustomProvide());
+        Assert.False(_measure.HasExceptions, string.Join(Environment.NewLine, _measure.ExceptionMessages) + _measure.ExceptionStackTrace);
     }
 
     [Fact] void should_keep_the_custom_value_in_both_modes() => _values.ShouldEqual(new object[] { _custom, _custom });

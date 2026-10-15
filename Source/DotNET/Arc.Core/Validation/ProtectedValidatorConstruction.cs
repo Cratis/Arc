@@ -70,15 +70,15 @@ internal static class ProtectedValidatorConstruction
         MatchesSnapshot(validator, snapshot);
 
     /// <summary>
-    /// Makes the container construct every convention-bound, dependency-free discoverable validator through Arc, so a
-    /// validator the container resolves can be certified.
+    /// Makes the container construct convention-bound, dependency-free discoverable validators and transient
+    /// read-protected command validators through Arc, so a resolved validator can be certified.
     /// </summary>
     /// <param name="services">The <see cref="IServiceCollection"/> holding the bindings.</param>
     /// <param name="types">The <see cref="ITypes"/> to discover validators from.</param>
     /// <remarks>
-    /// Only a plain type binding of a validator to itself is replaced; it constructs the same instance through the
-    /// same parameterless constructor with the same lifetime. A factory, instance or other implementation registration
-    /// is left untouched and is therefore not certified.
+    /// Only a plain type binding of a validator to itself is replaced, preserving its lifetime. Dependency-taking
+    /// validators are replaced only for commands declaring read protection On; their other registrations stay unchanged.
+    /// A factory, instance or other implementation registration is left untouched and is therefore not certified.
     /// <para>
     /// Only a transient validator resolved outside a protected decision skips the certificate: nothing shares that
     /// instance with a later protected decision, so the rule snapshot would be wasted work on every other pipeline. A
@@ -95,7 +95,8 @@ internal static class ProtectedValidatorConstruction
                 descriptor.ImplementationType is { } implementationType &&
                 implementationType == descriptor.ServiceType &&
                 validatorTypes.Contains(implementationType) &&
-                (descriptor.Lifetime == ServiceLifetime.Transient || IsDependencyFree(implementationType)))
+                (IsDependencyFree(implementationType) ||
+                 (descriptor.Lifetime == ServiceLifetime.Transient && IsForReadProtectedCommand(implementationType))))
             {
                 var lifetime = descriptor.Lifetime;
                 services[index] = new ServiceDescriptor(
@@ -119,6 +120,10 @@ internal static class ProtectedValidatorConstruction
     /// <returns>Whether the validator belongs to this invocation.</returns>
     internal static bool IsConstructedForInvocation(object validator) =>
         _invocationConstructions.TryGetValue(validator, out var token) && ReferenceEquals(token, CommandDecisionPolicy.Token);
+
+    static bool IsForReadProtectedCommand(Type validatorType) => validatorType.GetInterfaces()
+        .Any(_ => _.IsGenericType && _.GetGenericTypeDefinition() == typeof(IDiscoverableValidator<>) &&
+            CommandAttributePolicy.ResolveCommand(_.GenericTypeArguments[0]).ReadProtection == (int)ReadProtectionMode.On);
 
     static object ConstructForInvocation(IServiceProvider provider, Type validatorType)
     {

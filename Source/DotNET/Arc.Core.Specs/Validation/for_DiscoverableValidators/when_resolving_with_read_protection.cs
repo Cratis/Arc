@@ -30,7 +30,10 @@ public class when_resolving_with_read_protection
     {
         var types = TypesForValidator();
         var state = new State();
-        var services = new ServiceCollection().AddSingleton(state).AddTransient<StateValidator>();
+        var services = new ServiceCollection()
+            .AddSingleton(Substitute.For<ICommandProtectedDecisionSupport>())
+            .AddSingleton(state)
+            .AddTransient<StateValidator>();
         services.ConstructDependencyFreeValidatorsThroughArc(types);
         using var provider = services.BuildServiceProvider();
         using var policy = CommandDecisionPolicy.Begin(typeof(GuardedCommand));
@@ -69,7 +72,10 @@ public class when_resolving_with_read_protection
     public void should_not_accept_a_validator_from_an_earlier_invocation()
     {
         var types = TypesForValidator();
-        var services = new ServiceCollection().AddSingleton(new State()).AddTransient<StateValidator>();
+        var services = new ServiceCollection()
+            .AddSingleton(Substitute.For<ICommandProtectedDecisionSupport>())
+            .AddSingleton(new State())
+            .AddTransient<StateValidator>();
         services.ConstructDependencyFreeValidatorsThroughArc(types);
         using var provider = services.BuildServiceProvider();
         StateValidator previous;
