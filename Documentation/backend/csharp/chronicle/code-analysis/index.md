@@ -10,19 +10,19 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | Rule | Severity | What it checks |
 | --- | --- | --- |
 | [ARCCHR0001](./ARCCHR0001.md) | Error | Recognized aggregate event-handler candidates have supported signatures. |
-| [ARCCHR0002](#arcchr0002-ambiguous-command-identity) | Warning | Multiple candidate command identities without an explicit provider/recognized return exemption. |
+| [ARCCHR0002](./ARCCHR0002.md) | Warning | Multiple candidate command identities without an explicit provider/recognized return exemption. |
 | [ARCCHR0003](./ARCCHR0003.md) | Warning | Reactor access to the default event log instead of returned side effects. |
 | [ARCCHR0004](./ARCCHR0004.md) | Warning | Redundant explicit id on `[EventType]`: empty, or equal to the type name. |
 | [ARCCHR0005](./ARCCHR0005.md) | Warning | Chronicle usage and `AddCratisArc` appear in one project without integration setup. |
 | [ARCCHR0006](./ARCCHR0006.md) | Warning | Manual reactor command execution without method- or class-level `[OnceOnly]`. |
-| [ARCCHR0007](#arcchr0007-command-handler-injects-ieventlog) | Warning | A command `Handle()` or `Provide()` parameter is `IEventLog` or an implementing type. |
+| [ARCCHR0007](./ARCCHR0007.md) | Warning | A command `Handle()` or `Provide()` parameter is `IEventLog` or an implementing type. |
 | [ARCCHR0008](./ARCCHR0008.md) | Warning | Data annotations `[Key]` used where Chronicle key resolution applies. |
 | [ARCCHR0009](./ARCCHR0009.md) | Warning | Likely secret command values lack audit exclusion metadata. |
 | [ARCCHR0010](./ARCCHR0010.md) | Warning | A keyless command returns a raw Guid beside statically identifiable untargeted events. |
-| [ARCCHR0011](#arcchr0011-unguarded-legacy-decision-reads) | Info | Recognizable legacy read-model parameters or `IReadModels.GetInstanceById` calls in event-producing command/validator code. |
+| [ARCCHR0011](./ARCCHR0011.md) | Info | Under Off, plain read-model parameters or `IReadModels.GetInstanceById` calls in event-producing command or validator code. |
 | [ARCCHR0012](./ARCCHR0012.md) | Info / Warning under On | Immediate appends beside protected decisions or under On. |
-| [ARCCHR0013](#arcchr0013-use-the-event-source-definition) | Info | A command or aggregate root names an event source with `[EventSourceType]` and a definition with that name exists in the compilation. |
-| [ARCCHR0014](#arcchr0014-observed-event-stream-is-not-declared) | Warning | A reactor or reducer is filtered with `[FromEventSource<T>(stream)]` to a stream the definition does not declare. |
+| [ARCCHR0013](./ARCCHR0013.md) | Info | A command or aggregate root names an event source with `[EventSourceType]` and a definition with that name exists in the compilation. |
+| [ARCCHR0014](./ARCCHR0014.md) | Warning | A reactor or reducer is filtered with `[FromEventSource<T>(stream)]` to a stream the definition does not declare. |
 | [ARCCHR0015](./ARCCHR0015.md) | Warning | A model-bound command handler declares a nullable event, directly or in a supported awaitable/union branch. |
 | [ARCCHR0016](./ARCCHR0016.md) | Warning | `concurrency: true` on a stream-metadata attribute of a command whose `Handle()` returns `EventsWithConcurrencyScopes`. |
 | [ARCCHR0017](./ARCCHR0017.md) | Error | An `[EventStreamId]` template on a command names an unusable property or has malformed braces. |
@@ -46,34 +46,6 @@ These `ARCCHR####` Roslyn diagnostics belong to **Arc's Chronicle integration**,
 | [ARCCHR0036](./ARCCHR0036.md) | Warning | Exact scope coverage of a protected read is not proven. |
 
 A command that has `[EventStreamId(value)]` and also implements `ICanProvideEventStreamId` is reported by Chronicle's own analyzer as CHR0027, not by an Arc rule. `[EventStreamId("")]` and `[EventStreamId(null)]` declare no id, so ARCCHR0017 stays silent for them.
-
-## ARCCHR0002: ambiguous command identity
-
-Use one identity candidate or implement `ICanProvideEventSourceId`. Positional Chronicle `[Key]` and the matching property count as one candidate. Recognized explicit identity/wrapper return signatures can exempt the command.
-
-This analyzer's candidate convention includes implicit conversions; runtime discovery does not generally do so. A conversion-only `ConceptAs<Guid>` is not a safe runtime identity declaration. Use `EventSourceId<Guid>` ancestry or a selected key. Neither a clean analyzer result nor a return exemption proves that input-time aggregate/read-model dependencies use your intended id. See [identity timing](../resolving-event-source-id.md).
-
-## ARCCHR0007: command handler injects IEventLog
-
-Prefer [returned events](../commands/events.md). This rule matches `IEventLog` (and implementing-type) parameters on `Handle()` and `Provide()`, including read-only use; it does not inspect whether they append. To close a stream, return [`CompleteStream`](../commands/completing-streams.md) instead of calling `CompleteStream` on the injected log; the message says so when the handler does. Deliberate exact-revision reads or advanced explicit transactional appends may warrant a narrow suppression. The API remains supported at runtime, with the boundaries in [Transactional commands](../commands/transactional-commands.md). A warning is not a runtime prohibition.
-
-## ARCCHR0011: unguarded legacy decision reads
-
-Under Off, a plain Chronicle-backed read model in an event-producing command's `Handle`, `Provide`, or convention-discovered `CommandValidator<T>` does **not** guard the resulting decision. Measure and On are excluded from this rule. A direct `IReadModels.GetInstanceById` in those methods is likewise advisory, including an application extension method named `GetInstanceById` on `IReadModels` (for example one taking a typed `EventSourceId<T>` identity) and a rule lambda over the whole command such as `RuleFor(c => c).MustAsync(...)`. Enable On and take the model as a parameter where its shape is admitted. Prefer a `CommandValidator<T>` constructor for state-dependent rules: On protects constructor read-model parameters in the command unit, while Off gives only a hint. `[Unprotected("why")]` explicitly declares an advisory command, parameter/model, or method body; method-level declarations never opt out parameters. A `GetInstanceById` call is reported wherever it appears in such a validator — constructor, rule lambda (for example inside `MustAsync`), helper method or field initializer — with the same validator advice. The analyzer recognizes event-producing handlers through the same wrappers the command pipeline unwraps: `Task`/`ValueTask`, `Result<…>`/`OneOf<…>` branches and tuple elements, at any nesting (for example `Task<Result<EventsWithConcurrencyScopes, ValidationResult>>`), and `object[]`, `IEnumerable<object>` or `IEnumerable<EventForEventSourceId>` event sets. The analyzer only recognizes explicit event return types, aggregate parameters, model-bound Chronicle attributes (on the type, or on a property or record parameter, such as `[ChildrenFrom<T>]` or `[Join<T>]`), and source-declared projection/reducer artifacts. Aliases, erased return types, indirect service calls and projections defined in external assemblies can be missed. To decide over a single event stream, read it with `IStreamReads` and return `StreamDecision.Append`; see [stream decisions](../commands/stream-decisions.md). The diagnostic message points there. It does not certify a command safe when quiet.
-
-This rule is Info severity, which is easy to miss in a build log. A project that relies on protected decisions can raise it with `dotnet_diagnostic.ARCCHR0011.severity = warning` in `.editorconfig`. See [Choosing how a command's rule holds](../consistency/index.md#why-protection-is-opt-in) and [a plain read next to a protected decision](../consistency/pitfalls.md#a-plain-read-next-to-a-protected-decision).
-
-## ARCCHR0012: immediate append with a decision read
-
-A direct `IEventLog.Append*` (also via `IEventStore.EventLog`) in a command that takes `DecisionRead<T>` or `IDecisionReads` writes immediately and cannot be undone if owner commit later conflicts. Return events or use the explicit `Transactional` style. This Info diagnostic matches direct calls, not helper chains or aliases, and does not flag `Transactional.Append`. For a decision over one event stream, return `StreamDecision.Append` from `Handle()` instead; see [stream decisions](../commands/stream-decisions.md). It is advisory, not a substitute for the runtime ownership checks that refuse direct completion of a protected unit of work.
-
-## ARCCHR0013: use the event source definition
-
-`[EventSourceType("Account")]` (and `[EventStreamType("Transactions")]`) name an event source with a string. When a type in the same compilation is declared as that event source with `[EventSource]` and, if you name a stream, declares that stream with `[EventStream]`, the diagnostic suggests `[EventSource<AccountEventSource>("Transactions")]`, so the source, its stream and its concurrency dimensions come from one definition. It only reports a command or aggregate root, and only when a definition has exactly that name. A string with no matching definition, a stream the definition does not declare, and a type that already declares `[EventSource<T>]` are left alone. The legacy attributes keep working, so this is a suggestion and never a requirement. A code fix replaces matching source and stream attributes with the typed definition. Review its concurrency dimensions when migrating, since the definition supplies that policy.
-
-## ARCCHR0014: observed event stream is not declared
-
-`[FromEventSource<AccountEventSource>("Transactions")]` filters a reactor or reducer to one stream of an event source definition. When the definition does not declare that stream with `[EventStream("Transactions")]`, no event can match and the observer would never be called, so the diagnostic reports it as a warning on the attribute. Only the definition's own attributes are read, so a definition in a referenced assembly is checked the same way as one in your project. A stream argument that is not a constant string, and a definition that is not resolved yet, are left alone.
 
 ## Quick fixes
 

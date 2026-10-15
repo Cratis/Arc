@@ -3,7 +3,7 @@
 - name: ARCCHR0001 - Incorrect aggregate root event handler signature
   href: ARCCHR0001.md
 - name: ARCCHR0002 - Ambiguous command identity
-  href: index.md#arcchr0002-ambiguous-command-identity
+  href: ARCCHR0002.md
 - name: ARCCHR0003 - Reactor must not reach the default event log
   href: ARCCHR0003.md
 - name: ARCCHR0004 - [EventType] repeats the type name as its id
@@ -20,12 +20,14 @@
   href: ARCCHR0009.md
 - name: ARCCHR0010 - Raw Guid response does not set the event source id
   href: ARCCHR0010.md
-- name: ARCCHR0011 - Unguarded legacy decision read
+- name: ARCCHR0011 - Plain read model in an Off command is unprotected
   href: ARCCHR0011.md
-- name: ARCCHR0012 - Immediate append with a decision read
+- name: ARCCHR0012 - Immediate append bypasses protected decision
   href: ARCCHR0012.md
 - name: ARCCHR0013 - Use the event source definition
   href: ARCCHR0013.md
+- name: ARCCHR0014 - Observed event stream is not declared
+  href: ARCCHR0014.md
 - name: ARCCHR0015 - Command handler must not return a nullable event
   href: ARCCHR0015.md
 - name: ARCCHR0016 - Concurrency flag ignored with exact scopes
