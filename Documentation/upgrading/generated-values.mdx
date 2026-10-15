@@ -134,6 +134,13 @@ handlers consume a queue. It supplies the same value on every execution of that 
 Use separate scenarios when executions need different values, or `AllowGeneration()` when their exact values
 do not matter.
 
+## Check concept rules on generated values
+
+Generated values, including scenario pins, now fail with `GeneratedValueRejected` if any concept rule
+fails, including Warning and Information rules. Previously, those severities allowed execution. Review
+your generation strategies and pins so they satisfy every concept rule; a rejected value is a server
+defect, not a request validation failure. Validation of caller-supplied input is unchanged.
+
 ## Next steps
 
 - [Pin generated values in command specs](../backend/csharp/testing/generated-values.md) covers multiple parameters, nested commands and reading all captures.
