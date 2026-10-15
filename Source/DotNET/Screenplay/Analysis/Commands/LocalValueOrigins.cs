@@ -19,9 +19,8 @@ internal static class LocalValueOrigins
     /// <returns>Every expression that may supply the local's value.</returns>
     internal static IEnumerable<ExpressionSyntax> Values(ILocalSymbol local, SemanticModel model)
     {
-        foreach (var reference in local.DeclaringSyntaxReferences)
+        foreach (var declaration in local.DeclaringSyntaxReferences.Select(reference => reference.GetSyntax()))
         {
-            var declaration = reference.GetSyntax();
             if (declaration is VariableDeclaratorSyntax { Initializer.Value: { } value })
             {
                 yield return value;

@@ -57,7 +57,7 @@ internal static class UnavailableProductionDependencies
         {
             if (ancestor is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: [var destination, ..] } wrapper &&
                 model.GetTypeInfo(wrapper).Type.Is("Cratis.Chronicle.EventSequences.EventForEventSourceId") &&
-                sources?.UnavailableIn(destination.Expression, model) is { } unavailable)
+                sources.UnavailableIn(destination.Expression, model) is { } unavailable)
             {
                 return unavailable;
             }
@@ -65,7 +65,7 @@ internal static class UnavailableProductionDependencies
             {
                 foreach (var argument in tuple.Arguments.Where(argument => IsIdentity(model.GetTypeInfo(argument.Expression).Type)))
                 {
-                    if (sources?.UnavailableIn(argument.Expression, model) is { } dependency)
+                    if (sources.UnavailableIn(argument.Expression, model) is { } dependency)
                     {
                         return dependency;
                     }
