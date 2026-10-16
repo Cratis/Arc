@@ -548,11 +548,32 @@ A throw caught before registration does not count as an exit when a covering cat
 
 Screenplay has no `when` clause on validation rules, and the generator does not invent an implication for an arbitrary C# predicate or constructor condition.
 
+Match rules must belong to Screenplay's portable pattern dialect. Refused constructs such as regex lookaround are withheld with `SP0016`, naming the property or concept and the language's reason. A generated concept with such a rule also loses its generation contract and dependent claims rather than silently becoming a less constrained generator.
+
 An unconditional top-level property rule written as `.Must(IsKnownName)` can become a named `rule IsKnownName` with a repository-relative `file` referencing the predicate's source. Its method name is preserved. Conditional named predicates remain omitted with `SP0016` rather than stated as unconditional constraints.
 
 Named rules are opaque to reference execution. The generator withholds them when any scenario exercises the affected command, preserving the scenario's legacy declarative behavior instead of changing it to `SemanticUnsupported`. For a concept rule, this includes every command carrying that concept, directly or through nested composite properties and collections. `SP0016` names the command or concept and the scenario commands that caused the omission. This safeguard applies to both success and rejection scenarios, in both default and authoring-only mode. Generated concepts are the exception: their rules are never removed to preserve a scenario. Opaque generated-concept validation instead withholds generation and any scenario that reference execution cannot evaluate.
 
 Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
+
+### Date comparisons and ESM v26
+
+The generator reads chronological `==`, `!=`, `<`, `<=`, `>` and `>=` comparisons on `DateOnly` (`Date`) and `DateTime`/`DateTimeOffset` (`DateTime`) command properties. A `produces when` guard can compare two required command properties or a required property and a literal. Readable authoring-only `Provide()` guards can use the same comparisons in `require`.
+
+Command property validators support `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanOrEqualTo`, `LessThan` and `LessThanOrEqualTo` against **literals only**. Nullable validation subjects are supported: an absent value passes these rules unless a separate `NotEmpty` rule rejects it. Optional operands in command conditions remain unsupported.
+
+Literal recovery accepts `DateOnly.Parse`, `DateTime.Parse` and `DateTimeOffset.Parse` with constant text and `CultureInfo.InvariantCulture`, and `new DateOnly(year, month, day)` with constant arguments. Dates print as `yyyy-MM-dd`. Instants must include an explicit offset or `Z`; they print in UTC with seven fractional digits, for example `2026-01-01T00:00:00.1234567Z`. Comparisons retain tick precision rather than truncating to milliseconds. Compared `DateTime` command inputs must also be bound with an explicit offset or `Z`, before deserialization can supply a local offset.
+
+The generator reports unsupported comparisons with the property and reason instead of emitting a condition or rule the compiler cannot bind:
+
+- Mixed `Date` and `DateTime` operands, invalid dates, and instant literals without an offset.
+- Clock expressions such as `DateTime.Now`, `DateTimeOffset.UtcNow` and `DateOnly.FromDateTime(DateTime.Today)`.
+- Date rules in `ConceptValidator<T>`, which would also affect query inputs and client validation.
+- Property-to-property date validation rules, protected read paths, context operands, and date ordering in reaction `where`.
+
+These boundaries follow [Screenplay decision 0087](https://github.com/Cratis/Screenplay/blob/main/decisions/0087-admit-chronological-date-and-datetime-ordering-in-command-conditions.md). Client validators never carry date ordering; it is a server-side contract.
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V26` to withhold date comparisons in both default and authoring output. A located diagnostic names ESM v26 and the cap. As with other caps, the document then describes less behavior, not an equivalent implementation of the original command. Without date comparisons, a document keeps its existing executable version.
 
 ## Constraints
 

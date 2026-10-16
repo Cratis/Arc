@@ -11,5 +11,6 @@ public class DoStuffValidator : CommandValidator<DoStuff>
     public DoStuffValidator()
     {
         RuleFor(x => x.StuffToDo).NotEmpty();
+        RuleFor(x => x.DueDate).GreaterThanOrEqualTo(new DateOnly(2026, 1, 1));
     }
 }

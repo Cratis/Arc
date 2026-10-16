@@ -53,6 +53,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
+        model = Analysis.DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
         var generatedConcepts = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
             (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
             .ToHashSet(StringComparer.Ordinal);

@@ -106,19 +106,19 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
                 domain);
         }
 
-        return new(
-            new ApplicationModel(
-                domain,
-                options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
-                whole.Types.Concepts,
-                new PolicyCatalog(ordered, domain, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
-                slices,
-                whole.Types.Types)
-            {
-                Imports = imports,
-                EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
-            },
-            diagnostics.All);
+        var model = new ApplicationModel(
+            domain,
+            options.Module ?? options.Domain ?? ScreenplayOptions.DefaultName,
+            whole.Types.Concepts,
+            new PolicyCatalog(ordered, domain, diagnostics).Declare(slices.SelectMany(AuthorizationsIn)),
+            slices,
+            whole.Types.Types)
+        {
+            Imports = imports,
+            EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
+        };
+
+        return new(DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics), diagnostics.All);
     }
 
     /// <summary>

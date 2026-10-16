@@ -83,12 +83,19 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         }
 
         var preceding = 0;
+        var subject = DateValidationRules.Subject(chain.Root, semanticModel);
+        var site = new DateRuleSite(semanticModel, location, diagnostics);
         var scope = ValidationConditions.ScopeOf(chain, semanticModel);
         var conditional = scope is not null || chain.Calls.Any(call => _conditions.Contains(InvocationChain.NameOf(call)));
 
         foreach (var call in chain.Calls)
         {
             var condition = scope ?? ConditionFor(call, chain, semanticModel);
+            if (DateValidationRules.Applies(InvocationChain.NameOf(call), subject, condition))
+            {
+                preceding = ReadDateRule(call, new(subject, property, forEach), site, rules);
+                continue;
+            }
             var added = ReadCall(call, property, forEach, semanticModel, location, rules, preceding, conditional, condition);
             if (added != 0)
             {
@@ -311,5 +318,16 @@ public class ValidationChainReader(ScreenplayDiagnostics diagnostics, SourcePath
         {
             rules[index] = rules[index] with { Message = message };
         }
+    }
+
+    int ReadDateRule(InvocationExpressionSyntax call, DateRuleTarget target, DateRuleSite site, IList<ValidationRuleModel> rules)
+    {
+        if (DateValidationRules.Read(call, target, site) is not { } rule)
+        {
+            return 0;
+        }
+        rules.Add(rule);
+
+        return 1;
     }
 }
