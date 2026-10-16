@@ -63,14 +63,17 @@ public static class IssueBook
             [new EventForEventSourceId(bookId, new BookIssued(memberId))],
             guardedBy: [stock]);
 
-        return result.IsSuccess
-            ? Results.Ok()
-            : Results.Conflict(result.GetDecisionConflicts([stock]));
+        if (result.GetDecisionConflicts([stock]).Any())
+        {
+            return Results.Conflict("The book's copies changed. Nothing was written; read again and decide again.");
+        }
+
+        return result.IsSuccess ? Results.Ok() : Results.UnprocessableEntity("The loan was not recorded.");
     }
 }
 ```
 
-The boundary is captured before the fold, and the append is rejected if a `CopyAdded` or `BookIssued` arrived for the book since. `AppendMany` returns a result: a violation is a value, not an exception, so always check it. The batch must go to the event log of the same store and namespace, and needs at least one read.
+The boundary is captured before the fold, and the append is rejected if a `CopyAdded` or `BookIssued` arrived for the book since. `AppendMany` returns a result: a violation is a value, not an exception, so always check it. Check `GetDecisionConflicts()` before you build the response, and return your own message: a `DecisionConflict` carries the read model's `Type` and cannot be serialized as a response body. The batch must go to the event log of the same store and namespace, and needs at least one read.
 
 ## A unit of work with decision reads
 
@@ -104,7 +107,12 @@ public static class LoanEndpoints
             await eventLog.Transactional.Append(memberId, new LoanTaken(body.Isbn));
 
             var unit = await http.Features.Get<IUnitOfWorkCompletionFeature>()!.CommitAsync();
-            return unit.IsSuccess ? Results.Ok() : Results.Conflict(unit.GetDecisionConflicts());
+            if (unit.GetDecisionConflicts().Any())
+            {
+                return Results.Conflict("The member's loans changed. Nothing was written; read again and decide again.");
+            }
+
+            return unit.IsSuccess ? Results.Ok() : Results.UnprocessableEntity("The loan was not recorded.");
         });
 }
 ```
@@ -142,7 +150,12 @@ public class MemberLoansController(IDecisionReads reads, IEventLog eventLog) : C
         await eventLog.Transactional.Append(memberId, new LoanTaken(body.Isbn));
 
         var unit = await HttpContext.Features.Get<IUnitOfWorkCompletionFeature>()!.CommitAsync();
-        return unit.IsSuccess ? Ok() : Conflict(unit.GetDecisionConflicts());
+        if (unit.GetDecisionConflicts().Any())
+        {
+            return Conflict("The member's loans changed. Nothing was written; read again and decide again.");
+        }
+
+        return unit.IsSuccess ? Ok() : UnprocessableEntity("The loan was not recorded.");
     }
 }
 ```
