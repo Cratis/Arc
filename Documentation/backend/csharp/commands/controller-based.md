@@ -27,6 +27,12 @@ Posting valid input to `/api/carts/add` calls the service and returns its `CartL
 
 The [proxy generator](../proxy-generation/index.md) uses the action method name for the generated TypeScript command. A returned task is awaited by MVC; an action returning `Task` must return actual asynchronous work, not an empty method body.
 
+## Body-binding failures
+
+MVC authorization runs before body binding. Arc converts formatter ModelState paths such as `$.Items[2].From` to validation members such as `items[2].from`, preserving MVC's messages. `[property: ExplicitOffset]` also works on controller body properties; see [command input binding](./input-binding.md) for supported date-time forms and normalization.
+
+`[ApiController]` automatic ProblemDetails responses can short-circuit before Arc's action filter and retain ASP.NET's response shape. This behavior is unchanged; do not assume every binding error uses the command-result envelope.
+
 ## Bypassing command result wrappers
 
 By default Arc wraps controller POST results in a `CommandResult`. Use Arc's `[AspNetResult]` when you intentionally need ASP.NET's result behavior instead. See [without wrappers](../asp-net-core/without-wrappers.md) for its namespace and usage.

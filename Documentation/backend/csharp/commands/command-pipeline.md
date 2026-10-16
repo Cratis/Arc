@@ -9,6 +9,8 @@ When a background job or application service needs the same command behavior as 
 For immediate side effects chosen by a command, return [command operations](./operations/index.md). The pipeline awaits their execution and eligible compensation. Backend code and [CommandScenario](../testing/command-operations.md) can inspect recovery observations without moving recovery handling to the frontend.
 :::
 
+Mapped HTTP endpoints also send body-binding failures through resource-free authorization before returning validation. This path creates no command context or execution scopes, and emits command/validation spans just like other refusals. See [input binding](./input-binding.md#authorization-before-reporting-input-errors) for named-policy limits; direct pipeline callers already supply a bound instance.
+
 ## Basic usage
 
 These complete caller types use `AddItemToCart`, `ICartService`, and the shared cart concepts from the [service-backed example](./model-bound/index.md#a-service-backed-command). Configure Arc and the example's service registration before resolving them.
