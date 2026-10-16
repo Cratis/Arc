@@ -9,7 +9,7 @@ public class and_authorization_declarations_are_missing : given.an_unbound_comma
 {
     void Establish() => _serviceProvider.GetService(typeof(AuthorizationDeclarations)).Returns((object?)null);
 
-    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(typeof(RoleCommand), _bindingFailure, _serviceProvider, false, CancellationToken.None);
+    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(new UnboundCommandRefusalRequest(typeof(RoleCommand), _bindingFailure, _serviceProvider, false), CancellationToken.None);
 
     [Fact] void should_fail_authorization_configuration() => _result.AuthorizationConfigurationFailed.ShouldBeTrue();
     [Fact] void should_not_report_validation() => _result.ValidationResults.ShouldBeEmpty();

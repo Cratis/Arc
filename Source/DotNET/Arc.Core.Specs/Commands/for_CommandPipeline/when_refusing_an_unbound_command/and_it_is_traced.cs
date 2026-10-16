@@ -17,7 +17,7 @@ public class and_it_is_traced : for_CommandPipeline.given.a_traced_command_pipel
         _serviceProvider.GetService(typeof(AuthorizationEvaluation)).Returns(new AuthorizationEvaluation(declarations, evaluator, principal, new ArcAuthorizationPolicyRuntime([])));
     }
 
-    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(typeof(RegisterAuthor), CommandResult.InvalidBody(_correlationId), _serviceProvider, false, CancellationToken.None);
+    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(new UnboundCommandRefusalRequest(typeof(RegisterAuthor), CommandResult.InvalidBody(_correlationId), _serviceProvider, false), CancellationToken.None);
 
     [Fact] void should_report_validation() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_add_the_validation_outcome() => CommandSpan.GetTagItem(WellKnownTelemetryNames.CommandOutcome).ShouldEqual(WellKnownOperationOutcomes.Validation);

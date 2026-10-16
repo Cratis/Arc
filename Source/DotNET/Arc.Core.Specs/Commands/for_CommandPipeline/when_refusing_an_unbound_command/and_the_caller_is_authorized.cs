@@ -5,7 +5,7 @@ namespace Cratis.Arc.Commands.for_CommandPipeline.when_refusing_an_unbound_comma
 
 public class and_the_caller_is_authorized : given.an_unbound_command
 {
-    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(typeof(RoleCommand), _bindingFailure, _serviceProvider, false, CancellationToken.None);
+    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(new UnboundCommandRefusalRequest(typeof(RoleCommand), _bindingFailure, _serviceProvider, false), CancellationToken.None);
 
     [Fact] void should_report_the_binding_failure() => _result.ValidationResults.ShouldEqual(_bindingFailure.ValidationResults);
     [Fact] void should_keep_the_correlation_id() => _result.CorrelationId.ShouldEqual(_correlationId);

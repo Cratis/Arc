@@ -7,7 +7,7 @@ public class and_the_caller_is_not_authorized : given.an_unbound_command
 {
     void Establish() => _evaluator.IsAuthorized(typeof(RoleCommand)).Returns(false);
 
-    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(typeof(RoleCommand), _bindingFailure, _serviceProvider, false, CancellationToken.None);
+    async Task Because() => _result = await _commandPipeline.RefuseUnboundHosted(new UnboundCommandRefusalRequest(typeof(RoleCommand), _bindingFailure, _serviceProvider, false), CancellationToken.None);
 
     [Fact] void should_refuse_authorization() => _result.IsAuthorized.ShouldBeFalse();
     [Fact] void should_not_report_the_body_failure() => _result.ValidationResults.ShouldBeEmpty();

@@ -160,12 +160,8 @@ public static class CommandEndpointMapper
                     var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
                     if (bodyFailure is not null)
                     {
-                        commandResult = commandPipeline is CommandPipeline bindingPipeline
-                            ? await bindingPipeline.RefuseUnboundHosted(commandType, bodyFailure, context.RequestServices, validateOnly, context.RequestAborted)
-                            : CanExecuteWithCustomPipeline(context.RequestServices, commandType, logger) &&
-                              context.RequestServices.GetService<IAuthorizationEvaluator>()?.IsAuthorized(commandType) == true
-                                ? bodyFailure
-                                : CommandResult.Unauthorized(correlationIdAccessor.Current);
+                        var refusal = new UnboundCommandRefusalRequest(commandType, bodyFailure, context.RequestServices, validateOnly);
+                        commandResult = await RefuseUnboundBody(commandPipeline, refusal, logger, context.RequestAborted);
                     }
                     else if (commandPipeline is CommandPipeline builtInPipeline)
                     {
@@ -197,6 +193,19 @@ public static class CommandEndpointMapper
                 await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
             metadata);
+    }
+
+    static Task<CommandResult> RefuseUnboundBody(ICommandPipeline pipeline, UnboundCommandRefusalRequest request, ILogger logger, CancellationToken cancellationToken)
+    {
+        if (pipeline is CommandPipeline builtIn)
+        {
+            return builtIn.RefuseUnboundHosted(request, cancellationToken);
+        }
+
+        var services = request.RequestServices;
+        var allowed = CanExecuteWithCustomPipeline(services, request.CommandType, logger) &&
+            services.GetService<IAuthorizationEvaluator>()?.IsAuthorized(request.CommandType) == true;
+        return Task.FromResult(allowed ? request.BindingFailure : CommandResult.Unauthorized(request.BindingFailure.CorrelationId));
     }
 
     static bool CanExecuteWithCustomPipeline(IServiceProvider services, Type commandType, ILogger logger)

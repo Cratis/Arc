@@ -9,7 +9,7 @@ public class when_authorizing_a_type_without_a_resource : given.a_named_policy_e
 
     void Establish() => _legacyEvaluator.IsAuthorized(typeof(UnboundCommand)).Returns(true);
 
-    async Task Because() => _result = await _evaluation.IsAuthorizedForType(typeof(UnboundCommand), _services, _legacyEvaluator, CancellationToken.None);
+    async Task Because() => _result = await _evaluation.IsAuthorizedForType(new TypeAuthorizationCheck(typeof(UnboundCommand), _services, _legacyEvaluator), CancellationToken.None);
 
     [Fact] void should_allow_the_type() => _result.ShouldBeTrue();
     [Fact] void should_preserve_the_legacy_verdict() => _legacyEvaluator.Received(1).IsAuthorized(typeof(UnboundCommand));
