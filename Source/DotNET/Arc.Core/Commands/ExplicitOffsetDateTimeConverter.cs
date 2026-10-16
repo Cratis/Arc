@@ -15,5 +15,5 @@ internal sealed class ExplicitOffsetDateTimeConverter : JsonConverter<DateTime>
     public override DateTime Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => ExplicitOffsetValue.Read(ref reader).UtcDateTime;
 
     /// <inheritdoc/>
-    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) => writer.WriteStringValue(value);
+    public override void Write(Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options) => writer.WriteStringValue(value.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(value, DateTimeKind.Utc) : value.ToUniversalTime());
 }

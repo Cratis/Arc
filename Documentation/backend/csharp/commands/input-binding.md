@@ -17,6 +17,8 @@ For named ASP.NET Core policies, Arc evaluates the policy with a **null resource
 
 Implement the marker only when all handlers for that requirement read the user, never the resource, directly or indirectly. A claim-to-command-property comparison must **not** implement it. The marker is a promise made by your application; Arc cannot inspect handler code to prove it.
 
+An application-registered extra handler for a built-in requirement (for example `RolesAuthorizationRequirement`) sees a `null` resource on this path; if it requires a resource, at worst that caller gets 400 instead of 403.
+
 If any resolved policy has a resource-dependent requirement, Arc does not evaluate the policy set for an unbindable body. A caller meeting authentication and role requirements then gets **400 Validation**, even if a policy would deny a successfully bound command. Native Core `IAuthorizationPolicy` implementations also remain resource-dependent: they have no ASP.NET requirement set to classify. `IAuthorizationCommandFilter` implementations never run without a command instance.
 
 No command context values, execution scopes, `Provide()`, or `Handle()` run on this path. Successfully bound commands retain the full authorization pipeline, including resource policies and authorization command filters.

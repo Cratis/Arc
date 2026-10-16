@@ -20,7 +20,7 @@ internal sealed class ExplicitOffsetNullableDateTimeConverter : JsonConverter<Da
     {
         if (value is { } instant)
         {
-            writer.WriteStringValue(instant);
+            writer.WriteStringValue(instant.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(instant, DateTimeKind.Utc) : instant.ToUniversalTime());
         }
         else
         {

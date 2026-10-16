@@ -11,5 +11,9 @@ namespace Cratis.Arc.Commands;
 public sealed class ValueRequiresExplicitOffset() : JsonException("The value requires an explicit offset or Z."), IArcBindingRefusal
 {
     /// <inheritdoc/>
+    /// <remarks>
+    /// "DateTime" is the Screenplay primitive name for an instant and deliberately applies to <see cref="DateTimeOffset"/> properties too,
+    /// matching the Screenplay contract text. Do not change it to "DateTimeOffset".
+    /// </remarks>
     string IArcBindingRefusal.MessageFor(string member) => $"DateTime command property '{member}' requires an explicit offset or Z.";
 }

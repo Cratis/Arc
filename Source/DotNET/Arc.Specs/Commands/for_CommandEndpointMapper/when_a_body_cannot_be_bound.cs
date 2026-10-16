@@ -84,6 +84,10 @@ public class when_a_body_cannot_be_bound : Specification
     [Fact] void should_deny_an_anonymous_claim_policy_caller() => Statuses("ClaimsCommand:anonymous").ShouldContainOnly(403, 403);
     [Fact] void should_deny_an_authenticated_caller_missing_the_claim() => Statuses("ClaimsCommand:authenticated").ShouldContainOnly(403, 403);
     [Fact] void should_report_validation_for_the_allowed_claim_policy_caller() => Statuses("ClaimsCommand:allowed").ShouldContainOnly(400, 400);
+    [Fact] void should_deny_an_anonymous_marked_policy_caller() => Statuses("MarkedCommand:anonymous").ShouldContainOnly(403, 403);
+    [Fact] void should_deny_an_anonymous_resource_dependent_policy_caller() => Statuses("DependentCommand:anonymous").ShouldContainOnly(403, 403);
+    [Fact] void should_deny_an_anonymous_assertion_policy_caller() => Statuses("AssertionCommand:anonymous").ShouldContainOnly(403, 403);
+    [Fact] void should_report_the_explicit_offset_message() => _results.Where(result => result.Status == 400).All(result => result.Body.GetProperty("validationResults")[0].GetProperty("message").GetString() == "DateTime command property 'from' requires an explicit offset or Z.").ShouldBeTrue();
     [Fact] void should_evaluate_marked_requirements() => _markedCalls.ShouldEqual(4);
     [Fact] void should_report_validation_after_a_marked_policy_allows() => Statuses("MarkedCommand:allowed").ShouldContainOnly(400, 400);
     [Fact] void should_not_evaluate_unmarked_requirements() => _dependentCalls.ShouldEqual(0);

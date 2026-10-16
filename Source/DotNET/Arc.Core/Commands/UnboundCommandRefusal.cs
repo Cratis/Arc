@@ -112,6 +112,10 @@ internal class UnboundCommandRefusal(
         {
             return await Verdict(request, declaration, activity, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (InvalidAuthorizationConfiguration exception)
         {
             OperationActivity.RecordException(activity, exception);
