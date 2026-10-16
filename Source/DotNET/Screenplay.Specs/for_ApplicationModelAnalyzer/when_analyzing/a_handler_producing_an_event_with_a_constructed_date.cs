@@ -40,6 +40,8 @@ public class a_handler_producing_an_event_with_a_constructed_date : Specificatio
     }
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_not_read_the_constructed_date_as_a_literal() => (_produced?.Mappings ?? []).Any(mapping => mapping.Source is LiteralSource).ShouldBeFalse();
-    [Fact] void should_report_what_it_left_out() => _analysis.Diagnostics.ShouldNotBeEmpty();
+    [Fact] void should_still_produce_the_event() => _produced.ShouldNotBeNull();
+    [Fact] void should_not_read_the_constructed_date_as_a_literal() => _produced.Mappings.Any(mapping => mapping.Source is LiteralSource).ShouldBeFalse();
+    [Fact] void should_report_the_left_out_due_property() => _analysis.Diagnostics.ShouldContain(diagnostic =>
+        diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableCommandProduction && diagnostic.Message.Contains("'BookReserved.Due'"));
 }

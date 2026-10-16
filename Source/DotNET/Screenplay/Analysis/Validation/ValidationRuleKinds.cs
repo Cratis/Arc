@@ -52,12 +52,19 @@ public static class ValidationRuleKinds
         forEach ? _each.TryGetValue(method, out kind) : _single.TryGetValue(method, out kind);
 
     /// <summary>
+    /// Determines whether a rule builder carries meaning that only the code behind it has.
+    /// </summary>
+    /// <param name="method">The name of the rule builder.</param>
+    /// <returns>True when the rule builder is a rule rather than a modifier.</returns>
+    public static bool IsRule(string method) => _single.ContainsKey(method) || _each.ContainsKey(method);
+
+    /// <summary>
     /// Tries to map a rule builder on a Date or DateTime subject onto a declarative rule.
     /// </summary>
     /// <param name="method">The name of the rule builder.</param>
     /// <param name="kind">The declarative rule.</param>
     /// <returns>True when the rule builder has a counterpart for date subjects.</returns>
-    public static bool TryResolveDate(string method, out ValidationRuleKind kind)
+    internal static bool TryResolveDate(string method, out ValidationRuleKind kind)
     {
         if (string.Equals(method, "NotEqual", StringComparison.Ordinal))
         {
@@ -68,11 +75,4 @@ public static class ValidationRuleKinds
 
         return _single.TryGetValue(method, out kind);
     }
-
-    /// <summary>
-    /// Determines whether a rule builder carries meaning that only the code behind it has.
-    /// </summary>
-    /// <param name="method">The name of the rule builder.</param>
-    /// <returns>True when the rule builder is a rule rather than a modifier.</returns>
-    public static bool IsRule(string method) => _single.ContainsKey(method) || _each.ContainsKey(method);
 }
