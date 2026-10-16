@@ -5,86 +5,42 @@ using Cratis.Arc.ProxyGenerator.Templates;
 
 namespace Cratis.Arc.ProxyGenerator.for_DescriptorExtensions.when_writing_descriptors;
 
-/// <summary>
-/// Two different types share the short name `Shared`. One lives in a file named after itself, the other in
-/// a file named something else. The one that moves must not be allowed to rewrite imports of the one that
-/// does not - a short name claimed by two types is ambiguous, so neither gets a fixup.
-/// </summary>
-public class and_two_types_share_a_short_name : Specification, IDisposable
+public class and_two_types_share_a_short_name : Specification
 {
-    string _tempDir = null!;
-    string _expectedFilePath = null!;
-    TypeDescriptor _descriptor = null!;
-    Dictionary<string, GeneratedFileMetadata> _generatedFiles = null!;
-    List<string> _directories = null!;
-    List<Type> _typesInvolved = null!;
-    Dictionary<string, string> _sourceFileMap = null!;
-    string _fileContent = null!;
+    string _outputPath;
+    Dictionary<string, string> _sourceFileMap;
+    string _firstContent;
+    string _secondContent;
 
     void Establish()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
-        Directory.CreateDirectory(_tempDir);
-
-        _generatedFiles = [];
-        _directories = [];
-        _typesInvolved = [];
-
-        var descriptorType = typeof(ImporterOfShared);
-        var importedType = typeof(Shared);
-
-        var imports = new List<ImportStatement> { new(importedType, "Shared", "./Shared") };
-
-        _descriptor = new TypeDescriptor(
-            descriptorType,
-            "ImporterOfShared",
-            [new PropertyDescriptor(importedType, "myProp", "Shared", string.Empty, string.Empty, false, false, false, null)],
-            imports.OrderBy(_ => _.Module),
-            [importedType]);
-
+        _outputPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
         _sourceFileMap = new Dictionary<string, string>
         {
-            [descriptorType.FullName!] = "ImporterOfShared",
-
-            // This one's file is named after it, so it needs no rewrite - but it does claim the name.
-            [importedType.FullName!] = "Shared",
-
-            // A different type, same short name, in a file called something else entirely.
-            ["Some.Other.Namespace.Shared"] = "Grouped"
+            [typeof(given.A.FeatureNode).FullName!] = "FeatureNode",
+            [typeof(given.B.FeatureNode).FullName!] = "Grouped"
         };
-
-        var path = descriptorType.ResolveTargetPath(0);
-        _expectedFilePath = Path.GetFullPath(Path.Join(_tempDir, path, "ImporterOfShared.ts"));
+        TypeExtensions.SetSourceFileMap(_sourceFileMap);
     }
 
     async Task Because()
     {
-        await new[] { _descriptor }.Write(
-            _tempDir,
-            _typesInvolved,
-            TemplateTypes.Type,
-            _directories,
-            0,
-            "types",
-            _ => { },
-            _ => { },
-            _generatedFiles,
-            sourceFileMap: _sourceFileMap);
-
-        _fileContent = await File.ReadAllTextAsync(_expectedFilePath);
+        Type[] types = [typeof(given.A.ModuleNode), typeof(given.A.FeatureNode), typeof(given.B.ModuleNode), typeof(given.B.FeatureNode)];
+        var descriptors = types.Select(type => type.ToTypeDescriptor(_outputPath, 0)).ToArray();
+        await descriptors.Write(_outputPath, [], TemplateTypes.Type, [], 0, "types", _ => { }, _ => { }, sourceFileMap: _sourceFileMap);
+        _firstContent = await File.ReadAllTextAsync(Path.Join(_outputPath, typeof(given.A.ModuleNode).ResolveTargetPath(0), "ModuleNode.ts"));
+        _secondContent = await File.ReadAllTextAsync(Path.Join(_outputPath, typeof(given.B.ModuleNode).ResolveTargetPath(0), "ModuleNode.ts"));
     }
 
-    [Fact] void should_leave_the_import_pointing_at_its_own_file() => _fileContent.ShouldContain("from './Shared'");
-    [Fact] void should_not_redirect_it_to_the_other_types_file() => _fileContent.ShouldNotContain("from './Grouped'");
+    [Fact] void should_leave_the_first_import_pointing_at_its_own_file() => _firstContent.ShouldContain("from './FeatureNode'");
+    [Fact] void should_resolve_the_second_import_to_its_source_file() => _secondContent.ShouldContain("from './Grouped'");
+    [Fact] void should_not_redirect_the_first_import_to_the_other_types_file() => _firstContent.ShouldNotContain("from './Grouped'");
+    [Fact] void should_write_the_first_imported_module() => File.Exists(Path.Join(_outputPath, typeof(given.A.FeatureNode).ResolveTargetPath(0), "FeatureNode.ts")).ShouldBeTrue();
+    [Fact] void should_write_the_second_imported_module() => File.Exists(Path.Join(_outputPath, typeof(given.B.FeatureNode).ResolveTargetPath(0), "Grouped.ts")).ShouldBeTrue();
 
-    public void Dispose()
+    void Destroy()
     {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
+        TypeExtensions.SetSourceFileMap(null);
+        Directory.Delete(_outputPath, true);
     }
 }
-
-public class ImporterOfShared;
-public class Shared;
