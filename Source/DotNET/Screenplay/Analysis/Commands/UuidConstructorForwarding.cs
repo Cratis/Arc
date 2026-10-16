@@ -39,7 +39,7 @@ internal class UuidConstructorForwarding(SemanticModels models)
 
     static IParameterSymbol? GenerationParameter(IMethodSymbol constructor) => constructor.Parameters is [var parameter] && IsGenerationPrimitive(parameter.Type) ? parameter : null;
 
-    static bool IsGenerationPrimitive(ITypeSymbol type) => type.Is("System.Guid") || type.SpecialType == SpecialType.System_String;
+    static bool IsGenerationPrimitive(ITypeSymbol type) => type.Is("System.Guid") || type.SpecialType is SpecialType.System_String or SpecialType.System_Int64 or SpecialType.System_Int32;
 
     static bool IsFrameworkBase(INamedTypeSymbol type) => IsConceptBase(type) && type.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal);
 

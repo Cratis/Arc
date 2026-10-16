@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Model;
+
 namespace Cratis.Arc.Screenplay.Analysis;
 
 /// <summary>
@@ -28,9 +30,10 @@ public static class ConceptValidations
                 continue;
             }
 
-            readers.Types.AddValidations(type.Name, readers.Validators.For(type));
+            var rules = readers.Validators.For(type).ToList();
+            readers.Types.AddValidations(type.Name, rules);
             var concept = declared[type.Name];
-            if (concept.Generation is null && !concept.HasGeneratedUses)
+            if (!NeedsValidatorSource(concept, rules))
             {
                 continue;
             }
@@ -42,4 +45,7 @@ public static class ConceptValidations
             }
         }
     }
+
+    static bool NeedsValidatorSource(ConceptModel concept, IReadOnlyList<ValidationRuleModel> rules) =>
+        concept.HasGeneratedUses || concept.Generation is not null || rules.Any(rule => rule.Kind == ValidationRuleKind.Checksum);
 }

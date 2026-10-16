@@ -291,8 +291,14 @@ Startup validation remains in place for commands compiled without the analyzers.
 
 Arc executes your concept's generation contract at runtime; Screenplay recovery recognizes only the
 [documented factory forms](../generating-a-screenplay.md#recovering-generation-strategies). A custom
-helper, multi-statement factory or context-member calculation can be valid Arc code without a recoverable
-Screenplay strategy. `SP0073` names that limitation; it does not change your runtime factory or make the
+helper or external dependency can be valid Arc code without a recoverable Screenplay strategy. Self-contained
+String bodies, including multi-statement factories using `context.Now`, tenant formatting and
+`GenerateValue.*(context)`, recover as inline `generate rule` bodies in ESM v21. The Cratis C# target binds
+ValueGeneration to Fundamentals' `Cratis.Concepts.GenerationContext`; passing that context to a Fundamentals
+API is target-bound, not a promise of portability to other providers. Rule bodies never become generated
+identifiers because their entropy is unknown. Literal `GenerateValue.Pattern` calls and signed
+`GenerateValue.Integer` ranges also recover in v21; an `int` factory needs one in-range cast, and unsigned
+backings are refused. `SP0073` names that limitation; it does not change your runtime factory or make the
 value caller-supplied.
 
 The generated model keeps independent parameters and behavior. It withholds a whole event production
@@ -314,7 +320,10 @@ Unreadable, conditional or opaque validation stays outside executable generation
 such as Guid `NotEmpty` also remain outside Screenplay's declarative algebra: recovery preserves the
 original validator through a source attachment rather than pretending UUID is text. This does not change
 Arc's runtime validation behavior. A cap below ESM v20 withholds validated generation, not its rules, in
-both output modes. See [Validated generation](../generating-a-screenplay.md#validated-generation-and-esm-v20)
+both output modes. ESM v21 additionally recovers unconditional String `Must(v => GenerateValue.HasValidChecksum(v, Checksum.Luhn))`
+rules, with `Mod11` and `Mod97` supported too. `None` and conditional checksum predicates are not recovered.
+Below v21, generation and its dependents are withheld while the checksum validator remains source-backed;
+rules are never stripped to fit an older cap. See [Validated generation](../generating-a-screenplay.md#validated-generation-and-esm-v20)
 for the admission and fallback details.
 
 ## Next steps

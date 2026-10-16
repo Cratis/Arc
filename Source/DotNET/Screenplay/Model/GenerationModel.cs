@@ -10,6 +10,11 @@ namespace Cratis.Arc.Screenplay.Model;
 internal sealed record GenerationModel(string Kind)
 {
     /// <summary>
+    /// Gets whether the generation strategy requires ESM v21.
+    /// </summary>
+    public bool RequiresV21 => Kind == "pattern" || Kind == "random" || Kind == "rule";
+
+    /// <summary>
     /// Gets the TypeID prefix.
     /// </summary>
     public string? Prefix { get; init; }
@@ -38,4 +43,29 @@ internal sealed record GenerationModel(string Kind)
     /// Gets the byte encoding.
     /// </summary>
     public string? Encoding { get; init; }
+
+    /// <summary>
+    /// Gets the finite generation pattern.
+    /// </summary>
+    public string? Pattern { get; init; }
+
+    /// <summary>
+    /// Gets the appended checksum algorithm.
+    /// </summary>
+    public string? Checksum { get; init; }
+
+    /// <summary>
+    /// Gets the exact inclusive integer range.
+    /// </summary>
+    public string? Range { get; init; }
+
+    /// <summary>
+    /// Gets the self-contained rule name.
+    /// </summary>
+    public string? Rule { get; init; }
+
+    /// <summary>
+    /// Gets the primitive-returning C# rule body.
+    /// </summary>
+    public string? Body { get; init; }
 }

@@ -1,8 +1,10 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Screenplay.Emission.Concepts;
 using Cratis.Arc.Screenplay.Emission.Specifications;
 using Cratis.Arc.Screenplay.Model;
+using Cratis.Screenplay.Semantics;
 
 namespace Cratis.Arc.Screenplay.Emission.Validation;
 
@@ -24,36 +26,74 @@ public class ExecutableValidationRules(ScreenplayDiagnostics diagnostics)
     /// </summary>
     /// <param name="model">The recovered application.</param>
     /// <param name="generatedConcepts">The concepts used for generation before admission pruning.</param>
+    /// <param name="cap">The executable generation version boundary.</param>
     /// <returns>The model without weakening a generated concept's rules.</returns>
-    internal ApplicationModel Apply(ApplicationModel model, IReadOnlySet<string> generatedConcepts)
+    internal ApplicationModel Apply(ApplicationModel model, IReadOnlySet<string> generatedConcepts, SemanticVersion? cap = null)
     {
         var exercised = model.Slices.SelectMany(slice => slice.Specifications)
             .Where(specification => specification.When is { Kind: SpecificationStateKind.Command } issued &&
                 ResponseOnlyScenarios.CanBeStated(specification, model.Slices.SelectMany(slice => slice.Commands).FirstOrDefault(command => command.Name == issued.Name)))
             .Select(specification => specification.When!.Name).ToHashSet(StringComparer.Ordinal);
         var commands = model.Slices.SelectMany(slice => slice.Commands).Where(command => exercised.Contains(command.Name)).ToList();
-        var opaqueConcepts = model.Concepts.Where(concept => (generatedConcepts.Contains(concept.Name) || concept.Generation is not null) &&
-            (concept.Validations.Any(rule => rule.Kind == ValidationRuleKind.Rule) ||
-             (concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 && (concept.Validations.Any() || !concept.ValidationRecoveryComplete))))
+        var contracts = model.Concepts.ToDictionary(concept => concept.Name, concept => ConceptValidationContract.For(concept, cap), StringComparer.Ordinal);
+        var owningConcepts = model.Concepts.Where(concept => OwnsValidation(concept, generatedConcepts, cap) || contracts[concept.Name].MustPreserve).Select(concept => concept.Name).ToHashSet(StringComparer.Ordinal);
+        var opaqueConcepts = model.Concepts.Where(concept => owningConcepts.Contains(concept.Name) && contracts[concept.Name].BlocksExecution)
             .Select(concept => concept.Name).ToList();
-        var unsupported = commands.Where(command => opaqueConcepts.Exists(concept => Carries(command, concept, model))).Select(command => command.Name).ToHashSet(StringComparer.Ordinal);
+        var unsupported = commands.Select(command => (command.Name, Reason: ValidationFailure(command, model, opaqueConcepts, contracts)))
+            .Where(result => result.Reason is not null).DistinctBy(result => result.Name, StringComparer.Ordinal)
+            .ToDictionary(result => result.Name, result => result.Reason!, StringComparer.Ordinal);
 
         return model with
         {
-            Concepts = model.Concepts.Select(concept => generatedConcepts.Contains(concept.Name) || concept.Generation is not null ? concept : concept with
+            Concepts = model.Concepts.Select(concept => owningConcepts.Contains(concept.Name) ? concept : concept with
             {
                 Validations = Retain(concept.Validations, $"concept '{concept.Name}'", concept.Name, commands.Where(command => Carries(command, concept.Name, model)).Select(command => command.Name).ToList())
             }).ToList(),
             Slices = model.Slices.Select(slice => slice with
             {
-                Specifications = slice.Specifications.Select(specification => specification.When is { } issued && unsupported.Contains(issued.Name)
-                    ? specification with { GenerationFailure = "its generated concept has opaque validation that reference execution cannot evaluate; the validator was preserved" } : specification).ToList(),
+                Specifications = slice.Specifications.Select(specification => WithValidationFailure(specification, unsupported)).ToList(),
                 Commands = slice.Commands.Select(command => command with
                 {
                     Validations = Retain(command.Validations, $"command '{command.Name}'", $"{slice.Namespace}.{command.Name}", exercised.Contains(command.Name) ? [command.Name] : [])
                 }).ToList()
             }).ToList()
         };
+    }
+
+    static bool OwnsValidation(ConceptModel concept, IReadOnlySet<string> generatedConcepts, SemanticVersion? cap)
+    {
+        if (generatedConcepts.Contains(concept.Name))
+        {
+            return true;
+        }
+        if (concept.Generation is not { } generation)
+        {
+            return false;
+        }
+
+        return !generation.RequiresV21 || GenerationAdmission.Failure(concept, cap) is null;
+    }
+
+    static string? ValidationFailure(CommandModel command, ApplicationModel model, List<string> opaqueConcepts, Dictionary<string, ConceptValidationContract> contracts)
+    {
+        var concept = opaqueConcepts.Find(concept => Carries(command, concept, model));
+        if (concept is null)
+        {
+            return null;
+        }
+
+        return contracts[concept].VersionFailure is { } reason ? $"concept '{concept}': {reason}; its dependent scenario cannot execute this validation contract"
+            : "its generated concept has opaque validation that reference execution cannot evaluate; the validator was preserved";
+    }
+
+    static SpecificationModel WithValidationFailure(SpecificationModel specification, Dictionary<string, string> unsupported)
+    {
+        if (specification.When is not { } issued)
+        {
+            return specification;
+        }
+
+        return unsupported.TryGetValue(issued.Name, out var reason) ? specification with { GenerationFailure = reason } : specification;
     }
 
     static bool Carries(CommandModel command, string concept, ApplicationModel model)

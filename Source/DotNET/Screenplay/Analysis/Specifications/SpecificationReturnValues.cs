@@ -400,6 +400,18 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         return fields.Count >= declared.Count;
     }
 
+    LiteralSource? GeneratedInteger(ExpressionSyntax expression, ITypeSymbol expected, SemanticModel model)
+    {
+        if (expected is not INamedTypeSymbol concept || new GenerationStrategyReader(models).Read(concept)?.Kind != "random")
+        {
+            return null;
+        }
+        var primitive = new UuidGenerationForms(models).PrimitiveOf(expression, concept, model);
+
+        return primitive is not null && model.GetConstantValue(primitive) is { HasValue: true, Value: int or long } integer
+            ? new LiteralSource(integer.Value) : null;
+    }
+
     LiteralSource? Literal(ExpressionSyntax expression, ITypeSymbol type, SemanticModel semanticModel)
     {
         if (type.NullableAnnotation == NullableAnnotation.Annotated)
@@ -411,6 +423,11 @@ public class SpecificationReturnValues(MappingSourceReader sources, SemanticMode
         if (sources.ReadQueryLiteral(expression, semanticModel, expected, expected) is { } literal)
         {
             return literal;
+        }
+
+        if (GeneratedInteger(expression, expected, semanticModel) is { } integer)
+        {
+            return integer;
         }
 
         var unwrapped = expression;

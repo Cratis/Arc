@@ -81,7 +81,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             model = AuthoringDeclarations.Resolve(model, diagnostics, options.AuthoringOnlyConstructs);
         }
 
-        model = new ExecutableValidationRules(diagnostics).Apply(model, generatedConcepts);
+        model = new ExecutableValidationRules(diagnostics).Apply(model, generatedConcepts, options.MaximumExecutableModelVersion);
 
         var domain = ToName(model.Domain, options.Domain);
         var conceptDiagnostics = new ScreenplayDiagnostics();

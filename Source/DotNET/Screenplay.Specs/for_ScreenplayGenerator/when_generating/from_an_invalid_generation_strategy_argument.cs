@@ -19,7 +19,6 @@ public class from_an_invalid_generation_strategy_argument : a_generation_strateg
     [InlineData("GenerateValue.TypeId(\"user_\")")]
     [InlineData("GenerateValue.TypeId(\"User\")")]
     [InlineData("GenerateValue.NanoId(16 + 16)")]
-    [InlineData("Guid.NewGuid().ToString()")]
 #if NET9_0_OR_GREATER
     [InlineData("System.Security.Cryptography.RandomNumberGenerator.GetHexString(63, lowercase: true)")]
     [InlineData("System.Security.Cryptography.RandomNumberGenerator.GetHexString(1026)")]

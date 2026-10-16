@@ -20,18 +20,47 @@ internal static class GeneratedConceptAdmission
     /// <param name="model">The application's concept declarations.</param>
     /// <param name="maximumVersion">The requested executable version cap.</param>
     /// <returns>Whether generation may be emitted.</returns>
-    public static bool Allows(PropertyModel property, CommandAuthoringModel authoring, ApplicationModel model, SemanticVersion? maximumVersion)
+    public static bool Allows(PropertyModel property, CommandAuthoringModel authoring, ApplicationModel model, SemanticVersion? maximumVersion) => Failure(property, authoring, model, maximumVersion) is null;
+
+    /// <summary>
+    /// Returns the first ordinary or identifier-specific refusal without probing an inadmissible contract.
+    /// </summary>
+    /// <param name="property">The generated value.</param>
+    /// <param name="authoring">The command identifying its destination.</param>
+    /// <param name="model">The recovered concepts.</param>
+    /// <param name="cap">The executable version boundary.</param>
+    /// <returns>A nonempty refusal, or null for an admitted value.</returns>
+    internal static string? Failure(PropertyModel property, CommandAuthoringModel authoring, ApplicationModel model, SemanticVersion? cap)
     {
-        if (property.Type.IsOptional || property.Type.IsCollection || model.Concepts.SingleOrDefault(concept => concept.Name == property.Type.Name) is not { } concept)
+        var concept = ConceptOf(property, model);
+        if (concept is null)
         {
-            return false;
+            return "not a required scalar concept";
         }
-        if ((concept.Generation is null && concept.Primitive != ScreenplayPrimitive.Uuid) || GenerationAdmission.Failure(concept, maximumVersion) is not null)
+        if (!HasGeneration(concept))
         {
-            return false;
+            return "the concept has no recovered generation contract";
+        }
+        return GenerationAdmission.Failure(concept, cap) ?? (property.Name == authoring.Identifier ? IdentifierFailure(concept) : null);
+    }
+
+    static ConceptModel? ConceptOf(PropertyModel property, ApplicationModel model) => property.Type.IsOptional || property.Type.IsCollection
+        ? null : model.Concepts.SingleOrDefault(concept => concept.Name == property.Type.Name);
+
+    static bool HasGeneration(ConceptModel concept) => concept.Generation is not null || concept.Primitive == ScreenplayPrimitive.Uuid;
+
+    static string? IdentifierFailure(ConceptModel concept)
+    {
+        if (concept.Generation?.Kind == "rule")
+        {
+            return "opaque rule bodies have unknown identifier entropy";
+        }
+        if (concept.Generation?.RequiresV21 == true)
+        {
+            return GenerationAdmission.CheckRules(concept, identifier: true);
         }
 
-        return property.Name != authoring.Identifier || RandomBits(concept.Generation) >= 64;
+        return RandomBits(concept.Generation) >= 64 ? null : "generated identifiers require at least 64 random bits";
     }
 
     static double RandomBits(GenerationModel? generation) => generation?.Kind switch

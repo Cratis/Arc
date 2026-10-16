@@ -15,8 +15,10 @@ public class from_a_generated_concept_with_a_non_uuid_backing_type : a_generated
         """).Replace("AuthorId(Guid Value) : EventSourceId<Guid>(Value)", "AuthorId(string Value) : EventSourceId<string>(Value)", StringComparison.Ordinal)
             .Replace("new(Guid.NewGuid())", "new(Guid.NewGuid().ToString())", StringComparison.Ordinal)));
 
-    [Fact] void should_leave_generation_in_code() => Result.Source.ShouldNotContain("generated");
-    [Fact] void should_explain_the_unrecognized_body() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).Message.ShouldContain("not a recognized generation form");
+    [Fact] void should_recover_a_string_rule() => Result.Source.ShouldContain("generate rule AuthorIdNew");
+    [Fact] void should_return_the_primitive_without_the_concept_wrapper() => Result.Source.ShouldContain("return Guid.NewGuid().ToString();");
+    [Fact] void should_admit_the_non_identifier_generated_value() => Result.Source.ShouldContain("authorId AuthorId generated");
+    [Fact] void should_not_report_an_unrecoverable_body() => Result.Diagnostics.Where(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.GenerationNotRecoverable).ShouldBeEmpty();
     [Fact] void should_preserve_the_event_production() => Result.Source.ShouldContain("produces AuthorRegistered");
     [Fact] void should_bind_and_round_trip() => AssertDocument();
 }

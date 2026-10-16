@@ -85,10 +85,16 @@ public class ConceptSyntaxBuilder(
         return [.. declared.Values.OrderBy(_ => _.Name, StringComparer.Ordinal)];
     }
 
-    static IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept) =>
-        (concept.HasGeneratedUses || concept.Generation is not null) && concept.Primitive == ScreenplayPrimitive.Uuid && concept.ValidatorSources.Count > 0 &&
-            (concept.Validations.Any() || !concept.ValidationRecoveryComplete)
-            ? concept.ValidatorSources : concept.Validations;
+    IEnumerable<ValidationRuleModel> ValidationContract(ConceptModel concept)
+    {
+        var contract = ConceptValidationContract.For(concept, MaximumExecutableModelVersion);
+        if (contract.VersionFailure is { } reason)
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.GenerationNotRecoverable, $"Concept '{concept.Name}': {reason}", concept.Name);
+        }
+
+        return contract.Rules;
+    }
 
     /// <summary>
     /// Gets the compliance annotations the concept's value carries.
