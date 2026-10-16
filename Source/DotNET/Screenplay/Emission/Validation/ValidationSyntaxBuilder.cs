@@ -5,6 +5,7 @@ using Cratis.Arc.Screenplay.Emission.Expressions;
 using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Diagnostics;
+using Cratis.Screenplay.Semantics;
 using Cratis.Screenplay.Syntax;
 using ModelRuleKind = Cratis.Arc.Screenplay.Model.ValidationRuleKind;
 using SyntaxRuleKind = Cratis.Screenplay.Syntax.ValidationRuleKind;
@@ -51,7 +52,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
     {
         var converted = new List<ValidationRuleSyntax>();
 
-        foreach (var rule in rules)
+        foreach (var rule in rules.Where(rule => !WithholdsPattern(rule, location)))
         {
             var operand = ToOperand(rule);
             var path = rule.Kind == ModelRuleKind.Rule ? naming.ToFilePath(rule.SourceFilePath) : null;
@@ -84,6 +85,15 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
 
         return converted.Count == 0 ? [] : [new DeclarativeValidateSyntax(converted, SourceLocation.Start)];
     }
+
+    /// <summary>
+    /// Describes why the pinned Screenplay compiler refuses a match pattern.
+    /// </summary>
+    /// <param name="pattern">The pattern.</param>
+    /// <returns>The reason, or null when the pattern is admitted.</returns>
+    static string? RefusalOf(string pattern) =>
+        pattern == Analysis.Validation.ValidationRuleKinds.EmailPattern ? null :
+        PortableMatchPattern.Check(pattern) is { Status: PortableMatchStatus.Refused or PortableMatchStatus.Invalid } check ? check.Description : null;
 
     /// <summary>
     /// Converts the kind of a rule.
@@ -138,4 +148,24 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
     /// <returns>The message, or <see langword="null"/> when there is none.</returns>
     string? ToMessage(string? message) =>
         ScreenplayIdentifier.IsLocalizationKey(message) ? message : naming.ToStringLiteral(message);
+
+    /// <summary>
+    /// Reports and withholds a match rule whose pattern the pinned Screenplay compiler refuses.
+    /// </summary>
+    /// <param name="rule">The rule to check.</param>
+    /// <param name="location">Where the rule lives, for use in diagnostics.</param>
+    /// <returns>Whether the rule was withheld.</returns>
+    bool WithholdsPattern(ValidationRuleModel rule, string location)
+    {
+        if (rule is not { Kind: ModelRuleKind.Matches, Value: string pattern } || RefusalOf(pattern) is not { } description)
+        {
+            return false;
+        }
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnmappableValidationRule,
+            $"The match rule on '{location}.{rule.Property}' uses {description}, which Screenplay cannot express; the rule was left in code",
+            location);
+
+        return true;
+    }
 }
