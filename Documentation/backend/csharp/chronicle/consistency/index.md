@@ -130,7 +130,7 @@ Choose something else when:
 - **A hint is enough.** Mark the read `[Unprotected("why")]`. Do not pay for a fold to display a message.
 - **The state is too big or too hot.** A key with a long history, or a model read by every command, makes each command fold again.
 - **The model cannot be guarded.** Joins, children, by-property keys, filtered reducers and open-ended event types are refused. Use a flat, event-source-keyed model, an aggregate or a stream decision.
-- **The state is not in the event log.** External data, another database or another event sequence is outside the guarantee.
+- **The state is not in the event log.** External data, another database or another event sequence is outside the guard.
 
 ### Why protection is opt-in
 

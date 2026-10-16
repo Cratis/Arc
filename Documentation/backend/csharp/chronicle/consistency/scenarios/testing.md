@@ -86,6 +86,8 @@ The read protection mode comes from the assembly that declares the command, or f
 | That a stream decision guards a stream | Seed and compete on the same route. See [Stream decisions](../../commands/stream-decisions.md#seed-and-interfere-on-the-same-route) |
 | That Chronicle admits a read model before production | [Check that Chronicle admits the decision reads](../../../testing/chronicle.md#check-that-chronicle-admits-the-decision-reads) |
 
+`DecisionReadAdmissions.ShouldAdmitDecisionReadsOf` and `ShouldAdmitDecisionReadsIn` check `[ProtectedDecision]` commands and commands declaring `On` on the command or assembly, ignoring the runtime cap. Under `On`, they include plain Chronicle read-model parameters and discoverable validator constructor parameters, except advisory reads. Per-stream model parameters use stream admission. Calls inside method bodies still need a scenario or an explicit admission check.
+
 For the rest of the scenario API, see [Testing Chronicle commands](../../../testing/chronicle.md).
 
 ## Related

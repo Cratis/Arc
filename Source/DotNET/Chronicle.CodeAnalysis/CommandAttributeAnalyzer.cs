@@ -64,10 +64,6 @@ public sealed class CommandAttributeAnalyzer : DiagnosticAnalyzer
                 ReportInert(context, type, "ReadProtection applies only to commands or assemblies");
             }
         }
-        else if (profile.Mode == 1 && declaration.ConstructorArguments.FirstOrDefault().Value is 2)
-        {
-            ReportInert(context, type, "ReadProtection On is redundant on a ProtectedDecision command");
-        }
         else if (declaration.ConstructorArguments.FirstOrDefault().Value is 0 &&
                  CommandAttributeSymbols.Find(type.ContainingAssembly, AttributePrecedencePolicy.ReadProtectionName)?.ConstructorArguments.FirstOrDefault().Value is null or 0)
         {

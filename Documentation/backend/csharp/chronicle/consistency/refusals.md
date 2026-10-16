@@ -12,7 +12,7 @@ Use this page when a command fails under read protection `On` and you want to kn
 | **The read changed** | `400` | Someone wrote an event that matches what the command read, before it committed. Nothing was written | Submit the command again. The client reads fresh state and decides again |
 | **The code cannot be guarded** | `500` | A configuration error in the command. Retrying does not help | Change the code. The message names the read and the fix |
 
-Arc does not retry for you. A retry that blindly resubmits the same decision would defeat the guard.
+Arc and Chronicle do not re-run the command; the fold may retry up to three times. Keep the user's input, read fresh state, and offer a deliberate resubmission.
 
 ## Retryable: 400
 
@@ -40,13 +40,13 @@ A `[ProtectedDecision]` command outside `On` words the message differently: `Boo
 `ReadCannotBeProtected` has this message. The description and the fix change with the cause:
 
 ```text
-LendBook reads 'stock' (BookStock) through a reducer, so read protection cannot guard it. If it is only context, mark it [Unprotected("why")]. Otherwise read a projection of the same events, or wait for reducer support.
+LendBook reads 'stock' (BookStock) through a reducer that filters its events, so read protection cannot guard it. If it is only context, mark it [Unprotected("why")]. Otherwise remove the reducer's event filter or read an unfiltered projection.
 ```
 
 | Description | Fix |
 | --- | --- |
-| through a reducer | Read a projection of the same events. An unfiltered reducer or self-reducing model without constructor dependencies (other than `ILogger<T>`) is admitted |
-| through a reducer with constructor dependencies | Remove the reducer's constructor dependencies |
+| through a reducer whose handler or reader implementation does not support protected replay | Use Chronicle's built-in reducer reader with a discovered reducer handler |
+| through a reducer with constructor dependencies | Remove dependencies other than `ILogger<T>`; self-reducing models are exempt from this constructor restriction |
 | through a reducer that filters its events | Remove the reducer's event filter, or read an unfiltered projection |
 | with joins or children | Read the parts as separate models |
 | keyed by an event property | Append a fact to the entity the model is keyed by, or use a constraint |
@@ -57,6 +57,8 @@ LendBook reads 'stock' (BookStock) through a reducer, so read protection cannot 
 | without exactly one backing definition | Register exactly one projection or admitted reducer for the model |
 | with a mismatched registered definition | Register the current definition before executing commands |
 | through IMongoCollection | Inject the read model instead of its collection |
+
+Unfiltered reducers with no constructor dependencies other than `ILogger<T>` are admitted. Self-reducing models are exempt from the constructor restriction, not from the filter restriction.
 
 [ARCCHR0024](../code-analysis/ARCCHR0024.md) reports the statically visible cases at build time.
 
@@ -109,7 +111,9 @@ An immediate append is refused for the whole invocation, including after an aggr
 
 ## How errors look to a client
 
-A `400` is a command result with a validation result, like any validator failure. A `500` is a command result with `exceptionMessages` that carries the message. Arc replaces Chronicle's generic subject "The command" with your command's name. See the [HTTP contract](../../../../http-contract.md).
+A `400` is a command result with a validation result, like any validator failure. A `500` carries the refusal text in `exceptionMessages` only when `ArcOptions.ExposeExceptionDetails` is `true`. That option defaults to `true` in Development and `false` elsewhere. When it is `false`, Arc replaces exception messages and removes stack traces; inspect server logs using the correlation id instead. Avoid exposing exception details in production.
+
+When details are exposed, Arc replaces Chronicle's generic subject "The command" with your command's name. See the [HTTP contract](../../../../http-contract.md).
 
 Chronicle documents the same refusals at the API level in [Read protection in Chronicle](/chronicle/read-models/read-protection/#refusals-at-a-glance).
 

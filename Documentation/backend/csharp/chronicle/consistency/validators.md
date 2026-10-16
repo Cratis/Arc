@@ -65,6 +65,12 @@ A validator that rejects writes nothing, so a rejection needs no guard and is ne
 
 The message reaches the client the same way as any validator message. The same rules apply to a nullable parameter: use `BookStock?` when absence is a business condition, and a non-nullable parameter when the command cannot run without the model. See [Nullable means you handle absence](../read-models/injecting-into-commands.md#nullable-means-you-handle-absence).
 
+## Caller severity cannot skip errors under declared On
+
+Declared read protection `On` supplies an `Error` blocking floor unless the command declares `[BlockOnValidationSeverity(...)]`. Validator errors and `Unknown` results block even when the caller sends `X-Allowed-Severity: 3`; warnings and information remain caller-filterable. The floor also applies to `Provide()` control results. A `Result<TEvent, ValidationResult>` error returned by `Handle()` remains a rejection.
+
+The command's read-protection attribute takes precedence over its own assembly's attribute. Lowering the operational `ReadProtection:MaximumMode` does not remove this declared floor, although it can remove the read's guard. An explicit blocking-severity attribute takes precedence. Under `Off` or `Measure`, callers can skip validator errors unless you declare `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]`. See [Validation severity filtering](../../commands/validation-severity-filtering.md).
+
 ## A validator for one stream
 
 A plain constructor parameter whose model declares `[EventStream<TSource>(stream)]` reads the command's own stream, including its resolved stream-id template. Under `On`, validator and `Handle()` share one enrolled fold. Under `Off` or `Measure`, the fold stays stream-scoped but is unguarded. A missing template part returns `400` naming the property before any read; a mismatched route is a configuration error in every mode. Do not use `[LookUpBy]` to redirect a per-stream parameter.
@@ -92,7 +98,7 @@ Put `[LookUpBy(nameof(Command.Property))]` on each constructor parameter. The na
 | `[Unprotected("why")]` on the parameter or the model | Advisory. It guards nothing |
 | `IReadModels`, `IEventStore` or `IEventLog` used in a rule | Refused. Take the model as a parameter instead |
 | `IMongoCollection<T>` of a Chronicle-backed model | Refused. Use `[Unique]` for uniqueness |
-| A service such as a price list | Unknown. It is outside the guarantee |
+| A service such as a price list | Unknown. It is outside the guard |
 | A validator registered by hand as scoped, singleton, a factory or an instance | Refused. Let convention discovery register it, which makes it transient |
 
 The last row is the one that surprises people. Under `On`, Arc builds a fresh validator for every command so that its read-model parameters belong to that command's unit. A validator that the container supplies from another registration is refused with this error:

@@ -149,7 +149,7 @@ A protected decision read always folds the log and never sees a pinned instance.
 
 ### Check that Chronicle admits the decision reads
 
-Chronicle guards only flat, event-source-keyed projections. A `DecisionRead<T>` whose read model has children or nested objects, a join, a reducer, more than one projection, or routing by an event property compiles, but the command fails each time it executes. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
+Chronicle admits flat, event-source-keyed projections and unfiltered reducers with no constructor dependencies except `ILogger<T>`; self-reducing models are exempt from that constructor restriction. A protected read whose model has children or nested objects, a join, unsupported reducer dependencies or filters, more than one projection, or routing by an event property compiles, but the command fails each time it executes. `DecisionReadAdmissions` runs Chronicle's own admission rules over the artifacts discovered for the test run, without executing anything, so one spec can guard every protected command:
 
 ```csharp
 public class when_checking_decision_read_admission
@@ -160,13 +160,13 @@ public class when_checking_decision_read_admission
 }
 ```
 
-`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. Only `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of the `Handle` and `Provide` methods of `[ProtectedDecision]` commands are checked, including methods inherited from a base type; abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked: give those models their own `Admit<T>()` check or a scenario that runs the command. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
+`ShouldAdmitDecisionReadsIn` throws `DecisionReadsAreRefused`, listing every command, read model and `DecisionReadRefusalReason`. `ShouldAdmitDecisionReadsOf(params Type[])` checks selected commands, and `FindRefused` returns the list instead of throwing. The helper checks `DecisionRead<T>` parameters (and `IEnumerable<DecisionRead<T>>`) of `Handle` and `Provide` on `[ProtectedDecision]` commands and commands whose declared read protection is `On`. For `On`, it also checks plain Chronicle-backed model parameters and discoverable validator constructor parameters, except reads marked advisory on the parameter or model. Command and assembly declarations are honored; the runtime cap is ignored. Inherited methods are included, and abstract commands are skipped when scanning an assembly. `IDecisionReads.Get<T>(key)` calls inside a method body are not checked: give those models their own `Admit<T>()` check or a scenario that runs the command. Projections compiled into the test assembly take part in discovery, so a spec-local projection for a production read model can make that model ambiguous here.
 
 ### Assert stream completion
 
 For a command returning `CompleteStream`, `scenario.ShouldHaveCompletedStream(type, id)` accepts a successful completion with or without an event source scope. To assert the exact owner, pass a `ClosedStreamScope` instead; see [completion assertions](../chronicle/commands/completing-streams.md#assert-completion-in-a-command-scenario). Other sources using the same stream type and id remain open after a scoped close. A command without an event source id still closes that pair for every source.
 
-Explicit stream-scoped `IDecisionReads.Get<T>` calls also work in decision mode. Seed events with `OnRoute(...)` and queue competitors on that same route to check the stream guard. The static admission helper checks only injected, key-based `DecisionRead<T>` parameters; use `AdmitForStream<T>()` for an explicit stream fold.
+Explicit stream-scoped `IDecisionReads.Get<T>` calls also work in decision mode. Seed events with `OnRoute(...)` and queue competitors on that same route to check the stream guard. The static admission helper uses stream admission for plain per-stream model parameters under `On`. Use `AdmitForStream<T>()` for explicit stream folds inside method bodies; the helper cannot inspect those calls.
 
 ## Transactional commands in tests
 

@@ -21,11 +21,12 @@ To turn it on for one command instead, put `[ReadProtection(ReadProtectionMode.O
 
 ## 2. Write a protected command
 
-The rule: a book cannot be borrowed when no copy is left. The rule goes in a `CommandValidator<T>` that takes the read model as a constructor parameter. `Handle()` says what happens.
+The rule: a book cannot be borrowed when no copy is left. The rule goes in a `CommandValidator<T>` that takes the read model as a constructor parameter. `Handle()` says what happens. The command-level declaration keeps this example protected when copied into a project that has not enabled `On` assembly-wide.
 
 ```csharp
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.Projections.ModelBound;
 using Cratis.Concepts;
@@ -44,11 +45,12 @@ public record BookBorrowed(MemberId Member);
 [EventType]
 public record BookReturned(MemberId Member);
 
+[ReadModel]
 public record BookStock(
-    EventSourceId Id,
+    Isbn Id,
     [Increment<CopyAdded>, Decrement<BookBorrowed>, Increment<BookReturned>] int Available);
 
-[Command]
+[Command, ReadProtection(ReadProtectionMode.On)]
 public record BorrowBook(Isbn Isbn, MemberId Member)
 {
     public BookBorrowed Handle() => new(Member);
@@ -83,7 +85,7 @@ What makes this work:
 BookStock 'isbn-1' changed after BorrowBook read it. Nothing from this command was written; submit it again.
 ```
 
-The validation result has the reason `concurrencyViolation` and the detail `ReadChanged`. Arc does not retry. The client reads again and submits again.
+The validation result has the reason `concurrencyViolation` and the detail `ReadChanged`. Arc and Chronicle do not re-run the command; the fold may retry up to three times. The client keeps the user's input, reads again and offers resubmission.
 
 The guard for this command is:
 

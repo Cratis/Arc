@@ -50,9 +50,9 @@ public record MonthlyWithdrawals(
     AccountId Id,
     [AddFrom<MoneyWithdrawn>(nameof(MoneyWithdrawn.Amount))] decimal Total)
 {
-    public static async Task<MonthlyWithdrawals?> ForMonth(AccountId account, string month, IReadModels models)
+    public static async Task<MonthlyWithdrawals?> ForMonth(AccountId account, EventStreamId month, IReadModels models)
     {
-        var instance = await models.GetInstanceById<MonthlyWithdrawals>(account, (EventStreamId)month);
+        var instance = await models.GetInstanceById<MonthlyWithdrawals>(account, month);
         return instance is null ? null : await models.Release(instance);
     }
 }

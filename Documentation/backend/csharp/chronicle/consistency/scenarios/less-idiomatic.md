@@ -124,7 +124,7 @@ Take the model as a parameter instead: a validator with `BookStock?`, as in [one
 
 ## The earlier form: [ProtectedDecision] and DecisionRead
 
-Before read protection had modes, a command opted in one at a time with `[ProtectedDecision]` and took `DecisionRead<T>`. That form still works, and under `On` it is redundant.
+Before read protection had modes, a command opted in one at a time with `[ProtectedDecision]` and took `DecisionRead<T>`. That form still works. Under `On` you can use plain read-model parameters instead; `On` also enables protected validator constructor reads.
 
 ```csharp
 using Cratis.Arc.Chronicle.ReadModels;

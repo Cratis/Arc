@@ -16,8 +16,8 @@ static class CommandValidationResults
     static readonly ConcurrentDictionary<Type, (bool HasPolicy, ValidationResultSeverity Severity)> _policies = new();
 
     /// <summary>
-    /// Combines a caller threshold with the command's declared blocking floor. Only attributed commands
-    /// reject Unknown; unannotated commands keep their existing filtering behavior.
+    /// Combines a caller threshold with the command's declared blocking floor. Explicit severity policies take
+    /// precedence; otherwise declared read protection On supplies an Error floor, independent of the runtime cap.
     /// </summary>
     /// <param name="commandType">The type declaring the command policy.</param>
     /// <param name="callerSeverity">The caller's allowed severity.</param>
@@ -35,7 +35,9 @@ static class CommandValidationResults
                 }
             }
 
-            return (false, ValidationResultSeverity.Unknown);
+            return CommandAttributePolicy.ResolveCommand(type).ReadProtection == (int)ReadProtectionMode.On
+                ? (true, ValidationResultSeverity.Error)
+                : (false, ValidationResultSeverity.Unknown);
         });
         if (!policy.HasPolicy)
         {

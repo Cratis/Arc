@@ -100,7 +100,7 @@ Declare `Concurrency` only for ledgers, numbering and approval streams, where ev
 | Stream decision | An explicit scope enrolled when the stream is read: the routed stream, any event type |
 | Fresh-identifier check | An expected-empty guard on the new id |
 
-## What is outside the guarantee
+## What is outside the guard
 
 | Situation | What happens |
 | --- | --- |

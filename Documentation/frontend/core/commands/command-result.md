@@ -191,7 +191,7 @@ Each `ValidationResult` contains:
 - `members`: Array of property names that failed validation
 - `state`: Additional context, set by whoever authored the rule (FluentValidation's `WithState`)
 - `reason`: What composed the result — see below
-- `reasonDetail`: Which specific thing within `reason` produced the result — the name of the violated constraint for `constraintViolation`. `undefined` when the reason carries no finer identity
+- `reasonDetail`: Which specific thing within `reason` produced the result — the violated constraint for `constraintViolation`, or `ReadChanged` / `ReadIncomplete` for read-protection `concurrencyViolation` results. `undefined` when the reason carries no finer identity
 
 ### Telling one kind of rejection from another
 
@@ -209,23 +209,31 @@ A rejection your own rules produced and one the framework composed on your behal
 
 ### Optional Chronicle rejection handling
 
-The next two fragments apply only when using the [Chronicle command integration](../../../backend/csharp/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `retry` and `setFieldError` below represent application-owned actions, not Arc APIs.
+The next two fragments apply only when using the [Chronicle command integration](../../../backend/csharp/chronicle/commands/index.md). Standalone Arc has no event-store dependency. Commands can call ordinary services and return DTOs or `Guid` responses without any event-sourcing semantics. `reloadCurrentState`, `offerResubmit`, and `setFieldError` below represent application-owned actions, not Arc APIs.
 
 ```typescript
 import { ValidationResultReason } from '@cratis/arc/validation';
 
 const result = await command.execute();
 
-if (
-    result.validationResults.some(
-        (_) => _.reason === ValidationResultReason.ConcurrencyViolation,
-    )
-) {
-    // Someone else changed this while the form was open. Re-read and resubmit — the
-    // input was never the problem, so do not put an error on any field.
-    return retry();
+const conflict = result.validationResults.find(
+    (_) => _.reason === ValidationResultReason.ConcurrencyViolation,
+);
+
+if (conflict) {
+    if (conflict.reasonDetail === 'ReadChanged' || conflict.reasonDetail === 'ReadIncomplete') {
+        // Keep the user's input. Nothing from this command was written.
+        await reloadCurrentState();
+        return offerResubmit();
+    }
+
+    // Other concurrency violations also need fresh state and a deliberate retry.
+    await reloadCurrentState();
+    return offerResubmit();
 }
 ```
+
+`ReadChanged` is retryable: a matching event arrived after the decision read. `ReadIncomplete` is also retryable: the read could not finish after the fold's retries. Keep the draft, re-read, and let the user review fresh state before resubmitting; do not clear the form or label the input invalid. Arc and Chronicle do not re-run the command. A `ReadChanged` result's `state` includes `{ readModel, key }`, but does not identify the conflicting event. There is no TypeScript constant for these detail strings.
 
 ### Telling one constraint from another
 

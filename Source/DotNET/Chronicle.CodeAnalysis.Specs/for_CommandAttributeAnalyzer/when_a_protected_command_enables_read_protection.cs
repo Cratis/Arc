@@ -4,7 +4,6 @@
 #pragma warning disable MA0136 // The fixture contains source snippets, independent of platform line endings.
 
 using Cratis.Arc.Chronicle.CodeAnalysis.Specs.Testing;
-using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Chronicle.CodeAnalysis.Specs.for_CommandAttributeAnalyzer;
 
@@ -18,6 +17,5 @@ public class when_a_protected_command_enables_read_protection
         using Cratis.Chronicle.Events;
         using Cratis.Chronicle.Projections.ModelBound;
         [ProtectedDecision, ReadProtection(ReadProtectionMode.On)] public class Command { public void Handle() { } }
-        """,
-        AnalyzerVerifier<CommandAttributeAnalyzer>.Diagnostic("ARCCHR0032").WithSeverity(DiagnosticSeverity.Info));
+        """);
 }

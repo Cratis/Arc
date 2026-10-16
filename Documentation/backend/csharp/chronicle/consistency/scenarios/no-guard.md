@@ -35,17 +35,22 @@ public class OverbookingRepair(IEventStore eventStore) : IReactor
         var events = await eventStore.EventLog.GetFromSequenceNumber(
             EventSequenceNumber.First,
             context.EventSourceId);
-        var reservedUpToThis = events.Count(_ =>
-            _.Context.SequenceNumber <= context.SequenceNumber && _.Content is SeatReserved);
+        if (events.Any(_ => _.Content is ReservationCancelled cancelled && cancelled.ReservationId == @event.ReservationId))
+        {
+            return null;
+        }
 
-        return reservedUpToThis > Capacity
+        var upToThis = events.Where(_ => _.Context.SequenceNumber <= context.SequenceNumber).ToList();
+        var active = upToThis.Count(_ => _.Content is SeatReserved) - upToThis.Count(_ => _.Content is ReservationCancelled);
+
+        return active > Capacity
             ? new ReservationCancelled(@event.ReservationId, "The flight was overbooked.")
             : null;
     }
 }
 ```
 
-Returning `null` records nothing. `[OnceOnly]` keeps the repair out of replays. It does not make delivery exactly-once, so make the correction safe to repeat. A reactor is not a command, so it is not under read protection. Its own reads go through `IEventStore` and are not refused.
+Returning `null` records nothing. `[OnceOnly]` keeps the repair out of replays. It does not make delivery exactly-once, so the reactor skips a reservation it already cancelled, and it counts cancellations so a seat freed earlier is not held against a later reservation. A reactor is not a command, so it is not under read protection. Its own reads go through `IEventStore` and are not refused.
 
 ## A hint
 
