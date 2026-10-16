@@ -11,6 +11,7 @@ Use this page when a rule holds in every test and still breaks in production. Th
 | --- | --- | --- |
 | [A uniqueness check instead of a constraint](#a-uniqueness-check-instead-of-a-constraint) | Nothing | Constraint |
 | [A read that is not protected](#a-read-that-is-not-protected) | [ARCCHR0011](../code-analysis/ARCCHR0011.md) (Info, `Off`) | Turn read protection `On` |
+| [Caller-skipped validator errors under Off](#caller-skipped-validator-errors-under-off) | Nothing | Declare a blocking severity policy |
 | [An immediate append under Off](#an-immediate-append-under-off) | [ARCCHR0007](../code-analysis/ARCCHR0007.md) | Return the events |
 | [An aggregate commit whose result is ignored](#an-aggregate-commit-whose-result-is-ignored) | Nothing | Return `Commit()` |
 | [No event source id, or two candidates](#no-event-source-id-or-two-candidates) | [ARCCHR0002](../code-analysis/ARCCHR0002.md) for two candidates | `EventSourceId` or `ICanProvideEventSourceId` |
@@ -20,7 +21,7 @@ Use this page when a rule holds in every test and still breaks in production. Th
 | [A lowered mode](#a-lowered-or-measured-mode) | A startup Warning | Remove the cap |
 | [Results you must check](#results-you-must-check-when-you-use-chronicle-directly) | Nothing | Check `IsSuccess` |
 | [The first append into a scope](#the-first-append-into-a-scope) | Nothing | Opt in |
-| [Where the guard stops](#where-the-guard-stops) | Nothing | Outside the guarantee |
+| [Where the guard stops](#where-the-guard-stops) | Nothing | Outside the guard |
 | [Tests without the in-process log](#tests-without-the-in-process-log) | Nothing | A command declaring read protection and real seeded events |
 
 All examples on this page share one namespace.
@@ -74,7 +75,7 @@ These cases differ: do not treat a safe widening as a missed conflict.
 | Source-level `Concurrency = EventSourceId` falls back onto a stream command | The guard widens to the source; other months can conflict. [ARCCHR0038](../code-analysis/ARCCHR0038.md) reports it | Use no declared concurrency for the model's exact event types, or declare all three source-id/stream dimensions on the stream |
 | A per-stream model is queried by key alone | Loud refusal: `ReadModelRequiresStreamScope` | Use the plain `IReadModels.GetInstanceById<T>(EventSourceId, EventStreamId)` overload; no watcher |
 | A command parameter's route does not match its model declaration | Loud `ReadModelStreamNotOnCommandRoute` in every mode; [ARCCHR0037](../code-analysis/ARCCHR0037.md) | Match the definition and stream and declare an explicit stream id |
-| A writer bypasses the definition route and omits its source type | Its events are neither folded nor guarded by the model: silent and outside the guarantee | Route every writer through the same definition |
+| A writer bypasses the definition route and omits its source type | Its events are neither folded nor guarded by the model: silent and outside the guard | Route every writer through the same definition |
 
 ## A uniqueness check instead of a constraint
 
@@ -110,7 +111,7 @@ Read protection guards the reads it can see. These stay silent:
 | --- | --- |
 | The command or its project is `Off` or `Measure` | A plain read is a snapshot. `Measure` only reports |
 | A read marked `[Unprotected]` | It is declared advisory. Nothing guards it, and a reviewer must judge the reason |
-| A service, another database or an HTTP call | Unknown. Outside the guarantee |
+| A service, another database or an HTTP call | Unknown. Outside the guard |
 | A model type marked `[Unprotected]` | Every command that reads it treats it as advisory |
 
 Under `Off`, [ARCCHR0011](../code-analysis/ARCCHR0011.md) reports plain reads in event-producing commands at Info severity, which is easy to miss in a build log. Raise it for projects that have not moved yet:
@@ -120,6 +121,12 @@ Under `Off`, [ARCCHR0011](../code-analysis/ARCCHR0011.md) reports plain reads in
 dotnet_diagnostic.ARCCHR0011.severity = warning
 dotnet_diagnostic.ARCCHR0012.severity = warning
 ```
+
+## Caller-skipped validator errors under Off
+
+Under `Off` or `Measure`, a caller sending `X-Allowed-Severity: 3` can skip validator errors and let `Handle()` run unless the command declares a blocking policy. If you rely on validators under `Off`, use `[BlockOnValidationSeverity(ValidationResultSeverity.Error)]` from `Cratis.Arc.Commands.ModelBound`. This keeps errors blocking; it does not guard the read or close the gap before append.
+
+Commands declaring `On` get this Error floor implicitly, including when an operational cap lowers read protection. An explicit blocking-severity attribute takes precedence. See [Validation severity filtering](../../commands/validation-severity-filtering.md).
 
 ## An immediate append under Off
 

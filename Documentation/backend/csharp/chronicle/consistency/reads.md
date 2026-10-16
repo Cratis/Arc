@@ -1,9 +1,9 @@
 ---
 title: Reads under read protection
-description: Which reads a command can make under On, which are protected, advisory, refused or outside the guarantee, and how to declare an advisory read or choose the key a parameter reads.
+description: Which reads a command can make under On, which are protected, advisory, refused or outside the guard, and how to declare an advisory read or choose the key a parameter reads.
 ---
 
-Use this page when you want to know what a read in a command becomes under `On`, how to mark one as advisory, or how to choose which key a parameter reads. Under `Off` none of this applies: every read is a plain read.
+Use this page when you want to know what a read in a command becomes under `On`, how to mark one as advisory, or how to choose which key a parameter reads. Under `Off`, plain read-model parameters remain unguarded; explicit `[ProtectedDecision]` commands with `DecisionRead<T>` still guard their declared decision reads.
 
 ## Four classes of read
 
@@ -12,21 +12,21 @@ Use this page when you want to know what a read in a command becomes under `On`,
 | **Protected** | A read model parameter, or `IDecisionReads.Get` in `Provide()`, that Chronicle can guard | Read fresh, and enrolled as a guard before your code sees the value |
 | **Advisory** | A read you marked `[Unprotected("why")]` | A stored read that guards nothing. The reason goes to telemetry |
 | **Refused** | Any other read Arc or Chronicle can see | The command fails with a `500` that names the read and the fix |
-| **Unknown** | A dependency Arc cannot see: a service, another database, an HTTP call | Outside the guarantee. Never reported as protected |
+| **Unknown** | A dependency Arc cannot see: a service, another database, an HTTP call | Outside the guard. Never reported as protected |
 
 ## What each read becomes
 
 | What you write in a command | Under `On` |
 | --- | --- |
 | A read-model parameter backed by a source-keyed projection (materialized, passive or model-bound) | **Protected.** The fold is read from the event log, not from the read model store |
-| A read-model parameter backed by an unfiltered reducer or self-reducing model with no constructor dependencies other than `ILogger<T>` | **Protected** |
+| A read-model parameter backed by an unfiltered reducer with no constructor dependencies other than `ILogger<T>` (self-reducing models are exempt from that constructor restriction) | **Protected** |
 | A reducer with a filter or other constructor dependencies | **Refused** |
 | A model with joins, children, `FromEvery`, `FromEventProperty` or `UsingKey` | **Refused** |
 | A projection keyed by a stream | **Refused** as a plain parameter. Read it with `IDecisionReads.Get` and an explicit stream in `Provide()` |
 | A key that is not a string or a `Guid`; an ambiguous projection; a model of another event sequence; a definition that does not match the registered one | **Refused** |
 | A projection with Pinned generation delivery | **Refused** |
 | A model with no instance yet | **Protected.** The parameter is `null` and the guard watches for the first event |
-| `DecisionRead<T>` with `[ProtectedDecision]` | Unchanged. Redundant under `On` |
+| `DecisionRead<T>` with `[ProtectedDecision]` | Still supported. `On` additionally protects plain read-model parameters and validator constructor reads |
 | `IDecisionReads.Get<T>` in `Provide()` | **Protected** |
 | `IDecisionReads.GetDetached<T>` | **Refused** unless inside an advisory method |
 | `IReadModels`, raw `IEventStore`, `IEventLog` or `IEventSequence` reads | **Refused** at the call |

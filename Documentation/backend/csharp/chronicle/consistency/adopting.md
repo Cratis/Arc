@@ -26,7 +26,7 @@ Under `Measure`, reads, lookups, scopes, results and status codes stay as they a
 | Reads the event log's tail once at the start of the command | On the request path | One awaited call, with a timeout |
 | Scans for events that appeared during the command and match what it read | In the background, on a sample of commands | Background reads on the shared connection |
 
-Measure is best-effort. A command whose tail read timed out, or whose scan was dropped, is reported as `measurement_unavailable` and counts as no evidence either way. The report is a set of hypotheses, not a guarantee.
+Measure is best-effort. A command whose tail read timed out, or whose scan was dropped, is reported as `measurement_unavailable` and counts as no evidence either way. The report is a set of hypotheses, not an enforced guard.
 
 Measure settings are runtime configuration, in the same `ReadProtection` section as the [run-time cap](#cap-the-mode-at-run-time):
 
@@ -54,7 +54,7 @@ Start with the counter, grouped by `category` and `command`.
 | `protected_read` | The read would be guarded | Nothing |
 | `refused_read` | The read would be refused. `reason` names the cause or the API | See the next table |
 | `advisory_read` | The read is declared `[Unprotected]`. `reason` is your text | Check the reason still holds |
-| `unknown_dependency` | A service or other dependency Arc cannot see | Nothing, but it is outside the guarantee. It is never counted as protected |
+| `unknown_dependency` | A service or other dependency Arc cannot see | Nothing, but it is outside the guard. It is never counted as protected |
 | `redirect` | The `On` lookup rule would select a different key than the one the legacy path used | Add `[LookUpBy(nameof(Property))]` to say which key you mean |
 | `immediate_append` | The command appended through an `IEventLog` and `On` would refuse it | Return the event from `Handle()`, or use `IEventLog.Transactional` |
 | `displacement` | An explicit scope or stream decision sits beside a read of the same source | The two must be reconciled under `On` |
@@ -128,7 +128,7 @@ Operations can lower the mode without a build. The cap only lowers. It never rai
 | `Measure` | Commands declared `On` run as `Measure` |
 | `Off` | Commands declared `On` or `Measure` run as `Off` |
 
-At startup, Arc logs a Warning for each command whose declared mode is lowered. Measure reports a `mode_lowered` observation with the declared and effective modes. Use the cap to back out of an incident while you fix the code, and remove it afterwards: with it set, the guarantees of `On` do not hold.
+At startup, Arc logs a Warning for each command whose declared mode is lowered. Measure reports a `mode_lowered` observation with the declared and effective modes. Use the cap to back out of an incident while you fix the code, and remove it afterwards: while it lowers the mode, reads run with the lower mode's behavior instead of `On`'s guards.
 
 ## Where to go next
 

@@ -11,11 +11,38 @@ on:
       - "**"
     paths:
       - "Documentation/**"
+      - ".github/workflows/markdown-verification.yml"
 
 permissions:
   contents: read
 
 jobs:
+  client-snippets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.407
+            9.0.x
+            10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Compile client snippets
+        run: python3 Documentation/validate-client-snippets.py
+
   markdown-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 15

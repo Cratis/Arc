@@ -96,7 +96,7 @@ A plain parameter stays a plain read, as it always was. Nothing is guarded. A mo
 
 ### Do I still need `DecisionRead<T>` and `[ProtectedDecision]`?
 
-Not under `On`. A plain parameter replaces `DecisionRead<T>`. A `[ProtectedDecision]` command with `DecisionRead<T>` keeps working, and [ARCCHR0032](../code-analysis/ARCCHR0032.md) reports `[ReadProtection(ReadProtectionMode.On)]` on a `[ProtectedDecision]` command as redundant. Outside `On`, `[ProtectedDecision]` is how a command opts in one at a time.
+Not under `On`: a plain parameter can replace `DecisionRead<T>`. A `[ProtectedDecision]` command with `DecisionRead<T>` keeps working. Adding `On` is not redundant: it also protects plain read-model parameters and validator constructor reads and changes conflict diagnostics. Outside `On`, `[ProtectedDecision]` is how a command opts in one at a time.
 
 ## Conflicts
 
@@ -106,7 +106,7 @@ No. A guarded read that changed returns a `400` with the reason `concurrencyViol
 
 ### What does a guard not cover?
 
-`Revise` and `Redact`, projection definitions changed in another process, other event sequences, external state, and a writer that decides without a guard. See [How it works](./how-it-works.md#what-is-outside-the-guarantee).
+`Revise` and `Redact`, projection definitions changed in another process, other event sequences, external state, and a writer that decides without a guard. See [How it works](./how-it-works.md#what-is-outside-the-guard).
 
 ### Why is the command's key important?
 
