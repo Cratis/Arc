@@ -57,9 +57,7 @@ public static class ReadModelServiceCollectionExtensions
     {
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
-        var readModelTypes = _discoveryByArtifacts
-            .GetValue(clientArtifactsProvider, _ => new ReadModelDiscovery())
-            .GetTypes(clientArtifactsProvider);
+        var readModelTypes = DiscoverReadModelTypes(clientArtifactsProvider);
 
         // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
@@ -163,6 +161,14 @@ public static class ReadModelServiceCollectionExtensions
         // actually carried.
         return readModel is null ? readModel : ReleaseReadModel(readModels, readModelType, readModel);
     }
+
+    /// <summary>
+    /// Discovers the same Chronicle-backed models for parameter resolution and admission checks.
+    /// </summary>
+    /// <param name="artifacts">The discovered client artifacts.</param>
+    /// <returns>The injectable read model types.</returns>
+    internal static Type[] DiscoverReadModelTypes(IClientArtifactsProvider artifacts) =>
+        _discoveryByArtifacts.GetValue(artifacts, _ => new ReadModelDiscovery()).GetTypes(artifacts);
 
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
         where T : class
