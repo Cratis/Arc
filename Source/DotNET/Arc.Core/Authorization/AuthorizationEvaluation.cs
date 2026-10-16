@@ -79,6 +79,23 @@ public class AuthorizationEvaluation(
             QueryContext { PreparedAuthorization: { } queryPlan } => queryPlan,
             _ => await Prepare(target, services, cancellationToken)
         };
+        return await IsAuthorizedPrepared(target, resource, services, legacyVerdict, legacyEvaluator, prepared, cancellationToken);
+    }
+
+    /// <summary>
+    /// Evaluates a prepared authorization plan for a bound or explicitly resource-free operation.
+    /// </summary>
+    /// <param name="target">The protected target.</param>
+    /// <param name="resource">The resource, or null after explicit resource-free admission.</param>
+    /// <param name="services">The executing scope.</param>
+    /// <param name="legacyVerdict">An optional performer verdict.</param>
+    /// <param name="legacyEvaluator">The legacy evaluator.</param>
+    /// <param name="prepared">The prepared plan.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>The combined verdict.</returns>
+    /// <exception cref="InvalidAuthorizationConfiguration">The prepared target or requirements changed.</exception>
+    internal async Task<bool> IsAuthorizedPrepared(MemberInfo target, object? resource, IServiceProvider services, Func<bool>? legacyVerdict, IAuthorizationEvaluator legacyEvaluator, PreparedAuthorization prepared, CancellationToken cancellationToken)
+    {
         if (!prepared.Target.Equals(target))
         {
             throw new InvalidAuthorizationConfiguration("The prepared authorization target does not match the executing command.");
@@ -94,7 +111,7 @@ public class AuthorizationEvaluation(
         var selectedPrincipal = prepared.SelectedPrincipal;
         var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
-        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal, prepared.EvaluatesAnonymous))
+        if (!MeetsTypeRequirements(prepared))
         {
             return false;
         }
@@ -133,7 +150,7 @@ public class AuthorizationEvaluation(
             }
 
             if (!await resolution.IsAuthorized(
-                new AuthorizationPolicyContext(selectedPrincipal, target, resource)
+                new AuthorizationPolicyContext(selectedPrincipal, target, resource!)
                 {
                     PrincipalAccessor = principalAccessor,
                     ReceivedAt = resource switch
@@ -164,12 +181,7 @@ public class AuthorizationEvaluation(
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
-        var allowed = legacyVerdict?.Invoke() ?? target switch
-        {
-            Type type => legacyEvaluator.IsAuthorized(type),
-            MethodInfo method => legacyEvaluator.IsAuthorized(method),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
+        var allowed = legacyVerdict?.Invoke() ?? LegacyVerdict(target, legacyEvaluator);
         if (!allowed)
         {
             return false;
@@ -201,6 +213,42 @@ public class AuthorizationEvaluation(
 
         return true;
     }
+
+    /// <summary>
+    /// Checks type requirements without evaluating policies that need a bound resource.
+    /// </summary>
+    /// <param name="target">The unbound command type.</param>
+    /// <param name="services">The request services.</param>
+    /// <param name="legacyEvaluator">The configured type evaluator.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <param name="prepared">An optional already prepared authentication plan.</param>
+    /// <returns>Whether type requirements and policies explicitly safe without a resource allow access.</returns>
+    internal async Task<bool> IsAuthorizedForType(Type target, IServiceProvider services, IAuthorizationEvaluator legacyEvaluator, CancellationToken cancellationToken, PreparedAuthorization? prepared = null)
+    {
+        prepared ??= await Prepare(target, services, cancellationToken);
+        if (prepared.Resolution is IResourceFreePolicyResolution { CanEvaluateWithoutResource: true })
+        {
+            return await IsAuthorizedPrepared(target, null, services, null, legacyEvaluator, prepared, cancellationToken);
+        }
+
+        if (!MeetsTypeRequirements(prepared))
+        {
+            return false;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return prepared.Declaration.RequiresAsynchronousEvaluation || LegacyVerdict(target, legacyEvaluator);
+    }
+
+    static bool MeetsTypeRequirements(PreparedAuthorization prepared) =>
+        AuthorizationEvaluator.CheckRoles(prepared.Declaration, prepared.SelectedPrincipal, prepared.EvaluatesAnonymous);
+
+    static bool LegacyVerdict(MemberInfo target, IAuthorizationEvaluator legacyEvaluator) => target switch
+    {
+        Type type => legacyEvaluator.IsAuthorized(type),
+        MethodInfo method => legacyEvaluator.IsAuthorized(method),
+        _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+    };
 
     AuthorizationDeclaration DeclarationFor(MemberInfo target) => target switch
     {

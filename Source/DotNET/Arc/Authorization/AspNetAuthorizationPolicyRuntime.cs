@@ -171,8 +171,14 @@ public class AspNetAuthorizationPolicyRuntime(
         IAuthorizationPolicyResolution nativeResolution,
         AuthorizationPolicy[] aspPolicies,
         string[] selectedSchemes,
-        bool evaluatesAnonymous) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution
+        bool evaluatesAnonymous) : IAuthorizationPolicyResolution, IAnonymousPolicyResolution, IResourceFreePolicyResolution
     {
+        public bool CanEvaluateWithoutResource =>
+            nativeResolution is IResourceFreePolicyResolution { CanEvaluateWithoutResource: true } &&
+            aspPolicies.All(policy => policy.Requirements.All(requirement => requirement is
+                DenyAnonymousAuthorizationRequirement or RolesAuthorizationRequirement or ClaimsAuthorizationRequirement or
+                NameAuthorizationRequirement or IResourceFreeRequirement));
+
         public bool EvaluatesAnonymous => evaluatesAnonymous;
 
         public async Task<ClaimsPrincipal?> SelectPrincipal(ClaimsPrincipal? principal, IServiceProvider services, CancellationToken cancellationToken)

@@ -230,6 +230,49 @@ public class CommandPipeline(
         }
     }
 
+    /// <summary>
+    /// Reports a body-binding failure only after resource-free authorization, without creating a command context.
+    /// </summary>
+    /// <param name="commandType">The unbound command type.</param>
+    /// <param name="bindingFailure">The body-binding failure.</param>
+    /// <param name="requestServices">The request services.</param>
+    /// <param name="validateOnly">Whether this is the validation endpoint.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>The authorization refusal or the original binding failure.</returns>
+    internal async Task<CommandResult> RefuseUnboundHosted(Type commandType, CommandResult bindingFailure, IServiceProvider requestServices, bool validateOnly, CancellationToken cancellationToken)
+    {
+        using var span = validateOnly ? activitySource.Validate(TypeNameOf(commandType)) : activitySource.Execute(TypeNameOf(commandType));
+        OperationActivity.AddCommandType(span.Activity, commandType);
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            var result = await RefuseUnboundHostedCore(commandType, bindingFailure, requestServices, span.Activity, cancellationToken);
+            if (validateOnly)
+            {
+                RecordValidation(span.Activity, result, cancellationToken);
+            }
+            else
+            {
+                RecordCommand(span.Activity, requestServices, commandType, result, started, cancellationToken);
+            }
+
+            return result;
+        }
+        catch (Exception exception)
+        {
+            if (validateOnly)
+            {
+                RecordValidationFailure(span.Activity, exception, cancellationToken);
+            }
+            else
+            {
+                RecordCommandFailure(span.Activity, requestServices, commandType, exception, started, cancellationToken);
+            }
+
+            throw;
+        }
+    }
+
     static CommandResult MapException(CorrelationId correlationId, CommandContext? context, Exception exception)
     {
         try
@@ -326,6 +369,68 @@ public class CommandPipeline(
         OperationActivity.RecordOutcome(activity, WellKnownTelemetryNames.CommandOutcome, OperationOutcomes.ForException(cancellationToken), []);
     }
 
+    async Task<CommandResult> RefuseUnboundHostedCore(Type commandType, CommandResult bindingFailure, IServiceProvider services, Activity? activity, CancellationToken token)
+    {
+        using var decisionPolicy = CommandDecisionPolicy.Begin(commandType, services);
+        try
+        {
+            EnsureDecisionSupport(services);
+        }
+        catch (Exception exception)
+        {
+            OperationActivity.RecordException(activity, exception);
+            return CommandResult.FromException(GetCorrelationId(), exception);
+        }
+
+        using var receipt = OperationContextScope.BeginIfNotSet(services);
+        var declaration = GetHostedDeclaration(commandType, services, activity);
+        if (declaration is null)
+        {
+            return CommandResult.AuthorizationConfigurationFailure(GetCorrelationId());
+        }
+
+        try
+        {
+            var evaluation = services.GetService<AuthorizationEvaluation>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.");
+            var evaluator = services.GetService<IAuthorizationEvaluator>() ??
+                throw new InvalidAuthorizationConfiguration("Authorization evaluator is unavailable.");
+            PreparedAuthorization? prepared = null;
+            if (declaration.RequiresAsynchronousEvaluation)
+            {
+                var preparation = await PrepareHostedType(commandType, services, activity, token);
+                if (preparation.Failure is not null)
+                {
+                    return preparation.Failure;
+                }
+
+                prepared = preparation.Authorization;
+            }
+
+            if (!await evaluation.IsAuthorizedForType(commandType, services, evaluator, token, prepared))
+            {
+                return CommandResult.Unauthorized(GetCorrelationId());
+            }
+
+            return new CommandResult
+            {
+                CorrelationId = GetCorrelationId(),
+                ValidationResults = bindingFailure.ValidationResults
+            };
+        }
+        catch (InvalidAuthorizationConfiguration exception)
+        {
+            OperationActivity.RecordException(activity, exception);
+            services.GetService<ILogger<CommandPipeline>>()?.AuthorizationConfigurationFailed(exception);
+            return CommandResult.AuthorizationConfigurationFailure(GetCorrelationId());
+        }
+        catch (Exception exception)
+        {
+            OperationActivity.RecordException(activity, exception);
+            return CommandResult.FromException(GetCorrelationId(), exception);
+        }
+    }
+
     async Task<CommandResult> ExecuteHostedCore(object command, IServiceProvider requestServices, ValidationResultSeverity? allowedSeverity, Activity? activity, CancellationToken cancellationToken)
     {
         using var decisionPolicy = CommandDecisionPolicy.Begin(command.GetType(), requestServices);
@@ -406,12 +511,15 @@ public class CommandPipeline(
         return await ValidateCore(command, scope.ServiceProvider, allowedSeverity, prepared, activity, cancellationToken);
     }
 
-    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, Activity? activity, CancellationToken token)
+    Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHosted(object command, IServiceProvider services, Activity? activity, CancellationToken token) =>
+        PrepareHostedType(command.GetType(), services, activity, token);
+
+    async Task<(PreparedAuthorization? Authorization, CommandResult? Failure)> PrepareHostedType(Type commandType, IServiceProvider services, Activity? activity, CancellationToken token)
     {
         try
         {
             var authorization = await (services.GetService<AuthorizationEvaluation>() ??
-                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.")).Prepare(command.GetType(), services, token);
+                throw new InvalidAuthorizationConfiguration("Authorization evaluation is unavailable.")).Prepare(commandType, services, token);
             return (authorization, null);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
