@@ -39,10 +39,11 @@ public class MongoDBOptions
     public bool? DirectConnection { get; set; }
 
     /// <summary>
-    /// Gets or sets how connections are resolved per tenant.
+    /// Gets or sets how connections are resolved per tenant, overriding the application-wide
+    /// <see cref="ArcOptions.ConnectionResolution"/> for MongoDB.
     /// </summary>
     /// <remarks>
-    /// When nothing is configured, <see cref="Server"/> and <see cref="Database"/> are used as they are. A resolved
+    /// When neither is configured, <see cref="Server"/> and <see cref="Database"/> are used as they are. A resolved
     /// connection string replaces <see cref="Server"/>, a resolved database replaces the database name, and a resolved
     /// identity becomes the credential — a user name and password for SCRAM, or an access token for MONGODB-OIDC.
     /// </remarks>

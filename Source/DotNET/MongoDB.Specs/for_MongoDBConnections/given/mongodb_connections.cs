@@ -11,7 +11,7 @@ namespace Cratis.Arc.MongoDB.for_MongoDBConnections.given;
 public class mongodb_connections : Specification
 {
     protected MongoDBOptions _options;
-    protected IConnectionResolverFactory _resolverFactory;
+    protected IConnectionResolvers _resolvers;
     protected ICachingConnectionResolver _resolver;
     protected IMongoServerResolver _serverResolver;
     protected IMongoDatabaseNameResolver _databaseNameResolver;
@@ -26,8 +26,8 @@ public class mongodb_connections : Specification
         _options = new() { Server = "mongodb://configured:27017", Database = "app" };
         _resolver = Substitute.For<ICachingConnectionResolver>();
         _resolver.Resolve(Arg.Any<ConnectionRequest>(), Arg.Any<CancellationToken>()).Returns(ResolvedConnection.Unchanged);
-        _resolverFactory = Substitute.For<IConnectionResolverFactory>();
-        _resolverFactory.Create(Arg.Any<ConnectionResolutionOptions>()).Returns(_resolver);
+        _resolvers = Substitute.For<IConnectionResolvers>();
+        _resolvers.For(Arg.Any<ConnectionResolutionOptions>()).Returns(call => call.Arg<ConnectionResolutionOptions>().IsConfigured ? _resolver : null);
         _serverResolver = Substitute.For<IMongoServerResolver>();
         _serverResolver.Resolve().Returns(new MongoUrl(_options.Server));
         _databaseNameResolver = Substitute.For<IMongoDatabaseNameResolver>();
@@ -38,6 +38,6 @@ public class mongodb_connections : Specification
         _clientFactory = Substitute.For<IMongoDBClientFactory>();
         _clientFactory.Create().Returns(_client);
         _clientFactory.Create(Arg.Do<MongoClientSettings>(_ => _createdWith = _)).Returns(_client);
-        _connections = new(Options.Create(_options), _resolverFactory, _serverResolver, _databaseNameResolver, _tenantIdAccessor, _clientFactory);
+        _connections = new(Options.Create(_options), _resolvers, _serverResolver, _databaseNameResolver, _tenantIdAccessor, _clientFactory);
     }
 }

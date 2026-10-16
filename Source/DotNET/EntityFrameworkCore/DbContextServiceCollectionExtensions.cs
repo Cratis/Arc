@@ -52,7 +52,7 @@ public static class DbContextServiceCollectionExtensions
                 options.AddObservation(serviceProvider);
             }
 
-            if (serviceProvider.GetService<ConnectionResolutionInterceptor>() is { } connectionResolution)
+            if (serviceProvider.GetService<EntityFrameworkCoreConnectionResolution>()?.Interceptor is { } connectionResolution)
             {
                 options.AddInterceptors(connectionResolution);
             }

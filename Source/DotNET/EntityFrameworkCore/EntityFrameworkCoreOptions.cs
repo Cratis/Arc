@@ -31,10 +31,11 @@ public class EntityFrameworkCoreOptions
     public IList<JsonConverter> JsonConverters { get; } = [];
 
     /// <summary>
-    /// Gets or sets how connections are resolved per tenant.
+    /// Gets or sets how connections are resolved per tenant, overriding the application-wide
+    /// <see cref="ArcOptions.ConnectionResolution"/> for Entity Framework Core.
     /// </summary>
     /// <remarks>
-    /// When nothing is configured, <see cref="ConnectionString"/> is used as it is. Otherwise every connection is resolved
+    /// When neither is configured, <see cref="ConnectionString"/> is used as it is. Otherwise every connection is resolved
     /// for the current tenant when it opens, and the result is applied over the configured connection string.
     /// </remarks>
     public ConnectionResolutionOptions ConnectionResolution { get; set; } = new();
