@@ -44,6 +44,11 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     ConstraintCoverage? _constraintCoverage;
 
     /// <summary>
+    /// Gets where unsupported date ordering in reaction guards is reported.
+    /// </summary>
+    internal ScreenplayDiagnostics? Diagnostics { get; init; }
+
+    /// <summary>
     /// Gets the source definition types discovered across the application.
     /// </summary>
     internal IEnumerable<INamedTypeSymbol> Definitions { get; init; } = [];
@@ -89,6 +94,7 @@ public class ReactorReader(SemanticModels models, SourcePaths paths)
     public ReactorModel Read(INamedTypeSymbol type)
     {
         var handlers = Handlers(type).ToList();
+        ReactionDateComparisons.Report(type, handlers, models, Diagnostics);
         var eventSource = EventSourceReader.ReadObserved(type, models);
         var routesAppends = ReactorMetadataReader.RoutesAppends(type, handlers, models);
 
