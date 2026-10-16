@@ -35,12 +35,12 @@ public class a_checksum_scenario : a_generated_document
         }
         """;
 
-    protected void GenerateChecksumScenario(bool generated, ScreenplayOptions options) => Generate(
+    protected void GenerateChecksumScenario(bool generated, ScreenplayOptions options, string pin = ReceiptValue) => Generate(
         options,
         (Analyzed.SlicePath, Source(generated)),
         ("Library/Testing/Scenario.cs", Testing),
         ("Library/Testing/Pins.cs", GeneratedValueSources.Pins),
-        ("Library/Receipts/Accepting/when_accepting/and_a_receipt_is_supplied.cs", ReceiptScenario(generated)),
+        ("Library/Receipts/Accepting/when_accepting/and_a_receipt_is_supplied.cs", ReceiptScenario(generated, pin)),
         ("Library/Receipts/Accepting/when_echoing/and_a_plain_value_is_supplied.cs", PlainScenario));
 
     static string Source(bool generated)
@@ -69,10 +69,10 @@ public class a_checksum_scenario : a_generated_document
             """;
     }
 
-    static string ReceiptScenario(bool generated)
+    static string ReceiptScenario(bool generated, string value)
     {
-        var pin = generated ? $"_scenario.PinGeneratedValue(\"receipt\", new Receipt(\"{ReceiptValue}\"));" : string.Empty;
-        var input = generated ? string.Empty : $"\"{ReceiptValue}\"";
+        var pin = generated ? $"_scenario.PinGeneratedValue(\"receipt\", new Receipt(\"{value}\"));" : string.Empty;
+        var input = generated ? string.Empty : $"\"{value}\"";
 
         return $$"""
             using System.Threading.Tasks;
@@ -86,7 +86,7 @@ public class a_checksum_scenario : a_generated_document
                 CommandResult _result = null!;
                 void Establish() { {{pin}} }
                 async Task Because() => _result = await _scenario.Execute(new AcceptReceipt({{input}}));
-                [Fact] void should_return_the_receipt() => Assert.Equal(new Receipt("{{ReceiptValue}}"), ((CommandResult<Receipt>)_result).Response);
+                [Fact] void should_return_the_receipt() => Assert.Equal(new Receipt("{{value}}"), ((CommandResult<Receipt>)_result).Response);
             }
             """;
     }

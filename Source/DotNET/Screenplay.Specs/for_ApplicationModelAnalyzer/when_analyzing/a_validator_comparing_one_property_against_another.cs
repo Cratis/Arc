@@ -7,8 +7,10 @@ using Cratis.Arc.Screenplay.Model;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// Date validation in ESM v26 admits literal operands only. Property-to-property rules and ambient clock reads
-/// remain in code instead of becoming validation that the semantic compiler refuses.
+/// A rule comparing one property of a command against another names the second one with a lambda, which is the same
+/// shape a rule chain names the property it is declared on. Reading only constants left every such rule looking like a
+/// comparison that had been given nothing to compare against, and dropped the whole of the layer a domain is really
+/// written in. An operand that is genuinely worked out while the request runs is a different thing and stays unread.
 /// </summary>
 public class a_validator_comparing_one_property_against_another : Specification
 {
@@ -21,7 +23,7 @@ public class a_validator_comparing_one_property_against_another : Specification
         namespace Library.Lending.Reserving;
 
         [Command]
-        public record ReserveBook(DateOnly StartDate, DateOnly EndDate, DateOnly Deadline)
+        public record ReserveBook(int StartDate, int EndDate, decimal Deadline, decimal Ceiling)
         {
             public void Handle()
             {
@@ -33,8 +35,8 @@ public class a_validator_comparing_one_property_against_another : Specification
             public ReserveBookValidator()
             {
                 RuleFor(_ => _.EndDate).GreaterThanOrEqualTo(_ => _.StartDate);
-                RuleFor(_ => _.Deadline).LessThanOrEqualTo(command => command.StartDate);
-                RuleFor(_ => _.StartDate).GreaterThan(DateOnly.FromDateTime(DateTime.UtcNow));
+                RuleFor(_ => _.Deadline).LessThanOrEqualTo(command => command.Ceiling);
+                RuleFor(_ => _.StartDate).GreaterThan(Environment.ProcessorCount);
             }
         }
         """;
@@ -48,8 +50,11 @@ public class a_validator_comparing_one_property_against_another : Specification
         _rules = _analysis.Slice().Commands.First().Validations;
     }
 
+    ValidationRuleModel Rule(string property) => _rules.First(_ => _.Property == property);
+
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_withhold_the_unadmitted_date_rules() => _rules.ShouldBeEmpty();
-    [Fact] void should_report_both_property_operands() => _analysis.Diagnostics.Count(diagnostic => diagnostic.Message.Contains("require a literal", StringComparison.Ordinal)).ShouldEqual(2);
-    [Fact] void should_report_the_clock_operand() => _analysis.Diagnostics.Any(diagnostic => diagnostic.Message.Contains("StartDate", StringComparison.Ordinal) && diagnostic.Message.Contains("clock", StringComparison.Ordinal)).ShouldBeTrue();
+    [Fact] void should_read_the_operand_as_the_property_it_names() => Rule("EndDate").Value.ShouldEqual(new PropertyPathSource("StartDate"));
+    [Fact] void should_read_it_whatever_the_lambda_calls_its_parameter() => Rule("Deadline").Value.ShouldEqual(new PropertyPathSource("Ceiling"));
+    [Fact] void should_leave_an_operand_only_the_running_application_knows_unread() => Rule("StartDate").Value.ShouldBeNull();
+    [Fact] void should_report_nothing_about_what_it_read() => _analysis.Diagnostics.ShouldBeEmpty();
 }
