@@ -31,6 +31,7 @@ public static class ValidationRuleKinds
         { "LessThan", ValidationRuleKind.LessThan },
         { "LessThanOrEqualTo", ValidationRuleKind.LessThanOrEqual },
         { "Equal", ValidationRuleKind.Equal },
+        { "NotEqual", ValidationRuleKind.NotEqual },
         { "Matches", ValidationRuleKind.Matches },
         { "EmailAddress", ValidationRuleKind.Matches }
     };

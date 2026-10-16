@@ -30,6 +30,7 @@ public class ValidationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagnos
         [ModelRuleKind.LessThan] = SyntaxRuleKind.LessThan,
         [ModelRuleKind.LessThanOrEqual] = SyntaxRuleKind.LessThanOrEqual,
         [ModelRuleKind.Equal] = SyntaxRuleKind.Equal,
+        [ModelRuleKind.NotEqual] = SyntaxRuleKind.NotEqual,
         [ModelRuleKind.Length] = SyntaxRuleKind.Length,
         [ModelRuleKind.Matches] = SyntaxRuleKind.Matches,
         [ModelRuleKind.AllGreaterThan] = SyntaxRuleKind.AllGreaterThan,
