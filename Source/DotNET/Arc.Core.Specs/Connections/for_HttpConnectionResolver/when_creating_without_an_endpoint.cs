@@ -7,7 +7,11 @@ public class when_creating_without_an_endpoint : Specification
 {
     Exception _error;
 
-    void Because() => _error = Catch.Exception(() => _ = new HttpConnectionResolver(new(), new HttpClient()));
+    void Because()
+    {
+        using var httpClient = new HttpClient();
+        _error = Catch.Exception(() => _ = new HttpConnectionResolver(new(), httpClient));
+    }
 
     [Fact] void should_fail() => _error.ShouldBeOfExactType<HttpConnectionResolverEndpointNotConfigured>();
 }
