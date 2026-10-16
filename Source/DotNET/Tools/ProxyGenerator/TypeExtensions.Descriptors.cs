@@ -234,7 +234,7 @@ public static partial class TypeExtensions
             {
                 var fullPath = Path.Join(targetPath, relativePath);
                 var fullPathForType = Path.Join(targetPath, type.ResolveTargetPath(segmentsToSkip));
-                var typeName = StripGenericArity(type.Name);
+                var typeName = type.GetGeneratedModuleBaseName(_sourceFileMap);
 
                 importPath = $"{Path.GetRelativePath(fullPath, fullPathForType)}/{GeneratedFileNames.ModuleNameFor(typeName)}";
             }

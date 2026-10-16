@@ -82,6 +82,9 @@ public static class Generator
         }
         using var projectAssemblies = TypeExtensions.OwnProjectAssemblies();
 
+        var sourceFileMap = useSourceFileAsOutputFile ? SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile) : null;
+        TypeExtensions.SetSourceFileMap(sourceFileMap);
+
         var commands = new List<CommandDescriptor>();
         var queries = new List<QueryDescriptor>();
 
@@ -108,13 +111,7 @@ public static class Generator
         var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
         var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
 
-        IReadOnlyDictionary<string, string>? sourceFileMap = null;
-        Dictionary<string, (string Content, string SourceTypeName)>? pendingContent = null;
-        if (useSourceFileAsOutputFile)
-        {
-            sourceFileMap = SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile);
-            pendingContent = [];
-        }
+        Dictionary<string, (string Content, string SourceTypeName)>? pendingContent = useSourceFileAsOutputFile ? [] : null;
 
         await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 

@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Diagnostics;
-using System.Text.RegularExpressions;
 using Cratis.Arc.ProxyGenerator.Templates;
 using HandlebarsDotNet;
 
@@ -11,7 +10,7 @@ namespace Cratis.Arc.ProxyGenerator;
 /// <summary>
 /// Extension methods for <see cref="IDescriptor"/>.
 /// </summary>
-public static partial class DescriptorExtensions
+public static class DescriptorExtensions
 {
     /// <summary>
     /// Write the descriptors to disk.
@@ -55,16 +54,7 @@ public static partial class DescriptorExtensions
         foreach (var descriptor in descriptors)
         {
             var path = descriptor.Type.ResolveTargetPath(segmentsToSkip);
-            string outputFileName;
-
-            if (sourceFileMap is not null && sourceFileMap.TryGetValue(descriptor.Type.FullName!, out var sourceFile))
-            {
-                outputFileName = sourceFile;
-            }
-            else
-            {
-                outputFileName = descriptor.Name;
-            }
+            var outputFileName = descriptor.Type.GetGeneratedModuleBaseName(sourceFileMap, descriptor.Name);
 
             var fullPath = Path.Join(targetPath, path, GeneratedFileNames.FileNameFor(outputFileName));
             var normalizedFullPath = Path.GetFullPath(fullPath);
@@ -111,15 +101,6 @@ public static partial class DescriptorExtensions
             }
         }
 
-        // Build import path fixup map when using source file grouping.
-        // This maps type short names to their source file names so import module paths
-        // reference the correct output file instead of the type name.
-        Dictionary<string, string>? importPathFixups = null;
-        if (sourceFileMap is not null)
-        {
-            importPathFixups = BuildImportPathFixups(sourceFileMap);
-        }
-
         foreach (var (normalizedFullPath, group) in descriptorsByOutputPath)
         {
             var directory = Path.GetDirectoryName(normalizedFullPath)!;
@@ -143,13 +124,6 @@ public static partial class DescriptorExtensions
                 var contents = group.ConvertAll(d => template(d));
                 proxyContent = TypeScriptContentCombiner.Combine(contents);
                 sourceTypeName = string.Join(", ", group.ConvertAll(d => d.Type.FullName));
-            }
-
-            // Fix import module paths when using source file grouping so that imports
-            // reference the source-file-based output name instead of the type name.
-            if (importPathFixups is { Count: > 0 })
-            {
-                proxyContent = FixImportModulePaths(proxyContent, importPathFixups);
             }
 
             // When using deferred writing (source file grouping), accumulate content in memory
@@ -406,72 +380,4 @@ public static partial class DescriptorExtensions
 
         return string.Join('\n', result);
     }
-
-    /// <summary>
-    /// Builds a lookup of type short names to source file names for types where the names differ.
-    /// </summary>
-    /// <param name="sourceFileMap">Map of full type name to source file name.</param>
-    /// <returns>Dictionary mapping type short name to source file name.</returns>
-    static Dictionary<string, string> BuildImportPathFixups(IReadOnlyDictionary<string, string> sourceFileMap)
-    {
-        var claimed = new Dictionary<string, string>(StringComparer.Ordinal);
-        var conflicts = new HashSet<string>(StringComparer.Ordinal);
-
-        // A type whose file is already named after it needs no rewrite, but it still has to be counted -
-        // it is the reason a short name is taken. Skipping it here would let another type with the same
-        // short name, declared in a differently named file, claim the name unopposed, and every import of
-        // the first type would then be rewritten to the second one's file.
-        foreach (var (fullName, sourceFile) in sourceFileMap)
-        {
-            var shortName = fullName.Split('.')[^1];
-            if (conflicts.Contains(shortName))
-            {
-                continue;
-            }
-
-            if (claimed.TryGetValue(shortName, out var existing))
-            {
-                if (existing != sourceFile)
-                {
-                    claimed.Remove(shortName);
-                    conflicts.Add(shortName);
-                }
-            }
-            else
-            {
-                claimed[shortName] = sourceFile;
-            }
-        }
-
-        // Only the ones that actually move need an entry; a short name that already matches its file is
-        // left alone rather than rewritten to itself.
-        return claimed
-            .Where(_ => _.Key != _.Value)
-            .ToDictionary(_ => _.Key, _ => _.Value, StringComparer.Ordinal);
-    }
-
-    /// <summary>
-    /// Fixes import module paths in rendered TypeScript content to use source file names instead of type names.
-    /// </summary>
-    /// <param name="content">The rendered TypeScript content.</param>
-    /// <param name="fixups">Map of type short name to source file name.</param>
-    /// <returns>Content with corrected import module paths.</returns>
-    static string FixImportModulePaths(string content, Dictionary<string, string> fixups) =>
-        ImportModulePathRegex().Replace(content, match =>
-        {
-            var prefix = match.Groups["prefix"].Value;
-            var fileName = GeneratedFileNames.BaseNameOf(match.Groups["fileName"].Value);
-
-            if (!prefix.StartsWith('.'))
-            {
-                return match.Value;
-            }
-
-            return fixups.TryGetValue(fileName, out var sourceFile)
-                ? $"from '{prefix}{GeneratedFileNames.ModuleNameFor(sourceFile)}'"
-                : match.Value;
-        });
-
-    [GeneratedRegex(@"from\s+'(?<prefix>[^']*/)(?<fileName>[^'/]+)'", RegexOptions.NonBacktracking | RegexOptions.ExplicitCapture)]
-    private static partial Regex ImportModulePathRegex();
 }
