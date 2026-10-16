@@ -92,7 +92,7 @@ public static class CommandEndpointMapper
             if (command is null)
             {
                 logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, null);
-                return (null, CommandResult.InvalidBody(correlationId));
+                return (null, CommandBodyBindingFailure.From(correlationId, null));
             }
 
             return (command, null);
@@ -106,7 +106,7 @@ public static class CommandEndpointMapper
             // the 400 the body-read contract promises. Cancellation and genuine server faults are not matched here
             // and continue to surface as a server error.
             logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, ex);
-            return (null, CommandResult.InvalidBody(correlationId));
+            return (null, CommandBodyBindingFailure.From(correlationId, ex));
         }
     }
 
@@ -160,7 +160,12 @@ public static class CommandEndpointMapper
                     var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
                     if (bodyFailure is not null)
                     {
-                        commandResult = bodyFailure;
+                        commandResult = commandPipeline is CommandPipeline bindingPipeline
+                            ? await bindingPipeline.RefuseUnboundHosted(commandType, bodyFailure, context.RequestServices, validateOnly, context.RequestAborted)
+                            : CanExecuteWithCustomPipeline(context.RequestServices, commandType, logger) &&
+                              context.RequestServices.GetService<IAuthorizationEvaluator>()?.IsAuthorized(commandType) == true
+                                ? bodyFailure
+                                : CommandResult.Unauthorized(correlationIdAccessor.Current);
                     }
                     else if (commandPipeline is CommandPipeline builtInPipeline)
                     {
