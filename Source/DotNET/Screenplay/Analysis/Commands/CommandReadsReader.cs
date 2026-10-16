@@ -182,24 +182,27 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         return true;
     }
 
-    (ComparisonCondition? Condition, bool Read)? DateCondition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, bool invert, string location)
+    ComparisonCondition? DateCondition(BinaryExpressionSyntax binary, DateConditionSite site, bool invert)
     {
-        if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax binary || !DateConditions.Applies(binary, model))
-        {
-            return null;
-        }
-        var condition = new ConditionReader(diagnostics).Read(binary, model, command, location);
+        var condition = new ConditionReader(diagnostics).Read(binary, site.Model, (INamedTypeSymbol)site.Owner, site.Location);
 
-        return ((invert ? ConditionReader.Invert(condition) : condition) as ComparisonCondition, true);
+        return (invert ? ConditionReader.Invert(condition) : condition) as ComparisonCondition;
     }
 
     ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
     {
-        if (DateCondition(expression, model, command, invert, location) is { } date)
-        {
-            return date.Condition;
-        }
+        var site = new DateConditionSite(model, command, location, null, diagnostics);
 
+        return MappingSourceReader.Unwrap(expression) is BinaryExpressionSyntax binary && DateConditions.Applies(binary, model)
+            ? DateCondition(binary, site, invert)
+            : ReadComparison(expression, sources, site, invert);
+    }
+
+    ComparisonCondition? ReadComparison(ExpressionSyntax expression, AuthoringSources sources, DateConditionSite site, bool invert)
+    {
+        var model = site.Model;
+        var command = (INamedTypeSymbol)site.Owner;
+        var location = site.Location;
         if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax comparison ||
             model.GetOperation(comparison) is not IBinaryOperation { OperatorMethod: null } operation ||
             operation.LeftOperand is IConversionOperation || operation.RightOperand is IConversionOperation ||
