@@ -9,6 +9,7 @@ namespace Cratis.Arc.Chronicle.ReadModels.for_ChronicleParameterDependencyResolv
 public class when_refusing_read_shapes : given.protected_plain_models
 {
     [Theory]
+    [InlineData(DecisionReadRefusalReason.Reducer, "use Chronicle's built-in reducer reader with a discovered reducer handler")]
     [InlineData(DecisionReadRefusalReason.ReducerDependencies, "remove constructor dependencies from the reducer")]
     [InlineData(DecisionReadRefusalReason.ReducerFilters, "remove the reducer's event filter")]
     [InlineData(DecisionReadRefusalReason.Join, "read the parts as separate models")]

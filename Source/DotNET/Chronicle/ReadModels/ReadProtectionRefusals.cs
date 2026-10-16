@@ -23,7 +23,7 @@ internal static class ReadProtectionRefusals
         var model = parameter.ParameterType;
         var (description, fix) = reason switch
         {
-            DecisionReadRefusalReason.Reducer => ("through a reducer", "read a projection of the same events, or wait for reducer support"),
+            DecisionReadRefusalReason.Reducer => ("through a reducer whose handler or reader implementation does not support protected replay", "use Chronicle's built-in reducer reader with a discovered reducer handler"),
             DecisionReadRefusalReason.ReducerDependencies => ("through a reducer with constructor dependencies", "remove constructor dependencies from the reducer"),
             DecisionReadRefusalReason.ReducerFilters => ("through a reducer that filters its events", "remove the reducer's event filter or read an unfiltered projection"),
             DecisionReadRefusalReason.Join or DecisionReadRefusalReason.Hierarchy => ("with joins or children", "read the parts as separate models"),
