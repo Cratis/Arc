@@ -20,6 +20,7 @@ public class when_checking_declared_read_protection : Specification
     IReadOnlyList<RefusedDecisionRead> _assemblyRefused;
     Exception? _scanFailure;
     Type _assemblyCommand;
+    Type _customProtectedCommand;
 
     void Establish()
     {
@@ -29,12 +30,15 @@ public class when_checking_declared_read_protection : Specification
         var command = module.DefineType("AssemblyOnCommand", TypeAttributes.Public, typeof(AssemblyCommand));
         command.SetCustomAttribute(new CustomAttributeBuilder(typeof(CommandAttribute).GetConstructor(Type.EmptyTypes)!, []));
         _assemblyCommand = command.CreateType()!;
+        var customProtectedCommand = module.DefineType("CustomProtectedCommand", TypeAttributes.Public, typeof(AssemblyCommand));
+        customProtectedCommand.SetCustomAttribute(new CustomAttributeBuilder(typeof(CustomProtectedDecisionAttribute).GetConstructor(Type.EmptyTypes)!, []));
+        _customProtectedCommand = customProtectedCommand.CreateType()!;
         module.DefineType("NotACommand", TypeAttributes.Public, typeof(AssemblyCommand)).CreateType();
     }
 
     void Because()
     {
-        _refused = DecisionReadAdmissions.FindRefused([typeof(PlainRead), typeof(ValidatorRead), typeof(AdvisoryRead), typeof(OffRead), typeof(MeasureRead), typeof(StreamRead), typeof(RefusedStreamRead), typeof(WrappedRead)]);
+        _refused = DecisionReadAdmissions.FindRefused([typeof(PlainRead), typeof(ValidatorRead), typeof(AdvisoryRead), typeof(OffRead), typeof(MeasureRead), typeof(StreamRead), typeof(RefusedStreamRead), typeof(WrappedRead), typeof(WrappedStreamRead), typeof(EnumeratedWrappedStreamRead)]);
         _assemblyRefused = DecisionReadAdmissions.FindRefused([_assemblyCommand]);
         _scanFailure = Catch.Exception(() => DecisionReadAdmissions.ShouldAdmitDecisionReadsIn(_assemblyCommand.Assembly));
     }
@@ -43,11 +47,14 @@ public class when_checking_declared_read_protection : Specification
     [Fact] void should_check_discoverable_validator_constructor_parameters() => _refused.ShouldContain(new RefusedDecisionRead(typeof(ValidatorRead), typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
     [Fact] void should_check_wrapped_reads_without_protected_decision() => _refused.ShouldContain(new RefusedDecisionRead(typeof(WrappedRead), typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
     [Fact] void should_admit_a_plain_stream_model_using_stream_admission() => _refused.Any(_ => _.CommandType == typeof(StreamRead)).ShouldBeFalse();
+    [Fact] void should_admit_a_wrapped_stream_model_using_stream_admission() => _refused.Any(_ => _.CommandType == typeof(WrappedStreamRead)).ShouldBeFalse();
+    [Fact] void should_admit_enumerated_wrapped_stream_models_using_stream_admission() => _refused.Any(_ => _.CommandType == typeof(EnumeratedWrappedStreamRead)).ShouldBeFalse();
     [Fact] void should_refuse_an_unsupported_stream_model() => _refused.ShouldContain(new RefusedDecisionRead(typeof(RefusedStreamRead), typeof(StreamShelf), DecisionReadRefusalReason.Hierarchy));
     [Fact] void should_skip_advisory_off_measure_and_service_parameters() => _refused.Count.ShouldEqual(4);
     [Fact] void should_check_assembly_on_declarations() => _assemblyRefused.ShouldContain(new RefusedDecisionRead(_assemblyCommand, typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
     [Fact] void should_include_assembly_on_commands_in_assembly_scans() => _scanFailure.ShouldBeOfExactType<DecisionReadsAreRefused>();
-    [Fact] void should_not_scan_services_with_handle_methods_as_commands() => ((DecisionReadsAreRefused)_scanFailure!).Refusals.Single().CommandType.ShouldEqual(_assemblyCommand);
+    [Fact] void should_include_custom_protected_decision_attributes_in_assembly_scans() => ((DecisionReadsAreRefused)_scanFailure!).Refusals.ShouldContain(new RefusedDecisionRead(_customProtectedCommand, typeof(AdmissionShelf), DecisionReadRefusalReason.Hierarchy));
+    [Fact] void should_not_scan_services_with_handle_methods_as_commands() => ((DecisionReadsAreRefused)_scanFailure!).Refusals.Count.ShouldEqual(2);
 
     [Command, ReadProtection(ReadProtectionMode.On)]
     public record PlainRead(EventSourceId EventSourceId)
@@ -90,6 +97,9 @@ public class when_checking_declared_read_protection : Specification
         public AdmissionDecided Handle(DecisionRead<AdmissionShelf> shelf) => new();
     }
 
+    [AttributeUsage(AttributeTargets.Class)]
+    public class CustomProtectedDecisionAttribute : Attribute, IProtectedDecisionAttribute;
+
     public class AssemblyCommand
     {
         public AdmissionDecided Handle(AdmissionShelf shelf) => new();
@@ -112,6 +122,18 @@ public class when_checking_declared_read_protection : Specification
     public record StreamRead(EventSourceId EventSourceId)
     {
         public AdmissionDecided Handle(StreamFlag flag) => new();
+    }
+
+    [Command, ReadProtection(ReadProtectionMode.On)]
+    public record WrappedStreamRead(EventSourceId EventSourceId)
+    {
+        public AdmissionDecided Handle(DecisionRead<StreamFlag> flag) => new();
+    }
+
+    [Command, ReadProtection(ReadProtectionMode.On)]
+    public record EnumeratedWrappedStreamRead(EventSourceId EventSourceId)
+    {
+        public AdmissionDecided Handle(IEnumerable<DecisionRead<StreamFlag>> flags) => new();
     }
 
     [Command, ReadProtection(ReadProtectionMode.On)]

@@ -404,7 +404,7 @@ static class DiagnosticDescriptors
         category: Category,
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description: "ReadProtection on a sealed non-command type and Unprotected on a provably non-model parameter have no effect. On is redundant on ProtectedDecision commands. Off is redundant only when the assembly is already Off.",
+        description: "ReadProtection on a sealed non-command type and Unprotected on a provably non-model parameter have no effect. Off is redundant only when the assembly is already Off.",
         helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0032");
 
     /// <summary>

@@ -11,6 +11,7 @@ on:
       - "**"
     paths:
       - "Documentation/**"
+      - "Source/DotNET/**"
       - ".github/workflows/markdown-verification.yml"
 
 permissions:

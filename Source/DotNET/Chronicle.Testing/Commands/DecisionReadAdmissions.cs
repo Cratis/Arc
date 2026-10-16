@@ -2,7 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using Cratis.Arc.Chronicle.ReadModels;
+using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
@@ -95,7 +95,7 @@ public static class DecisionReadAdmissions
     /// <exception cref="DecisionReadsAreRefused">One or more decision reads are refused.</exception>
     public static void ShouldAdmitDecisionReadsIn(params Assembly[] assemblies) =>
         ShouldAdmitDecisionReadsOf([.. assemblies.SelectMany(LoadableTypes).Where(_ => !_.IsAbstract && !_.ContainsGenericParameters &&
-            (Attribute.IsDefined(_, typeof(CommandAttribute)) || Attribute.IsDefined(_, typeof(ProtectedDecisionAttribute))))]);
+            (Attribute.IsDefined(_, typeof(CommandAttribute)) || _.GetCustomAttributes(true).Any(attribute => attribute is IProtectedDecisionAttribute)))]);
 
     static DecisionReadAdmission Admit(IDecisionReads decisionReads, Type readModel, bool streamScoped)
     {

@@ -62,7 +62,8 @@ internal static class DeclaredDecisionReadParameters
             ? type.GetGenericArguments()[0] : type;
         if (wrapped.IsGenericType && wrapped.GetGenericTypeDefinition() == typeof(DecisionRead<>))
         {
-            return (wrapped.GetGenericArguments()[0], false);
+            var model = wrapped.GetGenericArguments()[0];
+            return (model, PerStreamReadModelBinding.IsDeclared(model));
         }
 
         return on && readModels.Contains(type) &&
