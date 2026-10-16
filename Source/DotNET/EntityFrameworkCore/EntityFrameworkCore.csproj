@@ -5,6 +5,8 @@
         <PackageTags>cratis;arc;cqrs;entity-framework-core;efcore;sqlserver;postgresql;sqlite;read-models;aspnetcore</PackageTags>
         <RootNamespace>Cratis.Arc.EntityFrameworkCore</RootNamespace>
         <NoWarn>$(NoWarn);NU5104</NoWarn>
+        <!-- Binds EntityFrameworkCoreOptions from configuration through generated code, which stays trim and AOT safe. -->
+        <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     </PropertyGroup>
 
     <!-- Held to the trim/AOT analyzer ratchet (#2859); inert unless scripts/aot-ratchet.py switches it on. -->

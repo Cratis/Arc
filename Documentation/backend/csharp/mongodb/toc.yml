@@ -27,3 +27,5 @@
   href: change-stream-watcher.md
 - name: Tenancy
   href: tenancy.md
+- name: Connection Resolution
+  href: connection-resolution.md

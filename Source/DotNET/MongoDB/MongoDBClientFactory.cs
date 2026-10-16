@@ -35,7 +35,7 @@ public class MongoDBClientFactory(
     IOptions<MongoDBOptions> options,
     ILogger<MongoDBClientFactory> logger) : IMongoDBClientFactory
 {
-    readonly ConcurrentDictionary<string, IMongoClient> _clients = new();
+    readonly ConcurrentDictionary<(string Servers, MongoCredential? Credential), IMongoClient> _clients = new();
     readonly ConcurrentDictionary<string, int> _connectedClientsCount = new();
     readonly ConcurrentDictionary<string, int> _connectionsAddedToPoolCount = new();
     readonly ConcurrentDictionary<string, int> _checkedOutConnectionsCount = new();
@@ -45,9 +45,15 @@ public class MongoDBClientFactory(
     public IMongoClient Create() => Create(serverResolver.Resolve());
 
     /// <inheritdoc/>
-#pragma warning disable MA0106 // Avoid closure by using an overload with the 'factoryArgument' parameter
-    public IMongoClient Create(MongoClientSettings settings) => _clients.GetOrAdd(settings.Server.ToString(), (_) => CreateImplementation(settings));
-#pragma warning restore MA0106 // Avoid closure by using an overload with the 'factoryArgument' parameter
+    /// <remarks>
+    /// Clients are shared per set of servers and credential, so settings that only differ in who they authenticate as
+    /// never share a client.
+    /// </remarks>
+    public IMongoClient Create(MongoClientSettings settings) =>
+        _clients.GetOrAdd(
+            (string.Join(',', settings.Servers), settings.Credential),
+            static (_, state) => state.Factory.CreateImplementation(state.Settings),
+            (Factory: this, Settings: settings));
 
     /// <inheritdoc/>
     public IMongoClient Create(MongoUrl url) => Create(MongoClientSettings.FromUrl(url));
@@ -61,7 +67,12 @@ public class MongoDBClientFactory(
         {
             settings.DirectConnection = true;
         }
-        settings.ClusterConfigurator = builder => ClusterConfigurator(settings, builder);
+        var configureCluster = settings.ClusterConfigurator;
+        settings.ClusterConfigurator = builder =>
+        {
+            configureCluster?.Invoke(builder);
+            ClusterConfigurator(settings, builder);
+        };
 
         logger.CreateClient(settings.Server.ToString());
 #pragma warning disable CA2000 // Dispose objects before losing scope - we're returning the client

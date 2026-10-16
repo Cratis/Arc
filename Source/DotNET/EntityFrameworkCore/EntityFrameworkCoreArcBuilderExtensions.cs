@@ -1,10 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Connections;
 using Cratis.Arc.EntityFrameworkCore;
+using Cratis.Arc.EntityFrameworkCore.Connections;
 using Cratis.Arc.EntityFrameworkCore.Json;
+using Cratis.Arc.Tenancy;
 using Cratis.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -16,12 +20,21 @@ namespace Cratis.Arc;
 public static class EntityFrameworkCoreArcBuilderExtensions
 {
     /// <summary>
+    /// Default configuration section paths for <see cref="EntityFrameworkCoreOptions"/>.
+    /// </summary>
+    public static readonly string[] DefaultSectionPaths = ["Cratis", "EntityFrameworkCore"];
+
+    /// <summary>
     /// Add Entity Framework Core support to the solution.
     /// </summary>
     /// <param name="arcBuilder"><see cref="IArcBuilder"/> to use Entity Framework Core with.</param>
     /// <param name="configureOptions">Optional callback for configuring <see cref="EntityFrameworkCoreOptions"/>.</param>
     /// <param name="configureEfCore">The optional callback for configuring <see cref="IEntityFrameworkCoreBuilder"/>.</param>
     /// <returns><see cref="IArcBuilder"/> for building continuation.</returns>
+    /// <remarks>
+    /// <see cref="EntityFrameworkCoreOptions"/> are bound from the <c>Cratis:EntityFrameworkCore</c> configuration section
+    /// first; <paramref name="configureOptions"/> runs after and wins.
+    /// </remarks>
     public static IArcBuilder WithEntityFrameworkCore(
         this IArcBuilder arcBuilder,
         Action<EntityFrameworkCoreOptions>? configureOptions = default,
@@ -32,6 +45,7 @@ public static class EntityFrameworkCoreArcBuilderExtensions
 
         var builder = new EntityFrameworkCoreBuilder(arcBuilder.Services, arcBuilder.Types);
 
+        BindFromConfiguration(arcBuilder.Configuration.GetSection(ConfigurationPath.Combine(DefaultSectionPaths)), builder.Options);
         configureOptions?.Invoke(builder.Options);
         configureEfCore?.Invoke(builder);
 
@@ -51,6 +65,8 @@ public static class EntityFrameworkCoreArcBuilderExtensions
             return opts;
         });
 
+        AddConnectionResolution(arcBuilder.Services, builder.Options.ConnectionResolution);
+
         // Auto-discover and register DbContext types if enabled
         if (builder.Options.AutoDiscoverDbContexts && !string.IsNullOrEmpty(builder.Options.ConnectionString))
         {
@@ -58,5 +74,24 @@ public static class EntityFrameworkCoreArcBuilderExtensions
         }
 
         return arcBuilder;
+    }
+
+    static void BindFromConfiguration(IConfigurationSection section, EntityFrameworkCoreOptions options)
+    {
+        // Bound property by property: JsonConverters holds converter instances, which configuration cannot describe.
+        options.ConnectionString = section.GetValue(nameof(EntityFrameworkCoreOptions.ConnectionString), options.ConnectionString);
+        options.AutoDiscoverDbContexts = section.GetValue(nameof(EntityFrameworkCoreOptions.AutoDiscoverDbContexts), options.AutoDiscoverDbContexts);
+        section.GetSection(nameof(EntityFrameworkCoreOptions.ConnectionResolution)).Bind(options.ConnectionResolution);
+    }
+
+    static void AddConnectionResolution(IServiceCollection services, ConnectionResolutionOptions options)
+    {
+        // Decided when the first context is configured, so the application-wide resolution configured in code through
+        // ArcOptions applies as well as configuration does.
+        services.AddConnectionResolution();
+        services.TryAddSingleton(sp => new EntityFrameworkCoreConnectionResolution(
+            sp.GetRequiredService<IConnectionResolvers>().For(options) is { } resolver
+                ? new ConnectionResolutionInterceptor(resolver, sp.GetRequiredService<ITenantIdAccessor>())
+                : null));
     }
 }
