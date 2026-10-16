@@ -56,6 +56,39 @@ function failedResult<TDataType>(defaultValue: TDataType, error: unknown): Query
     } as QueryResult<TDataType>, false);
 }
 
+/**
+ * The most recent request started on each query instance. Instances are shared between hooks through the
+ * query instance cache, and starting a request aborts whatever that instance had in flight - so the latest
+ * request is the one every hook on the instance is waiting for, whichever hook started it.
+ */
+const latestRequests = new WeakMap<object, Promise<unknown>>();
+
+/**
+ * Waits for the request that superseded an aborted one and returns its outcome. A superseding request can
+ * itself be superseded, so this follows the chain until a request settles with something other than an abort.
+ * @template TDataType Type of model the query is for.
+ * @param queryInstance The shared query instance.
+ * @param abortedRequest The request that was aborted.
+ * @returns The superseding result, the error it failed with, or `undefined` when nothing newer was started.
+ */
+async function settleFromSupersedingRequest<TDataType>(queryInstance: object, abortedRequest: Promise<unknown>): Promise<{ result?: QueryResult<TDataType>; error?: unknown } | undefined> {
+    let request = abortedRequest;
+    for (;;) {
+        const latest = latestRequests.get(queryInstance);
+        if (latest === undefined || latest === request) {
+            return undefined;
+        }
+        request = latest;
+        try {
+            return { result: await latest as QueryResult<TDataType> };
+        } catch (error) {
+            if (!isAbortError(error)) {
+                return { error };
+            }
+        }
+    }
+}
+
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
@@ -117,8 +150,10 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const queryExecutor = (async (args?: TArguments) => {
         if (queryInstance) {
             queryScope.notifyPerformingStarted();
+            const request = performer(queryInstance, args);
+            latestRequests.set(queryInstance, request);
             try {
-                const queryResult = await performer(queryInstance, args);
+                const queryResult = await request;
                 const withState = QueryResultWithState.fromQueryResult(queryResult, false);
                 // Only a successful result is cached. The cache exists to hand the last known good
                 // payload to future subscribers, so caching a failure would poison every mount for the
@@ -132,13 +167,19 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 // An abort means this hook's request was superseded. The superseding request is not
                 // necessarily this hook's own: the query instance is shared through the cache, so a
                 // co-subscriber mounting with the same query and arguments aborts whatever that shared
-                // instance had in flight. The superseded request must therefore not overwrite the
-                // result - but it must stop reporting that it is performing, or a co-subscriber that
-                // never issued the newer request stays on its initial, permanently performing state.
-                // Settling functionally keeps whatever result is current: this hook's own newer result
-                // when it superseded itself, and its existing one otherwise.
+                // instance had in flight, and only that co-subscriber's state receives the newer result.
+                // The superseded request therefore adopts the outcome of the request that superseded it -
+                // otherwise a co-subscriber that never issued the newer request settles on its initial,
+                // never-ready state. When this hook superseded itself, that outcome is its own newer one.
                 if (isAbortError(error)) {
-                    setResult(current => QueryResultWithState.fromQueryResult(current, false));
+                    const superseding = await settleFromSupersedingRequest<TDataType>(queryInstance, request);
+                    if (superseding === undefined) {
+                        setResult(current => QueryResultWithState.fromQueryResult(current, false));
+                    } else if (superseding.result !== undefined) {
+                        setResult(QueryResultWithState.fromQueryResult(superseding.result, false));
+                    } else {
+                        setResult(failedResult(queryInstance.defaultValue, superseding.error));
+                    }
                     return;
                 }
                 setResult(failedResult(queryInstance.defaultValue, error));
