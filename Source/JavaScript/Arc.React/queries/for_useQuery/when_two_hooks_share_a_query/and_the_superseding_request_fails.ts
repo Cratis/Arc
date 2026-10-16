@@ -77,6 +77,8 @@ describe('when two hooks share a query and the superseding request fails', () =>
 
     it('should settle the superseded hook as unsuccessful', () => firstResult.isSuccess.should.be.false);
     it('should report the failure on the superseded hook', () => firstResult.exceptionMessages.should.deep.equal(['Failed to fetch']));
+    it('should report an exception on the superseded hook', () => firstResult.hasExceptions.should.be.true);
+    it('should report the superseded hook ready', () => firstResult.isReady.should.be.true);
     it('should stop the superseded hook performing', () => firstResult.isPerforming.should.be.false);
     it('should settle the superseding hook as unsuccessful', () => secondResult.isSuccess.should.be.false);
     it('should stop the superseding hook performing', () => secondResult.isPerforming.should.be.false);

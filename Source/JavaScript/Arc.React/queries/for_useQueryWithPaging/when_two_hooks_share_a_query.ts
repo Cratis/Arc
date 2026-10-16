@@ -87,5 +87,6 @@ describe('when two hooks share a query', () => {
 
     it('should give the superseded hook the shared data', () => (supersededResult.data as FakeQueryResult[]).should.deep.equal([{ id: '1', name: 'shared' }]));
     it('should give the superseded hook the shared paging', () => supersededResult.paging.totalItems.should.equal(1));
+    it('should report the superseded hook ready', () => supersededResult.isReady.should.be.true);
     it('should stop the superseded hook performing', () => supersededResult.isPerforming.should.be.false);
 });
