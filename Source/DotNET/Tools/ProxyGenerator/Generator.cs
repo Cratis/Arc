@@ -82,8 +82,7 @@ public static class Generator
         }
         using var projectAssemblies = TypeExtensions.OwnProjectAssemblies();
 
-        var sourceFileMap = useSourceFileAsOutputFile ? SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile) : null;
-        TypeExtensions.SetSourceFileMap(sourceFileMap);
+        var sourceFileMap = ConfigureSourceFileGrouping(useSourceFileAsOutputFile, assemblyFile);
 
         var commands = new List<CommandDescriptor>();
         var queries = new List<QueryDescriptor>();
@@ -210,5 +209,13 @@ public static class Generator
         message($"  Overall time: {overallStopwatch.Elapsed}");
 
         return true;
+    }
+
+    static IReadOnlyDictionary<string, string>? ConfigureSourceFileGrouping(bool useSourceFileAsOutputFile, string assemblyFile)
+    {
+        var sourceFileMap = useSourceFileAsOutputFile ? SourceFileResolver.BuildTypeToSourceFileMap(assemblyFile) : null;
+        TypeExtensions.SetSourceFileMap(sourceFileMap);
+
+        return sourceFileMap;
     }
 }
