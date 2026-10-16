@@ -76,36 +76,7 @@ builder.AddCratisArc(configureBuilder: arc => arc.WithMongoDB(
 
 ## The HTTP contract
 
-The `Http` resolver posts the request as JSON:
-
-```http
-POST https://platform.example/connections
-Content-Type: application/json
-
-{ "storage": "SqlServer", "purpose": "Runtime", "scope": { "tenant": "acme" } }
-```
-
-Your endpoint answers with a `ResolvedConnection` in camel case. Every property is optional:
-
-```json
-{
-  "database": "tenant-acme",
-  "identity": { "accessToken": "eyJ0eXAi..." },
-  "expiresAt": "2026-10-15T12:00:00Z"
-}
-```
-
-| Status | Meaning |
-| --- | --- |
-| `200 OK` with a body | Apply the parts in the body. |
-| `204 No Content` | Keep the configured connection. |
-| Anything else | Resolution fails with `ConnectionResolutionFailed`, and so does opening the connection. |
-
-| Request property | Values |
-| --- | --- |
-| `storage` | `MongoDB`, `SqlServer`, `PostgreSql`, `Sqlite` |
-| `purpose` | `Runtime` for data access, `Schema` for schema changes such as migrations |
-| `scope` | `tenant` in Arc. The tenant is `Default` when no tenant is set. |
+The `Http` resolver posts what it connects for (`storage`, `purpose` and a `scope` holding the `tenant`) as JSON to your endpoint, and your endpoint answers with the parts it knows. The contract is plain REST and the same for MongoDB and every SQL storage, so you can serve it from any language. The [connection resolution contract](../../../connection-resolution-contract.md) specifies the request, the response, the status codes, caching and security, and includes an OpenAPI description.
 
 Configure static headers, such as an API key, under `Http:Headers`. The default timeout is 10 seconds (`Http:Timeout`).
 
@@ -126,7 +97,40 @@ using (ConnectionPurposeScope.Begin(ConnectionPurpose.Schema))
 }
 ```
 
-## Configure it for your storage
+## Configure it once for the whole application
+
+Configure resolution on Arc itself, under `Cratis:Arc:ConnectionResolution`, and both MongoDB and Entity Framework Core use it:
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "ConnectionResolution": {
+        "Identity": {
+          "Resolver": "Http",
+          "Http": {
+            "Endpoint": "https://platform.example/connections",
+            "Headers": { "X-Api-Key": "from-your-secret-store" }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The same in code:
+
+```csharp
+builder.AddCratisArc(configureOptions: arc =>
+    arc.ConnectionResolution.Identity.UseHttp(new Uri("https://platform.example/connections")));
+```
+
+The `storage` in each request tells your endpoint which storage is asking, so one endpoint can serve both.
+
+An integration that configures its own `ConnectionResolution` uses that instead, as a whole: there is no merging between the application-wide and the integration's configuration. Use it when one storage needs a different endpoint.
+
+## Configure it for one storage
 
 - [MongoDB connection resolution](../mongodb/connection-resolution.md)
 - [Entity Framework Core connection resolution](../entity-framework/connection-resolution.md)

@@ -3,7 +3,9 @@ title: Connection resolution
 description: Resolve the Entity Framework Core connection string, database and identity per tenant, including access tokens and separate identities for migrations.
 ---
 
-By default, every Arc-registered `DbContext` connects with the one configured connection string. Use connection resolution when each tenant's database sits on its own server or database, or connects with its own identity. For the concepts, the resolvers and the HTTP contract, read [connection resolution](../tenancy/connection-resolution.md) first.
+By default, every Arc-registered `DbContext` connects with the one configured connection string. Use connection resolution when each tenant's database sits on its own server or database, or connects with its own identity. For the concepts and the resolvers, read [connection resolution](../tenancy/connection-resolution.md) first; for the endpoint an `Http` resolver calls, see the [connection resolution contract](../../../connection-resolution-contract.md).
+
+This page configures resolution for Entity Framework Core only. To configure it once for every storage, set it on Arc instead, as described in [configure it once for the whole application](../tenancy/connection-resolution.md#configure-it-once-for-the-whole-application). What you configure here replaces the application-wide configuration for Entity Framework Core.
 
 ## Configure it
 

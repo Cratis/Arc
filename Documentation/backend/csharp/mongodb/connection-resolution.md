@@ -3,7 +3,9 @@ title: Connection resolution
 description: Resolve the MongoDB server, database and identity per tenant through configuration, a template, an HTTP endpoint or your own resolver.
 ---
 
-Use connection resolution when each tenant's MongoDB database lives somewhere your platform decides, or authenticates with its own credentials. For the concepts, the resolvers and the HTTP contract, read [connection resolution](../tenancy/connection-resolution.md) first.
+Use connection resolution when each tenant's MongoDB database lives somewhere your platform decides, or authenticates with its own credentials. For the concepts and the resolvers, read [connection resolution](../tenancy/connection-resolution.md) first; for the endpoint an `Http` resolver calls, see the [connection resolution contract](../../../connection-resolution-contract.md).
+
+This page configures resolution for MongoDB only. To configure it once for every storage, set it on Arc instead, as described in [configure it once for the whole application](../tenancy/connection-resolution.md#configure-it-once-for-the-whole-application). What you configure here replaces the application-wide configuration for MongoDB.
 
 ## Fetch the identity from your platform
 
