@@ -44,7 +44,7 @@ internal static class DateValidationRules
     {
         var argument = InvocationChain.ArgumentOf(call);
         var literal = argument is null ? null : DateComparisonOperands.Literal(argument, site.Model);
-        var reason = Refusal(call, argument, target, site.Model) ?? (literal is null ? "a canonical calendar date or an instant with an explicit offset or Z is required; clock operands such as Now, UtcNow and Today are not admitted" : null);
+        var reason = Refusal(call, argument, target, site.Model) ?? (literal is null && argument is not null ? DateComparisonOperands.Refusal(argument, site.Model, false) : null);
         if (reason is not null)
         {
             site.Diagnostics.Warning(ScreenplayDiagnosticCodes.UnmappableValidationRule, $"The date rule on '{site.Location}.{target.Property}' was left in code: {reason}", site.Location);
@@ -55,7 +55,7 @@ internal static class DateValidationRules
         {
             DateComparisonOperands.ReportInputBinding(target.Property, site.Location, site.Diagnostics);
         }
-        ValidationRuleKinds.TryResolve(InvocationChain.NameOf(call), false, out var kind);
+        ValidationRuleKinds.TryResolveDate(InvocationChain.NameOf(call), out var kind);
 
         return new(target.Property, kind, literal, null);
     }

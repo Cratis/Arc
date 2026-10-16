@@ -31,7 +31,6 @@ public static class ValidationRuleKinds
         { "LessThan", ValidationRuleKind.LessThan },
         { "LessThanOrEqualTo", ValidationRuleKind.LessThanOrEqual },
         { "Equal", ValidationRuleKind.Equal },
-        { "NotEqual", ValidationRuleKind.NotEqual },
         { "Matches", ValidationRuleKind.Matches },
         { "EmailAddress", ValidationRuleKind.Matches }
     };
@@ -51,6 +50,24 @@ public static class ValidationRuleKinds
     /// <returns>True when the rule builder has a counterpart.</returns>
     public static bool TryResolve(string method, bool forEach, out ValidationRuleKind kind) =>
         forEach ? _each.TryGetValue(method, out kind) : _single.TryGetValue(method, out kind);
+
+    /// <summary>
+    /// Tries to map a rule builder on a Date or DateTime subject onto a declarative rule.
+    /// </summary>
+    /// <param name="method">The name of the rule builder.</param>
+    /// <param name="kind">The declarative rule.</param>
+    /// <returns>True when the rule builder has a counterpart for date subjects.</returns>
+    public static bool TryResolveDate(string method, out ValidationRuleKind kind)
+    {
+        if (string.Equals(method, "NotEqual", StringComparison.Ordinal))
+        {
+            kind = ValidationRuleKind.NotEqual;
+
+            return true;
+        }
+
+        return _single.TryGetValue(method, out kind);
+    }
 
     /// <summary>
     /// Determines whether a rule builder carries meaning that only the code behind it has.

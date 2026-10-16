@@ -60,7 +60,7 @@ internal sealed class DateComparisonVersionAdmission(ApplicationModel model, Sem
         {
             return command;
         }
-        var dateProperties = properties.Where(property => IsDate(property.Name, properties)).Select(property => property.Name);
+        var dateProperties = ComparedDates(command.Validations.Except(validations), command.Produces.Except(productions), requirements.Except(kept), properties);
         diagnostics.Warning(ScreenplayDiagnosticCodes.UnmappableValidationRule, $"Date comparisons on command '{command.Name}' ({string.Join(", ", dateProperties)}) require ESM v26, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{cap}; the comparisons were left in code", location);
 
         return command with
@@ -70,6 +70,19 @@ internal sealed class DateComparisonVersionAdmission(ApplicationModel model, Sem
             Authoring = command.Authoring is { } authoring ? authoring with { Requirements = kept } : null
         };
     }
+
+    IEnumerable<string> ComparedDates(IEnumerable<ValidationRuleModel> rules, IEnumerable<ProducesModel> productions, IEnumerable<CommandRequirementModel> requirements, IEnumerable<PropertyModel> properties) =>
+        rules.Select(rule => rule.Property)
+            .Concat(productions.Where(production => production.When is not null).SelectMany(production => DatePaths(production.When!, properties)))
+            .Concat(requirements.SelectMany(requirement => DatePaths(requirement.Condition, properties)))
+            .Distinct(StringComparer.Ordinal);
+
+    IEnumerable<string> DatePaths(ConditionModel condition, IEnumerable<PropertyModel> properties) => condition switch
+    {
+        ComparisonCondition comparison => new[] { comparison.Left, (comparison.Right as PropertyPathSource)?.Path }.OfType<string>().Where(path => IsDate(path, properties)),
+        LogicalCondition logical => DatePaths(logical.Left, properties).Concat(DatePaths(logical.Right, properties)),
+        _ => []
+    };
 
     bool IsDate(string path, IEnumerable<PropertyModel> properties) => properties.Any(property => property.Name == path && IsDateType(property.Type.Name));
 

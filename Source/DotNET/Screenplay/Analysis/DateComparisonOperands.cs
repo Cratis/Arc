@@ -14,6 +14,8 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// </summary>
 internal static class DateComparisonOperands
 {
+    static readonly HashSet<string> _clockMembers = new(StringComparer.Ordinal) { "Now", "UtcNow", "Today" };
+
     /// <summary>
     /// Gets the date primitive, unwrapping an optional value type.
     /// </summary>
@@ -51,6 +53,32 @@ internal static class DateComparisonOperands
         Primitive(model.GetTypeInfo(expression).Type) is { } primitive
             ? Constructed(expression, primitive, model) ?? Parsed(expression, primitive, model)
             : null;
+
+    /// <summary>
+    /// Explains why an operand is not an admitted date literal.
+    /// </summary>
+    /// <param name="expression">The operand expression.</param>
+    /// <param name="model">Its semantic model.</param>
+    /// <param name="propertyAdmitted">Whether a command property is an admitted operand.</param>
+    /// <returns>The refusal reason.</returns>
+    internal static string Refusal(ExpressionSyntax expression, SemanticModel model, bool propertyAdmitted)
+    {
+        var primitive = Primitive(model.GetTypeInfo(expression).Type);
+        if (expression.DescendantNodesAndSelf().OfType<MemberAccessExpressionSyntax>().Any(access => _clockMembers.Contains(access.Name.Identifier.Text)))
+        {
+            return "clock operands such as Now, UtcNow and Today are not admitted";
+        }
+        if (expression is InvocationExpressionSyntax && primitive == ScreenplayPrimitive.DateTime)
+        {
+            return "a DateTime literal requires an explicit offset or Z";
+        }
+        if (expression is InvocationExpressionSyntax or ObjectCreationExpressionSyntax && primitive == ScreenplayPrimitive.Date)
+        {
+            return "a Date literal must be a valid calendar date written as yyyy-MM-dd";
+        }
+
+        return propertyAdmitted ? "the operand is neither a literal date or instant nor a command property" : "the operand is not a literal date or instant";
+    }
 
     /// <summary>
     /// Reports that source comparisons alone cannot prove offset-aware input binding.

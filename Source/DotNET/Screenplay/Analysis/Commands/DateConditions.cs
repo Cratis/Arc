@@ -35,9 +35,10 @@ internal static class DateConditions
         var left = MappingSourceReader.ReadPath(binary.Left, model, site.Owner, site.Bindings);
         var right = MappingSourceReader.ReadPath(binary.Right, model, site.Owner, site.Bindings);
         var sources = new MappingSourceReader(site.Diagnostics);
-        var operand = sources.Read(left is not null ? binary.Right : binary.Left, model, site.Owner, site.Location, site.Bindings);
+        var operandExpression = left is not null ? binary.Right : binary.Left;
+        var operand = DateOperand(operandExpression, model) ?? sources.Read(operandExpression, model, site.Owner, site.Location, site.Bindings);
         var reason = Failure(binary, model, left, right) ?? (operand is LiteralSource { Value: string } or PropertyPathSource ? null :
-            "only a literal calendar date or an instant with an explicit offset or Z is admitted; clock operands such as Now, UtcNow and Today are not admitted");
+            DateComparisonOperands.Refusal(MappingSourceReader.Unwrap(operandExpression), model, true));
         if (reason is not null)
         {
             site.Diagnostics.Warning(ScreenplayDiagnosticCodes.UnmappableCommandProduction, $"The date comparison on '{left ?? right ?? binary.ToString()}' was left in code: {reason}", site.Location);
@@ -52,6 +53,9 @@ internal static class DateConditions
 
         return left is not null ? new(left, comparison, operand!) : new(right!, ComparisonKinds.Mirrored(comparison), operand!);
     }
+
+    static LiteralSource? DateOperand(ExpressionSyntax expression, SemanticModel model) =>
+        DateComparisonOperands.Literal(MappingSourceReader.Unwrap(expression), model) is { } date ? new LiteralSource(date) : null;
 
     static string? Failure(BinaryExpressionSyntax binary, SemanticModel model, string? left, string? right)
     {
