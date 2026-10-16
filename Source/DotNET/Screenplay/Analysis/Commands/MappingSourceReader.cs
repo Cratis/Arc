@@ -101,6 +101,11 @@ public class MappingSourceReader(ScreenplayDiagnostics diagnostics)
     {
         var unwrapped = Unwrap(expression);
 
+        if (DateComparisonOperands.Literal(unwrapped, semanticModel) is { } date)
+        {
+            return new LiteralSource(date);
+        }
+
         var constant = semanticModel.GetConstantValue(unwrapped);
         if (constant.HasValue)
         {

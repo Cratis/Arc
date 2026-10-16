@@ -182,8 +182,24 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         return true;
     }
 
+    (ComparisonCondition? Condition, bool Read)? DateCondition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, bool invert, string location)
+    {
+        if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax binary || !DateConditions.Applies(binary, model))
+        {
+            return null;
+        }
+        var condition = new ConditionReader(diagnostics).Read(binary, model, command, location);
+
+        return ((invert ? ConditionReader.Invert(condition) : condition) as ComparisonCondition, true);
+    }
+
     ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
     {
+        if (DateCondition(expression, model, command, invert, location) is { } date)
+        {
+            return date.Condition;
+        }
+
         if (MappingSourceReader.Unwrap(expression) is not BinaryExpressionSyntax comparison ||
             model.GetOperation(comparison) is not IBinaryOperation { OperatorMethod: null } operation ||
             operation.LeftOperand is IConversionOperation || operation.RightOperand is IConversionOperation ||
