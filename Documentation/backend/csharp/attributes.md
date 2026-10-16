@@ -35,6 +35,7 @@ public record RegisterAuthor(AuthorId Id, AuthorName Name)
 | `[Path]` (`Cratis.Arc.Queries.ModelBound`) | model-bound command, read model or query method | Overrides the conventional HTTP route. A command's `/validate` endpoint uses the same path plus `/validate`. The explicit path is not prefixed or lowercased. |
 | `[QueryHttpMethod]` | read model, query method | Sets the HTTP method the **generated proxy** uses by default (GET, QUERY, or Auto). The server accepts GET and, unless `GeneratedApis.EnableQueryHttpMethod` is `false`, QUERY regardless of this attribute. |
 | `[FromRequest]` | parameter, property | Binds a value from several request sources rather than the default one. |
+| `[ExplicitOffset]` (`Cratis.Arc.Commands`) | property, field | Requires JSON DateTime/DateTimeOffset input to include an explicit offset or Z. Nullable forms accept null. Use `[property: ExplicitOffset]` on a positional record; see [input binding](commands/input-binding.md). |
 
 A route you do not override is derived, so `[Path]` is for the cases where the
 derived route is wrong for you — not something to apply everywhere. A command's explicit

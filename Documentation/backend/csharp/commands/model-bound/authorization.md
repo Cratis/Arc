@@ -65,6 +65,12 @@ For domain-specific access control in the model-bound pipeline, implement an [au
 
 Test protection through every entry point your application exposes.
 
+## Unbindable command bodies
+
+For execute and `/validate`, Arc checks authentication, roles, schemes, and fallback requirements before reporting malformed input. Named ASP.NET policies also run with a null resource when every resolved requirement is resource-free: the built-in authentication, role, claim and name requirements, or custom requirements implementing `Cratis.Arc.Authorization.IResourceFreeRequirement`. Implement this marker only for handlers that read the user and never the resource; a command-property comparison must not opt in. `AssertionRequirement` is not classified as resource-free.
+
+If any policy contains a resource-dependent requirement, Arc skips the policy set on this path, not just the unsafe handler. The binding failure stands as Validation for callers meeting the remaining authentication/role checks. Native Core policies and `IAuthorizationCommandFilter` implementations also need an instance and are not evaluated. Successfully bound commands still run every policy and filter. See [command input binding](../input-binding.md) for messages, member paths, and the explicit-offset marker.
+
 ## Authorization results
 
 Caller fragment with `ICommandPipeline pipeline` injected:

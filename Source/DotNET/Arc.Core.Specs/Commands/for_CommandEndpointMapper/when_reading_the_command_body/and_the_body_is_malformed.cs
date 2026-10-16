@@ -21,6 +21,7 @@ public class and_the_body_is_malformed : given.a_command_endpoint_mapper
 
     async Task Because() => (_command, _failure) = await CommandEndpointMapper.ReadCommandBody(_context, _commandType, _correlationId, _logger);
 
+    [Fact] void should_not_report_a_member_for_a_root_failure() => _failure!.ValidationResults.Single().Members.ShouldBeEmpty();
     [Fact] void should_not_produce_a_command() => _command.ShouldBeNull();
     [Fact] void should_produce_a_failure_result() => _failure.ShouldNotBeNull();
     [Fact] void should_be_a_validation_failure() => _failure!.IsValid.ShouldBeFalse();

@@ -92,7 +92,7 @@ public static class CommandEndpointMapper
             if (command is null)
             {
                 logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, null);
-                return (null, CommandResult.InvalidBody(correlationId));
+                return (null, CommandBodyBindingFailure.From(correlationId, null));
             }
 
             return (command, null);
@@ -106,7 +106,7 @@ public static class CommandEndpointMapper
             // the 400 the body-read contract promises. Cancellation and genuine server faults are not matched here
             // and continue to surface as a server error.
             logger.FailedToReadCommandBody(commandType.FullName ?? commandType.Name, ex);
-            return (null, CommandResult.InvalidBody(correlationId));
+            return (null, CommandBodyBindingFailure.From(correlationId, ex));
         }
     }
 
@@ -160,7 +160,8 @@ public static class CommandEndpointMapper
                     var (command, bodyFailure) = await ReadCommandBody(context, commandType, correlationIdAccessor.Current, logger);
                     if (bodyFailure is not null)
                     {
-                        commandResult = bodyFailure;
+                        var refusal = new UnboundCommandRefusalRequest(commandType, bodyFailure, context.RequestServices, validateOnly);
+                        commandResult = await RefuseUnboundBody(commandPipeline, refusal, logger, context.RequestAborted);
                     }
                     else if (commandPipeline is CommandPipeline builtInPipeline)
                     {
@@ -192,6 +193,19 @@ public static class CommandEndpointMapper
                 await context.WriteResponseAsJson(commandResult, commandResult.GetType(), context.RequestAborted);
             },
             metadata);
+    }
+
+    static Task<CommandResult> RefuseUnboundBody(ICommandPipeline pipeline, UnboundCommandRefusalRequest request, ILogger logger, CancellationToken cancellationToken)
+    {
+        if (pipeline is CommandPipeline builtIn)
+        {
+            return builtIn.RefuseUnboundHosted(request, cancellationToken);
+        }
+
+        var services = request.RequestServices;
+        var allowed = CanExecuteWithCustomPipeline(services, request.CommandType, logger) &&
+            services.GetService<IAuthorizationEvaluator>()?.IsAuthorized(request.CommandType) == true;
+        return Task.FromResult(allowed ? request.BindingFailure : CommandResult.Unauthorized(request.BindingFailure.CorrelationId));
     }
 
     static bool CanExecuteWithCustomPipeline(IServiceProvider services, Type commandType, ILogger logger)

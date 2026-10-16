@@ -8,6 +8,8 @@
   href: controller-based.md
 - name: Validation
   href: validation.md
+- name: Command input binding
+  href: input-binding.md
 - name: Pre-flight validation
   href: command-validation.md
 - name: Validation severity filtering

@@ -204,7 +204,7 @@ A rejection your own rules produced and one the framework composed on your behal
 | `constraintViolation`   | Optional Chronicle integration: an event-store constraint rejected the append | Map the constraint name to your own copy               |
 | `validatorFailed`       | A validator threw; nothing the author wrote survives                          | Show your own generic copy, and check the server log   |
 | `dependencyUnavailable` | A dependency needed to evaluate the command was unavailable                   | Do not imply the input passed or failed its rules      |
-| `malformedRequest`      | The request body or a bound value could not be read                           | Correct the request; validation rules were not reached |
+| `malformedRequest`      | The request body or a bound value could not be read; C# supplies a normalized member when available | Correct the request; rules were not reached. Ordinary parser details stay private; explicit-offset refusals have a showable message. |
 | `frameworkFailure`      | The framework could not fulfill a command contract or complete its effects    | Use your own copy; this framework-composed message is not meant for end users |
 
 ### Optional Chronicle rejection handling
