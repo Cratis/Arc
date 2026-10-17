@@ -25,9 +25,8 @@ namespace Cratis.Arc.Screenplay.Analysis;
 /// another. The compiler states some refusals before it binds, which hides the ones it states while binding, so the
 /// withholding is repeated once; a document still refused after that is a defect of the generator and is reported as one.
 /// <para>
-/// This is the one place that knows how a refusal is attributed. A diagnostic is attributed to a read by the line of the
-/// parsed document it points at. Screenplay will carry the read, the view and the reason as typed diagnostic arguments
-/// (Cratis/Screenplay#851); the location mapping in <see cref="AttributeToRead"/> is then replaced by reading them.
+/// The compiler's named, typed arguments identify the command and read of PLAY0781 to PLAY0785, independently of
+/// their wording or location. Earlier syntax errors on the read itself are attributed by their source line.
 /// </para>
 /// </remarks>
 internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreenplayVerifier verifier)
@@ -103,28 +102,13 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
 
     static bool IsDefect(string code) => _defectCodes.Contains(code);
 
-    static string? PathAlias(string message)
-    {
-        var start = message.IndexOf('\'', StringComparison.Ordinal);
-        var end = start < 0 ? -1 : message.IndexOf('\'', start + 1);
-
-        return end > start ? message[(start + 1)..end].Split('.')[0] : null;
-    }
-
-    static IEnumerable<ReadsSyntax> Concerned(CommandSyntax command, Diagnostic diagnostic) => diagnostic.Code switch
-    {
-        "PLAY0783" => command.Reads ?? [],
-        "PLAY0784" or "PLAY0785" => (command.Reads ?? []).Where(read => string.Equals(read.Alias ?? read.ReadModel, PathAlias(diagnostic.Message), StringComparison.OrdinalIgnoreCase)),
-        _ => (command.Reads ?? []).Where(read => read.Location.Line == diagnostic.Location.Line)
-    };
-
     static void Report(RefusedRead refused, WithholdingPass pass)
     {
         var (command, read, reasons, location) = refused;
 
         // A refused read no longer resolves its paths, so PLAY0784 and PLAY0785 follow from any other refusal; alone they mean the generator wrote a bad path.
         var primary = reasons.Where(reason => !IsDefect(reason.Code)).ToArray();
-        var text = string.Join("; ", (primary.Length > 0 ? primary : reasons).Select(reason => $"{reason.Code}: {reason.Message}"));
+        var text = string.Join("; ", (primary.Length > 0 ? primary : reasons).Select(reason => $"{reason.Code}: {ProtectedReadDiagnostic.Message(reason)}"));
         if (primary.Length == 0)
         {
             pass.Diagnostics.Error(
@@ -149,7 +133,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
         // A refusal the compiler states before binding (an unusable key, for instance) is an error on the line of the read itself.
         var refused = verification.BindingDiagnostics.Concat(verification.Errors)
             .Where(diagnostic => _refusalCodes.Contains(diagnostic.Code) || (diagnostic.Severity == DiagnosticSeverity.Error && readLines.Contains(diagnostic.Location.Line)))
-            .Select(diagnostic => (Diagnostic: diagnostic, Reads: AttributeToRead(commands, diagnostic).ToArray()))
+            .Select(diagnostic => (Diagnostic: diagnostic, Reads: (ProtectedReadDiagnostic.HasSubjects(diagnostic) ? ProtectedReadDiagnostic.Attribute(verification.Application, diagnostic) : AttributeToRead(commands, diagnostic)).ToArray()))
             .ToArray();
 
         return new(
@@ -159,7 +143,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
 
     IEnumerable<ProtectedReadRefusal> AttributeToRead((SliceSyntax Slice, CommandSyntax Command)[] commands, Diagnostic diagnostic) =>
         commands.LastOrDefault(placed => placed.Command.Location.Line <= diagnostic.Location.Line) is { Command: { } owner } placed
-            ? Concerned(owner, diagnostic).Select(read => new ProtectedReadRefusal(placed.Slice.Name, owner.Name, read.Alias ?? read.ReadModel, diagnostic))
+            ? (owner.Reads ?? []).Where(read => read.Location.Line == diagnostic.Location.Line).Select(read => new ProtectedReadRefusal(placed.Slice.Name, owner.Name, read.Alias ?? read.ReadModel, diagnostic))
             : [];
 
     ApplicationModel Withhold(ApplicationModel model, IReadOnlyList<ProtectedReadRefusal> refusals, ScreenplayDiagnostics diagnostics)
@@ -181,7 +165,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
         var reads = command.Authoring?.Reads.Where(read => read.Protected && concerned.Any(refusal => refusal.Alias == EmittedName(read))).ToArray() ?? [];
         foreach (var read in reads)
         {
-            Report(new(command, read, concerned.Where(refusal => refusal.Alias == EmittedName(read)).Select(refusal => refusal.Diagnostic).DistinctBy(diagnostic => diagnostic.Code + diagnostic.Message).ToArray(), $"{location}.{command.Name}"), pass);
+            Report(new(command, read, concerned.Where(refusal => refusal.Alias == EmittedName(read)).Select(refusal => refusal.Diagnostic).ToArray(), $"{location}.{command.Name}"), pass);
         }
 
         return reads.Length == 0
