@@ -11,7 +11,7 @@ namespace Cratis.Arc.MongoDB.for_MongoCollectionExtensions.given;
 
 public sealed class an_observation_with_typed_ids<TId> : IDisposable
 {
-    static readonly TimeSpan Deadline = TimeSpan.FromSeconds(5);
+    static readonly TimeSpan _deadline = TimeSpan.FromSeconds(5);
     readonly IMongoCollection<Document> _collection = Substitute.For<IMongoCollection<Document>>();
     readonly Channel<ChangeStreamDocument<Document>> _changes = Channel.CreateUnbounded<ChangeStreamDocument<Document>>();
     readonly Channel<Emission> _emissions = Channel.CreateUnbounded<Emission>();
@@ -76,7 +76,7 @@ public sealed class an_observation_with_typed_ids<TId> : IDisposable
         return cursor;
     }
 
-    async Task<Emission> Next() => await _emissions.Reader.ReadAsync().AsTask().WaitAsync(Deadline);
+    async Task<Emission> Next() => await _emissions.Reader.ReadAsync().AsTask().WaitAsync(_deadline);
 
     IChangeStreamCursor<ChangeStreamDocument<Document>> CreateChangeCursor()
     {
@@ -94,5 +94,5 @@ public sealed class an_observation_with_typed_ids<TId> : IDisposable
 
     public record Document(TId Id, string Name);
 
-    public record Emission(Document[] Documents, IReadOnlyList<CollectionChange>? Changes);
+    public record Emission(IReadOnlyList<Document> Documents, IReadOnlyList<CollectionChange>? Changes);
 }
