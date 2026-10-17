@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.ComponentModel.DataAnnotations;
-using Cratis.Concepts;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Commands.Filters.for_DataAnnotationValidationFilter.given;
@@ -19,11 +18,6 @@ public class a_data_annotation_validation_filter : Specification
         _filter = new DataAnnotationValidationFilter();
     }
 
-    public record Name(string Value) : ConceptAs<string>(Value);
-    public record Amount(int Value) : ConceptAs<int>(Value);
-    public record WithRequiredName([property: Required] Name? Name);
-    public record WithAmount([property: Range(1, 100)] Amount Amount);
-
     [AttributeUsage(AttributeTargets.Class)]
     public sealed class RejectedObjectAttribute : ValidationAttribute
     {
@@ -31,7 +25,7 @@ public class a_data_annotation_validation_filter : Specification
             new("Object annotation rejected", ["Name"]);
     }
 
-    public record WithObjectRules([property: Required, MinLength(2)] Name? Name) : IValidatableObject
+    public record WithObjectRules([property: Required, MinLength(2)] string? Name) : IValidatableObject
     {
         public int ValidationCalls { get; private set; }
 
@@ -43,7 +37,7 @@ public class a_data_annotation_validation_filter : Specification
     }
 
     [RejectedObject]
-    public record WithTypeRules([property: Required] Name? Name) : IValidatableObject
+    public record WithTypeRules([property: Required] string? Name) : IValidatableObject
     {
         public int ValidationCalls { get; private set; }
 
@@ -53,37 +47,4 @@ public class a_data_annotation_validation_filter : Specification
             return [new("Object rule rejected")];
         }
     }
-
-    public record WithMixedProperties(
-        Name Name,
-        [property: Required(ErrorMessage = "Label is required"), MinLength(2)] string Label);
-
-    [RejectedObject]
-    public record AnnotatedValue(string Value);
-
-    [RejectedObject]
-    public record AnnotatedName(string Value) : ConceptAs<string>(Value);
-
-    public record WithAnnotatedProperty(Name Name, AnnotatedValue Value);
-    public record WithAnnotatedConcept(AnnotatedName Name);
-
-    public record WithComparedConcepts(
-        Name Original,
-        [property: Compare(nameof(WithComparedConcepts.Original), ErrorMessage = "Names must match")] Name Confirmation);
-
-    public record WithComparedStrings(
-        Name Name,
-        string Original,
-        [property: Compare(nameof(WithComparedStrings.Original), ErrorMessage = "Labels must match")] string Confirmation);
-
-    [AttributeUsage(AttributeTargets.Property)]
-    public sealed class SameAsAttribute(string otherProperty) : CompareAttribute(otherProperty);
-
-    public record WithDerivedComparison(
-        Name Original,
-        [property: SameAs(nameof(WithDerivedComparison.Original))] Name Confirmation);
-
-    public record WithRequiredComparison(
-        Name Original,
-        [property: Required(ErrorMessage = "Confirmation is required"), Compare(nameof(WithRequiredComparison.Original))] Name? Confirmation);
 }

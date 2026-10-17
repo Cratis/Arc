@@ -9,7 +9,7 @@ Validation is not authorization, and a pre-flight check cannot guarantee that st
 
 ## Data annotations
 
-For positional records, explicitly target the generated **properties**. Arc's command filter uses object-property validation, not constructor-parameter metadata. On a `ConceptAs<T>` property, annotations evaluate the underlying value, so `[Required]` rejects an empty string concept and `[Range]` compares the wrapped number; a null concept remains null.
+For positional records, explicitly target the generated **properties**. Arc's command filter uses object-property validation, not constructor-parameter metadata.
 
 This complete command allocates a `Guid`; it does not persist a business record:
 

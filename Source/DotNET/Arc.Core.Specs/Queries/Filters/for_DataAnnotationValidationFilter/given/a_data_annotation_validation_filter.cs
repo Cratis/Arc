@@ -1,8 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.ComponentModel.DataAnnotations;
-using Cratis.Concepts;
 using Cratis.Execution;
 
 namespace Cratis.Arc.Queries.Filters.for_DataAnnotationValidationFilter.given;
@@ -54,16 +52,4 @@ public class a_data_annotation_validation_filter : Specification
             QueryArguments.Empty,
             []);
     }
-
-    [AttributeUsage(AttributeTargets.Class)]
-    public sealed class ConceptRangeAttribute() : RangeAttribute(1, 100);
-
-    [AttributeUsage(AttributeTargets.Class)]
-    public sealed class ConceptRequiredAttribute : RequiredAttribute;
-
-    [ConceptRange]
-    public record Amount(int Value) : ConceptAs<int>(Value);
-
-    [ConceptRequired]
-    public record Name(string Value) : ConceptAs<string>(Value);
 }

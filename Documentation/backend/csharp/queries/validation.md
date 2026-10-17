@@ -84,7 +84,7 @@ Generated clients extract supported FluentValidation rules for early feedback. S
 
 ## DataAnnotations limitation
 
-The current model-bound `DataAnnotationValidationFilter` reads attributes from `parameter.Type`, **not** the method parameter's attributes. It does not recursively validate DTO properties. Therefore `[Required]`, `[MinLength]`, or `[Range]` written on static query parameters does not enforce those rules through this filter. Validation attributes declared on a concept type receive the concept's underlying value, with null remaining null.
+The current model-bound `DataAnnotationValidationFilter` reads attributes from `parameter.Type`, **not** the method parameter's attributes. It does not recursively validate DTO properties. Therefore `[Required]`, `[MinLength]`, or `[Range]` written on static query parameters does not enforce those rules through this filter.
 
 Use the verified FluentValidation pattern above rather than presenting parameter annotations as a working model-bound validation recipe. This is a current runtime limitation; broader parameter-annotation support would require an implementation change.
 

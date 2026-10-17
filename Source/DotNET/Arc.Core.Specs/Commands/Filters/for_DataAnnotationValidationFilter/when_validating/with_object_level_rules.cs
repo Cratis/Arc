@@ -10,7 +10,7 @@ public class with_object_level_rules : given.a_data_annotation_validation_filter
 
     void Establish()
     {
-        _command = new(new("Valid"));
+        _command = new("Valid");
         _context = new(_correlationId, typeof(WithObjectRules), _command, [], new());
     }
 
