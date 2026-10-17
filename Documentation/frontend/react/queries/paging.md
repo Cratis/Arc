@@ -71,9 +71,11 @@ For an **observable enumerable** query the tuple is `[result, setSorting, setPag
 
 ### Cached observable subscriptions
 
-Initial paging and sorting are sent when an observable subscription opens. In the current **non-Suspense** hooks with the default retained instance cache, subsequent `setPage`, `setPageSize`, and `setSorting` calls update local settings but reuse the established subscription instead of opening one with new arguments. Do not rely on those setters to navigate or reorder an already subscribed result.
+In non-Suspense observable hooks, `setPage`, `setPageSize`, and `setSorting` move to a cache entry for the requested paging and sorting. Each new subscription sends those settings to the server. Consumers on different pages or sort orders have independent subscriptions; consumers with matching query arguments, paging and sorting share one.
 
-This limitation is separate from backend paging support and does not describe ordinary one-shot queries. Suspense uses separate resource caches; do not infer its behavior from this non-Suspense path. See [query instance caching](./query-instance-caching.md) and verify the chosen hook/provider combination before adding live paging controls.
+While the new page is pending, the result shows its cached data if available. Otherwise it shows the query's default value with `isReady: false` and `isPerforming: true`, not the previous page's rows. Returning to a retained entry reuses its cached result and live subscription without subscribing again.
+
+Ordinary paged queries also reset to the matching entry, but perform a fresh request and mark cached data as `isPerforming: true` until it settles. Suspense uses separate resource caches. See [query instance caching](./query-instance-caching.md) for retention and sharing.
 
 ## Paging Metadata
 
@@ -92,13 +94,13 @@ Paging information is available on `result.paging`:
 | ---- | ----------- |
 | `MyQuery.useWithPaging(pageSize)` | Standard query with paging |
 | `MyQuery.useSuspenseWithPaging(pageSize)` | Suspense-compatible query with paging |
-| `MyObservableQuery.useWithPaging(pageSize)` | Initial observable paging; see the cached-subscription limitation above |
+| `MyObservableQuery.useWithPaging(pageSize)` | Observable paging with a subscription for the selected page and sort order |
 
 Parameterized proxies accept `(pageSize, args?, sorting?)`; parameterless enumerable proxies accept `(pageSize, sorting?)`. Match the generated signature rather than inserting an arguments placeholder for a parameterless query.
 
 ## Sorting with Paging
 
-Sorting is independent of paging. The following ordinary-query fragment shows initial sorting and a dynamic change; cached non-Suspense observables have the limitation described above.
+Sorting is independent of paging. Changing sort order fetches the matching ordinary-query result or selects the matching observable subscription. The following ordinary-query fragment shows initial sorting and a dynamic change.
 
 ```tsx
 import { Sorting, SortDirection } from '@cratis/arc/queries';

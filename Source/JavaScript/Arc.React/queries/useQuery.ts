@@ -7,13 +7,15 @@ import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { SetSorting } from './SetSorting.js';
 import { SetPage } from './SetPage.js';
 import { SetPageSize } from './SetPageSize.js';
-import { ArcContext } from '../ArcContext.js';
+import { ArcContext, type ArcConfiguration } from '../ArcContext.js';
 import { useCommandScope } from '../commands/useCommandScope.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
 import type { InFlightRequest } from './InFlightRequest.js';
 import { type QueryExecution, startQueryExecution } from './QueryExecution.js';
+import { buildQueryKey } from './buildQueryKey.js';
+import { useResultForKey } from './useResultForKey.js';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -59,24 +61,6 @@ function failedResult<TDataType>(defaultValue: TDataType, error: unknown): Query
 }
 
 /**
- * Builds the key a hook shares its query instance and cached result under. The query type and the serialized
- * arguments identify the request; paging and sorting are part of it too, since they live on the instance and are
- * sent with every request it performs - two hooks on different pages sharing one instance would fetch each
- * other's page and abort each other's requests. Without paging or sorting the key is exactly the cache's own.
- * @param queryCache The cache the key is for.
- * @param typeName The stable type name of the query.
- * @param args The arguments of the query, if any.
- * @param paging The paging of the query.
- * @param sorting The sorting of the query.
- * @returns The key.
- */
-function buildQueryKey(queryCache: { buildKey(queryTypeName: string, args?: object): string }, typeName: string, args: object | undefined, paging: Paging, sorting: Sorting): string {
-    const pagingPart = paging.page > 0 || paging.pageSize > 0 ? `::page=${paging.page},${paging.pageSize}` : '';
-    const sortingPart = sorting.field ? `::sort=${sorting.field},${sorting.direction}` : '';
-    return `${queryCache.buildKey(typeName, args)}${pagingPart}${sortingPart}`;
-}
-
-/**
  * The most recent request started on each query instance. Instances are shared between hooks through the
  * query instance cache, and starting a request aborts whatever that instance had in flight - so the latest
  * request is the one every hook on the instance is waiting for, whichever hook started it.
@@ -111,6 +95,23 @@ async function settleFromSupersedingRequest<TDataType>(queryInstance: object, ab
     }
 }
 
+/**
+ * Creates a fresh query instance configured from the Arc context, paging and sorting.
+ * The instance is created first so queryName can be read: it is a hardcoded fully-qualified
+ * string in generated proxies and survives minification. constructor.name is unstable
+ * under minification and must not be used as a cache key.
+ */
+function createFreshInstance<TQuery extends IQueryFor<unknown>>(query: Constructor<TQuery>, arc: ArcConfiguration, paging: Paging, sorting: Sorting): TQuery {
+    const freshInstance = new query() as TQuery;
+    freshInstance.paging = paging;
+    freshInstance.sorting = sorting;
+    freshInstance.setMicroservice(arc.microservice);
+    freshInstance.setApiBasePath(arc.apiBasePath ?? '');
+    freshInstance.setOrigin(arc.origin ?? '');
+    freshInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+    return freshInstance;
+}
+
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
@@ -136,19 +137,9 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const argumentsDependency = serializeArgsForDependency(args as object | undefined);
 
     const [queryInstance, cacheKey] = useMemo(() => {
-        // Create the instance first to read queryName, which is a hardcoded fully-qualified
-        // string in generated proxies and survives minification. constructor.name is unstable
-        // under minification and must not be used as a cache key.
-        const freshInstance = new query() as TQuery;
-        freshInstance.paging = currentPaging;
-        freshInstance.sorting = currentSorting;
-        freshInstance.setMicroservice(arc.microservice);
-        freshInstance.setApiBasePath(arc.apiBasePath ?? '');
-        freshInstance.setOrigin(arc.origin ?? '');
-        freshInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-
+        const freshInstance = createFreshInstance(query, arc, currentPaging, currentSorting);
         const typeName = (freshInstance as { queryName?: string }).queryName ?? query.name;
-        const key = buildQueryKey(queryCache, typeName, args as object | undefined, currentPaging, currentSorting);
+        const key = buildQueryKey(queryCache, typeName, args as object | undefined, { paging: currentPaging, sorting: currentSorting });
 
         const { instance } = queryCache.getOrCreate(key, () => freshInstance);
 
@@ -160,9 +151,11 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
-        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
-    );
+    const [result, setResult] = useResultForKey<TDataType>(
+        cacheKey,
+        cachedResult,
+        queryInstance.defaultValue,
+        cached => QueryResultWithState.fromQueryResult(cached, isEnabled !== false));
 
     const queryExecutor = (async (requestArgs?: TArguments) => {
         if (queryInstance) {
