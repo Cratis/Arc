@@ -98,6 +98,11 @@ public class ArcOptions
     public QueryOptions Query { get; set; } = new();
 
     /// <summary>
+    /// Gets or sets the access options for the query health diagnostic feed.
+    /// </summary>
+    public QueryHealthOptions QueryHealth { get; set; } = new();
+
+    /// <summary>
     /// Gets or sets the hosting options for Arc, only used by Arc.Core.
     /// </summary>
     public HostingOptions Hosting { get; set; } = new();
