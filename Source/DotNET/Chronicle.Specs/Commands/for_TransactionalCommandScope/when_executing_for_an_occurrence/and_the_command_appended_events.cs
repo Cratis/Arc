@@ -14,7 +14,14 @@ public class and_the_command_appended_events : given.an_occurrence_execution
         _scope.Begin(_context);
         AddEvent();
         _result = CommandResult.Success(_correlationId);
-        await _scope.Complete(_context, _result);
+        try
+        {
+            await _scope.Complete(_context, _result);
+        }
+        finally
+        {
+            _scope.End(_context);
+        }
     }
 
     [Fact] void should_succeed() => _result.IsSuccess.ShouldBeTrue();

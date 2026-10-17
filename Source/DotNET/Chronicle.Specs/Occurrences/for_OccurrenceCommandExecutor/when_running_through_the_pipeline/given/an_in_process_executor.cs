@@ -3,14 +3,18 @@
 
 using System.ComponentModel.DataAnnotations;
 using Cratis.Arc.Chronicle.Commands;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.Filters;
 using Cratis.Arc.Commands.ModelBound;
+using Cratis.Arc.Queries.ModelBound;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Auditing;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Occurrences;
+using Cratis.Chronicle.Projections.ModelBound;
+using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Testing;
 using Cratis.Chronicle.Testing.Events;
 using Cratis.Chronicle.Transactions;
@@ -35,7 +39,12 @@ public class an_in_process_executor : Specification
     {
         var capabilities = new KernelCapabilitiesForTesting();
         capabilities.Current();
-        _store = new EventStoreForTesting(null, new InMemoryClientArtifactsProvider { EventTypes = [typeof(EffectHappened)] }, new ChronicleOptions(), new ScenarioTime(), capabilities);
+        var artifacts = new InMemoryClientArtifactsProvider
+        {
+            EventTypes = [typeof(EffectHappened)],
+            ModelBoundProjections = [typeof(EffectState)]
+        };
+        _store = new EventStoreForTesting(null, artifacts, new ChronicleOptions(), new ScenarioTime(), capabilities);
         _occurrence = new OccurrenceContext("pipeline-occurrence", "pipeline-trigger", OccurrenceKind.Schedule, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow, new ScheduleRevision(1), 1, new LeaseToken("pipeline-occurrence", 1)) { Namespace = _store.Namespace };
         _key = _occurrence.EffectKey("record-effect");
         _counter = new();
@@ -49,6 +58,8 @@ public class an_in_process_executor : Specification
         services.AddSingleton<IEventStore>(_store);
         services.AddSingleton(_store.EventLog);
         services.AddSingleton(_store.UnitOfWorkManager);
+        services.AddSingleton<IDecisionReads>(new CommandDecisionReads(_store.GetDecisionReads(), _store, _store.ReadModels));
+        services.AddSingleton<ICommandProtectedDecisionSupport>(new DecisionDependencySafety());
 
         // Chronicle's raw testing log has no ambient manager; bind the transactional adapter to the command's unit.
         services.AddSingleton<ITransactionalEventSequence>(new TransactionalEventSequence(_store.EventLog, _store.UnitOfWorkManager));
@@ -57,10 +68,11 @@ public class an_in_process_executor : Specification
         services.AddSingleton<IOccurrenceCommandExecutor, OccurrenceCommandExecutor>();
         services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(new KnownInstancesOf<ICommandExecutionScope>([new CommandCausationScope(), new TransactionalCommandScope()]));
         services.AddSingleton<IInstancesOf<ICommandFilter>>(new KnownInstancesOf<ICommandFilter>([new DataAnnotationValidationFilter()]));
+        services.AddSingleton<IInstancesOf<ICommandExceptionMapper>>(new KnownInstancesOf<ICommandExceptionMapper>([new OccurrenceCommandExceptionMapper()]));
         services.AddSingleton<IInstancesOf<ICommandResponseValueHandler>>(new KnownInstancesOf<ICommandResponseValueHandler>([]));
         services.AddSingleton<IInstancesOf<ICommandContextValuesProvider>>(new KnownInstancesOf<ICommandContextValuesProvider>([]));
         var types = Substitute.For<ITypes>();
-        types.All.Returns([typeof(RecordEffect), typeof(CommitTooEarly), typeof(CompleteAStream)]);
+        types.All.Returns([typeof(RecordEffect), typeof(IgnoreNestedFailure), typeof(CommitTooEarly), typeof(CompleteAStream), typeof(ReadEffect)]);
         services.AddSingleton<ICommandHandlerProviders>(new CommandHandlerProviders(new KnownInstancesOf<ICommandHandlerProvider>([new CommandHandlerProvider(types)])));
         _services = services.BuildServiceProvider();
         _executor = _services.GetRequiredService<IOccurrenceCommandExecutor>();
@@ -80,6 +92,11 @@ public class an_in_process_executor : Specification
     {
         public int Calls { get; set; }
         public CorrelationId CorrelationId { get; set; } = CorrelationId.NotSet;
+        public Func<Task> AfterRead { get; set; } = () => Task.CompletedTask;
+        public DecisionRead<EffectState>? Read { get; set; }
+        public IUnitOfWork? Unit { get; set; }
+        public CommandResult? NestedResult { get; set; }
+        public bool OuterHandlerCompleted { get; set; }
     }
 
     [Command]
@@ -103,6 +120,19 @@ public class an_in_process_executor : Specification
     }
 
     [Command]
+    public record IgnoreNestedFailure
+    {
+        public async Task Handle(ICommandPipeline pipeline, ITransactionalEventSequence transactional, InvocationCounter counter, IUnitOfWorkManager manager)
+        {
+            counter.Unit = manager.Current;
+            await transactional.Append("effect-source", new EffectHappened("before-nested-command"));
+            counter.NestedResult = await pipeline.Execute(new RecordEffect("must-not-commit", Immediate: true));
+            await transactional.Append("effect-source", new EffectHappened("after-nested-command"));
+            counter.OuterHandlerCompleted = true;
+        }
+    }
+
+    [Command]
     public record CommitTooEarly
     {
         public async Task Handle(IUnitOfWorkManager manager)
@@ -116,6 +146,25 @@ public class an_in_process_executor : Specification
     {
         public void Handle() => OccurrenceExecution.RefuseStreamCompletion();
     }
+
+    [Command, ReadProtection(ReadProtectionMode.On)]
+    public record ReadEffect(bool Append)
+    {
+        public async Task Handle(IDecisionReads reads, ITransactionalEventSequence transactional, InvocationCounter counter, IUnitOfWorkManager manager)
+        {
+            counter.Calls++;
+            counter.Unit = manager.Current;
+            counter.Read = await reads.Get<EffectState>((ReadModelKey)"read-source");
+            await counter.AfterRead();
+            if (Append)
+            {
+                await transactional.Append("effect-source", new EffectHappened("protected"));
+            }
+        }
+    }
+
+    [ReadModel, FromEvent<EffectHappened>]
+    public record EffectState([property: Cratis.Chronicle.Keys.Key] EventSourceId Id, string Value);
 
     [EventType]
     public record EffectHappened(string Value);

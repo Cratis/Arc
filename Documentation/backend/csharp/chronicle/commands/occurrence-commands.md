@@ -5,7 +5,7 @@ description: Execute transactional commands for Chronicle occurrences without an
 
 A Chronicle occurrence is work the event store hands to your application when no one made a request: a schedule came due, the application started or stopped, a clock rule fired. An occurrence can be delivered more than once — a crash, a lost lease or a restart redelivers it. `IOccurrenceCommandExecutor` commits a transactional command's events and receipt atomically. A later delivery with the same effect key returns the recorded outcome without running the handler. Concurrent attempts can still enter the handler before one wins the commit; external side effects need their own idempotency keys.
 
-It is part of `Cratis.Arc.Chronicle` and needs a Chronicle kernel that advertises the `effect-receipts` capability (client 19.77 and later).
+It is part of `Cratis.Arc.Chronicle` and needs a Chronicle kernel that advertises the `effect-receipts` capability (client 19.81 and later).
 
 ## How it works
 
@@ -82,7 +82,7 @@ One receipt covers one unit of work, and the receipt is written only by its fina
 - **Committing early.** An aggregate root `Commit()` throws `OccurrenceCommandCannotCommitEarly`. Even if the pipeline catches it in a `CommandResult`, the executor rethrows it to the occurrence handler; it is a programming error, not a retryable `Failed` result.
 - **Completing a stream.** Stream completion is applied outside the atomic commit. The executor surfaces `OccurrenceCommandCannotCompleteStreams` to the occurrence handler, also rethrowing it when the pipeline captured it. No receipt is written.
 
-Direct (non-transactional) appends inside an occurrence command are **not retry-safe**. Return events from the handler or append through the command's unit of work using `.Transactional`. An immediate event-log append is detected after it commits: the executor rolls back pending transactional events, writes no receipt and throws `OccurrenceCommandAppendedImmediately`. The immediate event remains committed and redelivery can duplicate it. This is a fail-loud backstop, not prevention; do not rely on it to observe other sequence instances. Up-front refusal requires the [Chronicle append-admission scope](https://github.com/Cratis/Chronicle/issues/5019) and [Arc's corresponding guard](https://github.com/Cratis/Arc/issues/3354) once that Chronicle release ships. See [transactional commands](./transactional-commands.md).
+- **Appending immediately.** Chronicle's built-in event sequences refuse direct (non-transactional) appends before sending anything in the command's async flow. The executor rethrows `ImmediateAppendRefused`, rolls back pending transactional events and writes no receipt. This is a programming error, not a retryable `Failed` result. Return events from the handler or append through the command's unit of work using `.Transactional`; those events still commit atomically with the receipt. The refusal ends when the invocation exits, so later commands outside the occurrence can append immediately. Custom `IEventSequence` implementations must honor Chronicle's append-admission contract; the executor retains post-commit detection on the command's event log as a backstop, not prevention or coverage of other sequence instances. See [transactional commands](./transactional-commands.md).
 
 ## Fail closed without the kernel capability
 

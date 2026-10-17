@@ -13,6 +13,7 @@ public class and_the_command_completes_a_stream : given.an_occurrence_execution
         BeginExecution();
         _scope.Begin(_context);
         _exception = Catch.Exception(() => TransactionalCommandScope.EnrollCompletion(_context, new PendingStreamCompletion(_store.EventLog, EventStreamType.All, EventStreamId.Default, null)));
+        _scope.End(_context);
     }
 
     [Fact] void should_refuse() => _exception.ShouldBeOfExactType<OccurrenceCommandCannotCompleteStreams>();
