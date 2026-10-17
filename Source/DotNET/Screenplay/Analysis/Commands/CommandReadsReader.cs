@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Arc.Screenplay.Analysis.Types;
+using Cratis.Arc.Screenplay.Emission.Naming;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -17,6 +18,7 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 public class CommandReadsReader(SemanticModels models, TypeRegistry types, ScreenplayDiagnostics diagnostics, bool enabled)
 {
     readonly ReadConditions _conditions = new(diagnostics);
+    readonly ScreenplayNaming _naming = new();
 
     /// <summary>
     /// Gets whether every Provide method of the last command read only passes protected reads through its guards.
@@ -152,7 +154,8 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         Namespace = type.ContainingNamespace.ToDisplayString(),
         FullName = type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString(),
         Properties = new PropertyReader(types).Read(type).ToList(),
-        Protected = isProtected
+        Protected = isProtected,
+        NamedByView = _naming.ToPropertyName(parameter.Name) == _naming.ToPropertyName(type.Name)
     };
 
     void CarryProvided(ProvisionRead provision, IMethodSymbol[] methods, ReadScope scope)

@@ -55,7 +55,7 @@ public class CommandAuthoringSyntaxBuilder(IScreenplayNaming naming, TypeReferen
 
     ReadsSyntax Read(CommandReadModel read) => new(naming.ToDeclarationName(read.Name), naming.ToPropertyName(read.Key), SourceLocation.Start)
     {
-        Alias = naming.ToPropertyName(read.Alias)
+        Alias = read.NamedByView ? null : naming.ToPropertyName(read.Alias)
     };
 
     CommandStreamSyntax Route(CommandRouteModel route) => new(route.Source, route.Stream!, SourceLocation.Start)

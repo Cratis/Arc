@@ -27,4 +27,13 @@ public record CommandReadModel(string Name, string Alias, string Key)
     /// only for a dependency whose absence the source also rejects.
     /// </remarks>
     public bool Protected { get; init; }
+
+    /// <summary>
+    /// Gets whether the read is named by its view alone, because the parameter is named as the view is.
+    /// </summary>
+    /// <remarks>
+    /// Screenplay names a read by its alias, or by its read model when it states none. A parameter named as the view
+    /// (<c>Current? current</c>) needs no alias, and the document reads the way the model names the read.
+    /// </remarks>
+    public bool NamedByView { get; init; }
 }
