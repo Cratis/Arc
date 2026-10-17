@@ -12,15 +12,14 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// </summary>
 /// <remarks>
 /// A guard is an <see langword="if"/> without an <see langword="else"/> that returns <c>ValidationResult.Error</c>, directly or
-/// wrapped in a <c>OneOf</c> or <c>Result</c> factory (<c>FromT1</c>, for instance), with any message. The message is kept
+/// wrapped in a rejection factory (<c>OneOf.FromT1</c> carrying the validation result, or <c>Result.Failed</c>), in the one or the
+/// two-argument form (<c>ValidationResult.Error(message, members)</c>), with any message. The message is kept
 /// only when it is a constant: an absence guard does not carry it, and a requirement needs it.
 /// Only the guards before the first other statement count: they run before anything is produced, which is the order
 /// the model checks absence and requirements in.
 /// </remarks>
 internal static class ProtectedReadGuards
 {
-    static readonly string[] _factoryTypes = ["OneOf", "Result"];
-
     /// <summary>
     /// Reads the guards a method body opens with.
     /// </summary>
@@ -83,7 +82,7 @@ internal static class ProtectedReadGuards
     /// <param name="model">The semantic model of the call.</param>
     /// <returns>The message, or null when it is computed.</returns>
     internal static string? MessageOf(InvocationExpressionSyntax call, SemanticModel model) =>
-        call.ArgumentList.Arguments is [var argument] && model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+        call.ArgumentList.Arguments.FirstOrDefault(IsMessage) is { } argument && model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
 
     /// <summary>
     /// Reads the constant message of a returned validation error.
@@ -101,7 +100,14 @@ internal static class ProtectedReadGuards
 
     static bool IsValidationError(IMethodSymbol method) => method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult");
 
-    static bool IsResultFactory(IMethodSymbol method) => method.IsStatic && _factoryTypes.Contains(method.ContainingType.OriginalDefinition.Name);
+    static bool IsMessage(ArgumentSyntax argument) => argument.NameColon is null || argument.NameColon.Name.Identifier.Text == "message";
+
+    static bool IsResultFactory(IMethodSymbol method) => method.IsStatic && method.Parameters.Length == 1 && method.ContainingType.OriginalDefinition.Name switch
+    {
+        "OneOf" => method.Name == "FromT1" && method.Parameters[0].Type.Is("Cratis.Arc.Validation.ValidationResult"),
+        "Result" => method.Name == "Failed",
+        _ => false
+    };
 
     static ReadGuard? Guard(StatementSyntax statement, SemanticModel model)
     {
