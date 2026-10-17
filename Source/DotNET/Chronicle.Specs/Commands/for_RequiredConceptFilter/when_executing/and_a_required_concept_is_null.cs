@@ -14,5 +14,5 @@ public class and_a_required_concept_is_null : given.a_required_concept_filter
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_not_carry_any_exception() => _result.HasExceptions.ShouldBeFalse();
-    [Fact] void should_point_at_the_missing_property() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains(nameof(CommandWithRequiredConcept.Name)));
+    [Fact] void should_point_at_the_missing_property() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains("name"));
 }

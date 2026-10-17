@@ -96,6 +96,6 @@ Arc's GET action filter uses model state and may wrap validation errors. `[ApiCo
 
 ## Validation results and security
 
-A model-bound validation failure has `isValid: false`, `isSuccess: false`, and entries in `validationResults` containing `message`, `members`, and `severity`. Direct HTTP maps a validation verdict to 400. The response's paging fields are `page`, `size`, `totalItems`, and `totalPages`; see [the full QueryResult contract](query-pipeline.md#query-result-metadata).
+A model-bound validation failure has `isValid: false`, `isSuccess: false`, and entries in `validationResults` containing `message`, `members`, and `severity`; members are reported as camelCase field paths, such as `address.street` and `items[0].name`. Direct HTTP maps a validation verdict to 400. The response's paging fields are `page`, `size`, `totalItems`, and `totalPages`; see [the full QueryResult contract](query-pipeline.md#query-result-metadata).
 
 Validation is not ownership or authorization. Put access decisions in an [authorization verdict/filter](query-pipeline.md#query-filters), and test forbidden callers independently of invalid input. At minimum test missing, empty, malformed, out-of-range, and cross-field-invalid values through GET, QUERY, and hub subscriptions when those paths are exposed.

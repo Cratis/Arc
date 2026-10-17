@@ -12,6 +12,6 @@ public class and_both_event_source_keys_are_null : given.a_required_concept_filt
     async Task Because() => _result = await Execute(new CommandWithPrimaryAndSecondaryEventSourceKeys(null!, null!));
 
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
-    [Fact] void should_point_at_the_secondary_key() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains(nameof(CommandWithPrimaryAndSecondaryEventSourceKeys.SecondaryId)));
-    [Fact] void should_not_point_at_the_resolved_key() => _result.ValidationResults.ShouldNotContain(validationResult => validationResult.Members.Contains(nameof(CommandWithPrimaryAndSecondaryEventSourceKeys.Id)));
+    [Fact] void should_point_at_the_secondary_key() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains("secondaryId"));
+    [Fact] void should_not_point_at_the_resolved_key() => _result.ValidationResults.ShouldNotContain(validationResult => validationResult.Members.Contains("id"));
 }
