@@ -426,11 +426,14 @@ public partial class ObservableQueryDemultiplexer
             return false;
         }
 
-        return _anonymousQueries.GetOrAdd(queryName, _ =>
-        {
-            using var scope = serviceProvider.CreateScope();
-            return QueryEndpointAccess.AllowsAnonymous(performer, scope.ServiceProvider);
-        });
+        return _anonymousQueries.GetOrAdd(
+            queryName,
+            static (_, state) =>
+            {
+                using var scope = state.ServiceProvider.CreateScope();
+                return QueryEndpointAccess.AllowsAnonymous(state.Performer, scope.ServiceProvider);
+            },
+            (ServiceProvider: serviceProvider, Performer: performer));
     }
 
     /// <summary>
