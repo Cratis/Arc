@@ -12,7 +12,7 @@ public class from_uuid_comparisons_with_text_or_collections : a_generated_docume
     [InlineData("Member != Owners")]
     public void should_refuse_operands_that_are_not_scalar_uuids(string comparison)
     {
-        var replacement = """
+        const string replacement = """
             public record MemberId(Guid Value) : ConceptAs<Guid>(Value)
             {
                 public static bool operator ==(MemberId left, string right) => false;

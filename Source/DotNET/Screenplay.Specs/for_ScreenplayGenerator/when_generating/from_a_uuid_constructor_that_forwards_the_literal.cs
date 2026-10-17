@@ -10,7 +10,7 @@ public class from_a_uuid_constructor_that_forwards_the_literal : a_generated_doc
 {
     void Because()
     {
-        var replacement = """
+        const string replacement = """
             public record MemberId : ConceptAs<Guid>
             {
                 public MemberId(Guid value) : base(value) { }

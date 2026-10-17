@@ -26,7 +26,7 @@ public class from_a_uuid_comparison_on_a_protected_read : a_protected_document
 
     void Because()
     {
-        var source = """
+        const string source = """
             [Command, ReadProtection(ReadProtectionMode.On)]
             public record BookRoom(RoomId RoomId, MemberId RequestedBy)
             {
