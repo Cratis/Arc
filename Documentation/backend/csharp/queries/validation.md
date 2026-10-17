@@ -84,7 +84,7 @@ Generated clients extract supported FluentValidation rules for early feedback. S
 
 ## DataAnnotations limitation
 
-The current model-bound `DataAnnotationValidationFilter` reads attributes from `parameter.Type`, **not** the method parameter's attributes. It does not recursively validate DTO properties. Therefore `[Required]`, `[MinLength]`, or `[Range]` written on static query parameters does not enforce those rules through this filter.
+The current model-bound `DataAnnotationValidationFilter` reads attributes from `parameter.Type`, **not** the method parameter's attributes. It does not recursively validate DTO properties. When a parameter type carries a validation attribute, a `ConceptAs<T>` argument is evaluated using its underlying value, with null remaining null. Therefore `[Required]`, `[MinLength]`, or `[Range]` written on static query parameters does not enforce those rules through this filter.
 
 Use the verified FluentValidation pattern above rather than presenting parameter annotations as a working model-bound validation recipe. This is a current runtime limitation; broader parameter-annotation support would require an implementation change.
 
@@ -96,6 +96,6 @@ Arc's GET action filter uses model state and may wrap validation errors. `[ApiCo
 
 ## Validation results and security
 
-A model-bound validation failure has `isValid: false`, `isSuccess: false`, and entries in `validationResults` containing `message`, `members`, and `severity`. Direct HTTP maps a validation verdict to 400. The response's paging fields are `page`, `size`, `totalItems`, and `totalPages`; see [the full QueryResult contract](query-pipeline.md#query-result-metadata).
+A model-bound validation failure has `isValid: false`, `isSuccess: false`, and entries in `validationResults` containing `message`, `members`, and `severity`; members are reported as camelCase field paths, such as `address.street` and `items[0].name`. Direct HTTP maps a validation verdict to 400. The response's paging fields are `page`, `size`, `totalItems`, and `totalPages`; see [the full QueryResult contract](query-pipeline.md#query-result-metadata).
 
 Validation is not ownership or authorization. Put access decisions in an [authorization verdict/filter](query-pipeline.md#query-filters), and test forbidden callers independently of invalid input. At minimum test missing, empty, malformed, out-of-range, and cross-field-invalid values through GET, QUERY, and hub subscriptions when those paths are exposed.

@@ -3,13 +3,13 @@ title: Command validation
 description: Validate model-bound command input with property annotations or FluentValidation.
 ---
 
-When input is incomplete, return useful feedback before performing work. Arc's model-bound pipeline runs validation filters before `Provide()` and `Handle()`. Blocking results stop execution and appear in `CommandResult.ValidationResults`.
+When input is incomplete, return useful feedback before performing work. Arc's model-bound pipeline runs validation filters before `Provide()` and `Handle()`. Blocking results stop execution and appear in `CommandResult.ValidationResults`; their members are reported as camelCase field paths, including results returned from `Provide()` or `Handle()` (`Name` becomes `name`, and `Items[0].Name` becomes `items[0].name`).
 
 Validation is not authorization, and a pre-flight check cannot guarantee that state remains unchanged. Read [severity filtering](./validation-severity-filtering.md) before relying on a rule as a non-overridable guard.
 
 ## Data annotations
 
-For positional records, explicitly target the generated **properties**. Arc's command filter uses object-property validation, not constructor-parameter metadata.
+For positional records, explicitly target the generated **properties**. Arc's command filter uses object-property validation, not constructor-parameter metadata. On a `ConceptAs<T>` property, annotations evaluate the underlying value, so `[Required]` rejects an empty string concept and `[Range]` compares the wrapped number; a null concept remains null.
 
 This complete command allocates a `Guid`; it does not persist a business record:
 
