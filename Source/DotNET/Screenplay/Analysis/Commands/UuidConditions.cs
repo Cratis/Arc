@@ -60,6 +60,10 @@ internal static class UuidConditions
         {
             return "only == and != are admitted on Uuid values, not ordering";
         }
+        if (HasNonTransparentCast(binary.Left, model) || HasNonTransparentCast(binary.Right, model))
+        {
+            return "casts that change the operand type are not admitted in Uuid conditions";
+        }
         if (!UuidComparisonOperands.IsUuid(first) || !UuidComparisonOperands.IsUuid(second))
         {
             return "a Uuid cannot be compared with a value of another type";
@@ -72,6 +76,10 @@ internal static class UuidConditions
         return UuidComparisonOperands.Concept(first) is { } a && UuidComparisonOperands.Concept(second) is { } b && !SymbolEqualityComparer.Default.Equals(a, b)
             ? "different Uuid concepts or identities cannot be compared; compare values of the same concept" : null;
     }
+
+    static bool HasNonTransparentCast(ExpressionSyntax expression, SemanticModel model) => expression.DescendantNodesAndSelf()
+        .OfType<CastExpressionSyntax>()
+        .Any(cast => !SymbolEqualityComparer.IncludeNullability.Equals(model.GetTypeInfo(cast.Expression).Type, model.GetTypeInfo(cast).Type));
 
     static string? Shape(
         (string? Path, MappingSourceModel? Source, ExpressionSyntax Expression) left,

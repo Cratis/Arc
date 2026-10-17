@@ -11,6 +11,7 @@ public class from_uuid_comparisons : a_generated_document
     [Theory]
     [InlineData("Owner == Other", "when owner == other")]
     [InlineData("Owner != Other", "when owner != other")]
+    [InlineData("Owner == (Guid)Other", "when owner == other")]
     [InlineData("Member == OtherMember", "when member == otherMember")]
     [InlineData("Member != OtherMember", "when member != otherMember")]
     [InlineData("Member == Owner", "when member == owner")]
