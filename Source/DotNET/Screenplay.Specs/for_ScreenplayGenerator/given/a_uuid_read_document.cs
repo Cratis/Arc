@@ -24,14 +24,19 @@ public class a_uuid_read_document : a_protected_document
         }
         """;
 
-    protected void GenerateComparison(string comparison) => Generate(Library($$"""
-        [Command, ReadProtection(ReadProtectionMode.On)]
-        public record BookRoom(RoomId RoomId, Guid Requester, Guid? Maybe)
-        {
-            public Result<RoomGrant, ValidationResult> Provide(RoomGrant grant, RoomGrant alternative) =>
-                {{comparison}} ? grant : ValidationResult.Error("Not allowed");
+    protected void GenerateComparison(string comparison)
+    {
+        var source = $$"""
+            [Command, ReadProtection(ReadProtectionMode.On)]
+            public record BookRoom(RoomId RoomId, Guid Requester, Guid? Maybe)
+            {
+                public Result<RoomGrant, ValidationResult> Provide(RoomGrant grant, RoomGrant alternative) =>
+                    {{comparison}} ? grant : ValidationResult.Error("Not allowed");
 
-            public GrantOpened Handle(RoomGrant grant) => new(Requester);
-        }
-        """, Grant), SemanticVersion.V28);
+                public GrantOpened Handle(RoomGrant grant) => new(Requester);
+            }
+            """;
+
+        Generate(Library(source, Grant), SemanticVersion.V28);
+    }
 }

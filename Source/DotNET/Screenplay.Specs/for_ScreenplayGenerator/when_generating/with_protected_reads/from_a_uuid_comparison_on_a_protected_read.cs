@@ -24,16 +24,21 @@ public class from_a_uuid_comparison_on_a_protected_read : a_protected_document
         }
         """;
 
-    void Because() => Generate(Library("""
-        [Command, ReadProtection(ReadProtectionMode.On)]
-        public record BookRoom(RoomId RoomId, MemberId RequestedBy)
-        {
-            public Result<RoomGrant, ValidationResult> Provide(RoomGrant grant) =>
-                grant.MemberId != RequestedBy ? ValidationResult.Error("Not your room") : grant;
+    void Because()
+    {
+        var source = """
+            [Command, ReadProtection(ReadProtectionMode.On)]
+            public record BookRoom(RoomId RoomId, MemberId RequestedBy)
+            {
+                public Result<RoomGrant, ValidationResult> Provide(RoomGrant grant) =>
+                    grant.MemberId != RequestedBy ? ValidationResult.Error("Not your room") : grant;
 
-            public GrantOpened Handle(RoomGrant grant) => new(RequestedBy);
-        }
-        """, Grant), SemanticVersion.V28);
+                public GrantOpened Handle(RoomGrant grant) => new(RequestedBy);
+            }
+            """;
+
+        Generate(Library(source, Grant), SemanticVersion.V28);
+    }
 
     [Fact] void should_state_the_protected_read() => Result.Source.Contains("reads RoomGrant as grant by roomId").ShouldBeTrue();
     [Fact] void should_state_the_uuid_requirement_over_the_read_path() => Result.Source.Contains("require grant.memberId == requestedBy").ShouldBeTrue();
