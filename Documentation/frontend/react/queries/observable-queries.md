@@ -59,6 +59,14 @@ export const App = () => (
 | `queryTransportMethod` | `QueryTransportMethod` | `ServerSentEvents` | Transport used for observable query connections. |
 | `queryDirectMode` | `boolean` | `false` | When `true`, bypasses the hub and connects directly per query. |
 
+## Changing arguments, paging and sorting
+
+Non-Suspense observable hooks select a cache entry by query, arguments, page, page size and sort order. Changing any of these selects a matching subscription or starts one with the new settings. Two consumers on different pages do not share a subscription; matching consumers do.
+
+The result immediately shows the matching entry's cached result, if one exists. Otherwise it resets to the query's default value with `isReady: false` and `isPerforming: true` until a result arrives. Rows and failure status from the previous entry are not shown as the new result, and later pushes to the previous subscription do not update the component.
+
+A retained subscription stays live during the cache retention window. Returning to it shows its latest cached result without another subscribe. See [query instance caching](./query-instance-caching.md) for retention settings and [paging](./paging.md) for the paging and sorting controls.
+
 ## Related Pages
 
 - [Observable Query Multiplexing](./observable-query-multiplexing.md) for connection pooling, SSE limits, and protocol behavior.
