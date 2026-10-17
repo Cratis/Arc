@@ -208,6 +208,10 @@ Two things to be aware of:
 - **When events show up in `AppendedEvents` depends on the style.** Immediate appends surface as they happen; the command's enrolled events — returned events and `Transactional` appends — surface as one batch when the command's transaction commits.
 - **Immediate appends are final.** A handler that appends through the plain `IEventLog.Append` (or `IEventStore.EventLog`) writes immediately — a successful append remains in the log even when the command fails afterwards, and a spec can assert exactly that.
 
+## Commands for occurrences
+
+`IOccurrenceCommandExecutor` needs a kernel that advertises `effect-receipts`. The in-process kernel from `Cratis.Chronicle.Testing` has a capability switch (`KernelCapabilitiesForTesting.Current()`, `Old()`, `Unknown()`) and stores receipts, so a spec can assert that a redelivered effect key returns `AlreadyRecorded`, that a business refusal is recorded as `Refused`, that a handler exception leaves no receipt, and that the executor throws `EffectReceiptsNotSupported` against an old or unknown kernel. See [Commands for occurrences](../chronicle/commands/occurrence-commands.md) for the classification and for the commit styles the executor refuses.
+
 ## Testing commands that use EventForEventSourceId
 
 When a command handler returns `EventForEventSourceId` or `IEnumerable<EventForEventSourceId>`, it can target sources other than the command's own source. **Both** event-log assertions and the scenario-level helpers below support filtering by event source ID. Choose log assertions to verify readable stored events; choose scenario helpers to inspect appends captured through the client-side `AppendOperations` observable.
