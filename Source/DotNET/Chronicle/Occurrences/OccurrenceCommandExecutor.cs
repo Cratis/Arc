@@ -83,6 +83,12 @@ public class OccurrenceCommandExecutor(
             throw new OccurrenceCommandAppendedImmediately(key.Value);
         }
 
+        execution.ThrowIfRefused();
+        if (execution.Receipt is { } committed)
+        {
+            return Settled(committed, result);
+        }
+
         return result.IsSuccess
             ? await Succeeded(eventStore, key, commandName, execution, result)
             : await Failed(eventStore, key, commandName, result);
@@ -98,11 +104,6 @@ public class OccurrenceCommandExecutor(
 
     async Task<OccurrenceCommandResult> Succeeded(IEventStore eventStore, EffectKey key, string commandName, OccurrenceExecution execution, CommandResult result)
     {
-        if (execution.Receipt is { } committed)
-        {
-            return Settled(committed, result);
-        }
-
         if (execution.HadEvents || execution.Enrolled)
         {
             // Events were committed (or a protected decision was validated) but the commit reported no receipt.

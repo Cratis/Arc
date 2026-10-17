@@ -355,7 +355,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         var unitOfWork = owned.UnitOfWork;
         var observation = owned.Observation;
 
-        // Events appended outside the unit of work are committed without the effect receipt: the effect cannot be retry-safe.
+        // Fail-loud backstop only: this notification arrives after an immediate append committed without a receipt.
+        // Up-front refusal needs Chronicle's append admission guard; detection cannot make those events retry-safe.
         if (OccurrenceExecution.Current is { } occurrenceExecution && observation.ImmediateCommitted)
         {
             occurrenceExecution.RecordImmediateAppend();

@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Runtime.ExceptionServices;
 using Cratis.Chronicle.Occurrences;
 using Cratis.Chronicle.Transactions;
 
@@ -16,11 +17,13 @@ namespace Cratis.Arc.Chronicle.Occurrences;
 sealed class OccurrenceExecution(EffectKey key, string commandName)
 {
     static readonly AsyncLocal<OccurrenceExecution?> _current = new();
+    volatile bool _ended;
+    Exception? _programmingError;
 
     /// <summary>
     /// Gets the keyed execution running in the current async flow, if any.
     /// </summary>
-    internal static OccurrenceExecution? Current => _current.Value;
+    internal static OccurrenceExecution? Current => _current.Value is { } execution && !execution._ended ? execution : null;
 
     /// <summary>
     /// Gets the key of the effect.
@@ -60,7 +63,7 @@ sealed class OccurrenceExecution(EffectKey key, string commandName)
     internal static IDisposable Begin(OccurrenceExecution execution)
     {
         _current.Value = execution;
-        return new Ending();
+        return new Ending(execution);
     }
 
     /// <summary>
@@ -71,7 +74,7 @@ sealed class OccurrenceExecution(EffectKey key, string commandName)
     {
         if (Current is { } execution)
         {
-            throw new OccurrenceCommandCannotCommitEarly($"The command '{execution.CommandName}' for effect '{execution.Key.Value}' committed its unit of work early. Only the final commit carries the effect receipt.");
+            execution.Refuse(new OccurrenceCommandCannotCommitEarly($"The command '{execution.CommandName}' for effect '{execution.Key.Value}' committed its unit of work early. Only the final commit carries the effect receipt."));
         }
     }
 
@@ -83,7 +86,7 @@ sealed class OccurrenceExecution(EffectKey key, string commandName)
     {
         if (Current is { } execution)
         {
-            throw new OccurrenceCommandCannotCompleteStreams($"The command '{execution.CommandName}' for effect '{execution.Key.Value}' completes an event stream, which an effect receipt cannot cover.");
+            execution.Refuse(new OccurrenceCommandCannotCompleteStreams($"The command '{execution.CommandName}' for effect '{execution.Key.Value}' completes an event stream, which an effect receipt cannot cover."));
         }
     }
 
@@ -116,8 +119,33 @@ sealed class OccurrenceExecution(EffectKey key, string commandName)
     /// <param name="unitOfWork">The committed unit of work.</param>
     internal void Committed(IUnitOfWork unitOfWork) => Receipt = unitOfWork.EffectReceipt;
 
-    sealed class Ending : IDisposable
+    /// <summary>
+    /// Rethrows a programming error even when the command pipeline captured it in its result.
+    /// </summary>
+    internal void ThrowIfRefused()
     {
-        public void Dispose() => _current.Value = null;
+        if (_programmingError is { } error)
+        {
+            ExceptionDispatchInfo.Capture(error).Throw();
+        }
+    }
+
+    void Refuse(Exception error)
+    {
+        _programmingError = error;
+        throw error;
+    }
+
+    sealed class Ending(OccurrenceExecution execution) : IDisposable
+    {
+        public void Dispose()
+        {
+            // A copied ExecutionContext still references this object after its parent's async flow ends.
+            execution._ended = true;
+            if (ReferenceEquals(_current.Value, execution))
+            {
+                _current.Value = null;
+            }
+        }
     }
 }

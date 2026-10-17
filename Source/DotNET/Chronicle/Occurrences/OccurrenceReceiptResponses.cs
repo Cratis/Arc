@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Text;
 using System.Text.Json.Nodes;
 using Cratis.Arc.Commands;
 
@@ -10,11 +9,14 @@ namespace Cratis.Arc.Chronicle.Occurrences;
 /// <summary>
 /// Builds the minimal plaintext response stored with an effect receipt. It carries the command type name, the outcome, an
 /// event count and, for a refusal, only the category and member names — never a command value, a validation message or a
-/// handler response — so it holds no personal data and stays far below the 64 KiB receipt limit.
+/// handler response. Every string and collection is bounded, including JSON escaping, below the 64 KiB receipt limit.
 /// </summary>
 static class OccurrenceReceiptResponses
 {
-    const int MaxBytes = 64 * 1024;
+    const int MaxCommandLength = 256;
+    const int MaxReasons = 16;
+    const int MaxReasonLength = 256;
+    const string Truncated = "[truncated]";
     const int MaxMembers = 20;
     const int MaxMemberLength = 100;
 
@@ -26,7 +28,7 @@ static class OccurrenceReceiptResponses
     /// <returns>The response.</returns>
     internal static JsonNode Appended(string commandName, int events) => new JsonObject
     {
-        ["command"] = commandName,
+        ["command"] = BoundText(commandName, MaxCommandLength),
         ["outcome"] = "Appended",
         ["events"] = events
     };
@@ -38,7 +40,7 @@ static class OccurrenceReceiptResponses
     /// <returns>The response.</returns>
     internal static JsonNode NoEvents(string commandName) => new JsonObject
     {
-        ["command"] = commandName,
+        ["command"] = BoundText(commandName, MaxCommandLength),
         ["outcome"] = "NoEvents"
     };
 
@@ -50,17 +52,11 @@ static class OccurrenceReceiptResponses
     /// <returns>The response.</returns>
     internal static JsonNode Refused(string commandName, IEnumerable<string> reasons)
     {
-        var response = new JsonObject
+        return new JsonObject
         {
-            ["command"] = commandName,
+            ["command"] = BoundText(commandName, MaxCommandLength),
             ["outcome"] = "Refused",
-            ["reasons"] = new JsonArray([.. reasons.Select(_ => JsonValue.Create(_))])
-        };
-
-        return Encoding.UTF8.GetByteCount(response.ToJsonString()) <= MaxBytes ? response : new JsonObject
-        {
-            ["command"] = commandName,
-            ["outcome"] = "Refused"
+            ["reasons"] = new JsonArray([.. BoundReasons(reasons).Select(_ => JsonValue.Create(_))])
         };
     }
 
@@ -76,15 +72,41 @@ static class OccurrenceReceiptResponses
             .Where(_ => _.Severity == Validation.ValidationResultSeverity.Error)
             .SelectMany(_ => _.Members)
             .Distinct()
-            .Take(MaxMembers)
-            .Select(_ => _.Length > MaxMemberLength ? _[..MaxMemberLength] : _)
+            .Take(MaxMembers + 1)
             .ToArray();
-        var constraints = refusal.ConstraintNames.Take(MaxMembers).Select(_ => _.Length > MaxMemberLength ? _[..MaxMemberLength] : _).ToArray();
+        var constraints = refusal.ConstraintNames.Take(MaxMembers + 1).ToArray();
 
-        return refusal.Kind switch
+        return BoundReasons(refusal.Kind switch
         {
-            CommandRefusalKind.Constraint => [$"Constraint violated: {string.Join(", ", constraints)}"],
-            _ => members.Length > 0 ? [$"{refusal.Kind} refused: {string.Join(", ", members)}"] : [$"{refusal.Kind} refused"]
-        };
+            CommandRefusalKind.Constraint => [$"Constraint violated: {DescribeNames(constraints)}"],
+            _ => members.Length > 0 ? [$"{refusal.Kind} refused: {DescribeNames(members)}"] : [$"{refusal.Kind} refused"]
+        });
+    }
+
+    static IEnumerable<string> BoundReasons(IEnumerable<string> reasons)
+    {
+        // At most 16 * 256 UTF-16 code units, each escaping to at most six JSON bytes, plus one marker.
+        var bounded = reasons.Take(MaxReasons + 1).ToArray();
+        return bounded.Take(MaxReasons).Select(_ => BoundText(_, MaxReasonLength))
+            .Concat(bounded.Length > MaxReasons ? [Truncated] : []);
+    }
+
+    static string DescribeNames(string[] names) => string.Join(", ", names.Take(MaxMembers)
+        .Select(_ => BoundText(_, MaxMemberLength)).Concat(names.Length > MaxMembers ? [Truncated] : []));
+
+    static string BoundText(string value, int length)
+    {
+        if (value.Length <= length)
+        {
+            return value;
+        }
+
+        var cut = length - Truncated.Length;
+        if (char.IsHighSurrogate(value[cut - 1]) && char.IsLowSurrogate(value[cut]))
+        {
+            cut--;
+        }
+
+        return $"{value[..cut]}{Truncated}";
     }
 }
