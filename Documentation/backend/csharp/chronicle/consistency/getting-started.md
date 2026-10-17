@@ -82,7 +82,7 @@ What makes this work:
 5. On a conflict nothing is written. The caller receives a `400` with this message:
 
 ```text
-BookStock 'isbn-1' changed after BorrowBook read it. Nothing from this command was written; submit it again.
+BookStock 'isbn-1' changed after BorrowBook read it (BookBorrowed at 1042). Nothing from this command was written; submit it again.
 ```
 
 The validation result has the reason `concurrencyViolation` and the detail `ReadChanged`. Arc and Chronicle do not re-run the command; the fold may retry up to three times. The client keeps the user's input, reads again and offers resubmission.

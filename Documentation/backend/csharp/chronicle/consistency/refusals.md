@@ -18,12 +18,12 @@ Arc and Chronicle do not re-run the command; the fold may retry up to three time
 
 | Failure | When | Message |
 | --- | --- | --- |
-| `ReadChanged` | A guarded read changed before commit | `BookStock 'isbn-1' changed after BorrowBook read it. Nothing from this command was written; submit it again.` |
+| `ReadChanged` | A guarded read changed before commit | `BookStock 'isbn-1' changed after BorrowBook read it (BookBorrowed at 1042). Nothing from this command was written; submit it again.` |
 | `ReadIncomplete` | The fold of the read model did not reach the log position it needed after three attempts, because events arrived while it ran | `BookStock 'isbn-1' could not be read completely. Nothing was written; submit it again.` |
 
 Both arrive as a validation result with the reason `concurrencyViolation`. The detail is `ReadChanged` or `ReadIncomplete`, so a client can tell them from other concurrency violations. A `ReadChanged` result also carries the read model and key in its `state`.
 
-The `ReadChanged` message does not name the conflicting event. Chronicle does not report it yet.
+When Chronicle reports the first event that matched the guard after the read, the message names its event type and sequence number, and the `state` adds `conflictingEventTypeId`, `conflictingEventType` and `conflictingEventSequenceNumber`. Reads that share a guard are merged, so the event can belong to another read under the same guard. When Chronicle does not report it, the message ends at `read it.` and the `state` has only the read model and key.
 
 A `[ProtectedDecision]` command outside `On` words the message differently: `BookStock 'isbn-1' changed after it was read. Read it again and resubmit.`
 
