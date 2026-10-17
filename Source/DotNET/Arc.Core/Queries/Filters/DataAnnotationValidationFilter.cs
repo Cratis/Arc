@@ -29,13 +29,15 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
 
         var validationResults = new List<SystemValidationResult>();
         var queryArguments = context.Arguments ?? QueryArguments.Empty;
+        DataAnnotationMembers.TryGet(context.Name, out var members);
 
         // Validate each parameter
         foreach (var parameter in performer.Parameters)
         {
             if (queryArguments.TryGetValue(parameter.Name, out var value))
             {
-                ValidateParameter(parameter, value, validationResults);
+                var member = members?.FirstOrDefault(member => member.Name == parameter.Name);
+                ValidateParameter(parameter, value, validationResults, member);
             }
         }
 
@@ -48,20 +50,29 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
         return Task.FromResult(queryResult);
     }
 
-    static void ValidateParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults)
+    static void ValidateParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults, DataAnnotationMember? member)
     {
-        if (value is null && !IsNullable(parameter.Type))
+        if (member is not null)
+        {
+            value = member.ReadValue(value!);
+        }
+
+        if (member is null && value is null && !IsNullable(parameter.Type))
         {
             validationResults.Add(new SystemValidationResult($"The field {parameter.Name} is required.", [parameter.Name]));
             return;
         }
 
         // Get validation attributes from the parameter type
-        var validationAttributes = parameter.Type.GetCustomAttributes<ValidationAttribute>(true);
+        var validationAttributes = member is not null ? member.Attributes() : parameter.Type.GetCustomAttributes<ValidationAttribute>(true);
         var validationContext = new ValidationContext(value ?? new object())
         {
             MemberName = parameter.Name
         };
+        if (member is not null)
+        {
+            validationContext.DisplayName = member.DisplayName;
+        }
 
         foreach (var attribute in validationAttributes)
         {

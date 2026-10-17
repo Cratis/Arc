@@ -63,10 +63,24 @@ internal static class ModelGraphWalkerTypes
     /// <returns>The walkers to register.</returns>
     public static IEnumerable<ModelGraphWalker> For(IEnumerable<ITypeSymbol> roots, Compilation compilation, CancellationToken cancellationToken)
     {
-        var walkers = new List<ModelGraphWalker>();
+        return ReachableTypes(roots, compilation, cancellationToken)
+            .Select(type => (Type: type, Properties: WalkedProperties(type, compilation, cancellationToken)))
+            .Where(item => item.Properties is not null)
+            .Select(item => new ModelGraphWalker(item.Type.ToDisplayString(_format), Render(item.Type, item.Properties!)));
+    }
+
+    /// <summary>
+    /// Gets source types reachable through the bounded validation model graph.
+    /// </summary>
+    /// <param name="roots">The command and query argument roots.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The reachable source types.</returns>
+    internal static IEnumerable<INamedTypeSymbol> ReachableTypes(IEnumerable<ITypeSymbol> roots, Compilation compilation, CancellationToken cancellationToken)
+    {
         if (IsExperimental(compilation.Assembly) || IsExperimental(compilation.SourceModule))
         {
-            return walkers;
+            yield break;
         }
 
         var seen = new HashSet<ITypeSymbol>(SymbolEqualityComparer.Default);
@@ -88,14 +102,19 @@ internal static class ModelGraphWalkerTypes
                 }
             }
 
-            if (WalkedProperties(type, compilation, cancellationToken) is { } properties)
-            {
-                walkers.Add(new(type.ToDisplayString(_format), Render(type, properties)));
-            }
+            yield return type;
         }
-
-        return walkers;
     }
+
+    /// <summary>
+    /// Gets readable properties for annotation metadata, including partially declared types.
+    /// </summary>
+    /// <param name="type">The model type.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The properties, or null when generated metadata cannot safely describe the type.</returns>
+    internal static List<IPropertySymbol>? AnnotatedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken) =>
+        WalkedProperties(type, compilation, cancellationToken, allowPartial: true);
 
     /// <summary>
     /// Follows a declared type to the types values of it can have at runtime that could get a walker.
@@ -173,8 +192,9 @@ internal static class ModelGraphWalkerTypes
     /// <param name="type">The type.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
+    /// <param name="allowPartial">Whether partial declarations are allowed for annotation metadata.</param>
     /// <returns>The properties, or null when the type keeps the reflection walk.</returns>
-    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
+    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken, bool allowPartial = false)
     {
         if (!IsConcrete(type) || !TypeNaming.CanBeNamed(type, compilation))
         {
@@ -188,7 +208,7 @@ internal static class ModelGraphWalkerTypes
         var declared = new List<IPropertySymbol>();
         for (var current = type; current is not null && !IsRootType(current); current = current.BaseType)
         {
-            if (!IsFromCompilation(current, compilation) || current.OriginalDefinition.DeclaringSyntaxReferences.Length == 0 || IsPartial(current.OriginalDefinition, cancellationToken))
+            if (!IsFromCompilation(current, compilation) || current.OriginalDefinition.DeclaringSyntaxReferences.Length == 0 || (!allowPartial && IsPartial(current.OriginalDefinition, cancellationToken)))
             {
                 return null;
             }

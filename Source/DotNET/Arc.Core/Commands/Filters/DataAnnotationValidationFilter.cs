@@ -15,8 +15,28 @@ public class DataAnnotationValidationFilter : ICommandFilter
     {
         var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
         var validationContext = new System.ComponentModel.DataAnnotations.ValidationContext(context.Command);
-        var isValid = System.ComponentModel.DataAnnotations.Validator.TryValidateObject(context.Command, validationContext, validationResults, true);
-        if (!isValid)
+        var hasMembers = DataAnnotationMembers.TryGet(context.Command.GetType(), out var members);
+        System.ComponentModel.DataAnnotations.Validator.TryValidateObject(context.Command, validationContext, validationResults, !hasMembers);
+        if (hasMembers)
+        {
+            var names = members!.Select(member => member.Name).ToHashSet(StringComparer.Ordinal);
+            validationResults.RemoveAll(result => result.MemberNames.Any() && result.MemberNames.All(names.Contains));
+            foreach (var member in members)
+            {
+                validationContext.MemberName = member.Name;
+                validationContext.DisplayName = member.DisplayName;
+                var value = member.ReadValue(context.Command);
+                foreach (var attribute in member.Attributes())
+                {
+                    if (attribute.GetValidationResult(value, validationContext) is { } result)
+                    {
+                        validationResults.Add(result);
+                    }
+                }
+            }
+        }
+
+        if (validationResults.Count > 0)
         {
             return Task.FromResult(new CommandResult
             {

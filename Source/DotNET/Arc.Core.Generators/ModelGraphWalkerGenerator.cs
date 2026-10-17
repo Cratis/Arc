@@ -68,7 +68,10 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
 
         var roots = TypesNamed(commands, compilation).Cast<ITypeSymbol>()
             .Concat(QueryArgumentTypes(TypesNamed(readModels, compilation), compilation));
-        return new(ModelGraphWalkerTypes.For(roots, compilation, cancellationToken).OrderBy(walker => walker.Type, StringComparer.Ordinal));
+        var types = roots.ToArray();
+        return new(ModelGraphWalkerTypes.For(types, compilation, cancellationToken)
+            .Concat(DataAnnotationMemberTypes.For(types, compilation, cancellationToken))
+            .OrderBy(walker => walker.Type, StringComparer.Ordinal));
     }
 
     static IEnumerable<INamedTypeSymbol> TypesNamed(ImmutableArray<string> names, Compilation compilation) =>
