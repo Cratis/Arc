@@ -107,7 +107,7 @@ public class ClientObservableSSE<T>(
                     logger.ObservableForwardingNullItem();
                 }
 
-                queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
+                queryResult.Paging = ObservableQueryPaging.PagingFor(data, queryContext);
 
                 // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
                 // context set up for this connection does not flow. Restoring it here — and resolving through

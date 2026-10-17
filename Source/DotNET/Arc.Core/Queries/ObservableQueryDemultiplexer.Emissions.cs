@@ -67,23 +67,30 @@ public partial class ObservableQueryDemultiplexer
         Paging = paging
     };
 
+    static PagingInfo SubjectPaging(SubjectEmissionState state)
+    {
+        if (!state.ReportsPaging)
+        {
+            return PagingInfo.NotPaged;
+        }
+
+        if (state.SubscriptionQueryContext is { } queryContext && queryContext != QueryContext.NotSet)
+        {
+            return new PagingInfo(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
+        }
+
+        return state.Paging;
+    }
+
     static QueryResult CreateSubjectResult(SubjectEmissionState state, object? interceptedData, EmissionChanges changes)
     {
         // Delta mode omits Data on subsequent identity-based emissions; without identity,
         // every emission carries the full snapshot and no change set.
         var omitData = state.IsDeltaMode && !changes.IsFirstEmission && changes.HasStableIdentity && !changes.SendSnapshot;
-        var result = CreateDeliverableResult(state.CorrelationId, omitData ? null! : interceptedData!, state.Paging);
+        var result = CreateDeliverableResult(state.CorrelationId, omitData ? null! : interceptedData!, SubjectPaging(state));
 
         // Only identity-based legacy emissions and subsequent delta emissions carry a change set.
         result.ChangeSet = changes.ChangeSet;
-
-        if (state.SubscriptionQueryContext is { } queryContext && queryContext != QueryContext.NotSet)
-        {
-            result.Paging = new PagingInfo(
-                queryContext.Paging.Page,
-                queryContext.Paging.Size,
-                queryContext.TotalItems);
-        }
 
         return result;
     }
@@ -299,6 +306,7 @@ public partial class ObservableQueryDemultiplexer
         public required CorrelationId CorrelationId { get; init; }
         public required PagingInfo Paging { get; init; }
         public required Type? EnumerableItemType { get; init; }
+        public required bool ReportsPaging { get; init; }
         public required string? TransferMode { get; init; }
         public required QueryContext? SubscriptionQueryContext { get; init; }
         public bool IsDeltaMode => string.Equals(TransferMode, "delta", StringComparison.OrdinalIgnoreCase);
