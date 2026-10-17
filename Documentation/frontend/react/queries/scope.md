@@ -26,6 +26,16 @@ export function QueryPanel({ children }: { children: ReactElement }) {
 
 The non-Suspense query hooks notify while starting requests/subscriptions. Ordinary queries track the request; observable queries track the wait for the first result, not the lifetime of the connection. A long-lived subscription is not permanently “loading.” Current Suspense hooks use separate resources and do not call QueryScope's performing notifications; use their loading boundary instead.
 
+## When an ordinary query stops performing
+
+Each execution of `useQuery` or `useQueryWithPaging` tells its scope it stopped performing exactly once. That happens at whichever comes first:
+
+- **It settles.** The request returned a result, or it was superseded and the component adopted the result of the request that superseded it.
+- **It fails.** The request rejected or the network failed.
+- **It is retired.** The component unmounted, or it started a newer request — a new argument, page or sort order, or an explicit `perform` call. The newer request becomes the one the scope tracks.
+
+Retiring never aborts a request another component is waiting on. When two components share a query and arguments, one component's request can supersede the other's. If the component that started the newer request unmounts, the remaining component still receives that request's result. If the waiting component unmounts, the request carries on for the component that started it. Either way, the scope of a component that left does not stay “loading.”
+
 ## Hierarchical scopes
 
 Queries notify the nearest scope. An outer scope's `isPerforming` **getter** includes child scopes, but a child's start/completion notification does not call the parent's `setIsPerforming` callback. Consequently, a toolbar driven by the parent's callback does not automatically update for child-only activity.

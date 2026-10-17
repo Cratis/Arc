@@ -58,7 +58,7 @@ guard isbn: types=[BookAdded, BookBorrowed, BookReturned], after <tail before th
 
 ## What holds
 
-- Two members who borrow the last copy at the same time cannot both succeed. The second gets a `400` with the reason `concurrencyViolation` and the message `BookStock 'isbn' changed after BorrowBook read it. Nothing from this command was written; submit it again.`
+- Two members who borrow the last copy at the same time cannot both succeed. The second gets a `400` with the reason `concurrencyViolation` and the message `BookStock 'isbn' changed after BorrowBook read it (BookBorrowed at 1042). Nothing from this command was written; submit it again.`
 - Only the model's event types conflict. A `BookRenamed` for the same book does not.
 - A book that has no events yet reads as `null`, and the rule above rejects it.
 
