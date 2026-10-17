@@ -105,8 +105,8 @@ internal sealed class ReadConditions(ScreenplayDiagnostics diagnostics)
             model,
             scope.Location,
             diagnostics,
-            path => MappingSourceReader.ReadPath(path, model, scope.Command),
-            path => scope.Sources.ReadPath(path, model) is { } read && read.Contains('.', StringComparison.Ordinal) ? read : null);
+            (path, operandModel) => MappingSourceReader.ReadPath(path, operandModel, scope.Command),
+            (path, operandModel) => scope.Sources.ReadPath(path, operandModel) is { } read && read.Contains('.', StringComparison.Ordinal) ? read : null);
         var condition = ComparisonKinds.Of(binary.Kind()) is { } kind ? UuidConditions.Read(binary, kind, site) : null;
 
         return invert && condition is not null ? condition with { Operator = ComparisonKinds.Opposite(condition.Operator) } : condition;
