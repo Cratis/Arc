@@ -28,10 +28,12 @@ public class NonPublicQueryAnalyzer : DiagnosticAnalyzer
     static void AnalyzeMethod(SymbolAnalysisContext context)
     {
         var method = (IMethodSymbol)context.Symbol;
-        if (method is not { MethodKind: MethodKind.Ordinary, IsStatic: true } ||
-            method.DeclaredAccessibility == Accessibility.Public ||
-            ModelBoundQueryMethodSymbols.ReadModel(method.ContainingType) is null ||
-            (!ModelBoundQueryMethodSymbols.IsMarked(method) && !ModelBoundQueryReturnTypes.IsSupported(method.ReturnType, method.ContainingType)))
+        if (!IsNonPublicStatic(method))
+        {
+            return;
+        }
+
+        if (!IsOnReadModel(method) || !LooksLikeQuery(method))
         {
             return;
         }
@@ -42,4 +44,12 @@ public class NonPublicQueryAnalyzer : DiagnosticAnalyzer
             method.Name,
             method.ContainingType.Name));
     }
+
+    static bool IsNonPublicStatic(IMethodSymbol method) =>
+        method is { MethodKind: MethodKind.Ordinary, IsStatic: true } && method.DeclaredAccessibility != Accessibility.Public;
+
+    static bool IsOnReadModel(IMethodSymbol method) => ModelBoundQueryMethodSymbols.ReadModel(method.ContainingType) is not null;
+
+    static bool LooksLikeQuery(IMethodSymbol method) =>
+        ModelBoundQueryMethodSymbols.IsMarked(method) || ModelBoundQueryReturnTypes.IsSupported(method.ReturnType, method.ContainingType);
 }

@@ -33,16 +33,7 @@ public class when_validating_marked_queries
             type.SetCustomAttribute(new CustomAttributeBuilder(typeof(ReadModelAttribute).GetConstructor(Type.EmptyTypes)!, [], [typeof(ReadModelAttribute).GetProperty(nameof(ReadModelAttribute.RequireQueryAttribute))!], [kind is not ("task" or "self")]));
         }
 
-        var access = kind switch
-        {
-            "private" => MethodAttributes.Private,
-            "internal" => MethodAttributes.Assembly,
-            "protected" => MethodAttributes.Family,
-            "protected internal" => MethodAttributes.FamORAssem,
-            "private protected" => MethodAttributes.FamANDAssem,
-            _ => MethodAttributes.Public
-        };
-        AddMethod(type, access, kind == "task" ? typeof(Task) : type, kind == "self" ? type : typeof(int));
+        AddMethod(type, AccessFor(kind), kind == "task" ? typeof(Task) : type, kind == "self" ? type : typeof(int));
         if (kind == "duplicate")
         {
             AddMethod(type, MethodAttributes.Public, type, typeof(string));
@@ -50,6 +41,16 @@ public class when_validating_marked_queries
 
         return type.CreateType()!;
     }
+
+    static MethodAttributes AccessFor(string kind) => kind switch
+    {
+        "private" => MethodAttributes.Private,
+        "internal" => MethodAttributes.Assembly,
+        "protected" => MethodAttributes.Family,
+        "protected internal" => MethodAttributes.FamORAssem,
+        "private protected" => MethodAttributes.FamANDAssem,
+        _ => MethodAttributes.Public
+    };
 
     static void AddMethod(TypeBuilder type, MethodAttributes access, Type result, Type parameter)
     {
