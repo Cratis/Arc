@@ -56,6 +56,11 @@ sealed class OccurrenceExecution(EffectKey key, string commandName)
     internal EffectReceiptResult? Receipt { get; private set; }
 
     /// <summary>
+    /// Gets a programming error observed in any command participating in this occurrence.
+    /// </summary>
+    internal Exception? Refusal => _programmingError;
+
+    /// <summary>
     /// Makes an execution current for the async flow.
     /// </summary>
     /// <param name="execution">The execution.</param>

@@ -222,8 +222,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
         finally
         {
-            frame.ImmediateAppendRefusal?.Dispose();
-            frame.EnrollmentContributor?.Dispose();
+            // Restore the invocation even when disposal fails; both registrations must still be disposed.
+            using var immediateAppendRefusal = frame.ImmediateAppendRefusal;
+            using var enrollmentContributor = frame.EnrollmentContributor;
             frame.Completed = true;
             frame.Exited = true;
             if (frame.Previous is { } previous)
@@ -338,6 +339,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         // Mark the shared frame instead so a resumed outer command still owns its transaction.
         frame.Completed = true;
         _frames.Value = frame.Previous;
+
+        // A nested command can turn a programming error into a result its caller ignores. The shared occurrence
+        // still refuses the entire transaction: no participating command may commit it or record a receipt.
+        if (OccurrenceExecution.Current?.Refusal is { } refusalError)
+        {
+            result.MergeWith(CommandResult.Error(context.CorrelationId, refusalError));
+        }
+
         if (owned is null)
         {
             if (result.IsSuccess)

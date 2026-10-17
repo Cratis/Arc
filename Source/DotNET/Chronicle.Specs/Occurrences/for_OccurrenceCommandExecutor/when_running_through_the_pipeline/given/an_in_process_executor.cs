@@ -72,7 +72,7 @@ public class an_in_process_executor : Specification
         services.AddSingleton<IInstancesOf<ICommandResponseValueHandler>>(new KnownInstancesOf<ICommandResponseValueHandler>([]));
         services.AddSingleton<IInstancesOf<ICommandContextValuesProvider>>(new KnownInstancesOf<ICommandContextValuesProvider>([]));
         var types = Substitute.For<ITypes>();
-        types.All.Returns([typeof(RecordEffect), typeof(CommitTooEarly), typeof(CompleteAStream), typeof(ReadEffect)]);
+        types.All.Returns([typeof(RecordEffect), typeof(IgnoreNestedFailure), typeof(CommitTooEarly), typeof(CompleteAStream), typeof(ReadEffect)]);
         services.AddSingleton<ICommandHandlerProviders>(new CommandHandlerProviders(new KnownInstancesOf<ICommandHandlerProvider>([new CommandHandlerProvider(types)])));
         _services = services.BuildServiceProvider();
         _executor = _services.GetRequiredService<IOccurrenceCommandExecutor>();
@@ -95,6 +95,8 @@ public class an_in_process_executor : Specification
         public Func<Task> AfterRead { get; set; } = () => Task.CompletedTask;
         public DecisionRead<EffectState>? Read { get; set; }
         public IUnitOfWork? Unit { get; set; }
+        public CommandResult? NestedResult { get; set; }
+        public bool OuterHandlerCompleted { get; set; }
     }
 
     [Command]
@@ -114,6 +116,19 @@ public class an_in_process_executor : Specification
             }
 
             return $"private-response:{Value}";
+        }
+    }
+
+    [Command]
+    public record IgnoreNestedFailure
+    {
+        public async Task Handle(ICommandPipeline pipeline, ITransactionalEventSequence transactional, InvocationCounter counter, IUnitOfWorkManager manager)
+        {
+            counter.Unit = manager.Current;
+            await transactional.Append("effect-source", new EffectHappened("before-nested-command"));
+            counter.NestedResult = await pipeline.Execute(new RecordEffect("must-not-commit", Immediate: true));
+            await transactional.Append("effect-source", new EffectHappened("after-nested-command"));
+            counter.OuterHandlerCompleted = true;
         }
     }
 
