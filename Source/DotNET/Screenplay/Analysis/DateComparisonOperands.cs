@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
-using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
 using Microsoft.CodeAnalysis;
@@ -29,9 +28,7 @@ internal static class DateComparisonOperands
             type = underlying;
         }
 
-        var primitive = ConceptRegistry.PrimitiveOf(type);
-
-        return primitive is ScreenplayPrimitive.Date or ScreenplayPrimitive.DateTime ? primitive : null;
+        return PrimitiveDate(type?.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments[0] ?? type);
     }
 
     /// <summary>
@@ -50,16 +47,22 @@ internal static class DateComparisonOperands
     /// <returns>The canonical text or null.</returns>
     internal static string? Literal(ExpressionSyntax expression, SemanticModel model)
     {
-        if (expression is ObjectCreationExpressionSyntax { ArgumentList.Arguments: [var argument], Initializer: null } creation &&
-            model.GetTypeInfo(creation).Type?.FindBase(WellKnownTypeNames.ConceptAs) is not null)
+        if (!DateOperandConversions.Preserves(expression, model))
+        {
+            return null;
+        }
+
+        expression = Commands.MappingSourceReader.Unwrap(expression);
+        if (model.GetTypeInfo(expression).Type?.FindBase(WellKnownTypeNames.ConceptAs) is not null)
         {
             var forwarding = new Commands.UuidConstructorForwarding(new SemanticModels([model.Compilation]));
 
-            return model.GetSymbolInfo(creation).Symbol is IMethodSymbol constructor && forwarding.Read(constructor, new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default))
-                ? Literal(Commands.MappingSourceReader.Unwrap(argument.Expression), model) : null;
+            return expression is ObjectCreationExpressionSyntax { ArgumentList.Arguments: [var argument], Initializer: null } creation &&
+                model.GetSymbolInfo(creation).Symbol is IMethodSymbol constructor && forwarding.Read(constructor, new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default))
+                ? Literal(argument.Expression, model) : null;
         }
 
-        return Primitive(model.GetTypeInfo(expression).Type) is { } primitive
+        return PrimitiveDate(model.GetTypeInfo(expression).Type) is { } primitive
             ? Constructed(expression, primitive, model) ?? Parsed(expression, primitive, model)
             : null;
     }
@@ -99,6 +102,13 @@ internal static class DateComparisonOperands
     internal static void ReportInputBinding(string property, string location, ScreenplayDiagnostics diagnostics) =>
         diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandProvisioning, $"Compared DateTime input '{property}' requires an explicit offset or Z before deserialization; source comparison recovery does not verify the application's input binding", location);
 
+    static ScreenplayPrimitive? PrimitiveDate(ITypeSymbol? type) => type?.ToDisplayString() switch
+    {
+        "System.DateOnly" => ScreenplayPrimitive.Date,
+        "System.DateTime" or "System.DateTimeOffset" => ScreenplayPrimitive.DateTime,
+        _ => null
+    };
+
     static string? Constructed(ExpressionSyntax expression, ScreenplayPrimitive primitive, SemanticModel model)
     {
         if (primitive != ScreenplayPrimitive.Date || expression is not ObjectCreationExpressionSyntax { ArgumentList.Arguments: [var year, var month, var day], Initializer: null } creation)
@@ -132,7 +142,7 @@ internal static class DateComparisonOperands
         model.GetSymbolInfo(call).Symbol is IMethodSymbol { IsStatic: true, Parameters: [{ Type.SpecialType: SpecialType.System_String }, { Type: { } cultureType }] } method &&
         IsParseOf(method, primitive) && IsFormatProvider(cultureType);
 
-    static bool IsParseOf(IMethodSymbol method, ScreenplayPrimitive primitive) => string.Equals(method.Name, "Parse", StringComparison.Ordinal) && Primitive(method.ContainingType) == primitive;
+    static bool IsParseOf(IMethodSymbol method, ScreenplayPrimitive primitive) => string.Equals(method.Name, "Parse", StringComparison.Ordinal) && PrimitiveDate(method.ContainingType) == primitive;
 
     static bool IsFormatProvider(ITypeSymbol type) => string.Equals(type.Name, "IFormatProvider", StringComparison.Ordinal) && string.Equals(type.ContainingNamespace?.Name, "System", StringComparison.Ordinal);
 
