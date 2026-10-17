@@ -639,9 +639,11 @@ public static class ScreenplayDiagnosticCodes
     /// A command read protected by Arc cannot be stated as a protected command read.
     /// </summary>
     /// <remarks>
-    /// Information carrying the reason: the read, its key or its use is outside what the executable model protects, or
-    /// the model states a different absence message than the code does. The dependency stays in code and is never
-    /// emitted as an unguarded read.
+    /// Information carrying the reason: the read, its key or its use is outside what the executable model protects
+    /// (a stream-scoped read model, for instance), or the model states a different absence message than the code does.
+    /// The dependency stays in code and is never emitted as an unguarded read. It is a warning when
+    /// <c>MaximumExecutableModelVersion</c> is capped below ESM v25, because every protected read of the document is then
+    /// not stated as protected. A refusal the generator itself caused is not this diagnostic but an error.
     /// </remarks>
     public const string UnprotectableCommandRead = "SP0079";
 }

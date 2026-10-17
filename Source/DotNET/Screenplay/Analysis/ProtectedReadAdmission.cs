@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Screenplay.Emission;
 using Cratis.Arc.Screenplay.Emission.Naming;
+using Cratis.Arc.Screenplay.Emission.Slices;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Arc.Screenplay.Verification;
 using Cratis.Screenplay.Diagnostics;
@@ -33,6 +34,7 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
 {
     const int MaximumRounds = 2;
 
+    static readonly string[] _defectCodes = ["PLAY0784", "PLAY0785"];
     static readonly string[] _refusalCodes = ["PLAY0780", "PLAY0781", "PLAY0782", "PLAY0783", "PLAY0784", "PLAY0785"];
     readonly ScreenplayNaming _naming = new();
 
@@ -56,27 +58,50 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
         for (var round = 0; round < MaximumRounds && current.Application.CommandReadMode is not null; round++)
         {
             var refusals = Refusals(current.Source);
-            if (refusals.Count == 0)
+            ReportUnmapped(diagnostics, refusals);
+            if (refusals.Mapped.Count == 0)
             {
                 return new(current, diagnostics.All);
             }
 
-            withheld = Withhold(withheld, refusals, diagnostics);
+            withheld = Withhold(withheld, refusals.Mapped, diagnostics);
             current = emitter.Emit(withheld, options);
         }
 
-        if (current.Application.CommandReadMode is not null && Refusals(current.Source) is { Count: > 0 } remaining)
+        if (current.Application.CommandReadMode is not null)
         {
-            diagnostics.Error(
-                ScreenplayDiagnosticCodes.DocumentDidNotBind,
-                $"The generated document still has protected read refusals after the refused reads were withheld ({string.Join(", ", remaining.Select(refusal => refusal.Diagnostic.Code))}). That is the generator being wrong rather than anything the source declared",
-                null);
+            ReportRemaining(diagnostics, Refusals(current.Source));
         }
 
         return new(current, diagnostics.All);
     }
 
-    static IEnumerable<CommandSyntax> Commands(FeatureSyntax feature) => feature.Slices.SelectMany(slice => slice.Commands).Concat(feature.Features.SelectMany(Commands));
+    static void ReportUnmapped(ScreenplayDiagnostics diagnostics, AttributedRefusals refusals)
+    {
+        if (refusals.Unmapped.Count > 0)
+        {
+            ReportDefect(diagnostics, refusals.Unmapped.Select(diagnostic => diagnostic.Code), "could not be attributed to a read");
+        }
+    }
+
+    static void ReportRemaining(ScreenplayDiagnostics diagnostics, AttributedRefusals remaining)
+    {
+        var codes = remaining.Mapped.Select(refusal => refusal.Diagnostic.Code).Concat(remaining.Unmapped.Select(diagnostic => diagnostic.Code)).ToArray();
+        if (codes.Length > 0)
+        {
+            ReportDefect(diagnostics, codes, "remain after the refused reads were withheld");
+        }
+    }
+
+    static void ReportDefect(ScreenplayDiagnostics diagnostics, IEnumerable<string> codes, string what) => diagnostics.Error(
+        ScreenplayDiagnosticCodes.DocumentDidNotBind,
+        $"Protected read refusals ({string.Join(", ", codes.Distinct(StringComparer.Ordinal))}) {what}. That is the generator being wrong rather than anything the source declared",
+        null);
+
+    static IEnumerable<(SliceSyntax Slice, CommandSyntax Command)> Commands(FeatureSyntax feature) =>
+        feature.Slices.SelectMany(slice => slice.Commands.Select(command => (slice, command))).Concat(feature.Features.SelectMany(Commands));
+
+    static bool IsDefect(string code) => _defectCodes.Contains(code);
 
     static string? PathAlias(string message)
     {
@@ -89,28 +114,55 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
     static IEnumerable<ReadsSyntax> Concerned(CommandSyntax command, Diagnostic diagnostic) => diagnostic.Code switch
     {
         "PLAY0783" => command.Reads ?? [],
-        "PLAY0784" or "PLAY0785" => (command.Reads ?? []).Where(read => (read.Alias ?? read.ReadModel) == PathAlias(diagnostic.Message)),
+        "PLAY0784" or "PLAY0785" => (command.Reads ?? []).Where(read => string.Equals(read.Alias ?? read.ReadModel, PathAlias(diagnostic.Message), StringComparison.OrdinalIgnoreCase)),
         _ => (command.Reads ?? []).Where(read => read.Location.Line == diagnostic.Location.Line)
     };
 
-    List<ProtectedReadRefusal> Refusals(string source)
+    static void Report(RefusedRead refused, WithholdingPass pass)
     {
-        var verification = verifier.Verify(source);
-        var commands = verification.Application?.Modules.SelectMany(module => module.Features).SelectMany(Commands).OrderBy(command => command.Location.Line).ToArray() ?? [];
-        var readLines = commands.SelectMany(command => command.Reads ?? []).Select(read => read.Location.Line).ToHashSet();
+        var (command, read, reasons, location) = refused;
 
-        // A refusal the compiler states before binding (an unusable key, for instance) is an error on the line of the read itself.
-        return [.. verification.BindingDiagnostics.Concat(verification.Errors)
-            .Where(diagnostic => _refusalCodes.Contains(diagnostic.Code) || (diagnostic.Severity == DiagnosticSeverity.Error && readLines.Contains(diagnostic.Location.Line)))
-            .SelectMany(diagnostic => AttributeToRead(commands, diagnostic))];
+        // A refused read no longer resolves its paths, so PLAY0784 and PLAY0785 follow from any other refusal; alone they mean the generator wrote a bad path.
+        var primary = reasons.Where(reason => !IsDefect(reason.Code)).ToArray();
+        var text = string.Join("; ", (primary.Length > 0 ? primary : reasons).Select(reason => $"{reason.Code}: {reason.Message}"));
+        if (primary.Length == 0)
+        {
+            pass.Diagnostics.Error(
+                ScreenplayDiagnosticCodes.DocumentDidNotBind,
+                $"The generator wrote a read path for protected read '{read.Alias}' of command '{command.Name}' that the Screenplay compiler refused, which is the generator being wrong rather than anything the source declared - {text}",
+                location);
+            return;
+        }
+
+        pass.Diagnostics.Information(
+            ScreenplayDiagnosticCodes.UnprotectableCommandRead,
+            $"Protected read '{read.Alias}' of command '{command.Name}' was refused by the Screenplay compiler and left in code, never emitted as an unguarded read - {text}",
+            location);
     }
 
-    IEnumerable<ProtectedReadRefusal> AttributeToRead(CommandSyntax[] commands, Diagnostic diagnostic) =>
-        commands.LastOrDefault(command => command.Location.Line <= diagnostic.Location.Line) is { } owner
-            ? Concerned(owner, diagnostic).Select(read => new ProtectedReadRefusal(owner.Name, read.Alias ?? read.ReadModel, diagnostic))
+    AttributedRefusals Refusals(string source)
+    {
+        var verification = verifier.Verify(source);
+        var commands = verification.Application?.Modules.SelectMany(module => module.Features).SelectMany(Commands).OrderBy(placed => placed.Command.Location.Line).ToArray() ?? [];
+        var readLines = commands.SelectMany(placed => placed.Command.Reads ?? []).Select(read => read.Location.Line).ToHashSet();
+
+        // A refusal the compiler states before binding (an unusable key, for instance) is an error on the line of the read itself.
+        var refused = verification.BindingDiagnostics.Concat(verification.Errors)
+            .Where(diagnostic => _refusalCodes.Contains(diagnostic.Code) || (diagnostic.Severity == DiagnosticSeverity.Error && readLines.Contains(diagnostic.Location.Line)))
+            .Select(diagnostic => (Diagnostic: diagnostic, Reads: AttributeToRead(commands, diagnostic).ToArray()))
+            .ToArray();
+
+        return new(
+            [.. refused.SelectMany(entry => entry.Reads)],
+            [.. refused.Where(entry => entry.Reads.Length == 0 && _refusalCodes.Contains(entry.Diagnostic.Code)).Select(entry => entry.Diagnostic)]);
+    }
+
+    IEnumerable<ProtectedReadRefusal> AttributeToRead((SliceSyntax Slice, CommandSyntax Command)[] commands, Diagnostic diagnostic) =>
+        commands.LastOrDefault(placed => placed.Command.Location.Line <= diagnostic.Location.Line) is { Command: { } owner } placed
+            ? Concerned(owner, diagnostic).Select(read => new ProtectedReadRefusal(placed.Slice.Name, owner.Name, read.Alias ?? read.ReadModel, diagnostic))
             : [];
 
-    ApplicationModel Withhold(ApplicationModel model, List<ProtectedReadRefusal> refusals, ScreenplayDiagnostics diagnostics)
+    ApplicationModel Withhold(ApplicationModel model, IReadOnlyList<ProtectedReadRefusal> refusals, ScreenplayDiagnostics diagnostics)
     {
         var pass = new WithholdingPass(model, refusals, diagnostics);
 
@@ -118,22 +170,18 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
         {
             Slices = model.Slices.Select(slice => slice with
             {
-                Commands = slice.Commands.Select(command => Withhold(command, slice.Namespace, pass)).ToList()
+                Commands = slice.Commands.Select(command => Withhold(command, slice.Namespace, SliceSyntaxBuilder.NameOf(slice, _naming), pass)).ToList()
             }).ToList()
         };
     }
 
-    CommandModel Withhold(CommandModel command, string location, WithholdingPass pass)
+    CommandModel Withhold(CommandModel command, string location, string slice, WithholdingPass pass)
     {
-        var concerned = pass.Refusals.Where(refusal => refusal.Command == _naming.ToDeclarationName(command.Name)).ToArray();
-        var reads = command.Authoring?.Reads.Where(read => read.Protected && concerned.Any(refusal => refusal.Alias == _naming.ToPropertyName(read.Alias))).ToArray() ?? [];
+        var concerned = pass.Refusals.Where(refusal => refusal.Slice == slice && refusal.Command == _naming.ToDeclarationName(command.Name)).ToArray();
+        var reads = command.Authoring?.Reads.Where(read => read.Protected && concerned.Any(refusal => refusal.Alias == EmittedName(read))).ToArray() ?? [];
         foreach (var read in reads)
         {
-            var reasons = concerned.Where(refusal => refusal.Alias == _naming.ToPropertyName(read.Alias)).Select(refusal => $"{refusal.Diagnostic.Code}: {refusal.Diagnostic.Message}").Distinct(StringComparer.Ordinal);
-            pass.Diagnostics.Information(
-                ScreenplayDiagnosticCodes.UnprotectableCommandRead,
-                $"Protected read '{read.Alias}' of command '{command.Name}' was refused by the Screenplay compiler and left in code, never emitted as an unguarded read - {string.Join("; ", reasons)}",
-                $"{location}.{command.Name}");
+            Report(new(command, read, concerned.Where(refusal => refusal.Alias == EmittedName(read)).Select(refusal => refusal.Diagnostic).DistinctBy(diagnostic => diagnostic.Code + diagnostic.Message).ToArray(), $"{location}.{command.Name}"), pass);
         }
 
         return reads.Length == 0
@@ -141,5 +189,11 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
             : AuthoringDeclarations.WithoutReads(command, pass.Model, reads.Select(read => read.Alias).ToHashSet(StringComparer.Ordinal), pass.Diagnostics, location, $"Command '{command.Name}': refused protected reads and the requirements and mappings depending on them were left in code");
     }
 
-    sealed record WithholdingPass(ApplicationModel Model, List<ProtectedReadRefusal> Refusals, ScreenplayDiagnostics Diagnostics);
+    string EmittedName(CommandReadModel read) => read.NamedByView ? _naming.ToDeclarationName(read.Name) : _naming.ToPropertyName(read.Alias);
+
+    sealed record WithholdingPass(ApplicationModel Model, IReadOnlyList<ProtectedReadRefusal> Refusals, ScreenplayDiagnostics Diagnostics);
+
+    sealed record RefusedRead(CommandModel Command, CommandReadModel Read, Diagnostic[] Reasons, string Location);
+
+    sealed record AttributedRefusals(IReadOnlyList<ProtectedReadRefusal> Mapped, IReadOnlyList<Diagnostic> Unmapped);
 }
