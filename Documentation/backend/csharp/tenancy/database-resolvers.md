@@ -3,6 +3,8 @@ title: Database isolation
 description: Distinguish MongoDB tenant naming from application-owned EF Core isolation and optional Chronicle namespaces.
 ---
 
+For a side-by-side walkthrough of all three integrations, see [tenancy end to end](./end-to-end.md).
+
 Resolving a tenant ID selects a context. Whether that context selects separate storage depends on the integration; it does not prove that the caller may access the tenant.
 
 ## MongoDB database naming
