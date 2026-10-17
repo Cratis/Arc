@@ -34,7 +34,7 @@ public class when_mapping_endpoints : Specification
 
     void Because() => _mapper.MapObservableQueryDemultiplexerEndpoints(Substitute.For<IServiceProvider>());
 
-    [Fact] void should_keep_all_routes_anonymous() => _metadata.All(metadata => metadata.AllowAnonymous).ShouldBeTrue();
+    [Fact] void should_keep_all_routes_anonymous() => _metadata.TrueForAll(metadata => metadata.AllowAnonymous).ShouldBeTrue();
     [Fact] void should_map_four_endpoints() => _mappedEndpoints.Count.ShouldEqual(4);
     [Fact] void should_map_websocket_get() => _mappedEndpoints.ShouldContain((ObservableQueryDemultiplexerEndpointMapper.WebSocketRoute, "GET"));
     [Fact] void should_map_sse_get() => _mappedEndpoints.ShouldContain((ObservableQueryDemultiplexerEndpointMapper.SseRoute, "GET"));

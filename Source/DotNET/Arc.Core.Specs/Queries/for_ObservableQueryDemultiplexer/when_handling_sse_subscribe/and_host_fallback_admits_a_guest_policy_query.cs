@@ -13,6 +13,7 @@ public class and_host_fallback_admits_a_guest_policy_query : given.a_guarded_sse
     {
         _principal = new ClaimsPrincipal(new ClaimsIdentity());
         _connectionContext.User.Returns(_principal);
+
         // This spec stubs pipeline authorization; the ASP.NET host spec exercises the actual guest policy.
         _admissionServices = Substitute.For<IServiceProvider>();
         _fallbackAuthorization.IsAuthorized(Arg.Any<IHttpRequestContext>(), Arg.Any<ClaimsPrincipal>(), Arg.Any<CancellationToken>()).Returns(false);

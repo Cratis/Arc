@@ -96,13 +96,13 @@ public class when_a_guest_subscribes_through_the_hub
 
     static async Task<ObservableQueryHubMessage> Receive(ClientWebSocket socket, JsonSerializerOptions json, CancellationToken token)
     {
-        using var data = new MemoryStream();
+        await using var data = new MemoryStream();
         var buffer = new byte[4096];
         WebSocketReceiveResult received;
         do
         {
             received = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-            data.Write(buffer, 0, received.Count);
+            await data.WriteAsync(buffer.AsMemory(0, received.Count), token);
         }
         while (!received.EndOfMessage);
 
@@ -118,8 +118,11 @@ public class when_a_guest_subscribes_through_the_hub
         var connected = await ReadSse(reader, json, deadline.Token);
         connected.Type.ShouldEqual(ObservableQueryHubMessageType.Connected);
         var connectionId = ((JsonElement)connected.Payload!).GetString()!;
-        using var subscribe = await client.PostAsJsonAsync(ObservableQueryDemultiplexerEndpointMapper.SseSubscribeRoute,
-            new ObservableQuerySSESubscribeRequest(connectionId, "snapshot", new ObservableQuerySubscriptionRequest($"{typeof(HubReadModel).FullName}.{name}")), json, deadline.Token);
+        using var subscribe = await client.PostAsJsonAsync(
+            ObservableQueryDemultiplexerEndpointMapper.SseSubscribeRoute,
+            new ObservableQuerySSESubscribeRequest(connectionId, "snapshot", new ObservableQuerySubscriptionRequest($"{typeof(HubReadModel).FullName}.{name}")),
+            json,
+            deadline.Token);
         subscribe.StatusCode.ShouldEqual(allowed ? HttpStatusCode.OK : HttpStatusCode.Unauthorized);
         var result = await ReadSse(reader, json, deadline.Token);
         result.QueryId.ShouldEqual("snapshot");
@@ -142,8 +145,12 @@ public class when_a_guest_subscribes_through_the_hub
     static void RegisterQueries(IServiceCollection services) => services.AddSingleton<IQueryPerformerProviders>(provider =>
     {
         var performers = typeof(HubReadModel).GetMethods().Where(method => method.IsStatic && method.IsDefined(typeof(PathAttribute), false))
-            .Select(method => (IQueryPerformer)new ModelBoundQueryPerformer(typeof(HubReadModel), typeof(HubReadModel).FullName!, method,
-                provider.GetRequiredService<IServiceProviderIsService>(), provider.GetRequiredService<IAuthorizationEvaluator>())).ToArray();
+            .Select(method => (IQueryPerformer)new ModelBoundQueryPerformer(
+                typeof(HubReadModel),
+                typeof(HubReadModel).FullName!,
+                method,
+                provider.GetRequiredService<IServiceProviderIsService>(),
+                provider.GetRequiredService<IAuthorizationEvaluator>())).ToArray();
         var catalog = Substitute.For<IQueryPerformerProviders>();
         catalog.Performers.Returns(performers);
         catalog.TryGetPerformersFor(Arg.Any<FullyQualifiedQueryName>(), out Arg.Any<IQueryPerformer?>()).Returns(call =>

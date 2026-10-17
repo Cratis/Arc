@@ -3,7 +3,6 @@
 
 using System.Security.Claims;
 using Cratis.Arc.Http;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,7 +33,7 @@ public class when_admitting_a_caller
         });
         var accessor = new HttpContextAccessor();
         services.AddSingleton<IHttpContextAccessor>(accessor);
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         accessor.HttpContext = liveRequest ? new DefaultHttpContext { RequestServices = provider, User = principal } : null;
         var context = Substitute.For<IHttpRequestContext>();
         context.RequestServices.Returns(provider);

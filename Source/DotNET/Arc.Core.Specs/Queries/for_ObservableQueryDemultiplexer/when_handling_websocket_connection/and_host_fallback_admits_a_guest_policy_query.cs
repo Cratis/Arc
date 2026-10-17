@@ -13,6 +13,7 @@ public class and_host_fallback_admits_a_guest_policy_query : given.a_guarded_web
     {
         _principal = new ClaimsPrincipal(new ClaimsIdentity());
         _context.User.Returns(_principal);
+
         // This spec stubs pipeline authorization; the ASP.NET host spec exercises the actual guest policy.
         _context.RequestServices.Returns(Substitute.For<IServiceProvider>());
         _fallbackAuthorization.IsAuthorized(Arg.Any<IHttpRequestContext>(), Arg.Any<ClaimsPrincipal>(), Arg.Any<CancellationToken>()).Returns(false);

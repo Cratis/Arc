@@ -39,7 +39,7 @@ public class when_a_fallback_policy_selects_a_scheme : Specification
             return Task.FromResult(_authentication);
         });
         _authorizationService.AuthorizeAsync(Arg.Any<ClaimsPrincipal>(), Arg.Any<object>(), Arg.Any<IEnumerable<IAuthorizationRequirement>>())
-            .Returns(AuthorizationResult.Success());
+            .Returns(Microsoft.AspNetCore.Authorization.AuthorizationResult.Success());
         _services = new ServiceCollection()
             .AddSingleton(provider)
             .AddSingleton(_authenticationService)
