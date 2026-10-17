@@ -29,3 +29,4 @@ ARC0025|Arc|Warning|Provide supplies a generated value type
 ARC0026|Arc|Error|Invalid explicit query declaration
 ARC0027|Arc|Warning|Generated value implements both generation contracts
 ARC0028|Arc|Info|Move inline generation to a generated parameter
+ARC0029|Arc|Warning|Non-public static method is not exposed as a query
