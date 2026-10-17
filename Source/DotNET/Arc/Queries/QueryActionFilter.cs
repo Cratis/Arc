@@ -67,6 +67,19 @@ public class QueryActionFilter(
                 queryProviders,
                 context.HttpContext.RequestServices);
 
+            if (await ControllerQueryValidationRejection.TryWrite(context.HttpContext, queryResult))
+            {
+                if (callResult.Result is not null)
+                {
+                    callResult.Result.Result = new EmptyResult();
+                }
+                else
+                {
+                    context.Result = new EmptyResult();
+                }
+                return;
+            }
+
             context.HttpContext.Response.SetResponseStatusCode(queryResult);
 
             var actualResult = new ObjectResult(queryResult);
