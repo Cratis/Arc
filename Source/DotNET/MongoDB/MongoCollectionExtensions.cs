@@ -11,6 +11,7 @@ using Cratis.Concepts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
+using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 
 namespace MongoDB.Driver;
@@ -56,7 +57,7 @@ public static class MongoCollectionExtensions
         Expression<Func<TDocument, bool>>? filter,
         FindOptions? options = null) => collection.Observe(filter, false, options);
 
-    /// <summary>Observe a single matching document using the current query context.</summary>
+    /// <summary>Observe a single matching document without query-context paging, sorting, or counting.</summary>
     /// <param name="collection">The collection to observe.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional find options.</param>
@@ -78,7 +79,7 @@ public static class MongoCollectionExtensions
         FilterDefinition<TDocument>? filter = null,
         FindOptions? options = null) => collection.Observe(filter, false, options);
 
-    /// <summary>Observe a single matching document using the current query context.</summary>
+    /// <summary>Observe a single matching document without query-context paging, sorting, or counting.</summary>
     /// <param name="collection">The collection to observe.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional find options.</param>
@@ -89,7 +90,7 @@ public static class MongoCollectionExtensions
         FilterDefinition<TDocument>? filter = null,
         FindOptions? options = null) => collection.ObserveSingle(filter, false, options);
 
-    /// <summary>Observe a document by id using the current query context.</summary>
+    /// <summary>Observe a document by id without query-context paging, sorting, or counting.</summary>
     /// <param name="collection">The collection to observe.</param>
     /// <param name="id">The document id.</param>
     /// <typeparam name="TDocument">The document type.</typeparam>
@@ -130,7 +131,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="filter">Optional filter.</param>
-    /// <param name="ignoreQueryContext">Whether to read the full filtered source without client paging, sorting, or total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>
@@ -145,7 +146,7 @@ public static class MongoCollectionExtensions
         FindOptions? options = null)
     {
         filter ??= _ => true;
-        return collection.ObserveSingle(() => collection.Find(filter, options), filter, ignoreQueryContext);
+        return collection.ObserveSingle(() => collection.Find(filter, options), filter);
     }
 
     /// <summary>
@@ -192,7 +193,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="filterDefinition">The MongoDB filter.</param>
-    /// <param name="ignoreQueryContext">Whether to read the full filtered source without client paging, sorting, or total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>
@@ -208,14 +209,14 @@ public static class MongoCollectionExtensions
         FindOptions? options = null)
     {
         filterDefinition ??= FilterDefinition<TDocument>.Empty;
-        return collection.ObserveSingle(() => collection.Find(filterDefinition, options), filterDefinition, ignoreQueryContext);
+        return collection.ObserveSingle(() => collection.Find(filterDefinition, options), filterDefinition);
     }
 
     /// <summary>
-    /// Observe a single matching document with the query-context option before the MongoDB filter.
+    /// Observe a single matching document with the compatibility query-context option before the MongoDB filter.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
-    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
@@ -235,7 +236,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="id">The identifier of the document to observe.</param>
-    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
     /// <returns>
@@ -245,7 +246,7 @@ public static class MongoCollectionExtensions
     public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id, bool ignoreQueryContext)
     {
         var filter = Builders<TDocument>.Filter.Eq(new StringFieldDefinition<TDocument, TId>("_id"), id);
-        return collection.ObserveSingle(() => collection.Find(filter), filter, ignoreQueryContext);
+        return collection.ObserveSingle(() => collection.Find(filter), filter);
     }
 
     /// <summary>
@@ -253,9 +254,8 @@ public static class MongoCollectionExtensions
     /// explicit initial query and filter.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
-    /// <param name="findCall">Produces the initial, sorted and paged query for the observed document.</param>
+    /// <param name="findCall">Produces the initial query for the observed document.</param>
     /// <param name="filter">The filter identifying the observed document.</param>
-    /// <param name="ignoreQueryContext">Whether to ignore client paging, sorting, and total count updates.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>An <see cref="ISubject{T}"/> with a single instance of the type.</returns>
     /// <remarks>
@@ -269,13 +269,12 @@ public static class MongoCollectionExtensions
     static ISubject<TDocument> ObserveSingle<TDocument>(
          this IMongoCollection<TDocument> collection,
          Func<IFindFluent<TDocument, TDocument>> findCall,
-         FilterDefinition<TDocument> filter,
-         bool ignoreQueryContext)
+         FilterDefinition<TDocument> filter)
     {
         return collection.Observe<TDocument, TDocument>(
             findCall,
             filter,
-            ignoreQueryContext,
+            ignoreQueryContext: true,
             (documents, _, observable) => observable.OnNext(documents.FirstOrDefault()!));
     }
 
@@ -393,6 +392,7 @@ public static class MongoCollectionExtensions
                                 documents,
                                 subject,
                                 idProperty,
+                                classMap.IdMemberMap,
                                 cancellationToken);
                         }
                         catch (Exception e)
@@ -491,13 +491,14 @@ public static class MongoCollectionExtensions
         QueryContextAwareSet<TDocument> documents,
         ISubject<TResult> subject,
         PropertyInfo idProperty,
+        BsonMemberMap? idMemberMap,
         CancellationToken cancellationToken)
     {
         var hasChanges = false;
         var changes = new List<CollectionChange>();
         if (changeDocument.DocumentKey is not null && changeDocument.DocumentKey.TryGetValue("_id", out var idValue))
         {
-            var id = GetId(idProperty, idValue);
+            var id = GetId(idProperty, idMemberMap, idValue);
             var fullDocument = changeDocument.FullDocument;
             if (changeDocument.OperationType == ChangeStreamOperationType.Delete)
             {
@@ -627,8 +628,19 @@ public static class MongoCollectionExtensions
         return removed;
     }
 
-    static object GetId(PropertyInfo idProperty, BsonValue idValue)
+    static object GetId(PropertyInfo idProperty, BsonMemberMap? idMemberMap, BsonValue idValue)
     {
+        if (idMemberMap is not null)
+        {
+            using var reader = new BsonDocumentReader(new BsonDocument("_id", idValue));
+            reader.ReadStartDocument();
+            reader.ReadName(Utf8NameDecoder.Instance);
+            var context = BsonDeserializationContext.CreateRoot(reader);
+            var result = idMemberMap.GetSerializer().Deserialize(context, new BsonDeserializationArgs { NominalType = idMemberMap.MemberType });
+            reader.ReadEndDocument();
+            return result;
+        }
+
         var id = BsonTypeMapper.MapToDotNetValue(idValue);
         if (idProperty.PropertyType.IsConcept())
         {

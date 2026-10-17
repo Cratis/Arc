@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Collections;
 using System.Reactive.Subjects;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
@@ -107,7 +108,9 @@ public class ClientObservableSSE<T>(
                     logger.ObservableForwardingNullItem();
                 }
 
-                queryResult.Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems);
+                queryResult.Paging = data is IEnumerable and not string
+                    ? new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems)
+                    : PagingInfo.NotPaged;
 
                 // Next() is invoked by the subject's producer on its own thread, where the AsyncLocal tenant
                 // context set up for this connection does not flow. Restoring it here — and resolving through
