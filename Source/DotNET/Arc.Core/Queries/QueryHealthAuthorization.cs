@@ -13,8 +13,16 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 /// <param name="options">The configured Arc options.</param>
 /// <param name="environment">The host environment.</param>
-public class QueryHealthAuthorization(IOptions<ArcOptions> options, IHostEnvironment environment) : IAnonymousEvaluator, IAuthorizationAttributeEvaluator
+public class QueryHealthAuthorization(IOptions<ArcOptions> options, IHostEnvironment? environment) : IAnonymousEvaluator, IAuthorizationAttributeEvaluator
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="QueryHealthAuthorization"/> class without a host environment.
+    /// </summary>
+    /// <param name="options">The configured Arc options.</param>
+    public QueryHealthAuthorization(IOptions<ArcOptions> options) : this(options, null)
+    {
+    }
+
     /// <inheritdoc/>
     public bool? IsAnonymousAllowed(Type type) => AnonymousAccess(type);
 
@@ -28,7 +36,7 @@ public class QueryHealthAuthorization(IOptions<ArcOptions> options, IHostEnviron
     public (bool HasAuthorize, string? Roles)? GetAuthorizationInfo(MethodInfo method) => AuthorizationInfo(method);
 
     bool? AnonymousAccess(MemberInfo member) => QueryHealthEndpointAccess.IsQueryHealth(member)
-        ? !options.Value.QueryHealth.RequiresAuthentication(environment.IsDevelopment())
+        ? !options.Value.QueryHealth.RequiresAuthentication(QueryHealthEndpointAccess.IsDevelopment(environment))
         : null;
 
     (bool HasAuthorize, string? Roles)? AuthorizationInfo(MemberInfo member) => AnonymousAccess(member) == false

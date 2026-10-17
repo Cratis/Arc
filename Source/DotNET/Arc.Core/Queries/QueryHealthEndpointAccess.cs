@@ -37,9 +37,16 @@ internal static class QueryHealthEndpointAccess
             return false;
         }
 
-        var isDevelopment = scope.ServiceProvider.GetService<IHostEnvironment>()?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment;
+        var isDevelopment = IsDevelopment(scope.ServiceProvider.GetService<IHostEnvironment>());
         return !options.Value.QueryHealth.RequiresAuthentication(isDevelopment);
     }
+
+    /// <summary>
+    /// Resolves Development consistently for pipeline authorization and endpoint admission, including hostless containers.
+    /// </summary>
+    /// <param name="environment">The host environment, when available.</param>
+    /// <returns>Whether the host or runtime environment is Development.</returns>
+    internal static bool IsDevelopment(IHostEnvironment? environment) => environment?.IsDevelopment() ?? RuntimeEnvironment.IsDevelopment;
 
     /// <summary>
     /// Matches only the built-in health read model or its observable query method.
