@@ -46,6 +46,14 @@ internal static class JsonPathMembers
         return segments.All(IsFieldSegment) ? CamelCaseSegments(segments) : member;
     }
 
+    /// <summary>
+    /// Normalizes and materializes validation members, treating a missing collection as empty.
+    /// </summary>
+    /// <param name="members">The members reported by validation rules.</param>
+    /// <returns>The normalized members.</returns>
+    internal static string[] NormalizeMembers(IEnumerable<string>? members) =>
+        (members ?? []).Select(Normalize).ToArray();
+
     static string CamelCaseSegments(IEnumerable<string> segments) =>
         string.Join('.', segments.Select(segment => segment.ToCamelCase()));
 
@@ -56,31 +64,41 @@ internal static class JsonPathMembers
             return false;
         }
 
-        var offset = 1;
-        while (offset < segment.Length && (char.IsLetterOrDigit(segment[offset]) || segment[offset] == '_'))
-        {
-            offset++;
-        }
-
+        var offset = SkipIdentifierCharacters(segment, 1);
         while (offset < segment.Length)
         {
-            if (segment[offset++] != '[')
-            {
-                return false;
-            }
-
-            var firstDigit = offset;
-            while (offset < segment.Length && char.IsAsciiDigit(segment[offset]))
-            {
-                offset++;
-            }
-
-            if (offset == firstDigit || offset == segment.Length || segment[offset++] != ']')
+            if (!TryReadIndex(segment, ref offset))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    static int SkipIdentifierCharacters(string segment, int offset)
+    {
+        while (offset < segment.Length && (char.IsLetterOrDigit(segment[offset]) || segment[offset] == '_'))
+        {
+            offset++;
+        }
+
+        return offset;
+    }
+
+    static bool TryReadIndex(string segment, ref int offset)
+    {
+        if (segment[offset++] != '[')
+        {
+            return false;
+        }
+
+        var firstDigit = offset;
+        while (offset < segment.Length && char.IsAsciiDigit(segment[offset]))
+        {
+            offset++;
+        }
+
+        return offset != firstDigit && offset != segment.Length && segment[offset++] == ']';
     }
 }
