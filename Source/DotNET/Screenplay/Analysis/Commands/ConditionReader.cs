@@ -151,6 +151,11 @@ public class ConditionReader(ScreenplayDiagnostics diagnostics)
             return DateConditions.Read(binary, comparison, new(semanticModel, owner, location, bindings, diagnostics));
         }
 
+        if (UuidConditions.Applies(binary, semanticModel))
+        {
+            return UuidConditions.Read(binary, comparison, new(semanticModel, location, diagnostics, expression => MappingSourceReader.ReadPath(expression, semanticModel, owner, bindings), null));
+        }
+
         var left = MappingSourceReader.ReadPath(binary.Left, semanticModel, owner, bindings);
         if (left is not null)
         {

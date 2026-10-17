@@ -165,6 +165,13 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
         model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
 
+    static ComparisonCondition? UuidCondition(BinaryExpressionSyntax binary, UuidConditionSite site, bool invert)
+    {
+        var condition = ComparisonKinds.Of(binary.Kind()) is { } kind ? UuidConditions.Read(binary, kind, site) : null;
+
+        return invert && condition is not null ? condition with { Operator = ComparisonKinds.Opposite(condition.Operator) } : condition;
+    }
+
     bool IsUnchanged(IParameterSymbol parameter, string location)
     {
         if (HandlerBodies.Of((IMethodSymbol)parameter.ContainingSymbol).ToArray() is not [var body] || models.For(body.SyntaxTree) is not { } model)
@@ -192,6 +199,10 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
     ComparisonCondition? Condition(ExpressionSyntax expression, SemanticModel model, INamedTypeSymbol command, AuthoringSources sources, bool invert, string location)
     {
         var site = new DateConditionSite(model, command, location, null, diagnostics);
+        if (MappingSourceReader.Unwrap(expression) is BinaryExpressionSyntax uuid && UuidConditions.Applies(uuid, model))
+        {
+            return UuidCondition(uuid, new(model, location, diagnostics, path => MappingSourceReader.ReadPath(path, model, command), path => sources.ReadPath(path, model)), invert);
+        }
 
         return MappingSourceReader.Unwrap(expression) is BinaryExpressionSyntax binary && DateConditions.Applies(binary, model)
             ? DateCondition(binary, site, invert)
