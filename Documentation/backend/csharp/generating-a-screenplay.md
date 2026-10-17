@@ -471,34 +471,39 @@ A read is a candidate when all of these hold:
 - The effective read protection of the command is `On`: declared on the command, inherited, set on the assembly, or set by the `CratisReadProtection` MSBuild property. `[Unprotected]` on the command turns it off.
 - Neither the parameter nor the read-model type carries `[Unprotected]`. `Off`, `Measure` and `[Unprotected]` reads are advisory and are never promoted. `Measure` only observes; it does not protect.
 - The key is known. `[LookUpBy(nameof(Property))]` names the command property in every mode. Under `On` without it, the generator uses the one command property of the read model's key type, falls back to the command's event-source key, and treats several matching properties as ambiguous, which leaves the read in code. Name one with `LookUpBy`.
+- The read model is not stream-scoped. A read model with `[EventStream<T>]` is read per stream, the runtime rejects a look-up by key for it, and Screenplay cannot state it until [Cratis/Screenplay#805](https://github.com/Cratis/Screenplay/issues/805). It stays in code with `SP0079`.
 - Absence is rejected. A non-nullable parameter counts, since Arc rejects the command when the instance is missing. A nullable parameter counts only when `Handle()` opens with a guard such as `if (room is null) return ValidationResult.Error("...");`. A nullable parameter without that guard means absence is a valid state, and it is not stated as a protected read.
 
 | In C# | In the `.play` document |
 | --- | --- |
 | `ReadProtection(On)` and a `RoomOccupancy` parameter keyed by `RoomId` | `command reads protected`, then `reads RoomOccupancy as occupancy by roomId` |
-| a leading `if (room is null) return ValidationResult.Error(...)` | nothing: the model rejects an absent read itself, and the generator reports the message difference as `SP0079` |
+| a leading `if (room is null) return ValidationResult.Error(...)` | nothing: the model rejects an absent read itself, and the generator reports that its message is not carried as `SP0079` |
 | `if (room.FreeBeds < Guests) return ValidationResult.Error("...")` as a leading guard, or in `Provide()` | `require occupancy.freeBeds >= guests` with the message |
 | `new RoomBooked(Guests, room.FreeBeds)` | `freeBeds = occupancy.freeBeds` in `produces` |
 
-The read is always written with its alias, the parameter name, so a read path never depends on the view name.
+Screenplay names a read by its alias, or by its view when it states none. The generator writes `as <alias>`, the parameter name, and paths through the alias. When the parameter is named as the view (`Current? current`), it drops the alias: the read is `reads Current by sourceId` and its paths are `Current.value`. The guards Stage renders around the same command, such as `if (current is null) return OneOf<...>.FromT1(ValidationResult.Error(...))` and `if (!(!Object.Equals(current.Value, ""))) return ...`, are read the same way: `OneOf` and `Result` wrappers are looked through, an absence guard may use any message because the model's own message applies, and `!`, `==`, `!=` and `Object.Equals` over a read become the requirement. A requirement guard keeps its message only when it is a constant. Otherwise the guard stays in code.
 
 ### When Screenplay refuses a read
 
-Whether Screenplay admits a read is Screenplay's decision, so the generator asks the compiler instead of restating its rules. It emits the candidate reads with the preamble, binds the document, and maps every `PLAY0780` to `PLAY0785` diagnostic to the read it concerns. That read, and the requirements and mappings that depend on it, stay in code, and each is reported as Information `SP0079` with the PLAY code and its message. The document is emitted again, and without the preamble when no read is left. A refusal of one read never affects another.
+Whether Screenplay admits a read is Screenplay's decision, so the generator asks the compiler instead of restating its rules. It emits the candidate reads with the preamble, binds the document, and maps every `PLAY0780` to `PLAY0785` diagnostic to the read it concerns. That read, and the requirements and mappings that depend on it, stay in code, and each is reported as Information `SP0079` with the PLAY code and its message. A refusal that cannot be attributed to a read, or a bad read path (`PLAY0784`, `PLAY0785`) with no other refusal behind it, is the generator being wrong rather than your source, and is reported as Error `SP0056`. The document is emitted again, and without the preamble when no read is left. A refusal of one read never affects another.
 
 Typical reasons are a view that never becomes absent (no `RemovedWith`), a view with joins, children or a payload key, a view without a keyed query, a command that also declares concurrency or routes, and a key that is not a string, concept over a string, or GUID. A candidate whose key the compiler cannot accept (for example an optional property) is refused the same way. A read that is refused is never emitted as an unguarded `reads`.
 
 ### What stays authoring-only
 
-`provide`, `derive` and file forms, optional and advisory reads, reducer and stream-scoped reads, reaction reads, and validators over read-backed rules are not admitted by ESM v25. They stay in code. With the preamble present, advisory reads are left out of authoring documents as well, with `SP0055`, because every `reads` under the preamble claims protection.
+`provide`, `derive` and file forms, optional and advisory reads, reducer reads, stream-scoped reads (`[EventStream<T>]`, `SP0079`), reaction reads, and validators over read-backed rules are not admitted by ESM v25. They stay in code. With the preamble present, advisory reads are left out of authoring documents as well, with `SP0055`, because every `reads` under the preamble claims protection.
 
 ### Keeping documents below ESM v25
 
-With `MaximumExecutableModelVersion` below v25, protected reads are not stated as protected reads and the document is what it was before: executable output leaves the reads in code and authoring output keeps its legacy `reads`. Warning `SP0079` names ESM v25.
+With `MaximumExecutableModelVersion` below v25, protected reads are not stated as protected reads and the document is what it was before: executable output leaves the reads in code and authoring output keeps its legacy `reads`. Warning `SP0079` names ESM v25. Every other `SP0079` is Information.
+
+### What the document states
+
+The document states the declared protection. The runtime option `ReadProtection:MaximumMode` can lower `On` at run time, for example to `Measure` while you roll protection out, and the document does not follow it. A read the document calls protected is protected only while the effective mode at run time is still `On`.
 
 ### Testing it
 
-The generator's own round trip proves the result: the document compiles, binds at v25 and prints back unchanged. Check a command of yours the same way: generate with the options you use, assert that the source contains `command reads protected` and `reads <View> as <alias> by <key>`, and that no `SP0079` names a read you expect to be protected.
+The generator's own round trip proves the result: the document compiles, binds at v25 and prints back unchanged. Check a command of yours the same way: generate with the options you use, assert that the source contains `command reads protected` and `reads <View> by <key>` (with `as <alias>` when the parameter is not named as the view), and that no `SP0079` names a read you expect to be protected.
 
 ## Including authoring-only constructs
 
