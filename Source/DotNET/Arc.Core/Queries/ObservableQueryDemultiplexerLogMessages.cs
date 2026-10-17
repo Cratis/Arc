@@ -49,6 +49,9 @@ internal static partial class ObservableQueryDemultiplexerLogMessages
     [LoggerMessage(LogLevel.Error, "Error processing hub message")]
     internal static partial void ErrorProcessingMessage(this ILogger<ObservableQueryDemultiplexer> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Error, "Host fallback authorization check failed for query '{QueryName}' (id '{QueryId}') — denying the subscription")]
+    internal static partial void HostFallbackCheckFailed(this ILogger<ObservableQueryDemultiplexer> logger, string queryName, string queryId, Exception ex);
+
     [LoggerMessage(LogLevel.Error, "Error in observable subscription for query id '{QueryId}'")]
     internal static partial void SubscriptionError(this ILogger<ObservableQueryDemultiplexer> logger, string queryId, Exception ex);
 

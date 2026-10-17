@@ -292,13 +292,6 @@ public partial class ObservableQueryDemultiplexer
             return null;
         }
 
-        // A host fallback policy may select a named authentication scheme on the live request.
-        if (context is ObservableQuerySubscriptionHttpRequestContext subscriptionContext)
-        {
-            subscriptionContext.SelectAuthorizedPrincipal(requestContext.User);
-            principal = subscriptionContext.GetPrincipal();
-        }
-
         // Run through the full query pipeline (including authorization filters). The call stays inline: a custom
         // pipeline may set the query context (AsyncLocal) synchronously, and an async helper would restore it on return.
         QueryResult queryResult;
@@ -393,17 +386,13 @@ public partial class ObservableQueryDemultiplexer
     {
         try
         {
-            using var scope = serviceProvider.CreateScope();
-            var services = scope.ServiceProvider;
-            var catalog = requestContext.RequestServices?.GetService<IQueryPerformerProviders>() ?? services.GetService<IQueryPerformerProviders>();
-            var anonymous = catalog is not null && catalog.TryGetPerformersFor(queryName, out var performer) &&
-                _anonymousQueries.GetOrAdd(queryName, _ => QueryEndpointAccess.AllowsAnonymous(performer, services));
-            if (anonymous)
+            if (AllowsAnonymousQuery(queryName, requestContext.RequestServices))
             {
                 return true;
             }
 
-            var fallback = services.GetRequiredService<IEndpointFallbackAuthorization>();
+            var fallback = requestContext.RequestServices?.GetService<IEndpointFallbackAuthorization>() ??
+                serviceProvider.GetRequiredService<IEndpointFallbackAuthorization>();
             if (await fallback.IsAuthorized(requestContext, principal, token))
             {
                 token.ThrowIfCancellationRequested();
@@ -417,11 +406,31 @@ public partial class ObservableQueryDemultiplexer
         catch (Exception exception) when (!IsFatal(exception))
         {
             // An unavailable host policy is a denial, never permission to execute the query.
-            logger.ErrorProcessingMessage(exception);
+            logger.HostFallbackCheckFailed(queryName.Value, queryId, exception);
         }
 
         await callbacks.OnUnauthorized(queryId, token);
         return false;
+    }
+
+    bool AllowsAnonymousQuery(FullyQualifiedQueryName queryName, IServiceProvider requestServices)
+    {
+        if (_anonymousQueries.TryGetValue(queryName, out var anonymous))
+        {
+            return anonymous;
+        }
+
+        var catalog = requestServices?.GetService<IQueryPerformerProviders>() ?? serviceProvider.GetService<IQueryPerformerProviders>();
+        if (catalog is null || !catalog.TryGetPerformersFor(queryName, out var performer))
+        {
+            return false;
+        }
+
+        return _anonymousQueries.GetOrAdd(queryName, _ =>
+        {
+            using var scope = serviceProvider.CreateScope();
+            return QueryEndpointAccess.AllowsAnonymous(performer, scope.ServiceProvider);
+        });
     }
 
     /// <summary>
