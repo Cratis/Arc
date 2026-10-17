@@ -37,7 +37,7 @@ public class from_a_uuid_comparison_on_a_protected_read : a_protected_document
             }
             """;
 
-        Generate(Library(source, Grant), SemanticVersion.V28);
+        Generate(Library(source, Grant), SemanticVersion.V27);
     }
 
     [Fact] void should_state_the_protected_read() => Result.Source.Contains("reads RoomGrant as grant by roomId").ShouldBeTrue();
@@ -48,4 +48,6 @@ public class from_a_uuid_comparison_on_a_protected_read : a_protected_document
     [Fact] void should_have_no_errors() => Result.Diagnostics.Where(diagnostic => diagnostic.Severity == ScreenplayDiagnosticSeverity.Error).ShouldBeEmpty();
     [Fact] void should_bind() => Assert.True(Bound.Success, string.Join(Environment.NewLine, Bound.Diagnostics.Select(diagnostic => diagnostic.Code + ": " + diagnostic.Message)));
     [Fact] void should_withhold_the_comparison_below_v28() => Capped.Source.Contains("require grant.memberId == requestedBy").ShouldBeFalse();
+    [Fact] void should_keep_the_protected_read_below_v28() => Capped.Source.Contains("reads RoomGrant as grant by roomId").ShouldBeTrue();
+    [Fact] void should_report_the_uuid_version_cap() => Capped.Diagnostics.Count(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableValidationRule && diagnostic.Severity == ScreenplayDiagnosticSeverity.Warning && diagnostic.Message.Contains("require ESM v28") && diagnostic.Message.Contains("capped at ESM v27")).ShouldEqual(1);
 }
