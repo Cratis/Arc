@@ -77,12 +77,19 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             : null;
     }
 
+    static string? StreamScoped(INamedTypeSymbol type) => type.HasAttribute(WellKnownTypeNames.ReadModelEventStreamAttribute)
+        ? "the read model is stream-scoped ([EventStream<T>]): the runtime reads it per stream and rejects a look-up by key, and Screenplay cannot state a stream-scoped read until Cratis/Screenplay#805"
+        : null;
+
     static bool IsGrammarKeyword(string alias) => alias == "reads" || alias == "as" || alias == "by";
 
     static (string? Key, string? Failure) Key(ReadScope scope, IParameterSymbol parameter, INamedTypeSymbol type, bool absenceRejected) =>
         parameter.Type.NullableAnnotation == NullableAnnotation.Annotated && !absenceRejected
             ? (null, "the read is optional and no leading guard rejects its absence")
             : CommandReadKeys.Resolve(scope, parameter, type);
+
+    static (string? Key, string? Failure) ResolveKey(ReadScope scope, IParameterSymbol parameter, INamedTypeSymbol type, bool absenceRejected) =>
+        IsProtected(parameter, scope) && StreamScoped(type) is { } scoped ? (null, scoped) : Key(scope, parameter, type, absenceRejected);
 
     static bool Provides(ITypeSymbol result, ITypeSymbol dependency) => SymbolEqualityComparer.Default.Equals(result, dependency) ||
         (result is INamedTypeSymbol named && named.TypeArguments.Any(argument => Provides(argument, dependency)));
@@ -120,7 +127,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             var type = ReadType(parameter.Type)!;
             var isProtected = IsProtected(parameter, scope);
             var absence = isProtected ? guards.Where(guard => SymbolEqualityComparer.Default.Equals(ProtectedReadGuards.AbsenceOf(guard.Statement.Condition, guard.Model), parameter)).ToArray() : [];
-            var (key, failure) = Key(scope, parameter, type, absence.Length > 0);
+            var (key, failure) = ResolveKey(scope, parameter, type, absence.Length > 0);
             failure ??= Conflict(scope, parameter, key, reads);
             if (failure is not null)
             {
@@ -140,13 +147,18 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 StateAbsence(parameter, absence, scope);
             }
 
-            if (IsUnchanged(parameter, scope))
-            {
-                scope.Sources.Add(parameter, parameter.Name, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
-            }
+            CarryUnchanged(parameter, scope);
         }
 
         return reads;
+    }
+
+    void CarryUnchanged(IParameterSymbol parameter, ReadScope scope)
+    {
+        if (IsUnchanged(parameter, scope))
+        {
+            scope.Sources.Add(parameter, parameter.Name, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
+        }
     }
 
     CommandReadModel Describe(IParameterSymbol parameter, INamedTypeSymbol type, string key, bool isProtected) => new(type.Name, parameter.Name, key)

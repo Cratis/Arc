@@ -102,6 +102,9 @@ public static class WellKnownTypeNames
     /// <summary>The attribute declaring a type as an event source definition.</summary>
     public const string EventSourceDefinitionAttribute = "Cratis.Chronicle.EventSources.EventSourceAttribute";
 
+    /// <summary>The generic attribute scoping a read model to one event stream.</summary>
+    public const string ReadModelEventStreamAttribute = "Cratis.Chronicle.ReadModels.EventStreamAttribute`1";
+
     /// <summary>The attribute declaring a stream of an event source definition.</summary>
     public const string EventStreamDefinitionAttribute = "Cratis.Chronicle.EventSources.EventStreamAttribute";
 
