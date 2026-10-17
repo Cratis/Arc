@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Reactive.Subjects;
 using Cratis.Arc.Queries;
 using MongoDB.Driver;
 
@@ -132,9 +133,17 @@ public class and_the_query_context_is_paged : given.an_observed_collection
 
     async Task<EmissionSequence> ObserveInitial(string overload)
     {
-        var target = _documents[0];
+        var emissions = RecordEmissions(Observe(overload, _documents[0]));
+        _initialQueryGate.SetResult();
+        _initial = await emissions.Next(TimeSpan.FromSeconds(5));
+        return emissions;
+    }
+
+    ISubject<ObservedDocument> Observe(string overload, ObservedDocument target)
+    {
         var filter = Builders<ObservedDocument>.Filter.Eq(document => document.Id, target.Id);
-        var subject = overload switch
+
+        return overload switch
         {
             "expression" => _collection.ObserveSingle(document => document.Id == target.Id),
             "filter" => _collection.ObserveSingle(filter),
@@ -143,10 +152,6 @@ public class and_the_query_context_is_paged : given.an_observed_collection
             "filter_false" => _collection.ObserveSingle(filter, ignoreQueryContext: false),
             _ => _collection.ObserveById(target.Id, ignoreQueryContext: false)
         };
-        var emissions = RecordEmissions(subject);
-        _initialQueryGate.SetResult();
-        _initial = await emissions.Next(TimeSpan.FromSeconds(5));
-        return emissions;
     }
 
     async Task<ObservedDocument?> RemoveObserved(EmissionSequence emissions)
