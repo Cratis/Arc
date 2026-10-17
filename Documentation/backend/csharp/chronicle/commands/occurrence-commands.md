@@ -1,9 +1,9 @@
 ---
 title: Commands for Chronicle occurrences
-description: Execute a command from a Chronicle occurrence — a timer, startup, shutdown or clock automation — without an HTTP request, so that a redelivered occurrence never runs a successful command twice.
+description: Execute transactional commands for Chronicle occurrences without an HTTP request, using atomic effect receipts to avoid repeating recorded effects.
 ---
 
-A Chronicle occurrence is work the event store hands to your application when no one made a request: a schedule came due, the application started or stopped, a clock rule fired. An occurrence can be delivered more than once — a crash, a lost lease or a restart redelivers it. `IOccurrenceCommandExecutor` runs a command for an occurrence so that a successful command runs exactly once, however many times the occurrence arrives.
+A Chronicle occurrence is work the event store hands to your application when no one made a request: a schedule came due, the application started or stopped, a clock rule fired. An occurrence can be delivered more than once — a crash, a lost lease or a restart redelivers it. `IOccurrenceCommandExecutor` commits a transactional command's events and receipt atomically. A later delivery with the same effect key returns the recorded outcome without running the handler. Concurrent attempts can still enter the handler before one wins the commit; external side effects need their own idempotency keys.
 
 It is part of `Cratis.Arc.Chronicle` and needs a Chronicle kernel that advertises the `effect-receipts` capability (client 19.77 and later).
 
@@ -68,16 +68,21 @@ A refusal is terminal because retrying the same input would be refused again. To
 
 ## The stored response
 
-The receipt stores a minimal plaintext response — the command type name, the outcome, the number of events, and for a refusal the category and the member names. It never contains command values, validation messages or the handler's response, so it holds no personal data and stays well below Chronicle's 64 KiB limit. If you need the command's own response, query the state the events produced.
+The receipt stores a minimal plaintext response: the command type name, the outcome, the number of events, and for a refusal the category and member or constraint names. It never serializes command property values or the handler's response values. Validation messages are also excluded because they can echo personal data or secrets. Keep member and constraint names free of personal data.
+
+Command names and individual reasons are capped at 256 characters, with at most 16 reasons plus an omission marker. Truncated strings end in `[truncated]`. These limits keep the serialized response below 64 KiB even when JSON escapes every character. The same bounded refusal reasons are used in the receipt's outcome.
+
+Because the receipt does not store the command's response values, a personal-data annotation or an oversized handler response does not require up-front refusal of keyed execution. If you need the command's own response on redelivery, query the state the events produced; it is not replayed from the receipt.
 
 ## What a command cannot do inside an occurrence
 
-One receipt covers one unit of work, and the receipt is written only by its final commit. The executor therefore refuses these:
+One receipt covers one unit of work, and the receipt is written only by its final commit. The executor refuses these:
 
 - **Running inside another command.** `OccurrenceCommandCannotRunInsideCommand` is thrown. Call the executor from the occurrence handler, not from a command or reactor that already owns a unit of work. Commands the command returns or nests share the unit and are covered by the same key.
-- **Committing early.** An aggregate root `Commit()` throws `OccurrenceCommandCannotCommitEarly`.
-- **Completing a stream.** Stream completion is applied outside the atomic commit. `OccurrenceCommandCannotCompleteStreams` is thrown.
-- **Appending immediately.** A direct append to an event sequence is committed without the receipt. The executor detects it after the command ran, rolls back the unit, writes no receipt and throws `OccurrenceCommandAppendedImmediately`. Redelivery would append those events again, so fix the handler: return the events or use the transactional style. See [transactional commands](./transactional-commands.md).
+- **Committing early.** An aggregate root `Commit()` throws `OccurrenceCommandCannotCommitEarly`. Even if the pipeline catches it in a `CommandResult`, the executor rethrows it to the occurrence handler; it is a programming error, not a retryable `Failed` result.
+- **Completing a stream.** Stream completion is applied outside the atomic commit. The executor surfaces `OccurrenceCommandCannotCompleteStreams` to the occurrence handler, also rethrowing it when the pipeline captured it. No receipt is written.
+
+Direct (non-transactional) appends inside an occurrence command are **not retry-safe**. Return events from the handler or append through the command's unit of work using `.Transactional`. An immediate event-log append is detected after it commits: the executor rolls back pending transactional events, writes no receipt and throws `OccurrenceCommandAppendedImmediately`. The immediate event remains committed and redelivery can duplicate it. This is a fail-loud backstop, not prevention; do not rely on it to observe other sequence instances. Up-front refusal requires the [Chronicle append-admission scope](https://github.com/Cratis/Chronicle/issues/5019) and [Arc's corresponding guard](https://github.com/Cratis/Arc/issues/3354) once that Chronicle release ships. See [transactional commands](./transactional-commands.md).
 
 ## Fail closed without the kernel capability
 
@@ -85,7 +90,7 @@ When the kernel does not advertise `effect-receipts`, or the capability is unkno
 
 ## Occurrence causation and time
 
-The causation chain of every event the command appends starts with an `Occurrence` entry carrying `occurrenceId`, `triggerId`, `kind`, `recordedAt`, `dueAt` for scheduled occurrences, `attempt`, `epoch` and `effectKey`, followed by the usual [command causation](./causation.md). Every attempt gets a fresh correlation id. The event's `Occurred` time is the time it was appended, not the due time of the occurrence; read `dueAt` from the causation when you need it.
+The causation chain of every event the command appends includes an `Occurrence` entry before the command's entry. A root or process entry can come first. The occurrence entry carries `occurrenceId`, `triggerId`, `kind`, `recordedAt`, `dueAt` for scheduled occurrences, `attempt`, `epoch` and `effectKey`, followed by the usual [command causation](./causation.md). Every attempt gets a fresh correlation id. The event's `Occurred` time is the time it was appended, not the due time of the occurrence; read `dueAt` from the causation when you need it.
 
 ## Namespaces and tenants
 
@@ -99,5 +104,5 @@ Test an occurrence handler against the in-process kernel from `Cratis.Chronicle.
 
 - The effect name must be stable across attempts and unique per effect inside one occurrence. Pass `occurrence.EffectKey(name).Value` to external systems that accept an idempotency key.
 - An effect needing more than one unit of work needs more than one effect name; each name has its own receipt.
-- Commands whose results must carry personal data back to the occurrence are not a fit: the receipt is plaintext. Follow-up work for encrypted receipts is tracked separately.
+- Receipt replay carries only the minimal outcome, never a command's response values. The receipt remains plaintext.
 - Event reactors that return commands are a different mechanism; see [command side effects](../reactors/command-side-effects.md).
