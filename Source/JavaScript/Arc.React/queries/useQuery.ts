@@ -12,6 +12,8 @@ import { useCommandScope } from '../commands/useCommandScope.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
+import type { InFlightRequest } from './InFlightRequest.js';
+import { type QueryExecution, startQueryExecution } from './QueryExecution.js';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -72,55 +74,6 @@ function buildQueryKey(queryCache: { buildKey(queryTypeName: string, args?: obje
     const pagingPart = paging.page > 0 || paging.pageSize > 0 ? `::page=${paging.page},${paging.pageSize}` : '';
     const sortingPart = sorting.field ? `::sort=${sorting.field},${sorting.direction}` : '';
     return `${queryCache.buildKey(typeName, args)}${pagingPart}${sortingPart}`;
-}
-
-/**
- * A request in flight on a shared query instance, with the serialized arguments it was performed with.
- */
-type InFlightRequest = { readonly request: Promise<unknown>; readonly argumentsKey: string };
-
-/**
- * One execution of a hook's query - the lifecycle of a single perform, from the moment it tells the query scope
- * it started performing until it settles the hook or is retired.
- */
-type QueryExecution = {
-    /** Whether the execution may no longer settle the hook - its hook unmounted or started a newer execution. */
-    readonly isRetired: boolean;
-
-    /** Tells the query scope the execution stopped performing. Only the first call has an effect. */
-    complete(): void;
-
-    /** Stops the execution from settling the hook and completes it. */
-    retire(): void;
-};
-
-/**
- * Starts an execution, telling the query scope it is performing. Every execution completes on its scope exactly
- * once, whether it settles, fails or is retired - an execution waiting on a request it does not own must not keep
- * the scope performing after its hook is gone, nor complete it a second time when that request finally settles.
- * @param queryScope The query scope the execution performs in.
- * @returns The started {@link QueryExecution}.
- */
-function startExecution(queryScope: { notifyPerformingStarted(): void; notifyPerformingCompleted(): void }): QueryExecution {
-    let isRetired = false;
-    let isCompleted = false;
-    queryScope.notifyPerformingStarted();
-    const execution: QueryExecution = {
-        get isRetired() {
-            return isRetired;
-        },
-        complete() {
-            if (!isCompleted) {
-                isCompleted = true;
-                queryScope.notifyPerformingCompleted();
-            }
-        },
-        retire() {
-            isRetired = true;
-            execution.complete();
-        }
-    };
-    return execution;
 }
 
 /**
@@ -218,7 +171,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
             // keep this hook's query scope performing until that request settles. The request itself is not
             // aborted: it is shared, and the co-subscriber that started it still needs its outcome.
             executionRef.current?.retire();
-            const execution = startExecution(queryScope);
+            const execution = startQueryExecution(queryScope);
             executionRef.current = execution;
 
             // Only this hook's latest request may settle its state. An earlier one can still finish after a later
