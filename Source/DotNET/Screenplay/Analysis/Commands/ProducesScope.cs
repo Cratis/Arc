@@ -22,4 +22,10 @@ public record ProducesScope(
     SemanticModel SemanticModel,
     ITypeSymbol Command,
     ParameterBindings? Bindings,
-    INamedTypeSymbol? AggregateRoot);
+    INamedTypeSymbol? AggregateRoot)
+{
+    /// <summary>
+    /// Gets the guard statements already stated as protected read absence or requirements.
+    /// </summary>
+    public IReadOnlySet<SyntaxNode>? ConsumedGuards { get; init; }
+}

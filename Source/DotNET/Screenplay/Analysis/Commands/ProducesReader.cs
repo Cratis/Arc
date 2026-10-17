@@ -169,7 +169,7 @@ public class ProducesReader(SemanticModels models, AggregateRootCatalog aggregat
         AuthoringSources? sources = null,
         bool generatedIdentity = false)
     {
-        var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot);
+        var scope = new ProducesScope(semanticModel, command, behavior?.Bindings, behavior?.AggregateRoot) { ConsumedGuards = sources?.ConsumedGuards };
 
         foreach (var creation in body.DescendantNodesAndSelf().OfType<BaseObjectCreationExpressionSyntax>())
         {

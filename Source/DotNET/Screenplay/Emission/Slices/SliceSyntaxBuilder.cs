@@ -109,6 +109,26 @@ public class SliceSyntaxBuilder(
     }
 
     /// <summary>
+    /// Gets the name a slice is declared under, falling back to the last segment of its namespace.
+    /// </summary>
+    /// <param name="slice">The slice to name.</param>
+    /// <param name="naming">The naming used for the document.</param>
+    /// <returns>The slice name.</returns>
+    internal static string NameOf(SliceModel slice, IScreenplayNaming naming)
+    {
+        var name = naming.ToDeclarationName(slice.Name);
+        if (name.Length > 1)
+        {
+            return name;
+        }
+
+        var segments = slice.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        name = segments.Length == 0 ? string.Empty : naming.ToDeclarationName(segments[^1]);
+
+        return name.Length <= 1 ? DefaultSliceName : name;
+    }
+
+    /// <summary>
     /// Builds the read models a slice declares.
     /// </summary>
     /// <param name="slice">The slice to build for.</param>
@@ -170,17 +190,5 @@ public class SliceSyntaxBuilder(
     /// </summary>
     /// <param name="slice">The slice to name.</param>
     /// <returns>The slice name.</returns>
-    string GetName(SliceModel slice)
-    {
-        var name = naming.ToDeclarationName(slice.Name);
-        if (name.Length > 1)
-        {
-            return name;
-        }
-
-        var segments = slice.Namespace.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        name = segments.Length == 0 ? string.Empty : naming.ToDeclarationName(segments[^1]);
-
-        return name.Length <= 1 ? DefaultSliceName : name;
-    }
+    string GetName(SliceModel slice) => NameOf(slice, naming);
 }

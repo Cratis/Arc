@@ -41,6 +41,19 @@ public class CommandSyntaxBuilder(
     /// <returns>The <see cref="CommandSyntax"/>.</returns>
     public CommandSyntax Build(CommandModel command, string location)
     {
+        var roots = command.Authoring?.Reads.Where(read => read.NamedByView).ToDictionary(read => naming.ToPropertyName(read.Alias), read => naming.ToDeclarationName(read.Name), StringComparer.Ordinal) ?? [];
+        if (roots.Count == 0)
+        {
+            return BuildNamed(command, location);
+        }
+
+        var rooted = new ViewRootNaming(naming, roots);
+
+        return new CommandSyntaxBuilder(rooted, types, authorize, validations, produces.WithNaming(rooted), concurrency, names) { AuthoringOnlyConstructs = AuthoringOnlyConstructs }.BuildNamed(command, location);
+    }
+
+    CommandSyntax BuildNamed(CommandModel command, string location)
+    {
         var authoring = command.Authoring;
         var selectedIdentifier = authoring?.Identifier ?? command.Identifier;
         var properties = ToProperties(command, location).ToList();
