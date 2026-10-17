@@ -26,7 +26,7 @@ export function QueryPanel({ children }: { children: ReactElement }) {
 
 The non-Suspense query hooks notify while starting requests/subscriptions. Ordinary queries track the request; observable queries track the wait for the first result, not the lifetime of the connection. A long-lived subscription is not permanently “loading.” Current Suspense hooks use separate resources and do not call QueryScope's performing notifications; use their loading boundary instead.
 
-### When an ordinary query stops performing
+## When an ordinary query stops performing
 
 Each execution of `useQuery` or `useQueryWithPaging` tells its scope it stopped performing exactly once. That happens at whichever comes first:
 
