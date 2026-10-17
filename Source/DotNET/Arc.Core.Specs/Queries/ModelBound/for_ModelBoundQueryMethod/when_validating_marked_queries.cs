@@ -12,12 +12,16 @@ public class when_validating_marked_queries
     [InlineData("duplicate")]
     [InlineData("task")]
     [InlineData("private")]
+    [InlineData("internal")]
+    [InlineData("protected")]
+    [InlineData("protected internal")]
+    [InlineData("private protected")]
     [InlineData("owner")]
     [InlineData("self")]
     public void should_reject_invalid_declarations_before_selection(string kind)
     {
         var type = InvalidType(kind);
-        Catch.Exception(() => ModelBoundQueryMethod.GetMethods(type, method => method.IsValidQueryFor(type))).ShouldNotBeNull();
+        Catch.Exception(() => ModelBoundQueryMethod.GetMethods(type, method => method.IsValidQueryFor(type))).ShouldBeOfExactType<ModelBoundQueryMethod.InvalidQueryDeclaration>();
     }
 
     static Type InvalidType(string kind)
@@ -29,7 +33,16 @@ public class when_validating_marked_queries
             type.SetCustomAttribute(new CustomAttributeBuilder(typeof(ReadModelAttribute).GetConstructor(Type.EmptyTypes)!, [], [typeof(ReadModelAttribute).GetProperty(nameof(ReadModelAttribute.RequireQueryAttribute))!], [kind is not ("task" or "self")]));
         }
 
-        AddMethod(type, kind == "private" ? MethodAttributes.Private : MethodAttributes.Public, kind == "task" ? typeof(Task) : type, kind == "self" ? type : typeof(int));
+        var access = kind switch
+        {
+            "private" => MethodAttributes.Private,
+            "internal" => MethodAttributes.Assembly,
+            "protected" => MethodAttributes.Family,
+            "protected internal" => MethodAttributes.FamORAssem,
+            "private protected" => MethodAttributes.FamANDAssem,
+            _ => MethodAttributes.Public
+        };
+        AddMethod(type, access, kind == "task" ? typeof(Task) : type, kind == "self" ? type : typeof(int));
         if (kind == "duplicate")
         {
             AddMethod(type, MethodAttributes.Public, type, typeof(string));

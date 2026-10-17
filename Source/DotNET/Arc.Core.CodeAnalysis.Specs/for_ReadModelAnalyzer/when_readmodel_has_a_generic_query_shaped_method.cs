@@ -7,7 +7,7 @@ namespace Cratis.Arc.CodeAnalysis.for_ReadModelAnalyzer;
 
 public class when_readmodel_has_a_generic_query_shaped_method
 {
-    [Fact] async Task should_report_diagnostic_for_an_internal_generic_helper() => await VerifyCS.VerifyAnalyzerAsync(@"
+    [Fact] async Task should_report_diagnostic_for_a_public_generic_query() => await VerifyCS.VerifyAnalyzerAsync(@"
 using System.Collections.Generic;
 using Cratis.Arc.Queries.ModelBound;
 
@@ -16,12 +16,25 @@ namespace TestNamespace
     [ReadModel]
     public class TestReadModel
     {
-        internal static {|#0:IEnumerable<TestReadModel> CountOf<TDocument>(IEnumerable<TDocument> source)|} => null;
+        public static {|#0:IEnumerable<TestReadModel> CountOf<TDocument>(IEnumerable<TDocument> source)|} => null;
     }
 }",
         VerifyCS.Diagnostic("ARC0014")
             .WithLocation(0)
             .WithArguments("CountOf", "TestReadModel"));
+
+    [Fact] async Task should_not_report_a_query_error_for_an_internal_generic_helper() => await VerifyCS.VerifyAnalyzerAsync(@"
+using System.Collections.Generic;
+using Cratis.Arc.Queries.ModelBound;
+
+namespace TestNamespace
+{
+    [ReadModel]
+    public class TestReadModel
+    {
+        internal static IEnumerable<TestReadModel> CountOf<TDocument>(IEnumerable<TDocument> source) => null;
+    }
+}");
 
     [Fact] async Task should_not_report_diagnostic_for_a_non_generic_query() => await VerifyCS.VerifyAnalyzerAsync(@"
 using System.Collections.Generic;

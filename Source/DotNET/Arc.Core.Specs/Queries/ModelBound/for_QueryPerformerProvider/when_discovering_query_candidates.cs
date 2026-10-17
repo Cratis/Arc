@@ -27,7 +27,7 @@ public class when_discovering_query_candidates : Specification
     void Because() => _provider = new QueryPerformerProvider(_types, _registry, _serviceProviderIsService, _authorizationEvaluator);
 
     [Fact] void should_not_discover_self_parameter_helpers() => _provider.Performers.Any(_ => _.FullyQualifiedName.Value.EndsWith(".Reduce", StringComparison.Ordinal) || _.FullyQualifiedName.Value.EndsWith(".Copy", StringComparison.Ordinal)).ShouldBeFalse();
-    [Fact] void should_discover_two_queries() => _provider.Performers.Count().ShouldEqual(2);
+    [Fact] void should_discover_only_the_public_query() => _provider.Performers.Count().ShouldEqual(1);
     [Fact] void should_discover_the_public_query() => _provider.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(QueryCandidateReadModel).FullName}.{nameof(QueryCandidateReadModel.ById)}").ShouldBeTrue();
-    [Fact] void should_discover_the_internal_query() => _provider.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(QueryCandidateReadModel).FullName}.InternalHelper").ShouldBeTrue();
+    [Fact] void should_not_discover_the_internal_query() => _provider.Performers.Any(_ => _.FullyQualifiedName.Value == $"{typeof(QueryCandidateReadModel).FullName}.InternalHelper").ShouldBeFalse();
 }

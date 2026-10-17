@@ -48,6 +48,20 @@ public class when_probing_metadata_markers : Specification
     void should_still_reject_an_actual_query_on_an_unowned_type() =>
         Catch.Exception(() => _invalidOwnerAssembly.GetType(InvalidOwnerName)!.IsQuery()).GetType().FullName.ShouldEqual("Cratis.Arc.Queries.ModelBound.ModelBoundQueryMethod+InvalidQueryDeclaration");
 
+    [Theory]
+    [InlineData(MethodAttributes.Private)]
+    [InlineData(MethodAttributes.Assembly)]
+    [InlineData(MethodAttributes.Family)]
+    [InlineData(MethodAttributes.FamORAssem)]
+    [InlineData(MethodAttributes.FamANDAssem)]
+    public void should_never_expose_a_marked_nonpublic_method(MethodAttributes visibility)
+    {
+        var image = _context.LoadFromAssemblyPath(CreateInvalidOwnerImage(visibility, readModel: true));
+        var owner = image.GetType(InvalidOwnerName)!;
+        owner.GetMethods(BindingFlags.NonPublic | BindingFlags.Static).Single().IsValidQueryFor(owner).ShouldBeFalse();
+        Catch.Exception(() => owner.GetQueryMethods().ToArray()).GetType().FullName.ShouldEqual("Cratis.Arc.Queries.ModelBound.ModelBoundQueryMethod+InvalidQueryDeclaration");
+    }
+
     [Fact]
     void should_read_an_explicit_owner_and_query_after_unrelated_attributes() =>
         _assembly.GetType(typeof(ExplicitOwner).FullName!)!.GetQueryMethods().Single().Name.ShouldEqual(nameof(ExplicitOwner.All));
@@ -74,13 +88,13 @@ public class when_probing_metadata_markers : Specification
         public static string Helper() => string.Empty;
     }
 
-    string CreateInvalidOwnerImage()
+    string CreateInvalidOwnerImage(MethodAttributes visibility = MethodAttributes.Public, bool readModel = false)
     {
         // Write the negative fixture without loading it into runtime discovery, including on .NET 8.
         // Keep the unrelated attribute reference even though its dependency is absent from the resolver.
         var metadata = new MetadataBuilder();
         metadata.AddModule(0, metadata.GetOrAddString("InvalidMetadataQueryFixture.dll"), metadata.GetOrAddGuid(Guid.NewGuid()), default, default);
-        metadata.AddAssembly(metadata.GetOrAddString("InvalidMetadataQueryFixture"), new Version(1, 0, 0, 0), default, default, default, AssemblyHashAlgorithm.None);
+        metadata.AddAssembly(metadata.GetOrAddString($"InvalidMetadataQueryFixture{visibility}"), new Version(1, 0, 0, 0), default, default, default, AssemblyHashAlgorithm.None);
         metadata.AddTypeDefinition(TypeAttributes.NotPublic, default, metadata.GetOrAddString("<Module>"), default, MetadataTokens.FieldDefinitionHandle(1), MetadataTokens.MethodDefinitionHandle(1));
         var type = metadata.AddTypeDefinition(
             TypeAttributes.Public | TypeAttributes.Sealed,
@@ -98,7 +112,7 @@ public class when_probing_metadata_markers : Specification
         var bodies = new BlobBuilder();
         var bodyOffset = new MethodBodyStreamEncoder(bodies).AddMethodBody(body);
         var method = metadata.AddMethodDefinition(
-            MethodAttributes.Public | MethodAttributes.Static,
+            visibility | MethodAttributes.Static,
             MethodImplAttributes.IL,
             metadata.GetOrAddString("All"),
             metadata.GetOrAddBlob(signature),
@@ -109,10 +123,14 @@ public class when_probing_metadata_markers : Specification
         metadata.AddCustomAttribute(type, unrelated, attributeValue);
         metadata.AddCustomAttribute(method, unrelated, attributeValue);
         metadata.AddCustomAttribute(method, AddAttributeConstructor(metadata, typeof(QueryAttribute)), attributeValue);
+        if (readModel)
+        {
+            metadata.AddCustomAttribute(type, AddAttributeConstructor(metadata, typeof(ReadModelAttribute)), attributeValue);
+        }
         var image = new ManagedPEBuilder(new PEHeaderBuilder(imageCharacteristics: Characteristics.Dll), new MetadataRootBuilder(metadata), bodies);
         var blob = new BlobBuilder();
         image.Serialize(blob);
-        var file = Path.Combine(_fixtureDirectory, "InvalidMetadataQueryFixture.dll");
+        var file = Path.Combine(_fixtureDirectory, $"InvalidMetadataQueryFixture{visibility}.dll");
         File.WriteAllBytes(file, blob.ToArray());
         return file;
     }

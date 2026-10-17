@@ -6,10 +6,8 @@ using Cratis.Arc.Screenplay.Analysis;
 namespace Cratis.Arc.Screenplay.for_ApplicationModelAnalyzer.when_analyzing;
 
 /// <summary>
-/// Arc serves a static method on a read model as a query when it returns that read model, and its accessibility
-/// never enters into it. Both halves matter: a helper returning something else is not a route, and stating it as one
-/// puts an endpoint in the document that no application serves, while a query that happens not to be public is a
-/// route the application really does serve.
+/// Arc exposes only public static methods with query-shaped returns. Neither internal query-shaped helpers
+/// nor public helpers returning unrelated values are routes in the recovered document.
 /// </summary>
 public class a_read_model_carrying_more_than_its_queries : Specification
 {
@@ -37,6 +35,6 @@ public class a_read_model_carrying_more_than_its_queries : Specification
     void Establish() => _analysis = Analyzed.Source(Source);
 
     [Fact] void should_compile_the_source_it_analyzed() => Analyzed.ErrorsIn(("Library/Feature/Slice/Slice.cs", Source)).ShouldBeEmpty();
-    [Fact] void should_recover_only_what_returns_the_read_model() => _analysis.Slice().Queries.Select(_ => _.Name).ShouldContainOnly(["AllAuthors", "AuthorById"]);
+    [Fact] void should_recover_only_public_methods_returning_the_read_model() => _analysis.Slice().Queries.Select(_ => _.Name).ShouldContainOnly(["AllAuthors"]);
     [Fact] void should_report_nothing() => _analysis.Diagnostics.ShouldBeEmpty();
 }
