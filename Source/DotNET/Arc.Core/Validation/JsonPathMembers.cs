@@ -59,7 +59,12 @@ internal static class JsonPathMembers
 
     static bool IsFieldSegment(string segment)
     {
-        if (segment.Length == 0 || !(char.IsLetter(segment[0]) || segment[0] == '_'))
+        if (segment.Length == 0)
+        {
+            return false;
+        }
+
+        if (!IsIdentifierStart(segment[0]))
         {
             return false;
         }
@@ -76,9 +81,13 @@ internal static class JsonPathMembers
         return true;
     }
 
+    static bool IsIdentifierStart(char character) => char.IsLetter(character) || character == '_';
+
+    static bool IsIdentifierPart(char character) => char.IsLetterOrDigit(character) || character == '_';
+
     static int SkipIdentifierCharacters(string segment, int offset)
     {
-        while (offset < segment.Length && (char.IsLetterOrDigit(segment[offset]) || segment[offset] == '_'))
+        while (offset < segment.Length && IsIdentifierPart(segment[offset]))
         {
             offset++;
         }
