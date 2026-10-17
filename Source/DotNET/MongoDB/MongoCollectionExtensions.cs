@@ -131,7 +131,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="filter">Optional filter.</param>
-    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>
@@ -145,6 +145,8 @@ public static class MongoCollectionExtensions
         bool ignoreQueryContext,
         FindOptions? options = null)
     {
+        // Single-result observations never apply query paging.
+        _ = ignoreQueryContext;
         filter ??= _ => true;
         return collection.ObserveSingle(() => collection.Find(filter, options), filter);
     }
@@ -193,7 +195,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="filterDefinition">The MongoDB filter.</param>
-    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <returns>
@@ -208,6 +210,8 @@ public static class MongoCollectionExtensions
         bool ignoreQueryContext,
         FindOptions? options = null)
     {
+        // Single-result observations never apply query paging.
+        _ = ignoreQueryContext;
         filterDefinition ??= FilterDefinition<TDocument>.Empty;
         return collection.ObserveSingle(() => collection.Find(filterDefinition, options), filterDefinition);
     }
@@ -216,7 +220,7 @@ public static class MongoCollectionExtensions
     /// Observe a single matching document with the compatibility query-context option before the MongoDB filter.
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
-    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <param name="filter">Optional filter.</param>
     /// <param name="options">Optional options.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
@@ -236,7 +240,7 @@ public static class MongoCollectionExtensions
     /// </summary>
     /// <param name="collection"><see cref="IMongoCollection{T}"/> to extend.</param>
     /// <param name="id">The identifier of the document to observe.</param>
-    /// <param name="ignoreQueryContext">Retained for compatibility; single-document observations always ignore client paging, sorting, and total count updates.</param>
+    /// <param name="ignoreQueryContext">Retained for compatibility; has no effect for single-result observations, which always read the full filtered source without client paging, sorting, or total count updates.</param>
     /// <typeparam name="TDocument">Type of document in the collection.</typeparam>
     /// <typeparam name="TId">Type of id - key.</typeparam>
     /// <returns>
@@ -245,6 +249,8 @@ public static class MongoCollectionExtensions
     /// </returns>
     public static ISubject<TDocument> ObserveById<TDocument, TId>(this IMongoCollection<TDocument> collection, TId id, bool ignoreQueryContext)
     {
+        // Single-result observations never apply query paging.
+        _ = ignoreQueryContext;
         var filter = Builders<TDocument>.Filter.Eq(new StringFieldDefinition<TDocument, TId>("_id"), id);
         return collection.ObserveSingle(() => collection.Find(filter), filter);
     }

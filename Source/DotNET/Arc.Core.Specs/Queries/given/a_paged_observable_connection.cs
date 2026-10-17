@@ -61,7 +61,7 @@ public class a_paged_observable_connection : Specification
         {
             var socket = Substitute.For<IWebSocket>();
             var sockets = Substitute.For<IWebSocketContext>();
-            sockets.AcceptWebSocket().Returns(Task.FromResult(socket));
+            sockets.AcceptWebSocket().Returns(socket);
             context.WebSockets.Returns(sockets);
             var incoming = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var handler = Substitute.For<IWebSocketConnectionHandler>();
