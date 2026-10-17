@@ -42,7 +42,7 @@ internal static class UuidComparisonOperands
     internal static string? Literal(ExpressionSyntax expression, SemanticModel model) => expression switch
     {
         ObjectCreationExpressionSyntax { ArgumentList.Arguments: [var argument], Initializer: null } creation when IsUuid(model.GetTypeInfo(creation).Type) =>
-            model.GetTypeInfo(creation).Type.Is("System.Guid") ? Canonical(model.GetConstantValue(argument.Expression).Value as string) : Literal(Unwrap(argument.Expression), model),
+            ConstructedLiteral(creation, argument.Expression, model),
         InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } call when IsGuidParse(call, model) => Canonical(model.GetConstantValue(argument.Expression).Value as string),
         MemberAccessExpressionSyntax access when model.GetSymbolInfo(access).Symbol is IFieldSymbol { IsStatic: true } field && string.Equals(field.Name, "Empty", StringComparison.Ordinal) && field.ContainingType.Is("System.Guid") => Guid.Empty.ToString("D"),
         _ => null
@@ -57,6 +57,22 @@ internal static class UuidComparisonOperands
         expression.DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>().Any(call => call.Expression.ToString().Contains("New", StringComparison.Ordinal) || call.Expression.ToString().Contains("Generate", StringComparison.Ordinal))
             ? "generated values such as Guid.NewGuid() are not admitted"
             : "the operand is neither a canonical Uuid literal nor a command property or read path";
+
+    static string? ConstructedLiteral(ObjectCreationExpressionSyntax creation, ExpressionSyntax argument, SemanticModel model)
+    {
+        if (model.GetTypeInfo(creation).Type.Is("System.Guid"))
+        {
+            return Canonical(model.GetConstantValue(argument).Value as string);
+        }
+
+        var forwarding = new Commands.UuidConstructorForwarding(new SemanticModels([model.Compilation]));
+        if (model.GetSymbolInfo(creation).Symbol is not IMethodSymbol constructor || !forwarding.Read(constructor, new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default)))
+        {
+            return null;
+        }
+
+        return Literal(Unwrap(argument), model);
+    }
 
     static ITypeSymbol? Unwrapped(ITypeSymbol? type) =>
         type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T, TypeArguments: [var underlying] } ? underlying : type;
