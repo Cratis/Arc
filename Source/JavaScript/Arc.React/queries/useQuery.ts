@@ -14,6 +14,7 @@ import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
 import type { InFlightRequest } from './InFlightRequest.js';
 import { type QueryExecution, startQueryExecution } from './QueryExecution.js';
+import { buildQueryKey } from './buildQueryKey.js';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -56,24 +57,6 @@ function failedResult<TDataType>(defaultValue: TDataType, error: unknown): Query
         // the one that escapes the redaction every server-returned result goes through.
         exceptionStackTrace: ''
     } as QueryResult<TDataType>, false);
-}
-
-/**
- * Builds the key a hook shares its query instance and cached result under. The query type and the serialized
- * arguments identify the request; paging and sorting are part of it too, since they live on the instance and are
- * sent with every request it performs - two hooks on different pages sharing one instance would fetch each
- * other's page and abort each other's requests. Without paging or sorting the key is exactly the cache's own.
- * @param queryCache The cache the key is for.
- * @param typeName The stable type name of the query.
- * @param args The arguments of the query, if any.
- * @param paging The paging of the query.
- * @param sorting The sorting of the query.
- * @returns The key.
- */
-function buildQueryKey(queryCache: { buildKey(queryTypeName: string, args?: object): string }, typeName: string, args: object | undefined, paging: Paging, sorting: Sorting): string {
-    const pagingPart = paging.page > 0 || paging.pageSize > 0 ? `::page=${paging.page},${paging.pageSize}` : '';
-    const sortingPart = sorting.field ? `::sort=${sorting.field},${sorting.direction}` : '';
-    return `${queryCache.buildKey(typeName, args)}${pagingPart}${sortingPart}`;
 }
 
 /**
@@ -163,6 +146,13 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const [result, setResult] = useState<QueryResultWithState<TDataType>>(
         cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
     );
+    const [resultKey, setResultKey] = useState(cacheKey);
+    if (resultKey !== cacheKey) {
+        setResultKey(cacheKey);
+        setResult(cachedResult
+            ? QueryResultWithState.fromQueryResult(cachedResult, isEnabled !== false)
+            : QueryResultWithState.initial(queryInstance.defaultValue));
+    }
 
     const queryExecutor = (async (requestArgs?: TArguments) => {
         if (queryInstance) {
