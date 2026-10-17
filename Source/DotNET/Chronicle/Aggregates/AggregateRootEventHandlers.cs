@@ -28,7 +28,7 @@ public class AggregateRootEventHandlers : IAggregateRootEventHandlers
                                         .SelectMany(_ => _.GetParameters()[0].ParameterType.GetEventTypes(eventTypes.AllClrTypes).Select(eventType => (eventType, method: _)))
                                         .ToDictionary(_ => _.eventType, _ => _.method);
 
-        EventTypes = _methodsByEventType.Keys.Select(_ => _.GetEventType()).ToImmutableList();
+        EventTypes = _methodsByEventType.Keys.Select(eventTypes.GetEventTypeFor).ToImmutableList();
     }
 
     /// <inheritdoc/>

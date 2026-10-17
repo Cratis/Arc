@@ -79,6 +79,7 @@ public class two_writers_creating_the_same_aggregate : Specification
         eventStore.GetEventSequence(Arg.Any<EventSequenceId>()).Returns(_scenario.EventSequence);
         eventStore.Name.Returns(new EventStoreName("aggregate-specs"));
         eventStore.Namespace.Returns(EventStoreNamespaceName.Default);
+        eventStore.EventTypes.HasFor(typeof(Created)).Returns(true);
         eventStore.EventTypes.GetEventTypeFor(typeof(Created)).Returns(new EventType(
             (EventTypeId)"0b0c7b40-86a4-4a0b-a5b6-1c6d6e0e8c11", EventTypeGeneration.First, false));
 
