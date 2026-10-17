@@ -69,10 +69,10 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     {
         location = $"{location}.{command.Name}";
         Sources = new();
-        var reads = new CommandReadsReader(models, types, diagnostics, enabled).Read(command, identifier, Sources, location);
+        var readsReader = new CommandReadsReader(models, types, diagnostics, enabled);
+        var reads = readsReader.Read(command, identifier, Sources, location);
         var result = new CommandAuthoringModel { Reads = reads.Reads, Requirements = reads.Requirements };
-        var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
-        result = result with { Route = route };
+        result = result with { Route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location) };
 
         var parameters = new GeneratedParameterReader(models, types, diagnostics) { Sources = Sources, ValidatedTypes = ValidatedTypes, ValidationFailure = ValidationFailure };
         parameters.ReadStrategies(handlers, location);
@@ -80,7 +80,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         if (!enabled)
         {
-            if (HasProvide(command))
+            if (ProvisionStaysInCode(command, readsReader))
             {
                 Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The provisioning behavior of command '{command.Name}' is not represented in default output; generated values and responses were left in code", location);
                 return result;
@@ -329,6 +329,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
     static bool IsStraight(SyntaxNode body) => body is not BlockSyntax block ||
         (block.Statements.All(statement => statement is LocalDeclarationStatementSyntax or ReturnStatementSyntax) && block.Statements.OfType<ReturnStatementSyntax>().Count() == 1);
+
+    static bool ProvisionStaysInCode(INamedTypeSymbol command, CommandReadsReader reads) => HasProvide(command) && !reads.ProvisionStatesReadsOnly;
 
     static bool HasProvide(INamedTypeSymbol command)
     {

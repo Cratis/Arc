@@ -70,15 +70,34 @@ public static class AuthoringDeclarations
             return command;
         }
         var unavailable = authoring.Reads.Where(read => omitted.Contains(read.Name)).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal);
-        if (unavailable.Count == 0)
+
+        return WithoutReads(
+            command,
+            application,
+            unavailable,
+            diagnostics,
+            location,
+            $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code");
+    }
+
+    /// <summary>
+    /// Withholds reads by alias and every authoring mapping depending on them.
+    /// </summary>
+    /// <param name="command">The command referencing the reads.</param>
+    /// <param name="application">The event declarations typing required payloads.</param>
+    /// <param name="unavailable">The aliases of the reads to withhold.</param>
+    /// <param name="diagnostics">The loss reports.</param>
+    /// <param name="location">The command's slice.</param>
+    /// <param name="reason">The reason reported for the withheld reads.</param>
+    /// <returns>The command without the withheld reads and what depends on them.</returns>
+    internal static CommandModel WithoutReads(CommandModel command, ApplicationModel application, IReadOnlySet<string> unavailable, ScreenplayDiagnostics diagnostics, string location, string reason)
+    {
+        if (command.Authoring is not { } authoring || unavailable.Count == 0)
         {
             return command;
         }
 
-        diagnostics.Information(
-            ScreenplayDiagnosticCodes.UnreadableCommandProvisioning,
-            $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code",
-            location);
+        diagnostics.Information(ScreenplayDiagnosticCodes.UnreadableCommandProvisioning, reason, location);
         var operations = authoring.Operations.Where(operation =>
         {
             if (!operation.Mappings.Any(mapping => mapping.Source is PropertyPathSource path && ReferencesRead(path.Path, unavailable)))
@@ -99,7 +118,7 @@ public static class AuthoringDeclarations
             Produces = PruneReadProductions(command, application, unavailable, diagnostics, location),
             Authoring = authoring with
             {
-                Reads = authoring.Reads.Where(read => !omitted.Contains(read.Name)).ToList(),
+                Reads = authoring.Reads.Where(read => !unavailable.Contains(read.Alias)).ToList(),
                 Requirements = authoring.Requirements.Where(requirement => !ReferencesRead(requirement.Condition, unavailable)).ToList(),
                 Operations = operations
             }
@@ -140,7 +159,7 @@ public static class AuthoringDeclarations
         .Concat(model.Slices.SelectMany(slice => slice.Screens).SelectMany(screen => screen.Data).Select(data => data.Type.Name))
         .Concat(model.Slices.SelectMany(slice => slice.ReadModels).SelectMany(readModel => readModel.Properties).Select(property => property.Type.Name));
 
-    static List<ProducesModel> PruneReadProductions(CommandModel command, ApplicationModel application, HashSet<string> unavailable, ScreenplayDiagnostics diagnostics, string location) => command.Produces.Select(production =>
+    static List<ProducesModel> PruneReadProductions(CommandModel command, ApplicationModel application, IReadOnlySet<string> unavailable, ScreenplayDiagnostics diagnostics, string location) => command.Produces.Select(production =>
     {
         if (production.When is { } condition && ReferencesRead(condition, unavailable))
         {
@@ -156,9 +175,9 @@ public static class AuthoringDeclarations
         return CommandProductionPruning.WithoutMappings(production, omitted, application, diagnostics, $"{location}.{command.Name}");
     }).OfType<ProducesModel>().ToList();
 
-    static bool ReferencesRead(string path, HashSet<string> aliases) => aliases.Contains(path.Split('.')[0]);
+    static bool ReferencesRead(string path, IReadOnlySet<string> aliases) => aliases.Contains(path.Split('.')[0]);
 
-    static bool ReferencesRead(ConditionModel condition, HashSet<string> aliases) => condition switch
+    static bool ReferencesRead(ConditionModel condition, IReadOnlySet<string> aliases) => condition switch
     {
         ComparisonCondition comparison => ReferencesRead(comparison.Left, aliases) || (comparison.Right is PropertyPathSource path && ReferencesRead(path.Path, aliases)),
         LogicalCondition logical => ReferencesRead(logical.Left, aliases) || ReferencesRead(logical.Right, aliases),

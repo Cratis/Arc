@@ -55,6 +55,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     {
         model = Analysis.DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
         model = Analysis.UuidComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
+        model = Analysis.ProtectedReads.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
         var generatedConcepts = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
             (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
             .ToHashSet(StringComparer.Ordinal);
@@ -108,6 +109,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new DomainSyntax(domain, SourceLocation.Start),
             Types: [.. declaredTypes])
         {
+            CommandReadMode = Analysis.ProtectedReads.Mode(model),
             ReactionProductionMode = (options.MaximumExecutableModelVersion is not { } batchCap || batchCap.IsAtLeast(SemanticVersion.V22)) && AtomicReactionBatches.Required(modules)
                 ? ReactionProductionMode.Atomic : null,
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])
@@ -164,10 +166,8 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     IEnumerable<ModuleSyntax> BuildModules(ApplicationModel model, ScreenplayOptions options, string domain, IReadOnlySet<ReadModelModel> declaredReadModels, HashSet<(string Namespace, string Name)> omittedReferenceSlices, ICollection<SpecificationStateModel> routedOccurrences)
     {
         var sliceBuilder = CreateSliceBuilder(new InlineEvents(model, naming), model, options, declaredReadModels, routedOccurrences);
-        if (options.AuthoringOnlyConstructs)
-        {
-            sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? []).ToList();
-        }
+        sliceBuilder.AuthoringReadModels = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Reads ?? [])
+            .Where(read => options.AuthoringOnlyConstructs || read.Protected).ToList();
         var placed = new List<PlacedSlice>();
         var segmentsToSkip = options.SegmentsToSkip ?? 0;
 
