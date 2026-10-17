@@ -96,6 +96,8 @@ export const MyComponent = () => {
 };
 ```
 
+An enabled hook fetches again whenever any argument changes — optional arguments such as `filter` as well as required ones. Arguments are compared by their serialized value, so passing a new object with the same values does not trigger a request. Each set of arguments also gets its own cached result; see [query instance caching](./query-instance-caching.md).
+
 ## HTTP Headers
 
 Ordinary query fetches use `httpHeadersCallback`. Native EventSource/WebSocket handshakes cannot attach those arbitrary headers; SSE control POSTs are separate fetch requests. Cookies are browser-managed, not configurable `Cookie` request headers. See the [transport credentials matrix](../arc.md#http-headers-callback).
