@@ -151,5 +151,6 @@ The fix is to append a fact to the entity the model is keyed by. To count a memb
 ## Where to go next
 
 - [Refusals](./refusals.md)
+- [Protected reads in a generated Screenplay](../../generating-a-screenplay.md#protected-command-reads-and-esm-v25): how protected reads become `reads` and `require` in a `.play` document.
 - [Read models in commands](../read-models/injecting-into-commands.md): nullability, `Provide()` and the plain-read reference.
 - [Chronicle decision reads](/chronicle/read-models/decision-reads/): which projection shapes are admitted.
