@@ -7,7 +7,7 @@ import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { SetSorting } from './SetSorting.js';
 import { SetPage } from './SetPage.js';
 import { SetPageSize } from './SetPageSize.js';
-import { ArcContext } from '../ArcContext.js';
+import { ArcContext, type ArcConfiguration } from '../ArcContext.js';
 import { useCommandScope } from '../commands/useCommandScope.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
@@ -95,6 +95,23 @@ async function settleFromSupersedingRequest<TDataType>(queryInstance: object, ab
     }
 }
 
+/**
+ * Creates a fresh query instance configured from the Arc context, paging and sorting.
+ * The instance is created first so queryName can be read: it is a hardcoded fully-qualified
+ * string in generated proxies and survives minification. constructor.name is unstable
+ * under minification and must not be used as a cache key.
+ */
+function createFreshInstance<TQuery extends IQueryFor<unknown>>(query: Constructor<TQuery>, arc: ArcConfiguration, paging: Paging, sorting: Sorting): TQuery {
+    const freshInstance = new query() as TQuery;
+    freshInstance.paging = paging;
+    freshInstance.sorting = sorting;
+    freshInstance.setMicroservice(arc.microservice);
+    freshInstance.setApiBasePath(arc.apiBasePath ?? '');
+    freshInstance.setOrigin(arc.origin ?? '');
+    freshInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
+    return freshInstance;
+}
+
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
     [QueryResultWithState<TDataType>, PerformQuery<TArguments>, SetSorting, SetPage, SetPageSize];
 function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArguments = object>(query: Constructor<TQuery>, performer: QueryPerformer<TQuery, TDataType, TArguments>, sorting?: Sorting, paging?: Paging, args?: TArguments, isEnabled?: boolean, owner?: string):
@@ -120,17 +137,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const argumentsDependency = serializeArgsForDependency(args as object | undefined);
 
     const [queryInstance, cacheKey] = useMemo(() => {
-        // Create the instance first to read queryName, which is a hardcoded fully-qualified
-        // string in generated proxies and survives minification. constructor.name is unstable
-        // under minification and must not be used as a cache key.
-        const freshInstance = new query() as TQuery;
-        freshInstance.paging = currentPaging;
-        freshInstance.sorting = currentSorting;
-        freshInstance.setMicroservice(arc.microservice);
-        freshInstance.setApiBasePath(arc.apiBasePath ?? '');
-        freshInstance.setOrigin(arc.origin ?? '');
-        freshInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
-
+        const freshInstance = createFreshInstance(query, arc, currentPaging, currentSorting);
         const typeName = (freshInstance as { queryName?: string }).queryName ?? query.name;
         const key = buildQueryKey(queryCache, typeName, args as object | undefined, { paging: currentPaging, sorting: currentSorting });
 
