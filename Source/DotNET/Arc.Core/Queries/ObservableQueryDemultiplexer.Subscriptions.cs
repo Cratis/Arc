@@ -339,6 +339,8 @@ public partial class ObservableQueryDemultiplexer
                 {
                     var snapshotIdentity = CreateSubscriptionIdentity(query, principal, queryResult, queryServiceProvider);
                     var guardServices = ownedScope?.ServiceProvider ?? queryServiceProvider;
+                    using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                        context, guardServices, snapshotIdentity.Principal ?? context.User, snapshotIdentity.AuthorizedTenant, accessor: httpRequestContextAccessor);
                     var guardRequest = new GuardRequest(queryId, snapshotIdentity, queryResult.CorrelationId, guardServices, IsFirstEmission: true, IsSnapshot: true);
                     if (await EvaluateGuard(guardRequest, callbacks.OnUnauthorized, token) != GuardOutcome.Deliver)
                     {
