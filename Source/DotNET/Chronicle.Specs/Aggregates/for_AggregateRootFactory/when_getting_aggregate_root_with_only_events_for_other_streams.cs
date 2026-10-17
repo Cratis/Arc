@@ -53,6 +53,7 @@ public class when_getting_aggregate_root_with_only_events_for_other_streams : Sp
 
         var eventStore = Substitute.For<IEventStore>();
         eventStore.GetEventSequence(Arg.Any<EventSequenceId>()).Returns(_scenario.EventSequence);
+        eventStore.EventTypes.HasFor(typeof(Created)).Returns(true);
 
         var handlers = Substitute.For<IAggregateRootEventHandlers>();
         handlers.HasHandleMethods.Returns(false);

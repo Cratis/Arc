@@ -22,6 +22,11 @@ internal static class AuthorizationCommandIdentity
     internal static IDisposable Enter(ClaimsPrincipal? principal, object? host = null)
     {
         var previous = _current.Value;
+        while (previous?.IsCompleted == true)
+        {
+            previous = previous.Previous;
+        }
+
         if (previous?.IsTransactional == true && ReferenceEquals(previous.Host, host) &&
             !AuthorizationPrincipalIdentity.Same(previous.Principal, principal))
         {
@@ -46,12 +51,20 @@ internal static class AuthorizationCommandIdentity
 
     sealed class Frame(Frame? previous, object? host, PrincipalSnapshot principal) : IDisposable
     {
+        public volatile bool IsCompleted;
+
+        public Frame? Previous { get; } = previous;
+
         public object? Host { get; } = host;
 
         public PrincipalSnapshot Principal { get; } = principal;
 
         public bool IsTransactional { get; set; }
 
-        public void Dispose() => _current.Value = previous;
+        public void Dispose()
+        {
+            IsCompleted = true;
+            _current.Value = Previous;
+        }
     }
 }
