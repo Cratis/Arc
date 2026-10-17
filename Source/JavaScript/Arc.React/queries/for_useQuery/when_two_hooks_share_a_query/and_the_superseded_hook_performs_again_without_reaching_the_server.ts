@@ -10,11 +10,17 @@ import { PerformQuery, useQuery } from '../../useQuery.js';
 import { FakeQueryWithRequiredParameters, FakeQueryWithRequiredParametersArguments } from '../FakeQueryWithRequiredParameters.js';
 import { ArcContext, ArcConfiguration } from '../../../ArcContext.js';
 import { QueryInstanceCacheContext } from '../../QueryInstanceCacheContext.js';
+import { QueryScopeContext } from '../../QueryScopeContext.js';
+import { QueryScopeImplementation } from '../../QueryScopeImplementation.js';
 
 describe('when two hooks share a query and the superseded hook performs again without reaching the server', () => {
     let fetchHelper: { stubFetch: () => sinon.SinonStub; restore: () => void };
     let supersededResult: QueryResultWithState<unknown>;
     let stateAfterLocalPerform: QueryResultWithState<unknown>;
+    let supersededScope: QueryScopeImplementation;
+    let supersededScopeStarts: sinon.SinonSpy;
+    let supersededScopeCompletions: sinon.SinonSpy;
+    let supersededScopePerformingAfterLocalPerform: boolean;
 
     const config: ArcConfiguration = {
         microservice: 'test-microservice',
@@ -51,7 +57,12 @@ describe('when two hooks share a query and the superseded hook performs again wi
             completeSupersedingRequest = resolve;
         }));
 
+        // The hooks share a cache entry but belong to different query scopes.
         const queryCache = new QueryInstanceCache();
+        supersededScope = new QueryScopeImplementation();
+        supersededScopeStarts = sinon.spy(supersededScope, 'notifyPerformingStarted');
+        supersededScopeCompletions = sinon.spy(supersededScope, 'notifyPerformingCompleted');
+        const supersedingScope = new QueryScopeImplementation();
         const supersededRenders: QueryResultWithState<unknown>[] = [];
         let performSuperseded: PerformQuery<FakeQueryWithRequiredParametersArguments> = async () => { };
 
@@ -73,8 +84,8 @@ describe('when two hooks share a query and the superseded hook performs again wi
 
         render(
             React.createElement(React.Fragment, null,
-                React.createElement(Superseded),
-                React.createElement(Superseding)),
+                React.createElement(QueryScopeContext.Provider, { value: supersededScope }, React.createElement(Superseded)),
+                React.createElement(QueryScopeContext.Provider, { value: supersedingScope }, React.createElement(Superseding))),
             { wrapper });
 
         await waitFor(() => fetchStub.should.have.been.calledTwice);
@@ -85,6 +96,7 @@ describe('when two hooks share a query and the superseded hook performs again wi
             await performSuperseded({ userId: 'a' } as FakeQueryWithRequiredParametersArguments);
         });
         stateAfterLocalPerform = supersededRenders[supersededRenders.length - 1];
+        supersededScopePerformingAfterLocalPerform = supersededScope.isPerforming;
 
         await act(async () => {
             completeSupersedingRequest(successfulResponse);
@@ -103,4 +115,7 @@ describe('when two hooks share a query and the superseded hook performs again wi
 
     it('should have settled the newer local perform as unsuccessful', () => stateAfterLocalPerform.isSuccess.should.be.false);
     it('should keep the state of the newer local perform', () => supersededResult.should.equal(stateAfterLocalPerform));
+    it('should not leave the superseded hooks scope performing after the newer local perform', () => supersededScopePerformingAfterLocalPerform.should.be.false);
+    it('should complete performing on the superseded hooks scope once for every start', () => supersededScopeCompletions.callCount.should.equal(supersededScopeStarts.callCount));
+    it('should keep the superseded hooks scope not performing', () => supersededScope.isPerforming.should.be.false);
 });

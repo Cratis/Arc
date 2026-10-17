@@ -77,5 +77,7 @@ describe('when two hooks share a query and the superseding request rejects', () 
     it('should report the rejection on the superseded hook', () => firstResult.exceptionMessages.should.deep.equal(['Interceptor failed']));
     it('should settle the superseded hook as unsuccessful', () => firstResult.isSuccess.should.be.false);
     it('should stop the superseded hook performing', () => firstResult.isPerforming.should.be.false);
+    it('should make the superseded hook ready', () => firstResult.isReady.should.be.true);
     it('should report the rejection on the superseding hook', () => secondResult.exceptionMessages.should.deep.equal(['Interceptor failed']));
+    it('should make the superseding hook ready', () => secondResult.isReady.should.be.true);
 });
