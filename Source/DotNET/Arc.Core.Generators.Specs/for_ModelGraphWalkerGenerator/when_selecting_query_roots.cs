@@ -23,6 +23,20 @@ public class when_selecting_query_roots : Specification
                 [Query] public static Order ById(Included filter) => new();
                 public static Order ById(Excluded helper) => new();
                 public static Task BeginReplay(Excluded service) => Task.CompletedTask;
+                internal static Order Internal(Excluded helper) => new();
+                private static Order Private(Excluded helper) => new();
+                protected static Order Protected(Excluded helper) => new();
+                protected internal static Order ProtectedInternal(Excluded helper) => new();
+                private protected static Order PrivateProtected(Excluded helper) => new();
+            }
+            [ReadModel] internal class Conventional
+            {
+                public static Conventional All(Included filter) => new();
+                internal static Conventional Internal(Excluded helper) => new();
+                private static Conventional Private(Excluded helper) => new();
+                protected static Conventional Protected(Excluded helper) => new();
+                protected internal static Conventional ProtectedInternal(Excluded helper) => new();
+                private protected static Conventional PrivateProtected(Excluded helper) => new();
             }
             public record Included(string Term);
             public record Excluded(string Value);
@@ -35,6 +49,8 @@ public class when_selecting_query_roots : Specification
         _metadata = output.SyntaxTrees.Single(_ => _.FilePath.EndsWith("GeneratedQueryMetadata.g.cs", StringComparison.Ordinal)).ToString();
     }
 
+    [Fact] void should_keep_public_queries_on_internal_models() => _metadata.ShouldContain("Models.Conventional.All");
+    [Fact] void should_exclude_nonpublic_queries_from_metadata() => _metadata.ShouldNotContain("Models.Conventional.Internal");
     [Fact] void should_generate_metadata_from_the_referenced_setting() => _metadata.ShouldContain("Models.Order.ById");
     [Fact] void should_not_generate_metadata_for_the_unmarked_task_hook() => _metadata.ShouldNotContain("Models.Order.BeginReplay");
     [Fact] void should_emit_compilable_walkers() => _diagnostics.ShouldBeEmpty();

@@ -20,7 +20,7 @@ public class when_generated_metadata_coverage_changes_between_containers : Speci
     void Establish()
     {
         _types = Substitute.For<ITypes>();
-        _types.All.Returns([typeof(PublicReadModelWithValidQuery), typeof(PublicReadModelWithInternalQuery)]);
+        _types.All.Returns([typeof(PublicReadModelWithValidQuery), typeof(InternalReadModel), typeof(PublicReadModelWithInternalQuery)]);
         _registry = Substitute.For<IQueryMetadataRegistry>();
         _serviceProviderIsService = Substitute.For<IServiceProviderIsService>();
         _authorizationEvaluator = Substitute.For<IAuthorizationEvaluator>();
@@ -39,6 +39,7 @@ public class when_generated_metadata_coverage_changes_between_containers : Speci
 
     [Fact] void should_scan_before_metadata_is_available() => _scanned.Performers.Count().ShouldEqual(2);
     [Fact] void should_stop_scanning_the_assembly_when_metadata_is_available() => _generated.Performers.Count().ShouldEqual(1);
+    [Fact] void should_never_expose_internal_methods() => new[] { _scanned, _generated, _scannedAgain }.All(provider => !provider.TryGetPerformerFor($"{typeof(PublicReadModelWithInternalQuery).FullName}.Query", out _)).ShouldBeTrue();
     [Fact] void should_use_the_generated_name_when_metadata_is_available() => _generated.TryGetPerformerFor($"Generated.Model.{nameof(PublicReadModelWithValidQuery.GetById)}", out _).ShouldBeTrue();
     [Fact] void should_resume_scanning_when_metadata_is_removed() => _scannedAgain.Performers.Count().ShouldEqual(2);
 
