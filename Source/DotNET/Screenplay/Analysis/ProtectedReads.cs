@@ -4,6 +4,7 @@
 using Cratis.Arc.Screenplay.Emission;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
+using Cratis.Screenplay.Syntax;
 
 namespace Cratis.Arc.Screenplay.Analysis;
 
@@ -20,6 +21,22 @@ namespace Cratis.Arc.Screenplay.Analysis;
 internal static class ProtectedReads
 {
     /// <summary>
+    /// Applies the version cap, then withholds the advisory reads of a document that states the preamble.
+    /// </summary>
+    /// <param name="model">The application.</param>
+    /// <param name="cap">The executable version cap.</param>
+    /// <param name="diagnostics">The diagnostic collector.</param>
+    /// <returns>The application whose reads match the mode the document will state.</returns>
+    internal static ApplicationModel Apply(ApplicationModel model, SemanticVersion? cap, ScreenplayDiagnostics diagnostics) => WithoutAdvisory(Cap(model, cap, diagnostics), diagnostics);
+
+    /// <summary>
+    /// Gets the command read mode the document states.
+    /// </summary>
+    /// <param name="model">The application.</param>
+    /// <returns>The protected mode when any command keeps a protected read, otherwise null.</returns>
+    internal static CommandReadMode? Mode(ApplicationModel model) => Declares(model) ? CommandReadMode.Protected : null;
+
+    /// <summary>
     /// Determines whether any command keeps a protected read.
     /// </summary>
     /// <param name="model">The application.</param>
@@ -33,34 +50,15 @@ internal static class ProtectedReads
     /// <param name="cap">The executable version cap.</param>
     /// <param name="diagnostics">The diagnostic collector.</param>
     /// <returns>The application with its reads advisory when the cap is below ESM v25.</returns>
-    internal static ApplicationModel Cap(ApplicationModel model, SemanticVersion? cap, ScreenplayDiagnostics diagnostics)
-    {
-        if (cap is not { } version || version.IsAtLeast(SemanticVersion.V25) || !Declares(model))
-        {
-            return model;
-        }
-
-        return model with
+    internal static ApplicationModel Cap(ApplicationModel model, SemanticVersion? cap, ScreenplayDiagnostics diagnostics) => cap is { } version && !version.IsAtLeast(SemanticVersion.V25)
+        ? model with
         {
             Slices = model.Slices.Select(slice => slice with
             {
-                Commands = slice.Commands.Select(command =>
-                {
-                    if (command.Authoring?.Reads.Any(read => read.Protected) != true)
-                    {
-                        return command;
-                    }
-
-                    diagnostics.Warning(
-                        ScreenplayDiagnosticCodes.UnprotectableCommandRead,
-                        $"Command '{command.Name}' has protected reads, which require ESM v25, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{version}; they are not stated as protected reads",
-                        $"{slice.Namespace}.{command.Name}");
-
-                    return command with { Authoring = command.Authoring with { Reads = command.Authoring.Reads.Select(read => read with { Protected = false }).ToList() } };
-                }).ToList()
+                Commands = slice.Commands.Select(command => Demote(command, version, $"{slice.Namespace}.{command.Name}", diagnostics)).ToList()
             }).ToList()
-        };
-    }
+        }
+        : model;
 
     /// <summary>
     /// Withholds the advisory reads of a document that states the protected preamble.
@@ -83,4 +81,19 @@ internal static class ProtectedReads
                     $"Command '{command.Name}': the document states protected command reads, where every read claims protection, so its advisory reads, requirements and mappings were left in code")).ToList()
             }).ToList()
         };
+
+    static CommandModel Demote(CommandModel command, SemanticVersion version, string location, ScreenplayDiagnostics diagnostics)
+    {
+        if (command.Authoring is not { } authoring || !authoring.Reads.Any(read => read.Protected))
+        {
+            return command;
+        }
+
+        diagnostics.Warning(
+            ScreenplayDiagnosticCodes.UnprotectableCommandRead,
+            $"Command '{command.Name}' has protected reads, which require ESM v25, but ScreenplayOptions.MaximumExecutableModelVersion is capped at ESM v{version}; they are not stated as protected reads",
+            location);
+
+        return command with { Authoring = authoring with { Reads = authoring.Reads.Select(read => read with { Protected = false }).ToList() } };
+    }
 }

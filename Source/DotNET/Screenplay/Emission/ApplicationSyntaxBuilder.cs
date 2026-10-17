@@ -54,13 +54,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
         model = Analysis.DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
-        model = Analysis.ProtectedReads.Cap(model, options.MaximumExecutableModelVersion, diagnostics);
-        var protectedReads = Analysis.ProtectedReads.Declares(model);
-        if (protectedReads)
-        {
-            model = Analysis.ProtectedReads.WithoutAdvisory(model, diagnostics);
-        }
-
+        model = Analysis.ProtectedReads.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
         var generatedConcepts = model.Slices.SelectMany(slice => slice.Commands).SelectMany(command =>
             (command.Authoring?.Generated.Select(property => property.Type.Name) ?? []).Concat(command.Authoring?.UnavailableGenerated.Select(input => input.Type.Name) ?? []))
             .ToHashSet(StringComparer.Ordinal);
@@ -114,7 +108,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
             new DomainSyntax(domain, SourceLocation.Start),
             Types: [.. declaredTypes])
         {
-            CommandReadMode = protectedReads && Analysis.ProtectedReads.Declares(model) ? CommandReadMode.Protected : null,
+            CommandReadMode = Analysis.ProtectedReads.Mode(model),
             ReactionProductionMode = (options.MaximumExecutableModelVersion is not { } batchCap || batchCap.IsAtLeast(SemanticVersion.V22)) && AtomicReactionBatches.Required(modules)
                 ? ReactionProductionMode.Atomic : null,
             Systems = options.AuthoringOnlyConstructs ? model.Slices.SelectMany(slice => slice.Commands).SelectMany(command => command.Authoring?.Operations ?? [])

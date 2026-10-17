@@ -110,22 +110,27 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
             ? Concerned(owner, diagnostic).Select(read => new ProtectedReadRefusal(owner.Name, read.Alias ?? read.ReadModel, diagnostic))
             : [];
 
-    ApplicationModel Withhold(ApplicationModel model, List<ProtectedReadRefusal> refusals, ScreenplayDiagnostics diagnostics) => model with
+    ApplicationModel Withhold(ApplicationModel model, List<ProtectedReadRefusal> refusals, ScreenplayDiagnostics diagnostics)
     {
-        Slices = model.Slices.Select(slice => slice with
-        {
-            Commands = slice.Commands.Select(command => Withhold(command, model, refusals, diagnostics, slice.Namespace)).ToList()
-        }).ToList()
-    };
+        var pass = new WithholdingPass(model, refusals, diagnostics);
 
-    CommandModel Withhold(CommandModel command, ApplicationModel model, List<ProtectedReadRefusal> refusals, ScreenplayDiagnostics diagnostics, string location)
+        return model with
+        {
+            Slices = model.Slices.Select(slice => slice with
+            {
+                Commands = slice.Commands.Select(command => Withhold(command, slice.Namespace, pass)).ToList()
+            }).ToList()
+        };
+    }
+
+    CommandModel Withhold(CommandModel command, string location, WithholdingPass pass)
     {
-        var concerned = refusals.Where(refusal => refusal.Command == _naming.ToDeclarationName(command.Name)).ToArray();
+        var concerned = pass.Refusals.Where(refusal => refusal.Command == _naming.ToDeclarationName(command.Name)).ToArray();
         var reads = command.Authoring?.Reads.Where(read => read.Protected && concerned.Any(refusal => refusal.Alias == _naming.ToPropertyName(read.Alias))).ToArray() ?? [];
         foreach (var read in reads)
         {
             var reasons = concerned.Where(refusal => refusal.Alias == _naming.ToPropertyName(read.Alias)).Select(refusal => $"{refusal.Diagnostic.Code}: {refusal.Diagnostic.Message}").Distinct(StringComparer.Ordinal);
-            diagnostics.Information(
+            pass.Diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnprotectableCommandRead,
                 $"Protected read '{read.Alias}' of command '{command.Name}' was refused by the Screenplay compiler and left in code, never emitted as an unguarded read - {string.Join("; ", reasons)}",
                 $"{location}.{command.Name}");
@@ -133,6 +138,8 @@ internal sealed class ProtectedReadAdmission(IScreenplayEmitter emitter, IScreen
 
         return reads.Length == 0
             ? command
-            : AuthoringDeclarations.WithoutReads(command, model, reads.Select(read => read.Alias).ToHashSet(StringComparer.Ordinal), diagnostics, location, $"Command '{command.Name}': refused protected reads and the requirements and mappings depending on them were left in code");
+            : AuthoringDeclarations.WithoutReads(command, pass.Model, reads.Select(read => read.Alias).ToHashSet(StringComparer.Ordinal), pass.Diagnostics, location, $"Command '{command.Name}': refused protected reads and the requirements and mappings depending on them were left in code");
     }
+
+    sealed record WithholdingPass(ApplicationModel Model, List<ProtectedReadRefusal> Refusals, ScreenplayDiagnostics Diagnostics);
 }

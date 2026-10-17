@@ -45,7 +45,7 @@ public class PrecedingGuards(ScreenplayDiagnostics diagnostics)
 
         foreach (var statement in block.Statements.TakeWhile(_ => !ReferenceEquals(_, node)))
         {
-            if (statement is not IfStatementSyntax { Else: null } guard || !AlwaysExits(guard.Statement) || scope.ConsumedGuards?.Contains(guard) == true)
+            if (statement is not IfStatementSyntax guard || !IsEarlyExit(guard, scope))
             {
                 continue;
             }
@@ -63,6 +63,15 @@ public class PrecedingGuards(ScreenplayDiagnostics diagnostics)
 
         return condition;
     }
+
+    /// <summary>
+    /// Determines whether a statement is a guard that leaves the body and is not already stated as a protected read.
+    /// </summary>
+    /// <param name="guard">The statement to check.</param>
+    /// <param name="scope">The <see cref="ProducesScope"/> the block was read in.</param>
+    /// <returns>True when the guard decides what comes after it.</returns>
+    static bool IsEarlyExit(IfStatementSyntax guard, ProducesScope scope) =>
+        guard.Else is null && AlwaysExits(guard.Statement) && scope.ConsumedGuards?.Contains(guard) != true;
 
     /// <summary>
     /// Determines whether a branch always leaves the body, making everything after it the other outcome.

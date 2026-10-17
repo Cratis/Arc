@@ -63,6 +63,16 @@ internal static class ProtectedReadGuards
         return tested is null ? null : model.GetSymbolInfo(MappingSourceReader.Unwrap(tested)).Symbol;
     }
 
+    /// <summary>
+    /// Reads the literal message of a <c>ValidationResult.Error</c> call.
+    /// </summary>
+    /// <param name="expression">The expression.</param>
+    /// <param name="model">The semantic model of the expression.</param>
+    /// <returns>The message, or null when the expression is not such a call.</returns>
+    internal static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => expression is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
+        model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+
     static ReadGuard? Guard(StatementSyntax statement, SemanticModel model)
     {
         if (statement is not IfStatementSyntax { Else: null } guard)
@@ -72,7 +82,7 @@ internal static class ProtectedReadGuards
 
         var returned = guard.Statement is BlockSyntax { Statements: [ReturnStatementSyntax error] } ? error : guard.Statement as ReturnStatementSyntax;
 
-        return returned?.Expression is { } expression && CommandReadsReader.ErrorMessage(expression, model) is { } message ? new(guard, message, model) : null;
+        return returned?.Expression is { } expression && ErrorMessage(expression, model) is { } message ? new(guard, message, model) : null;
     }
 
     static bool IsNull(ExpressionSyntax expression) => MappingSourceReader.Unwrap(expression).IsKind(SyntaxKind.NullLiteralExpression);

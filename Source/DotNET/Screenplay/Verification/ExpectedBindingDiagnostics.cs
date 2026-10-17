@@ -46,14 +46,6 @@ public static class ExpectedBindingDiagnostics
     internal static bool IsExpected(Diagnostic diagnostic, bool authoringOnlyConstructs, IEnumerable<CompilerContractCatalog.DiagnosticFact> catalog) =>
         IsExpected(diagnostic, authoringOnlyConstructs, ActiveErrorCodes(catalog));
 
-    /// <summary>
-    /// Determines whether a diagnostic is the refusal of a legacy command read, which a document with protected reads does not keep.
-    /// </summary>
-    /// <param name="diagnostic">The diagnostic from the language's semantic binder.</param>
-    /// <returns>True for the legacy command-read consistency message.</returns>
-    internal static bool IsLegacyRead(Diagnostic diagnostic) =>
-        diagnostic.Code == LegacyConsistencyCode && Reason(Reason(diagnostic.Message, "Command") ?? string.Empty, " reads") == " with legacy semantics that cannot imply decision consistency.";
-
     static FrozenSet<string> ActiveErrorCodes(IEnumerable<CompilerContractCatalog.DiagnosticFact> catalog) => catalog
         .Where(fact => !fact.Retired && !fact.Reserved && fact.Severities.Contains(DiagnosticSeverity.Error))
         .Select(fact => fact.Code)

@@ -82,19 +82,18 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         return !ResponseOnlyScenarios.IsResponseOnly(specification) && SpecificationEvidence.For(specification) is { HasExplicitCommandSources: true };
     }
 
+    CommandModel WithoutAdvisoryReads(CommandModel command, ApplicationModel model, string location) => AuthoringDeclarations.WithoutReads(
+        command,
+        model,
+        command.Authoring?.Reads.Where(read => !read.Protected).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal) ?? [],
+        diagnostics,
+        location,
+        $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code");
+
     CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
         command = new UnavailableCommandValues(diagnostics).Apply(command, model, $"{location}.{command.Name}");
-        if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent && readIntent.Reads.Any(read => !read.Protected))
-        {
-            command = AuthoringDeclarations.WithoutReads(
-                command,
-                model,
-                readIntent.Reads.Where(read => !read.Protected).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal),
-                diagnostics,
-                location,
-                $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code");
-        }
+        command = authoringOnlyConstructs ? command : WithoutAdvisoryReads(command, model, location);
         if (command.Authoring is not { } authoring)
         {
             return command;
