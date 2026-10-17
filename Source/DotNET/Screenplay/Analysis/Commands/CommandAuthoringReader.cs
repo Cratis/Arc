@@ -69,7 +69,8 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
     {
         location = $"{location}.{command.Name}";
         Sources = new();
-        var reads = new CommandReadsReader(models, types, diagnostics, enabled).Read(command, identifier, Sources, location);
+        var readsReader = new CommandReadsReader(models, types, diagnostics, enabled);
+        var reads = readsReader.Read(command, identifier, Sources, location);
         var result = new CommandAuthoringModel { Reads = reads.Reads, Requirements = reads.Requirements };
         var route = new CommandRouteReader(models, types, diagnostics, enabled || ExecutableRoutes).Read(command, identifier, location);
         result = result with { Route = route };
@@ -80,7 +81,7 @@ public class CommandAuthoringReader(SemanticModels models, TypeRegistry types, S
 
         if (!enabled)
         {
-            if (HasProvide(command))
+            if (HasProvide(command) && !readsReader.ProvisionStatesReadsOnly)
             {
                 Report(ScreenplayDiagnosticCodes.UnreadableCommandResponse, $"The provisioning behavior of command '{command.Name}' is not represented in default output; generated values and responses were left in code", location);
                 return result;

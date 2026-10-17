@@ -634,4 +634,14 @@ public static class ScreenplayDiagnosticCodes
     /// A recovered generated-concept rule is executable but its consistency is unproven.
     /// </summary>
     public const string UnprovenGeneratedConceptRule = "SP0078";
+
+    /// <summary>
+    /// A command read protected by Arc cannot be stated as a protected command read.
+    /// </summary>
+    /// <remarks>
+    /// Information carrying the reason: the read, its key or its use is outside what the executable model protects, or
+    /// the model states a different absence message than the code does. The dependency stays in code and is never
+    /// emitted as an unguarded read.
+    /// </remarks>
+    public const string UnprotectableCommandRead = "SP0079";
 }

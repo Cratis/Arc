@@ -45,7 +45,7 @@ public class PrecedingGuards(ScreenplayDiagnostics diagnostics)
 
         foreach (var statement in block.Statements.TakeWhile(_ => !ReferenceEquals(_, node)))
         {
-            if (statement is not IfStatementSyntax { Else: null } guard || !AlwaysExits(guard.Statement))
+            if (statement is not IfStatementSyntax { Else: null } guard || !AlwaysExits(guard.Statement) || scope.ConsumedGuards?.Contains(guard) == true)
             {
                 continue;
             }

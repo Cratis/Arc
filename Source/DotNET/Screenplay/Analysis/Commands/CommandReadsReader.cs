@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Commands;
 using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Microsoft.CodeAnalysis;
@@ -17,6 +18,11 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// <param name="enabled">Whether authoring reads are enabled.</param>
 public class CommandReadsReader(SemanticModels models, TypeRegistry types, ScreenplayDiagnostics diagnostics, bool enabled)
 {
+    /// <summary>
+    /// Gets whether every Provide method of the last command read only passes protected reads through its guards.
+    /// </summary>
+    public bool ProvisionStatesReadsOnly { get; private set; }
+
     /// <summary>Reads the dependencies Arc resolves by the command event source id.</summary>
     /// <param name="command">The command.</param>
     /// <param name="identifier">The proven command input key.</param>
@@ -30,64 +36,71 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         var providers = methods.Where(method => method.Name == "Provide").ToArray();
         var parameters = methods.SelectMany(method => method.Parameters).Where(parameter => ReadType(parameter.Type) is not null &&
             (parameter.ContainingSymbol.Name != "Handle" || !providers.Any(provider => Provides(provider.ReturnType, parameter.Type)))).ToArray();
+        var protection = CommandAttributeSymbols.ResolveCommand(command).ReadProtection;
         if (!enabled)
         {
-            if (parameters.Length > 0 || methods.Any(method => method.Name == "Provide"))
+            var protectedParameters = parameters.Where(parameter => IsProtected(parameter, protection)).ToArray();
+            if (protectedParameters.Length < parameters.Length || (protectedParameters.Length == 0 && providers.Length > 0))
             {
                 Report("Reads and provisioning requirements are authoring-only; enable ScreenplayOptions.AuthoringOnlyConstructs to describe readable dependencies and guards", location);
             }
 
-            return ([], []);
+            parameters = protectedParameters;
+            if (parameters.Length == 0)
+            {
+                return ([], []);
+            }
         }
 
+        var guards = methods.SelectMany(method => ProtectedReadGuards.Leading(method, models).Select(guard => (Method: method, Guard: guard))).ToArray();
         var reads = new List<CommandReadModel>();
+        var accepted = new HashSet<ISymbol>(SymbolEqualityComparer.Default);
         foreach (var parameter in parameters)
         {
-            if (identifier is null || parameter.Type.NullableAnnotation == NullableAnnotation.Annotated)
-            {
-                Report("The read dependency has no proven command input key or is optional; it was left in code", location);
-                continue;
-            }
-
             var type = ReadType(parameter.Type)!;
-            var alias = parameter.Name;
-            if (command.DeclaredProperties().Any(property => string.Equals(property.Name, alias, StringComparison.OrdinalIgnoreCase)) || alias == "reads" || alias == "as" || alias == "by")
+            var isProtected = IsProtected(parameter, protection);
+            var absence = isProtected ? guards.Where(entry => SymbolEqualityComparer.Default.Equals(ProtectedReadGuards.AbsenceOf(entry.Guard.Statement.Condition, entry.Guard.Model), parameter)).Select(entry => entry.Guard).ToArray() : [];
+            var (key, failure) = Key(command, parameter, type, protection, identifier, absence.Length > 0);
+            failure ??= Conflict(command, parameter.Name, type, key, reads);
+            if (failure is not null)
             {
-                Report($"The read alias '{alias}' conflicts with command input or a grammar keyword; the dependency was left in code", location);
+                Refuse(isProtected, failure, location);
                 continue;
             }
 
             // Provide and Handle can share a dependency. A returned parameter is carried to Handle, not read twice.
-            var existing = reads.Find(read => read.Alias == alias && read.Name == type.Name);
-            if (existing is null && reads.Exists(read => read.Alias == alias))
+            if (reads.Find(read => read.Alias == parameter.Name && read.Name == type.Name) is null)
             {
-                Report($"The read alias '{alias}' names different models; the dependency was left in code", location);
-                continue;
-            }
-
-            if (existing is null)
-            {
-                reads.Add(new(type.Name, alias, identifier)
+                reads.Add(new(type.Name, parameter.Name, key!)
                 {
                     Namespace = type.ContainingNamespace.ToDisplayString(),
                     FullName = type.WithNullableAnnotation(NullableAnnotation.None).ToDisplayString(),
-                    Properties = new PropertyReader(types).Read(type).ToList()
+                    Properties = new PropertyReader(types).Read(type).ToList(),
+                    Protected = isProtected
                 });
+            }
+
+            if (isProtected)
+            {
+                accepted.Add(parameter);
+                StateAbsence(parameter.Name, absence, sources, location);
             }
 
             if (IsUnchanged(parameter, location))
             {
-                sources.Add(parameter, alias, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
+                sources.Add(parameter, parameter.Name, parameter.Type.Is("Cratis.Chronicle.ReadModels.DecisionRead`1"));
             }
         }
 
         var requirements = new List<CommandRequirementModel>();
-        foreach (var provide in methods.Where(method => method.Name == "Provide"))
+        var unrecognized = 0;
+        foreach (var provide in providers)
         {
             var bodies = HandlerBodies.Of(provide).ToArray();
             if (bodies is not [var body] || models.For(body.SyntaxTree) is not { } model)
             {
                 Report("Provide() lives in code whose body is unavailable", location);
+                unrecognized++;
                 continue;
             }
 
@@ -115,6 +128,11 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 foreach (var statement in block.Statements.Take(block.Statements.Count - 1))
                 {
                     var guard = statement as IfStatementSyntax;
+                    if (guard is not null && sources.ConsumedGuards.Contains(guard))
+                    {
+                        continue;
+                    }
+
                     var returned = guard?.Statement is BlockSyntax { Statements: [ReturnStatementSyntax error] } ? error : guard?.Statement as ReturnStatementSyntax;
                     if (guard is { Else: null } && returned?.Expression is { } expression && ErrorMessage(expression, model) is { } message &&
                         Condition(guard.Condition, model, command, sources, true, location) is { } condition)
@@ -131,6 +149,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             if (!recognized)
             {
                 Report("Provide() contains provisioning behavior that lives in code; only proven reads are described", location);
+                unrecognized++;
                 continue;
             }
 
@@ -148,7 +167,45 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             }
         }
 
+        requirements.AddRange(HandleRequirements(methods, accepted, command, sources, location));
+        ProvisionStatesReadsOnly = providers.Length > 0 && unrecognized == 0 && reads.Exists(read => read.Protected);
+
         return (reads, requirements);
+    }
+
+    /// <summary>
+    /// Reads the literal message of a <c>ValidationResult.Error</c> call.
+    /// </summary>
+    /// <param name="expression">The expression.</param>
+    /// <param name="model">The semantic model of the expression.</param>
+    /// <returns>The message, or null when the expression is not such a call.</returns>
+    internal static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => expression is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
+        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
+        model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+
+    static bool IsProtected(IParameterSymbol parameter, int protection) => protection == CommandReadKeys.ProtectionOn &&
+        !CommandAttributeSymbols.ResolveRead(ReadType(parameter.Type)!, (IMethodSymbol)parameter.ContainingSymbol, parameter).Advisory;
+
+    static string? Conflict(INamedTypeSymbol command, string alias, INamedTypeSymbol type, string? key, List<CommandReadModel> reads)
+    {
+        if (command.DeclaredProperties().Any(property => string.Equals(property.Name, alias, StringComparison.OrdinalIgnoreCase)) || alias == "reads" || alias == "as" || alias == "by")
+        {
+            return $"the read alias '{alias}' conflicts with command input or a grammar keyword";
+        }
+
+        return reads.Find(read => read.Alias == alias && (read.Name != type.Name || read.Key != key)) is not null
+            ? $"the read alias '{alias}' names different models or keys"
+            : null;
+    }
+
+    static (string? Key, string? Failure) Key(INamedTypeSymbol command, IParameterSymbol parameter, INamedTypeSymbol type, int protection, string? identifier, bool absenceRejected)
+    {
+        if (parameter.Type.NullableAnnotation == NullableAnnotation.Annotated && !absenceRejected)
+        {
+            return (null, "the read is optional and no leading guard rejects its absence");
+        }
+
+        return CommandReadKeys.Resolve(command, parameter, type, protection, identifier);
     }
 
     static bool Provides(ITypeSymbol result, ITypeSymbol dependency) => SymbolEqualityComparer.Default.Equals(result, dependency) ||
@@ -161,9 +218,49 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
         _ => null
     };
 
-    static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => expression is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
-        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
-        model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+    void StateAbsence(string alias, IReadOnlyList<ReadGuard> absence, AuthoringSources sources, string location)
+    {
+        foreach (var guard in absence)
+        {
+            sources.ConsumeGuard(guard.Statement);
+            diagnostics.Information(
+                ScreenplayDiagnosticCodes.UnprotectableCommandRead,
+                $"Read '{alias}': the model rejects a missing instance itself, so the message '{guard.Message}' is not carried and the evaluator's absence message applies",
+                location);
+        }
+    }
+
+    IEnumerable<CommandRequirementModel> HandleRequirements(
+        IMethodSymbol[] methods, HashSet<ISymbol> reads, INamedTypeSymbol command, AuthoringSources sources, string location)
+    {
+        var guards = methods.Where(method => method.Name == "Handle").SelectMany(method => ProtectedReadGuards.Leading(method, models))
+            .Where(guard => !sources.ConsumedGuards.Contains(guard.Statement) &&
+                guard.Statement.Condition.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>().Any(identifier => reads.Contains(guard.Model.GetSymbolInfo(identifier).Symbol!)));
+        foreach (var guard in guards)
+        {
+            if (Condition(guard.Statement.Condition, guard.Model, command, sources, true, location) is { } condition)
+            {
+                sources.ConsumeGuard(guard.Statement);
+
+                yield return new(condition, guard.Message);
+            }
+            else
+            {
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnprotectableCommandRead, $"A guard over a protected read ('{guard.Message}') is not a comparison the model states; it was left in code", location);
+            }
+        }
+    }
+
+    void Refuse(bool isProtected, string failure, string location)
+    {
+        if (isProtected)
+        {
+            diagnostics.Information(ScreenplayDiagnosticCodes.UnprotectableCommandRead, $"A protected read was left in code, never emitted as an unguarded read: {failure}", location);
+            return;
+        }
+
+        Report($"The read dependency was left in code: {failure}", location);
+    }
 
     bool IsUnchanged(IParameterSymbol parameter, string location)
     {

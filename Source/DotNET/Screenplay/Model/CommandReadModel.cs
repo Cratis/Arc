@@ -17,4 +17,14 @@ public record CommandReadModel(string Name, string Alias, string Key)
 
     /// <summary>Gets the read model's declared properties.</summary>
     public IReadOnlyList<PropertyModel> Properties { get; init; } = [];
+
+    /// <summary>
+    /// Gets whether Arc protects this read, so it is stated as a protected command read rather than as authoring intent.
+    /// </summary>
+    /// <remarks>
+    /// True only when the effective read protection of the command is on and neither the parameter nor the read model is
+    /// declared advisory. A protected read is rejected by the model when its instance is absent, so the reader sets this
+    /// only for a dependency whose absence the source also rejects.
+    /// </remarks>
+    public bool Protected { get; init; }
 }
