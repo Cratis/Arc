@@ -23,7 +23,7 @@ flowchart LR
     Membership --> Storage[Integration-specific storage isolation]
 ```
 
-See [database isolation](database-resolvers.md) for the exact integration boundaries.
+See [database isolation](database-resolvers.md) for the exact integration boundaries, or [tenancy end to end](./end-to-end.md) to follow a tenant from request to storage across MongoDB, EF Core and Chronicle.
 
 ## Best Practices
 
@@ -44,6 +44,7 @@ See [database isolation](database-resolvers.md) for the exact integration bounda
 
 ## Topics
 
+- [Tenancy end to end](./end-to-end.md): defaults, connection resolution and Chronicle in one walkthrough
 - [Resolving tenant IDs](./resolvers.md)
 - [Configuration](./configuration.md)
 - [Tenant context access](./tenant-context.md)

@@ -43,3 +43,7 @@ Chronicle isolates by whatever tenant id Arc hands it. If the resolver picks the
 Chronicle consumes Arc's tenant resolution rather than defining its own, so the interesting decision — where the tenant comes from — is an Arc-level one: a claim, a header, a subdomain, or a custom resolver.
 
 See [Tenancy](../tenancy/index.md) for the resolver choices and configuration, and [Namespaces](/chronicle/namespaces/) for what a Chronicle namespace is and how it partitions the event store.
+
+## Where the namespace's data lives
+
+The mapping decides the namespace. The Chronicle kernel decides which database, server and credentials back it, by default or through its own connection resolution. [Tenancy end to end](../tenancy/end-to-end.md#chronicle-the-kernel-decides-its-own-placement) shows how that lines up with Arc's MongoDB and EF Core, and Chronicle's [Tenancy](/chronicle/tenancy/) covers the kernel side.
