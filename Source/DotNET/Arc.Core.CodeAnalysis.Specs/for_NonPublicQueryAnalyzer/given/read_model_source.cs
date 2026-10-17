@@ -6,6 +6,8 @@ using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.CodeAnalysis.for_NonPublicQueryAnalyzer.given;
 
+#pragma warning disable MA0136 // Compiler fixture behavior is independent of line endings.
+
 public class read_model_source : Specification
 {
     protected static string Source(string methods, bool explicitMode = false) => $$"""

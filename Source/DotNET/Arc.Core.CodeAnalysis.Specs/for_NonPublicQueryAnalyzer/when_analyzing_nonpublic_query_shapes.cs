@@ -1,9 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.CodeAnalysis.Specs.Testing;
 using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.Arc.CodeAnalysis.NonPublicQueryAnalyzer>;
 
 namespace Cratis.Arc.CodeAnalysis.for_NonPublicQueryAnalyzer;
+
+#pragma warning disable MA0136 // Compiler fixture behavior is independent of line endings.
 
 public class when_analyzing_nonpublic_query_shapes : given.read_model_source
 {
@@ -18,11 +21,21 @@ public class when_analyzing_nonpublic_query_shapes : given.read_model_source
         private static Task<ISubject<Order>> {|#7:TaskSubject|}() => null!;
         """;
 
-    [Fact]
-    Task should_warn_for_every_visibility_and_supported_return_shape() => VerifyCS.VerifyAnalyzerAsync(Source(Methods),
-        Warning("Internal"), Warning("Private"), Warning("Protected"), Warning("ProtectedInternal"), Warning("PrivateProtected"), Warning("Array"), Warning("TaskCollection"), Warning("TaskSubject"));
+    static readonly ExpectedDiagnostic[] AllWarnings =
+    [
+        Warning("Internal"),
+        Warning("Private"),
+        Warning("Protected"),
+        Warning("ProtectedInternal"),
+        Warning("PrivateProtected"),
+        Warning("Array"),
+        Warning("TaskCollection"),
+        Warning("TaskSubject"),
+    ];
 
     [Fact]
-    Task should_also_warn_in_explicit_selection_mode() => VerifyCS.VerifyAnalyzerAsync(Source(Methods, true),
-        Warning("Internal"), Warning("Private"), Warning("Protected"), Warning("ProtectedInternal"), Warning("PrivateProtected"), Warning("Array"), Warning("TaskCollection"), Warning("TaskSubject"));
+    Task should_warn_for_every_visibility_and_supported_return_shape() => VerifyCS.VerifyAnalyzerAsync(Source(Methods), AllWarnings);
+
+    [Fact]
+    Task should_also_warn_in_explicit_selection_mode() => VerifyCS.VerifyAnalyzerAsync(Source(Methods, true), AllWarnings);
 }

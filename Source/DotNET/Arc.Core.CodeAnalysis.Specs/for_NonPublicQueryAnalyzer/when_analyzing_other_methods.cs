@@ -5,6 +5,8 @@ using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.A
 
 namespace Cratis.Arc.CodeAnalysis.for_NonPublicQueryAnalyzer;
 
+#pragma warning disable MA0136 // Compiler fixture behavior is independent of line endings.
+
 public class when_analyzing_other_methods : given.read_model_source
 {
     [Fact]
@@ -40,5 +42,6 @@ public class when_analyzing_other_methods : given.read_model_source
         {
             internal static Order {|#0:Internal|}() => new();
         }
-        """, Warning("Internal"));
+        """,
+        Warning("Internal"));
 }

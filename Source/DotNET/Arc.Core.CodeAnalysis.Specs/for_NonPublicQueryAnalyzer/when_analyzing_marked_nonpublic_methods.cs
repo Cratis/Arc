@@ -5,6 +5,8 @@ using VerifyCS = Cratis.Arc.CodeAnalysis.Specs.Testing.AnalyzerVerifier<Cratis.A
 
 namespace Cratis.Arc.CodeAnalysis.for_NonPublicQueryAnalyzer;
 
+#pragma warning disable MA0136 // Compiler fixture behavior is independent of line endings.
+
 public class when_analyzing_marked_nonpublic_methods : given.read_model_source
 {
     [Fact]
@@ -14,5 +16,10 @@ public class when_analyzing_marked_nonpublic_methods : given.read_model_source
         [Query] protected static Task {|#2:Protected|}() => Task.CompletedTask;
         [Query] protected internal static int {|#3:ProtectedInternal|}() => 0;
         [Query] private protected static object {|#4:PrivateProtected|}() => new();
-        """), Warning("Internal"), Warning("Private"), Warning("Protected"), Warning("ProtectedInternal"), Warning("PrivateProtected"));
+        """),
+        Warning("Internal"),
+        Warning("Private"),
+        Warning("Protected"),
+        Warning("ProtectedInternal"),
+        Warning("PrivateProtected"));
 }

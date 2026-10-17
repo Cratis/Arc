@@ -59,7 +59,7 @@ public class when_probing_metadata_markers : Specification
         var image = _context.LoadFromAssemblyPath(CreateInvalidOwnerImage(visibility, readModel: true));
         var owner = image.GetType(InvalidOwnerName)!;
         owner.GetMethods(BindingFlags.NonPublic | BindingFlags.Static).Single().IsValidQueryFor(owner).ShouldBeFalse();
-        Catch.Exception(() => owner.GetQueryMethods().ToArray()).GetType().FullName.ShouldEqual("Cratis.Arc.Queries.ModelBound.ModelBoundQueryMethod+InvalidQueryDeclaration");
+        Catch.Exception(() => _ = owner.GetQueryMethods().ToArray()).GetType().FullName.ShouldEqual("Cratis.Arc.Queries.ModelBound.ModelBoundQueryMethod+InvalidQueryDeclaration");
     }
 
     [Fact]

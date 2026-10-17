@@ -6,6 +6,8 @@ namespace Cratis.Arc.Queries.ModelBound.for_ModelBoundQueryMethod.given;
 [ReadModel]
 public class QueryVisibilityReadModel
 {
+    public string Name { get; init; } = string.Empty;
+
     public static QueryVisibilityReadModel Public() => new();
     internal static QueryVisibilityReadModel Internal() => new();
     static QueryVisibilityReadModel Private() => new();
