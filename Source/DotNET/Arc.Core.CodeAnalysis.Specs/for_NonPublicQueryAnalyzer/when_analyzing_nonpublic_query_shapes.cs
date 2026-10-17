@@ -21,7 +21,7 @@ public class when_analyzing_nonpublic_query_shapes : given.read_model_source
         private static Task<ISubject<Order>> {|#7:TaskSubject|}() => null!;
         """;
 
-    static readonly ExpectedDiagnostic[] AllWarnings =
+    static readonly ExpectedDiagnostic[] _allWarnings =
     [
         Warning("Internal"),
         Warning("Private"),
@@ -34,8 +34,8 @@ public class when_analyzing_nonpublic_query_shapes : given.read_model_source
     ];
 
     [Fact]
-    Task should_warn_for_every_visibility_and_supported_return_shape() => VerifyCS.VerifyAnalyzerAsync(Source(Methods), AllWarnings);
+    Task should_warn_for_every_visibility_and_supported_return_shape() => VerifyCS.VerifyAnalyzerAsync(Source(Methods), _allWarnings);
 
     [Fact]
-    Task should_also_warn_in_explicit_selection_mode() => VerifyCS.VerifyAnalyzerAsync(Source(Methods, true), AllWarnings);
+    Task should_also_warn_in_explicit_selection_mode() => VerifyCS.VerifyAnalyzerAsync(Source(Methods, true), _allWarnings);
 }
