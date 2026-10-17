@@ -44,6 +44,11 @@ public record ObservableQueryEmissionContext(
     object? _subscriptionScope;
 
     /// <summary>
+    /// Gets whether this emission is a one-shot result delivered through the query hub rather than a stream.
+    /// </summary>
+    public bool IsSnapshot { get; init; }
+
+    /// <summary>
     /// Gets the independent snapshot of the scope selected by the query filters at subscription time,
     /// or <see langword="null"/> if no scope was supplied.
     /// </summary>

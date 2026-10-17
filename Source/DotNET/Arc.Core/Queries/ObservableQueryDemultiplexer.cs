@@ -79,6 +79,7 @@ public partial class ObservableQueryDemultiplexer(
     const int WebSocketBufferSize = 1024 * 4;
 
     readonly ConcurrentDictionary<string, SSEConnectionState> _sseConnections = new();
+    readonly ConcurrentDictionary<FullyQualifiedQueryName, bool> _anonymousQueries = new();
     readonly ChangeSetComputor _changeSetComputor = new(arcOptions.Value.JsonSerializerOptions);
     int _nextConnectionId;
 

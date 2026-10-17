@@ -148,9 +148,9 @@ public partial class ObservableQueryDemultiplexer
     /// Creates the subscription for a reserved operation and wires it to the transport, registering it for health tracking.
     /// </summary>
     /// <param name="session">The <see cref="SubscriptionSession"/> describing the reserved operation and its transport.</param>
-    /// <param name="requestServices">The admission request's services; not retained by the session.</param>
+    /// <param name="requestContext">The live admission request; not retained by the session.</param>
     /// <returns>True when the subscription ended because the caller was not authorized; otherwise false.</returns>
-    async Task<bool> EstablishSubscription(SubscriptionSession session, IServiceProvider requestServices)
+    async Task<bool> EstablishSubscription(SubscriptionSession session, IHttpRequestContext requestContext)
     {
         var operation = session.Operation;
         var previousContext = httpRequestContextAccessor.Current;
@@ -162,7 +162,7 @@ public partial class ObservableQueryDemultiplexer
             var subscription = await CreateSubscription(
                 new SubscriptionTarget(
                     session.SubscriptionContext,
-                    requestServices,
+                    requestContext,
                     session.SubscriptionContext.GetPrincipal(),
                     session.QueryId,
                     session.Request),
@@ -279,12 +279,25 @@ public partial class ObservableQueryDemultiplexer
 
     async Task<IDisposable?> CreateSubscriptionCore(SubscriptionTarget target, SubscriptionCallbacks callbacks, CancellationToken token)
     {
-        var (context, queryServiceProvider, principal, queryId, request) = target;
+        var (context, requestContext, principal, queryId, request) = target;
+        var queryServiceProvider = requestContext.RequestServices;
         var query = new SubscriptionQuery(
             new FullyQualifiedQueryName(request.QueryName),
             BuildQueryArguments(request.Arguments),
             BuildPaging(request),
             BuildSorting(request));
+
+        if (!await AdmitHostFallback(query.Name, requestContext, principal, callbacks, queryId, token))
+        {
+            return null;
+        }
+
+        // A host fallback policy may select a named authentication scheme on the live request.
+        if (context is ObservableQuerySubscriptionHttpRequestContext subscriptionContext)
+        {
+            subscriptionContext.SelectAuthorizedPrincipal(requestContext.User);
+            principal = subscriptionContext.GetPrincipal();
+        }
 
         // Run through the full query pipeline (including authorization filters). The call stays inline: a custom
         // pipeline may set the query context (AsyncLocal) synchronously, and an async helper would restore it on return.
@@ -329,13 +342,23 @@ public partial class ObservableQueryDemultiplexer
             var streamingData = queryResult.Data;
             if (streamingData is null || !IsStreamingResult(streamingData))
             {
-                // Non-streaming result — send current snapshot and return null (no long-lived subscription)
+                if (emissionGuards.HasGuards)
+                {
+                    var snapshotIdentity = CreateSubscriptionIdentity(query, principal, queryResult, queryServiceProvider);
+                    var guardServices = ownedScope?.ServiceProvider ?? queryServiceProvider;
+                    var guardRequest = new GuardRequest(queryId, snapshotIdentity, queryResult.CorrelationId, guardServices, IsFirstEmission: true, IsSnapshot: true);
+                    if (await EvaluateGuard(guardRequest, callbacks.OnUnauthorized, token) != GuardOutcome.Deliver)
+                    {
+                        return null;
+                    }
+                }
+
+                // A snapshot has no continuing subscription, including when a guard suppresses its only frame.
                 await callbacks.OnNext(CreateSnapshotResult(queryResult), token);
                 return null;
             }
 
             var identity = CreateSubscriptionIdentity(query, principal, queryResult, queryServiceProvider);
-
             IDisposable? subscription = null;
             try
             {
@@ -358,6 +381,47 @@ public partial class ObservableQueryDemultiplexer
         {
             ownedScope?.Dispose();
         }
+    }
+
+    async Task<bool> AdmitHostFallback(
+        FullyQualifiedQueryName queryName,
+        IHttpRequestContext requestContext,
+        ClaimsPrincipal principal,
+        SubscriptionCallbacks callbacks,
+        string queryId,
+        CancellationToken token)
+    {
+        try
+        {
+            using var scope = serviceProvider.CreateScope();
+            var services = scope.ServiceProvider;
+            var catalog = requestContext.RequestServices?.GetService<IQueryPerformerProviders>() ?? services.GetService<IQueryPerformerProviders>();
+            var anonymous = catalog is not null && catalog.TryGetPerformersFor(queryName, out var performer) &&
+                _anonymousQueries.GetOrAdd(queryName, _ => QueryEndpointAccess.AllowsAnonymous(performer, services));
+            if (anonymous)
+            {
+                return true;
+            }
+
+            var fallback = services.GetRequiredService<IEndpointFallbackAuthorization>();
+            if (await fallback.IsAuthorized(requestContext, principal, token))
+            {
+                token.ThrowIfCancellationRequested();
+                return true;
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception) when (!IsFatal(exception))
+        {
+            // An unavailable host policy is a denial, never permission to execute the query.
+            logger.ErrorProcessingMessage(exception);
+        }
+
+        await callbacks.OnUnauthorized(queryId, token);
+        return false;
     }
 
     /// <summary>
@@ -455,7 +519,7 @@ public partial class ObservableQueryDemultiplexer
 
     readonly record struct SubscriptionTarget(
         IHttpRequestContext Context,
-        IServiceProvider Services,
+        IHttpRequestContext RequestContext,
         ClaimsPrincipal Principal,
         string QueryId,
         ObservableQuerySubscriptionRequest Request);

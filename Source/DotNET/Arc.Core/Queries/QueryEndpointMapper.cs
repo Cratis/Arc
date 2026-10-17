@@ -90,7 +90,7 @@ public static class QueryEndpointMapper
             endpointName,
             $"{reader.EndpointNamePrefix} {performer.Name} query",
             [string.Join('.', locationForTag)],
-            performer.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForQuery(performer, services),
+            QueryEndpointAccess.AllowsAnonymous(performer, services),
             RequestBodyType: reader.RequestBodyType,
             ResponseType: typeof(QueryResult),
             ExcludeFromApiDescription: !reader.IncludeInApiDescription || performer.IsExcludedFromDiscovery());

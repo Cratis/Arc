@@ -9,6 +9,7 @@ public class when_mapping_endpoints : Specification
 {
     IEndpointMapper _mapper;
     List<(string Route, string Method)> _mappedEndpoints;
+    readonly List<EndpointMetadata> _metadata = [];
 
     void Establish()
     {
@@ -17,14 +18,23 @@ public class when_mapping_endpoints : Specification
         _mappedEndpoints = [];
 
         _mapper.When(_ => _.MapGet(Arg.Any<string>(), Arg.Any<Func<IHttpRequestContext, Task>>(), Arg.Any<EndpointMetadata>()))
-            .Do(ci => _mappedEndpoints.Add((ci.ArgAt<string>(0), "GET")));
+            .Do(ci =>
+            {
+                _mappedEndpoints.Add((ci.ArgAt<string>(0), "GET"));
+                _metadata.Add(ci.Arg<EndpointMetadata>());
+            });
 
         _mapper.When(_ => _.MapPost(Arg.Any<string>(), Arg.Any<Func<IHttpRequestContext, Task>>(), Arg.Any<EndpointMetadata>()))
-            .Do(ci => _mappedEndpoints.Add((ci.ArgAt<string>(0), "POST")));
+            .Do(ci =>
+            {
+                _mappedEndpoints.Add((ci.ArgAt<string>(0), "POST"));
+                _metadata.Add(ci.Arg<EndpointMetadata>());
+            });
     }
 
     void Because() => _mapper.MapObservableQueryDemultiplexerEndpoints(Substitute.For<IServiceProvider>());
 
+    [Fact] void should_keep_all_routes_anonymous() => _metadata.All(metadata => metadata.AllowAnonymous).ShouldBeTrue();
     [Fact] void should_map_four_endpoints() => _mappedEndpoints.Count.ShouldEqual(4);
     [Fact] void should_map_websocket_get() => _mappedEndpoints.ShouldContain((ObservableQueryDemultiplexerEndpointMapper.WebSocketRoute, "GET"));
     [Fact] void should_map_sse_get() => _mappedEndpoints.ShouldContain((ObservableQueryDemultiplexerEndpointMapper.SseRoute, "GET"));
