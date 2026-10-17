@@ -10,6 +10,6 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// Represents a rejecting guard a body opens with.
 /// </summary>
 /// <param name="Statement">The guard statement.</param>
-/// <param name="Message">The literal rejection message.</param>
+/// <param name="Message">The literal rejection message, or null when the message is computed.</param>
 /// <param name="Model">The semantic model of the body.</param>
-internal sealed record ReadGuard(IfStatementSyntax Statement, string Message, SemanticModel Model);
+internal sealed record ReadGuard(IfStatementSyntax Statement, string? Message, SemanticModel Model);

@@ -177,7 +177,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             scope.Sources.ConsumeGuard(guard.Statement);
             diagnostics.Information(
                 ScreenplayDiagnosticCodes.UnprotectableCommandRead,
-                $"Read '{parameter.Name}': the model rejects a missing instance itself, so the message '{guard.Message}' is not carried and the evaluator's absence message applies",
+                $"Read '{parameter.Name}': the model rejects a missing instance itself, so the guard's message{(guard.Message is null ? string.Empty : $" '{guard.Message}'")} is not carried and the evaluator's absence message applies",
                 scope.Location);
         }
     }
@@ -189,7 +189,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
                 guard.Statement.Condition.DescendantNodesAndSelf().OfType<IdentifierNameSyntax>().Any(identifier => reads.Contains(guard.Model.GetSymbolInfo(identifier).Symbol!)));
         foreach (var guard in guards)
         {
-            if (_conditions.Condition(guard.Statement.Condition, guard.Model, scope, true) is { } condition)
+            if (guard.Message is not null && _conditions.Condition(guard.Statement.Condition, guard.Model, scope, true) is { } condition)
             {
                 scope.Sources.ConsumeGuard(guard.Statement);
 
@@ -197,7 +197,7 @@ public class CommandReadsReader(SemanticModels models, TypeRegistry types, Scree
             }
             else
             {
-                diagnostics.Information(ScreenplayDiagnosticCodes.UnprotectableCommandRead, $"A guard over a protected read ('{guard.Message}') is not a comparison the model states; it was left in code", scope.Location);
+                diagnostics.Information(ScreenplayDiagnosticCodes.UnprotectableCommandRead, $"A guard over a protected read ({(guard.Message is null ? "its message is computed" : $"'{guard.Message}'")}) is not a requirement the model states; it was left in code", scope.Location);
             }
         }
     }

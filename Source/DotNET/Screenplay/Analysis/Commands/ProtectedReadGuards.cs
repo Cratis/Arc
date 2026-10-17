@@ -11,12 +11,16 @@ namespace Cratis.Arc.Screenplay.Analysis.Commands;
 /// Reads the rejecting guards a Handle body opens with, which state what a protected read must satisfy.
 /// </summary>
 /// <remarks>
-/// A guard is an <see langword="if"/> without an <see langword="else"/> that returns <c>ValidationResult.Error</c> with a literal message.
+/// A guard is an <see langword="if"/> without an <see langword="else"/> that returns <c>ValidationResult.Error</c>, directly or
+/// wrapped in a <c>OneOf</c> or <c>Result</c> factory (<c>FromT1</c>, for instance), with any message. The message is kept
+/// only when it is a constant: an absence guard does not carry it, and a requirement needs it.
 /// Only the guards before the first other statement count: they run before anything is produced, which is the order
 /// the model checks absence and requirements in.
 /// </remarks>
 internal static class ProtectedReadGuards
 {
+    static readonly string[] _factoryTypes = ["OneOf", "Result"];
+
     /// <summary>
     /// Reads the guards a method body opens with.
     /// </summary>
@@ -64,14 +68,40 @@ internal static class ProtectedReadGuards
     }
 
     /// <summary>
-    /// Reads the literal message of a <c>ValidationResult.Error</c> call.
+    /// Finds the <c>ValidationResult.Error</c> call a returned expression carries, looking through <c>OneOf</c> and <c>Result</c> factories.
     /// </summary>
-    /// <param name="expression">The expression.</param>
+    /// <param name="expression">The returned expression.</param>
     /// <param name="model">The semantic model of the expression.</param>
-    /// <returns>The message, or null when the expression is not such a call.</returns>
-    internal static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => expression is InvocationExpressionSyntax { ArgumentList.Arguments: [var argument] } invocation &&
-        model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method && method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult") &&
-        model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+    /// <returns>The call, or null when the expression does not return a validation error.</returns>
+    internal static InvocationExpressionSyntax? ErrorCall(ExpressionSyntax expression, SemanticModel model) =>
+        WithoutCasts(expression) is InvocationExpressionSyntax invocation && model.GetSymbolInfo(invocation).Symbol is IMethodSymbol method ? Call(invocation, method, model) : null;
+
+    /// <summary>
+    /// Reads the constant message of a <c>ValidationResult.Error</c> call.
+    /// </summary>
+    /// <param name="call">The call.</param>
+    /// <param name="model">The semantic model of the call.</param>
+    /// <returns>The message, or null when it is computed.</returns>
+    internal static string? MessageOf(InvocationExpressionSyntax call, SemanticModel model) =>
+        call.ArgumentList.Arguments is [var argument] && model.GetConstantValue(argument.Expression) is { HasValue: true, Value: string message } ? message : null;
+
+    /// <summary>
+    /// Reads the constant message of a returned validation error.
+    /// </summary>
+    /// <param name="expression">The returned expression.</param>
+    /// <param name="model">The semantic model of the expression.</param>
+    /// <returns>The message, or null when the expression is not a validation error with a constant message.</returns>
+    internal static string? ErrorMessage(ExpressionSyntax expression, SemanticModel model) => ErrorCall(expression, model) is { } call ? MessageOf(call, model) : null;
+
+    static InvocationExpressionSyntax? Call(InvocationExpressionSyntax invocation, IMethodSymbol method, SemanticModel model) => IsValidationError(method)
+        ? invocation
+        : IsResultFactory(method) && invocation.ArgumentList.Arguments is [var wrapped] ? ErrorCall(wrapped.Expression, model) : null;
+
+    static ExpressionSyntax WithoutCasts(ExpressionSyntax expression) => MappingSourceReader.Unwrap(expression) is CastExpressionSyntax cast ? WithoutCasts(cast.Expression) : MappingSourceReader.Unwrap(expression);
+
+    static bool IsValidationError(IMethodSymbol method) => method.Name == "Error" && method.ContainingType.Is("Cratis.Arc.Validation.ValidationResult");
+
+    static bool IsResultFactory(IMethodSymbol method) => method.IsStatic && _factoryTypes.Contains(method.ContainingType.OriginalDefinition.Name);
 
     static ReadGuard? Guard(StatementSyntax statement, SemanticModel model)
     {
@@ -82,7 +112,7 @@ internal static class ProtectedReadGuards
 
         var returned = guard.Statement is BlockSyntax { Statements: [ReturnStatementSyntax error] } ? error : guard.Statement as ReturnStatementSyntax;
 
-        return returned?.Expression is { } expression && ErrorMessage(expression, model) is { } message ? new(guard, message, model) : null;
+        return returned?.Expression is { } expression && ErrorCall(expression, model) is { } call ? new(guard, MessageOf(call, model), model) : null;
     }
 
     static bool IsNull(ExpressionSyntax expression) => MappingSourceReader.Unwrap(expression).IsKind(SyntaxKind.NullLiteralExpression);
