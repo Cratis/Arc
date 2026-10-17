@@ -287,7 +287,7 @@ public partial class ObservableQueryDemultiplexer
             BuildPaging(request),
             BuildSorting(request));
 
-        if (!await AdmitHostFallback(query.Name, requestContext, principal, callbacks, queryId, token))
+        if (!await AdmitHostFallback(query.Name, target, callbacks, token))
         {
             return null;
         }
@@ -335,21 +335,7 @@ public partial class ObservableQueryDemultiplexer
             var streamingData = queryResult.Data;
             if (streamingData is null || !IsStreamingResult(streamingData))
             {
-                if (emissionGuards.HasGuards)
-                {
-                    var snapshotIdentity = CreateSubscriptionIdentity(query, principal, queryResult, queryServiceProvider);
-                    var guardServices = ownedScope?.ServiceProvider ?? queryServiceProvider;
-                    using var emissionIdentity = ObservableEmissionIdentity.Begin(
-                        context, guardServices, snapshotIdentity.Principal ?? context.User, snapshotIdentity.AuthorizedTenant, accessor: httpRequestContextAccessor);
-                    var guardRequest = new GuardRequest(queryId, snapshotIdentity, queryResult.CorrelationId, guardServices, IsFirstEmission: true, IsSnapshot: true);
-                    if (await EvaluateGuard(guardRequest, callbacks.OnUnauthorized, token) != GuardOutcome.Deliver)
-                    {
-                        return null;
-                    }
-                }
-
-                // A snapshot has no continuing subscription, including when a guard suppresses its only frame.
-                await callbacks.OnNext(CreateSnapshotResult(queryResult), token);
+                await DeliverSnapshot(target, (query, queryResult, queryServiceProvider), callbacks, token);
                 return null;
             }
 
@@ -378,14 +364,39 @@ public partial class ObservableQueryDemultiplexer
         }
     }
 
-    async Task<bool> AdmitHostFallback(
-        FullyQualifiedQueryName queryName,
-        IHttpRequestContext requestContext,
-        ClaimsPrincipal principal,
+    async Task DeliverSnapshot(
+        SubscriptionTarget target,
+        (SubscriptionQuery Query, QueryResult Result, IServiceProvider QueryServices) snapshot,
         SubscriptionCallbacks callbacks,
-        string queryId,
         CancellationToken token)
     {
+        var (query, queryResult, queryServiceProvider) = snapshot;
+        if (emissionGuards.HasGuards)
+        {
+            var snapshotIdentity = CreateSubscriptionIdentity(query, target.Principal, queryResult, queryServiceProvider);
+            var guardServices = queryResult.OwnedScope?.ServiceProvider ?? queryServiceProvider;
+            using var emissionIdentity = ObservableEmissionIdentity.Begin(
+                target.Context, guardServices, snapshotIdentity.Principal ?? target.Context.User, snapshotIdentity.AuthorizedTenant, accessor: httpRequestContextAccessor);
+            var guardRequest = new GuardRequest(target.QueryId, snapshotIdentity, queryResult.CorrelationId, guardServices, IsFirstEmission: true, IsSnapshot: true);
+            if (await EvaluateGuard(guardRequest, callbacks.OnUnauthorized, token) != GuardOutcome.Deliver)
+            {
+                return;
+            }
+        }
+
+        // A snapshot has no continuing subscription, including when a guard suppresses its only frame.
+        await callbacks.OnNext(CreateSnapshotResult(queryResult), token);
+    }
+
+    async Task<bool> AdmitHostFallback(
+        FullyQualifiedQueryName queryName,
+        SubscriptionTarget target,
+        SubscriptionCallbacks callbacks,
+        CancellationToken token)
+    {
+        var requestContext = target.RequestContext;
+        var principal = target.Principal;
+        var queryId = target.QueryId;
         try
         {
             if (AllowsAnonymousQuery(queryName, requestContext.RequestServices))
