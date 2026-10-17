@@ -13,5 +13,5 @@ public class with_a_validation_refusal : given.an_in_process_executor
     [Fact] async Task should_persist_the_refused_receipt() => (await _store.Occurrences.GetEffectReceipt(_key))!.Outcome.ShouldBeOfExactType<Refused>();
     [Fact] void should_not_run_the_handler() => _counter.Calls.ShouldEqual(0);
     [Fact] async Task should_not_append_events() => (await _store.EventLog.GetFromSequenceNumber(0)).ShouldBeEmpty();
-    [Fact] void should_identify_the_refused_member() => _result.Response!.ToJsonString().ShouldContain(nameof(RecordEffect.Value));
+    [Fact] void should_identify_the_refused_member() => _result.Response!.ToJsonString().ShouldContain("refused: value");
 }
