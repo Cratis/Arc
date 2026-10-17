@@ -6,7 +6,7 @@ using Cratis.Strings;
 namespace Cratis.Arc.Validation;
 
 /// <summary>
-/// Converts JSON failure paths into command validation member names.
+/// Converts JSON failure paths and validation member paths into camelCase field paths.
 /// </summary>
 internal static class JsonPathMembers
 {
@@ -26,6 +26,61 @@ internal static class JsonPathMembers
             .Replace("[\"", ".", StringComparison.Ordinal).Replace("\"]", string.Empty, StringComparison.Ordinal)
             .TrimStart('$', '.');
 
-        return [string.Join('.', member.Split('.').Select(segment => segment.ToCamelCase()))];
+        return [CamelCaseSegments(member.Split('.'))];
+    }
+
+    /// <summary>
+    /// Normalizes field paths while preserving empty members and non-path identifiers.
+    /// </summary>
+    /// <param name="member">The member reported by a validation rule.</param>
+    /// <returns>The camelCase field path, or the original member when it is not a field path.</returns>
+    internal static string Normalize(string member)
+    {
+        if (string.IsNullOrEmpty(member))
+        {
+            return member;
+        }
+
+        var segments = member.Split('.');
+
+        return segments.All(IsFieldSegment) ? CamelCaseSegments(segments) : member;
+    }
+
+    static string CamelCaseSegments(IEnumerable<string> segments) =>
+        string.Join('.', segments.Select(segment => segment.ToCamelCase()));
+
+    static bool IsFieldSegment(string segment)
+    {
+        if (segment.Length == 0 || !(char.IsLetter(segment[0]) || segment[0] == '_'))
+        {
+            return false;
+        }
+
+        var offset = 1;
+        while (offset < segment.Length && (char.IsLetterOrDigit(segment[offset]) || segment[offset] == '_'))
+        {
+            offset++;
+        }
+
+        while (offset < segment.Length)
+        {
+            if (segment[offset++] != '[')
+            {
+                return false;
+            }
+
+            var firstDigit = offset;
+            while (offset < segment.Length && char.IsAsciiDigit(segment[offset]))
+            {
+                offset++;
+            }
+
+            if (offset == firstDigit || offset == segment.Length || segment[offset++] != ']')
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

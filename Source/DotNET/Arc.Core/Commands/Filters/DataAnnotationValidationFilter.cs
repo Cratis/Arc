@@ -13,10 +13,8 @@ public class DataAnnotationValidationFilter : ICommandFilter
     /// <inheritdoc/>
     public Task<CommandResult> OnExecution(CommandContext context)
     {
-        var validationResults = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
-        var validationContext = new System.ComponentModel.DataAnnotations.ValidationContext(context.Command);
-        var isValid = System.ComponentModel.DataAnnotations.Validator.TryValidateObject(context.Command, validationContext, validationResults, true);
-        if (!isValid)
+        var validationResults = DataAnnotationValidation.Validate(context.Command);
+        if (validationResults.Count > 0)
         {
             return Task.FromResult(new CommandResult
             {

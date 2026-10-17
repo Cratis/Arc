@@ -4,6 +4,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 using Cratis.Arc.Validation;
+
 using CratisValidationResult = Cratis.Arc.Validation.ValidationResult;
 using SystemValidationResult = System.ComponentModel.DataAnnotations.ValidationResult;
 
@@ -63,9 +64,10 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
             MemberName = parameter.Name
         };
 
+        var validationValue = DataAnnotationValidation.UnwrapConcept(value);
         foreach (var attribute in validationAttributes)
         {
-            var result = attribute.GetValidationResult(value, validationContext);
+            var result = attribute.GetValidationResult(validationValue, validationContext);
             if (result != SystemValidationResult.Success)
             {
                 validationResults.Add(result ?? new SystemValidationResult($"Validation failed for {parameter.Name}.", [parameter.Name]));
