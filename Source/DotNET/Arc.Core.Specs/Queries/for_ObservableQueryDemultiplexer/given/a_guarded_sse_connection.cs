@@ -93,6 +93,7 @@ public class a_guarded_sse_connection : a_guarded_connection
     {
         var subscribeContext = Substitute.For<IHttpRequestContext>();
         subscribeContext.RequestAborted.Returns(CancellationToken.None);
+        subscribeContext.RequestServices.Returns(_admissionServices);
 
         // The subscribe POST carries the freshest identity; the demultiplexer transfers it onto the SSE connection.
         subscribeContext.User.Returns(_principal);

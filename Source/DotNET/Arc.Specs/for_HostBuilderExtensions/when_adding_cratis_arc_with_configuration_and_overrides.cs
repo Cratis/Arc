@@ -2,6 +2,8 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Authorization;
+using Cratis.Arc.Http;
 using Cratis.Arc.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +16,7 @@ public class when_adding_cratis_arc_with_configuration_and_overrides : Specifica
     string _configuredHttpHeader = string.Empty;
     string _overrideHttpHeader = string.Empty;
     string _resolvedHttpHeader = string.Empty;
+    IEndpointFallbackAuthorization _fallbackAuthorization;
 
     void Establish()
     {
@@ -40,7 +43,9 @@ public class when_adding_cratis_arc_with_configuration_and_overrides : Specifica
 
         var options = host.Services.GetRequiredService<IOptions<ArcOptions>>();
         _resolvedHttpHeader = options.Value.CorrelationId.HttpHeader;
+        _fallbackAuthorization = host.Services.GetRequiredService<IEndpointFallbackAuthorization>();
     }
 
+    [Fact] void should_resolve_the_aspnet_host_fallback_authorization() => _fallbackAuthorization.ShouldBeOfExactType<AspNetCoreEndpointFallbackAuthorization>();
     [Fact] void should_use_value_from_configure_options() => _resolvedHttpHeader.ShouldEqual(_overrideHttpHeader);
 }

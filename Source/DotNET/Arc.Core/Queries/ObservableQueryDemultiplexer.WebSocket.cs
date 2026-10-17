@@ -182,7 +182,7 @@ public partial class ObservableQueryDemultiplexer
             Protocol = "WebSocket",
             Send = (outgoing, operationToken) => SendWebSocketMessage(connection, outgoing, operationToken)
         };
-        await EstablishSubscription(session, context.RequestServices);
+        await EstablishSubscription(session, context);
     }
 
     void HandleWebSocketUnsubscribe(
