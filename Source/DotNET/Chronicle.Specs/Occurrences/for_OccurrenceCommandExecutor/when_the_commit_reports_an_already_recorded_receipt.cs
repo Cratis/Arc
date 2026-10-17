@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.Json.Nodes;
+using Cratis.Arc.Commands;
 using Cratis.Chronicle.Occurrences;
 
 namespace Cratis.Arc.Chronicle.Occurrences.for_OccurrenceCommandExecutor;
@@ -19,6 +20,7 @@ public class when_the_commit_reports_an_already_recorded_receipt : given.an_occu
             OccurrenceExecution.Current!.Enroll(_unitOfWork);
             await _unitOfWork.Commit();
             OccurrenceExecution.Current!.Committed(_unitOfWork);
+            _commandResult.MergeWith(CommandResult.Error(_commandResult.CorrelationId, "A later scope failed after the winning receipt was observed"));
         };
     }
 

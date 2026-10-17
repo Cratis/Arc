@@ -9,11 +9,17 @@ namespace Cratis.Arc.Chronicle.Occurrences.for_OccurrenceCommandExecutor;
 public class when_the_command_commits_events : given.an_occurrence_command_executor
 {
     CorrelationId _correlation;
+    CorrelationId _ambientCorrelation;
 
     void Establish()
     {
         CreateExecutor();
         _unitOfWork = NewUnit(2);
+        _ambientCorrelation = CorrelationId.New();
+        _correlation = _ambientCorrelation;
+        var ambient = Substitute.For<ICorrelationIdAccessor>();
+        ambient.Current.Returns(_ambientCorrelation);
+        _services.GetService(typeof(ICorrelationIdAccessor)).Returns(ambient);
         _correlationIdModifier.When(_ => _.Modify(Arg.Any<CorrelationId>())).Do(_ => _correlation = _.Arg<CorrelationId>());
         _duringExecution = async () =>
         {
@@ -31,7 +37,8 @@ public class when_the_command_commits_events : given.an_occurrence_command_execu
     [Fact] void should_store_a_response_with_the_event_count() => ((int)_result.Response!["events"]!).ShouldEqual(2);
     [Fact] void should_store_the_effect_key() => _unitOfWork.EffectReceipt!.Receipt.Key.ShouldEqual(_key);
     [Fact] async Task should_make_the_receipt_durable() => (await StoredReceipt)!.Outcome.ShouldBeOfExactType<Appended>();
-    [Fact] void should_use_a_fresh_correlation_id() => _correlation.ShouldNotEqual(CorrelationId.NotSet);
+    [Fact] void should_use_a_fresh_correlation_id() => _correlation.ShouldNotEqual(_ambientCorrelation);
+    [Fact] void should_not_use_an_unset_correlation_id() => _correlation.ShouldNotEqual(CorrelationId.NotSet);
     [Fact] void should_begin_an_occurrence_causation() => _causationManager.Received(1).BeginScope(OccurrenceCausation.Type, Arg.Is<IDictionary<string, string>>(_ => _["occurrenceId"] == "occurrence-1" && _["effectKey"] == _key.Value && _["attempt"] == "2" && _["epoch"] == "3" && _["kind"] == "Schedule"));
     [Fact] void should_run_as_the_system_without_roles() => _systemExecution.Received(1).AsSystem(Arg.Is<string[]>(_ => _.Length == 0));
     [Fact] void should_not_leave_the_execution_current() => OccurrenceExecution.Current.ShouldBeNull();
