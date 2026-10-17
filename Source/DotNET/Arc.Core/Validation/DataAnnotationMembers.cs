@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.Queries;
 
@@ -17,7 +18,7 @@ namespace Cratis.Arc.Validation;
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class DataAnnotationMembers
 {
-    static readonly ConcurrentDictionary<Type, DataAnnotationMember[]> _types = new();
+    static readonly ConcurrentDictionary<Type, (DataAnnotationMember[] Members, Func<ValidationAttribute[]> Attributes)> _types = new();
     static readonly ConcurrentDictionary<FullyQualifiedQueryName, DataAnnotationMember[]> _queries = new();
 
     /// <summary>
@@ -25,7 +26,15 @@ public static class DataAnnotationMembers
     /// </summary>
     /// <param name="type">The exact runtime type.</param>
     /// <param name="members">The annotated properties.</param>
-    public static void Register(Type type, DataAnnotationMember[] members) => _types[type] = members;
+    public static void Register(Type type, DataAnnotationMember[] members) => Register(type, members, static () => []);
+
+    /// <summary>
+    /// Registers the complete property and type-level validation metadata for an exact type.
+    /// </summary>
+    /// <param name="type">The exact runtime type.</param>
+    /// <param name="members">All annotated properties, including inherited properties.</param>
+    /// <param name="attributes">Lazily reads the type-level validation attributes.</param>
+    public static void Register(Type type, DataAnnotationMember[] members, Func<ValidationAttribute[]> attributes) => _types[type] = (members, attributes);
 
     /// <summary>
     /// Registers annotated parameters of a model-bound query.
@@ -41,7 +50,22 @@ public static class DataAnnotationMembers
     /// <param name="members">The registered members.</param>
     /// <returns>Whether metadata was registered.</returns>
     internal static bool TryGet(Type type, [NotNullWhen(true)] out DataAnnotationMember[]? members) =>
-        _types.TryGetValue(type, out members);
+        TryGet(type, out members, out _);
+
+    /// <summary>
+    /// Gets the complete annotation metadata for an exact runtime type.
+    /// </summary>
+    /// <param name="type">The runtime type.</param>
+    /// <param name="members">The registered members.</param>
+    /// <param name="attributes">The type-level attribute reader.</param>
+    /// <returns>Whether metadata was registered.</returns>
+    internal static bool TryGet(Type type, [NotNullWhen(true)] out DataAnnotationMember[]? members, [NotNullWhen(true)] out Func<ValidationAttribute[]>? attributes)
+    {
+        var found = _types.TryGetValue(type, out var metadata);
+        members = found ? metadata.Members : null;
+        attributes = found ? metadata.Attributes : null;
+        return found;
+    }
 
     /// <summary>
     /// Gets annotation metadata for a query's parameters.

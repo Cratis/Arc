@@ -14,6 +14,19 @@ internal static class DataAnnotationConsumer
     internal const string Success = "concept annotations validated";
 
     /// <summary>
+    /// The referenced library contributes a validated property outside the application's compilation.
+    /// </summary>
+    internal const string Library = """
+        using System.ComponentModel.DataAnnotations;
+        namespace ProjectLibrary;
+        public static class LibraryMarker { }
+        public record ValidatedBase
+        {
+            [StringLength(3)] public string Label { get; init; } = "ok";
+        }
+        """;
+
+    /// <summary>
     /// The executable consumer source compiled against the packed Arc.Core package.
     /// </summary>
     internal const string Source = """
@@ -30,7 +43,9 @@ internal static class DataAnnotationConsumer
         var rejected = await filter.OnExecution(new CommandContext(CorrelationId.New(), typeof(Submit), invalid, [], new()));
         var valid = new Submit(new Label("ok"), new Count(3));
         var accepted = await filter.OnExecution(new CommandContext(CorrelationId.New(), typeof(Submit), valid, [], new()));
-        if (rejected.IsValid || !accepted.IsValid)
+        var inherited = valid with { Label = "too long" };
+        var inheritedResult = await filter.OnExecution(new CommandContext(CorrelationId.New(), typeof(Submit), inherited, [], new()));
+        if (rejected.IsValid || !accepted.IsValid || inheritedResult.IsValid)
         {
             return 1;
         }
@@ -41,7 +56,7 @@ internal static class DataAnnotationConsumer
         public record Label(string Value) : ConceptAs<string>(Value);
         public record Count(int Value) : ConceptAs<int>(Value);
         [Command]
-        public partial record Submit([property: Required, StringLength(3)] Label Name, [property: Range(1, 5)] Count Copies)
+        public partial record Submit([property: Required, StringLength(3)] Label Name, [property: Range(1, 5)] Count Copies) : ProjectLibrary.ValidatedBase
         {
             public void Handle() { }
         }

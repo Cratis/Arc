@@ -72,6 +72,8 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
         if (member is not null)
         {
             validationContext.DisplayName = member.DisplayName;
+            Validator.TryValidateValue(value, validationContext, validationResults, validationAttributes);
+            return;
         }
 
         foreach (var attribute in validationAttributes)

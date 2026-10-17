@@ -254,9 +254,10 @@ public sealed class PackageGraphFixture : IDisposable
         File.WriteAllText(
             Path.Join(libraryDirectory, "Library.csproj"),
             CreateConsumerProject([definition.PackageId], emitGeneratedFiles: false));
+        var validatesConcepts = definition.Name == "exe-arc-core";
         File.WriteAllText(
             Path.Join(libraryDirectory, "LibraryMarker.cs"),
-            "namespace ProjectLibrary;\n\npublic static class LibraryMarker\n{\n}\n");
+            validatesConcepts ? DataAnnotationConsumer.Library : "namespace ProjectLibrary;\n\npublic static class LibraryMarker\n{\n}\n");
 
         var appProjectPath = Path.Join(appDirectory, "App.csproj");
         var appProperties = "<OutputType>Exe</OutputType>" +
@@ -264,7 +265,6 @@ public sealed class PackageGraphFixture : IDisposable
         File.WriteAllText(
             appProjectPath,
             CreateConsumerProject([definition.PackageId], additionalProperties: appProperties, projectReferences: ["../Library/Library.csproj"]));
-        var validatesConcepts = definition.Name == "exe-arc-core";
         File.WriteAllText(Path.Join(appDirectory, "Program.cs"), validatesConcepts ? DataAnnotationConsumer.Source : "System.Console.WriteLine(\"consumer\");\n");
 
         RestoreConsumer(appDirectory, appProjectPath);

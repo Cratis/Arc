@@ -18,17 +18,24 @@ public class annotated_models : Specification
         public record Text(string Value) : ConceptAs<string>(Value);
         public record Number(int Value) : ConceptAs<int>(Value);
         [Command] public partial record Submit(
-            [property: Required, Display(Name = "Customer name")] Text? Name,
+            [property: Required, Display(Name = nameof(Labels.Customer), ResourceType = typeof(Labels))] Text? Name,
             [property: StringLength(3)] string Label,
             Text Unannotated,
             string Plain)
         {
             public void Handle() { }
         }
+        public static class Labels { public static string Customer => "Customer name"; }
         [Command] public record Unannotated(Text Name) { public void Handle() { } }
+        [Command] public record Ordinary([property: StringLength(3)] string Label) { public void Handle() { } }
+        public record InheritedProperties { [StringLength(3)] public string Label { get; init; } = "long"; }
+        [Command, Rejected] public record Derived([property: Required] Text Name) : InheritedProperties { public void Handle() { } }
+        public sealed class RejectedAttribute : ValidationAttribute { public override bool IsValid(object? value) => false; }
         [ReadModel] public record Report(string Name)
         {
             public static Report Search([Range(1, 5)] Number count, [Required] Text name) => new(name.Value);
+            internal static Report Internal([Range(1, 5)] Number count) => new("internal");
+            public static Report Ordinary([Range(1, 5)] int count) => new("ordinary");
         }
         """;
 

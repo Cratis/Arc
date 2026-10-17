@@ -23,8 +23,8 @@ public class with_context_aware_attribute : given.annotated_concepts
     async Task Because() => _contextResult = await _filter.OnExecution(_context);
 
     [Fact] void should_keep_the_command_as_the_object_instance() => _attribute.Context!.ObjectInstance.ShouldBeSame(_command);
-    [Fact] void should_set_the_declared_member_name() => _attribute.Context!.MemberName.ShouldEqual("Name");
-    [Fact] void should_set_the_display_name() => _attribute.Context!.DisplayName.ShouldEqual("Label");
+    [Fact] void should_set_the_declared_member_name() => _attribute.MemberName.ShouldEqual("Name");
+    [Fact] void should_set_the_display_name() => _attribute.DisplayName.ShouldEqual("Label");
     [Fact] void should_pass_the_unwrapped_value() => _attribute.Value.ShouldEqual("value");
     [Fact] void should_accept_the_command() => _contextResult.IsValid.ShouldBeTrue();
 
@@ -34,11 +34,15 @@ public class with_context_aware_attribute : given.annotated_concepts
     public sealed class InspectAttribute : ValidationAttribute
     {
         public ValidationContext? Context { get; private set; }
+        public string? MemberName { get; private set; }
+        public string? DisplayName { get; private set; }
         public object? Value { get; private set; }
 
         protected override System.ComponentModel.DataAnnotations.ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
             Context = validationContext;
+            MemberName = validationContext.MemberName;
+            DisplayName = validationContext.DisplayName;
             Value = value;
             return null;
         }

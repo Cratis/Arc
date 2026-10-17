@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Cratis.Arc.Generators;
 
 /// <summary>
-/// Renders annotated member registrations with typed readers that unwrap concepts without reflection.
+/// Renders complete annotation metadata for types and queries with annotated concepts.
 /// </summary>
 internal static class DataAnnotationMemberTypes
 {
@@ -16,7 +16,7 @@ internal static class DataAnnotationMemberTypes
     const string Attribute = "global::System.ComponentModel.DataAnnotations.ValidationAttribute";
 
     /// <summary>
-    /// Gets annotated property registrations for source types reachable from the given roots.
+    /// Gets complete annotated property registrations for reachable source types with annotated concepts.
     /// </summary>
     /// <param name="roots">The command and query argument roots.</param>
     /// <param name="compilation">The consuming compilation.</param>
@@ -31,39 +31,41 @@ internal static class DataAnnotationMemberTypes
 
         foreach (var type in ModelGraphWalkerTypes.ReachableTypes(roots, compilation, cancellationToken))
         {
-            var properties = ModelGraphWalkerTypes.AnnotatedProperties(type, compilation, cancellationToken);
-            var annotated = properties?.Where(HasValidation).ToArray();
-            if (annotated is not { Length: > 0 })
+            var properties = AnnotatedProperties(type).ToArray();
+            if (!properties.Any(property => IsConcept(property.Type)) ||
+                !TypeNaming.CanBeNamed(type, compilation) || type.IsAbstract || type.IsStatic ||
+                properties.Any(property => !CanRead(property, compilation)))
             {
                 continue;
             }
 
             var name = TypeName(type);
-            var members = annotated.Select(property => RenderMember(
+            var members = properties.Select(property => RenderMember(
                 property,
                 Read($"(({name})instance).@{property.Name}", property.Type),
                 $"typeof({name}).GetProperty({Literal(property.Name)})!"));
-            yield return new(name, $"        {Registry}.Register(typeof({name}), new {Member}[] {{ {string.Join(", ", members)} }});");
+            yield return new(name, $"        {Registry}.Register(typeof({name}), new {Member}[] {{ {string.Join(", ", members)} }}, static () => {Attributes($"typeof({name})")});");
         }
     }
 
     /// <summary>
-    /// Renders annotated parameters under a model-bound query's identity.
+    /// Renders all annotated parameters under a query's identity when any annotated parameter is a concept.
     /// </summary>
     /// <param name="readModel">The read model used to identify the query.</param>
     /// <param name="method">The query method.</param>
-    /// <returns>The registration, or an empty string if no parameter is annotated.</returns>
+    /// <returns>The registration, or an empty string when no annotated concept parameter exists.</returns>
     internal static string ForQuery(INamedTypeSymbol readModel, IMethodSymbol method)
     {
         var parameters = method.Parameters.Where(HasValidation).ToArray();
-        if (parameters.Length == 0)
+        if (!parameters.Any(parameter => IsConcept(parameter.Type)))
         {
             return string.Empty;
         }
 
         var name = TypeName(method.ContainingType);
         var signature = string.Join(", ", method.Parameters.Select(parameter => $"typeof({TypeName(parameter.Type)})"));
-        var reflectedMethod = $"typeof({name}).GetMethod({Literal(method.Name)}, new global::System.Type[] {{ {signature} }})!";
+        const string flags = "global::System.Reflection.BindingFlags.Public | global::System.Reflection.BindingFlags.NonPublic | global::System.Reflection.BindingFlags.Static";
+        var reflectedMethod = $"typeof({name}).GetMethod({Literal(method.Name)}, {flags}, null, new global::System.Type[] {{ {signature} }}, null)!";
         var members = parameters.Select(parameter => RenderMember(
             parameter,
             IsConcept(parameter.Type) ? $"instance is {TypeName(parameter.Type)} concept ? (object?)concept.Value : null" : "instance",
@@ -72,20 +74,48 @@ internal static class DataAnnotationMemberTypes
         return $"        {Registry}.RegisterQueryParameters({identity}, new {Member}[] {{ {string.Join(", ", members)} }});";
     }
 
+    static IEnumerable<IPropertySymbol> AnnotatedProperties(INamedTypeSymbol type)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (property.DeclaredAccessibility == Accessibility.Public && !property.IsStatic &&
+                    property.Parameters.Length == 0 && property.GetMethod is not null && names.Add(property.Name) && HasValidation(property))
+                {
+                    yield return property;
+                }
+            }
+        }
+    }
+
+    static bool CanRead(IPropertySymbol property, Compilation compilation) =>
+        !property.ReturnsByRef && !property.ReturnsByRefReadonly && !property.Type.IsRefLikeType &&
+        property.Type.TypeKind is not (TypeKind.Pointer or TypeKind.FunctionPointer) &&
+        compilation.IsSymbolAccessibleWithin(property.GetMethod!, compilation.Assembly) &&
+        SyntaxFacts.IsValidIdentifier(property.Name);
+
     static string Read(string access, ITypeSymbol type) => IsConcept(type) ? $"{access} is {{ }} concept ? (object?)concept.Value : null" : access;
 
     static string RenderMember(ISymbol symbol, string read, string attributeSource)
     {
-        var attributes = $"global::System.Linq.Enumerable.ToArray(global::System.Reflection.CustomAttributeExtensions.GetCustomAttributes<{Attribute}>({attributeSource}, true))";
-        return $"new {Member}({Literal(symbol.Name)}, {Literal(DisplayName(symbol))}, static instance => {read}, static () => {attributes})";
+        var display = $"global::System.Reflection.CustomAttributeExtensions.GetCustomAttribute<global::System.ComponentModel.DataAnnotations.DisplayAttribute>({attributeSource}, true)?.GetName() ?? {Literal(symbol.Name)}";
+        return $"new {Member}({Literal(symbol.Name)}, {display}, static instance => {read}, static () => {Attributes(attributeSource)})";
     }
 
-    static string DisplayName(ISymbol symbol) => symbol.GetAttributes()
-        .FirstOrDefault(attribute => attribute.AttributeClass?.ToDisplayString() == "System.ComponentModel.DataAnnotations.DisplayAttribute")?
-        .NamedArguments.FirstOrDefault(argument => argument.Key == "Name").Value.Value as string ?? symbol.Name;
+    static string Attributes(string source) =>
+        $"global::System.Linq.Enumerable.ToArray(global::System.Reflection.CustomAttributeExtensions.GetCustomAttributes<{Attribute}>({source}, true))";
 
-    static bool HasValidation(ISymbol symbol) => symbol.GetAttributes().Any(attribute =>
-        HasBase(attribute.AttributeClass, "System.ComponentModel.DataAnnotations.ValidationAttribute"));
+    static bool HasValidation(ISymbol symbol)
+    {
+        if (symbol.GetAttributes().Any(attribute => HasBase(attribute.AttributeClass, "System.ComponentModel.DataAnnotations.ValidationAttribute")))
+        {
+            return true;
+        }
+
+        return symbol is IPropertySymbol { OverriddenProperty: { } inherited } && HasValidation(inherited);
+    }
 
     static bool IsConcept(ITypeSymbol type) => HasBase(type as INamedTypeSymbol, "Cratis.Concepts.ConceptAs`1");
 

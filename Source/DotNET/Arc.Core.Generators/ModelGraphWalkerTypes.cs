@@ -107,16 +107,6 @@ internal static class ModelGraphWalkerTypes
     }
 
     /// <summary>
-    /// Gets readable properties for annotation metadata, including partially declared types.
-    /// </summary>
-    /// <param name="type">The model type.</param>
-    /// <param name="compilation">The consuming compilation.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>The properties, or null when generated metadata cannot safely describe the type.</returns>
-    internal static List<IPropertySymbol>? AnnotatedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken) =>
-        WalkedProperties(type, compilation, cancellationToken, allowPartial: true);
-
-    /// <summary>
     /// Follows a declared type to the types values of it can have at runtime that could get a walker.
     /// </summary>
     /// <param name="type">The declared type.</param>
@@ -192,9 +182,8 @@ internal static class ModelGraphWalkerTypes
     /// <param name="type">The type.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
-    /// <param name="allowPartial">Whether partial declarations are allowed for annotation metadata.</param>
     /// <returns>The properties, or null when the type keeps the reflection walk.</returns>
-    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken, bool allowPartial = false)
+    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
     {
         if (!IsConcrete(type) || !TypeNaming.CanBeNamed(type, compilation))
         {
@@ -208,7 +197,7 @@ internal static class ModelGraphWalkerTypes
         var declared = new List<IPropertySymbol>();
         for (var current = type; current is not null && !IsRootType(current); current = current.BaseType)
         {
-            if (!IsFromCompilation(current, compilation) || current.OriginalDefinition.DeclaringSyntaxReferences.Length == 0 || (!allowPartial && IsPartial(current.OriginalDefinition, cancellationToken)))
+            if (!IsFromCompilation(current, compilation) || current.OriginalDefinition.DeclaringSyntaxReferences.Length == 0 || IsPartial(current.OriginalDefinition, cancellationToken))
             {
                 return null;
             }
