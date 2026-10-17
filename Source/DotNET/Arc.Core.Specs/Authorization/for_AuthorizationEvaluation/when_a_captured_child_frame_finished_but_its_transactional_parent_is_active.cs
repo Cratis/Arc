@@ -21,10 +21,12 @@ public class when_a_captured_child_frame_finished_but_its_transactional_parent_i
             captured = ExecutionContext.Capture()!;
         }
 
-        _error = Catch.Exception(() => ExecutionContext.Run(captured, static state =>
-        {
-            using var frame = AuthorizationCommandIdentity.Enter(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "other")], "Default")), state);
-        }, host));
+        _error = Catch.Exception(() => ExecutionContext.Run(captured, EnterAsOther, host));
+    }
+
+    static void EnterAsOther(object? state)
+    {
+        using var frame = AuthorizationCommandIdentity.Enter(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Name, "other")], "Default")), state);
     }
 
     [Fact] void should_reject_changing_the_active_parent_identity() => _error.ShouldBeOfExactType<InvalidAuthorizationConfiguration>();
