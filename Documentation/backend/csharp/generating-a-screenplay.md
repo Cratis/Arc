@@ -575,6 +575,22 @@ These boundaries follow [Screenplay decision 0087](https://github.com/Cratis/Scr
 
 Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V26` to withhold date comparisons in both default and authoring output. A located diagnostic names ESM v26 and the cap. As with other caps, the document then describes less behavior, not an equivalent implementation of the original command. Without date comparisons, a document keeps its existing executable version.
 
+### Uuid equality and ESM v28
+
+The generator reads `==` and `!=` between Uuid operands: a `Guid`, or a concept or `EventSourceId<Guid>` identity backed by one. A `produces when` guard can compare a required command property with another command property or a literal. Readable authoring-only `Provide()` guards can also compare a protected read path, such as `grant.Instance!.MemberId == RequestedBy`, in `require`. A literal on either side is moved to the right.
+
+Literals are printed in the canonical form, lowercase and hyphenated. The generator reads `Guid.Parse("...")`, `new Guid("...")`, `Guid.Empty` and a concept constructed from one of those, and rewrites any other spelling of the same value (uppercase, braces) to the canonical one. Both sides must be the same concept; a bare `Guid` can be compared with any Uuid concept.
+
+These are refused and left in code, with a located diagnostic naming the property and the reason:
+
+- Different concepts or identities on each side, such as a `MemberId` against a `PlantId`.
+- Ordering (`<`, `<=`, `>`, `>=`).
+- Optional operands, including an optional read-model property behind a read path.
+- Generated or computed values such as `Guid.NewGuid()`, and literals that are not a constant valid Guid string.
+- Comparing a Uuid with a value of another type.
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V28` to withhold Uuid comparisons in both default and authoring output. A located diagnostic names ESM v28 and the cap. Without Uuid comparisons, a document keeps its existing executable version. The rules follow [Screenplay decision 0090](https://github.com/Cratis/Screenplay/blob/main/decisions/0090-admit-uuid-equality-in-command-conditions.md).
+
 ## Constraints
 
 A uniqueness claim can cover several event types. The generator keeps every readable `On<T>` target under one `constraint`, rather than splitting the claim into independent rules. Multiple direct property selectors become an ordered composite key. Repeated parameterless `RemovedWith<T>()` declarations become `released by` lines, including releases of a generic `Unique<T>` event constraint.
