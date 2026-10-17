@@ -40,7 +40,7 @@ public class when_guarding_plain_models : given.a_protected_read
                 var failure = result.ValidationResults.Single();
                 failure.Reason.ShouldEqual(ValidationResultReason.ConcurrencyViolation);
                 failure.ReasonDetail.ShouldEqual("ReadChanged");
-                failure.Message.ShouldEqual("BookStock 'book' changed after Borrow read it. Nothing from this command was written; submit it again.");
+                failure.Message.ShouldEqual("BookStock 'book' changed after Borrow read it (StockChanged at 2). Nothing from this command was written; submit it again.");
                 EndpointRouteHelperStatus(result);
             }
         }

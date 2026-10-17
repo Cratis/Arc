@@ -12,6 +12,8 @@ import { useCommandScope } from '../commands/useCommandScope.js';
 import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
+import type { InFlightRequest } from './InFlightRequest.js';
+import { type QueryExecution, startQueryExecution } from './QueryExecution.js';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -75,11 +77,6 @@ function buildQueryKey(queryCache: { buildKey(queryTypeName: string, args?: obje
 }
 
 /**
- * A request in flight on a shared query instance, with the serialized arguments it was performed with.
- */
-type InFlightRequest = { readonly request: Promise<unknown>; readonly argumentsKey: string };
-
-/**
  * The most recent request started on each query instance. Instances are shared between hooks through the
  * query instance cache, and starting a request aborts whatever that instance had in flight - so the latest
  * request is the one every hook on the instance is waiting for, whichever hook started it.
@@ -125,6 +122,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
     const queryScope = useQueryScope();
     const queryCache = useContext(QueryInstanceCacheContext);
     const requestVersionRef = useRef(0);
+    const executionRef = useRef<QueryExecution | undefined>(undefined);
     const ownerRef = useRef<string | undefined>(owner);
     ownerRef.current = owner;
 
@@ -168,14 +166,21 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     const queryExecutor = (async (requestArgs?: TArguments) => {
         if (queryInstance) {
-            queryScope.notifyPerformingStarted();
+            // A newer execution retires the one before it. The earlier one may be waiting on a request this hook
+            // does not own - one a co-subscriber started - which can outlive it by any amount; left alone it would
+            // keep this hook's query scope performing until that request settles. The request itself is not
+            // aborted: it is shared, and the co-subscriber that started it still needs its outcome.
+            executionRef.current?.retire();
+            const execution = startQueryExecution(queryScope);
+            executionRef.current = execution;
+
             // Only this hook's latest request may settle its state. An earlier one can still finish after a later
             // one has settled - for instance when the later one returned early on client validation without
             // aborting anything, or ran on another instance after the arguments changed - and it must not
-            // overwrite that newer state.
+            // overwrite that newer state. A retired execution - its hook unmounted - may not settle it at all.
             const version = ++requestVersionRef.current;
             const settle = (next: QueryResultWithState<TDataType> | ((current: QueryResultWithState<TDataType>) => QueryResultWithState<TDataType>)) => {
-                if (version === requestVersionRef.current) {
+                if (!execution.isRetired && version === requestVersionRef.current) {
                     setResult(next);
                 }
             };
@@ -215,10 +220,20 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
                 }
                 settle(failedResult(queryInstance.defaultValue, error));
             } finally {
-                queryScope.notifyPerformingCompleted();
+                execution.complete();
+                if (executionRef.current === execution) {
+                    executionRef.current = undefined;
+                }
             }
         }
     });
+
+    // Unmounting retires whatever execution is outstanding, so nothing it is still waiting on can settle the
+    // unmounted hook or keep its query scope performing.
+    useEffect(() => () => {
+        executionRef.current?.retire();
+        executionRef.current = undefined;
+    }, []);
 
     useEffect(() => {
         const key = cacheKey;

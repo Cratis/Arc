@@ -9,7 +9,6 @@ using Cratis.Arc.Chronicle.Occurrences;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
-using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
 using Cratis.Chronicle.Transactions;
@@ -89,7 +88,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
         var previous = ActiveFrame();
         var readProtected = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On;
-        var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type, readProtected);
+        var frame = new TransactionFrame(context.Values, previous, FreshIdentifierScopes.For(context), context.Type, readProtected) { Services = context.ServiceProvider };
         if (previous is not null)
         {
             lock (previous)
@@ -128,7 +127,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
                 // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
                 // opened by its caller's body or by an enclosing command that does not enable read protection.
                 frame.ReadAllowance = readProtected
-                    ? ReadRegions.SuspendInherited()
+                    ? inheritedUnit.SuspendReadRegions()
                     : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
             }
             RegisterEnrollmentContributor(context, frame, inheritedUnit);
@@ -266,7 +265,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>The result, with conflicting reads reported as read changes.</returns>
     internal static AggregateRootCommitResult ReportReadChanges(IUnitOfWork unit, AggregateRootCommitResult result) =>
         !result.IsSuccess && ActiveFrame() is { Protection: not null, Owned: not null } frame && ReferenceEquals(frame.UnitOfWork, unit)
-            ? WithReadChanges(result, unit, frame.CommandType, enforcing: true)
+            ? WithReadChanges(result, unit, frame.CommandType, enforcing: true, frame.Services)
             : result;
 
     /// <summary>
@@ -379,7 +378,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
             if (!commitResult.IsSuccess)
             {
-                result.MergeWith(WithReadChanges(commitResult, unitOfWork, context.Type, frame.Protection is not null).ToCommandResult(result.CorrelationId));
+                result.MergeWith(WithReadChanges(commitResult, unitOfWork, context.Type, frame.Protection is not null, context.ServiceProvider).ToCommandResult(result.CorrelationId));
             }
 
             if (result.IsSuccess && frame.Completions.Count > 0)
@@ -416,7 +415,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
     }
 
-    static AggregateRootCommitResult WithReadChanges(AggregateRootCommitResult commitResult, IUnitOfWork unitOfWork, Type commandType, bool enforcing)
+    static AggregateRootCommitResult WithReadChanges(AggregateRootCommitResult commitResult, IUnitOfWork unitOfWork, Type commandType, bool enforcing, IServiceProvider? services)
     {
         var conflicts = unitOfWork is UnitOfWork protectedUnit ? protectedUnit.GetDecisionConflicts().ToArray() : [];
         var conflictLabels = conflicts.Select(_ => (string)_.Key).ToHashSet();
@@ -428,13 +427,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             ConstraintViolations = commitResult.ConstraintViolations,
             ConcurrencyViolations = commitResult.ConcurrencyViolations.Where(_ => !conflictLabels.Contains((string)_.EventSourceId)).ToArray(),
             Errors = commitResult.Errors,
-            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ValidationResult.Error(
-                enforcing
-                    ? $"{_.ReadModelType.Name} '{_.Key}' changed after {commandType.Name} read it. Nothing from this command was written; submit it again."
-                    : $"{_.ReadModelType.Name} '{_.Key}' changed after it was read. Read it again and resubmit.",
-                state: new { readModel = _.ReadModelType.Name, key = (string)_.Key },
-                reason: ValidationResultReason.ConcurrencyViolation,
-                reasonDetail: enforcing ? "ReadChanged" : null))).ToArray()
+            ValidationResults = commitResult.ValidationResults.Concat(conflicts.Select(_ => ReadChanges.For(_, commandType, enforcing, services))).ToArray()
         };
     }
 
@@ -545,6 +538,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     sealed class TransactionFrame(CommandContextValues values, TransactionFrame? previous, FreshIdentifierScopes freshIdentifiers, Type commandType, bool readProtected)
     {
         public Type CommandType { get; } = commandType;
+        public IServiceProvider? Services { get; init; }
         public bool ReadProtected { get; } = readProtected;
         public ReadProtectionFrame? Protection { get; set; }
         public IDisposable? ReadAllowance { get; set; }
