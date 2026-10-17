@@ -50,6 +50,8 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
         _ => false
     };
 
+    static bool ReadsProtected(ConditionModel condition, CommandAuthoringModel authoring) => authoring.Reads.Any(read => read.Protected && Reads(condition, read.Alias));
+
     static bool NeedsLegacyFixtures(CommandAuthoringModel authoring, List<SpecificationModel> scenarios)
     {
         if (authoring.GeneratedParameters)
@@ -83,9 +85,15 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
     CommandModel Admit(CommandModel command, ApplicationModel model, string location, SemanticVersion? maximumVersion, bool authoringOnlyConstructs)
     {
         command = new UnavailableCommandValues(diagnostics).Apply(command, model, $"{location}.{command.Name}");
-        if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent)
+        if (!authoringOnlyConstructs && command.Authoring is { Reads.Count: > 0 } readIntent && readIntent.Reads.Any(read => !read.Protected))
         {
-            command = AuthoringDeclarations.WithoutReadModels(command, model, readIntent.Reads.Select(read => read.Name).ToHashSet(StringComparer.Ordinal), diagnostics, location);
+            command = AuthoringDeclarations.WithoutReads(
+                command,
+                model,
+                readIntent.Reads.Where(read => !read.Protected).Select(read => read.Alias).ToHashSet(StringComparer.Ordinal),
+                diagnostics,
+                location,
+                $"Command '{command.Name}': an omitted read model or withheld authoring read cannot be read; its dependency, requirements and mappings were left in code");
         }
         if (command.Authoring is not { } authoring)
         {
@@ -160,8 +168,8 @@ public class ExecutableCommandValues(ScreenplayDiagnostics diagnostics)
             ResponseFields = legacy || authoring.ResponseFields.Any(field => field.Source is PropertyPathSource source && blocked.Contains(source.Path)) ? [] : authoring.ResponseFields,
             Operations = authoringOnlyConstructs ? authoring.Operations : [],
             Route = authoringOnlyConstructs || maximumVersion is not { } routeCap || routeCap.IsAtLeast(SemanticVersion.V8) ? authoring.Route : null,
-            Reads = authoringOnlyConstructs ? authoring.Reads : [],
-            Requirements = authoringOnlyConstructs ? authoring.Requirements : []
+            Reads = authoringOnlyConstructs ? authoring.Reads : authoring.Reads.Where(read => read.Protected).ToList(),
+            Requirements = authoringOnlyConstructs ? authoring.Requirements : authoring.Requirements.Where(requirement => ReadsProtected(requirement.Condition, authoring)).ToList()
         };
         if (!capped && authoring.Identifier is not null && retained.Identifier is null)
         {

@@ -39,13 +39,13 @@ public class CommandAuthoringSyntaxBuilder(IScreenplayNaming naming, TypeReferen
         }
 
         var productions = syntax.Produces.Concat(authoringOnlyConstructs ? authoring.Operations.Select(Operation) : []).ToList();
-        var requirements = authoringOnlyConstructs ? authoring.Requirements.Select(Requirement).ToList() : [];
+        var requirements = authoring.Requirements.Select(Requirement).ToList();
         return syntax with
         {
             Produces = productions,
             Handler = productions.Count > 0 ? null : syntax.Handler,
             Response = Response(authoring),
-            Reads = authoringOnlyConstructs ? authoring.Reads.Select(Read).ToList() : syntax.Reads,
+            Reads = authoring.Reads.Where(read => authoringOnlyConstructs || read.Protected).Select(Read).ToList(),
             Validations = requirements.Count == 0 ? syntax.Validations : syntax.Validations.Append(new DeclarativeValidateSyntax([], SourceLocation.Start, requirements)).ToList(),
             Stream = authoring.Route is { Stream: not null } route ? Route(route) : syntax.Stream
         };

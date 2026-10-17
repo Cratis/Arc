@@ -41,6 +41,7 @@ public record ScreenplayVerification(
         [.. BindingDiagnostics.Where(diagnostic =>
             diagnostic.Severity == DiagnosticSeverity.Error &&
             (!ExpectedBindingDiagnostics.IsExpected(diagnostic, authoringOnlyConstructs) ||
+             (Application?.CommandReadMode is not null && ExpectedBindingDiagnostics.IsLegacyRead(diagnostic)) ||
              (!authoringOnlyConstructs && diagnostic.Code == "PLAY0271" && NamesRoutedCommand(diagnostic))))];
 
     bool NamesRoutedCommand(Diagnostic diagnostic) => Application?.Modules.SelectMany(module => module.Features).SelectMany(Commands)
