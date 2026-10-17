@@ -67,7 +67,7 @@ public class when_binding_a_month : given.a_monthly_account
         var failure = Catch.Exception(() => Resolve());
         failure.ShouldBeOfExactType<ReadModelStreamPartMissing>();
         ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual("'Month' is required to read MonthlyWithdrawals");
-        ((IValidationFailure)failure).ValidationResult.Members.ShouldEqual(["Month"]);
+        ((IValidationFailure)failure).ValidationResult.Members.ShouldEqual(["month"]);
         _unit.HasEnrolledDecisionReads.ShouldBeFalse();
     }
 

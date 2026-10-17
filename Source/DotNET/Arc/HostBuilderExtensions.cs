@@ -3,6 +3,7 @@
 
 using Cratis.Arc;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ControllerBased;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -82,6 +83,7 @@ public static class HostBuilderExtensions
             {
                 OperationHttpContextAccessorRegistration.Add(services);
                 services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyRuntime, AspNetAuthorizationPolicyRuntime>());
+                services.Replace(ServiceDescriptor.Transient<IEndpointFallbackAuthorization, AspNetCoreEndpointFallbackAuthorization>());
                 services.AddHostedService<AuthorizationStartupValidation>();
                 var discoverableValidators = services.AddArcAspNetCore(Internals.Types);
                 if (ArcFeatureSwitches.ControllersAreSupported && ArcFeatureSwitches.ControllersSupportIsOn)

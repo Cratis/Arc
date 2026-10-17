@@ -14,5 +14,5 @@ public class and_a_secondary_event_source_key_concept_is_null : given.a_required
     [Fact] void should_not_be_successful() => _result.IsSuccess.ShouldBeFalse();
     [Fact] void should_not_be_valid() => _result.IsValid.ShouldBeFalse();
     [Fact] void should_not_carry_any_exception() => _result.HasExceptions.ShouldBeFalse();
-    [Fact] void should_point_at_the_secondary_key() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains(nameof(CommandWithPrimaryAndSecondaryEventSourceKeys.SecondaryId)));
+    [Fact] void should_point_at_the_secondary_key() => _result.ValidationResults.ShouldContain(validationResult => validationResult.Members.Contains("secondaryId"));
 }

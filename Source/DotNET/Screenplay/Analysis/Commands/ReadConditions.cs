@@ -46,6 +46,11 @@ internal sealed class ReadConditions(ScreenplayDiagnostics diagnostics)
 
         var site = new DateConditionSite(model, scope.Command, scope.Location, null, diagnostics);
 
+        if (shape.Binary is { } uuid && UuidConditions.Applies(uuid, model))
+        {
+            return UuidCondition(uuid, shape.Invert, model, scope);
+        }
+
         return shape.Binary is { } binary && DateConditions.Applies(binary, model)
             ? DateCondition(binary, site, shape.Invert)
             : ReadComparison(shape, scope.Sources, site);
@@ -92,6 +97,19 @@ internal sealed class ReadConditions(ScreenplayDiagnostics diagnostics)
         var input = MappingSourceReader.ReadPath(operand, model, command);
 
         return (input ?? sources.ReadPath(operand, model)) is { } path ? new(path, input is null && !path.Contains('.', StringComparison.Ordinal)) : null;
+    }
+
+    ComparisonCondition? UuidCondition(BinaryExpressionSyntax binary, bool invert, SemanticModel model, ReadScope scope)
+    {
+        var site = new UuidConditionSite(
+            model,
+            scope.Location,
+            diagnostics,
+            (path, operandModel) => MappingSourceReader.ReadPath(path, operandModel, scope.Command),
+            (path, operandModel) => scope.Sources.ReadPath(path, operandModel) is { } read && read.Contains('.', StringComparison.Ordinal) ? read : null);
+        var condition = ComparisonKinds.Of(binary.Kind()) is { } kind ? UuidConditions.Read(binary, kind, site) : null;
+
+        return invert && condition is not null ? condition with { Operator = ComparisonKinds.Opposite(condition.Operator) } : condition;
     }
 
     ComparisonCondition? DateCondition(BinaryExpressionSyntax binary, DateConditionSite site, bool invert)
