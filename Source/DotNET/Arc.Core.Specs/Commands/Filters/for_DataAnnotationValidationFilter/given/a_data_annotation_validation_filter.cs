@@ -69,21 +69,21 @@ public class a_data_annotation_validation_filter : Specification
 
     public record WithComparedConcepts(
         Name Original,
-        [property: Compare(nameof(Original), ErrorMessage = "Names must match")] Name Confirmation);
+        [property: Compare(nameof(WithComparedConcepts.Original), ErrorMessage = "Names must match")] Name Confirmation);
 
     public record WithComparedStrings(
         Name Name,
         string Original,
-        [property: Compare(nameof(Original), ErrorMessage = "Labels must match")] string Confirmation);
+        [property: Compare(nameof(WithComparedStrings.Original), ErrorMessage = "Labels must match")] string Confirmation);
 
     [AttributeUsage(AttributeTargets.Property)]
     public sealed class SameAsAttribute(string otherProperty) : CompareAttribute(otherProperty);
 
     public record WithDerivedComparison(
         Name Original,
-        [property: SameAs(nameof(Original))] Name Confirmation);
+        [property: SameAs(nameof(WithDerivedComparison.Original))] Name Confirmation);
 
     public record WithRequiredComparison(
         Name Original,
-        [property: Required(ErrorMessage = "Confirmation is required"), Compare(nameof(Original))] Name? Confirmation);
+        [property: Required(ErrorMessage = "Confirmation is required"), Compare(nameof(WithRequiredComparison.Original))] Name? Confirmation);
 }
