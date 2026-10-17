@@ -59,7 +59,9 @@ public class an_occurrence_command_executor : Specification
         _key = _occurrence.EffectKey("send-reminder");
 
         _unitOfWork = Substitute.For<IUnitOfWork>();
-        _correlationIdModifier = Substitute.For<ICorrelationIdModifier>();
+        var correlationIdAccessor = Substitute.For<ICorrelationIdAccessor, ICorrelationIdModifier>();
+        correlationIdAccessor.Current.Returns(CorrelationId.NotSet);
+        _correlationIdModifier = (ICorrelationIdModifier)correlationIdAccessor;
         _causationManager = Substitute.For<ICausationManager>();
         _pipeline = Substitute.For<ICommandPipeline>();
         _pipeline.Execute(Arg.Any<object>(), Arg.Any<IServiceProvider>(), Arg.Any<Cratis.Arc.Validation.ValidationResultSeverity?>()).Returns(async _ =>
@@ -70,7 +72,7 @@ public class an_occurrence_command_executor : Specification
         });
 
         _services = Substitute.For<IServiceProvider>();
-        _services.GetService(typeof(ICorrelationIdModifier)).Returns(_correlationIdModifier);
+        _services.GetService(typeof(ICorrelationIdAccessor)).Returns(correlationIdAccessor);
         _services.GetService(typeof(ICausationManager)).Returns(_causationManager);
         _services.GetService(typeof(ICommandPipeline)).Returns(_pipeline);
         var scope = Substitute.For<IServiceScope>();

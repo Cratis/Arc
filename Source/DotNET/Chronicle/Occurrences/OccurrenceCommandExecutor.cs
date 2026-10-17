@@ -64,34 +64,45 @@ public class OccurrenceCommandExecutor(
         }
 
         using var system = systemExecution.AsSystem([.. systemRoles]);
-        var correlationId = CorrelationId.New();
-        services.GetRequiredService<ICorrelationIdModifier>().Modify(correlationId);
-        using var causation = services.GetService<ICausationManager>()?.BeginScope(OccurrenceCausation.Type, OccurrenceCausation.PropertiesFor(occurrence, key));
-
-        var execution = new OccurrenceExecution(key, commandName);
-        CommandResult result;
-        using (OccurrenceExecution.Begin(execution))
+        var correlationIdAccessor = services.GetRequiredService<ICorrelationIdAccessor>();
+        var previousCorrelationId = correlationIdAccessor.Current;
+        Action<CorrelationId> modifyCorrelationId = correlationIdAccessor is ICorrelationIdModifier modifier
+            ? modifier.Modify
+            : CorrelationIdAccessor.SetCurrent;
+        try
         {
-            var pipeline = services.GetRequiredService<ICommandPipeline>();
-            result = pipeline is ICommandPipelineWithCancellation cancellable
-                ? await cancellable.Execute(command, services, null, cancellationToken)
-                : await pipeline.Execute(command, services);
-        }
+            modifyCorrelationId(CorrelationId.New());
+            using var causation = services.GetService<ICausationManager>()?.BeginScope(OccurrenceCausation.Type, OccurrenceCausation.PropertiesFor(occurrence, key));
 
-        if (execution.AppendedImmediately)
+            var execution = new OccurrenceExecution(key, commandName);
+            CommandResult result;
+            using (OccurrenceExecution.Begin(execution))
+            {
+                var pipeline = services.GetRequiredService<ICommandPipeline>();
+                result = pipeline is ICommandPipelineWithCancellation cancellable
+                    ? await cancellable.Execute(command, services, null, cancellationToken)
+                    : await pipeline.Execute(command, services);
+            }
+
+            if (execution.AppendedImmediately)
+            {
+                throw new OccurrenceCommandAppendedImmediately(key.Value);
+            }
+
+            execution.ThrowIfRefused();
+            if (execution.Receipt is { } committed)
+            {
+                return Settled(committed, result);
+            }
+
+            return result.IsSuccess
+                ? await Succeeded(eventStore, key, commandName, execution, result)
+                : await Failed(eventStore, key, commandName, result);
+        }
+        finally
         {
-            throw new OccurrenceCommandAppendedImmediately(key.Value);
+            modifyCorrelationId(previousCorrelationId);
         }
-
-        execution.ThrowIfRefused();
-        if (execution.Receipt is { } committed)
-        {
-            return Settled(committed, result);
-        }
-
-        return result.IsSuccess
-            ? await Succeeded(eventStore, key, commandName, execution, result)
-            : await Failed(eventStore, key, commandName, result);
     }
 
     static OccurrenceCommandResult Stored(EffectReceipt receipt) =>

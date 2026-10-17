@@ -53,7 +53,6 @@ public class an_in_process_executor : Specification
         // Chronicle's raw testing log has no ambient manager; bind the transactional adapter to the command's unit.
         services.AddSingleton<ITransactionalEventSequence>(new TransactionalEventSequence(_store.EventLog, _store.UnitOfWorkManager));
         services.AddSingleton(_counter);
-        services.AddSingleton<ICorrelationIdModifier>(provider => (ICorrelationIdModifier)provider.GetRequiredService<ICorrelationIdAccessor>());
         services.AddSingleton<ICausationManager>(new CausationManager());
         services.AddSingleton<IOccurrenceCommandExecutor, OccurrenceCommandExecutor>();
         services.AddSingleton<IInstancesOf<ICommandExecutionScope>>(new KnownInstancesOf<ICommandExecutionScope>([new CommandCausationScope(), new TransactionalCommandScope()]));
@@ -80,6 +79,7 @@ public class an_in_process_executor : Specification
     public class InvocationCounter
     {
         public int Calls { get; set; }
+        public CorrelationId CorrelationId { get; set; } = CorrelationId.NotSet;
     }
 
     [Command]
@@ -88,6 +88,7 @@ public class an_in_process_executor : Specification
         public async Task<string> Handle(IEventLog log, ITransactionalEventSequence transactional, InvocationCounter counter, ICorrelationIdAccessor correlation)
         {
             counter.Calls++;
+            counter.CorrelationId = correlation.Current;
             if (Immediate)
             {
                 await log.Append("effect-source", new EffectHappened(Value), correlationId: correlation.Current);

@@ -17,12 +17,15 @@ public class when_the_command_commits_events : given.an_occurrence_command_execu
         _unitOfWork = NewUnit(2);
         _ambientCorrelation = CorrelationId.New();
         _correlation = _ambientCorrelation;
-        var ambient = Substitute.For<ICorrelationIdAccessor>();
+        var ambient = (ICorrelationIdAccessor)_correlationIdModifier;
         ambient.Current.Returns(_ambientCorrelation);
         _services.GetService(typeof(ICorrelationIdAccessor)).Returns(ambient);
-        _correlationIdModifier.When(_ => _.Modify(Arg.Any<CorrelationId>())).Do(_ => _correlation = _.Arg<CorrelationId>());
+        var current = _ambientCorrelation;
+        ambient.Current.Returns(_ => current);
+        _correlationIdModifier.When(_ => _.Modify(Arg.Any<CorrelationId>())).Do(_ => current = _.Arg<CorrelationId>());
         _duringExecution = async () =>
         {
+            _correlation = ambient.Current;
             OccurrenceExecution.Current!.Enroll(_unitOfWork);
             await _unitOfWork.Commit();
             OccurrenceExecution.Current!.Committed(_unitOfWork);
@@ -42,4 +45,5 @@ public class when_the_command_commits_events : given.an_occurrence_command_execu
     [Fact] void should_begin_an_occurrence_causation() => _causationManager.Received(1).BeginScope(OccurrenceCausation.Type, Arg.Is<IDictionary<string, string>>(_ => _["occurrenceId"] == "occurrence-1" && _["effectKey"] == _key.Value && _["attempt"] == "2" && _["epoch"] == "3" && _["kind"] == "Schedule"));
     [Fact] void should_run_as_the_system_without_roles() => _systemExecution.Received(1).AsSystem(Arg.Is<string[]>(_ => _.Length == 0));
     [Fact] void should_not_leave_the_execution_current() => OccurrenceExecution.Current.ShouldBeNull();
+    [Fact] void should_restore_the_previous_correlation_id() => ((ICorrelationIdAccessor)_correlationIdModifier).Current.ShouldEqual(_ambientCorrelation);
 }
