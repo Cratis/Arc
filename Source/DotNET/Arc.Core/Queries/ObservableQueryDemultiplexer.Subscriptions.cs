@@ -310,23 +310,8 @@ public partial class ObservableQueryDemultiplexer
         var ownedScope = queryResult.OwnedScope;
         try
         {
-            if (!queryResult.IsAuthorized)
+            if (!await AdmitQueryResult(queryResult, target, callbacks, token))
             {
-                logger.QueryUnauthorized(request.QueryName, queryId);
-                await callbacks.OnUnauthorized(queryId, token);
-                return null;
-            }
-
-            if (!queryResult.IsValid)
-            {
-                await SendValidationRejection(queryResult, callbacks, token);
-                return null;
-            }
-
-            if (!queryResult.IsSuccess)
-            {
-                var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
-                await callbacks.OnError(queryId, errorMsg, token);
                 return null;
             }
 
@@ -362,6 +347,35 @@ public partial class ObservableQueryDemultiplexer
         {
             ownedScope?.Dispose();
         }
+    }
+
+    async Task<bool> AdmitQueryResult(
+        QueryResult queryResult,
+        SubscriptionTarget target,
+        SubscriptionCallbacks callbacks,
+        CancellationToken token)
+    {
+        if (!queryResult.IsAuthorized)
+        {
+            logger.QueryUnauthorized(target.Request.QueryName, target.QueryId);
+            await callbacks.OnUnauthorized(target.QueryId, token);
+            return false;
+        }
+
+        if (!queryResult.IsValid)
+        {
+            await SendValidationRejection(queryResult, callbacks, token);
+            return false;
+        }
+
+        if (!queryResult.IsSuccess)
+        {
+            var errorMsg = string.Join("; ", queryResult.ExceptionMessages);
+            await callbacks.OnError(target.QueryId, errorMsg, token);
+            return false;
+        }
+
+        return true;
     }
 
     async Task DeliverSnapshot(
