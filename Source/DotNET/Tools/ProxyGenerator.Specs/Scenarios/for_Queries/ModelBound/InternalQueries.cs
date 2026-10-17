@@ -22,11 +22,11 @@ internal class InternalReadModel
     public string Data { get; set; } = string.Empty;
 
     /// <summary>
-    /// Internal query method.
+    /// Public query on an internal read model.
     /// </summary>
     /// <param name="id">The identifier to query.</param>
     /// <returns>The read model result.</returns>
-    internal static InternalReadModel GetInternalById(Guid id)
+    public static InternalReadModel GetInternalById(Guid id)
     {
         return new InternalReadModel { Id = id, Data = "Internal data" };
     }

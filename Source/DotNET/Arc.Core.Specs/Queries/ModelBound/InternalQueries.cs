@@ -7,7 +7,7 @@
 namespace Cratis.Arc.Queries.ModelBound;
 
 /// <summary>
-/// Internal read model class for testing internal query support.
+/// Internal read model class for testing public queries on internal types.
 /// </summary>
 [ReadModel]
 internal class InternalReadModel
@@ -15,7 +15,7 @@ internal class InternalReadModel
     public Guid Id { get; set; }
     public string Value { get; set; } = string.Empty;
 
-    internal static InternalReadModel Query(Guid id)
+    public static InternalReadModel Query(Guid id)
     {
         return new InternalReadModel { Id = id, Value = "Internal query result" };
     }
