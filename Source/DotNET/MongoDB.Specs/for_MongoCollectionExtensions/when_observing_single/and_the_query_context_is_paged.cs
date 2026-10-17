@@ -9,6 +9,16 @@ namespace Cratis.Arc.MongoDB.for_MongoCollectionExtensions.when_observing_single
 
 public class and_the_query_context_is_paged : given.an_observed_collection
 {
+    static readonly Dictionary<SingleObservation, Func<IMongoCollection<ObservedDocument>, ObservedDocument, ISubject<ObservedDocument>>> _observations = new()
+    {
+        [SingleObservation.Expression] = (collection, target) => collection.ObserveSingle(document => document.Id == target.Id),
+        [SingleObservation.Filter] = (collection, target) => collection.ObserveSingle(Builders<ObservedDocument>.Filter.Eq(document => document.Id, target.Id)),
+        [SingleObservation.ById] = (collection, target) => collection.ObserveById(target.Id),
+        [SingleObservation.ExpressionWithContext] = (collection, target) => collection.ObserveSingle(document => document.Id == target.Id, ignoreQueryContext: false),
+        [SingleObservation.FilterWithContext] = (collection, target) => collection.ObserveSingle(Builders<ObservedDocument>.Filter.Eq(document => document.Id, target.Id), ignoreQueryContext: false),
+        [SingleObservation.ByIdWithContext] = (collection, target) => collection.ObserveById(target.Id, ignoreQueryContext: false)
+    };
+
     ObservedDocument? _initial;
 
     void Establish()
@@ -23,91 +33,91 @@ public class and_the_query_context_is_paged : given.an_observed_collection
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_deliver_the_document_ignoring_paging(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_deliver_the_document_ignoring_paging(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         _initial.ShouldEqual(_documents[0]);
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_not_skip(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_not_skip(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         _primaryFindOptions.Skip.ShouldBeNull();
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_not_limit(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_not_limit(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         _primaryFindOptions.Limit.ShouldBeNull();
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_not_sort(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_not_sort(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         _primaryFindOptions.Sort.ShouldBeNull();
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_not_change_total_items_on_the_initial_query(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_not_change_total_items_on_the_initial_query(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         _queryContext.TotalItems.ShouldEqual(73);
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_report_removal_as_absent(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_report_removal_as_absent(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         (await RemoveObserved(emissions)).ShouldBeNull();
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_not_change_total_items_on_removal(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_not_change_total_items_on_removal(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         await RemoveObserved(emissions);
@@ -115,13 +125,13 @@ public class and_the_query_context_is_paged : given.an_observed_collection
     }
 
     [Theory]
-    [InlineData("expression")]
-    [InlineData("filter")]
-    [InlineData("by_id")]
-    [InlineData("expression_false")]
-    [InlineData("filter_false")]
-    [InlineData("by_id_false")]
-    public async Task should_not_count_documents(string overload)
+    [InlineData(SingleObservation.Expression)]
+    [InlineData(SingleObservation.Filter)]
+    [InlineData(SingleObservation.ById)]
+    [InlineData(SingleObservation.ExpressionWithContext)]
+    [InlineData(SingleObservation.FilterWithContext)]
+    [InlineData(SingleObservation.ByIdWithContext)]
+    public async Task should_not_count_documents(SingleObservation overload)
     {
         using var emissions = await ObserveInitial(overload);
         await RemoveObserved(emissions);
@@ -131,7 +141,7 @@ public class and_the_query_context_is_paged : given.an_observed_collection
             Arg.Any<CancellationToken>());
     }
 
-    async Task<EmissionSequence> ObserveInitial(string overload)
+    async Task<EmissionSequence> ObserveInitial(SingleObservation overload)
     {
         var emissions = RecordEmissions(Observe(overload, _documents[0]));
         _initialQueryGate.SetResult();
@@ -139,20 +149,7 @@ public class and_the_query_context_is_paged : given.an_observed_collection
         return emissions;
     }
 
-    ISubject<ObservedDocument> Observe(string overload, ObservedDocument target)
-    {
-        var filter = Builders<ObservedDocument>.Filter.Eq(document => document.Id, target.Id);
-
-        return overload switch
-        {
-            "expression" => _collection.ObserveSingle(document => document.Id == target.Id),
-            "filter" => _collection.ObserveSingle(filter),
-            "by_id" => _collection.ObserveById(target.Id),
-            "expression_false" => _collection.ObserveSingle(document => document.Id == target.Id, ignoreQueryContext: false),
-            "filter_false" => _collection.ObserveSingle(filter, ignoreQueryContext: false),
-            _ => _collection.ObserveById(target.Id, ignoreQueryContext: false)
-        };
-    }
+    ISubject<ObservedDocument> Observe(SingleObservation overload, ObservedDocument target) => _observations[overload](_collection, target);
 
     async Task<ObservedDocument?> RemoveObserved(EmissionSequence emissions)
     {
