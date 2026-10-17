@@ -30,7 +30,7 @@ internal static class DataAnnotationValidation
         }
 
         // Match TryValidateObject's stages: property failures suppress type rules, and type failures suppress
-        // IValidatableObject. TryValidateValue preserves Required's priority within each property's attributes.
+        // IValidatableObject. Property validation preserves Required's priority within each property's attributes.
         if (!ValidateProperties(instance, properties, results))
         {
             return results;
@@ -63,12 +63,33 @@ internal static class DataAnnotationValidation
         foreach (var property in properties.Where(property => property.Attributes.OfType<ValidationAttribute>().Any()))
         {
             var context = new ValidationContext(instance) { MemberName = property.Name };
-            isValid &= Validator.TryValidateValue(
-                UnwrapConcept(property.GetValue(instance)),
-                context,
-                results,
-                property.Attributes.OfType<ValidationAttribute>());
+            var value = property.GetValue(instance);
+            isValid &= property.PropertyType.IsConcept()
+                ? ValidateConceptProperty(value, property, context, results)
+                : Validator.TryValidateProperty(value, context, results);
         }
+
+        return isValid;
+    }
+
+    static bool ValidateConceptProperty(object? value, PropertyDescriptor property, ValidationContext context, List<SystemValidationResult> results)
+    {
+        var typeAttributes = TypeDescriptor.GetAttributes(property.PropertyType).Cast<Attribute>().ToArray();
+        var attributes = property.Attributes.OfType<ValidationAttribute>()
+            .Where(attribute => !typeAttributes.Any(typeAttribute => ReferenceEquals(attribute, typeAttribute)))
+            .ToArray();
+        var unwrapped = UnwrapConcept(value);
+        var required = attributes.OfType<RequiredAttribute>().FirstOrDefault();
+        if (required is not null && !Validator.TryValidateValue(unwrapped, context, results, [required]))
+        {
+            return false;
+        }
+
+        var isValid = Validator.TryValidateValue(
+            unwrapped, context, results, attributes.Where(attribute => attribute is not RequiredAttribute and not CompareAttribute));
+
+        // Compare reads the other property from ObjectInstance, so both operands must remain wrapped.
+        isValid &= Validator.TryValidateValue(value, context, results, attributes.OfType<CompareAttribute>());
 
         return isValid;
     }

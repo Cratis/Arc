@@ -1,0 +1,16 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+namespace Cratis.Arc.Commands.Filters.for_DataAnnotationValidationFilter.when_validating;
+
+public class with_equal_compared_strings_beside_a_concept : given.a_data_annotation_validation_filter
+{
+    CommandResult _result;
+
+    void Establish() => _context = new(_correlationId, typeof(WithComparedStrings), new WithComparedStrings(new("Valid"), "Same", "Same"), [], new());
+
+    async Task Because() => _result = await _filter.OnExecution(_context);
+
+    [Fact] void should_accept_equal_strings() => _result.IsSuccess.ShouldBeTrue();
+    [Fact] void should_not_report_validation_errors() => _result.ValidationResults.ShouldBeEmpty();
+}
