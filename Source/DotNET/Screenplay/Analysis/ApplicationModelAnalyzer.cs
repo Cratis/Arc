@@ -118,7 +118,7 @@ public class ApplicationModelAnalyzer(IUserInterfaceFiles userInterfaceFiles) : 
             EventProducerCounts = EventProducers.Across(ordered, slices, whole.Models)
         };
 
-        return new(DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics), diagnostics.All);
+        return new(UuidComparisonVersionAdmission.Apply(DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics), options.MaximumExecutableModelVersion, diagnostics), diagnostics.All);
     }
 
     /// <summary>

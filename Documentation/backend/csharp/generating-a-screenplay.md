@@ -485,7 +485,7 @@ Screenplay names a read by its alias, or by its view when it states none. The ge
 
 ### When Screenplay refuses a read
 
-Whether Screenplay admits a read is Screenplay's decision, so the generator asks the compiler instead of restating its rules. It emits the candidate reads with the preamble, binds the document, and maps every `PLAY0780` to `PLAY0785` diagnostic to the read it concerns. That read, and the requirements and mappings that depend on it, stay in code, and each is reported as Information `SP0079` with the PLAY code and its message. A refusal that cannot be attributed to a read, or a bad read path (`PLAY0784`, `PLAY0785`) with no other refusal behind it, is the generator being wrong rather than your source, and is reported as Error `SP0056`. The document is emitted again, and without the preamble when no read is left. A refusal of one read never affects another.
+Whether Screenplay admits a read is Screenplay's decision, so the generator asks the compiler instead of restating its rules. It emits the candidate reads with the preamble, binds the document, and maps every `PLAY0780` to `PLAY0785` diagnostic to the read it concerns. That read, and the requirements and mappings that depend on it, stay in code, and each is reported as Information `SP0079` with the PLAY code and its message. A refusal that cannot be attributed to a read, or a bad read path (`PLAY0784`, `PLAY0785`) with no other refusal behind it, is the generator being wrong rather than your source, and is reported as Error `SP0056`. The document is emitted again, and without the preamble when no read is left. A refusal of one read never affects another. For `PLAY0781` to `PLAY0785`, the compiler identifies the command and read through named, typed diagnostic arguments rather than message wording or source lines. Two refused reads in one command each receive their own report.
 
 Typical reasons are a view that never becomes absent (no `RemovedWith`), a view with joins, children or a payload key, a view without a keyed query, a command that also declares concurrency or routes, and a key that is not a string, concept over a string, or GUID. A candidate whose key the compiler cannot accept (for example an optional property) is refused the same way. A read that is refused is never emitted as an unguarded `reads`.
 
@@ -621,6 +621,22 @@ The generator reports unsupported comparisons with the property and reason inste
 These boundaries follow [Screenplay decision 0087](https://github.com/Cratis/Screenplay/blob/main/decisions/0087-admit-chronological-date-and-datetime-ordering-in-command-conditions.md). Client validators never carry date ordering; it is a server-side contract.
 
 Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V26` to withhold date comparisons in both default and authoring output. A located diagnostic names ESM v26 and the cap. As with other caps, the document then describes less behavior, not an equivalent implementation of the original command. Without date comparisons, a document keeps its existing executable version.
+
+### Uuid equality and ESM v28
+
+The generator reads `==` and `!=` between Uuid operands: a `Guid`, or a concept or `EventSourceId<Guid>` identity backed by one. A `produces when` guard can compare a required command property with another command property or a literal. Readable authoring-only `Provide()` guards can also compare a protected read path, such as `grant.Instance!.MemberId == RequestedBy`, in `require`. A literal on either side is moved to the right.
+
+Literals are printed in the canonical form, lowercase and hyphenated. The generator reads `Guid.Parse("...")`, `new Guid("...")`, `Guid.Empty` and a concept constructed from one of those, and rewrites any other spelling of the same value (uppercase, braces) to the canonical one. Both sides must be the same concept; a bare `Guid` can be compared with any Uuid concept.
+
+These are refused and left in code, with a located diagnostic naming the property and the reason:
+
+- Different concepts or identities on each side, such as a `MemberId` against a `PlantId`.
+- Ordering (`<`, `<=`, `>`, `>=`).
+- Optional operands, including an optional read-model property behind a read path.
+- Generated or computed values such as `Guid.NewGuid()`, and literals that are not a constant valid Guid string.
+- Comparing a Uuid with a value of another type.
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V28` to withhold Uuid comparisons in both default and authoring output. A located diagnostic names ESM v28 and the cap. Without Uuid comparisons, a document keeps its existing executable version. The rules follow [Screenplay decision 0090](https://github.com/Cratis/Screenplay/blob/main/decisions/0090-admit-uuid-equality-in-command-conditions.md).
 
 ## Constraints
 
