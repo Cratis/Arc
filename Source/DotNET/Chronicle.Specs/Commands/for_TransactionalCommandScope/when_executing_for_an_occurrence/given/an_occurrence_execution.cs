@@ -47,7 +47,12 @@ public class an_occurrence_execution : Specification
 
     protected void BeginExecution() => _executionScope = OccurrenceExecution.Begin(_execution);
 
-    void Destroy() => _executionScope?.Dispose();
+    void Destroy()
+    {
+        _executionScope?.Dispose();
+        _store.Dispose();
+        CommandTransaction.Current = null;
+    }
 
     protected static void AddEvent() =>
         CommandTransaction.Current!.AddEvent(EventSequenceId.Log, "source", new ScopedEffectHappened(1), Cratis.Chronicle.Auditing.Causation.Unknown());
