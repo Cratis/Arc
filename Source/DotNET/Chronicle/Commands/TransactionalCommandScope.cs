@@ -127,7 +127,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
                 // Read regions never cross a command boundary: a nested On command does not inherit an advisory region
                 // opened by its caller's body or by an enclosing command that does not enable read protection.
                 frame.ReadAllowance = readProtected
-                    ? ReadRegions.SuspendInherited()
+                    ? inheritedUnit.SuspendReadRegions()
                     : inheritedUnit.AllowReads(ReadAllowance.Advisory, "Nested command does not enable read protection");
             }
             RegisterEnrollmentContributor(context, frame, inheritedUnit);
