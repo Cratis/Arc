@@ -3,6 +3,7 @@
 
 using Cratis.Arc;
 using Cratis.Arc.Authorization;
+using Cratis.Arc.Http;
 using Cratis.Arc.Queries.ControllerBased;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -83,6 +84,7 @@ public static class WebApplicationBuilderExtensions
 
         builder.Services.AddCratisArcCore();
         builder.Services.Replace(ServiceDescriptor.Singleton<IAuthorizationPolicyRuntime, AspNetAuthorizationPolicyRuntime>());
+        builder.Services.Replace(ServiceDescriptor.Transient<IEndpointFallbackAuthorization, AspNetCoreEndpointFallbackAuthorization>());
         builder.Services.AddHostedService<AuthorizationStartupValidation>();
         builder.Services.AddIdentityProvider();
         OperationHttpContextAccessorRegistration.Add(builder.Services);

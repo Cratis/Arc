@@ -148,7 +148,8 @@ public partial class ObservableQueryDemultiplexer
             request.IsFirstEmission,
             token)
         {
-            SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot
+            SubscriptionScopeSnapshot = identity.SubscriptionScopeSnapshot,
+            IsSnapshot = request.IsSnapshot
         });
 
         token.ThrowIfCancellationRequested();
@@ -286,7 +287,8 @@ public partial class ObservableQueryDemultiplexer
         ObservableQuerySubscriptionIdentity Identity,
         CorrelationId CorrelationId,
         IServiceProvider? ServiceProvider,
-        bool IsFirstEmission);
+        bool IsFirstEmission,
+        bool IsSnapshot = false);
 
     readonly record struct EmissionChanges(ChangeSet? ChangeSet, bool HasStableIdentity, bool SendSnapshot, bool IsFirstEmission);
 

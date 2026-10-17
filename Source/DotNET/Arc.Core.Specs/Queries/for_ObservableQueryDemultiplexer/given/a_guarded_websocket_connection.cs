@@ -40,7 +40,7 @@ public class a_guarded_websocket_connection : a_guarded_connection
 
         _context = Substitute.For<IHttpRequestContext>();
         _context.RequestAborted.Returns(CancellationToken.None);
-        _context.RequestServices.Returns(Substitute.For<IServiceProvider>());
+        _context.RequestServices.Returns(_guardedServiceProvider);
         _context.User.Returns(_principal);
 
         var webSocketContext = Substitute.For<IWebSocketContext>();
