@@ -163,6 +163,10 @@ if (check.IsSuccess)
 
 `Validate` also has a scope-explicit overload and [severity thresholds](./validation-severity-filtering.md). It skips `Provide()`, `Handle()`, response processing, and execution scopes, but still runs context providers and command filters. It is not a guarantee that collaborators are side-effect free or that the later execution will succeed. See [pre-flight validation](./command-validation.md).
 
+## Commands without a request
+
+Commands triggered by a Chronicle occurrence — a schedule, startup, shutdown or clock automation — are not run through `ICommandPipeline` directly. Use `IOccurrenceCommandExecutor` from `Cratis.Arc.Chronicle`, which keys the execution by occurrence and effect name and makes it retry-safe. See [Commands for occurrences](../chronicle/commands/occurrence-commands.md).
+
 ## Context and authentication
 
 The current correlation context is used when available. Authorization uses the HTTP request principal when a request exists; otherwise it uses an explicitly established server-side principal. For trusted background execution, see [server-side authorization scopes](./model-bound/authorization.md#executing-commands-from-server-side-code). Do not assume a background command is automatically authorized or that a fresh DI scope creates a tenant or user identity.

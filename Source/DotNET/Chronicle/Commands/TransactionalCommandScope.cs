@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Arc.Chronicle.Occurrences;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
@@ -230,6 +231,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <exception cref="NestedEarlyCompletionUnderReadProtection">A nested command attempted to complete its parent's unit.</exception>
     internal static async Task<bool> CommitAggregate(IUnitOfWork unit)
     {
+        OccurrenceExecution.RefuseEarlyCommit();
         var frame = ActiveFrame();
         var ownsUnit = frame is not null && ReferenceEquals(frame.UnitOfWork, unit);
         if (ownsUnit && frame!.Owned is null && frame.Previous is { } parent && (frame.Protection is not null || frame.ReadProtected))
@@ -293,6 +295,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>Whether an active execution frame accepted the completion.</returns>
     internal static bool EnrollCompletion(CommandContext context, PendingStreamCompletion completion)
     {
+        OccurrenceExecution.RefuseStreamCompletion();
         var frame = ActiveFrame();
         if (frame is null || !ReferenceEquals(frame.Values, context.Values))
         {
@@ -350,6 +353,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
         var unitOfWork = owned.UnitOfWork;
         var observation = owned.Observation;
+
+        // Fail-loud backstop only: this notification arrives after an immediate append committed without a receipt.
+        // Up-front refusal needs Chronicle's append admission guard; detection cannot make those events retry-safe.
+        if (OccurrenceExecution.Current is { } occurrenceExecution && observation.ImmediateCommitted)
+        {
+            occurrenceExecution.RecordImmediateAppend();
+            result.MergeWith(CommandResult.Error(context.CorrelationId, "The command appended events outside its unit of work while executing for an occurrence."));
+        }
 
         // IsCompleted also means rollback or a commit that threw. Never interpret it as authoritative commitment.
         if (unitOfWork.IsCompleted && !observation.CompletionObserved)
@@ -425,6 +436,8 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         using var measurementCommit = ReadProtectionMeasurement.Committing();
         var unit = owned.UnitOfWork;
         var hasEvents = unit.GetEvents().Any();
+        var occurrenceExecution = OccurrenceExecution.Current;
+        occurrenceExecution?.Enroll(unit);
         owned.Observation.Disposition = CommandCommitDisposition.Unknown;
         if (owned.Owner is not null)
         {
@@ -438,6 +451,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             }
             await unit.Commit();
         }
+        occurrenceExecution?.Committed(unit);
         owned.Observation.CompletionObserved = true;
         owned.Observation.Disposition = unit.GetAppendErrors().Any()
             ? CommandCommitDisposition.Unknown
