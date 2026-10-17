@@ -225,3 +225,4 @@ Return `CompleteStream` from `Cratis.Arc.Chronicle.Streams` (or `Task<CompleteSt
 - [Commands](../commands/index.md)
 - [Chronicle reactors](/chronicle/reactors/)
 - [Transactional commands](../commands/transactional-commands.md)
+- [Commands for occurrences](../commands/occurrence-commands.md) — retry-safe commands for timers, startup and shutdown, which are not reactor side effects

@@ -68,6 +68,11 @@ public class AggregateRootContext(
     public bool HasEvents { get; set; } = nextSequenceNumber != EventSequenceNumber.First;
 
     /// <summary>
+    /// Gets the registered event types used to validate aggregate mutations.
+    /// </summary>
+    internal IEventTypes? EventTypes { get; init; }
+
+    /// <summary>
     /// Gets the invocation registry retained by the aggregate's mutation.
     /// </summary>
     internal FreshIdentifierScopes? FreshIdentifiers { get; init; }

@@ -54,7 +54,10 @@ public class AggregateRootMutation(
     /// <inheritdoc/>
     public async Task Apply(object @event)
     {
-        @event.GetType().ValidateEventType();
+        if ((aggregateRootContext as AggregateRootContext)?.EventTypes?.HasFor(@event.GetType()) == false)
+        {
+            throw new TypeIsNotAnEventType(@event.GetType());
+        }
         var causation = new Causation(DateTimeOffset.Now, CausationType, new Dictionary<string, string>
         {
             { AggregateRootCausationTypeProperty, aggregateRootContext.AggregateRoot.GetType().AssemblyQualifiedName! },

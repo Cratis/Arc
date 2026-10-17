@@ -94,6 +94,7 @@ public class AggregateRootFactory(
             // sequence number would accept a concurrent writer's own first event, which sits at that very number.
             EventSequenceNumber.BeforeFirst)
         {
+            EventTypes = eventStore.EventTypes,
             FreshIdentifiers = freshness,
             EventSource = routing?.EventSource,
             EventStream = routing?.EventStream
