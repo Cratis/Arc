@@ -155,7 +155,7 @@ public class QueryMetadataGenerator : IIncrementalGenerator
 
         return new AnnotatedReadModel(
             new ReadModelInfo(typeSymbol.ToDisplayString(), queryMethods.ConvertAll(method => method.Name)),
-            string.Join("\n", queryMethods.Select(method => DataAnnotationMemberTypes.ForQuery(typeSymbol, method)).Where(registration => registration.Length > 0)));
+            string.Join("\n", queryMethods.Select(method => DataAnnotationMemberTypes.ForQuery(typeSymbol, method, context.SemanticModel.Compilation)).Where(registration => registration.Length > 0)));
     }
 
     static bool HasReadModelAttribute(INamedTypeSymbol typeSymbol) =>

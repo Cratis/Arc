@@ -38,5 +38,5 @@ public class when_the_base_type_is_from_another_assembly : Specification
     [Fact] void should_compile_without_generated_warnings() => _diagnostics.ShouldBeEmpty();
     [Fact] void should_register_the_derived_type() => _source.ShouldContain("DataAnnotationMembers.Register(typeof(global::Submit)");
     [Fact] void should_read_the_inherited_property() => _source.ShouldContain("((global::Submit)instance).@Label");
-    [Fact] void should_reflect_the_inherited_attributes() => _source.ShouldContain("typeof(global::Submit).GetProperty(\"Label\")");
+    [Fact] void should_reflect_the_inherited_attributes() => _source.ShouldContain("typeof(global::Library.Parent).GetProperty(\"Label\", global::System.Reflection.BindingFlags.Public | global::System.Reflection.BindingFlags.Instance | global::System.Reflection.BindingFlags.DeclaredOnly)");
 }
