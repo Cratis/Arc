@@ -11,7 +11,7 @@ public class and_the_command_appended_immediately : given.an_occurrence_executio
     {
         BeginExecution();
         _scope.Begin(_context);
-        await _store.EventLog.Append("immediate-source", new SomethingHappened(1));
+        await _store.EventLog.Append("immediate-source", new ScopedEffectHappened(1));
         AddEvent();
         _result = CommandResult.Success(_correlationId);
         await _scope.Complete(_context, _result);

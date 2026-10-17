@@ -83,7 +83,7 @@ public class an_occurrence_command_executor : Specification
 
     protected void CreateExecutor()
     {
-        _store = new EventStoreForTesting(null, new InMemoryClientArtifactsProvider { EventTypes = [typeof(SomethingHappened)] }, new ChronicleOptions(), new ScenarioTime(), _capabilities);
+        _store = new EventStoreForTesting(null, new InMemoryClientArtifactsProvider { EventTypes = [typeof(OccurrenceEffectHappened)] }, new ChronicleOptions(), new ScenarioTime(), _capabilities);
         _eventStore = _store;
         _occurrence = WithNamespace(_occurrence, _occurrenceNamespace ?? _store.Namespace);
         _key = _occurrence.EffectKey("send-reminder");
@@ -105,7 +105,7 @@ public class an_occurrence_command_executor : Specification
         var unit = _store.UnitOfWorkManager.Begin(CorrelationId.New());
         for (var index = 0; index < events; index++)
         {
-            unit.AddEvent(EventSequenceId.Log, $"source-{index}", new SomethingHappened(index), Causation.Unknown());
+            unit.AddEvent(EventSequenceId.Log, $"source-{index}", new OccurrenceEffectHappened(index), Causation.Unknown());
         }
 
         return unit;
@@ -114,5 +114,5 @@ public class an_occurrence_command_executor : Specification
     protected class SomeCommand;
 
     [EventType]
-    protected record SomethingHappened(int Number);
+    protected record OccurrenceEffectHappened(int Number);
 }

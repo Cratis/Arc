@@ -34,7 +34,7 @@ public class an_occurrence_execution : Specification
         _correlationId = CorrelationId.New();
         var capabilities = new KernelCapabilitiesForTesting();
         capabilities.Current();
-        _store = new EventStoreForTesting(null, new InMemoryClientArtifactsProvider { EventTypes = [typeof(SomethingHappened)] }, new ChronicleOptions(), new ScenarioTime(), capabilities);
+        _store = new EventStoreForTesting(null, new InMemoryClientArtifactsProvider { EventTypes = [typeof(ScopedEffectHappened)] }, new ChronicleOptions(), new ScenarioTime(), capabilities);
         var services = new ServiceCollection();
         services.AddSingleton<IUnitOfWorkManager>(_store.UnitOfWorkManager);
         services.AddSingleton<IEventLog>(_store.EventLog);
@@ -50,10 +50,10 @@ public class an_occurrence_execution : Specification
     void Destroy() => _executionScope?.Dispose();
 
     protected static void AddEvent() =>
-        CommandTransaction.Current!.AddEvent(EventSequenceId.Log, "source", new SomethingHappened(1), Cratis.Chronicle.Auditing.Causation.Unknown());
+        CommandTransaction.Current!.AddEvent(EventSequenceId.Log, "source", new ScopedEffectHappened(1), Cratis.Chronicle.Auditing.Causation.Unknown());
 
     protected class SomeCommand;
 
     [EventType]
-    protected record SomethingHappened(int Number);
+    protected record ScopedEffectHappened(int Number);
 }
