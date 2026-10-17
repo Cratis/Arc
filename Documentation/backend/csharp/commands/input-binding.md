@@ -52,7 +52,7 @@ public record TimeWindow(
     [property: ExplicitOffset] DateTimeOffset To);
 ```
 
-Use the `property:` target on positional records. The attribute accepts properties and fields, not method or constructor parameters. It supports `DateTimeOffset`, `DateTime`, and their nullable forms; an unsupported type raises `ExplicitOffsetRequiresDateTimeOrDateTimeOffset` when JSON metadata is resolved.
+Use the `property:` target on positional records. The attribute accepts properties and fields, not method or constructor parameters. It supports `DateTimeOffset`, `DateTime`, their nullable forms, and concepts derived from `ConceptAs<DateTimeOffset>` or `ConceptAs<DateTime>` (including nullable concept references). Concept binding uses the concept converter configured by `ConfigureArcDefaults()`. `DateOnly` and concepts wrapping it are unsupported because calendar dates have no offset. An unsupported type raises `ExplicitOffsetRequiresDateTimeOrDateTimeOffset` when JSON metadata is resolved.
 
 Accepted strings use an uppercase `T`, hours and minutes, optional seconds with up to seven fractional digits, and either an offset such as `+02:00` or uppercase `Z`:
 
@@ -60,9 +60,9 @@ Accepted strings use an uppercase `T`, hours and minutes, optional seconds with 
 - `2026-10-16T10:30Z`
 - `2026-10-16T12:30:00.1234567+02:00`
 
-Date-only text, missing offsets, lowercase `t`/`z`, and more than seven fractional digits are refused. Wrong token types and null for a non-nullable property produce generic malformed-request results. Nullable properties accept JSON null.
+Date-only text, missing offsets, lowercase `t`/`z`, and more than seven fractional digits are refused. Wrong token types and null for a non-nullable date-time value type produce generic malformed-request results. Nullable date-time properties and nullable concept references accept JSON null.
 
-`DateTimeOffset` keeps its supplied offset and tick precision; its comparisons already compare instants. `DateTime` becomes UTC with `Kind == Utc`. Writing uses the normal JSON date-time string representation. This does not add date-ordering rules: use server validation for the comparison. Generated clients serialize JavaScript `Date` values with `toISOString()` (including `Z`), but JavaScript retains only milliseconds; [date ordering stays server-side](../proxy-generation/validation.md#fluentvalidation-rule-reference), with no client clock rule.
+`DateTimeOffset` keeps its supplied offset and tick precision; its comparisons already compare instants. `DateTime` becomes UTC with `Kind == Utc`. Concepts wrapping these types follow the same rules and serialize as date-time strings, not objects containing a `value` property. Writing uses the normal JSON date-time string representation. This does not add date-ordering rules: use server validation for the comparison. Generated clients serialize JavaScript `Date` values with `toISOString()` (including `Z`), but JavaScript retains only milliseconds; [date ordering stays server-side](../proxy-generation/validation.md#fluentvalidation-rule-reference), with no client clock rule.
 
 The marker applies to JSON-bound properties, including nested collection elements. It does not change query-string or route-scalar binding, and unmarked properties keep their existing wire behavior. System.Text.Json source-generated metadata does not support derived `JsonConverterAttribute` attributes; use reflection-based metadata for these properties rather than assuming an application-supplied JSON context honors the marker.
 

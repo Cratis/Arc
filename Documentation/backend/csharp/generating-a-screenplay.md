@@ -605,17 +605,18 @@ Predicates without a portable implementation file, inline lambdas, and unsupport
 
 ### Date comparisons and ESM v26
 
-The generator reads chronological `==`, `!=`, `<`, `<=`, `>` and `>=` comparisons on `DateOnly` (`Date`) and `DateTime`/`DateTimeOffset` (`DateTime`) command properties. A `produces when` guard can compare two required command properties or a required property and a literal. Readable authoring-only `Provide()` guards can use the same comparisons in `require`.
+The generator reads chronological `==`, `!=`, `<`, `<=`, `>` and `>=` comparisons on `DateOnly` (`Date`) and `DateTime`/`DateTimeOffset` (`DateTime`) command properties, including concepts wrapping those types. Concept properties retain their concept names; comparisons use their backing primitives, which must match on both sides (`Date` with `Date`, `DateTime` with `DateTime`). A `produces when` guard can compare two required command properties or a required property and a literal. Readable authoring-only `Provide()` guards can use the same comparisons in `require`.
 
 Command property validators support `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanOrEqualTo`, `LessThan` and `LessThanOrEqualTo` against **literals only**. Nullable validation subjects are supported: an absent value passes these rules unless a separate `NotEmpty` rule rejects it. Optional operands in command conditions remain unsupported.
 
-Literal recovery accepts `DateOnly.Parse`, `DateTime.Parse` and `DateTimeOffset.Parse` with constant text and `CultureInfo.InvariantCulture`, and `new DateOnly(year, month, day)` with constant arguments. Dates print as `yyyy-MM-dd`. Instants must include an explicit offset or `Z`; they print in UTC with seven fractional digits, for example `2026-01-01T00:00:00.1234567Z`. Comparisons retain tick precision rather than truncating to milliseconds. Compared `DateTime` command inputs must also be bound with an explicit offset or `Z`, before deserialization can supply a local offset.
+Literal recovery accepts `DateOnly.Parse`, `DateTime.Parse` and `DateTimeOffset.Parse` with constant text and `CultureInfo.InvariantCulture`, and `new DateOnly(year, month, day)` with constant arguments. A concept literal can wrap one of these forms with `new ReservationDate(...)`, where the constructor forwards the primitive unchanged, or receive the primitive through an implicit conversion. Dates print as `yyyy-MM-dd`. Instants must include an explicit offset or `Z`; they print in UTC with seven fractional digits, for example `2026-01-01T00:00:00.1234567Z`. Comparisons retain tick precision rather than truncating to milliseconds. Compared `DateTime` command inputs must also be bound with an explicit offset or `Z`, before deserialization can supply a local offset.
 
 The generator reports unsupported comparisons with the property and reason instead of emitting a condition or rule the compiler cannot bind:
 
 - Mixed `Date` and `DateTime` operands, invalid dates, and instant literals without an offset.
 - Clock expressions such as `DateTime.Now`, `DateTimeOffset.UtcNow` and `DateOnly.FromDateTime(DateTime.Today)`.
-- Date rules in `ConceptValidator<T>`, which would also affect query inputs and client validation.
+- Date rules in `ConceptValidator<T>`, which would also affect query inputs and client validation. A command validator may compare a concept-typed property against a literal; this does not admit concept-level rules.
+- Dotted concept paths such as `End.Value`; compare the concept property itself.
 - Property-to-property date validation rules, protected read paths, context operands, and date ordering in reaction `where`.
 
 These boundaries follow [Screenplay decision 0087](https://github.com/Cratis/Screenplay/blob/main/decisions/0087-admit-chronological-date-and-datetime-ordering-in-command-conditions.md). Client validators never carry date ordering; it is a server-side contract.

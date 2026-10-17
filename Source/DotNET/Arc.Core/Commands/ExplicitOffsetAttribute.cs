@@ -21,6 +21,13 @@ public sealed class ExplicitOffsetAttribute : JsonConverterAttribute
         _ when typeToConvert == typeof(DateTimeOffset?) => new ExplicitOffsetNullableDateTimeOffsetConverter(),
         _ when typeToConvert == typeof(DateTime) => new ExplicitOffsetDateTimeConverter(),
         _ when typeToConvert == typeof(DateTime?) => new ExplicitOffsetNullableDateTimeConverter(),
+        _ => ConceptConverter(typeToConvert)
+    };
+
+    static JsonConverter ConceptConverter(Type typeToConvert) => typeToConvert switch
+    {
+        _ when typeof(ConceptAs<DateTimeOffset>).IsAssignableFrom(typeToConvert) => new ExplicitOffsetConceptConverter<DateTimeOffset>(typeToConvert),
+        _ when typeof(ConceptAs<DateTime>).IsAssignableFrom(typeToConvert) => new ExplicitOffsetConceptConverter<DateTime>(typeToConvert),
         _ => throw new ExplicitOffsetRequiresDateTimeOrDateTimeOffset(typeToConvert)
     };
 }
