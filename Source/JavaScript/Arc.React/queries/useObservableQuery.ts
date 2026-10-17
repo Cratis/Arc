@@ -20,6 +20,7 @@ import { QueryInstanceCacheContext } from './QueryInstanceCacheContext.js';
 import { serializeArgsForDependency } from './serializeArgsForDependency.js';
 import { useQueryScope } from './useQueryScope.js';
 import { buildQueryKey } from './buildQueryKey.js';
+import { useResultForKey } from './useResultForKey.js';
 
 /**
  * Applies a server-provided {@link ChangeSet} to a snapshot array, producing the new state.
@@ -212,7 +213,7 @@ function useObservableQueryInternal<
 
         const typeName =
             (freshInstance as { queryName?: string }).queryName ?? query.name;
-        const key = buildQueryKey(queryCache, typeName, args as object | undefined, currentPaging, currentSorting);
+        const key = buildQueryKey(queryCache, typeName, args as object | undefined, { paging: currentPaging, sorting: currentSorting });
         const { instance } = queryCache.getOrCreate(key, () => freshInstance);
 
         return [instance as TQuery, key] as const;
@@ -228,14 +229,7 @@ function useObservableQueryInternal<
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
-        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue),
-    );
-    const [resultKey, setResultKey] = useState(cacheKey);
-    if (resultKey !== cacheKey) {
-        setResultKey(cacheKey);
-        setResult(cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue));
-    }
+    const [result, setResult] = useResultForKey<TDataType>(cacheKey, cachedResult, queryInstance.defaultValue, cached => cached);
 
     // Stable listener ref so we can add/remove the same function reference.
     const listenerRef = useRef<(r: QueryResultWithState<TDataType>) => void>();

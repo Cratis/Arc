@@ -15,6 +15,7 @@ import { useQueryScope } from './useQueryScope.js';
 import type { InFlightRequest } from './InFlightRequest.js';
 import { type QueryExecution, startQueryExecution } from './QueryExecution.js';
 import { buildQueryKey } from './buildQueryKey.js';
+import { useResultForKey } from './useResultForKey.js';
 
 /**
  * Delegate type for performing a {@link IQueryFor} in the context of the {@link useQuery} hook.
@@ -131,7 +132,7 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
         freshInstance.setHttpHeadersCallback(arc.httpHeadersCallback ?? (() => ({})));
 
         const typeName = (freshInstance as { queryName?: string }).queryName ?? query.name;
-        const key = buildQueryKey(queryCache, typeName, args as object | undefined, currentPaging, currentSorting);
+        const key = buildQueryKey(queryCache, typeName, args as object | undefined, { paging: currentPaging, sorting: currentSorting });
 
         const { instance } = queryCache.getOrCreate(key, () => freshInstance);
 
@@ -143,16 +144,11 @@ function useQueryInternal<TDataType, TQuery extends IQueryFor<TDataType>, TArgum
 
     const cachedResult = queryCache.getLastResult<TDataType>(cacheKey);
 
-    const [result, setResult] = useState<QueryResultWithState<TDataType>>(
-        cachedResult ?? QueryResultWithState.initial(queryInstance.defaultValue)
-    );
-    const [resultKey, setResultKey] = useState(cacheKey);
-    if (resultKey !== cacheKey) {
-        setResultKey(cacheKey);
-        setResult(cachedResult
-            ? QueryResultWithState.fromQueryResult(cachedResult, isEnabled !== false)
-            : QueryResultWithState.initial(queryInstance.defaultValue));
-    }
+    const [result, setResult] = useResultForKey<TDataType>(
+        cacheKey,
+        cachedResult,
+        queryInstance.defaultValue,
+        cached => QueryResultWithState.fromQueryResult(cached, isEnabled !== false));
 
     const queryExecutor = (async (requestArgs?: TArguments) => {
         if (queryInstance) {
