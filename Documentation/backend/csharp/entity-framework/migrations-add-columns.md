@@ -26,6 +26,8 @@ The following methods extend `MigrationBuilder`. Import `Cratis.Arc.EntityFramew
 
 Geometry helpers select `geometry(Point, 4326)`, `geometry(LineString, 4326)`, or `geometry(Polygon, 4326)` on PostgreSQL; `geography` on SQL Server; and `TEXT` on SQLite. They do not install spatial provider mappings or make plain JSON string converters compatible with native spatial columns. See the [storage-path matrix](./point-conversion.md#choose-one-storage-path).
 
+On PostgreSQL, `AddJsonColumn<T>()` selects `jsonb` and adds a JSON CHECK constraint and a GIN index using `jsonb_path_ops`. The column, constraint, and index are emitted as separate, terminated commands. The index uses a `::jsonb` expression, so an explicitly overridden `text` or `json` store type also works. Generated constraint and index names are quoted; names exceeding PostgreSQL's 63-byte identifier limit are shortened with a stable hash suffix.
+
 Adding non-nullable columns to populated tables may require a default or a staged backfill. Verify the generated SQL, model compatibility, permissions, and provider restrictions before applying any migration.
 
 ## Database-Specific Type Mappings
