@@ -8,9 +8,9 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_generating;
 
 public class from_unproven_generated_concept_rules : a_validated_generation
 {
-    void Because() => Generate((Analyzed.SlicePath, ValidatedSource("GenerateValue.NanoId(64, \"ab\")", "RuleFor(value => value.Value).Matches(\"^(?!a{63}b$)[ab]{64}$\");")));
+    void Because() => Generate((Analyzed.SlicePath, ValidatedSource("GenerateValue.NanoId(64, \"ab\")", "RuleFor(value => value.Value).Matches(\"^(aa|bb|ab|ba){32}$\");")));
 
-    [Fact] void should_keep_the_nonopaque_rule() => Result.Source.ShouldContain("matches \"^(?!a{63}b$)[ab]{64}$\"");
+    [Fact] void should_keep_the_nonopaque_rule() => Result.Source.ShouldContain("matches \"^(aa|bb|ab|ba){32}$\"");
     [Fact] void should_keep_generation() => Result.Source.ShouldContain("receipt AuthorId generated");
     [Fact] void should_select_v20() => Bound.Value!.Model.SemanticVersion.ShouldEqual(SemanticVersion.V20);
     [Fact] void should_surface_the_language_warning_as_information() => Result.Diagnostics.Single(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnprovenGeneratedConceptRule).Severity.ShouldEqual(ScreenplayDiagnosticSeverity.Information);

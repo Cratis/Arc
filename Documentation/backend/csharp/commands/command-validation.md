@@ -41,7 +41,7 @@ Validators can still resolve dependencies and read services. Context providers, 
 
 Arc adds `/validate` alongside a model-bound command's execute route. For example, **if the mapped execute route is** `/api/carts/add-item-to-cart`, validation is `POST /api/carts/add-item-to-cart/validate` with the same command payload. The base route depends on namespace/path configuration; it is not inferred from this example URL.
 
-Both endpoints use model-bound command filters. Validation does not run business decisions that exist only in `Provide()`, `Handle()`, or a service invoked by them.
+Successfully bound bodies use model-bound command filters on both endpoints. If binding fails, both endpoints check authentication, roles, and explicitly resource-free policies before returning `malformedRequest` with the failing member when available. Resource-dependent policies and authorization command filters need an instance and do not run on that path; see [command input binding](./input-binding.md). Validation does not run business decisions that exist only in `Provide()`, `Handle()`, or a service invoked by them.
 
 ## Controller-based commands
 

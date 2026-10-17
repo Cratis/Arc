@@ -79,6 +79,20 @@ public class AuthorizationEvaluation(
             QueryContext { PreparedAuthorization: { } queryPlan } => queryPlan,
             _ => await Prepare(target, services, cancellationToken)
         };
+        var request = new PreparedAuthorizationRequest(target, resource, services, legacyVerdict ?? (() => LegacyVerdict(target, legacyEvaluator)), prepared);
+        return await IsAuthorizedPrepared(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Evaluates a prepared authorization plan for a bound or explicitly resource-free operation.
+    /// </summary>
+    /// <param name="request">The <see cref="PreparedAuthorizationRequest"/> to evaluate.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>The combined verdict.</returns>
+    /// <exception cref="InvalidAuthorizationConfiguration">The prepared target or requirements changed.</exception>
+    internal async Task<bool> IsAuthorizedPrepared(PreparedAuthorizationRequest request, CancellationToken cancellationToken)
+    {
+        var (target, resource, services, legacyVerdict, prepared) = request;
         if (!prepared.Target.Equals(target))
         {
             throw new InvalidAuthorizationConfiguration("The prepared authorization target does not match the executing command.");
@@ -94,7 +108,7 @@ public class AuthorizationEvaluation(
         var selectedPrincipal = prepared.SelectedPrincipal;
         var resolution = prepared.Resolution;
         cancellationToken.ThrowIfCancellationRequested();
-        if (!AuthorizationEvaluator.CheckRoles(declaration, selectedPrincipal, prepared.EvaluatesAnonymous))
+        if (!MeetsTypeRequirements(prepared))
         {
             return false;
         }
@@ -125,23 +139,16 @@ public class AuthorizationEvaluation(
             // the ambient unauthenticated caller, but cannot certify an authenticated execution identity.
             policyIdentity = AuthorizationPrincipalIdentity.Capture(selectedPrincipal);
             executionIdentity = AuthorizationPrincipalIdentity.Capture(executionPrincipal);
-            if ((!needsSelectedScope && !guest && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal)) ||
-                (guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) ||
-                           AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal))))
+            if (PolicyInputDiffers(needsSelectedScope || guest, policyIdentity, executionPrincipal) || GuestConflicts(guest, selectedPrincipal, executionPrincipal))
             {
                 return false;
             }
 
             if (!await resolution.IsAuthorized(
-                new AuthorizationPolicyContext(selectedPrincipal, target, resource)
+                new AuthorizationPolicyContext(selectedPrincipal, target, resource!)
                 {
                     PrincipalAccessor = principalAccessor,
-                    ReceivedAt = resource switch
-                    {
-                        CommandContext commandContext when commandContext.ReceivedAt != default => commandContext.ReceivedAt,
-                        QueryContext queryReceiptContext when queryReceiptContext.ReceivedAt != default => queryReceiptContext.ReceivedAt,
-                        _ => OperationContextScope.Current ?? (services.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
-                    }
+                    ReceivedAt = ReceivedAtFor(resource, services)
                 },
                 services,
                 cancellationToken))
@@ -164,13 +171,7 @@ public class AuthorizationEvaluation(
             : null;
 
         // A performer's captured verdict replaces the dispatcher fallback; neither can bypass declared requirements.
-        var allowed = legacyVerdict?.Invoke() ?? target switch
-        {
-            Type type => legacyEvaluator.IsAuthorized(type),
-            MethodInfo method => legacyEvaluator.IsAuthorized(method),
-            _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
-        };
-        if (!allowed)
+        if (!legacyVerdict())
         {
             return false;
         }
@@ -182,12 +183,53 @@ public class AuthorizationEvaluation(
             return false;
         }
 
-        var identity = principalChanged
-            ? new ClaimsPrincipal(selectedPrincipal!.Identities.Select(claimsIdentity => claimsIdentity.Clone()))
-            : null;
-        var authorizedExecution = declaration.RequiresAsynchronousEvaluation
-            ? new AuthorizedExecution(target, executionIdentity!, declaration, guest)
-            : null;
+        PublishAuthorizedExecution(resource, principalChanged ? selectedPrincipal : null, declaration.RequiresAsynchronousEvaluation ? new AuthorizedExecution(target, executionIdentity!, declaration, guest) : null);
+
+        return true;
+    }
+
+    /// <summary>
+    /// Checks type requirements without evaluating policies that need a bound resource.
+    /// </summary>
+    /// <param name="check">The <see cref="TypeAuthorizationCheck"/> describing the unbound command type.</param>
+    /// <param name="cancellationToken">The request cancellation token.</param>
+    /// <returns>Whether type requirements and policies explicitly safe without a resource allow access.</returns>
+    internal async Task<bool> IsAuthorizedForType(TypeAuthorizationCheck check, CancellationToken cancellationToken)
+    {
+        var prepared = check.Prepared ?? await Prepare(check.Target, check.Services, cancellationToken);
+        if (prepared.Resolution is IResourceFreePolicyResolution { CanEvaluateWithoutResource: true })
+        {
+            var request = new PreparedAuthorizationRequest(check.Target, null, check.Services, () => LegacyVerdict(check.Target, check.LegacyEvaluator), prepared);
+            return await IsAuthorizedPrepared(request, cancellationToken);
+        }
+
+        if (!MeetsTypeRequirements(prepared))
+        {
+            return false;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return prepared.Declaration.RequiresAsynchronousEvaluation || LegacyVerdict(check.Target, check.LegacyEvaluator);
+    }
+
+    static bool PolicyInputDiffers(bool exempt, PrincipalSnapshot policyIdentity, ClaimsPrincipal executionPrincipal) =>
+        !exempt && !AuthorizationPrincipalIdentity.Same(policyIdentity, executionPrincipal);
+
+    static bool GuestConflicts(bool guest, ClaimsPrincipal selectedPrincipal, ClaimsPrincipal executionPrincipal) =>
+        guest && (AuthorizationEvaluator.HasAuthenticatedIdentity(selectedPrincipal) || AuthorizationEvaluator.HasAuthenticatedIdentity(executionPrincipal));
+
+    static DateTimeOffset ReceivedAtFor(object? resource, IServiceProvider services) => resource switch
+    {
+        CommandContext commandContext when commandContext.ReceivedAt != default => commandContext.ReceivedAt,
+        QueryContext queryReceiptContext when queryReceiptContext.ReceivedAt != default => queryReceiptContext.ReceivedAt,
+        _ => OperationContextScope.Current ?? (services.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()
+    };
+
+    static void PublishAuthorizedExecution(object? resource, ClaimsPrincipal? selectedPrincipal, AuthorizedExecution? authorizedExecution)
+    {
+        var identity = selectedPrincipal is null
+            ? null
+            : new ClaimsPrincipal(selectedPrincipal.Identities.Select(claimsIdentity => claimsIdentity.Clone()));
         if (resource is QueryContext queryContext)
         {
             queryContext.AuthorizedPrincipal = identity;
@@ -198,9 +240,17 @@ public class AuthorizationEvaluation(
             commandContext.AuthorizedPrincipal = identity;
             commandContext.AuthorizedExecution = authorizedExecution;
         }
-
-        return true;
     }
+
+    static bool MeetsTypeRequirements(PreparedAuthorization prepared) =>
+        AuthorizationEvaluator.CheckRoles(prepared.Declaration, prepared.SelectedPrincipal, prepared.EvaluatesAnonymous);
+
+    static bool LegacyVerdict(MemberInfo target, IAuthorizationEvaluator legacyEvaluator) => target switch
+    {
+        Type type => legacyEvaluator.IsAuthorized(type),
+        MethodInfo method => legacyEvaluator.IsAuthorized(method),
+        _ => throw new InvalidAuthorizationConfiguration($"Unsupported authorization target '{target}'.")
+    };
 
     AuthorizationDeclaration DeclarationFor(MemberInfo target) => target switch
     {

@@ -16,11 +16,23 @@ public class AuthoringSources
     readonly HashSet<ISymbol> _decisionReads = new(SymbolEqualityComparer.Default);
     readonly HashSet<ISymbol> _generated = new(SymbolEqualityComparer.Default);
     readonly Dictionary<ExpressionSyntax, string> _expressions = new();
+    readonly HashSet<SyntaxNode> _consumedGuards = [];
 
     /// <summary>
     /// Gets whether any generated input is unavailable in this command.
     /// </summary>
     public bool HasUnavailable => _unavailable.Count > 0;
+
+    /// <summary>
+    /// Gets the guard statements stated as protected read absence or requirements, which are not also production conditions.
+    /// </summary>
+    public IReadOnlySet<SyntaxNode> ConsumedGuards => _consumedGuards;
+
+    /// <summary>
+    /// Records a guard statement as stated by a protected read rather than by the production it precedes.
+    /// </summary>
+    /// <param name="guard">The guard statement.</param>
+    public void ConsumeGuard(SyntaxNode guard) => _consumedGuards.Add(guard);
 
     /// <summary>Registers a directly returned generated expression.</summary>
     /// <param name="expression">The generated expression.</param>

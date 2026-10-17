@@ -95,6 +95,14 @@ For policy- or scheme-protected declarations, Arc checks policy-input and ambien
 
 Identity continuity compares captured standard identity content: claims (including claim properties), authentication type, name and role claim types, label, and the captured actor chain. It checks references for custom principal/identity types and opaque bootstrap contexts but cannot fingerprint mutable state hidden behind custom behavior or inside opaque objects. These checks do not sandbox trusted application code: a policy can mutate and restore identity within one callback (including ASP.NET Core handlers inside one `AuthorizeAsync` call). They do not detect changes in an external permission store after admission, prevent arbitrary work or side effects inside callbacks, bind separately writable ASP.NET Core and Arc principal views or pre-verdict tenant/service bindings, control raw contexts or services retained outside Arc's supported execution scope, or cover identity-bound services constructed outside Arc before pipeline entry. Identity continuity is not ongoing permission revocation: observable emissions need their own guards, and deferred query enumeration and observable emissions are not rechecked by this policy verdict. See [decision 0006](https://github.com/Cratis/Arc/blob/main/decisions/0006-opt-in-anonymous-authorization-policy-evaluation.md) for the trust boundary.
 
+## Authorization when a command body cannot bind
+
+Model-bound execute and `/validate` endpoints report binding errors only after authentication, role, scheme and fallback checks. A denied caller receives 403 instead of a malformed-request result. No command context providers, execution scopes or authorization command filters run without an instance.
+
+The ASP.NET host can evaluate a named policy with a null resource only when every requirement in the complete policy set is resource-free. The built-in authentication, role, claim and name requirements qualify; `AssertionRequirement` does not. A custom ASP.NET requirement can implement `Cratis.Arc.Authorization.IResourceFreeRequirement` (from `Cratis.Arc`) to promise that all its handlers read only the user, not the resource. Do not mark requirements that compare claims with command properties or otherwise depend on the command context.
+
+If any policy has a resource-dependent requirement, none of the policy set is evaluated for that unbindable body. The binding failure remains Validation after authentication and roles pass, even for a caller whose bound command would be denied by policy. Native Core `IAuthorizationPolicy` implementations have no requirement-level opt-in and remain skipped on this path. They continue to receive a bound resource on normal executions. See [command input binding](../commands/input-binding.md) for the exact error contract.
+
 ## Protect a query
 
 This complete type fragment requires either role for every query unless a method specifies a different requirement:

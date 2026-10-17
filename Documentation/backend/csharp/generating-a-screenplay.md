@@ -458,15 +458,62 @@ Property-path mappings and routes on handler commands remain authoring-only (`PL
 
 Set `ScreenplayOptions.MaximumExecutableModelVersion` to `SemanticVersion.V7` or earlier to retain the previous default routing behavior: command routes and their declarations are withheld with `SP0044`, and routed scenarios are withheld whole with `SP0060`. Authoring mode still permits syntax-only routes regardless of this cap.
 
+## Protected command reads and ESM v25
+
+A command that decides from a read model should decide from a state that is still true when it commits. Arc gives you that with [read protection](chronicle/consistency/reads.md): with `ReadProtection(ReadProtectionMode.On)` a read-model parameter of `Handle()` or `Provide()` is a protected decision read, and Chronicle rejects the command when a relevant event arrives after the read. The generator states those reads in the document, so the decision and its guarantee travel with the model.
+
+A document states them under one root line, `command reads protected`, which selects ESM v25 (Screenplay decision 0085). Under that line every `reads` claims protection, and the Screenplay compiler refuses a read it cannot protect instead of treating it as advisory. The generator emits the line only when at least one command keeps a protected read, in the default output and with `AuthoringOnlyConstructs`.
+
+### What becomes a protected read
+
+A read is a candidate when all of these hold:
+
+- The effective read protection of the command is `On`: declared on the command, inherited, set on the assembly, or set by the `CratisReadProtection` MSBuild property. `[Unprotected]` on the command turns it off.
+- Neither the parameter nor the read-model type carries `[Unprotected]`. `Off`, `Measure` and `[Unprotected]` reads are advisory and are never promoted. `Measure` only observes; it does not protect.
+- The key is known. `[LookUpBy(nameof(Property))]` names the command property in every mode. Under `On` without it, the generator uses the one command property of the read model's key type, falls back to the command's event-source key, and treats several matching properties as ambiguous, which leaves the read in code. Name one with `LookUpBy`.
+- The read model is not stream-scoped. A read model with `[EventStream<T>]` is read per stream, the runtime rejects a look-up by key for it, and Screenplay cannot state it until [Cratis/Screenplay#805](https://github.com/Cratis/Screenplay/issues/805). It stays in code with `SP0079`.
+- Absence is rejected. A non-nullable parameter counts, since Arc rejects the command when the instance is missing. A nullable parameter counts only when `Handle()` opens with a guard such as `if (room is null) return ValidationResult.Error("...");`. A nullable parameter without that guard means absence is a valid state, and it is not stated as a protected read.
+
+| In C# | In the `.play` document |
+| --- | --- |
+| `ReadProtection(On)` and a `RoomOccupancy` parameter keyed by `RoomId` | `command reads protected`, then `reads RoomOccupancy as occupancy by roomId` |
+| a leading `if (room is null) return ValidationResult.Error(...)` | nothing: the model rejects an absent read itself, and the generator reports that its message is not carried as `SP0079` |
+| `if (room.FreeBeds < Guests) return ValidationResult.Error("...")` as a leading guard, or in `Provide()` | `require occupancy.freeBeds >= guests` with the message |
+| `new RoomBooked(Guests, room.FreeBeds)` | `freeBeds = occupancy.freeBeds` in `produces` |
+
+Screenplay names a read by its alias, or by its view when it states none. The generator writes `as <alias>`, the parameter name, and paths through the alias. When the parameter is named as the view (`Current? current`), it drops the alias: the read is `reads Current by sourceId` and its paths are `Current.value`. The guards Stage renders around the same command, such as `if (current is null) return OneOf<...>.FromT1(ValidationResult.Error(...))` and `if (!(!Object.Equals(current.Value, ""))) return ...`, are read the same way: `OneOf` and `Result` wrappers are looked through, an absence guard may use any message because the model's own message applies, and `!`, `==`, `!=` and `Object.Equals` over a read become the requirement. A requirement guard keeps its message only when it is a constant. Otherwise the guard stays in code.
+
+### When Screenplay refuses a read
+
+Whether Screenplay admits a read is Screenplay's decision, so the generator asks the compiler instead of restating its rules. It emits the candidate reads with the preamble, binds the document, and maps every `PLAY0780` to `PLAY0785` diagnostic to the read it concerns. That read, and the requirements and mappings that depend on it, stay in code, and each is reported as Information `SP0079` with the PLAY code and its message. A refusal that cannot be attributed to a read, or a bad read path (`PLAY0784`, `PLAY0785`) with no other refusal behind it, is the generator being wrong rather than your source, and is reported as Error `SP0056`. The document is emitted again, and without the preamble when no read is left. A refusal of one read never affects another.
+
+Typical reasons are a view that never becomes absent (no `RemovedWith`), a view with joins, children or a payload key, a view without a keyed query, a command that also declares concurrency or routes, and a key that is not a string, concept over a string, or GUID. A candidate whose key the compiler cannot accept (for example an optional property) is refused the same way. A read that is refused is never emitted as an unguarded `reads`.
+
+### What stays authoring-only
+
+`provide`, `derive` and file forms, optional and advisory reads, reducer reads, stream-scoped reads (`[EventStream<T>]`, `SP0079`), reaction reads, and validators over read-backed rules are not admitted by ESM v25. They stay in code. With the preamble present, advisory reads are left out of authoring documents as well, with `SP0055`, because every `reads` under the preamble claims protection.
+
+### Keeping documents below ESM v25
+
+With `MaximumExecutableModelVersion` below v25, protected reads are not stated as protected reads and the document is what it was before: executable output leaves the reads in code and authoring output keeps its legacy `reads`. Warning `SP0079` names ESM v25. Every other `SP0079` is Information.
+
+### What the document states
+
+The document states the declared protection. The runtime option `ReadProtection:MaximumMode` can lower `On` at run time, for example to `Measure` while you roll protection out, and the document does not follow it. A read the document calls protected is protected only while the effective mode at run time is still `On`.
+
+### Testing it
+
+The generator's own round trip proves the result: the document compiles, binds at v25 and prints back unchanged. Check a command of yours the same way: generate with the options you use, assert that the source contains `command reads protected` and `reads <View> by <key>` (with `as <alias>` when the parameter is not named as the view), and that no `SP0079` names a read you expect to be protected.
+
 ## Including authoring-only constructs
 
 Set `ScreenplayOptions.AuthoringOnlyConstructs` to `true` when you want a fuller authoring document rather than an executable model. It defaults to `false`. Embedded generation exposes the same boolean on `EmbeddedDocumentOptions`; MSBuild projects can set `CratisEmbeddedScreenplayAuthoringOnlyConstructs` to `true`. The separately shipped CLI must expose the option before it can be selected there.
 
 The option retains handler references even for response-only commands, and adds returned command operations with their external system and execute/compensate implementation files, plus syntax-only route mappings outside ESM v8's executable subset. It also retains generated authoring shapes outside the executable subset. An operation must use exactly one external system in the current grammar. Authoring mode retains existing, value-bearing concurrency dimensions; observer filters and dynamic concurrency flags without a value are still reported rather than invented.
 
-It also describes keyed read-model dependencies of `Provide()` and `Handle()`, simple provisioning rejection comparisons as acceptance requirements, and event mappings from read-model members. Reads use the command's proven event-source key, matching Arc's dependency resolution. Arbitrary provisioning stays in code and is reported; no `provide` block is generated.
+It also describes keyed read-model dependencies of `Provide()` and `Handle()`, simple provisioning rejection comparisons as acceptance requirements, and event mappings from read-model members. Reads use the key Arc resolves for them, honoring `LookUpBy` and otherwise the command's proven event-source key. Advisory reads (`Off`, `Measure` or `[Unprotected]`) are described this way; [protected reads](#protected-command-reads-and-esm-v25) are executable. Arbitrary provisioning stays in code and is reported; no `provide` block is generated.
 
-These documents still compile and round-trip, but **there is no executable model while `PLAY0268` constructs are present**. Binding legacy reads also reports `PLAY0271` because they cannot imply decision consistency. Enabling the option does not execute operations, generate implementation code, or weaken those admission checks. Unsupported types, ambiguous names and unreadable behavior retain diagnostics instead of guessed output.
+These documents still compile and round-trip, but **there is no executable model while `PLAY0268` constructs are present**. Binding legacy (advisory) reads also reports `PLAY0271` because they cannot imply decision consistency. Enabling the option does not execute operations, generate implementation code, or weaken those admission checks. Unsupported types, ambiguous names and unreadable behavior retain diagnostics instead of guessed output.
 
 ## The generator checks its own output
 
@@ -548,11 +595,32 @@ A throw caught before registration does not count as an exit when a covering cat
 
 Screenplay has no `when` clause on validation rules, and the generator does not invent an implication for an arbitrary C# predicate or constructor condition.
 
+Match rules must belong to Screenplay's portable pattern dialect. Refused constructs such as regex lookaround are withheld with `SP0016`, naming the property or concept and the language's reason. A generated concept with such a rule also loses its generation contract and dependent claims rather than silently becoming a less constrained generator.
+
 An unconditional top-level property rule written as `.Must(IsKnownName)` can become a named `rule IsKnownName` with a repository-relative `file` referencing the predicate's source. Its method name is preserved. Conditional named predicates remain omitted with `SP0016` rather than stated as unconditional constraints.
 
 Named rules are opaque to reference execution. The generator withholds them when any scenario exercises the affected command, preserving the scenario's legacy declarative behavior instead of changing it to `SemanticUnsupported`. For a concept rule, this includes every command carrying that concept, directly or through nested composite properties and collections. `SP0016` names the command or concept and the scenario commands that caused the omission. This safeguard applies to both success and rejection scenarios, in both default and authoring-only mode. Generated concepts are the exception: their rules are never removed to preserve a scenario. Opaque generated-concept validation instead withholds generation and any scenario that reference execution cannot evaluate.
 
 Predicates without a portable implementation file, inline lambdas, and unsupported rule shapes also remain omitted with `SP0016`; a message following an omitted validator does not attach to the rule before it. Metadata modifiers such as `WithErrorCode`, `WithSeverity`, and `WithName` do not add a validator, so a subsequent `WithMessage` still belongs to the preceding retained rule.
+
+### Date comparisons and ESM v26
+
+The generator reads chronological `==`, `!=`, `<`, `<=`, `>` and `>=` comparisons on `DateOnly` (`Date`) and `DateTime`/`DateTimeOffset` (`DateTime`) command properties. A `produces when` guard can compare two required command properties or a required property and a literal. Readable authoring-only `Provide()` guards can use the same comparisons in `require`.
+
+Command property validators support `Equal`, `NotEqual`, `GreaterThan`, `GreaterThanOrEqualTo`, `LessThan` and `LessThanOrEqualTo` against **literals only**. Nullable validation subjects are supported: an absent value passes these rules unless a separate `NotEmpty` rule rejects it. Optional operands in command conditions remain unsupported.
+
+Literal recovery accepts `DateOnly.Parse`, `DateTime.Parse` and `DateTimeOffset.Parse` with constant text and `CultureInfo.InvariantCulture`, and `new DateOnly(year, month, day)` with constant arguments. Dates print as `yyyy-MM-dd`. Instants must include an explicit offset or `Z`; they print in UTC with seven fractional digits, for example `2026-01-01T00:00:00.1234567Z`. Comparisons retain tick precision rather than truncating to milliseconds. Compared `DateTime` command inputs must also be bound with an explicit offset or `Z`, before deserialization can supply a local offset.
+
+The generator reports unsupported comparisons with the property and reason instead of emitting a condition or rule the compiler cannot bind:
+
+- Mixed `Date` and `DateTime` operands, invalid dates, and instant literals without an offset.
+- Clock expressions such as `DateTime.Now`, `DateTimeOffset.UtcNow` and `DateOnly.FromDateTime(DateTime.Today)`.
+- Date rules in `ConceptValidator<T>`, which would also affect query inputs and client validation.
+- Property-to-property date validation rules, protected read paths, context operands, and date ordering in reaction `where`.
+
+These boundaries follow [Screenplay decision 0087](https://github.com/Cratis/Screenplay/blob/main/decisions/0087-admit-chronological-date-and-datetime-ordering-in-command-conditions.md). Client validators never carry date ordering; it is a server-side contract.
+
+Set `ScreenplayOptions.MaximumExecutableModelVersion` below `SemanticVersion.V26` to withhold date comparisons in both default and authoring output. A located diagnostic names ESM v26 and the cap. As with other caps, the document then describes less behavior, not an equivalent implementation of the original command. Without date comparisons, a document keeps its existing executable version.
 
 ## Constraints
 
@@ -1074,7 +1142,7 @@ These details can remain outside the document because the language has no counte
 | Unreadable returned operations | Operations are authoring-only. Unsupported construction, input mappings, batch spreads, or ambiguous external systems remain in code; readable literal batch members can still be described. Information diagnostic `SP0053`. |
 | Event-source definition routes | Readable source and stream routes are emitted by default at ESM v8. `SP0044` describes an unavailable route or preserved legacy concurrency; a cap below v8 retains the previous default output. |
 | Unreadable source or stream routes | Computed stream ids, unproven formatting, generated keys, conflicting declarations, reserved classifications and unsupported wrapper metadata stay in code. An unproven or capped production override also withholds the command route rather than claiming the command's defaults for that event. Information diagnostic `SP0054` reports the omission in both modes. Admitted production overrides require ESM v10; default routes require v8. Property-path mappings and handler-command routes remain authoring-only. |
-| Unreadable reads or provisioning | Reads and requirements are authoring-only. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`. |
+| Unreadable reads or provisioning | Advisory reads and their requirements are authoring-only; [protected reads](#protected-command-reads-and-esm-v25) are executable. Dependencies need a proven input key and a uniquely readable model and projection; only supported comparison guards become requirements. Other provisioning remains in code. Information diagnostic `SP0055`; a protected read left in code is reported as `SP0079`. |
 | Same-named concepts with different meanings | Primitive type, generation strategy, enumeration names and numbers, `pii`, `secret`, and encryption scope must agree. The first declaration is kept; warning diagnostic `SP0031` names each conflicting type rather than silently merging its compliance claims. |
 | Protected concepts in emitted identity positions | The identifier, route or event-production destination remains stated, but its concept's `pii`/`secret` annotations are omitted globally. Information diagnostic `SP0059` names each retained use. An analyzed identity that is not emitted does not cause this omission. |
 | Namespace or Global encryption scope in default output | Bare `secret` implies Subject scope. Information diagnostic `SP0061` names the concept and omitted scope. Enable `ScreenplayOptions.AuthoringOnlyConstructs` to state it. |

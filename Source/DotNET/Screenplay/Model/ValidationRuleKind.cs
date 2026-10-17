@@ -76,5 +76,10 @@ public enum ValidationRuleKind
     /// <summary>
     /// The String value has to satisfy the named checksum algorithm.
     /// </summary>
-    Checksum = 13
+    Checksum = 13,
+
+    /// <summary>
+    /// The value must differ from the operand.
+    /// </summary>
+    NotEqual = 14
 }

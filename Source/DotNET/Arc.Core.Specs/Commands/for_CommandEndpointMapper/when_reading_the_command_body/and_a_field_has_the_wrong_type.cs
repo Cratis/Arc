@@ -22,6 +22,7 @@ public class and_a_field_has_the_wrong_type : given.a_command_endpoint_mapper
 
     async Task Because() => (_command, _failure) = await CommandEndpointMapper.ReadCommandBody(_context, _commandType, _correlationId, _logger);
 
+    [Fact] void should_report_the_member() => _failure!.ValidationResults.Single().Members.ShouldContainOnly("amount");
     [Fact] void should_not_produce_a_command() => _command.ShouldBeNull();
     [Fact] void should_be_a_validation_failure() => _failure!.IsValid.ShouldBeFalse();
     [Fact] void should_stay_authorized() => _failure!.IsAuthorized.ShouldBeTrue();

@@ -78,6 +78,18 @@ public class ProducesSyntaxBuilder(IScreenplayNaming naming, NameAvailability na
     }
 
     /// <summary>
+    /// Creates a builder that is the same except for how it names paths.
+    /// </summary>
+    /// <param name="pathNaming">The naming to build with.</param>
+    /// <returns>The builder.</returns>
+    internal ProducesSyntaxBuilder WithNaming(IScreenplayNaming pathNaming) => new(pathNaming, names)
+    {
+        InlineEvents = InlineEvents,
+        Events = Events,
+        Diagnostics = Diagnostics
+    };
+
+    /// <summary>
     /// Builds a single produces block.
     /// </summary>
     /// <param name="produces">The event production to build for.</param>

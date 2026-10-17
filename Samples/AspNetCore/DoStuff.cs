@@ -3,4 +3,4 @@
 
 namespace AspNetCore;
 
-public record DoStuff(string StuffToDo);
+public record DoStuff(string StuffToDo, DateOnly? DueDate = null);
