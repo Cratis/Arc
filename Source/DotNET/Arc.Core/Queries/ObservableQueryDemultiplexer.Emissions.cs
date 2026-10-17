@@ -72,12 +72,12 @@ public partial class ObservableQueryDemultiplexer
         // Delta mode omits Data on subsequent identity-based emissions; without identity,
         // every emission carries the full snapshot and no change set.
         var omitData = state.IsDeltaMode && !changes.IsFirstEmission && changes.HasStableIdentity && !changes.SendSnapshot;
-        var result = CreateDeliverableResult(state.CorrelationId, omitData ? null! : interceptedData!, state.EnumerableItemType is null ? PagingInfo.NotPaged : state.Paging);
+        var result = CreateDeliverableResult(state.CorrelationId, omitData ? null! : interceptedData!, state.ReportsPaging ? state.Paging : PagingInfo.NotPaged);
 
         // Only identity-based legacy emissions and subsequent delta emissions carry a change set.
         result.ChangeSet = changes.ChangeSet;
 
-        if (state.EnumerableItemType is not null && state.SubscriptionQueryContext is { } queryContext && queryContext != QueryContext.NotSet)
+        if (state.ReportsPaging && state.SubscriptionQueryContext is { } queryContext && queryContext != QueryContext.NotSet)
         {
             result.Paging = new PagingInfo(
                 queryContext.Paging.Page,
@@ -299,6 +299,7 @@ public partial class ObservableQueryDemultiplexer
         public required CorrelationId CorrelationId { get; init; }
         public required PagingInfo Paging { get; init; }
         public required Type? EnumerableItemType { get; init; }
+        public required bool ReportsPaging { get; init; }
         public required string? TransferMode { get; init; }
         public required QueryContext? SubscriptionQueryContext { get; init; }
         public bool IsDeltaMode => string.Equals(TransferMode, "delta", StringComparison.OrdinalIgnoreCase);

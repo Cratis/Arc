@@ -388,6 +388,7 @@ public partial class ObservableQueryDemultiplexer(
             CorrelationId = correlationId,
             Paging = paging,
             EnumerableItemType = enumerableItemType,
+            ReportsPaging = ObservableQueryPaging.ReportsPaging(typeof(T)),
             TransferMode = transferMode,
             SubscriptionQueryContext = authorizedQueryContext ?? queryContextManager.Current
         };

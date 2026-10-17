@@ -1,7 +1,6 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
-using System.Collections;
 using System.Globalization;
 using System.Net;
 using System.Threading.Channels;
@@ -370,7 +369,7 @@ public static class ObservableQueryHttp
             ValidationResults = [],
             ExceptionMessages = [],
             ExceptionStackTrace = string.Empty,
-            Paging = data is IEnumerable and not string
+            Paging = ObservableQueryPaging.ReportsPaging(data?.GetType())
                 ? new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems)
                 : PagingInfo.NotPaged
         };
