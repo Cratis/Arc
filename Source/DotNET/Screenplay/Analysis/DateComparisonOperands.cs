@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Globalization;
+using Cratis.Arc.Screenplay.Analysis.Types;
 using Cratis.Arc.Screenplay.Model;
 using Cratis.Screenplay.Semantics;
 using Microsoft.CodeAnalysis;
@@ -28,12 +29,9 @@ internal static class DateComparisonOperands
             type = underlying;
         }
 
-        return type?.ToDisplayString() switch
-        {
-            "System.DateOnly" => ScreenplayPrimitive.Date,
-            "System.DateTime" or "System.DateTimeOffset" => ScreenplayPrimitive.DateTime,
-            _ => null
-        };
+        var primitive = ConceptRegistry.PrimitiveOf(type);
+
+        return primitive is ScreenplayPrimitive.Date or ScreenplayPrimitive.DateTime ? primitive : null;
     }
 
     /// <summary>
@@ -41,7 +39,8 @@ internal static class DateComparisonOperands
     /// </summary>
     /// <param name="type">The operand type.</param>
     /// <returns>Whether the type is nullable.</returns>
-    internal static bool IsOptional(ITypeSymbol? type) => type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+    internal static bool IsOptional(ITypeSymbol? type) =>
+        type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } || type?.NullableAnnotation == NullableAnnotation.Annotated;
 
     /// <summary>
     /// Reads a supported date construction or invariant parse call.
@@ -49,10 +48,21 @@ internal static class DateComparisonOperands
     /// <param name="expression">The operand expression.</param>
     /// <param name="model">Its semantic model.</param>
     /// <returns>The canonical text or null.</returns>
-    internal static string? Literal(ExpressionSyntax expression, SemanticModel model) =>
-        Primitive(model.GetTypeInfo(expression).Type) is { } primitive
+    internal static string? Literal(ExpressionSyntax expression, SemanticModel model)
+    {
+        if (expression is ObjectCreationExpressionSyntax { ArgumentList.Arguments: [var argument], Initializer: null } creation &&
+            model.GetTypeInfo(creation).Type?.FindBase(WellKnownTypeNames.ConceptAs) is not null)
+        {
+            var forwarding = new Commands.UuidConstructorForwarding(new SemanticModels([model.Compilation]));
+
+            return model.GetSymbolInfo(creation).Symbol is IMethodSymbol constructor && forwarding.Read(constructor, new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default))
+                ? Literal(Commands.MappingSourceReader.Unwrap(argument.Expression), model) : null;
+        }
+
+        return Primitive(model.GetTypeInfo(expression).Type) is { } primitive
             ? Constructed(expression, primitive, model) ?? Parsed(expression, primitive, model)
             : null;
+    }
 
     /// <summary>
     /// Explains why an operand is not an admitted date literal.

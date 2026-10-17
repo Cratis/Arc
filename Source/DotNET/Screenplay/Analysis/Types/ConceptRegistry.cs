@@ -157,6 +157,18 @@ public class ConceptRegistry
     }
 
     /// <summary>
+    /// Resolves a scalar or concept to its declared backing primitive.
+    /// </summary>
+    /// <param name="type">The scalar or concept type.</param>
+    /// <returns>The primitive, or null for an unsupported type.</returns>
+    internal static ScreenplayPrimitive? PrimitiveOf(ITypeSymbol? type)
+    {
+        var backing = type?.FindBase(WellKnownTypeNames.ConceptAs)?.TypeArguments[0] ?? type;
+
+        return backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive) ? primitive : null;
+    }
+
+    /// <summary>
     /// Records that generation cannot rely on the concept's recovered validation.
     /// </summary>
     /// <param name="name">The concept name.</param>
@@ -281,9 +293,7 @@ public class ConceptRegistry
             return Enumeration(type.Name, backing, pii) with { IsSensitive = encrypted && notAudited, EncryptionScope = scope };
         }
 
-        var resolved = backing is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out var primitive)
-            ? primitive
-            : ScreenplayPrimitive.String;
+        var resolved = PrimitiveOf(backing) ?? ScreenplayPrimitive.String;
 
         return new(type.Name, resolved, pii, [], [])
         {
