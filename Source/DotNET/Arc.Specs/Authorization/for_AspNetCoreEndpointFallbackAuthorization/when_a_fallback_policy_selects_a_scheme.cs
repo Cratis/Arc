@@ -29,7 +29,7 @@ public class when_a_fallback_policy_selects_a_scheme : Specification
         _policy = new AuthorizationPolicyBuilder("Session").RequireAuthenticatedUser().Build();
         var provider = Substitute.For<IAuthorizationPolicyProvider>();
         provider.GetFallbackPolicyAsync().Returns(_policy);
-        var accessor = new HttpContextAccessor();
+        var accessor = Substitute.For<IHttpContextAccessor>();
         _authenticationService = Substitute.For<IAuthenticationService>();
         _authorizationService = Substitute.For<IAuthorizationService>();
         _authentication = AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(new ClaimsIdentity([], "Session")), "Session"));
@@ -48,7 +48,7 @@ public class when_a_fallback_policy_selects_a_scheme : Specification
             .BuildServiceProvider();
         _nativeContext = new DefaultHttpContext { RequestServices = _services, User = _principal };
         _nativeContext.Request.Path = "/.cratis/queries/ws";
-        accessor.HttpContext = _nativeContext;
+        accessor.HttpContext.Returns(_nativeContext);
         _context = Substitute.For<IHttpRequestContext>();
         _context.RequestServices.Returns(_services);
     }
