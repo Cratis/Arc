@@ -43,6 +43,14 @@ public class when_normalizing_members : Specification
         (ValidationResult.Error("Invalid", ["Name"]) with { Members = ["Items[0].Name"] }).Members.ShouldContainOnly("items[0].name");
 
     [Fact]
+    void should_treat_null_members_on_construction_as_empty() =>
+        new ValidationResult(ValidationResultSeverity.Error, "Invalid", null!, null!).Members.ShouldBeEmpty();
+
+    [Fact]
+    void should_treat_null_members_replaced_with_a_record_copy_as_empty() =>
+        (ValidationResult.Error("Invalid", ["Name"]) with { Members = null! }).Members.ShouldBeEmpty();
+
+    [Fact]
     void should_be_idempotent()
     {
         var result = ValidationResult.Error("Invalid", ["Items[0].Name"]);

@@ -55,7 +55,7 @@ internal static class DataAnnotationValidation
     /// <param name="value">The property or parameter value to validate.</param>
     /// <returns>The underlying concept value, or the original value.</returns>
     internal static object? UnwrapConcept(object? value) =>
-        value is not null && value.GetType().IsConcept() ? value.GetConceptValue() : value;
+        value?.GetType().IsConcept() == true ? value.GetConceptValue() : value;
 
     static bool ValidateProperties(object instance, IEnumerable<PropertyDescriptor> properties, List<SystemValidationResult> results)
     {

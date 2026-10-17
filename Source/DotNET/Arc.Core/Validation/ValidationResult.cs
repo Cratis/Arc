@@ -17,7 +17,7 @@ namespace Cratis.Arc.Validation;
 /// </remarks>
 public record ValidationResult(ValidationResultSeverity Severity, string Message, IEnumerable<string> Members, object State)
 {
-    readonly IEnumerable<string> _members = Members.Select(JsonPathMembers.Normalize).ToArray();
+    readonly IEnumerable<string> _members = (Members ?? []).Select(JsonPathMembers.Normalize).ToArray();
 
     /// <summary>
     /// Gets the affected members, reported as camelCase field paths.
@@ -25,7 +25,7 @@ public record ValidationResult(ValidationResultSeverity Severity, string Message
     public IEnumerable<string> Members
     {
         get => _members;
-        init => _members = value.Select(JsonPathMembers.Normalize).ToArray();
+        init => _members = (value ?? []).Select(JsonPathMembers.Normalize).ToArray();
     }
 
     /// <summary>
