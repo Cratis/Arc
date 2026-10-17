@@ -369,44 +369,7 @@ public static class MongoCollectionExtensions
                 // The initial emission is a whole snapshot, not a delta - there is no previous state to state a
                 // change against, so it carries no changes and downstream treats it as the baseline.
                 onNext(documents, null, subject);
-                await cursor.ForEachAsync(
-                    async changeDocument =>
-                    {
-                        try
-                        {
-                            if (observationContext.Paging.IsPaged)
-                            {
-                                await HandlePagedChange(
-                                    collection,
-                                    findCall,
-                                    observationContext,
-                                    ignoreQueryContext,
-                                    onNext,
-                                    query,
-                                    documents,
-                                    subject,
-                                    cancellationToken);
-                                return;
-                            }
-
-                            await HandleChange(
-                                collection,
-                                filter,
-                                observationContext,
-                                onNext,
-                                changeDocument,
-                                documents,
-                                subject,
-                                idProperty,
-                                classMap.IdMemberMap,
-                                cancellationToken);
-                        }
-                        catch (Exception e)
-                        {
-                            logger.UnexpectedError(e);
-                        }
-                    },
-                    cancellationToken);
+                await cursor.ForEachAsync(changeDocument => DispatchChange(changeDocument, query), cancellationToken);
                 logger.IteratingChangeStreamCursorCompleted();
             }
             catch (ObjectDisposedException)
@@ -424,6 +387,43 @@ public static class MongoCollectionExtensions
             finally
             {
                 Cleanup();
+            }
+        }
+
+        async Task DispatchChange(ChangeStreamDocument<TDocument> changeDocument, IFindFluent<TDocument, TDocument> query)
+        {
+            try
+            {
+                if (observationContext.Paging.IsPaged)
+                {
+                    await HandlePagedChange(
+                        collection,
+                        findCall,
+                        observationContext,
+                        ignoreQueryContext,
+                        onNext,
+                        query,
+                        documents,
+                        subject,
+                        cancellationToken);
+                    return;
+                }
+
+                await HandleChange(
+                    collection,
+                    filter,
+                    observationContext,
+                    onNext,
+                    changeDocument,
+                    documents,
+                    subject,
+                    idProperty,
+                    classMap.IdMemberMap,
+                    cancellationToken);
+            }
+            catch (Exception e)
+            {
+                logger.UnexpectedError(e);
             }
         }
 
