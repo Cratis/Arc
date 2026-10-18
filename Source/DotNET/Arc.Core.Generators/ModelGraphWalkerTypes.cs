@@ -142,7 +142,7 @@ internal static class ModelGraphWalkerTypes
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <param name="seen">The types already followed.</param>
     /// <param name="pending">The types whose properties are still to be found.</param>
-    static void Follow(ITypeSymbol type, Compilation compilation, HashSet<ITypeSymbol> seen, Queue<INamedTypeSymbol> pending)
+    internal static void Follow(ITypeSymbol type, Compilation compilation, HashSet<ITypeSymbol> seen, Queue<INamedTypeSymbol> pending)
     {
         if (seen.Count >= MaximumTypes || GenericDepth(type) > MaximumGenericDepth || !seen.Add(type))
         {
@@ -211,8 +211,9 @@ internal static class ModelGraphWalkerTypes
     /// <param name="type">The type.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <param name="cancellationToken">The <see cref="CancellationToken"/>.</param>
+    /// <param name="publicGettersOnly">Whether to use the protected-key public getter contract.</param>
     /// <returns>The properties, or null when the type keeps the reflection walk.</returns>
-    static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken)
+    internal static List<IPropertySymbol>? WalkedProperties(INamedTypeSymbol type, Compilation compilation, CancellationToken cancellationToken, bool publicGettersOnly = false)
     {
         if (!IsConcrete(type) || !TypeNaming.CanBeNamed(type, compilation))
         {
@@ -242,7 +243,8 @@ internal static class ModelGraphWalkerTypes
             return null;
         }
 
-        var walked = declared.Where(IsWalked).ToList();
+        var walked = declared.Where(property => IsWalked(property) &&
+            (!publicGettersOnly || property.GetMethod!.DeclaredAccessibility == Accessibility.Public)).ToList();
         return walked.TrueForAll(property => CanRead(property, compilation)) ? walked : null;
     }
 
