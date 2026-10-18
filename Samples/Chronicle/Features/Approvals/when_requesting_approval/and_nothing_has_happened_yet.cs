@@ -21,5 +21,5 @@ public class and_nothing_has_happened_yet
     async Task Because() => _result = await _scenario.Execute(new RequestApproval(ApprovalId, "Jane Austen", []));
 
     [Fact] void should_be_successful() => _result.ShouldBeSuccessful();
-    [Fact] async Task should_have_asked_for_the_approval() => await _scenario.ShouldHaveAppendedEvent<RequestApproval, ApprovalRequested>(ApprovalId);
+    [Fact] async Task should_have_asked_for_the_approval() => await _scenario.ShouldHaveAppendedEvent<RequestApproval, ApprovalRequested>(ApprovalId, e => e.Requester == "Jane Austen" && !e.Tag.Any());
 }
