@@ -59,15 +59,15 @@ public class when_generating_lint_compliant_output : Specification
         Add(TemplateTypes.FlagsEnum(new { Name = "Sample", Values = new[] { new { Name = "First", Value = 1 } }, AllFlagsExpression = "Sample.first" }));
         Add(TypeScriptContentCombiner.Combine([TemplateTypes.Type(new { Name = "First", Properties = Array.Empty<object>(), Imports = Array.Empty<object>() }), TemplateTypes.Interface(new { Name = "Second", Properties = Array.Empty<object>(), Imports = Array.Empty<object>() })]));
         Add(ResponseHooks());
-        await DescriptorExtensions.FlushPendingContent(pending, new Dictionary<string, GeneratedFileMetadata>(), _ => { });
-        _contents = [.. pending.Keys.Select(File.ReadAllText)];
-
         var root = new DirectoryInfo(AppContext.BaseDirectory);
         while (root is not null && !File.Exists(Path.Combine(root.FullName, "eslint.config.mjs")))
         {
             root = root.Parent;
         }
         root.ShouldNotBeNull();
+        await DescriptorExtensions.FlushPendingContentWithFileHeader(FileHeader.Resolve(root!.FullName, null), pending, new Dictionary<string, GeneratedFileMetadata>(), _ => { });
+        _contents = [.. pending.Keys.Select(File.ReadAllText)];
+
         var start = new ProcessStartInfo("node")
         {
             WorkingDirectory = root!.FullName,
