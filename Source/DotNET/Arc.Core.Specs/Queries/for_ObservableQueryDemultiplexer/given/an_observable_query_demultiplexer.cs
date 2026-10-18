@@ -75,6 +75,12 @@ public class an_observable_query_demultiplexer : Specification
         CreateDemultiplexer();
     }
 
+    protected void UseServiceProvider(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+        CreateDemultiplexer();
+    }
+
     void CreateDemultiplexer()
     {
         _hub = new ObservableQueryDemultiplexer(

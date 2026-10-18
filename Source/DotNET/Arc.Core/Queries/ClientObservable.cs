@@ -5,6 +5,7 @@ using System.Reactive.Subjects;
 using System.Runtime.ExceptionServices;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -59,6 +60,7 @@ public class ClientObservable<T>(
         using var receiveCts = new CancellationTokenSource();
         using var writeLock = new SemaphoreSlim(1, 1);
         using var emissionGate = new SemaphoreSlim(1, 1);
+        using var telemetry = new ObservableQueryTelemetry(context.RequestServices, queryContext.Name.Value, WellKnownTelemetryNames.WebSocketTransport);
 
         IDisposable? subscription = null;
         var receiveTask = Task.CompletedTask;
@@ -74,6 +76,7 @@ public class ClientObservable<T>(
         });
         try
         {
+            telemetry.Start();
             subscription = Subject.Subscribe(Next, Error, Complete);
             receiveTask = Receive();
             receiverWatch = receiveTask.ContinueWith(
@@ -180,6 +183,7 @@ public class ClientObservable<T>(
                     return;
                 }
 
+                using var push = telemetry.BeginPush();
                 var error = await webSocketConnectionHandler.SendMessage(webSocket, queryResult, writeLock, cts.Token);
                 if (error is not null)
                 {
@@ -190,6 +194,8 @@ public class ClientObservable<T>(
 
                     return;
                 }
+
+                push.Delivered();
 
                 // Only a write that actually reached the client counts as delivered — a guard asking whether this is
                 // the first emission must not be told the client already has one it never received.
