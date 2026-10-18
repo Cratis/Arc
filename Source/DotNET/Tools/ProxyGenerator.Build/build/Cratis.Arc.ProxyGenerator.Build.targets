@@ -25,6 +25,8 @@
         <Message Text="Full path to assembly : $(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll" Importance="high" />
         
         <PropertyGroup>
+            <!-- Encode before shell transport: copyright text may contain quotes, newlines, or shell syntax. -->
+            <CratisProxiesEncodedFileHeader>$([MSBuild]::ConvertToBase64($(CratisProxiesFileHeader)))</CratisProxiesEncodedFileHeader>
             <LibraryMode Condition=" '$(CratisProxiesLibraryMode)' == 'true' ">--library-mode</LibraryMode>
             <SkipOutputDeletion Condition=" '$(CratisProxiesSkipOutputDeletion)' == 'true' ">--skip-output-deletion</SkipOutputDeletion>
             <SkipCommandNameInRoute Condition=" '$(CratisProxiesSkipCommandNameInRoute)' == 'true' ">--skip-command-name-in-route</SkipCommandNameInRoute>
@@ -48,7 +50,7 @@
         </PropertyGroup>
 
         <Exec ConsoleToMsBuild="true"
-            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(EmitInterfaces) $(UseProxyFileSuffix) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings)"
+            Command="dotnet $(CratisProxyGeneratorAssembly) &quot;$(MSBuildProjectDirectory)/$(OutputPath)$(AssemblyName).dll&quot; &quot;$(CratisProxiesOutputPath)&quot; $(CratisProxiesSegmentsToSkip) $(LibraryMode) $(SkipOutputDeletion) $(SkipCommandNameInRoute) $(SkipQueryNameInRoute) $(ApiPrefix) --project-directory=&quot;$(MSBuildProjectDirectory)&quot; --file-header-base64=$(CratisProxiesEncodedFileHeader) $(SkipFileIndexTracking) $(SkipIndexGeneration) $(UseSourceFileAsOutputFile) $(EmitInterfaces) $(UseProxyFileSuffix) $(AssemblyPackageMappings) $(ExcludeTypes) $(ExcludeNamespaces) $(NamespaceRoots) $(TypeMappings)"
             WorkingDirectory="$(CratisProxyGeneratorAssemblyDirectory)" />
     </Target>
 </Project>

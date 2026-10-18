@@ -85,6 +85,37 @@ With the [executable alias prerequisite](output-behavior.md#direct-executable):
 proxygenerator assembly.dll output-path --skip-output-deletion --use-source-file-as-output-file
 ```
 
+## File header
+
+Use your application's copyright and license text rather than a framework license. Set `CratisProxiesFileHeader` in the project:
+
+```xml
+<PropertyGroup>
+    <CratisProxiesFileHeader>Copyright (c) Example Company. All rights reserved.\nGenerated client: {fileName}</CratisProxiesFileHeader>
+</PropertyGroup>
+```
+
+The generator prefixes each line with `//` followed by a space. Literal `\n`, MSBuild `%0A`, and actual Windows or Unix newlines separate lines. `{fileName}` expands to the output filename, including its extension (for example, `CreateAccount.proxy.ts`). Header text is transported to the generator as an encoded argument, not interpolated into the shell command.
+
+Header selection follows this order:
+
+1. A non-empty `CratisProxiesFileHeader` supplies the template. The special value `none` (case-insensitive) disables the header, including the EditorConfig fallback.
+2. An unset or empty property uses `file_header_template` from `.editorconfig`, starting in the C# project directory and walking upward. The nearest applicable value wins; `root = true` stops the search after that file.
+3. Without either configuration, no copyright or license header is emitted. The generated-file notice and tracking metadata remain.
+
+For example, this `.editorconfig` also configures the proxy header:
+
+```ini
+root = true
+
+[*.{cs,vb}]
+file_header_template = Copyright (c) Example Company. All rights reserved.\nAll rights reserved.
+```
+
+The fallback honors only `[*]`, `[*.cs]`, and extension-list sections such as `[*.{cs,vb}]` containing the exact `cs` extension. Within one file, the last matching section's value wins. Path-specific patterns and TypeScript-only sections are not used. An empty template or `unset` (case-insensitive) suppresses inherited templates. Projects using Cratis's configured EditorConfig template retain their Cratis header.
+
+The configured header applies to commands, snapshot and observable queries, models, interfaces, enums, flags enums, and newly created `index.ts` files. Grouped output gets one header using the combined filename. Existing index comments and imports are preserved, so changing this setting does not replace headers in existing index files.
+
 ## Decorator metadata
 
 Generated types use `@field(...)` property decorators and `@derivedType(...)` class decorators. The decorators keep the runtime serialization metadata beside the type and property they describe, with no proxy-generator configuration required.
