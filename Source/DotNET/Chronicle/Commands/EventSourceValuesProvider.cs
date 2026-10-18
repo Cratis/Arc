@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle.Events;
 using Microsoft.Extensions.Logging;
@@ -21,17 +22,23 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
     /// <inheritdoc/>
     public CommandContextValues Provide(object command)
     {
-        var eventSourceId = ResolveEventSourceId(command, out var declaredType);
+        var eventSourceId = ResolveEventSourceId(command, out var declaredType, out var rawKey);
         DescribeEventSourceIdType(declaredType);
 
         // Also expose the id as the provider-neutral resolved key so a read model backing provider that does not depend
         // on Chronicle (for example Entity Framework Core) can load a read model by the same key. An unspecified id
         // carries no usable key, so the neutral key is empty in that case.
-        return new CommandContextValues
+        var values = new CommandContextValues
         {
             { WellKnownCommandContextKeys.EventSourceId, eventSourceId },
             { Cratis.Arc.Commands.CommandContextKeys.ResolvedKey, NeutralKeyFrom(eventSourceId) }
         };
+        if (rawKey is not null)
+        {
+            values[RawCommandSourceKey.ContextKey] = rawKey;
+        }
+
+        return values;
     }
 
     /// <summary>
@@ -113,10 +120,12 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
     /// </summary>
     /// <param name="command">The command to resolve the event source id for.</param>
     /// <param name="declaredType">The type the command declares the id as, or <see langword="null"/> when it declares none.</param>
+    /// <param name="rawKey">The selected raw key and target, when a key property was read.</param>
     /// <returns>The resolved event source id, or <see cref="EventSourceId.Unspecified"/> when none could be composed.</returns>
-    EventSourceId ResolveEventSourceId(object command, out Type? declaredType)
+    EventSourceId ResolveEventSourceId(object command, out Type? declaredType, out RawCommandSourceKey? rawKey)
     {
         declaredType = null;
+        rawKey = null;
         if (command is ICanProvideEventSourceId provider)
         {
             var provided = ProvidedEventSourceIdOrUnspecified(provider);
@@ -127,7 +136,8 @@ public class EventSourceValuesProvider(ILogger<EventSourceValuesProvider> logger
         var eventSourceId = EventSourceId.New();
         if (command.HasEventSourceId())
         {
-            eventSourceId = command.GetEventSourceIdWithDeclaredType(out declaredType);
+            eventSourceId = command.GetEventSourceIdWithDeclaredType(out declaredType, out var value);
+            rawKey = new(value, eventSourceId);
         }
 
         return eventSourceId;
