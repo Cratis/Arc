@@ -91,5 +91,5 @@ public class ControllerCommandReader(
     /// <param name="method">The method to read.</param>
     /// <returns>The properties.</returns>
     IEnumerable<PropertyModel> FromParameters(IMethodSymbol method) =>
-        [.. method.Parameters.Where(_ => _.Type.TypeKind != TypeKind.Interface).Select(_ => new PropertyModel(_.Name, types.Resolve(_.Type)))];
+        [.. method.Parameters.Where(_ => _.Type.TypeKind != TypeKind.Interface).Select(_ => new PropertyModel(_.Name, types.ResolveCarried(_.Type)))];
 }

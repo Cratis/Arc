@@ -29,6 +29,7 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
+        <Compile Include="../Shared/ArcGeneratorDiagnostics.cs" Link="ArcGeneratorDiagnostics.cs" />
         <Compile Include="../Shared/QuerySelectionPolicy.cs" Link="QuerySelectionPolicy.cs" />
         <Compile Include="../Shared/AttributePrecedencePolicy.cs" Link="AttributePrecedencePolicy.cs" />
         <Compile Include="../Shared/CommandAttributeSymbols.cs" Link="CommandAttributeSymbols.cs" />

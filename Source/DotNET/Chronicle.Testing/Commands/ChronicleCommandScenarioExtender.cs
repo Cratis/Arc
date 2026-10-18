@@ -73,6 +73,9 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
     /// </summary>
     internal const string EventSerializerRegistrationKey = "Chronicle.EventSerializerRegistration";
 
+    const string EventStoreNameKey = "Chronicle.EventStoreName";
+    const string EventStoreNamespaceKey = "Chronicle.EventStoreNamespace";
+
     /// <inheritdoc/>
     public void Extend(Type commandType, IServiceCollection services, IDictionary<string, object> context)
     {
@@ -116,6 +119,8 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         // the in-memory kernel, with the explicit transactional style enrolling in the command's unit of work.
         services.AddSingleton<IEventLog>(new EventLogForScenario(eventScenario.EventLog, unitOfWorkManager));
 
+        context[EventStoreNameKey] = eventStoreName;
+        context[EventStoreNamespaceKey] = namespaceName;
         context[EventSerializerRegistrationKey] = eventSerializerRegistration;
         context[ContextKey] = eventScenario;
         context[AppendedEventsKey] = appendedEvents;
@@ -186,7 +191,13 @@ public class ChronicleCommandScenarioExtender : ICommandScenarioExtender
         }
 
         // Defaults exposes the serializer paired with its testing store; the store's serializer is internal.
-        var decisionDefaults = new Defaults(Defaults.Instance.ClientArtifactsProvider);
+        var decisionDefaults = new Defaults(
+            Defaults.Instance.ClientArtifactsProvider,
+            serviceProvider: null,
+            options: null,
+            time: null,
+            eventStore: (EventStoreName)context[EventStoreNameKey],
+            @namespace: (EventStoreNamespaceName)context[EventStoreNamespaceKey]);
         var store = (EventStoreForTesting)decisionDefaults.EventStore;
         var commandEvents = new List<AppendedEventWithResult>();
         var scenario = new DecisionCommandScenario(store, commandEvents);

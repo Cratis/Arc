@@ -155,6 +155,39 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
     }
 
     /// <summary>
+    /// Gets a value indicating whether anything that was reported is worth showing again on the next build.
+    /// </summary>
+    /// <param name="compilerDiagnostics">What running the source generators reported.</param>
+    /// <param name="screenplayDiagnostics">What generating the documents reported.</param>
+    /// <returns>True when a warning or an error was reported, false otherwise.</returns>
+    static bool HasWarnings(IEnumerable<Microsoft.CodeAnalysis.Diagnostic> compilerDiagnostics, IEnumerable<ScreenplayDiagnostic> screenplayDiagnostics) =>
+        compilerDiagnostics.Any(_ => _.Severity >= Microsoft.CodeAnalysis.DiagnosticSeverity.Warning) ||
+        screenplayDiagnostics.Any(_ => _.Severity >= ScreenplayDiagnosticSeverity.Warning);
+
+    /// <summary>
+    /// Gets the fingerprint of everything the documents are generated from.
+    /// </summary>
+    /// <returns>The <see cref="GenerationFingerprint"/>.</returns>
+    GenerationFingerprint Fingerprint() =>
+        new GenerationFingerprint()
+            .WithGeneratorAt(typeof(GenerateEmbeddedScreenplayDocuments).Assembly.Location)
+            .WithSetting(nameof(AssemblyName), AssemblyName)
+            .WithSetting(nameof(RootNamespace), RootNamespace)
+            .WithSetting(nameof(DefineConstants), DefineConstants)
+            .WithSetting(nameof(LanguageVersion), LanguageVersion)
+            .WithSetting(nameof(Features), Features)
+            .WithSetting(nameof(InterceptorsNamespaces), InterceptorsNamespaces)
+            .WithSetting(nameof(InterceptorsPreviewNamespaces), InterceptorsPreviewNamespaces)
+            .WithSetting(nameof(OutputType), OutputType)
+            .WithSetting(nameof(AuthoringOnlyConstructs), AuthoringOnlyConstructs.ToString())
+            .WithSetting(nameof(MaximumExecutableModelVersion), MaximumExecutableModelVersion)
+            .WithFiles(nameof(Sources), Sources.Select(_ => _.GetMetadata("FullPath")))
+            .WithFiles(nameof(References), References.Select(_ => _.GetMetadata("FullPath")))
+            .WithFiles(nameof(Analyzers), Analyzers.Select(_ => _.GetMetadata("FullPath")))
+            .WithFiles(nameof(AdditionalFiles), AdditionalFiles.Select(_ => _.GetMetadata("FullPath")))
+            .WithFiles(nameof(AnalyzerConfigFiles), AnalyzerConfigFiles.Select(_ => _.GetMetadata("FullPath")));
+
+    /// <summary>
     /// Generates the documents and writes them.
     /// </summary>
     /// <returns>True when every document was generated and written, false otherwise.</returns>
@@ -172,6 +205,22 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
 
             maximumVersion = parsed;
         }
+
+        var fingerprint = Fingerprint().ToString();
+        if (ReusableGeneration.TryReuse(OutputPath, fingerprint, out var reused))
+        {
+            Documents = [.. reused.Select(ToItem)];
+
+            Log.LogMessage(
+                MessageImportance.Normal,
+                "Nothing {0} embeds Screenplay documents from changed, so the {1} it embedded before are reused.",
+                AssemblyName,
+                reused.Count);
+
+            return true;
+        }
+
+        ReusableGeneration.Forget(OutputPath);
 
         var compilation = SourceCompilation.Create(
             AssemblyName,
@@ -216,6 +265,11 @@ public class GenerateEmbeddedScreenplayDocuments : Microsoft.Build.Utilities.Tas
         }
 
         var files = GeneratedFiles.Write(OutputPath, generation);
+
+        if (!HasWarnings(generated.Diagnostics, generation.Diagnostics))
+        {
+            ReusableGeneration.Remember(OutputPath, fingerprint, files);
+        }
 
         Documents = [.. files.Select(ToItem)];
 

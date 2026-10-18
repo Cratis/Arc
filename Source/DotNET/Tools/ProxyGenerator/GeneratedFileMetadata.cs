@@ -119,37 +119,46 @@ public record GeneratedFileMetadata(string SourceTypeName, DateTime GeneratedTim
         try
         {
             using var reader = new StreamReader(filePath);
-            var firstLine = reader.ReadLine();
-            if (firstLine is null)
-            {
-                return false;
-            }
-
-            if (TryParse(firstLine, out metadata))
-            {
-                return true;
-            }
-
-            if (firstLine != "// Copyright (c) Cratis. All rights reserved.")
-            {
-                return false;
-            }
-
-            // New output keeps the license and its blank line ahead of the unchanged marker format.
-            var licenseLine = reader.ReadLine();
-            var blankLine = reader.ReadLine();
-            if (licenseLine != "// Licensed under the MIT license. See LICENSE file in the project root for full license information." ||
-                blankLine is null || !string.IsNullOrWhiteSpace(blankLine))
-            {
-                return false;
-            }
-            var markerLine = reader.ReadLine();
-
-            return markerLine is not null && TryParse(markerLine, out metadata);
+            return ReadLeadingMetadata(reader, out metadata);
         }
         catch
         {
             return false;
         }
+    }
+
+    static bool ReadLeadingMetadata(StreamReader reader, out GeneratedFileMetadata? metadata)
+    {
+        metadata = null;
+        var leadingLines = new List<string>();
+        while (reader.ReadLine() is { } line)
+        {
+            if (TryParse(line, out var parsed))
+            {
+                // Keep both historical layouts, but never treat arbitrary comments followed by a marker as generated.
+                var legacyHeader = leadingLines.Count == 3 &&
+                    leadingLines[0] == "// Copyright (c) Cratis. All rights reserved." &&
+                    leadingLines[1] == "// Licensed under the MIT license. See LICENSE file in the project root for full license information." &&
+                    string.IsNullOrWhiteSpace(leadingLines[2]);
+                if (leadingLines.Count != 0 && !legacyHeader)
+                {
+                    return false;
+                }
+                metadata = parsed;
+                return true;
+            }
+            if (line == FileHeader.GeneratedNotice)
+            {
+                var marker = reader.ReadLine();
+                return marker is not null && TryParse(marker, out metadata);
+            }
+            if (!string.IsNullOrWhiteSpace(line) && !line.StartsWith("//", StringComparison.Ordinal))
+            {
+                return false;
+            }
+            leadingLines.Add(line);
+        }
+
+        return false;
     }
 }

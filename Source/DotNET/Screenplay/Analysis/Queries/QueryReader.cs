@@ -266,7 +266,7 @@ public class QueryReader(TypeRegistry types, ScreenplayDiagnostics diagnostics)
     /// <returns>The <see cref="PropertyModel"/>.</returns>
     PropertyModel ToParameter(IParameterSymbol parameter)
     {
-        var type = types.Resolve(parameter.Type);
+        var type = types.ResolveCarried(parameter.Type);
 
         return new(parameter.Name, type with { IsOptional = parameter.HasExplicitDefaultValue || type.IsOptional });
     }

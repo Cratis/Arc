@@ -36,7 +36,30 @@ public static class Generator
     /// <param name="emitInterfaces">Emit types as plain interfaces rather than classes, with no decorators and no runtime dependency on <c>@cratis/fundamentals</c>.</param>
     /// <param name="useProxyFileSuffix">Name generated files <c>Name.proxy.ts</c> rather than <c>Name.ts</c>, to tell them apart from hand-written TypeScript.</param>
     /// <returns>True if successful, false if not.</returns>
-    public static async Task<bool> Generate(
+    public static Task<bool> Generate(
+        string assemblyFile,
+        string outputPath,
+        int segmentsToSkip,
+        Action<string> message,
+        Action<string> errorMessage,
+        bool libraryMode = false,
+        bool skipOutputDeletion = true,
+        bool skipCommandNameInRoute = false,
+        bool skipQueryNameInRoute = false,
+        string apiPrefix = "api",
+        bool skipIndexGeneration = false,
+        bool useSourceFileAsOutputFile = false,
+        IReadOnlyDictionary<string, string>? assemblyPackageMappings = null,
+        IReadOnlyCollection<string>? excludedTypeNames = null,
+        IReadOnlyCollection<string>? excludedNamespacePatterns = null,
+        IReadOnlyCollection<(string Namespace, string Folder)>? namespaceRoots = null,
+        IReadOnlyCollection<(string TypeName, string TsType, string Package)>? typeMappings = null,
+        bool emitInterfaces = false,
+        bool useProxyFileSuffix = false) => GenerateWithFileHeader(string.Empty, assemblyFile, outputPath, segmentsToSkip, message, errorMessage, libraryMode, skipOutputDeletion, skipCommandNameInRoute, skipQueryNameInRoute, apiPrefix, skipIndexGeneration, useSourceFileAsOutputFile, assemblyPackageMappings, excludedTypeNames, excludedNamespacePatterns, namespaceRoots, typeMappings, emitInterfaces, useProxyFileSuffix);
+
+    /// <inheritdoc cref="Generate"/>
+    internal static async Task<bool> GenerateWithFileHeader(
+        string fileHeaderTemplate,
         string assemblyFile,
         string outputPath,
         int segmentsToSkip,
@@ -105,23 +128,23 @@ public static class Generator
         if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
         if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
-        var typesInvolved = new List<Type>();
+        var typesInvolved = new TypesInvolved();
         var directories = new List<string>();
         var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
         var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
 
         Dictionary<string, (string Content, string SourceTypeName)>? pendingContent = useSourceFileAsOutputFile ? [] : null;
 
-        await commands.Write(outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await commands.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Command, directories, segmentsToSkip, "commands", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var singleModelQueries = queries.Where(_ => !_.IsEnumerable && !_.IsObservable).ToList();
-        await singleModelQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await singleModelQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "single model queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var enumerableQueries = queries.Where(_ => _.IsEnumerable && !_.IsObservable).ToList();
-        await enumerableQueries.Write(outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await enumerableQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Query, directories, segmentsToSkip, "queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var observableQueries = queries.Where(_ => _.IsObservable).ToList();
-        await observableQueries.Write(outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await observableQueries.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.ObservableQuery, directories, segmentsToSkip, "observable queries", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         foreach (var identityDetailsType in identityDetailsTypesProvider.IdentityDetailsTypes)
         {
@@ -153,34 +176,35 @@ public static class Generator
             message($"  Library mode: {typesInvolved.Count} types collected");
         }
 
-        typesInvolved = [.. typesInvolved.Distinct()];
+        typesInvolved.RemoveDuplicates();
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
+        var enumSet = enums.ToHashSet();
 
-        var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
+        var typeDescriptors = typesInvolved.Where(_ => !enumSet.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
 
         // A class carries `@field` decorators so Fundamentals can reconstruct it from JSON, which means a
         // runtime dependency on `@cratis/fundamentals`. A model that is only ever built and read - never
         // deserialized through that path - does not need either, and a package that deliberately has no
         // dependencies cannot take one on. Interfaces say the same shape and cost nothing.
         var typeTemplate = emitInterfaces ? TemplateTypes.Interface : TemplateTypes.Type;
-        await typeDescriptors.Write(outputPath, typesInvolved, typeTemplate, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await typeDescriptors.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, typeTemplate, directories, segmentsToSkip, "types", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var regularEnumDescriptors = enums
             .Where(_ => !_.IsFromMappedAssembly() && !_.IsFlagsEnum())
             .ToList()
             .ConvertAll(_ => _.ToEnumDescriptor());
-        await regularEnumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await regularEnumDescriptors.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.Enum, directories, segmentsToSkip, "enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         var flagsEnumDescriptors = enums
             .Where(_ => !_.IsFromMappedAssembly() && _.IsFlagsEnum())
             .ToList()
             .ConvertAll(_ => _.ToEnumDescriptor());
-        await flagsEnumDescriptors.Write(outputPath, typesInvolved, TemplateTypes.FlagsEnum, directories, segmentsToSkip, "flags enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+        await flagsEnumDescriptors.WriteWithFileHeader(fileHeaderTemplate, outputPath, typesInvolved, TemplateTypes.FlagsEnum, directories, segmentsToSkip, "flags enums", message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
 
         // Flush deferred content to disk, comparing final merged hashes against original files
         if (pendingContent is { Count: > 0 })
         {
-            await DescriptorExtensions.FlushPendingContent(pendingContent, generatedFiles, message);
+            await DescriptorExtensions.FlushPendingContentWithFileHeader(fileHeaderTemplate, pendingContent, generatedFiles, message);
         }
 
         // Find and remove orphaned files
@@ -197,7 +221,7 @@ public static class Generator
         {
             stopwatch.Restart();
             var distinctDirectories = directories.Distinct().ToList();
-            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFiles(distinctDirectories, generatedFiles, orphanedFiles, message, outputPath);
+            var (writtenCount, skippedCount) = IndexFileManager.UpdateAllIndexFilesWithFileHeader(fileHeaderTemplate, distinctDirectories, generatedFiles, orphanedFiles, message, outputPath);
             var skippedInfo = skippedCount > 0 ? $" ({skippedCount} unchanged)" : string.Empty;
             message($"  {writtenCount} index files written{skippedInfo} in {stopwatch.Elapsed}");
         }

@@ -67,18 +67,15 @@ public class QueryActionFilter(
                 queryProviders,
                 context.HttpContext.RequestServices);
 
+            if (await ControllerQueryValidationRejection.TryWrite(context.HttpContext, queryResult))
+            {
+                SetMvcResult(context, callResult.Result, new EmptyResult());
+                return;
+            }
+
             context.HttpContext.Response.SetResponseStatusCode(queryResult);
 
-            var actualResult = new ObjectResult(queryResult);
-
-            if (callResult.Result is not null)
-            {
-                callResult.Result.Result = actualResult;
-            }
-            else
-            {
-                context.Result = actualResult;
-            }
+            SetMvcResult(context, callResult.Result, new ObjectResult(queryResult));
         }
         else
         {
@@ -93,6 +90,17 @@ public class QueryActionFilter(
             return bool.TryParse(value, out var ignoreWarnings) && ignoreWarnings;
         }
         return false;
+    }
+
+    static void SetMvcResult(ActionExecutingContext context, ActionExecutedContext? executed, IActionResult result)
+    {
+        if (executed is not null)
+        {
+            executed.Result = result;
+            return;
+        }
+
+        context.Result = result;
     }
 
     static ValidationResult[] FilterValidationResults(List<ValidationResult> validationResults, bool treatWarningsAsErrors, bool ignoreWarnings)

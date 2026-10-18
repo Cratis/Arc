@@ -58,6 +58,8 @@ MongoDB `Observe()` handles paging through its query context. A plain subject do
 
 ## Errors and snapshots
 
+If query arguments fail validation, a direct WebSocket or SSE request receives one `QueryResult` with `isValid: false`, the validation results, and the correlation ID before the connection closes; a plain HTTP request still receives HTTP 400 with the query result.
+
 Monitor provider logs and stream health: these MongoDB producers log watcher failures and complete/dispose rather than forwarding them through `OnError`. See [provider failures](../model-bound/observable-queries.md#paging-and-failures) for the distinction from per-change and downstream operator errors.
 
 For a one-shot MongoDB read, use `waitForFirstResult=true`. A no-wait GET returns 202 without subscribing or disposing the subject and can retain an eagerly started watcher. The shared [snapshot guidance](../model-bound/observable-queries.md#waiting-for-the-first-http-result) explains current-value requirements, cleanup, and timeouts. See [cURL workflows](../using-observable-queries-with-curl.md) for requests you can run.

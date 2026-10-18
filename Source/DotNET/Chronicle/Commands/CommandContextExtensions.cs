@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
 using Cratis.Chronicle;
@@ -173,4 +174,26 @@ public static class CommandContextExtensions
     /// <returns>The resolved id, or the unspecified sentinel.</returns>
     internal static EventSourceId GetEventSourceIdOrDefault(this CommandContext commandContext) =>
         commandContext.HasEventSourceId() ? commandContext.GetEventSourceId() : EventSourceId.Unspecified;
+
+    /// <summary>
+    /// Gets the raw source key only while it still denotes the resolved target; never changes that target.
+    /// </summary>
+    /// <param name="context">The command context.</param>
+    /// <returns>The retained raw key, a matching legacy/provider selection, or the resolved target itself.</returns>
+    internal static object? GetRawEventSourceKey(this CommandContext context)
+    {
+        var target = context.GetEventSourceIdOrDefault();
+        if (context.Response is { } response && EventSourceExtensions.IsEventSourceIdValue(response)) return response;
+        if (context.Values.TryGetValue(RawCommandSourceKey.ContextKey, out var retained) && retained is RawCommandSourceKey raw)
+        {
+            return raw.Target.Value == target.Value ? raw.Value : target;
+        }
+        if (!target.IsSpecified) return target;
+
+        // Older contexts and providers may not retain a raw value. Reuse the baselined selection site, not another
+        // property-discovery path, and never canonicalize a provider's or response's resolved target again.
+        var selected = context.Command.GetEventSourceIdWithDeclaredType(out _, out var value);
+
+        return value is not null && selected.Value == target.Value ? value : target;
+    }
 }

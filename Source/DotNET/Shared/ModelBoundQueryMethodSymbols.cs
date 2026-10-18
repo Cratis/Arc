@@ -23,8 +23,7 @@ internal static class ModelBoundQueryMethodSymbols
     /// <summary>
     /// Actionable validation error shared by analyzers and generators.
     /// </summary>
-    internal static readonly DiagnosticDescriptor InvalidDeclaration = new(
-        "ARC0026", "Invalid explicit query declaration", "Query '{0}': {1}", "Arc", DiagnosticSeverity.Error, true);
+    internal static readonly DiagnosticDescriptor InvalidDeclaration = Cratis.Arc.Generators.ArcGeneratorDiagnostics.InvalidDeclaration;
 
     /// <summary>
     /// Tests the public static generator candidate shape.

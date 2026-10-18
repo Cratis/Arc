@@ -28,3 +28,5 @@
   href: ARC0028.md
 - name: ARC0029 - Non-public static method is not exposed as a query
   href: ARC0029.md
+- name: ARC0030 - Composite key requires accessor registration
+  href: ARC0030.md
