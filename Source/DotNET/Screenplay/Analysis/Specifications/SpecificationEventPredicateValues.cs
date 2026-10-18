@@ -100,6 +100,17 @@ static class SpecificationEventPredicateValues
                    TryRead(conjunction.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable);
         }
 
+        if (SpecificationEventCollectionValues.Read(expression, eventType, parameter, semanticModel) is { } collection)
+        {
+            if (!properties.Add(collection.Property))
+            {
+                return false;
+            }
+
+            values.Add((collection, expression.GetLocation()));
+            return true;
+        }
+
         if (expression is not BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } equality)
         {
             return false;
