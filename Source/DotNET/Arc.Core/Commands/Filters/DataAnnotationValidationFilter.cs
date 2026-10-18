@@ -21,7 +21,7 @@ public class DataAnnotationValidationFilter : ICommandFilter
         var validationContext = new ValidationContext(context.Command);
         if (DataAnnotationMembers.TryGet(context.Command.GetType(), out var members, out var attributes))
         {
-            ValidateRegistered(context.Command, validationContext, validationResults, members, attributes);
+            ValidateRegistered(validationContext, validationResults, members, attributes);
         }
         else
         {
@@ -42,8 +42,9 @@ public class DataAnnotationValidationFilter : ICommandFilter
         return Task.FromResult(CommandResult.Success(context.CorrelationId));
     }
 
-    static void ValidateRegistered(object command, ValidationContext context, List<SystemValidationResult> results, DataAnnotationMember[] members, Func<ValidationAttribute[]> attributes)
+    static void ValidateRegistered(ValidationContext context, List<SystemValidationResult> results, DataAnnotationMember[] members, Func<ValidationAttribute[]> attributes)
     {
+        var command = context.ObjectInstance;
         var displayName = context.DisplayName;
         foreach (var member in members)
         {
@@ -59,17 +60,21 @@ public class DataAnnotationValidationFilter : ICommandFilter
             return;
         }
 
-        foreach (var attribute in attributes())
+        ValidateObjectLevel(command, context, results, attributes);
+    }
+
+    static void ValidateObjectLevel(object command, ValidationContext context, List<SystemValidationResult> results, Func<ValidationAttribute[]> attributes)
+    {
+        results.AddRange(attributes().Select(attribute => attribute.GetValidationResult(command, context)).OfType<SystemValidationResult>());
+        if (!CanValidateObject(command, results))
         {
-            if (attribute.GetValidationResult(command, context) is { } result)
-            {
-                results.Add(result);
-            }
+            return;
         }
 
-        if (results.Count == 0 && command is IValidatableObject validatable && validatable.Validate(context) is { } objectResults)
-        {
-            results.AddRange(objectResults.Where(result => result is not null));
-        }
+        var objectResults = ((IValidatableObject)command).Validate(context) ?? [];
+        results.AddRange(objectResults.Where(result => result is not null));
     }
+
+    static bool CanValidateObject(object command, List<SystemValidationResult> results) =>
+        results.Count == 0 && command is IValidatableObject;
 }

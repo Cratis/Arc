@@ -32,13 +32,8 @@ internal static class DataAnnotationMemberTypes
         foreach (var type in ModelGraphWalkerTypes.ReachableTypes(roots, compilation, cancellationToken))
         {
             var hierarchy = Properties(type).ToArray();
-            var properties = hierarchy.Where(property =>
-                property.DeclaredAccessibility == Accessibility.Public && !property.IsStatic &&
-                property.Parameters.Length == 0 && property.GetMethod is not null && HasValidation(property)).ToArray();
-            if (!properties.Any(property => IsConcept(property.Type)) ||
-                !TypeNaming.CanBeNamed(type, compilation) || type.IsAbstract || type.IsStatic ||
-                properties.Any(property => !ModelGraphWalkerTypes.CanRead(property, compilation) ||
-                    hierarchy.Count(candidate => candidate.MetadataName == property.MetadataName) > 1))
+            var properties = hierarchy.Where(IsValidatedProperty).ToArray();
+            if (!CanRegister(type, properties, hierarchy, compilation))
             {
                 continue;
             }
@@ -62,10 +57,7 @@ internal static class DataAnnotationMemberTypes
     internal static string ForQuery(INamedTypeSymbol readModel, IMethodSymbol method, Compilation compilation)
     {
         var parameters = method.Parameters.Where(HasValidation).ToArray();
-        if (!parameters.Any(parameter => IsConcept(parameter.Type)) || ModelGraphWalkerTypes.IsFlagged(method) || !CanResolve(method) ||
-            !TypeNaming.CanBeNamed(readModel, compilation) || !TypeNaming.CanBeNamed(method.ContainingType, compilation) ||
-            method.Parameters.Any(parameter => parameter.RefKind != RefKind.None || ModelGraphWalkerTypes.IsFlagged(parameter) ||
-                !TypeNaming.CanBeNamed(parameter.Type, compilation)))
+        if (!parameters.Any(parameter => IsConcept(parameter.Type)) || !CanRegisterQuery(readModel, method, compilation))
         {
             return string.Empty;
         }
@@ -82,6 +74,61 @@ internal static class DataAnnotationMemberTypes
         return $"        {Registry}.RegisterQueryParameters({identity}, new {Member}[] {{ {string.Join(", ", members)} }});";
     }
 
+    static bool IsValidatedProperty(IPropertySymbol property)
+    {
+        if (property.DeclaredAccessibility != Accessibility.Public || property.IsStatic)
+        {
+            return false;
+        }
+
+        return HasReadableGetter(property) && HasValidation(property);
+    }
+
+    static bool HasReadableGetter(IPropertySymbol property) => property.Parameters.Length == 0 && property.GetMethod is not null;
+
+    static bool CanRegister(INamedTypeSymbol type, IPropertySymbol[] properties, IPropertySymbol[] hierarchy, Compilation compilation)
+    {
+        if (!properties.Any(property => IsConcept(property.Type)) || !TypeNaming.CanBeNamed(type, compilation))
+        {
+            return false;
+        }
+
+        if (type.IsAbstract || type.IsStatic)
+        {
+            return false;
+        }
+
+        return !properties.Any(property => !ModelGraphWalkerTypes.CanRead(property, compilation) || IsAmbiguous(property, hierarchy));
+    }
+
+    static bool IsAmbiguous(IPropertySymbol property, IPropertySymbol[] hierarchy) =>
+        hierarchy.Count(candidate => candidate.MetadataName == property.MetadataName) > 1;
+
+    static bool CanRegisterQuery(INamedTypeSymbol readModel, IMethodSymbol method, Compilation compilation)
+    {
+        if (ModelGraphWalkerTypes.IsFlagged(method) || !CanResolve(method))
+        {
+            return false;
+        }
+
+        if (!TypeNaming.CanBeNamed(readModel, compilation) || !TypeNaming.CanBeNamed(method.ContainingType, compilation))
+        {
+            return false;
+        }
+
+        return !method.Parameters.Any(parameter => !CanRegisterQueryParameter(parameter, compilation));
+    }
+
+    static bool CanRegisterQueryParameter(IParameterSymbol parameter, Compilation compilation)
+    {
+        if (parameter.RefKind != RefKind.None || ModelGraphWalkerTypes.IsFlagged(parameter))
+        {
+            return false;
+        }
+
+        return TypeNaming.CanBeNamed(parameter.Type, compilation);
+    }
+
     static IEnumerable<IPropertySymbol> Properties(INamedTypeSymbol type)
     {
         for (var current = type; current is not null; current = current.BaseType)
@@ -94,8 +141,11 @@ internal static class DataAnnotationMemberTypes
     }
 
     static bool CanResolve(IMethodSymbol method) => method.ContainingType.GetMembers(method.Name).OfType<IMethodSymbol>()
-        .Count(candidate => candidate.IsStatic && candidate.Parameters.All(parameter => parameter.RefKind == RefKind.None) &&
-            candidate.Parameters.Select(parameter => parameter.Type).SequenceEqual(method.Parameters.Select(parameter => parameter.Type), SymbolEqualityComparer.Default)) == 1;
+        .Count(candidate => candidate.IsStatic && MatchesReflectionParameters(candidate, method)) == 1;
+
+    static bool MatchesReflectionParameters(IMethodSymbol candidate, IMethodSymbol method) =>
+        candidate.Parameters.All(parameter => parameter.RefKind == RefKind.None) &&
+        candidate.Parameters.Select(parameter => parameter.Type).SequenceEqual(method.Parameters.Select(parameter => parameter.Type), SymbolEqualityComparer.Default);
 
     static string Read(string access, ITypeSymbol type) => IsConcept(type) ? $"{access} is {{ }} concept ? (object?)concept.Value : null" : access;
 
