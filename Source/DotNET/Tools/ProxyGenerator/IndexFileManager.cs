@@ -20,12 +20,10 @@ public static partial class IndexFileManager
     /// <param name="outputPath">The base output path for relative path calculation.</param>
     /// <returns>True if the index file was written, false if skipped.</returns>
     public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath) =>
-        UpdateIndexFile(directory, GroupByDirectory(generatedFiles, orphanedFiles), generatedFiles, message, outputPath);
+        UpdateIndexFileWithFileHeader(string.Empty, directory, generatedFiles, orphanedFiles, message, outputPath);
 
     /// <summary>
-    /// Updates all index.ts files in directories that have generated content, and also
-    /// scans for existing index files under the output path that may have stale exports
-    /// pointing to files that no longer exist on disk.
+    /// Updates index.ts files in generated directories and existing index directories with potentially stale exports.
     /// </summary>
     /// <param name="directories">Collection of directories with generated content.</param>
     /// <param name="generatedFiles">Collection of all generated file paths.</param>
@@ -33,43 +31,24 @@ public static partial class IndexFileManager
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path.</param>
     /// <returns>A tuple containing (WrittenCount, SkippedCount).</returns>
-    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
-    {
-        var writtenCount = 0;
-        var skippedCount = 0;
+    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath) =>
+        UpdateAllIndexFilesWithFileHeader(string.Empty, directories, generatedFiles, orphanedFiles, message, outputPath);
 
-        // Combine explicitly tracked directories with any directory under outputPath
-        // that has an existing index.ts file, to catch stale exports from previous runs.
-        var allDirectories = new HashSet<string>(directories, StringComparer.Ordinal);
+    /// <inheritdoc cref="UpdateIndexFile"/>
+    internal static bool UpdateIndexFileWithFileHeader(string fileHeaderTemplate, string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath) =>
+        UpdateIndexFileWithFileHeader(fileHeaderTemplate, directory, GroupByDirectory(generatedFiles, orphanedFiles), generatedFiles, message, outputPath);
 
-        if (Directory.Exists(outputPath))
-        {
-            foreach (var dir in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories).Select(Path.GetDirectoryName).OfType<string>())
-            {
-                allDirectories.Add(dir);
-            }
-        }
-
-        // Grouping once keeps this linear in the number of files, rather than a scan of every file per directory.
-        var byDirectory = GroupByDirectory(generatedFiles, orphanedFiles);
-
-        foreach (var directory in allDirectories)
-        {
-            var wasWritten = UpdateIndexFile(directory, byDirectory, generatedFiles, message, outputPath);
-            if (wasWritten)
-            {
-                writtenCount++;
-            }
-            else
-            {
-                skippedCount++;
-            }
-        }
-
-        return (writtenCount, skippedCount);
-    }
-
-    static bool UpdateIndexFile(string directory, Dictionary<string, DirectoryFiles> byDirectory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
+    /// <summary>
+    /// Updates the index.ts file of one directory from files already grouped by directory.
+    /// </summary>
+    /// <param name="fileHeaderTemplate">The file header template for a newly created index file.</param>
+    /// <param name="directory">The directory to create/update the index.ts file in.</param>
+    /// <param name="byDirectory">The generated and orphaned files, grouped by directory.</param>
+    /// <param name="generatedFiles">Dictionary of generated file paths (full paths) to their metadata.</param>
+    /// <param name="message">Logger to use for outputting messages.</param>
+    /// <param name="outputPath">The base output path for relative path calculation.</param>
+    /// <returns>True if the index file was written, false if skipped.</returns>
+    internal static bool UpdateIndexFileWithFileHeader(string fileHeaderTemplate, string directory, Dictionary<string, DirectoryFiles> byDirectory, IDictionary<string, GeneratedFileMetadata> generatedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
 
@@ -234,7 +213,8 @@ public static partial class IndexFileManager
             contentLines.Add($"export * from '{export}';");
         }
 
-        var content = string.Join(Environment.NewLine, contentLines);
+        var header = File.Exists(indexPath) ? string.Empty : FileHeader.Format(fileHeaderTemplate, indexPath);
+        var content = header + string.Join(Environment.NewLine, contentLines);
         if (!string.IsNullOrEmpty(content))
         {
             content += Environment.NewLine;
@@ -256,6 +236,43 @@ public static partial class IndexFileManager
         var relPath = GetRelativePath(outputPath, indexPath);
         message($"    Updated index: {relPath}");
         return true;
+    }
+
+    /// <inheritdoc cref="UpdateAllIndexFiles"/>
+    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
+    {
+        var writtenCount = 0;
+        var skippedCount = 0;
+
+        // Combine explicitly tracked directories with any directory under outputPath
+        // that has an existing index.ts file, to catch stale exports from previous runs.
+        var allDirectories = new HashSet<string>(directories, StringComparer.Ordinal);
+
+        if (Directory.Exists(outputPath))
+        {
+            foreach (var dir in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories).Select(Path.GetDirectoryName).OfType<string>())
+            {
+                allDirectories.Add(dir);
+            }
+        }
+
+        // Grouping once keeps this linear in the number of files, rather than a scan of every file per directory.
+        var byDirectory = GroupByDirectory(generatedFiles, orphanedFiles);
+
+        foreach (var directory in allDirectories)
+        {
+            var wasWritten = UpdateIndexFileWithFileHeader(fileHeaderTemplate, directory, byDirectory, generatedFiles, message, outputPath);
+            if (wasWritten)
+            {
+                writtenCount++;
+            }
+            else
+            {
+                skippedCount++;
+            }
+        }
+
+        return (writtenCount, skippedCount);
     }
 
     /// <summary>
@@ -405,14 +422,29 @@ public static partial class IndexFileManager
         return files;
     }
 
-    sealed class DirectoryFiles
+    /// <summary>
+    /// Represents the generated and orphaned files of one directory.
+    /// </summary>
+    internal sealed class DirectoryFiles
     {
+        /// <summary>
+        /// Gets the files of a directory that has none.
+        /// </summary>
         public static readonly DirectoryFiles None = new();
 
+        /// <summary>
+        /// Gets the names, without extension, of the generated files.
+        /// </summary>
         public HashSet<string> FileNames { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Gets the names, without extension, of the orphaned files.
+        /// </summary>
         public HashSet<string> OrphanedFileNames { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        /// <summary>
+        /// Gets or sets a value indicating whether any generated file was written.
+        /// </summary>
         public bool AnyWritten { get; set; }
     }
 }
