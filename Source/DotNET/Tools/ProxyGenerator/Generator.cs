@@ -128,7 +128,7 @@ public static class Generator
         if (Directory.Exists(outputPath) && !skipOutputDeletion) Directory.Delete(outputPath, true);
         if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
-        var typesInvolved = new List<Type>();
+        var typesInvolved = new TypesInvolved();
         var directories = new List<string>();
         var generatedFiles = new Dictionary<string, GeneratedFileMetadata>();
         var descriptorOrigins = DescriptorExtensions.BuildDescriptorOrigins(commands, queries);
@@ -176,10 +176,11 @@ public static class Generator
             message($"  Library mode: {typesInvolved.Count} types collected");
         }
 
-        typesInvolved = [.. typesInvolved.Distinct()];
+        typesInvolved.RemoveDuplicates();
         var enums = typesInvolved.Where(_ => _.IsEnum).ToList();
+        var enumSet = enums.ToHashSet();
 
-        var typeDescriptors = typesInvolved.Where(_ => !enums.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
+        var typeDescriptors = typesInvolved.Where(_ => !enumSet.Contains(_) && !_.IsFromMappedAssembly()).ToList().ConvertAll(_ => _.ToTypeDescriptor(outputPath, segmentsToSkip));
 
         // A class carries `@field` decorators so Fundamentals can reconstruct it from JSON, which means a
         // runtime dependency on `@cratis/fundamentals`. A model that is only ever built and read - never

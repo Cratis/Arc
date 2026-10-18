@@ -94,7 +94,7 @@ To generate documents only in Debug, add this to your application project:
 </PropertyGroup>
 ```
 
-A direct reference to `Cratis.Arc.Screenplay.Embedded` enables generation by default; the `Cratis` metapackage disables it in Release unless you explicitly set `CratisEmbeddedScreenplayEnabled` to `true`. Generation does not run during design-time builds. A real build regenerates the resources from the current source; disabling generation prevents previously generated files from being included.
+A direct reference to `Cratis.Arc.Screenplay.Embedded` enables generation by default; the `Cratis` metapackage disables it in Release unless you explicitly set `CratisEmbeddedScreenplayEnabled` to `true`. Generation does not run during design-time builds. A real build regenerates the resources from the current source. When none of the sources, references, analyzers or settings they are generated from changed since the last build, the previous output is reused and the application is not analyzed again; a build that reported a warning always runs again so the warning is shown again. Disabling generation prevents previously generated files from being included.
 
 ## Cap validated generation for an older consumer
 

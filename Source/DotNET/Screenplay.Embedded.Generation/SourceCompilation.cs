@@ -70,12 +70,16 @@ public static class SourceCompilation
         var trees = sources
             .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
+            .AsParallel()
+            .AsOrdered()
             .Select(_ => CSharpSyntaxTree.ParseText(Read(_), parseOptions, _))
             .ToList();
 
         var metadata = references
             .Distinct(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
+            .AsParallel()
+            .AsOrdered()
             .Select(_ => (MetadataReference)MetadataReference.CreateFromFile(_))
             .ToList();
 

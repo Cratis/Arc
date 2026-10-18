@@ -86,7 +86,7 @@ public class for_a_project : Specification, IDisposable
             .ShouldBeTrue();
 
     [Fact] void should_leave_nothing_else_behind_in_the_directory() =>
-        Directory.GetFiles(_output).Length.ShouldEqual(2);
+        Directory.GetFiles(_output).Count(_ => Path.GetFileName(_) != ReusableGeneration.FileName).ShouldEqual(2);
 
     /// <inheritdoc/>
     public void Dispose()
