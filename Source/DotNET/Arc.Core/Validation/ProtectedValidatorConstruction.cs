@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
+using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,9 +53,15 @@ internal static class ProtectedValidatorConstruction
     internal static object Construct(Type validatorType)
     {
         var validator = ConstructUncertified(validatorType);
-        _constructed.AddOrUpdate(validator, SnapshotOf(validator));
+        Certify(validator);
         return validator;
     }
+
+    /// <summary>
+    /// Records the rules after Arc's fresh construction and optional configuration callback.
+    /// </summary>
+    /// <param name="validator">The Arc-constructed instance.</param>
+    internal static void Certify(object validator) => _constructed.AddOrUpdate(validator, SnapshotOf(validator));
 
     /// <summary>
     /// Determines whether a validator instance is exactly of the given type, was constructed by Arc, and still has the
@@ -92,6 +99,8 @@ internal static class ProtectedValidatorConstruction
     internal static void ConstructDependencyFreeValidatorsThroughArc(this IServiceCollection services, ITypes types)
     {
         var validatorTypes = types.FindMultiple(typeof(IDiscoverableValidator<>)).ToHashSet();
+        var origins = ProtectedDecisionRegistrationOrigins.For(services);
+        origins.DiscoverValidators(validatorTypes);
         var boundThroughArc = new HashSet<ServiceDescriptor>();
         for (var index = 0; index < services.Count; index++)
         {
@@ -113,6 +122,7 @@ internal static class ProtectedValidatorConstruction
                         : Construct(implementationType),
                     lifetime);
                 boundThroughArc.Add(services[index]);
+                origins.TransferConvention(descriptor, services[index]);
             }
         }
 

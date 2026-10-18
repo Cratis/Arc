@@ -13,9 +13,11 @@ namespace Cratis.Arc.DependencyInjection;
 /// <param name="ScopeProviderType">The native scope provider runtime type.</param>
 /// <param name="Registrations">The immutable ordered descriptor snapshot, including probes.</param>
 /// <param name="Lifetime">The eagerly resolved root lifetime sentinel.</param>
+/// <param name="Manifest">The root's independent registration origins.</param>
 internal sealed record ProtectedDecisionRootAttestation(
     IServiceProvider Provider,
     IServiceProvider CanonicalProvider,
     Type ScopeProviderType,
     IReadOnlyList<ServiceDescriptor> Registrations,
-    ProtectedDecisionProviderLifetime Lifetime);
+    ProtectedDecisionProviderLifetime Lifetime,
+    ProtectedDecisionRegistrationManifest Manifest);

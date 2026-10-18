@@ -39,7 +39,8 @@ public sealed class ProtectedDecisionServiceProviderFactory(ServiceProviderOptio
         });
         try
         {
-            ProtectedDecisionProviderAttestations.TrackRoot(provider, snapshot);
+            var manifest = ProtectedDecisionRegistrationOrigins.For(containerBuilder).Snapshot(snapshot);
+            ProtectedDecisionProviderAttestations.TrackRoot(provider, snapshot, manifest);
             return provider;
         }
         catch

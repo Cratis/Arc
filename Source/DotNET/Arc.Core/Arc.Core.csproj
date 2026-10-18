@@ -10,6 +10,8 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc" />
+        <InternalsVisibleTo Include="Cratis.Arc.Chronicle" />
+        <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.CodeAnalysis.Specs" />
         <InternalsVisibleTo Include="Cratis.Arc.Core.Generators.Specs" />

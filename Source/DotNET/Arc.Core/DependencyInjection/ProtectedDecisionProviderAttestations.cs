@@ -21,11 +21,12 @@ internal static class ProtectedDecisionProviderAttestations
     /// </summary>
     /// <param name="provider">The adapter-built root.</param>
     /// <param name="registrations">The exact ordered registrations used to build it.</param>
-    internal static void TrackRoot(ServiceProvider provider, IReadOnlyList<ServiceDescriptor> registrations)
+    /// <param name="manifest">Frozen registration origins belonging only to this root.</param>
+    internal static void TrackRoot(ServiceProvider provider, IReadOnlyList<ServiceDescriptor> registrations, ProtectedDecisionRegistrationManifest manifest)
     {
         var canonical = provider.GetRequiredService<IServiceProvider>();
         var lifetime = provider.GetRequiredService<ProtectedDecisionProviderLifetime>();
-        var root = new ProtectedDecisionRootAttestation(provider, canonical, canonical.GetType(), registrations, lifetime);
+        var root = new ProtectedDecisionRootAttestation(provider, canonical, canonical.GetType(), registrations, lifetime, manifest);
         _roots.Add(provider.GetRequiredService<IServiceScopeFactory>(), root);
         _providers.Add(provider, new(root, provider, lifetime));
         _providers.Add(canonical, new(root, canonical, lifetime));

@@ -58,6 +58,7 @@ public static class ReadModelServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Transient(typeof(IInterceptReadModel<>), typeof(ReadModelInterceptor<>)));
 
         var readModelTypes = DiscoverReadModelTypes(clientArtifactsProvider);
+        ProtectedDecisionRegistrationOrigins.For(services).RecognizeReaders(typeof(IDecisionReads), readModelTypes);
 
         // Contribute the Chronicle-backed read model types to the provider-neutral command-scope resolution. This
         // registers a scoped, by-key resolver for each type and adds them to the additive set that lets a missing
@@ -80,7 +81,7 @@ public static class ReadModelServiceCollectionExtensions
                 .MakeGenericMethod(readModelType);
 
             // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
-            services.TryAddTransient(closedType, sp =>
+            var descriptor = ServiceDescriptor.Transient(closedType, sp =>
             {
                 try
                 {
@@ -92,6 +93,12 @@ public static class ReadModelServiceCollectionExtensions
                     throw;
                 }
             });
+            var count = services.Count;
+            services.TryAdd(descriptor);
+            if (services.Count != count)
+            {
+                ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
+            }
         }
 
         return services;
@@ -109,10 +116,12 @@ public static class ReadModelServiceCollectionExtensions
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandExceptionMapper, ReadProtectionCommandExceptionMapper>());
         services.TryAddSingleton<ICommandProtectedDecisionSupport, DecisionDependencySafety>();
-        services.AddScoped<IDecisionReads>(sp => new CommandDecisionReads(
+        var descriptor = ServiceDescriptor.Scoped<IDecisionReads>(sp => new CommandDecisionReads(
             sp.GetRequiredService<IEventStore>().GetDecisionReads(),
             sp.GetRequiredService<IEventStore>(),
             sp.GetRequiredService<IReadModels>()));
+        services.Add(descriptor);
+        ProtectedValidatorReadBindings.RecordReader(services, descriptor);
         return services;
     }
 

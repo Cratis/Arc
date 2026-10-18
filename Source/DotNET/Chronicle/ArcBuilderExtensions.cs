@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle;
 using Cratis.Chronicle.Transactions;
@@ -43,6 +44,7 @@ public static class ArcBuilderExtensions
     {
         builder.Services.AddAggregateRoots(builder.Types);
 
+        var beforeChronicle = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
         builder.AppBuilder.AddCratisChronicle(
             configureOptions: options =>
             {
@@ -54,6 +56,7 @@ public static class ArcBuilderExtensions
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
+        ProtectedValidatorReadBindings.RecordClientReaders(builder.Services, beforeChronicle);
 
         // The event store owns the manager, including its lifecycle policy and namespace.
         // Replace only the convention binding, preserving explicit registrations and later convention passes.
