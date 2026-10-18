@@ -7,7 +7,9 @@ namespace Cratis.Arc.Queries.Filters.for_DataAnnotationValidationFilter.when_per
 
 public class with_missing_non_nullable_range_parameter : given.annotated_parameters
 {
-    void Establish() => Parameter(typeof(int), null, new RangeAttribute(1, 100), supplied: false);
+    public static int Query([Range(1, 100)] int input) => input;
+
+    void Establish() => OmittedParameter(nameof(Query));
     async Task Because() => _result = await _filter.OnPerform(_context);
 
     [Fact] void should_reject_the_value() => _result.IsValid.ShouldBeFalse();

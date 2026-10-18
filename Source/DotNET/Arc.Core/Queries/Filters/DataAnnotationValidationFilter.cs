@@ -35,7 +35,12 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
         foreach (var parameter in performer.Parameters)
         {
             var member = members?.FirstOrDefault(member => member.Name == parameter.Name);
-            if (queryArguments.TryGetValue(parameter.Name, out var value) || member is not null)
+            var argumentWasProvided = queryArguments.TryGetValue(parameter.Name, out var value);
+
+            // The performer marks non-nullable value parameters with declared defaults as optional.
+            // Leave their omitted arguments to its default binding rather than validating a synthetic null.
+            var usesDeclaredDefault = !argumentWasProvided && !parameter.IsRequired && !IsNullable(parameter.Type);
+            if (!usesDeclaredDefault && (argumentWasProvided || member is not null))
             {
                 ValidateParameter(parameter, value, validationResults, member);
             }
