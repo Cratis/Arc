@@ -68,6 +68,10 @@ internal static class DateValidationRules
         {
             return "date rules on concepts are not admitted, because they also reach query inputs and client validators";
         }
+        if (target.Property.Contains('.', StringComparison.Ordinal))
+        {
+            return "date validation rules require a direct command property, not a concept or read path";
+        }
         if (target.ForEach)
         {
             return "date comparisons on collection elements are not admitted";
