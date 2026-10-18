@@ -47,7 +47,7 @@ internal static class FileHeader
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
         var fileName = Path.GetFileName(filePath);
-        var lines = normalized.Split('\n').Select(line => $"// {line.Replace("{fileName}", fileName, StringComparison.Ordinal)}");
+        var lines = normalized.Split('\n').Select(line => line.Length == 0 ? "//" : $"// {line.Replace("{fileName}", fileName, StringComparison.Ordinal)}");
 
         return $"{string.Join('\n', lines)}\n\n";
     }
