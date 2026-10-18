@@ -54,10 +54,21 @@ public static class EventSourceExtensions
     /// <param name="command">The command to get the event source ID from.</param>
     /// <param name="declaredType">The type of the key property or tuple element holding the id, or <see langword="null"/> when the command has none.</param>
     /// <returns>The event source ID.</returns>
-    internal static EventSourceId GetEventSourceIdWithDeclaredType(this object command, out Type? declaredType)
+    internal static EventSourceId GetEventSourceIdWithDeclaredType(this object command, out Type? declaredType) =>
+        command.GetEventSourceIdWithDeclaredType(out declaredType, out _);
+
+    /// <summary>
+    /// Returns the raw key already read at the event-source selection site, without discovering properties again.
+    /// </summary>
+    /// <param name="command">The command to inspect.</param>
+    /// <param name="declaredType">The selected key's declared type.</param>
+    /// <param name="rawKey">The original selected value, including null.</param>
+    /// <returns>The resolved event source id.</returns>
+    internal static EventSourceId GetEventSourceIdWithDeclaredType(this object command, out Type? declaredType, out object? rawKey)
     {
         var eventSourceId = EventSourceId.Unspecified;
         declaredType = null;
+        rawKey = null;
 
         if (command is ITuple tuple)
         {
@@ -71,6 +82,7 @@ public static class EventSourceExtensions
             if (id is not null)
             {
                 declaredType = id.GetType();
+                rawKey = id;
                 eventSourceId = ToEventSourceIdOrUnspecified(id);
             }
         }
@@ -83,6 +95,7 @@ public static class EventSourceExtensions
             {
                 declaredType = property.PropertyType;
                 var value = property.GetValue(command);
+                rawKey = value;
                 if (value is not null)
                 {
                     eventSourceId = ToEventSourceIdOrUnspecified(value);

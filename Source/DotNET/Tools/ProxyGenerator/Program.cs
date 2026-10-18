@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Text;
 using Cratis.Arc.ProxyGenerator;
 using static Cratis.Arc.ProxyGenerator.PathHelpers;
 
@@ -9,7 +10,7 @@ Console.WriteLine("Cratis Proxy Generator\n");
 if (args.Length < 2)
 {
     Console.WriteLine("Usage: ");
-    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--use-proxy-file-suffix] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
+    Console.WriteLine("  Cratis.ProxyGenerator <assembly> <output-path> [segments-to-skip] [--library-mode] [--skip-output-deletion] [--skip-command-name-in-route] [--skip-query-name-in-route] [--api-prefix=<prefix>] [--skip-index-generation] [--use-source-file-as-output-file] [--emit-interfaces] [--use-proxy-file-suffix] [--project-directory=<path>] [--file-header-base64=<encoded-template>] [--assembly-to-package=<Assembly>=<Package>]... [--exclude-type=<FullyQualifiedTypeName>]... [--exclude-namespace=<Pattern>]... [--namespace-root=<Namespace>=<Folder>]... [--type-to-ts=<FullyQualifiedTypeName>=<TsType>[=<Package>]]...");
     return 1;
 }
 var assemblyFile = Normalize(Path.GetFullPath(args[0]));
@@ -25,6 +26,10 @@ var skipIndexGeneration = args.Any(_ => _ == "--skip-index-generation");
 var useSourceFileAsOutputFile = args.Any(_ => _ == "--use-source-file-as-output-file");
 var emitInterfaces = args.Any(_ => _ == "--emit-interfaces");
 var useProxyFileSuffix = args.Any(_ => _ == "--use-proxy-file-suffix");
+var projectDirectory = args.FirstOrDefault(arg => arg.StartsWith("--project-directory=", StringComparison.Ordinal))?["--project-directory=".Length..];
+var encodedHeader = args.FirstOrDefault(arg => arg.StartsWith("--file-header-base64=", StringComparison.Ordinal))?["--file-header-base64=".Length..];
+var configuredHeader = encodedHeader is null ? null : Encoding.UTF8.GetString(Convert.FromBase64String(encodedHeader));
+var fileHeaderTemplate = FileHeader.Resolve(projectDirectory, configuredHeader);
 
 var assemblyPackageMappings = new Dictionary<string, string>();
 foreach (var mapping in args.Where(_ => _.StartsWith("--assembly-to-package=")).Select(_ => _["--assembly-to-package=".Length..]))
@@ -129,7 +134,8 @@ if (namespaceRoots.Count > 0)
 }
 Console.WriteLine();
 
-var result = await Generator.Generate(
+var result = await Generator.GenerateWithFileHeader(
+    fileHeaderTemplate,
     assemblyFile,
     outputPath,
     segmentsToSkip,

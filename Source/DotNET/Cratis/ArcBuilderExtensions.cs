@@ -2,12 +2,17 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
+using Cratis.Arc.Chronicle.Identities;
 using Cratis.Arc.Chronicle.Tenancy;
 using Cratis.Chronicle;
 using Cratis.Chronicle.AspNetCore;
 using Cratis.Chronicle.Transactions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+
+using HttpIdentityProvider = Cratis.Chronicle.AspNetCore.Identities.IdentityProvider;
 
 namespace Microsoft.AspNetCore.Builder;
 
@@ -64,6 +69,7 @@ public static class ArcBuilderExtensions
         // starts is what Chronicle added. Anything the callback registers afterwards belongs to the caller.
         HashSet<object>? atCallback = default;
 
+        IChronicleBuilder chronicle = null!;
         ((WebApplicationBuilder)builder.AppBuilder).AddCratisChronicle(
             configureOptions: options =>
             {
@@ -72,10 +78,18 @@ public static class ArcBuilderExtensions
             },
             configure: chronicleBuilder =>
             {
+                chronicle = chronicleBuilder;
                 atCallback = builder.Services.Where(_ => _.ServiceType == typeof(IUnitOfWorkManager)).ToHashSet<object>(ReferenceEqualityComparer.Instance);
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
+
+        builder.Services.AddArcIdentityProvider(
+            chronicle,
+            services => new HttpIdentityProvider(
+                services.GetRequiredService<IHttpContextAccessor>(),
+                services.GetRequiredService<ILogger<HttpIdentityProvider>>()),
+            services => services.GetRequiredService<IHttpContextAccessor>().HttpContext is not null);
 
         // The event store owns the manager, including its lifecycle policy and namespace. Drop Chronicle's addition
         // and Arc's convention binding, then register the event store's manager unless the caller registered one.

@@ -142,7 +142,10 @@ public class TypeRegistry
             _shapes.Register(carried, ResolveCarried);
         }
 
-        return new(NameOf(carried), collection, optional);
+        return new(NameOf(carried), collection, optional)
+        {
+            UnnameableType = CannotNameCarried(carried) ? type.ToDisplayString() : null
+        };
     }
 
     /// <summary>
@@ -166,6 +169,16 @@ public class TypeRegistry
     /// <param name="rules">The rules to record.</param>
     public void AddValidations(string conceptName, IEnumerable<ValidationRuleModel> rules) =>
         _concepts.AddValidations(conceptName, rules);
+
+    /// <summary>
+    /// Determines whether a carried value has neither a primitive nor a declaration in Screenplay.
+    /// </summary>
+    /// <param name="type">The unwrapped carried type.</param>
+    /// <returns>True when the property must be omitted rather than named.</returns>
+    internal static bool CannotNameCarried(ITypeSymbol type) =>
+        !(type is INamedTypeSymbol named && ScreenplayPrimitiveTypes.TryResolve(named.FullMetadataName(), out _)) &&
+        type.TypeKind != TypeKind.Enum && type.FindBase(WellKnownTypeNames.ConceptAs) is null &&
+        !CarriedTypes.IsRecord(type);
 
     /// <summary>
     /// Resolves a command-generated type while preserving its generation use through admission failure.

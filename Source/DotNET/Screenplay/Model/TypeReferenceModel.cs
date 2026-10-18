@@ -9,4 +9,10 @@ namespace Cratis.Arc.Screenplay.Model;
 /// <param name="Name">The name of the type being referenced.</param>
 /// <param name="IsCollection">Whether the reference is to a collection of the type.</param>
 /// <param name="IsOptional">Whether the reference is optional.</param>
-public record TypeReferenceModel(string Name, bool IsCollection, bool IsOptional);
+public record TypeReferenceModel(string Name, bool IsCollection, bool IsOptional)
+{
+    /// <summary>
+    /// Gets the original carried type when no Screenplay declaration can represent it.
+    /// </summary>
+    public string? UnnameableType { get; init; }
+}
