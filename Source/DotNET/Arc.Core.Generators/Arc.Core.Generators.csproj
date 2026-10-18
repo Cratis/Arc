@@ -22,6 +22,7 @@
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <Compile Include="../Shared/CommandOperationConvention.cs" Link="CommandOperationConvention.cs" />
         <Compile Include="../Shared/ModelBoundQueryMethodSymbols.cs" Link="ModelBoundQueryMethodSymbols.cs" />
+        <Compile Include="../Shared/ArcGeneratorDiagnostics.cs" Link="ArcGeneratorDiagnostics.cs" />
         <Compile Include="../Shared/QuerySelectionPolicy.cs" Link="QuerySelectionPolicy.cs" />
         <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
         <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
