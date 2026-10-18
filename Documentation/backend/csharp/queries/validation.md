@@ -82,11 +82,13 @@ That validation capability does not add HTTP binding support: built-in model-bou
 
 Generated clients extract supported FluentValidation rules for early feedback. Server validation remains authoritative; custom/async rules are not a blanket promise of browser/server parity. See [proxy validation](../proxy-generation/validation.md).
 
-## DataAnnotations limitation
+## DataAnnotations on parameters
 
-The current model-bound `DataAnnotationValidationFilter` reads attributes from `parameter.Type`, **not** the method parameter's attributes. It does not recursively validate DTO properties. Therefore `[Required]`, `[MinLength]`, or `[Range]` written on static query parameters does not enforce those rules through this filter.
+Apply DataAnnotations such as `[Range(1, 100)]`, `[Required]`, `[StringLength(3)]`, or `[RegularExpression("^[A-Z]+$")]` directly to public static model-bound query parameters. Arc generates validation metadata for annotated parameters and evaluates the attributes against the bound argument. Custom `ValidationAttribute` implementations are supported too. Concept arguments are validated against their underlying value.
 
-Use the verified FluentValidation pattern above rather than presenting parameter annotations as a working model-bound validation recipe. This is a current runtime limitation; broader parameter-annotation support would require an implementation change.
+Validation errors identify the parameter by name; `[Display]` controls its name in error messages. `[Required]` rejects null or omitted values. Other attributes follow DataAnnotations null semantics: an omitted nullable `[Range]` parameter is valid, while a missing non-nullable value type reports that the field is required.
+
+This filter does not recursively validate DTO properties. Parameters without generated metadata retain the type-level attribute fallback; method-parameter annotations in assemblies built without Arc's generator are not evaluated by that fallback. Use FluentValidation for whole-argument and cross-field rules.
 
 ## Controller-based validation
 
