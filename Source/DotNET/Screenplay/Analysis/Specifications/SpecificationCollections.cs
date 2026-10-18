@@ -14,6 +14,16 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 static class SpecificationCollections
 {
+    static readonly HashSet<string> _orderPreservingTargets = new(StringComparer.Ordinal)
+    {
+        "System.Collections.Generic.List`1",
+        "System.Collections.Generic.IEnumerable`1",
+        "System.Collections.Generic.IReadOnlyCollection`1",
+        "System.Collections.Generic.IReadOnlyList`1",
+        "System.Collections.Generic.ICollection`1",
+        "System.Collections.Generic.IList`1"
+    };
+
     /// <summary>
     /// Reads the complete ordered collection, or nothing when any element cannot be stated.
     /// </summary>
@@ -53,13 +63,25 @@ static class SpecificationCollections
 
     static IEnumerable<ExpressionSyntax>? Elements(ExpressionSyntax expression, SemanticModel model) => expression switch
     {
-        CollectionExpressionSyntax collection when collection.Elements.All(element => element is ExpressionElementSyntax) =>
+        CollectionExpressionSyntax collection when collection.Elements.All(element => element is ExpressionElementSyntax) && PreservesOrder(model.GetTypeInfo(collection).ConvertedType) =>
             collection.Elements.Cast<ExpressionElementSyntax>().Select(element => element.Expression),
         ImplicitArrayCreationExpressionSyntax array => array.Initializer.Expressions,
         ArrayCreationExpressionSyntax { Type.RankSpecifiers: [var rank], Initializer: { } initializer } when rank.Rank == 1 => initializer.Expressions,
         BaseObjectCreationExpressionSyntax creation when IsListConstruction(creation, model) => creation.Initializer?.Expressions ?? [],
         InvocationExpressionSyntax invocation when IsArrayEmpty(invocation, model) => [],
         _ => null
+    };
+
+    /// <summary>
+    /// Determines whether a collection expression's target keeps every authored element in order, as an array or a list does.
+    /// </summary>
+    /// <param name="target">The type the collection expression is converted to.</param>
+    /// <returns>True for an array, a list or an interface the compiler fills with one; false for sets, sorted or custom collections.</returns>
+    static bool PreservesOrder(ITypeSymbol? target) => target switch
+    {
+        IArrayTypeSymbol { Rank: 1 } => true,
+        INamedTypeSymbol named => _orderPreservingTargets.Contains(named.OriginalDefinition.FullMetadataName()),
+        _ => false
     };
 
     static bool IsListConstruction(BaseObjectCreationExpressionSyntax creation, SemanticModel model) =>

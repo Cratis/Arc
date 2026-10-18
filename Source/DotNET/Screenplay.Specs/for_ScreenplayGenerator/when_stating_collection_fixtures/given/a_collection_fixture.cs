@@ -5,7 +5,7 @@ namespace Cratis.Arc.Screenplay.for_ScreenplayGenerator.when_stating_collection_
 
 public class a_collection_fixture : for_ScreenplayGenerator.given.a_generated_document
 {
-    protected void GenerateFixture(string elementType, string expression)
+    protected void GenerateFixture(string elementType, string expression, string collectionType = "IEnumerable")
     {
         var slice = $$"""
             using System.Collections.Generic;
@@ -22,10 +22,10 @@ public class a_collection_fixture : for_ScreenplayGenerator.given.a_generated_do
             }
 
             [EventType]
-            public record ApprovalRequested(IEnumerable<{{elementType}}> Tags);
+            public record ApprovalRequested({{collectionType}}<{{elementType}}> Tags);
 
             [Command]
-            public record RequestApproval([Key] string Id, IEnumerable<{{elementType}}> Tags)
+            public record RequestApproval([Key] string Id, {{collectionType}}<{{elementType}}> Tags)
             {
                 public ApprovalRequested Handle() => new(Tags);
             }
