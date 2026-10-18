@@ -645,5 +645,9 @@ public partial class SpecificationSyntaxBuilder(IScreenplayNaming naming)
     /// <param name="state">The state to build from.</param>
     /// <returns>The values.</returns>
     IEnumerable<PropertyMappingSyntax> Values(SpecificationStateModel state) =>
-        state.Values.Select(_ => new PropertyMappingSyntax(naming.ToPropertyName(_.Property), CaseValue(_.Source), SourceLocation.Start));
+        state.Values.Select(_ => new PropertyMappingSyntax(naming.ToPropertyName(_.Property), FixtureValue(_.Source), SourceLocation.Start));
+
+    ExpressionSyntax FixtureValue(MappingSourceModel source) => source is LiteralSource { Value: object?[] items }
+        ? new ListExpressionSyntax(items.Select(item => FixtureValue(new LiteralSource(item))), SourceLocation.Start)
+        : CaseValue(source);
 }
