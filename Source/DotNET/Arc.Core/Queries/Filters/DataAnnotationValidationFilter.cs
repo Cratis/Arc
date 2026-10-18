@@ -63,9 +63,10 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
 
     static void ValidateRegisteredParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults, DataAnnotationMember member)
     {
+        var validationAttributes = member.Attributes();
         var validationContext = CreateValidationContext(parameter, value);
         validationContext.DisplayName = member.DisplayName;
-        Validator.TryValidateValue(value, validationContext, validationResults, member.Attributes());
+        Validator.TryValidateValue(value, validationContext, validationResults, validationAttributes);
     }
 
     static void ValidateUnregisteredParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults)
