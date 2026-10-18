@@ -120,6 +120,11 @@ public sealed class PackageGraphFixture : IDisposable
     /// </summary>
     public CodeFixHostResult ChronicleCodeFixResult { get; }
 
+    /// <summary>
+    /// Gets whether a packed consumer validated concept properties through generated metadata.
+    /// </summary>
+    public bool ConceptAnnotationsValidated { get; private set; }
+
     /// <inheritdoc/>
     public void Dispose() => TryDeleteWorkingDirectory();
 
@@ -249,9 +254,10 @@ public sealed class PackageGraphFixture : IDisposable
         File.WriteAllText(
             Path.Join(libraryDirectory, "Library.csproj"),
             CreateConsumerProject([definition.PackageId], emitGeneratedFiles: false));
+        var validatesConcepts = definition.Name == "exe-arc-core";
         File.WriteAllText(
             Path.Join(libraryDirectory, "LibraryMarker.cs"),
-            "namespace ProjectLibrary;\n\npublic static class LibraryMarker\n{\n}\n");
+            validatesConcepts ? DataAnnotationConsumer.Library : "namespace ProjectLibrary;\n\npublic static class LibraryMarker\n{\n}\n");
 
         var appProjectPath = Path.Join(appDirectory, "App.csproj");
         var appProperties = "<OutputType>Exe</OutputType>" +
@@ -259,7 +265,7 @@ public sealed class PackageGraphFixture : IDisposable
         File.WriteAllText(
             appProjectPath,
             CreateConsumerProject([definition.PackageId], additionalProperties: appProperties, projectReferences: ["../Library/Library.csproj"]));
-        File.WriteAllText(Path.Join(appDirectory, "Program.cs"), "System.Console.WriteLine(\"consumer\");\n");
+        File.WriteAllText(Path.Join(appDirectory, "Program.cs"), validatesConcepts ? DataAnnotationConsumer.Source : "System.Console.WriteLine(\"consumer\");\n");
 
         RestoreConsumer(appDirectory, appProjectPath);
         var buildResult = RunDotNet(appDirectory, ["build", appProjectPath, "--no-restore"], isolatedPackages: true);
@@ -271,6 +277,12 @@ public sealed class PackageGraphFixture : IDisposable
 
         var buildWasClean = buildResult.StandardOutput.Contains("0 Warning(s)", StringComparison.Ordinal) &&
                             buildResult.StandardOutput.Contains("0 Error(s)", StringComparison.Ordinal);
+
+        if (validatesConcepts)
+        {
+            var execution = RunDotNet(appDirectory, ["run", "--project", appProjectPath, "--no-build", "--no-restore"], isolatedPackages: true);
+            ConceptAnnotationsValidated = execution.StandardOutput.Contains(DataAnnotationConsumer.Success, StringComparison.Ordinal);
+        }
 
         return new(definition, buildWasClean, generatedRegistrations);
     }
