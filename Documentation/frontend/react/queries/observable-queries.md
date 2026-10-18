@@ -67,6 +67,12 @@ The result immediately shows the matching entry's cached result, if one exists. 
 
 A retained subscription stays live during the cache retention window. Returning to it shows its latest cached result without another subscribe. See [query instance caching](./query-instance-caching.md) for retention settings and [paging](./paging.md) for the paging and sorting controls.
 
+## Handle server-side observation failures
+
+For both SSE and WebSocket hub connections, a server `Error` message delivers a query result with `isReady: true`, `isSuccess: false`, `hasExceptions: true`, and the server error in `exceptionMessages`. For example, a MongoDB collection watch that cannot start because the database is unreachable reports a failure instead of leaving the hook waiting for its first result.
+
+Check `result.hasExceptions` and show the error before treating missing data as an empty result. Normal unsubscribe and watch cancellation do not produce error results. An error result does not itself restart a failed backend observation; recovery requires a new observation. See [MongoDB observation errors and recovery limits](../../../backend/csharp/mongodb/observing-collections.md#errors-and-recovery-limits).
+
 ## Related Pages
 
 - [Observable Query Multiplexing](./observable-query-multiplexing.md) for connection pooling, SSE limits, and protocol behavior.
