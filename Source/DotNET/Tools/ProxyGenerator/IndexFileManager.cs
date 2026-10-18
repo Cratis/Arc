@@ -44,13 +44,9 @@ public static partial class IndexFileManager
 
         if (Directory.Exists(outputPath))
         {
-            foreach (var indexFile in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories))
+            foreach (var dir in Directory.GetFiles(outputPath, "index.ts", SearchOption.AllDirectories).Select(Path.GetDirectoryName).OfType<string>())
             {
-                var dir = Path.GetDirectoryName(indexFile);
-                if (dir is not null)
-                {
-                    allDirectories.Add(dir);
-                }
+                allDirectories.Add(dir);
             }
         }
 
@@ -390,12 +386,9 @@ public static partial class IndexFileManager
             files.AnyWritten |= metadata.WasWritten;
         }
 
-        foreach (var path in orphanedFiles)
+        foreach (var path in orphanedFiles.Where(_ => Path.GetDirectoryName(_) is not null))
         {
-            if (Path.GetDirectoryName(path) is { } directory)
-            {
-                DirectoryFilesOf(byDirectory, directory).OrphanedFileNames.Add(Path.GetFileNameWithoutExtension(path));
-            }
+            DirectoryFilesOf(byDirectory, Path.GetDirectoryName(path)!).OrphanedFileNames.Add(Path.GetFileNameWithoutExtension(path));
         }
 
         return byDirectory;

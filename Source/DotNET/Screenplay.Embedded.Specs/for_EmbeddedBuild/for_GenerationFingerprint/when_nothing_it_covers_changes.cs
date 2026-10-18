@@ -14,14 +14,14 @@ public class when_nothing_it_covers_changes : Specification
     void Establish()
     {
         _directory = Directory.CreateTempSubdirectory().FullName;
-        File.WriteAllText(Path.Combine(_directory, "A.cs"), "class A;");
-        File.WriteAllText(Path.Combine(_directory, "B.cs"), "class B;");
+        File.WriteAllText(Path.Join(_directory, "A.cs"), "class A;");
+        File.WriteAllText(Path.Join(_directory, "B.cs"), "class B;");
     }
 
     void Because()
     {
-        var a = Path.Combine(_directory, "A.cs");
-        var b = Path.Combine(_directory, "B.cs");
+        var a = Path.Join(_directory, "A.cs");
+        var b = Path.Join(_directory, "B.cs");
         _first = new GenerationFingerprint().WithSetting("AssemblyName", "App").WithFiles("Sources", [a, b]).ToString();
         _second = new GenerationFingerprint().WithSetting("AssemblyName", "App").WithFiles("Sources", [b, a]).ToString();
     }

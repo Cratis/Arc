@@ -29,7 +29,7 @@ public static class ReusableGeneration
     public static bool TryReuse(string directory, string fingerprint, out IReadOnlyList<EmbeddedResourceFile> files)
     {
         files = [];
-        var path = Path.Combine(directory, FileName);
+        var path = Path.Join(directory, FileName);
 
         if (!File.Exists(path))
         {
@@ -51,7 +51,7 @@ public static class ReusableGeneration
                 return false;
             }
 
-            var file = new EmbeddedResourceFile(Path.Combine(directory, line[..separator]), line[(separator + 1)..]);
+            var file = new EmbeddedResourceFile(Path.Join(directory, Path.GetFileName(line[..separator])), line[(separator + 1)..]);
             if (!File.Exists(file.Path))
             {
                 return false;
@@ -79,7 +79,7 @@ public static class ReusableGeneration
             content.Append(Path.GetFileName(file.Path)).Append('|').Append(file.LogicalName).Append('\n');
         }
 
-        File.WriteAllText(Path.Combine(directory, FileName), content.ToString(), new UTF8Encoding(false));
+        File.WriteAllText(Path.Join(directory, FileName), content.ToString(), new UTF8Encoding(false));
     }
 
     /// <summary>
@@ -88,7 +88,7 @@ public static class ReusableGeneration
     /// <param name="directory">The directory the generated files are written to.</param>
     public static void Forget(string directory)
     {
-        var path = Path.Combine(directory, FileName);
+        var path = Path.Join(directory, FileName);
         if (File.Exists(path))
         {
             File.Delete(path);

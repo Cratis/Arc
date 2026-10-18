@@ -25,10 +25,10 @@ public class and_nothing_changed_since_the_last_build : Specification, IDisposab
 
     void Establish()
     {
-        _directory = Path.Combine(Path.GetTempPath(), $"cratis-screenplay-{Guid.NewGuid():N}");
-        _output = Path.Combine(_directory, "generated");
+        _directory = Path.Join(Path.GetTempPath(), $"cratis-screenplay-{Guid.NewGuid():N}");
+        _output = Path.Join(_directory, "generated");
         Directory.CreateDirectory(_directory);
-        _source = Path.Combine(_directory, "Program.cs");
+        _source = Path.Join(_directory, "Program.cs");
         File.WriteAllText(_source, "namespace Library;\n\npublic static class Program\n{\n    public static void Main() { }\n}\n");
 
         _first = TaskFor(new());

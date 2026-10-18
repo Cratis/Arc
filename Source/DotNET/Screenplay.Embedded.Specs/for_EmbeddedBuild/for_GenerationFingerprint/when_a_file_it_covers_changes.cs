@@ -15,7 +15,7 @@ public class when_a_file_it_covers_changes : Specification
     void Establish()
     {
         _directory = Directory.CreateTempSubdirectory().FullName;
-        _file = Path.Combine(_directory, "Source.cs");
+        _file = Path.Join(_directory, "Source.cs");
         File.WriteAllText(_file, "class A;");
         File.SetLastWriteTimeUtc(_file, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         _before = new GenerationFingerprint().WithFiles("Sources", [_file]).ToString();

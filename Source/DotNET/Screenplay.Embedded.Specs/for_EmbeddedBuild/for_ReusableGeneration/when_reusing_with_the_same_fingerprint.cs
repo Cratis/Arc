@@ -14,7 +14,7 @@ public class when_reusing_with_the_same_fingerprint : Specification
     void Establish()
     {
         _directory = Directory.CreateTempSubdirectory().FullName;
-        var document = Path.Combine(_directory, "document.play");
+        var document = Path.Join(_directory, "document.play");
         File.WriteAllText(document, "application");
         ReusableGeneration.Remember(_directory, "ABC", [new(document, "Logical.Name")]);
     }
@@ -24,6 +24,6 @@ public class when_reusing_with_the_same_fingerprint : Specification
     void Destroy() => Directory.Delete(_directory, true);
 
     [Fact] void should_be_reusable() => _reusable.ShouldBeTrue();
-    [Fact] void should_return_the_file() => _reused.Single().Path.ShouldEqual(Path.Combine(_directory, "document.play"));
+    [Fact] void should_return_the_file() => _reused.Single().Path.ShouldEqual(Path.Join(_directory, "document.play"));
     [Fact] void should_return_its_logical_name() => _reused.Single().LogicalName.ShouldEqual("Logical.Name");
 }

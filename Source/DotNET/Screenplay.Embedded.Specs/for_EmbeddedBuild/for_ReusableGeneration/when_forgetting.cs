@@ -13,7 +13,7 @@ public class when_forgetting : Specification
     void Establish()
     {
         _directory = Directory.CreateTempSubdirectory().FullName;
-        var document = Path.Combine(_directory, "document.play");
+        var document = Path.Join(_directory, "document.play");
         File.WriteAllText(document, "application");
         ReusableGeneration.Remember(_directory, "ABC", [new(document, "Logical.Name")]);
     }
