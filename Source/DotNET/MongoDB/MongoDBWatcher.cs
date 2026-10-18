@@ -3,10 +3,8 @@
 
 using System.Collections.Concurrent;
 using System.Linq.Expressions;
-using System.Reactive.Subjects;
 using Cratis.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace Cratis.Arc.MongoDB;
@@ -33,22 +31,51 @@ public class MongoDBWatcher(
     ILogger<MongoDBWatcher> logger,
     IMongoDBConnections? connections = null) : IMongoDBWatcher, IDisposable
 {
-    readonly ConcurrentDictionary<string, Lazy<DatabaseWatch>> _watches = new();
+    readonly ConcurrentDictionary<string, Lazy<MongoDBDatabaseWatch>> _watches = new();
     readonly CancellationTokenSource _cts = new();
+    readonly object _lifetimeGate = new();
+    readonly List<Task> _workers = [];
+    bool _disposed;
 
     /// <inheritdoc/>
     public IMongoDBObserveBuilder<TDocument> Observe<TDocument>(
         Expression<Func<TDocument, bool>>? filter = null)
+    {
+        lock (_lifetimeGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return CreateObservation<TDocument>(filter);
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        lock (_lifetimeGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+            _disposed = true;
+        }
+
+        _cts.Cancel();
+        _ = DisposeWhenStopped();
+        GC.SuppressFinalize(this);
+    }
+
+    MongoDBObserveBuilder<TDocument> CreateObservation<TDocument>(Expression<Func<TDocument, bool>>? filter)
     {
         var connection = connections?.Resolve();
         var databaseName = connection?.DatabaseName ?? databaseNameResolver.Resolve();
         var key = connection is null ? databaseName : $"{string.Join(',', connection.Client.Settings.Servers)}/{databaseName}";
         var lazyWatch = _watches.GetOrAdd(
             key,
-            static (_, state) => new Lazy<DatabaseWatch>(() => state.Self.StartWatch(state.Name, state.Client)),
+            static (_, state) => new Lazy<MongoDBDatabaseWatch>(() => state.Self.StartWatch(state.Name, state.Client)),
             (Self: this, Name: databaseName, connection?.Client));
 
-        DatabaseWatch watch;
+        MongoDBDatabaseWatch watch;
         try
         {
             watch = lazyWatch.Value;
@@ -59,105 +86,32 @@ public class MongoDBWatcher(
             // the watch failed — e.g. the client factory threw transiently — evict this exact entry so the next
             // Observe retries a fresh connection instead of replaying the cached failure for the process lifetime.
             // The keyed overload removes only while the stored value is still this poisoned Lazy, never a newer one.
-            _watches.TryRemove(new KeyValuePair<string, Lazy<DatabaseWatch>>(key, lazyWatch));
+            _watches.TryRemove(new KeyValuePair<string, Lazy<MongoDBDatabaseWatch>>(key, lazyWatch));
             throw;
         }
 
         var collection = watch.Database.GetCollection<TDocument>();
-        return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes);
+        return new MongoDBObserveBuilder<TDocument>(collection, filter, watch.Changes, logger);
     }
 
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        _cts.Cancel();
-        _cts.Dispose();
-
-        foreach (var watch in _watches.Values.Where(_ => _.IsValueCreated).Select(_ => _.Value))
-        {
-            watch.Changes.OnCompleted();
-            watch.Changes.Dispose();
-        }
-
-        _watches.Clear();
-        GC.SuppressFinalize(this);
-    }
-
-    DatabaseWatch StartWatch(string databaseName, IMongoClient? client)
+    MongoDBDatabaseWatch StartWatch(string databaseName, IMongoClient? client)
     {
         client ??= clientFactory.Create();
-        var watch = new DatabaseWatch(client.GetDatabase(databaseName));
-        _ = Task.Run(() => WatchDatabaseAsync(databaseName, watch));
+        var watch = new MongoDBDatabaseWatch(client.GetDatabase(databaseName), logger, _cts.Token);
+        _workers.Add(Task.Run(() => watch.Run(databaseName)));
         return watch;
     }
 
-    async Task WatchDatabaseAsync(string databaseName, DatabaseWatch watch)
+    async Task DisposeWhenStopped()
     {
-        var delay = TimeSpan.FromSeconds(1);
-
-        // Carried across reconnects so a transient failure resumes from the last delivered change instead of from
-        // "now" — otherwise every change that occurred during the disconnect is silently and permanently missed.
-        BsonDocument? resumeToken = null;
-
-        while (!_cts.IsCancellationRequested)
+        try
         {
-            try
-            {
-                var options = new ChangeStreamOptions
-                {
-                    FullDocument = ChangeStreamFullDocumentOption.UpdateLookup,
-                    ResumeAfter = resumeToken
-                };
-
-                var pipeline = new EmptyPipelineDefinition<ChangeStreamDocument<BsonDocument>>();
-                using var cursor = await watch.Database.WatchAsync(pipeline, options, _cts.Token);
-                logger.StartedWatchingDatabase(databaseName);
-                delay = TimeSpan.FromSeconds(1);
-
-                await cursor.ForEachAsync(
-                    changeDocument =>
-                    {
-                        resumeToken = changeDocument.ResumeToken;
-                        try
-                        {
-                            watch.Changes.OnNext(changeDocument);
-                        }
-                        catch (Exception ex)
-                        {
-                            logger.UnexpectedError(ex);
-                        }
-                    },
-                    _cts.Token);
-
-                logger.DatabaseWatchCompleted(databaseName);
-            }
-            catch (OperationCanceledException)
-            {
-                logger.DatabaseWatchCancelled();
-                return;
-            }
-            catch (Exception ex)
-            {
-                logger.DatabaseWatchReconnecting(databaseName, delay.TotalSeconds);
-                logger.UnexpectedError(ex);
-                try
-                {
-                    await Task.Delay(delay, _cts.Token);
-                }
-                catch (OperationCanceledException)
-                {
-                    return;
-                }
-
-                delay = TimeSpan.FromSeconds(Math.Min(delay.TotalSeconds * 2, 60));
-            }
+            await Task.WhenAll(_workers);
         }
-    }
-
-    sealed class DatabaseWatch(IMongoDatabase database)
-    {
-        public IMongoDatabase Database { get; } = database;
-
-        public Subject<ChangeStreamDocument<BsonDocument>> Changes { get; } = new();
+        finally
+        {
+            _watches.Clear();
+            _cts.Dispose();
+        }
     }
 }

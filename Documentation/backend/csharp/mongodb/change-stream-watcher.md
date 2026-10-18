@@ -48,7 +48,7 @@ public class BookCatalogService(IMongoDBWatcher watcher)
 public record BookCatalog(IEnumerable<Book> Books, IEnumerable<Author> Authors);
 ```
 
-`Select()` is called once with the full current contents of each collection. It is called again every time any watched collection receives an insert, update, replace, or delete.
+`Select()` is called once with the full current contents of each collection. Changes to any watched collection trigger a fresh joined snapshot, including inserts, updates, replacements, drops, deletes, and renames into or out of an observed namespace. Pending notifications may be coalesced: this is a live snapshot, not a delivery of every intermediate state.
 
 ## Filtering observed documents
 
@@ -108,11 +108,11 @@ public class CatalogController(IMongoDBWatcher watcher) : Controller
 
 ## Lifetime and disposal
 
-`IMongoDBWatcher` is a singleton. The host owns the singleton and disposes it at shutdown. A failed database watch reconnects with exponential backoff (one second up to 60 seconds), carrying its last resume token. This is not a durable consumer checkpoint: tokens are held in memory, and an expired/invalid token requires operational attention rather than an assumed automatic full resynchronization.
+`IMongoDBWatcher` is a singleton. The host owns the singleton and disposes it at shutdown. A failed database watch reconnects with exponential backoff (one second up to 60 seconds), carrying its last resume token. An invalidation or an expired/invalid resume token discards that token, reopens the stream, and refreshes every joined observation. Tokens are held in memory, not as durable consumer checkpoints.
 
 Individual subjects returned by `Select()` run a background loop that is tied to the subject itself — the loop stops when the subject completes or errors. Unsubscribing all observers from a subject causes it to complete and cleans up its internal resources automatically.
 
-Joined result fetching or selector failures are delivered through `OnError` and terminate that result subject. This differs from the per-collection `Observe()` implementation, which logs watch failures and completes. Reusing a terminated subject does not create a new joined observation. Keep tenant-specific results inside their intended lifetime even though the watcher itself is singleton.
+A failed joined snapshot is logged and retried up to five times, with delays of 1, 2, 4, 8, and 16 seconds. If all six attempts fail, Arc logs an error and retains the subscription; the next relevant database notification starts another snapshot attempt. Disposing the subject or removing its last subscriber cancels pending retries. Selector failures still terminate the result subject through `OnError`. These rules apply to the shared watcher, not the per-collection `IMongoCollection.Observe()` extension. Keep tenant-specific results inside their intended lifetime even though the watcher itself is singleton.
 
 ## See also
 
