@@ -19,34 +19,36 @@ internal static class ValuePreservingConversions
     /// </summary>
     /// <param name="expression">The expression as authored.</param>
     /// <param name="model">The expression's semantic model.</param>
+    /// <param name="models">The models of every analyzed project, or null for a single-compilation reading.</param>
     /// <returns>Whether every applied user-defined conversion forwards unchanged.</returns>
-    internal static bool Preserves(ExpressionSyntax expression, SemanticModel model)
+    internal static bool Preserves(ExpressionSyntax expression, SemanticModel model, SemanticModels? models = null)
     {
+        models ??= new([model.Compilation]);
         var conversion = model.GetConversion(expression);
-        if (conversion.IsUserDefined && !Forwards(conversion.MethodSymbol, model.Compilation))
+        if (conversion.IsUserDefined && !Forwards(conversion.MethodSymbol, models))
         {
             return false;
         }
 
-        return PreservesOperation(model.GetOperation(expression), model.Compilation) && PreservesWrapper(expression, model);
+        return PreservesOperation(model.GetOperation(expression), models) && PreservesWrapper(expression, model, models);
     }
 
-    static bool PreservesWrapper(ExpressionSyntax expression, SemanticModel model) => expression switch
+    static bool PreservesWrapper(ExpressionSyntax expression, SemanticModel model, SemanticModels models) => expression switch
     {
-        ParenthesizedExpressionSyntax parentheses => Preserves(parentheses.Expression, model),
-        CastExpressionSyntax cast => Preserves(cast.Expression, model),
-        PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppress => Preserves(suppress.Operand, model),
+        ParenthesizedExpressionSyntax parentheses => Preserves(parentheses.Expression, model, models),
+        CastExpressionSyntax cast => Preserves(cast.Expression, model, models),
+        PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppress => Preserves(suppress.Operand, model, models),
         _ => true
     };
 
-    static bool PreservesOperation(IOperation? operation, Compilation compilation) => operation switch
+    static bool PreservesOperation(IOperation? operation, SemanticModels models) => operation switch
     {
-        IConversionOperation conversion => (conversion.OperatorMethod is null || Forwards(conversion.OperatorMethod, compilation)) && PreservesOperation(conversion.Operand, compilation),
-        IParenthesizedOperation parentheses => PreservesOperation(parentheses.Operand, compilation),
+        IConversionOperation conversion => (conversion.OperatorMethod is null || Forwards(conversion.OperatorMethod, models)) && PreservesOperation(conversion.Operand, models),
+        IParenthesizedOperation parentheses => PreservesOperation(parentheses.Operand, models),
         _ => true
     };
 
-    static bool Forwards(IMethodSymbol? method, Compilation compilation)
+    static bool Forwards(IMethodSymbol? method, SemanticModels models)
     {
         if (IsFrameworkValueExtraction(method))
         {
@@ -57,9 +59,13 @@ internal static class ValuePreservingConversions
             return false;
         }
 
-        var models = new SemanticModels([compilation]);
+        method = models.SourceOf(method!) ?? method!;
+        if (method.DeclaringSyntaxReferences.Length == 0 && method.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal))
+        {
+            return true;
+        }
 
-        return method!.DeclaringSyntaxReferences.Select(reference => ReturnedExpression(reference.GetSyntax()))
+        return method.DeclaringSyntaxReferences.Select(reference => ReturnedExpression(reference.GetSyntax()))
             .OfType<ExpressionSyntax>().Any(expression => ConstructsUnchanged(expression, method.Parameters[0], method.ReturnType, models));
     }
 

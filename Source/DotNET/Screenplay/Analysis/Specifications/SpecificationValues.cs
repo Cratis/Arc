@@ -14,12 +14,13 @@ namespace Cratis.Arc.Screenplay.Analysis.Specifications;
 /// </summary>
 /// <param name="diagnostics">The <see cref="ScreenplayDiagnostics"/> anything unreadable is reported to.</param>
 /// <param name="identities">The <see cref="GeneratedIdentities"/> telling an identity that was made from a value that was computed.</param>
+/// <param name="models">The models of every analyzed project, or null for a single-compilation reading.</param>
 /// <remarks>
 /// A specification is closed - it refers to nothing outside itself - so a constant is the only source of a value
 /// there is. That is the same discipline a produces mapping is read with, one source shorter: a produces mapping may
 /// also name the input of the command being handled, and a scenario has no input to name.
 /// </remarks>
-public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIdentities identities)
+public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIdentities identities, SemanticModels? models = null)
 {
     readonly MappingSourceReader _sources = new(diagnostics);
 
@@ -165,6 +166,17 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         return values;
     }
 
+    bool PreservesConversion(ExpressionSyntax expression, SemanticModel semanticModel, ITypeSymbol type, string property, SpecificationDraft draft)
+    {
+        if (ValuePreservingConversions.Preserves(expression, semanticModel, models))
+        {
+            return true;
+        }
+
+        draft.CannotRead($"it cannot prove that a user-defined conversion for '{type.Name}.{property}' forwards its backing value unchanged");
+        return false;
+    }
+
     /// <summary>
     /// Adds a value, reporting one that is code rather than stating it as something it is not.
     /// </summary>
@@ -198,12 +210,6 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         SpecificationDraft draft,
         bool queryValues)
     {
-        if (!ValuePreservingConversions.Preserves(expression, semanticModel))
-        {
-            draft.CannotRead($"it cannot prove that a user-defined conversion for '{type.Name}.{property}' forwards its backing value unchanged");
-            return;
-        }
-
         var localProperty = type.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
         var sourceProperty = sourceType.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
         if (localProperty is not null && draft.CaseValues?.TryRead(
@@ -215,9 +221,19 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
                 return;
             }
 
+            if (!PreservesConversion(expression, semanticModel, type, property, draft))
+            {
+                return;
+            }
+
             var mapping = new PropertyMappingModel(property, bound);
             values.Add(mapping);
             draft.AddValue(mapping, expression.GetLocation());
+            return;
+        }
+
+        if (!PreservesConversion(expression, semanticModel, type, property, draft))
+        {
             return;
         }
 
@@ -242,7 +258,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         {
             string? reason = null;
             literal = localProperty is not null
-                ? SpecificationCollections.Read(expression, semanticModel, localProperty.Type, _sources, out reason)
+                ? SpecificationCollections.Read(expression, semanticModel, localProperty.Type, _sources, out reason, models)
                 : null;
             if (reason is not null)
             {

@@ -115,7 +115,7 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
     /// <param name="method">The exactly bound assertion method.</param>
     /// <param name="semanticModel">The semantic model owning the assertion.</param>
     /// <param name="draft">The scenario collected so far.</param>
-    static void AddEvent(
+    void AddEvent(
         ITypeSymbol appended,
         InvocationExpressionSyntax invocation,
         IMethodSymbol method,
@@ -141,7 +141,8 @@ public class SpecificationOutcomeReader(SemanticModels models, ScreenplayDiagnos
                 semanticModel,
                 draft,
                 out var values,
-                out var reason))
+                out var reason,
+                models))
         {
             draft.CannotRead(reason!);
             return;

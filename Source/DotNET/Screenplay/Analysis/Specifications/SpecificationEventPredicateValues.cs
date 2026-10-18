@@ -26,6 +26,7 @@ static class SpecificationEventPredicateValues
     /// <param name="draft">The scenario collecting exact value evidence.</param>
     /// <param name="values">The values in authored predicate order.</param>
     /// <param name="reason">The blocking reason when the predicate is not exact.</param>
+    /// <param name="models">The models of every analyzed project, or null for a single-compilation reading.</param>
     /// <returns><see langword="true"/> when the predicate is absent or every value is exact.</returns>
     public static bool TryRead(
         InvocationExpressionSyntax invocation,
@@ -34,7 +35,8 @@ static class SpecificationEventPredicateValues
         SemanticModel semanticModel,
         SpecificationDraft draft,
         out IReadOnlyList<PropertyMappingModel> values,
-        out string? reason)
+        out string? reason,
+        SemanticModels? models = null)
     {
         values = [];
         reason = null;
@@ -59,7 +61,7 @@ static class SpecificationEventPredicateValues
         var recovered = new List<(PropertyMappingModel Value, Location Source)>();
         var properties = new HashSet<string>(StringComparer.Ordinal);
         var unstatable = new List<string>();
-        if (!TryRead(body, eventType, parameter, semanticModel, draft, recovered, properties, unstatable))
+        if (!TryRead(body, eventType, parameter, semanticModel, draft, recovered, properties, unstatable, models))
         {
             reason = unstatable.Count > 0
                 ? $"an expected event predicate states {unstatable[0]}"
@@ -91,16 +93,17 @@ static class SpecificationEventPredicateValues
         SpecificationDraft draft,
         List<(PropertyMappingModel Value, Location Source)> values,
         HashSet<string> properties,
-        List<string> unstatable)
+        List<string> unstatable,
+        SemanticModels? models)
     {
         expression = Unwrap(expression);
         if (expression is BinaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalAndExpression } conjunction)
         {
-            return TryRead(conjunction.Left, eventType, parameter, semanticModel, draft, values, properties, unstatable) &&
-                   TryRead(conjunction.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable);
+            return TryRead(conjunction.Left, eventType, parameter, semanticModel, draft, values, properties, unstatable, models) &&
+                   TryRead(conjunction.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable, models);
         }
 
-        if (SpecificationEventCollectionValues.Read(expression, eventType, parameter, semanticModel, out var collectionReason) is { } collection)
+        if (SpecificationEventCollectionValues.Read(expression, eventType, parameter, semanticModel, out var collectionReason, models) is { } collection)
         {
             if (!properties.Add(collection.Property))
             {
@@ -122,8 +125,8 @@ static class SpecificationEventPredicateValues
             return false;
         }
 
-        return TryRead(equality.Left, equality.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable) ||
-               TryRead(equality.Right, equality.Left, eventType, parameter, semanticModel, draft, values, properties, unstatable);
+        return TryRead(equality.Left, equality.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable, models) ||
+               TryRead(equality.Right, equality.Left, eventType, parameter, semanticModel, draft, values, properties, unstatable, models);
     }
 
     static bool TryRead(
@@ -135,7 +138,8 @@ static class SpecificationEventPredicateValues
         SpecificationDraft draft,
         List<(PropertyMappingModel Value, Location Source)> values,
         HashSet<string> properties,
-        List<string> unstatable)
+        List<string> unstatable,
+        SemanticModels? models)
     {
         memberExpression = Unwrap(memberExpression);
         valueExpression = Unwrap(valueExpression);
@@ -147,7 +151,7 @@ static class SpecificationEventPredicateValues
             return false;
         }
 
-        if (!ValuePreservingConversions.Preserves(valueExpression, semanticModel))
+        if (!ValuePreservingConversions.Preserves(valueExpression, semanticModel, models))
         {
             unstatable.Add($"'{eventType.Name}.{property.Name}' through a user-defined conversion that cannot be proven to forward its backing value unchanged");
             return false;
