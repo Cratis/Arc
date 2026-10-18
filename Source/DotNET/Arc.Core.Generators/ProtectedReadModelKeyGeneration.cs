@@ -16,6 +16,7 @@ internal static class ProtectedReadModelKeyGeneration
     const string Registry = "Cratis.Arc.Chronicle.ReadModels.ProtectedReadModelKeyAccessors";
     const string Member = "global::Cratis.Arc.Chronicle.ReadModels.ProtectedReadModelKeyMember";
     static readonly SymbolDisplayFormat _format = SymbolDisplayFormat.FullyQualifiedFormat;
+    static readonly HashSet<string> _scalarTypeNames = new(StringComparer.Ordinal) { "Guid", "DateTimeOffset", "DateOnly", "TimeOnly", "TimeSpan" };
 
     /// <summary>
     /// Emits composite descriptors and declared-key coverage metadata for a consuming compilation.
@@ -62,7 +63,7 @@ internal static class ProtectedReadModelKeyGeneration
             source.AppendLine(");");
         }
 
-        foreach (var type in keys.SelectMany(entry => entry.Keys).Distinct<ITypeSymbol>(SymbolEqualityComparer.Default)
+        foreach (var type in keys.SelectMany(entry => entry.Keys).Select(UnwrapNullable).Distinct<ITypeSymbol>(SymbolEqualityComparer.Default)
             .OfType<INamedTypeSymbol>().Where(type => IsComposite(type) && !covered.Contains(type)))
         {
             output.ReportDiagnostic(Diagnostic.Create(ArcGeneratorDiagnostics.AccessorMissing, type.Locations.FirstOrDefault(location => location.IsInSource) ?? Location.None, type.ToDisplayString()));
@@ -122,9 +123,20 @@ internal static class ProtectedReadModelKeyGeneration
         return false;
     }
 
+    static ITypeSymbol UnwrapNullable(ITypeSymbol type) =>
+        type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable ? nullable.TypeArguments[0] : type;
+
+    static bool IsScalar(INamedTypeSymbol type) =>
+        type.TypeKind == TypeKind.Enum ||
+        type.SpecialType is SpecialType.System_Boolean or SpecialType.System_Char or SpecialType.System_SByte or SpecialType.System_Byte or
+            SpecialType.System_Int16 or SpecialType.System_UInt16 or SpecialType.System_Int32 or SpecialType.System_UInt32 or
+            SpecialType.System_Int64 or SpecialType.System_UInt64 or SpecialType.System_Single or SpecialType.System_Double or
+            SpecialType.System_IntPtr or SpecialType.System_UIntPtr or SpecialType.System_String or SpecialType.System_Decimal or SpecialType.System_DateTime ||
+        (type.ContainingNamespace.ToDisplayString() == "System" && _scalarTypeNames.Contains(type.MetadataName));
+
     static bool IsComposite(INamedTypeSymbol type) =>
         type.SpecialType == SpecialType.None && type.TypeKind is TypeKind.Class or TypeKind.Struct &&
-        !type.IsTupleType && !IsEventSourceId(type) &&
+        !type.IsAbstract && !IsScalar(type) && !type.IsTupleType && !IsEventSourceId(type) &&
         !type.AllInterfaces.Any(@interface => @interface.ToDisplayString() == "System.Runtime.CompilerServices.ITuple") &&
         !HasConceptBase(type);
 
