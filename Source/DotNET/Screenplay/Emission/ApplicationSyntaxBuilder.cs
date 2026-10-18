@@ -53,6 +53,7 @@ public class ApplicationSyntaxBuilder(IScreenplayNaming naming, ScreenplayDiagno
     /// </remarks>
     public ApplicationSyntax Build(ApplicationModel model, ScreenplayOptions options)
     {
+        model = new UnnameableProperties(diagnostics).Apply(model);
         model = Analysis.DateComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
         model = Analysis.UuidComparisonVersionAdmission.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
         model = Analysis.ProtectedReads.Apply(model, options.MaximumExecutableModelVersion, diagnostics);
