@@ -23,6 +23,11 @@ public class CurrentPrincipalAccessor(IHttpRequestContextAccessor httpRequestCon
             ? httpRequestContextAccessor.Current.User
             : _override.Value);
 
+    /// <summary>
+    /// Gets whether a server-side principal override is active in the current execution context.
+    /// </summary>
+    internal bool HasOverride => _override.Value is not null;
+
     /// <inheritdoc/>
     public IDisposable BeginScope(ClaimsPrincipal principal)
     {
