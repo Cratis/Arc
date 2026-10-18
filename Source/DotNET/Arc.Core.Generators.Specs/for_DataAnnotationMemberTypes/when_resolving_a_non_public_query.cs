@@ -9,13 +9,16 @@ namespace Cratis.Arc.Generators.Specs.for_DataAnnotationMemberTypes;
 public class when_resolving_a_non_public_query : given.annotated_models
 {
     bool _registered;
+    bool _ordinaryRegistered;
 
     void Because()
     {
         Compile(Models);
         _registered = DataAnnotationMembers.TryGet(new FullyQualifiedQueryName(_queryName.Replace(".Search", ".Internal", StringComparison.Ordinal)), out _);
+        _ordinaryRegistered = DataAnnotationMembers.TryGet(new FullyQualifiedQueryName(_queryName.Replace(".Search", ".InternalOrdinary", StringComparison.Ordinal)), out _);
     }
 
     [Fact] void should_compile_without_generated_warnings() => _diagnostics.ShouldBeEmpty();
     [Fact] void should_not_register_the_query() => _registered.ShouldBeFalse();
+    [Fact] void should_not_register_the_ordinary_query() => _ordinaryRegistered.ShouldBeFalse();
 }

@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Cratis.Arc.Generators;
 
 /// <summary>
-/// Renders complete annotation metadata for types and queries with annotated concepts.
+/// Renders complete annotation metadata for types with annotated concepts and query parameters.
 /// </summary>
 internal static class DataAnnotationMemberTypes
 {
@@ -48,7 +48,7 @@ internal static class DataAnnotationMemberTypes
     }
 
     /// <summary>
-    /// Renders all annotated parameters under a query's identity when any annotated parameter is a concept.
+    /// Renders all annotated parameters under a query's identity.
     /// </summary>
     /// <param name="readModel">The read model used to identify the query.</param>
     /// <param name="method">The query method.</param>
@@ -57,7 +57,7 @@ internal static class DataAnnotationMemberTypes
     internal static string ForQuery(INamedTypeSymbol readModel, IMethodSymbol method, Compilation compilation)
     {
         var parameters = method.Parameters.Where(HasValidation).ToArray();
-        if (!parameters.Any(parameter => IsConcept(parameter.Type)) || !CanRegisterQuery(readModel, method, compilation))
+        if (parameters.Length == 0 || !CanRegisterQuery(readModel, method, compilation))
         {
             return string.Empty;
         }

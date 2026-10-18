@@ -35,7 +35,10 @@ public class annotated_models : Specification
         {
             public static Report Search([Range(1, 5)] Number count, [Required] Text name) => new(name.Value);
             internal static Report Internal([Range(1, 5)] Number count) => new("internal");
-            public static Report Ordinary([Range(1, 5)] int count) => new("ordinary");
+            public static Report Ordinary([Range(1, 100)] int count) => new("ordinary");
+            public static Report Named([Required, StringLength(3), Display(Name = "Customer name")] string? name) => new(name!);
+            public static Report Plain(int count) => new("plain");
+            internal static Report InternalOrdinary([Range(1, 100)] int count) => new("internal");
         }
         """;
 
