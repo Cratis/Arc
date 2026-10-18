@@ -1,0 +1,89 @@
+name: Warm Caches
+
+# Pull request workflows only restore the shared NuGet and Yarn caches (Cratis/Workflows dotnet-cache and
+# yarn-cache), and a cache saved on main is the one every pull request can restore. Publish saves them only when a
+# merge releases, so this saves them whenever what they are keyed on changes on main, and nightly so they are not
+# evicted. On an exact hit there is nothing to save, so the restore and install are skipped.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.csproj"
+      - "**/*.props"
+      - "**/*.targets"
+      - "**/packages.lock.json"
+      - "**/[Nn]u[Gg]et.[Cc]onfig"
+      - "*.slnx"
+      - "global.json"
+      - "yarn.lock"
+      - ".yarnrc.yml"
+      - ".github/workflows/warm-caches.yml"
+  schedule:
+    - cron: "12 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  DOTNET8_VERSION: "8.0.407"
+  DOTNET9_VERSION: "9.0.x"
+  DOTNET10_VERSION: "10.0.x"
+
+jobs:
+  nuget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # The same SDKs as the build, so the restore downloads exactly the packages the build needs.
+      - name: Setup .Net
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            ${{ env.DOTNET8_VERSION }}
+            ${{ env.DOTNET9_VERSION }}
+            ${{ env.DOTNET10_VERSION }}
+
+      - name: NuGet cache
+        id: nuget
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+
+      # Release, as the build: it targets net8.0, net9.0 and net10.0 where Debug targets net10.0 only.
+      - name: Restore every project
+        if: steps.nuget.outputs.cache-hit != 'true'
+        run: dotnet restore --property:Configuration=Release
+
+  yarn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 23.x
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Yarn cache
+        id: yarn
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
+
+      - name: Yarn install
+        if: steps.yarn.outputs.cache-hit != 'true'
+        run: yarn install --immutable

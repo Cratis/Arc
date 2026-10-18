@@ -84,13 +84,11 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+      # The shared cache only restores on pull_request_target (its auto mode saves only on push to main, schedule and
+      # workflow_dispatch on main), so pull request code never writes a NuGet cache. warm-caches.yml saves it on main.
+      # It runs before anything adds .props or .targets files (obj, node_modules) that its key hashes.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
 
       - name: Restore obj cache
         uses: actions/cache@v6
@@ -106,17 +104,12 @@ jobs:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v6
-        id: yarn-cache
-        with:
-          path: |
-            .yarn/cache
-            node_modules
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+      - name: Enable corepack
+        run: corepack enable
+
+      # Restore only, like the NuGet cache above.
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
 
       - name: Yarn install
         run: yarn install --immutable
@@ -254,13 +247,11 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
+      # This job restores only the samples, so it never saves the shared cache, even when run by hand on main.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
         with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+          mode: restore
 
       - name: Download build output
         uses: actions/download-artifact@v4
@@ -356,17 +347,11 @@ jobs:
         with:
           node-version: 23.x
 
-      - name: Restore node modules
-        uses: actions/cache@v6
-        with:
-          path: |
-            .yarn/cache
-            node_modules
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Restore Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
 
       - name: Yarn install
         run: yarn install --immutable

@@ -107,22 +107,22 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
+      # On push to main the shared caches save after the job (the full Release build restores every package), so
+      # pull requests restore what main last built.
+      - name: NuGet cache
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v4
-        id: yarn-cache
-        with:
-          path: |
-            .yarn/cache
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
 
       - name: Yarn install
         run: yarn install --immutable
@@ -195,16 +195,11 @@ jobs:
             }
           "
 
-      - uses: actions/cache@v4
-        id: yarn-cache
-        with:
-          path: |
-            .yarn/cache
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
 
       - name: Yarn install
         run: yarn install --immutable
