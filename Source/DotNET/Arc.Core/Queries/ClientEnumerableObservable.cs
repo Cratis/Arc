@@ -105,7 +105,6 @@ public class ClientEnumerableObservable<T>(
                     }
                     logger.EnumerableObservableSkip();
                 }
-                tsc.SetResult();
                 await cts.CancelAsync();
             }
             catch (Exception ex)
@@ -114,8 +113,13 @@ public class ClientEnumerableObservable<T>(
                 {
                     logger.EnumerableObservableError(ex);
                     await cts.CancelAsync();
-                    tsc.SetResult();
                 }
+            }
+            finally
+            {
+                // Complete on every path, including cancellation after the client disconnected. Otherwise
+                // HandleConnection never returns and the subscription it holds is never released.
+                tsc.TrySetResult();
             }
         });
 
