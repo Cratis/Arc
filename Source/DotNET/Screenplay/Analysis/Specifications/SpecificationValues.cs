@@ -234,7 +234,10 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         }
         else
         {
-            literal = _sources.Read(expression, semanticModel, type, location) as LiteralSource;
+            literal = localProperty is not null
+                ? SpecificationCollections.Read(expression, semanticModel, localProperty.Type, _sources)
+                : null;
+            literal ??= _sources.Read(expression, semanticModel, type, location) as LiteralSource;
         }
         if (literal is { Value: null } && localProperty is not null && !queryValues && !CanStateNull(type, localProperty))
         {
