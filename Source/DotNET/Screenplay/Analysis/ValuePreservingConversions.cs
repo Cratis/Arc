@@ -20,35 +20,36 @@ internal static class ValuePreservingConversions
     /// <param name="expression">The expression as authored.</param>
     /// <param name="model">The expression's semantic model.</param>
     /// <param name="models">The models of every analyzed project, or null for a single-compilation reading.</param>
+    /// <param name="trustFrameworkMetadata">Whether fixture reading may trust a metadata-only framework backing conversion.</param>
     /// <returns>Whether every applied user-defined conversion forwards unchanged.</returns>
-    internal static bool Preserves(ExpressionSyntax expression, SemanticModel model, SemanticModels? models = null)
+    internal static bool Preserves(ExpressionSyntax expression, SemanticModel model, SemanticModels? models = null, bool trustFrameworkMetadata = false)
     {
         models ??= new([model.Compilation]);
         var conversion = model.GetConversion(expression);
-        if (conversion.IsUserDefined && !Forwards(conversion.MethodSymbol, models))
+        if (conversion.IsUserDefined && !Forwards(conversion.MethodSymbol, models, trustFrameworkMetadata))
         {
             return false;
         }
 
-        return PreservesOperation(model.GetOperation(expression), models) && PreservesWrapper(expression, model, models);
+        return PreservesOperation(model.GetOperation(expression), models, trustFrameworkMetadata) && PreservesWrapper(expression, model, models, trustFrameworkMetadata);
     }
 
-    static bool PreservesWrapper(ExpressionSyntax expression, SemanticModel model, SemanticModels models) => expression switch
+    static bool PreservesWrapper(ExpressionSyntax expression, SemanticModel model, SemanticModels models, bool trustFrameworkMetadata) => expression switch
     {
-        ParenthesizedExpressionSyntax parentheses => Preserves(parentheses.Expression, model, models),
-        CastExpressionSyntax cast => Preserves(cast.Expression, model, models),
-        PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppress => Preserves(suppress.Operand, model, models),
+        ParenthesizedExpressionSyntax parentheses => Preserves(parentheses.Expression, model, models, trustFrameworkMetadata),
+        CastExpressionSyntax cast => Preserves(cast.Expression, model, models, trustFrameworkMetadata),
+        PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppress => Preserves(suppress.Operand, model, models, trustFrameworkMetadata),
         _ => true
     };
 
-    static bool PreservesOperation(IOperation? operation, SemanticModels models) => operation switch
+    static bool PreservesOperation(IOperation? operation, SemanticModels models, bool trustFrameworkMetadata) => operation switch
     {
-        IConversionOperation conversion => (conversion.OperatorMethod is null || Forwards(conversion.OperatorMethod, models)) && PreservesOperation(conversion.Operand, models),
-        IParenthesizedOperation parentheses => PreservesOperation(parentheses.Operand, models),
+        IConversionOperation conversion => (conversion.OperatorMethod is null || Forwards(conversion.OperatorMethod, models, trustFrameworkMetadata)) && PreservesOperation(conversion.Operand, models, trustFrameworkMetadata),
+        IParenthesizedOperation parentheses => PreservesOperation(parentheses.Operand, models, trustFrameworkMetadata),
         _ => true
     };
 
-    static bool Forwards(IMethodSymbol? method, SemanticModels models)
+    static bool Forwards(IMethodSymbol? method, SemanticModels models, bool trustFrameworkMetadata)
     {
         if (IsFrameworkValueExtraction(method))
         {
@@ -60,7 +61,7 @@ internal static class ValuePreservingConversions
         }
 
         method = models.SourceOf(method!) ?? method!;
-        if (method.DeclaringSyntaxReferences.Length == 0 && method.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal))
+        if (trustFrameworkMetadata && method.DeclaringSyntaxReferences.Length == 0 && method.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal))
         {
             return true;
         }

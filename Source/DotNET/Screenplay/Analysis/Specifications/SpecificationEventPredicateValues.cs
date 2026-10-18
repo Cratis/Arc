@@ -151,7 +151,7 @@ static class SpecificationEventPredicateValues
             return false;
         }
 
-        if (!ValuePreservingConversions.Preserves(valueExpression, semanticModel, models))
+        if (!ValuePreservingConversions.Preserves(valueExpression, semanticModel, models, trustFrameworkMetadata: true))
         {
             unstatable.Add($"'{eventType.Name}.{property.Name}' through a user-defined conversion that cannot be proven to forward its backing value unchanged");
             return false;

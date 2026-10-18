@@ -46,7 +46,7 @@ static class SpecificationCollections
         var values = new List<object?>();
         foreach (var element in elements)
         {
-            if (!ValuePreservingConversions.Preserves(element, model, models))
+            if (!ValuePreservingConversions.Preserves(element, model, models, trustFrameworkMetadata: true))
             {
                 reason = "a collection element has a user-defined conversion that cannot be proven to forward its backing value unchanged";
                 return null;

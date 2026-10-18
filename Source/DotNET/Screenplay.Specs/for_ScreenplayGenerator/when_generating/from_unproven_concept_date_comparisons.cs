@@ -77,6 +77,31 @@ public class from_unproven_concept_date_comparisons : a_generated_document
         AssertRefusedComparison();
     }
 
+    [Theory]
+    [InlineData("End > (ReservationDate)new DateOnly(2026, 1, 1)", "new(value)")]
+    [InlineData("End > (ReservationDate)new DateOnly(2026, 1, 1)", "new(value.AddDays(1))")]
+    [InlineData("(ReservationDate)End > new DateOnly(2026, 1, 1)", "new(value)")]
+    [InlineData("(ReservationDate)End > new DateOnly(2026, 1, 1)", "new(value.AddDays(1))")]
+    public void should_refuse_metadata_only_framework_date_conversions_without_source_proof(string comparison, string conversion)
+    {
+        var concept = $$"""
+            using System;
+            namespace Library.Lending.Reserving;
+            public record ReservationDate(DateOnly Value) : Cratis.Concepts.ConceptAs<DateOnly>(Value)
+            {
+                public static implicit operator ReservationDate(DateOnly value) => {{conversion}};
+            }
+            """;
+        var package = Analyzed.Package("Cratis.DateConcepts", concept);
+        var source = DateComparisonSources.Guard("DateOnly", comparison);
+        var compilation = Analyzed.Compile([package], (Analyzed.SlicePath, source));
+        Analyzed.ErrorsIn(compilation).ShouldBeEmpty();
+        Result = new ScreenplayGenerator().Generate(compilation, new());
+        Result.Source.ShouldNotContain("when end");
+        Result.Diagnostics.ShouldContain(diagnostic => diagnostic.Code == ScreenplayDiagnosticCodes.UnmappableCommandProduction &&
+            diagnostic.Message.Contains("user-defined operand conversions must forward the date value unchanged", StringComparison.Ordinal));
+    }
+
     static string Source(string comparison, string conversion = "new(value)", string members = "")
     {
         var replacement = $$"""

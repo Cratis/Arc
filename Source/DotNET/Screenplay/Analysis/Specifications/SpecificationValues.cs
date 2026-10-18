@@ -168,7 +168,7 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
 
     bool PreservesConversion(ExpressionSyntax expression, SemanticModel semanticModel, ITypeSymbol type, string property, SpecificationDraft draft)
     {
-        if (ValuePreservingConversions.Preserves(expression, semanticModel, models))
+        if (ValuePreservingConversions.Preserves(expression, semanticModel, models, trustFrameworkMetadata: true))
         {
             return true;
         }
