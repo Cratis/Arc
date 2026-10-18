@@ -22,6 +22,7 @@ public class protected_plain_models : Specification
     protected CommandContext _context;
     protected Balance _from;
     protected Balance _to;
+    protected ProtectedReadModelKeyOptions _keyOptions;
     ChronicleParameterDependencyResolver _resolver;
 
     void Establish()
@@ -31,6 +32,7 @@ public class protected_plain_models : Specification
         _inner = Substitute.For<for_CommandDecisionReads.when_reading_a_stream.given.DecisionReaderForSpecs>();
         _stored = Substitute.For<IReadModels>();
         _tokens = [];
+        _keyOptions = new();
         _from = new(new("from"));
         _to = new(new("to"));
         var type = new Cratis.Chronicle.Events.EventType((Cratis.Chronicle.Events.EventTypeId)Guid.NewGuid().ToString(), Cratis.Chronicle.Events.EventTypeGeneration.First);
@@ -63,6 +65,7 @@ public class protected_plain_models : Specification
             .AddSingleton(new RegisteredReadModelTypes([typeof(Balance)]))
             .AddSingleton<IInstancesOf<IUnresolvableDependencyClassifier>>(new KnownInstancesOf<IUnresolvableDependencyClassifier>([new ReadModelUnresolvableDependencyClassifier()]))
             .AddSingleton(_stored)
+            .AddProtectedKeyTraversal(_keyOptions)
             .AddSingleton<IDecisionReads>(new CommandDecisionReads(_inner, store, _stored))
             .BuildServiceProvider();
     }

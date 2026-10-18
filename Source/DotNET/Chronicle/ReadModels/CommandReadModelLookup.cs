@@ -24,8 +24,9 @@ internal static class CommandReadModelLookup
     /// <returns>The selected read model key.</returns>
     /// <exception cref="InvalidLookUpBy">The named command property does not exist.</exception>
     /// <exception cref="AmbiguousReadModelLookup">Several command properties match the model's key type.</exception>
+    /// <exception cref="ProtectedCommandRequiresCommandAwareReader">A protected key needs checking, but no key traversal is available.</exception>
     internal static ReadModelKey Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode)
-        => Resolve(context, parameter, mode, out _);
+        => Resolve(context, parameter, mode, null, out _);
 
     /// <summary>
     /// Resolves a key while preserving its original diagnostic text for protected reads.
@@ -33,12 +34,15 @@ internal static class CommandReadModelLookup
     /// <param name="context">The current command.</param>
     /// <param name="parameter">The dependency parameter.</param>
     /// <param name="mode">The invocation's read protection mode.</param>
+    /// <param name="traversal">The registered key traversal; required only when a protected key is checked.</param>
     /// <param name="keyText">The original key text, or empty for a composite.</param>
     /// <returns>The selected read model key.</returns>
     /// <exception cref="InvalidLookUpBy">The named command property does not exist.</exception>
     /// <exception cref="AmbiguousReadModelLookup">Several command properties match the model's key type.</exception>
     /// <exception cref="ProtectedReadModelDoesNotExist">The protected key has a refused shape.</exception>
-    internal static ReadModelKey Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode, out string keyText)
+    /// <exception cref="ProtectedCommandRequiresCommandAwareReader">A protected key needs checking, but no key traversal is available.</exception>
+    /// <exception cref="ProtectedReadModelKeyAccessorMissing">Strict coverage has no accessors for a composite key part.</exception>
+    internal static ReadModelKey Resolve(CommandContext context, ParameterInfo parameter, ReadProtectionMode mode, ProtectedReadModelKeyTraversal? traversal, out string keyText)
     {
         var protect = mode == ReadProtectionMode.On &&
             !Attribute.IsDefined(parameter, typeof(UnprotectedAttribute)) && !Attribute.IsDefined(parameter.ParameterType, typeof(UnprotectedAttribute));
@@ -51,7 +55,7 @@ internal static class CommandReadModelLookup
             var property = properties.FirstOrDefault(_ => _.Name == lookup.Property)
                 ?? throw new InvalidLookUpBy(context.Type, lookup.Property);
 
-            return KeyFor(property.GetValue(context.Command), parameter.ParameterType, protect, out keyText);
+            return KeyFor(property.GetValue(context.Command), parameter.ParameterType, traversal, protect, out keyText);
         }
 
         if (mode != ReadProtectionMode.On)
@@ -76,16 +80,18 @@ internal static class CommandReadModelLookup
 
         if (candidates is [{ } selected])
         {
-            return KeyFor(selected.GetValue(context.Command), parameter.ParameterType, protect, out keyText);
+            return KeyFor(selected.GetValue(context.Command), parameter.ParameterType, traversal, protect, out keyText);
         }
 
         var source = context.GetEventSourceId();
-        var original = protect ? ProtectedReadModelKeys.OriginalSourceKey(context) : source;
-        keyText = protect ? ProtectedReadModelKeys.Display(original) : source.Value;
+        keyText = source.Value;
         if (protect)
         {
-            ProtectedReadModelKeys.Validate(parameter.ParameterType, original);
-            ProtectedReadModelKeys.Validate(parameter.ParameterType, source, keyText);
+            // The raw key is checked only while it still denotes the resolved target; provider and response overrides win.
+            var raw = context.GetRawEventSourceKey();
+            keyText = ProtectedReadModelKeys.Display(raw);
+            ProtectedReadModelKeys.ValidateRawKey(traversal, parameter.ParameterType, raw, keyText);
+            ProtectedReadModelKeys.ValidateWireText(parameter.ParameterType, source.Value, keyText);
         }
 
         return RequiredKey(source, parameter.ParameterType);
@@ -117,17 +123,18 @@ internal static class CommandReadModelLookup
         }
     }
 
-    static ReadModelKey KeyFor(object? value, Type readModelType, bool protect, out string keyText)
+    static ReadModelKey KeyFor(object? value, Type readModelType, ProtectedReadModelKeyTraversal? traversal, bool protect, out string keyText)
     {
+        var display = protect ? ProtectedReadModelKeys.Display(value) : string.Empty;
         if (protect)
         {
-            ProtectedReadModelKeys.Validate(readModelType, value);
+            ProtectedReadModelKeys.ValidateRawKey(traversal, readModelType, value, display);
         }
         var key = value is null ? EventSourceId.Unspecified.Value : GeneratedIdentifierCanonicalizer.Canonicalize(value) ?? EventSourceExtensions.ToEventSourceId(value).Value;
-        keyText = protect ? ProtectedReadModelKeys.Display(value) : key;
+        keyText = protect ? display : key;
         if (protect)
         {
-            ProtectedReadModelKeys.Validate(readModelType, key, keyText);
+            ProtectedReadModelKeys.ValidateWireText(readModelType, key, keyText);
         }
 
         return RequiredKey(key, readModelType);

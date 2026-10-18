@@ -155,7 +155,7 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     {
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
         {
-            ProtectedReadModelKeys.Validate(typeof(T), key.Value);
+            ProtectedReadModelKeys.ValidateWireText(typeof(T), key.Value, key.Value);
         }
         ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, streamScope?.EventStreamType, streamScope?.EventStreamId, streamScope?.EventSourceType);
         try

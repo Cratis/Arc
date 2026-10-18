@@ -45,6 +45,7 @@ public class a_monthly_account : Specification
         var accessor = Substitute.For<ICommandContextAccessor>();
         accessor.Current.Returns(_ => _context);
         _services = new ServiceCollection()
+            .AddLogging()
             .AddSingleton(accessor)
             .AddTransient(_ => _context)
             .AddSingleton(_store.EventLog)

@@ -54,6 +54,7 @@ public class a_protected_read : Specification
             .AddSingleton<IEventStore>(_store)
             .AddSingleton(_store.UnitOfWorkManager)
             .AddSingleton(stored)
+            .AddProtectedKeyTraversal()
             .AddSingleton<ICommandProtectedDecisionSupport>(new DecisionDependencySafety())
             .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver]))
             .AddSingleton<IDecisionReads>(new CommandDecisionReads(_store.GetDecisionReads(), _store, _store.ReadModels))

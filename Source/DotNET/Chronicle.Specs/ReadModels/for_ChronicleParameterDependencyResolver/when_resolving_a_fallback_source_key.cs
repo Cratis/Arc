@@ -23,7 +23,7 @@ public class when_resolving_a_fallback_source_key
             var context = new CommandContext(CorrelationId.New(), typeof(Lookup), command, [], values);
             var parameter = typeof(Lookup).GetMethod(nameof(Lookup.Handle))!.GetParameters()[0];
 
-            var key = CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On, out var keyText);
+            var key = CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On, ProtectedKeyTraversalForSpecs.Create(), out var keyText);
 
             key.Value.ShouldEqual(context.GetEventSourceId().Value);
             key.Value.ShouldEqual("10/18/2026");

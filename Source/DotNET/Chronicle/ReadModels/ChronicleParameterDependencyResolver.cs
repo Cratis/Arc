@@ -45,7 +45,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
 
         var context = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, out var keyText);
+        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, ProtectedReadModelKeys.Traversal(serviceProvider), out var keyText);
         var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
         {
