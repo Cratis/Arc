@@ -50,6 +50,7 @@ your application adds commands and queries.
 | `cratis.arc.validator.invoke` | a validator runs, for a command, a query or a nested model |
 | `cratis.arc.command.provide` | a model-bound command's `Provide()` method runs |
 | `cratis.arc.command.handle` | the command handler runs |
+| `cratis.arc.query.push` | a changed result of an observable query is pushed to a subscriber |
 | `cratis.arc.command.action` | a controller-based command action is invoked |
 | `cratis.arc.query.perform` | a query runs through the pipeline |
 | `cratis.arc.query.filter` | a query filter runs |
@@ -90,6 +91,8 @@ still counted in the metrics.
 | `cratis.arc.command.key.type` | `execute`, `validate` | the type the command declares its key as, such as its event source id with the Chronicle integration |
 | `cratis.arc.query.name` | `perform` | the fully qualified name of a known query; absent for a name that matches no query |
 | `cratis.arc.query.transport` | `perform` | `snapshot`, `observable`, or `unknown` when the query failed before it ran |
+| `cratis.arc.query.name` | `push` | the fully qualified name of a known query; `_other` for a name that matches no query |
+| `cratis.arc.query.transport` | `push` | `websocket` or `sse`, the transport the result is pushed over |
 | `cratis.arc.query.outcome` | `perform` | `success`, `validation`, `authorization`, `cancelled` or `error` |
 | `cratis.arc.validator.type` | `cratis.arc.validator.invoke` | the full name of the validator type |
 | `cratis.arc.validation.result_count` | `cratis.arc.validator.invoke` | how many results the validator produced |
@@ -174,11 +177,19 @@ Arc records these on the `Cratis.Arc` meter:
 | `cratis.arc.command.duration` | histogram | `s` | `cratis.arc.command.type`, `cratis.arc.command.outcome` |
 | `cratis.arc.command.outcomes` | counter | `{command}` | `cratis.arc.command.type`, `cratis.arc.command.outcome` |
 | `cratis.arc.query.duration` | histogram | `s` | `cratis.arc.query.name`, `cratis.arc.query.transport`, `cratis.arc.query.outcome` |
+| `cratis.arc.query.subscriptions` | up-down counter | `{subscription}` | `cratis.arc.query.name`, `cratis.arc.query.transport` |
+| `cratis.arc.query.pushes` | counter | `{push}` | `cratis.arc.query.name`, `cratis.arc.query.transport` |
 
 A command validated without being run is traced but not counted. For an observable query the duration covers setting up
-the subscription, not how long it stays open.
+the subscription, not how long it stays open. The subscriptions metric goes up when a
+subscription is established and down exactly once when it ends, whichever way it ends, so its sum is the number of
+subscriptions open now. The pushes metric counts results the query's stream emitted; a snapshot or a validation
+rejection that answers the subscribe is not counted. A push span is a child of the activity that
+was current when the subscription was established, and links to the activity that caused the change when one is
+current. The pushes and subscriptions metrics use the `websocket` and `sse` transports, where the duration
+histogram reports `observable`. Observable queries answered over a single HTTP request are not counted.
 
-Each metric records at most 1,000 distinct command types or query names. The
+Each metric records at most 1,000 distinct command types or query names, the subscription and push metrics included. The
 limit is fixed; there is no option to change it. Past that, further ones are
 recorded as `_other`, so a metric backend never has to hold an unbounded number
 of series. The limit holds exactly, however many requests arrive at once; only
