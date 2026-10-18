@@ -16,7 +16,7 @@ public class an_identity_provider : Specification
     protected IIdentityProvider _fallback;
     protected ICurrentPrincipalAccessor _principals;
     protected ISystemExecution _execution;
-    protected ArcIdentityProvider _provider;
+    private protected ArcIdentityProvider _provider;
     protected ChronicleIdentity _result;
     protected ClaimsPrincipal _principal;
 

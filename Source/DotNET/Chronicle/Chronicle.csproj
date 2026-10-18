@@ -12,6 +12,8 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Cratis.Arc.Chronicle.Specs" />
+        <InternalsVisibleTo Include="Cratis" />
+        <InternalsVisibleTo Include="Cratis.Specs" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />

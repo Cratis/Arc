@@ -15,7 +15,11 @@ namespace Cratis.Arc.Chronicle.Identities;
 /// <param name="fallback">The identity provider selected by Chronicle.</param>
 /// <param name="principals">The current Arc principal accessor.</param>
 /// <param name="hasHttpRequest">Checks whether the host has an active HTTP request.</param>
-public class ArcIdentityProvider(
+/// <remarks>
+/// Explicit identity tracking covers calls through this decorator only; calls directly to the wrapped provider
+/// cannot distinguish an explicitly selected plain System identity from its default.
+/// </remarks>
+internal class ArcIdentityProvider(
     IIdentityProvider fallback,
     ICurrentPrincipalAccessor principals,
     Func<bool> hasHttpRequest) : IIdentityProvider
@@ -26,13 +30,23 @@ public class ArcIdentityProvider(
     public ChronicleIdentity GetCurrent()
     {
         var identity = fallback.GetCurrent();
-        if (hasHttpRequest() || _explicitIdentity.Value || identity != ChronicleIdentity.System)
+        if (hasHttpRequest() || identity.Subject != ChronicleIdentity.System.Subject)
         {
             return identity;
         }
 
         var principal = principals.Current;
-        return principal?.Identity?.IsAuthenticated is true ? FromPrincipal(principal) : identity;
+        if (principal?.Identity?.IsAuthenticated is not true)
+        {
+            return identity;
+        }
+
+        if (principals is CurrentPrincipalAccessor { HasOverride: true })
+        {
+            return FromPrincipal(principal) with { OnBehalfOf = identity.OnBehalfOf };
+        }
+
+        return !_explicitIdentity.Value && identity == ChronicleIdentity.System ? FromPrincipal(principal) : identity;
     }
 
     /// <inheritdoc/>

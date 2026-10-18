@@ -12,7 +12,7 @@ namespace Cratis.Arc.Chronicle.Identities;
 /// <summary>
 /// Registers Arc's principal fallback for Chronicle identity resolution.
 /// </summary>
-public static class IdentityProviderServiceCollectionExtensions
+internal static class IdentityProviderServiceCollectionExtensions
 {
     /// <summary>
     /// Wraps Chronicle's selected identity provider when its client is constructed, after DI becomes available.
@@ -21,7 +21,7 @@ public static class IdentityProviderServiceCollectionExtensions
     /// <param name="builder">The configured Chronicle builder.</param>
     /// <param name="defaultProvider">Creates the host's default identity provider when none was configured.</param>
     /// <param name="hasHttpRequest">Checks the host's HTTP context without depending on Arc middleware having run.</param>
-    public static void AddArcIdentityProvider(
+    internal static void AddArcIdentityProvider(
         this IServiceCollection services,
         IChronicleBuilder builder,
         Func<IServiceProvider, IIdentityProvider> defaultProvider,
@@ -31,13 +31,23 @@ public static class IdentityProviderServiceCollectionExtensions
         // only supply its structural identity dependency before it constructs the client and event stores.
         var clientFactory = services.Last(_ => _.ServiceType == typeof(IChronicleClient)).ImplementationFactory!;
         var configuredProvider = builder.IdentityProvider;
+        var installationLock = new object();
+        var installed = false;
         services.AddSingleton(serviceProvider => new ArcIdentityProvider(
             configuredProvider ?? defaultProvider(serviceProvider),
             serviceProvider.GetRequiredService<ICurrentPrincipalAccessor>(),
             () => hasHttpRequest(serviceProvider)));
         services.Replace(ServiceDescriptor.Singleton<IChronicleClient>(serviceProvider =>
         {
-            builder.IdentityProvider = serviceProvider.GetRequiredService<ArcIdentityProvider>();
+            lock (installationLock)
+            {
+                if (!installed)
+                {
+                    builder.IdentityProvider = serviceProvider.GetRequiredService<ArcIdentityProvider>();
+                    installed = true;
+                }
+            }
+
             return (IChronicleClient)clientFactory(serviceProvider);
         }));
     }
