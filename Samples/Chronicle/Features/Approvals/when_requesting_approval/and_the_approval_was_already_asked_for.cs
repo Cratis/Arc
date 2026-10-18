@@ -4,7 +4,6 @@
 using Cratis.Arc.Chronicle.Testing.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Testing.Commands;
-using Cratis.Chronicle.Events;
 using Xunit;
 
 namespace Chronicle.Features.Approvals.when_requesting_approval;
@@ -15,14 +14,14 @@ namespace Chronicle.Features.Approvals.when_requesting_approval;
 public class and_the_approval_was_already_asked_for
 {
     readonly CommandScenario<RequestApproval> _scenario = new();
-    readonly EventSourceId _approvalId = EventSourceId.New();
+    const string ApprovalId = "approval-1";
     CommandResult _result = null!;
 
     void Establish() =>
-        _scenario.Given.ForEventSource(_approvalId).Events(new ApprovalRequested("Jane Austen", []));
+        _scenario.Given.ForEventSource(ApprovalId).Events(new ApprovalRequested("Jane Austen", []));
 
-    async Task Because() => _result = await _scenario.Execute(new RequestApproval(_approvalId, "Charlotte Bronte", []));
+    async Task Because() => _result = await _scenario.Execute(new RequestApproval(ApprovalId, "Charlotte Bronte", []));
 
     [Fact] void should_be_successful() => _result.ShouldBeSuccessful();
-    [Fact] async Task should_have_asked_for_the_approval_again() => await _scenario.ShouldHaveAppendedEvent<RequestApproval, ApprovalRequested>(_approvalId);
+    [Fact] async Task should_have_asked_for_the_approval_again() => await _scenario.ShouldHaveAppendedEvent<RequestApproval, ApprovalRequested>(ApprovalId);
 }
