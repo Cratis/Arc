@@ -21,6 +21,17 @@ public class date_comparison_operands : Specification
         production.When.ShouldEqual(new ComparisonCondition("End", ComparisonKind.GreaterThanOrEqual, new PropertyPathSource(right)));
     }
 
+    [Theory]
+    [InlineData("DateOnly")]
+    [InlineData("DateTime")]
+    [InlineData("DateTimeOffset")]
+    public void should_recover_concept_property_comparisons(string type)
+    {
+        var source = ConceptDateComparisonSources.Guard(type, "End >= Start");
+        Analyzed.ErrorsIn((Analyzed.SlicePath, source)).ShouldBeEmpty();
+        Analyzed.Source(source).Slice().Commands.Single().Produces.First().When.ShouldEqual(new ComparisonCondition("End", ComparisonKind.GreaterThanOrEqual, new PropertyPathSource("Start")));
+    }
+
     [Fact]
     void should_recover_a_canonical_literal_on_the_left_with_a_mirrored_operator()
     {

@@ -1,0 +1,109 @@
+// Copyright (c) Cratis. All rights reserved.
+// Licensed under the MIT license. See LICENSE file in the project root for full license information.
+
+using Cratis.Arc.Screenplay.Analysis.Commands;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
+
+namespace Cratis.Arc.Screenplay.Analysis;
+
+/// <summary>
+/// Proves that date operand conversions preserve the compared backing value.
+/// </summary>
+internal static class DateOperandConversions
+{
+    /// <summary>
+    /// Checks contextual conversions and explicit wrappers before an operand is unwrapped.
+    /// </summary>
+    /// <param name="expression">The operand as authored.</param>
+    /// <param name="model">The operand's semantic model.</param>
+    /// <returns>Whether every applied user-defined conversion forwards unchanged.</returns>
+    internal static bool Preserves(ExpressionSyntax expression, SemanticModel model)
+    {
+        var conversion = model.GetConversion(expression);
+        if (conversion.IsUserDefined && !Forwards(conversion.MethodSymbol, model.Compilation))
+        {
+            return false;
+        }
+
+        return PreservesOperation(model.GetOperation(expression), model.Compilation) && PreservesWrapper(expression, model);
+    }
+
+    static bool PreservesWrapper(ExpressionSyntax expression, SemanticModel model) => expression switch
+    {
+        ParenthesizedExpressionSyntax parentheses => Preserves(parentheses.Expression, model),
+        CastExpressionSyntax cast => Preserves(cast.Expression, model),
+        PostfixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.SuppressNullableWarningExpression } suppress => Preserves(suppress.Operand, model),
+        _ => true
+    };
+
+    static bool PreservesOperation(IOperation? operation, Compilation compilation) => operation switch
+    {
+        IConversionOperation conversion => (conversion.OperatorMethod is null || Forwards(conversion.OperatorMethod, compilation)) && PreservesOperation(conversion.Operand, compilation),
+        IParenthesizedOperation parentheses => PreservesOperation(parentheses.Operand, compilation),
+        _ => true
+    };
+
+    static bool Forwards(IMethodSymbol? method, Compilation compilation)
+    {
+        if (IsFrameworkValueExtraction(method))
+        {
+            return true;
+        }
+        if (!HasBackingParameter(method))
+        {
+            return false;
+        }
+
+        var models = new SemanticModels([compilation]);
+
+        return method!.DeclaringSyntaxReferences.Select(reference => ReturnedExpression(reference.GetSyntax()))
+            .OfType<ExpressionSyntax>().Any(expression => ConstructsUnchanged(expression, method.Parameters[0], method.ReturnType, models));
+    }
+
+    static bool HasBackingParameter(IMethodSymbol? method) =>
+        method is { Parameters: [var parameter] } &&
+        method.ReturnType.FindBase(WellKnownTypeNames.ConceptAs) is { TypeArguments: [var backing] } &&
+        SymbolEqualityComparer.Default.Equals(parameter.Type, backing);
+
+    /// <summary>
+    /// Recognizes the framework base's unchanged Value extraction, the same trusted boundary as constructor forwarding.
+    /// </summary>
+    /// <param name="method">The applied conversion.</param>
+    /// <returns>Whether this is the framework's backing-value conversion.</returns>
+    static bool IsFrameworkValueExtraction(IMethodSymbol? method) =>
+        method is { Parameters: [var parameter], ContainingType: { TypeArguments: [var backing] } type } &&
+        string.Equals(method.Name, "op_Implicit", StringComparison.Ordinal) && type.Is(WellKnownTypeNames.ConceptAs) && type.ContainingAssembly.Name.StartsWith("Cratis.", StringComparison.Ordinal) &&
+        SymbolEqualityComparer.Default.Equals(parameter.Type, type) && SymbolEqualityComparer.Default.Equals(method.ReturnType, backing);
+
+    static ExpressionSyntax? ReturnedExpression(SyntaxNode declaration) => declaration switch
+    {
+        ConversionOperatorDeclarationSyntax { ExpressionBody.Expression: var expression } => expression,
+        ConversionOperatorDeclarationSyntax { Body.Statements: [ReturnStatementSyntax { Expression: var expression }] } => expression,
+        _ => null
+    };
+
+    static bool ConstructsUnchanged(ExpressionSyntax expression, IParameterSymbol parameter, ITypeSymbol target, SemanticModels models)
+    {
+        if (models.For(expression.SyntaxTree) is not { } model)
+        {
+            return false;
+        }
+        if (model.GetOperation(expression) is not IObjectCreationOperation { Constructor: { } constructor, Initializer: null, Arguments: [var argument] } creation)
+        {
+            return false;
+        }
+        if (!SymbolEqualityComparer.Default.Equals(creation.Type, target) || !IsUnchangedArgument(argument, parameter))
+        {
+            return false;
+        }
+
+        return new UuidConstructorForwarding(models).Read(constructor, new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default));
+    }
+
+    static bool IsUnchangedArgument(IArgumentOperation argument, IParameterSymbol parameter) =>
+        argument.InConversion.IsIdentity && argument.Value is IParameterReferenceOperation reference &&
+        SymbolEqualityComparer.Default.Equals(reference.Parameter, parameter);
+}
