@@ -12,3 +12,4 @@
 | [0008-certify-authorization-at-pipeline-boundaries](0008-certify-authorization-at-pipeline-boundaries.md) | Certify authorization at pipeline boundaries instead of policing identity changes made by trusted code | Accepted | Implemented | 2026-09-29 | Sindre Alstad Wilting (delegated to the maintainer's AI orchestrator session) |
 | [0009-additive-opt-in-query-selection](0009-additive-opt-in-query-selection.md) | Additive opt-in query selection | Accepted | Implemented | 2026-10-11 | woksin |
 | [0010-declarative-reactor-command-refusals](0010-declarative-reactor-command-refusals.md) | Handle reactor command refusals with ordered per-invocation branches | Accepted | Implemented | 2026-10-13 | woksin (via L0) |
+| [0011-aot-safe-protected-read-model-key-accessors](0011-aot-safe-protected-read-model-key-accessors.md) | Validate protected read-model keys through generated or registered accessors | Proposed | None | — | — |
