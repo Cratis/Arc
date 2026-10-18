@@ -100,7 +100,7 @@ static class SpecificationEventPredicateValues
                    TryRead(conjunction.Right, eventType, parameter, semanticModel, draft, values, properties, unstatable);
         }
 
-        if (SpecificationEventCollectionValues.Read(expression, eventType, parameter, semanticModel) is { } collection)
+        if (SpecificationEventCollectionValues.Read(expression, eventType, parameter, semanticModel, out var collectionReason) is { } collection)
         {
             if (!properties.Add(collection.Property))
             {
@@ -109,6 +109,12 @@ static class SpecificationEventPredicateValues
 
             values.Add((collection, expression.GetLocation()));
             return true;
+        }
+
+        if (collectionReason is not null)
+        {
+            unstatable.Add(collectionReason);
+            return false;
         }
 
         if (expression is not BinaryExpressionSyntax { RawKind: (int)SyntaxKind.EqualsExpression } equality)
@@ -138,6 +144,12 @@ static class SpecificationEventPredicateValues
             semanticModel.GetSymbolInfo(member).Symbol is not IPropertySymbol property ||
             !SymbolEqualityComparer.Default.Equals(property.ContainingType, eventType))
         {
+            return false;
+        }
+
+        if (!ValuePreservingConversions.Preserves(valueExpression, semanticModel))
+        {
+            unstatable.Add($"'{eventType.Name}.{property.Name}' through a user-defined conversion that cannot be proven to forward its backing value unchanged");
             return false;
         }
 

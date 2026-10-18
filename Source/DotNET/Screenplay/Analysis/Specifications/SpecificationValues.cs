@@ -198,6 +198,12 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         SpecificationDraft draft,
         bool queryValues)
     {
+        if (!ValuePreservingConversions.Preserves(expression, semanticModel))
+        {
+            draft.CannotRead($"it cannot prove that a user-defined conversion for '{type.Name}.{property}' forwards its backing value unchanged");
+            return;
+        }
+
         var localProperty = type.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
         var sourceProperty = sourceType.DeclaredProperties().SingleOrDefault(_ => string.Equals(_.Name, property, StringComparison.Ordinal));
         if (localProperty is not null && draft.CaseValues?.TryRead(
@@ -234,9 +240,16 @@ public class SpecificationValues(ScreenplayDiagnostics diagnostics, GeneratedIde
         }
         else
         {
+            string? reason = null;
             literal = localProperty is not null
-                ? SpecificationCollections.Read(expression, semanticModel, localProperty.Type, _sources)
+                ? SpecificationCollections.Read(expression, semanticModel, localProperty.Type, _sources, out reason)
                 : null;
+            if (reason is not null)
+            {
+                draft.CannotRead($"it states '{type.Name}.{property}' with {reason}");
+                return;
+            }
+
             literal ??= _sources.Read(expression, semanticModel, type, location) as LiteralSource;
         }
         if (literal is { Value: null } && localProperty is not null && !queryValues && !CanStateNull(type, localProperty))

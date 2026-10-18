@@ -31,9 +31,11 @@ static class SpecificationCollections
     /// <param name="model">The semantic model resolving the expression.</param>
     /// <param name="type">The declared fixture property type.</param>
     /// <param name="sources">The scalar literal reader.</param>
+    /// <param name="reason">Why an applied conversion cannot be stated faithfully.</param>
     /// <returns>The collection literal, or null when it cannot be read in full.</returns>
-    internal static LiteralSource? Read(ExpressionSyntax expression, SemanticModel model, ITypeSymbol type, MappingSourceReader sources)
+    internal static LiteralSource? Read(ExpressionSyntax expression, SemanticModel model, ITypeSymbol type, MappingSourceReader sources, out string? reason)
     {
+        reason = null;
         if (CollectionElements.ElementOf(type) is not { } elementType ||
             Elements(MappingSourceReader.Unwrap(expression), model) is not { } elements)
         {
@@ -43,6 +45,12 @@ static class SpecificationCollections
         var values = new List<object?>();
         foreach (var element in elements)
         {
+            if (!ValuePreservingConversions.Preserves(element, model))
+            {
+                reason = "a collection element has a user-defined conversion that cannot be proven to forward its backing value unchanged";
+                return null;
+            }
+
             var constant = model.GetConstantValue(MappingSourceReader.Unwrap(element));
             if (constant is { HasValue: true, Value: not null } && StatableValues.TryState(elementType, constant.Value, out var value))
             {

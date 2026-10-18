@@ -10,15 +10,15 @@ using Microsoft.CodeAnalysis.Operations;
 namespace Cratis.Arc.Screenplay.Analysis;
 
 /// <summary>
-/// Proves that date operand conversions preserve the compared backing value.
+/// Proves that conversions preserve a concept's backing value.
 /// </summary>
-internal static class DateOperandConversions
+internal static class ValuePreservingConversions
 {
     /// <summary>
-    /// Checks contextual conversions and explicit wrappers before an operand is unwrapped.
+    /// Checks contextual conversions and explicit wrappers before an expression is unwrapped.
     /// </summary>
-    /// <param name="expression">The operand as authored.</param>
-    /// <param name="model">The operand's semantic model.</param>
+    /// <param name="expression">The expression as authored.</param>
+    /// <param name="model">The expression's semantic model.</param>
     /// <returns>Whether every applied user-defined conversion forwards unchanged.</returns>
     internal static bool Preserves(ExpressionSyntax expression, SemanticModel model)
     {

@@ -24,9 +24,11 @@ static class SpecificationEventCollectionValues
     /// <param name="eventType">The expected event type.</param>
     /// <param name="parameter">The predicate's event parameter.</param>
     /// <param name="model">The semantic model resolving the predicate.</param>
+    /// <param name="reason">Why an applied element conversion cannot be stated faithfully.</param>
     /// <returns>The complete collection expectation, or null for any other predicate.</returns>
-    internal static PropertyMappingModel? Read(ExpressionSyntax expression, ITypeSymbol eventType, IParameterSymbol parameter, SemanticModel model)
+    internal static PropertyMappingModel? Read(ExpressionSyntax expression, ITypeSymbol eventType, IParameterSymbol parameter, SemanticModel model, out string? reason)
     {
+        reason = null;
         var empty = expression is PrefixUnaryExpressionSyntax { RawKind: (int)SyntaxKind.LogicalNotExpression };
         var call = empty ? Unwrap(((PrefixUnaryExpressionSyntax)expression).Operand) : expression;
         if (call is not InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax member } invocation ||
@@ -39,7 +41,7 @@ static class SpecificationEventCollectionValues
 
         var literal = empty
             ? new LiteralSource(Array.Empty<object?>())
-            : SpecificationCollections.Read(invocation.ArgumentList.Arguments[0].Expression, model, property.Type, _sources);
+            : SpecificationCollections.Read(invocation.ArgumentList.Arguments[0].Expression, model, property.Type, _sources, out reason);
 
         return literal is null ? null : new(property.Name, literal);
     }
