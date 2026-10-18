@@ -14,7 +14,7 @@ activity sources itself; what you do is subscribe to them.
 ## Set up OpenTelemetry with one call
 
 The quickest way to collect Arc's telemetry is the shared `Cratis.OpenTelemetry`
-package. Add the package to your host and call `AddCratisOpenTelemetry`:
+package, which is separate from `Cratis.Fundamentals`. Add the package to your host and call `AddCratisOpenTelemetry`:
 
 ```csharp
 using Cratis.OpenTelemetry;
@@ -26,8 +26,11 @@ The call subscribes to every `Cratis.*` activity source and meter, so Arc's
 `Cratis.Arc` source and meter are included alongside the Chronicle client. It
 also adds ASP.NET Core, HttpClient and runtime instrumentation. It registers an
 OTLP exporter only when an endpoint such as `OTEL_EXPORTER_OTLP_ENDPOINT` is
-configured. If you already build your own OpenTelemetry pipeline, compose with
-it through `services.AddOpenTelemetry().WithCratis()`. The
+configured. To add Cratis to an existing `AddOpenTelemetry()` call, use
+`services.AddOpenTelemetry().WithCratis()`. It brings its own exporter, so do not
+also call `UseOtlpExporter()`. If you own the whole pipeline, call
+`tracing.AddCratisInstrumentation()` and `metrics.AddCratisInstrumentation()`
+instead. The
 [OpenTelemetry setup guide](/fundamentals/csharp/opentelemetry/)
 covers configuration, resource identity and optional instrumentation.
 
