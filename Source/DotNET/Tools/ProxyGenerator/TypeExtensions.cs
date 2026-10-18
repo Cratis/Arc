@@ -97,12 +97,15 @@ public static partial class TypeExtensions
     ];
 
     static readonly Dictionary<string, Assembly> _assembliesByName = [];
+    static readonly object _derivativeCandidatesLock = new();
 
     static Dictionary<string, string> _assemblyPackageMappings = [];
     static Dictionary<string, TargetType> _typeMappings = [];
     static HashSet<string> _excludedTypeNames = [];
     static List<string> _excludedNamespacePatterns = [];
     static List<(string Namespace, string Folder)> _namespaceRoots = [];
+
+    static (IEnumerable<Assembly> Source, List<Type> Candidates)? _derivativeCandidates;
 
     static CanonicalAssemblyResolver? _assemblyResolver;
     static MetadataLoadContext? _metadataLoadContext;
@@ -691,14 +694,51 @@ public static partial class TypeExtensions
             return [];
         }
 
-        var assembliesToSearch = Assemblies.Any()
-            ? Assemblies
-            : AppDomain.CurrentDomain.GetAssemblies().Where(a => !a.IsDynamic);
+        var assemblies = Assemblies;
+        var candidates = assemblies.Any()
+            ? DerivativeCandidatesOf(assemblies)
+            : AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic)
+                .SelectMany(GetTypesIgnoringLoadFailures)
+                .Where(IsDerivativeCandidate)
+                .ToList();
 
-        return assembliesToSearch
-            .SelectMany(GetTypesIgnoringLoadFailures)
-            .Where(t => IsDerivativeOf(t, baseType));
+        return candidates.Where(t => IsDerivativeOf(t, baseType));
     }
+
+    /// <summary>
+    /// Gets the types of the given assemblies that can be a derivative of something, reading them once per set of assemblies.
+    /// </summary>
+    /// <param name="assemblies">The assemblies to search.</param>
+    /// <returns>The candidate types, in assembly and declaration order.</returns>
+    /// <remarks>
+    /// Finding the derivatives of a type is asked for every type the generator collects. Walking every type of every
+    /// assembly, and reading its attributes, each time makes that quadratic on a large solution, while only the few
+    /// types carrying a derived type identifier can ever answer it.
+    /// </remarks>
+    static List<Type> DerivativeCandidatesOf(IEnumerable<Assembly> assemblies)
+    {
+        lock (_derivativeCandidatesLock)
+        {
+            if (_derivativeCandidates is { } cached && ReferenceEquals(cached.Source, assemblies))
+            {
+                return cached.Candidates;
+            }
+
+            var candidates = assemblies
+                .SelectMany(GetTypesIgnoringLoadFailures)
+                .Where(IsDerivativeCandidate)
+                .ToList();
+            _derivativeCandidates = (assemblies, candidates);
+
+            return candidates;
+        }
+    }
+
+    static bool IsDerivativeCandidate(Type type) =>
+        !type.IsAbstract &&
+        !type.IsInterface &&
+        type.GetDerivedTypeId() is not null;
 
     static IEnumerable<Type> EnumerateTypeAndContracts(Type type)
     {
