@@ -10,6 +10,12 @@ Naming the command alone answers "which command produced this event." Recording 
 > [!IMPORTANT]
 > The causation is written into the event log, and the event log is immutable. A value recorded there stays there for as long as the events do, is read by everything that ever replays them, and **cannot be taken back out by changing code**. Before adding a property to a command, decide whether its value belongs in a permanent audit record — and mark it [`[NotAudited]`](#keeping-a-value-out-of-the-record) if it does not.
 
+## Who caused the event
+
+When you execute a command inside `ISystemExecution.As(principal)` without an HTTP request, Chronicle records that authenticated principal as the event's `causedBy` identity. It uses the same claims as Chronicle's HTTP provider: `sub` for the subject, `name` for the name, and `preferred_username` for the username; missing name and username claims fall back to `principal.Identity.Name`.
+
+An active HTTP request keeps Chronicle's existing HTTP identity resolution; `ISystemExecution.As` does not replace its user. Outside HTTP, an explicitly selected Chronicle identity still takes precedence. Clearing it resumes principal resolution. Without an authenticated principal or an explicit identity, the identity remains System.
+
 ## What gets recorded
 
 For a command like this:
