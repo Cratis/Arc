@@ -39,3 +39,4 @@ ARCCHR0036|Arc.Chronicle|Warning|Exact scope coverage of same-source protected r
 ARCCHR0037|Arc.Chronicle|Error|Per-stream read model does not match the command route
 ARCCHR0038|Arc.Chronicle|Info|Per-stream read guard widens to the whole source
 ARC0026|Arc|Error|Invalid explicit query declaration
+ARC0030|Arc|Info|Composite key requires accessor registration

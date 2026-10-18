@@ -63,6 +63,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// Gets the members of a type that are worth walking through reflection, along with how to read each one.
     /// </summary>
     /// <param name="type">The <see cref="Type"/> to get members for.</param>
+    /// <param name="publicGettersOnly">Whether to exclude properties whose getter is not public, as composite keys require.</param>
     /// <returns>The members to descend into.</returns>
     /// <remarks>
     /// Indexer properties are excluded: they require index arguments, so reading one without any would throw
@@ -73,10 +74,19 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// method is not annotated with RequiresUnreferencedCode, since that would only move the warning to the traversal.
     /// </para>
     /// </remarks>
-    internal static WalkableMember[] GetWalkablePropertiesThroughReflection(Type type) =>
+    internal static WalkableMember[] GetWalkablePropertiesThroughReflection(Type type, bool publicGettersOnly) =>
         [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(property => property.GetIndexParameters().Length == 0 && property.CanRead)
+            .Where(property => property.GetIndexParameters().Length == 0 && property.CanRead &&
+                (!publicGettersOnly || property.GetMethod is { IsPublic: true }))
             .Select(WalkableMember.For)];
+
+    /// <summary>
+    /// Gets the ordinary validation members, preserving the existing getter visibility contract.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <returns>The members to descend into.</returns>
+    internal static WalkableMember[] GetWalkablePropertiesThroughReflection(Type type) =>
+        GetWalkablePropertiesThroughReflection(type, publicGettersOnly: false);
 
     /// <summary>
     /// Extends a member path with a property, in the casing the client uses.

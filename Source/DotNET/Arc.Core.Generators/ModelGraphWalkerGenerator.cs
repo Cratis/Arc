@@ -41,6 +41,10 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
         var walkers = commands.Combine(readModels).Combine(context.CompilationProvider)
             .Select(static (input, cancellationToken) => WalkersFor(input.Left.Left, input.Left.Right, input.Right, cancellationToken));
 
+        context.RegisterSourceOutput(
+            commands.Combine(readModels).Combine(context.CompilationProvider),
+            static (output, input) => ProtectedReadModelKeyGeneration.Emit(output, input.Left.Left, input.Left.Right, input.Right));
+
         context.RegisterSourceOutput(walkers, static (output, walkers) =>
         {
             if (walkers.Count == 0)
@@ -59,7 +63,15 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
         });
     }
 
-    static EquatableArray<ModelGraphWalker> WalkersFor(ImmutableArray<string> commands, ImmutableArray<string> readModels, Compilation compilation, CancellationToken cancellationToken)
+    /// <summary>
+    /// Finds validation walkers for a compilation's command and query roots.
+    /// </summary>
+    /// <param name="commands">Command metadata names.</param>
+    /// <param name="readModels">Read model metadata names.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>The validation registrations.</returns>
+    internal static EquatableArray<ModelGraphWalker> WalkersFor(ImmutableArray<string> commands, ImmutableArray<string> readModels, Compilation compilation, CancellationToken cancellationToken)
     {
         if ((commands.IsEmpty && readModels.IsEmpty) || compilation.GetTypeByMetadataName(Walkers) is null)
         {
@@ -74,7 +86,13 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
             .OrderBy(walker => walker.Type, StringComparer.Ordinal));
     }
 
-    static IEnumerable<INamedTypeSymbol> TypesNamed(ImmutableArray<string> names, Compilation compilation) =>
+    /// <summary>
+    /// Resolves distinct metadata names within the consuming assembly.
+    /// </summary>
+    /// <param name="names">The metadata names.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <returns>The matching types.</returns>
+    internal static IEnumerable<INamedTypeSymbol> TypesNamed(ImmutableArray<string> names, Compilation compilation) =>
         names.Where(name => name.Length > 0)
             .Distinct(StringComparer.Ordinal)
             .Select(compilation.Assembly.GetTypeByMetadataName)
@@ -85,7 +103,7 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
     /// </summary>
     /// <param name="type">The type.</param>
     /// <returns>The metadata name, including namespace and containing types.</returns>
-    static string MetadataNameOf(INamedTypeSymbol type)
+    internal static string MetadataNameOf(INamedTypeSymbol type)
     {
         if (type.ContainingType is { } containing)
         {
@@ -112,7 +130,7 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
     /// <param name="readModels">The read model types.</param>
     /// <param name="compilation">The compilation the generated code is emitted into.</param>
     /// <returns>The types to start from.</returns>
-    static List<ITypeSymbol> QueryArgumentTypes(IEnumerable<INamedTypeSymbol> readModels, Compilation compilation)
+    internal static List<ITypeSymbol> QueryArgumentTypes(IEnumerable<INamedTypeSymbol> readModels, Compilation compilation)
     {
         var roots = new List<ITypeSymbol>();
 
