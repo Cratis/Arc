@@ -1,9 +1,9 @@
 name: Warm Caches
 
 # Pull request workflows only restore the shared NuGet and Yarn caches (Cratis/Workflows dotnet-cache and
-# yarn-cache), and a cache saved on main is the one every pull request can restore. Publish saves them only when a
-# merge releases, so this saves them whenever what they are keyed on changes on main, and nightly so they are not
-# evicted. On an exact hit there is nothing to save, so the restore and install are skipped.
+# yarn-cache), and a cache saved on main is the one every pull request can restore. Publish only restores them, so
+# this is the one place that saves them: whenever what they are keyed on changes on main, and nightly so they are
+# not evicted. On an exact hit there is nothing to save, so the restore and install are skipped.
 on:
   push:
     branches: [main]
