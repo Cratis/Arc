@@ -1,12 +1,12 @@
 name: Publish
 
-# Never cancel a release in flight. On push every merge to main shares one group, so cancelling would let the
-# next merge kill a run that may already have tagged and cut the release but not yet finished publishing.
-# This also retires the hazard the pull_request trigger had, where a consolidation merge closed several pull
-# requests at once and their simultaneous runs cancelled each other: one push is one run.
+# Keep up to 100 pending Publish runs in FIFO order with `queue: max` (Cratis/Direct#1517).
+# The default single pending slot drops the older pending release when a third merge arrives.
+# Runs remain serialized and in-flight releases are never cancelled.
+# Omit `cancel-in-progress`: GitHub rejects it together with `queue: max`.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  queue: max
 
 env:
   NUGET_OUTPUT: ./Artifacts/NuGet
