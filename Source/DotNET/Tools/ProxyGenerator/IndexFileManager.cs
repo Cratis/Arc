@@ -19,7 +19,23 @@ public static partial class IndexFileManager
     /// <param name="message">Logger to use for outputting messages.</param>
     /// <param name="outputPath">The base output path for relative path calculation.</param>
     /// <returns>True if the index file was written, false if skipped.</returns>
-    public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
+    public static bool UpdateIndexFile(string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath) =>
+        UpdateIndexFileWithFileHeader(string.Empty, directory, generatedFiles, orphanedFiles, message, outputPath);
+
+    /// <summary>
+    /// Updates index.ts files in generated directories and existing index directories with potentially stale exports.
+    /// </summary>
+    /// <param name="directories">Collection of directories with generated content.</param>
+    /// <param name="generatedFiles">Collection of all generated file paths.</param>
+    /// <param name="orphanedFiles">Collection of orphaned file paths that were deleted.</param>
+    /// <param name="message">Logger to use for outputting messages.</param>
+    /// <param name="outputPath">The base output path.</param>
+    /// <returns>A tuple containing (WrittenCount, SkippedCount).</returns>
+    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath) =>
+        UpdateAllIndexFilesWithFileHeader(string.Empty, directories, generatedFiles, orphanedFiles, message, outputPath);
+
+    /// <inheritdoc cref="UpdateIndexFile"/>
+    internal static bool UpdateIndexFileWithFileHeader(string fileHeaderTemplate, string directory, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
     {
         var indexPath = Path.Combine(directory, "index.ts");
 
@@ -190,7 +206,8 @@ public static partial class IndexFileManager
             contentLines.Add($"export * from '{export}';");
         }
 
-        var content = string.Join(Environment.NewLine, contentLines);
+        var header = File.Exists(indexPath) ? string.Empty : FileHeader.Format(fileHeaderTemplate, indexPath);
+        var content = header + string.Join(Environment.NewLine, contentLines);
         if (!string.IsNullOrEmpty(content))
         {
             content += Environment.NewLine;
@@ -214,18 +231,8 @@ public static partial class IndexFileManager
         return true;
     }
 
-    /// <summary>
-    /// Updates all index.ts files in directories that have generated content, and also
-    /// scans for existing index files under the output path that may have stale exports
-    /// pointing to files that no longer exist on disk.
-    /// </summary>
-    /// <param name="directories">Collection of directories with generated content.</param>
-    /// <param name="generatedFiles">Collection of all generated file paths.</param>
-    /// <param name="orphanedFiles">Collection of orphaned file paths that were deleted.</param>
-    /// <param name="message">Logger to use for outputting messages.</param>
-    /// <param name="outputPath">The base output path.</param>
-    /// <returns>A tuple containing (WrittenCount, SkippedCount).</returns>
-    public static (int WrittenCount, int SkippedCount) UpdateAllIndexFiles(IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
+    /// <inheritdoc cref="UpdateAllIndexFiles"/>
+    internal static (int WrittenCount, int SkippedCount) UpdateAllIndexFilesWithFileHeader(string fileHeaderTemplate, IEnumerable<string> directories, IDictionary<string, GeneratedFileMetadata> generatedFiles, IEnumerable<string> orphanedFiles, Action<string> message, string outputPath)
     {
         var writtenCount = 0;
         var skippedCount = 0;
@@ -248,7 +255,7 @@ public static partial class IndexFileManager
 
         foreach (var directory in allDirectories)
         {
-            var wasWritten = UpdateIndexFile(directory, generatedFiles, orphanedFiles, message, outputPath);
+            var wasWritten = UpdateIndexFileWithFileHeader(fileHeaderTemplate, directory, generatedFiles, orphanedFiles, message, outputPath);
             if (wasWritten)
             {
                 writtenCount++;

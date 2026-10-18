@@ -150,7 +150,8 @@ public static partial class TypeScriptContentCombiner
             return new ParsedContent(string.Empty, [], content);
         }
 
-        var header = string.Join('\n', lines.Take(3));
+        var headerLength = lines.TakeWhile(line => string.IsNullOrWhiteSpace(line) || line.StartsWith("//", StringComparison.Ordinal)).Count();
+        var header = string.Join('\n', lines.Take(headerLength)).TrimEnd();
 
         // Walk backwards from the code start to include decorator lines and any preceding JSDoc block
         // in the body, so that per-type documentation and @derivedType decorators are not mixed into
@@ -189,8 +190,8 @@ public static partial class TypeScriptContentCombiner
         }
 
         var preambleLines = lines
-            .Skip(3)
-            .Take(bodyStartIndex - 3)
+            .Skip(headerLength)
+            .Take(bodyStartIndex - headerLength)
             .Where(l => !string.IsNullOrWhiteSpace(l))
             .ToList();
 

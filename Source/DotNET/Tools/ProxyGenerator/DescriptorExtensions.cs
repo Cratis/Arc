@@ -29,8 +29,38 @@ public static class DescriptorExtensions
     /// <param name="sourceFileMap">Optional map of type full name to source C# file name used to group descriptors into a single file per source file.</param>
     /// <param name="pendingContent">Optional dictionary to accumulate content for deferred writing when using source file grouping. When provided, content is stored here instead of being written to disk immediately. Use <see cref="FlushPendingContent"/> to write the final merged content.</param>
     /// <returns>Awaitable task.</returns>
-    public static async Task Write(
+    public static Task Write(
         this IEnumerable<IDescriptor> descriptors,
+        string targetPath,
+        IList<Type> typesInvolved,
+        HandlebarsTemplate<object, object> template,
+        IList<string> directories,
+        int segmentsToSkip,
+        string typeNameToEcho,
+        Action<string> message,
+        Action<string> errorMessage,
+        IDictionary<string, GeneratedFileMetadata>? generatedFiles = null,
+        IReadOnlyDictionary<Type, (IReadOnlyList<string> Commands, IReadOnlyList<string> Queries)>? descriptorOrigins = null,
+        IReadOnlyDictionary<string, string>? sourceFileMap = null,
+        IDictionary<string, (string Content, string SourceTypeName)>? pendingContent = null) =>
+        descriptors.WriteWithFileHeader(string.Empty, targetPath, typesInvolved, template, directories, segmentsToSkip, typeNameToEcho, message, errorMessage, generatedFiles, descriptorOrigins, sourceFileMap, pendingContent);
+
+    /// <summary>
+    /// Writes accumulated pending content, comparing final merged hashes to avoid unnecessary rewrites.
+    /// </summary>
+    /// <param name="pendingContent">The accumulated pending content from all Write calls.</param>
+    /// <param name="generatedFiles">The generated files metadata dictionary to update.</param>
+    /// <param name="message">Logger to use for outputting messages.</param>
+    /// <returns>Awaitable task.</returns>
+    public static Task FlushPendingContent(
+        IDictionary<string, (string Content, string SourceTypeName)> pendingContent,
+        IDictionary<string, GeneratedFileMetadata> generatedFiles,
+        Action<string> message) => FlushPendingContentWithFileHeader(string.Empty, pendingContent, generatedFiles, message);
+
+    /// <inheritdoc cref="Write"/>
+    internal static async Task WriteWithFileHeader(
+        this IEnumerable<IDescriptor> descriptors,
+        string fileHeaderTemplate,
         string targetPath,
         IList<Type> typesInvolved,
         HandlebarsTemplate<object, object> template,
@@ -162,6 +192,7 @@ public static class DescriptorExtensions
                     sourceTypeName = $"{previousMetadata.SourceTypeName}, {sourceTypeName}";
                 }
 
+                proxyContent = FileHeader.Format(fileHeaderTemplate, normalizedFullPath) + proxyContent;
                 var contentHash = GeneratedFileMetadata.ComputeHash(proxyContent);
                 var metadata = new GeneratedFileMetadata(sourceTypeName, generationTime, contentHash);
 
@@ -208,15 +239,9 @@ public static class DescriptorExtensions
         }
     }
 
-    /// <summary>
-    /// Writes all accumulated pending content to disk, comparing each file's final merged hash
-    /// against the original file on disk to avoid unnecessary rewrites and timestamp changes.
-    /// </summary>
-    /// <param name="pendingContent">The accumulated pending content from all Write calls.</param>
-    /// <param name="generatedFiles">The generated files metadata dictionary to update.</param>
-    /// <param name="message">Logger to use for outputting messages.</param>
-    /// <returns>Awaitable task.</returns>
-    public static async Task FlushPendingContent(
+    /// <inheritdoc cref="FlushPendingContent"/>
+    internal static async Task FlushPendingContentWithFileHeader(
+        string fileHeaderTemplate,
         IDictionary<string, (string Content, string SourceTypeName)> pendingContent,
         IDictionary<string, GeneratedFileMetadata> generatedFiles,
         Action<string> message)
@@ -225,8 +250,9 @@ public static class DescriptorExtensions
         var writtenCount = 0;
         var skippedCount = 0;
 
-        foreach (var (normalizedFullPath, (content, sourceTypeName)) in pendingContent)
+        foreach (var (normalizedFullPath, (rawContent, sourceTypeName)) in pendingContent)
         {
+            var content = FileHeader.Format(fileHeaderTemplate, normalizedFullPath) + rawContent;
             var contentHash = GeneratedFileMetadata.ComputeHash(content);
 
             // Compare against the original file on disk (untouched since last build)
@@ -365,16 +391,18 @@ public static class DescriptorExtensions
     static string StripMetadataLine(string fileContent)
     {
         var lines = fileContent.Split('\n');
-        var markerIndex = Array.FindIndex(lines, 0, Math.Min(4, lines.Length), line => GeneratedFileMetadata.TryParse(line.TrimEnd('\r'), out _));
+        var noticeIndex = Array.FindIndex(lines, line => line.TrimEnd('\r') == FileHeader.GeneratedNotice);
+        var start = noticeIndex < 0 ? 0 : noticeIndex;
 
-        return markerIndex < 0 ? fileContent : string.Join('\n', lines.Where((_, index) => index != markerIndex));
+        return string.Join('\n', lines.Skip(start).Where(line => !GeneratedFileMetadata.TryParse(line.TrimEnd('\r'), out _)));
     }
 
     static string AddMetadataLine(string content, GeneratedFileMetadata metadata)
     {
-        // Keep the license first for header rules; old files with a first-line marker remain readable.
+        // The notice bounds the configurable comment header; never scan through code for metadata.
         var lines = content.Split('\n');
-        var insertionIndex = content.StartsWith("// Copyright (c) Cratis.", StringComparison.Ordinal) ? Math.Min(3, lines.Length) : 0;
+        var noticeIndex = Array.FindIndex(lines, line => line.TrimEnd('\r') == FileHeader.GeneratedNotice);
+        var insertionIndex = noticeIndex < 0 ? 0 : noticeIndex + 1;
         var result = lines.ToList();
         result.Insert(insertionIndex, metadata.ToCommentLine());
 
