@@ -8,4 +8,4 @@ namespace Cratis.Arc.Commands;
 /// </summary>
 /// <param name="type">The unsupported type.</param>
 public sealed class ExplicitOffsetRequiresDateTimeOrDateTimeOffset(Type type)
-    : Exception($"ExplicitOffset requires DateTime, DateTimeOffset, or their nullable forms, not '{type}'.");
+    : Exception($"ExplicitOffset requires DateTime, DateTimeOffset, their nullable forms, or concepts wrapping those date-time types, not '{type}'. DateOnly and concepts wrapping DateOnly have no offset.");

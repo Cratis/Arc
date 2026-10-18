@@ -146,6 +146,10 @@ Aggregate mutations share this unit of work. Explicit aggregate `Commit()` final
 
 There is a separate failure-propagation limitation: `AggregateRoot.Commit()` checks the aggregate's accumulated `Failed(...)` results; automatic command completion commits the unit of work directly and does not collect those lists. Removing explicit commit from an aggregate that uses `Failed(...)` can change behavior. Return its commit result and end the handler at that boundary, or propagate rejection through the command's result before automatic completion. Committing one aggregate does not validate every other aggregate's private failures. See [Defining an aggregate root](../aggregates/defining-an-aggregate-root.md).
 
+## Occurrence commands
+
+A command run for a Chronicle occurrence through `IOccurrenceCommandExecutor` also writes an effect receipt in its final commit. That commit must be the only one: early aggregate commits, stream completion and immediate appends are refused for it. See [Commands for occurrences](./occurrence-commands.md).
+
 ## Things to know
 
 - **Reads do not see pending enrollment.** An event-log read observes persisted events, not the pending batch. It can see successful immediate appends.

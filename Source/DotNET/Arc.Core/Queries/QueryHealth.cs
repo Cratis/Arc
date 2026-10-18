@@ -3,7 +3,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reactive.Subjects;
-using Cratis.Arc.Authorization;
 using Cratis.Arc.Queries.ModelBound;
 
 namespace Cratis.Arc.Queries;
@@ -13,7 +12,6 @@ namespace Cratis.Arc.Queries;
 /// </summary>
 [ReadModel]
 [Path("/.cratis/queries/health")]
-[AllowAnonymous]
 public sealed record QueryHealth
 {
     /// <summary>
@@ -65,7 +63,6 @@ public sealed record QueryHealth
     /// </summary>
     /// <param name="healthTracker">The query health tracker service.</param>
     /// <returns>Observable subject emitting query health snapshots.</returns>
-    [AllowAnonymous]
     [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "Ownership of the subject and subscription is transferred to the returned DisposableQueryHealthSubject, which disposes both.")]
     public static ISubject<QueryHealth> ObserveHealth(IQueryHealthTracker healthTracker)
     {

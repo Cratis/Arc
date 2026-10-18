@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Chronicle.Aggregates;
+using Cratis.Arc.Chronicle.Occurrences;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Commands;
 using Cratis.Arc.Commands.ModelBound;
@@ -135,7 +136,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
 
         var unitOfWorkManager = serviceProvider.GetRequiredService<IUnitOfWorkManager>();
         var unitOfWork = unitOfWorkManager.Begin(context.CorrelationId);
-        var owner = (unitOfWork as UnitOfWork)?.ClaimDecisionReadCommitOwnership();
+
+        // The refusal frame owns keyed completion, including commands with protected reads.
+        var owner = OccurrenceExecution.Current is null ? (unitOfWork as UnitOfWork)?.ClaimDecisionReadCommitOwnership() : null;
         var failedAppends = new List<AppendedEventWithResult>();
         var observation = new CommitObservation(unitOfWork);
         _observations.Remove(context.Values);
@@ -160,6 +163,17 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         CommandTransaction.Current = unitOfWork;
         frame.Owned = new OwnedTransaction(unitOfWork, owner, subscription, failedAppends, observation);
         frame.UnitOfWork = unitOfWork;
+        if (OccurrenceExecution.Current is { } occurrenceExecution)
+        {
+            try
+            {
+                frame.ImmediateAppendRefusal = unitOfWork.RefuseImmediateAppends();
+            }
+            catch (UnitOfWorkImmediateAppendRefusalNotSupported error)
+            {
+                occurrenceExecution.Refuse(error);
+            }
+        }
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
         {
             frame.Protection = unitOfWork.EnforceReadProtection();
@@ -208,7 +222,9 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
         finally
         {
-            frame.EnrollmentContributor?.Dispose();
+            // Restore the invocation even when disposal fails; both registrations must still be disposed.
+            using var immediateAppendRefusal = frame.ImmediateAppendRefusal;
+            using var enrollmentContributor = frame.EnrollmentContributor;
             frame.Completed = true;
             frame.Exited = true;
             if (frame.Previous is { } previous)
@@ -230,6 +246,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <exception cref="NestedEarlyCompletionUnderReadProtection">A nested command attempted to complete its parent's unit.</exception>
     internal static async Task<bool> CommitAggregate(IUnitOfWork unit)
     {
+        OccurrenceExecution.RefuseEarlyCommit();
         var frame = ActiveFrame();
         var ownsUnit = frame is not null && ReferenceEquals(frame.UnitOfWork, unit);
         if (ownsUnit && frame!.Owned is null && frame.Previous is { } parent && (frame.Protection is not null || frame.ReadProtected))
@@ -250,7 +267,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             throw new NestedEarlyCompletionUnderReadProtection(frame.CommandType, frame.Previous?.CommandType ?? frame.CommandType);
         }
 
-        await CommitOwned(owned);
+        await CommitOwned(owned, null);
         return true;
     }
 
@@ -293,6 +310,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
     /// <returns>Whether an active execution frame accepted the completion.</returns>
     internal static bool EnrollCompletion(CommandContext context, PendingStreamCompletion completion)
     {
+        OccurrenceExecution.RefuseStreamCompletion();
         var frame = ActiveFrame();
         if (frame is null || !ReferenceEquals(frame.Values, context.Values))
         {
@@ -321,6 +339,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         // Mark the shared frame instead so a resumed outer command still owns its transaction.
         frame.Completed = true;
         _frames.Value = frame.Previous;
+
+        // A nested command can turn a programming error into a result its caller ignores. The shared occurrence
+        // still refuses the entire transaction: no participating command may commit it or record a receipt.
+        if (OccurrenceExecution.Current?.Refusal is { } refusalError)
+        {
+            result.MergeWith(CommandResult.Error(context.CorrelationId, refusalError));
+        }
+
         if (owned is null)
         {
             if (result.IsSuccess)
@@ -351,6 +377,14 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         var unitOfWork = owned.UnitOfWork;
         var observation = owned.Observation;
 
+        // Fail-loud backstop only: this notification arrives after an immediate append committed without a receipt.
+        // Native Chronicle appends are refused up front; retain detection for custom sequence implementations.
+        if (OccurrenceExecution.Current is { } occurrenceExecution && observation.ImmediateCommitted)
+        {
+            occurrenceExecution.RecordImmediateAppend();
+            result.MergeWith(CommandResult.Error(context.CorrelationId, "The command appended events outside its unit of work while executing for an occurrence."));
+        }
+
         // IsCompleted also means rollback or a commit that threw. Never interpret it as authoritative commitment.
         if (unitOfWork.IsCompleted && !observation.CompletionObserved)
         {
@@ -361,7 +395,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         {
             if (!unitOfWork.IsCompleted)
             {
-                await CommitOwned(owned);
+                await CommitOwned(owned, frame.ImmediateAppendRefusal);
             }
 
             var commitResult = AggregateRootCommitResult.CreateFrom(unitOfWork, []);
@@ -387,7 +421,11 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         else if (!unitOfWork.IsCompleted)
         {
             observation.Disposition = CommandCommitDisposition.Unknown;
-            if (owned.Owner is not null && unitOfWork is UnitOfWork protectedUnit && (protectedUnit.HasEnrolledDecisionReads || protectedUnit.IsEnforcingReadProtection))
+            if (frame.ImmediateAppendRefusal is { } refusal)
+            {
+                await refusal.Rollback();
+            }
+            else if (owned.Owner is not null && unitOfWork is UnitOfWork protectedUnit && (protectedUnit.HasEnrolledDecisionReads || protectedUnit.IsEnforcingReadProtection))
             {
                 // Chronicle refuses the public Rollback for an owner-claimed unit with enrolled decision reads, so the failed
                 // command rolls back with the capability it claimed when it began. Without decision reads the public
@@ -420,13 +458,19 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         };
     }
 
-    static async Task CommitOwned(OwnedTransaction owned)
+    static async Task CommitOwned(OwnedTransaction owned, ImmediateAppendRefusal? refusal)
     {
         using var measurementCommit = ReadProtectionMeasurement.Committing();
         var unit = owned.UnitOfWork;
         var hasEvents = unit.GetEvents().Any();
+        var occurrenceExecution = OccurrenceExecution.Current;
+        occurrenceExecution?.Enroll(unit);
         owned.Observation.Disposition = CommandCommitDisposition.Unknown;
-        if (owned.Owner is not null)
+        if (refusal is not null)
+        {
+            await refusal.Commit();
+        }
+        else if (owned.Owner is not null)
         {
             await ((UnitOfWork)unit).CommitAsOwner(owned.Owner);
         }
@@ -438,6 +482,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
             }
             await unit.Commit();
         }
+        occurrenceExecution?.Committed(unit);
         owned.Observation.CompletionObserved = true;
         owned.Observation.Disposition = unit.GetAppendErrors().Any()
             ? CommandCommitDisposition.Unknown
@@ -527,6 +572,7 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         public IServiceProvider? Services { get; init; }
         public bool ReadProtected { get; } = readProtected;
         public ReadProtectionFrame? Protection { get; set; }
+        public ImmediateAppendRefusal? ImmediateAppendRefusal { get; set; }
         public IDisposable? ReadAllowance { get; set; }
         public List<TransactionFrame> Children { get; } = [];
         public bool Exited { get; set; }

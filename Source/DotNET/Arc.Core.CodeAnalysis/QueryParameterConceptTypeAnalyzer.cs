@@ -69,14 +69,10 @@ public class QueryParameterConceptTypeAnalyzer : DiagnosticAnalyzer
     /// </summary>
     /// <param name="method">The method to check.</param>
     /// <returns>True if it is a query method.</returns>
-    /// <remarks>
-    /// Internal as well as public, because query discovery registers internal methods too — an internal query is
-    /// just as routable, and just as unvalidated, as a public one.
-    /// </remarks>
     static bool IsQueryMethod(IMethodSymbol method) =>
         method.MethodKind == MethodKind.Ordinary &&
         method.IsStatic &&
-        method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+        method.DeclaredAccessibility == Accessibility.Public &&
         !method.ReturnsVoid &&
         ModelBoundQueryMethodSymbols.IsSelected(method) &&
         (method.ContainingType?.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == ReadModelAttributeName) == true ||

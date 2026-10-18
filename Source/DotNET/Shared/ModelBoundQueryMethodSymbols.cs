@@ -27,13 +27,13 @@ internal static class ModelBoundQueryMethodSymbols
         "ARC0026", "Invalid explicit query declaration", "Query '{0}': {1}", "Arc", DiagnosticSeverity.Error, true);
 
     /// <summary>
-    /// Tests the legacy generator candidate shape.
+    /// Tests the public static generator candidate shape.
     /// </summary>
     /// <param name="method">The method.</param>
     /// <returns>Whether it is a candidate.</returns>
     internal static bool IsCandidate(IMethodSymbol method) =>
         method.MethodKind == MethodKind.Ordinary && method.IsStatic &&
-        method.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal &&
+        method.DeclaredAccessibility == Accessibility.Public &&
         method.TypeParameters.Length == 0 &&
         !method.GetAttributes().Any(_ => _.AttributeClass?.ToDisplayString() == "System.Runtime.CompilerServices.CompilerGeneratedAttribute");
 
@@ -73,12 +73,12 @@ internal static class ModelBoundQueryMethodSymbols
         ReadModel(type)?.NamedArguments.Any(_ => _.Key == "RequireQueryAttribute" && _.Value.Value is true) == true;
 
     /// <summary>
-    /// Applies opt-in selection without narrowing legacy methods.
+    /// Requires public static visibility before applying opt-in selection.
     /// </summary>
     /// <param name="method">The method.</param>
     /// <returns>Whether selection permits it.</returns>
     internal static bool IsSelected(IMethodSymbol method) =>
-        QuerySelectionPolicy.IsSelected(HasSelfParameter(method), RequiresQueryAttribute(method.ContainingType), () => IsMarked(method), () => IsValidExplicitQuery(method));
+        method.IsStatic && method.DeclaredAccessibility == Accessibility.Public && QuerySelectionPolicy.IsSelected(HasSelfParameter(method), RequiresQueryAttribute(method.ContainingType), () => IsMarked(method), () => IsValidExplicitQuery(method));
 
     /// <summary>
     /// Selects queries with explicit rules or the caller's unchanged legacy predicate.
@@ -88,7 +88,7 @@ internal static class ModelBoundQueryMethodSymbols
     /// <returns>The selected queries.</returns>
     internal static IEnumerable<IMethodSymbol> GetMethods(INamedTypeSymbol type, Func<IMethodSymbol, bool> legacyPredicate) =>
         type.GetMembers().OfType<IMethodSymbol>()
-            .Where(method => IsSelected(method) && legacyPredicate(method));
+            .Where(method => IsCandidate(method) && IsSelected(method) && legacyPredicate(method));
 
     /// <summary>
     /// Validates markers before discovery and rejects ambiguous selected names.
@@ -148,7 +148,7 @@ internal static class ModelBoundQueryMethodSymbols
 
     static string InvalidMarkerReason(IMethodSymbol method) => HasSelfParameter(method)
         ? QuerySelectionPolicy.SelfParameterReason
-        : "[Query] requires a public/internal static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]";
+        : "[Query] requires a public static nongeneric ordinary method with value parameters and a supported read-model return shape on [ReadModel]; correct the declaration or remove [Query]";
 
     static bool HasInvalidDeclaration(INamedTypeSymbol type, IMethodSymbol method, Func<IMethodSymbol, bool> legacyPredicate) =>
         ReadModel(type) is null || !IsValidExplicitQuery(method) || !legacyPredicate(method);

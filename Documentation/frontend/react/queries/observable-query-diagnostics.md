@@ -82,6 +82,8 @@ If you omit the owner, the diagnostics stream still works. You just get the conn
 
 The frontend diagnostics show one side of the picture — what the browser cache and transport layer know. When you need to verify that the server is actually pushing data to the right subscribers, Arc provides a matching backend endpoint at `/.cratis/queries/health`.
 
+The backend health feed requires authentication outside Development by default. Use a signed-in diagnostic client, including for named subscriptions over WebSocket or SSE, and ensure the caller has any roles configured through `ArcOptions.QueryHealth.Roles`. This does not affect the local frontend diagnostics API.
+
 The two surfaces use the same query identifier format. Each entry in `snapshot.cache.entries` has a `queryName` field in the form `{TypeFullName}.{MethodName}`. The backend health endpoint exposes a `querySubscriptions` array where each entry's `queryName` field uses the exact same string. You can match them by name.
 
 A typical investigation flow:

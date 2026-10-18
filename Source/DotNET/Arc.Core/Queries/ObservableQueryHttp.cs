@@ -369,7 +369,9 @@ public static class ObservableQueryHttp
             ValidationResults = [],
             ExceptionMessages = [],
             ExceptionStackTrace = string.Empty,
-            Paging = new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems)
+            Paging = ObservableQueryPaging.ReportsPaging(data?.GetType())
+                ? new(queryContext.Paging.Page, queryContext.Paging.Size, queryContext.TotalItems)
+                : PagingInfo.NotPaged
         };
 
     static bool TryGetCurrentValue(object streamingData, out object? currentValue)

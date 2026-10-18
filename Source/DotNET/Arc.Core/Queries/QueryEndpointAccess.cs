@@ -17,5 +17,5 @@ internal static class QueryEndpointAccess
     /// <param name="services">The host services used to resolve guest policy declarations.</param>
     /// <returns>Whether the query allows anonymous endpoint access.</returns>
     internal static bool AllowsAnonymous(IQueryPerformer performer, IServiceProvider services) =>
-        performer.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForQuery(performer, services);
+        performer.AllowsAnonymousAccess || GuestPolicyEndpointAccess.ForQuery(performer, services) || QueryHealthEndpointAccess.ForQuery(performer, services);
 }
