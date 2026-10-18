@@ -3,6 +3,7 @@
 
 using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
+using Cratis.Arc.Validation;
 using Cratis.Chronicle.Events;
 using Cratis.Concepts;
 using Cratis.Execution;
@@ -57,7 +58,14 @@ public class when_explicit_lookup_keys_have_different_clr_types
         var command = new LookupCommand<string?>(value);
         var context = new CommandContext(CorrelationId.New(), command.GetType(), command, [], new());
         var parameter = typeof(Dependency<string>).GetMethod(nameof(Dependency<string>.Handle))!.GetParameters()[0];
-        Catch.Exception(() => CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On)).ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();
+        var failure = Catch.Exception(() => CommandReadModelLookup.Resolve(context, parameter, ReadProtectionMode.On));
+        failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
+        ((IValidationFailure)failure).ValidationResult.Reason.ShouldEqual(ValidationResultReason.Rule);
+        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual($"{typeof(Model<string>).Name} '' does not exist.");
+        foreach (var mode in new[] { ReadProtectionMode.Off, ReadProtectionMode.Measure })
+        {
+            Catch.Exception(() => CommandReadModelLookup.Resolve(context, parameter, mode)).ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();
+        }
     }
 
     public record WireKey

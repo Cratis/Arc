@@ -121,7 +121,10 @@ public class when_binding_a_month : given.a_monthly_account
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Withdraw));
         Begin(new Withdraw(_account, "2026-10", 100));
         _context.Values[WellKnownCommandContextKeys.EventSourceId] = EventSourceId.Unspecified;
-        Catch.Exception(() => Resolve()).ShouldBeOfExactType<UnableToResolveReadModelFromCommandContext>();
+        var failure = Catch.Exception(() => Resolve());
+        failure.ShouldBeOfExactType<ProtectedReadModelDoesNotExist>();
+        ((IValidationFailure)failure).ValidationResult.Message.ShouldEqual("MonthlyWithdrawals '' does not exist.");
+        ((IValidationFailure)failure).ValidationResult.Reason.ShouldEqual(ValidationResultReason.Rule);
     }
 
     [Theory]

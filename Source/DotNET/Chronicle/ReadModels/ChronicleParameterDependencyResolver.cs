@@ -45,11 +45,11 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
 
         var context = serviceProvider.GetRequiredService<ICommandContextAccessor>().Current;
-        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection);
+        var key = CommandReadModelLookup.Resolve(context, parameter, CommandDecisionPolicy.ReadProtection, out var keyText);
         var advisory = parameter.GetCustomAttribute<UnprotectedAttribute>() ?? parameter.ParameterType.GetCustomAttribute<UnprotectedAttribute>();
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
         {
-            dependency = ResolveProtected(serviceProvider, context, parameter, key);
+            dependency = ProtectedReadModelKeys.RequireInstance(ResolveProtected(serviceProvider, context, parameter, key, keyText), parameter, keyText);
         }
         else
         {
@@ -66,7 +66,7 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         return true;
     }
 
-    static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key)
+    static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
     {
         try
         {
@@ -76,6 +76,10 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         catch (TargetInvocationException exception) when (exception.InnerException is not null)
         {
             var failure = exception.InnerException;
+            if (failure is ProtectedReadModelDoesNotExist)
+            {
+                throw new ProtectedReadModelDoesNotExist(parameter.ParameterType, keyText);
+            }
             if ((failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused) is { } refused)
             {
                 throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);

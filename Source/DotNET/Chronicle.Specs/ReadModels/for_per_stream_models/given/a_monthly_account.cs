@@ -139,6 +139,7 @@ public class a_monthly_account : Specification
     public record Withdraw(AccountId Account, string Month, decimal Amount)
     {
         public MoneyWithdrawn Handle(MonthlyWithdrawals? month) => new(Amount);
+        public MoneyWithdrawn Required(MonthlyWithdrawals month) => new(Amount);
         public MoneyWithdrawn Mix(MonthlyWithdrawals? month, AccountWithdrawals? total) => new(Amount);
         public MoneyWithdrawn Redirect([LookUpBy(nameof(Account))] MonthlyWithdrawals? month) => new(Amount);
         public MoneyWithdrawn Advisory([Unprotected("display only")] MonthlyWithdrawals? month) => new(Amount);

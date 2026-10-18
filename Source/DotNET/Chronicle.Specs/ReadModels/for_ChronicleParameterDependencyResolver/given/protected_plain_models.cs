@@ -5,6 +5,7 @@ using System.Reflection;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
+using Cratis.Arc.Queries;
 using Cratis.Chronicle.ReadModels;
 using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +59,9 @@ public class protected_plain_models : Specification
             .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver]))
             .AddSingleton<ICommandProtectedDecisionSupport>(new DecisionDependencySafety())
             .AddSingleton(accessor)
+            .AddSingleton(_ => _context)
+            .AddSingleton(new RegisteredReadModelTypes([typeof(Balance)]))
+            .AddSingleton<IInstancesOf<IUnresolvableDependencyClassifier>>(new KnownInstancesOf<IUnresolvableDependencyClassifier>([new ReadModelUnresolvableDependencyClassifier()]))
             .AddSingleton(_stored)
             .AddSingleton<IDecisionReads>(new CommandDecisionReads(_inner, store, _stored))
             .BuildServiceProvider();

@@ -25,7 +25,7 @@ Use this page when you want to know what a read in a command becomes under `On`,
 | A projection keyed by a stream | **Refused** as a plain parameter. Read it with `IDecisionReads.Get` and an explicit stream in `Provide()` |
 | A key that is not a string or a `Guid`; an ambiguous projection; a model of another event sequence; a definition that does not match the registered one | **Refused** |
 | A projection with Pinned generation delivery | **Refused** |
-| A model with no instance yet | **Protected.** The parameter is `null` and the guard watches for the first event |
+| A model with no instance yet | **Protected.** A nullable parameter receives `null` and the guard watches for the first event. A required parameter rejects with a validation result |
 | `DecisionRead<T>` with `[ProtectedDecision]` | Still supported. `On` additionally protects plain read-model parameters and validator constructor reads |
 | `IDecisionReads.Get<T>` in `Provide()` | **Protected** |
 | `IDecisionReads.GetDetached<T>` | **Refused** unless inside an advisory method |
@@ -39,6 +39,14 @@ Use this page when you want to know what a read in a command becomes under `On`,
 Reads inside a validator constructor follow the same rules. See [Validators](./validators.md).
 
 [Refusals](./refusals.md) lists each refusal with its message and fix. [How it works](./how-it-works.md) explains what a protected read guards.
+
+## Missing models and invalid keys
+
+Under `On`, a missing required (non-nullable) protected read-model parameter rejects the command with HTTP `400` and the message `{ReadModel} '{key}' does not exist.`. `ReadModel` is the model's simple CLR type name, matching its Screenplay view name. The validation result uses `ValidationResultReason.Rule` (`rule`), Arc's ordinary validation reason. A nullable parameter still receives `null` for a valid key with no instance.
+
+A protected key is treated as missing if it is empty, whitespace-only, exactly `*`, contains `#`, or has leading or trailing whitespace. Arc checks the raw key and each composite key part before acquiring a read, even if an instance exists at that key. This rejection also applies to nullable protected parameters. Text keys appear unchanged in the message, including whitespace. For a composite record or tuple key, the diagnostic key text is empty (`Model '' does not exist.`), matching the Screenplay reference evaluator; concepts are unwrapped before checking their values.
+
+These rules apply to protected reads, not advisory reads. `Off` and `Measure` retain their existing lookup, nullability, messages and validation reasons. Other read-protection refusals retain their existing outcomes.
 
 ## Declare an advisory read
 
@@ -139,7 +147,7 @@ public class TransferValidator : CommandValidator<Transfer>
 
 Each parameter is its own guard: one on the event source `From`, one on the event source `To`. Without the attributes, `Transfer` has two properties of the model's `Id` type, and `AmbiguousReadModelLookup` refuses it ([ARCCHR0023](../code-analysis/ARCCHR0023.md) reports it at build time).
 
-`[LookUpBy]` names a public property of the command, including on a validator constructor parameter. Arc converts the value to the wire key; the property's CLR type need not equal the model's `Id` type. Concepts are unwrapped, `Guid` values are formatted as identifiers, and `EventSourceId`-derived values use their underlying key. For example, a `ConceptAs<Guid>` property can select a model with a `Guid Id`, and the reverse works too. Other values use the runtime's string conversion. Null or empty keys are still refused.
+`[LookUpBy]` names a public property of the command, including on a validator constructor parameter. Arc converts the value to the wire key; the property's CLR type need not equal the model's `Id` type. Concepts are unwrapped, `Guid` values are formatted as identifiers, and `EventSourceId`-derived values use their underlying key. For example, a `ConceptAs<Guid>` property can select a model with a `Guid Id`, and the reverse works too. Other values use the runtime's string conversion. Protected reads validate raw keys before conversion as described in [Missing models and invalid keys](#missing-models-and-invalid-keys).
 
 A name that does not exist, or a parameter that is not a read model, is `InvalidLookUpBy`; [ARCCHR0031](../code-analysis/ARCCHR0031.md) reports these declarations at build time. The exact-type convention in the table applies only when you omit `[LookUpBy]`.
 
