@@ -90,7 +90,9 @@ public class DeclarableShapes(TypeRegistry types, IReadOnlySet<string> readModel
             }
 
             var carried = UnderlyingTypes.Of(property.Type);
-            if (IsPrimitive(carried))
+
+            // Unnameable properties are omitted uniformly during emission, including inside carried records.
+            if (IsPrimitive(carried) || TypeRegistry.CannotNameCarried(carried))
             {
                 continue;
             }

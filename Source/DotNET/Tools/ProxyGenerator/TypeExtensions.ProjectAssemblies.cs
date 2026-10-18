@@ -199,6 +199,7 @@ public static partial class TypeExtensions
         var metadataLoadContext = _metadataLoadContext;
         Assemblies = [];
         ValidatorAssemblies = [];
+        _derivativeCandidates = null;
         ValidatorTypes.SetWarningLogger(_ => { });
         _assembliesByName.Clear();
         _serverHandledCommandResponseValueTypeNames = null;

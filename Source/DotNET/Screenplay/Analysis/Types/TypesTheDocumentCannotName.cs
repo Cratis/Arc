@@ -7,9 +7,8 @@ namespace Cratis.Arc.Screenplay.Analysis.Types;
 /// Reports every type the document had to refer to by a name that does not say what it is.
 /// </summary>
 /// <remarks>
-/// A Screenplay type reference is a single identifier, so a type the grammar cannot hold is written as whatever of its
-/// name survives - and the property then claims a type nothing declares. Saying which types those were is the
-/// difference between a document with a known gap and a document that is quietly wrong.
+/// A Screenplay type reference is a single identifier. Properties carrying types without a declaration are omitted
+/// during emission, and their dependent behavior is withheld rather than described over a different schema.
 /// </remarks>
 public static class TypesTheDocumentCannotName
 {
@@ -42,7 +41,7 @@ public static class TypesTheDocumentCannotName
         {
             diagnostics.Warning(
                 ScreenplayDiagnosticCodes.UnmappableTypeReference,
-                $"'{type}' has no Screenplay counterpart, so it is referred to by a name the document never declares",
+                $"'{type}' has no Screenplay counterpart; properties carrying it and behavior depending on their complete schema are omitted during emission",
                 location);
         }
 
