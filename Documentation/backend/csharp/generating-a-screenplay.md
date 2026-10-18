@@ -193,10 +193,18 @@ A read model is left undeclared, with Information diagnostic `SP0057`, when no d
 
 - two read models come out under the same declaration name (`Order_Summary` and `OrderSummary` both become `OrderSummary`), or a query or a command reads a different type under that name;
 - the name is already used by a concept or a type;
-- a value it holds, at any depth, has a type the document cannot declare, is a collection whose elements may be null (`optional` on a collection says only that the collection may be absent), or shares its declaration name with a different type the document already declares, with another type the read model holds, or with a read model;
+- a value it holds, at any depth, is a collection whose elements may be null (`optional` on a collection says only that the collection may be absent), or a carried record or concept shares its declaration name with a different type the document already declares, with another type the read model holds, or with a read model;
 - no slice refers to it.
 
 Queries and projections referring to an omitted read model are withheld too, as are dependent screen data, tables and scenarios, with Information diagnostic `SP0030`. Authoring reads and their dependent requirements, mappings and operations are withheld with `SP0055` or `SP0053`. If these omissions empty a slice, Information diagnostic `SP0002` reports why the slice was left out. None of the concepts or types it holds are declared on its behalf.
+
+### Properties without a Screenplay type
+
+Dictionaries, constructed generic values such as `KeyValuePair<TKey, TValue>`, interfaces, abstract classes and other carried types without a Screenplay declaration are omitted with Warning `SP0030`, naming the property and its original type. This also applies to collections of those values and to properties inside carried records. Representable sibling properties remain. A carried record that loses every property cannot be declared; references to that emptied shape are omitted too. Abstract records with declarable properties remain supported.
+
+ESM v28 has no map, JSON, object or open-shape property type. The generator does not substitute `String`, invent a placeholder, or write a bare type name that nothing declares. The resulting declarations are partial descriptions, not equivalent replacements for the original C# contracts.
+
+Behavior requiring a complete affected schema is withheld with Information `SP0030`: declarative commands, projections and reactions are not restated over fewer fields, and dependent screen data, tables and actions are left out. Queries remain when their parameters are representable; a query with an unnameable parameter is withheld rather than broadened. A scenario using an affected schema or withheld behavior is omitted in full with `SP0039`; fixtures and assertions are never silently trimmed. Review these diagnostics before using the generated document as a behavioral model.
 
 ## Query descriptions and implementations
 
