@@ -29,13 +29,15 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
 
         var validationResults = new List<SystemValidationResult>();
         var queryArguments = context.Arguments ?? QueryArguments.Empty;
+        DataAnnotationMembers.TryGet(context.Name, out var members);
 
         // Validate each parameter
         foreach (var parameter in performer.Parameters)
         {
             if (queryArguments.TryGetValue(parameter.Name, out var value))
             {
-                ValidateParameter(parameter, value, validationResults);
+                var member = members?.FirstOrDefault(member => member.Name == parameter.Name);
+                ValidateParameter(parameter, value, validationResults, member);
             }
         }
 
@@ -48,22 +50,36 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
         return Task.FromResult(queryResult);
     }
 
-    static void ValidateParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults)
+    static void ValidateParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults, DataAnnotationMember? member)
     {
-        if (value is null && !IsNullable(parameter.Type))
+        if (member is not null)
+        {
+            ValidateRegisteredParameter(parameter, member.ReadValue(value!), validationResults, member);
+            return;
+        }
+
+        ValidateUnregisteredParameter(parameter, value, validationResults);
+    }
+
+    static void ValidateRegisteredParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults, DataAnnotationMember member)
+    {
+        var validationAttributes = member.Attributes();
+        var validationContext = CreateValidationContext(parameter, value);
+        validationContext.DisplayName = member.DisplayName;
+        Validator.TryValidateValue(value, validationContext, validationResults, validationAttributes);
+    }
+
+    static void ValidateUnregisteredParameter(QueryParameter parameter, object? value, List<SystemValidationResult> validationResults)
+    {
+        if (IsMissingNonNullableValue(parameter, value))
         {
             validationResults.Add(new SystemValidationResult($"The field {parameter.Name} is required.", [parameter.Name]));
             return;
         }
 
         // Get validation attributes from the parameter type
-        var validationAttributes = parameter.Type.GetCustomAttributes<ValidationAttribute>(true);
-        var validationContext = new ValidationContext(value ?? new object())
-        {
-            MemberName = parameter.Name
-        };
-
-        foreach (var attribute in validationAttributes)
+        var validationContext = CreateValidationContext(parameter, value);
+        foreach (var attribute in parameter.Type.GetCustomAttributes<ValidationAttribute>(true))
         {
             var result = attribute.GetValidationResult(value, validationContext);
             if (result != SystemValidationResult.Success)
@@ -72,6 +88,15 @@ public class DataAnnotationValidationFilter(IQueryPerformerProviders queryPerfor
             }
         }
     }
+
+    static ValidationContext CreateValidationContext(QueryParameter parameter, object? value) =>
+        new(value ?? new object())
+        {
+            MemberName = parameter.Name
+        };
+
+    static bool IsMissingNonNullableValue(QueryParameter parameter, object? value) =>
+        value is null && !IsNullable(parameter.Type);
 
     static bool IsNullable(Type type) =>
         !type.IsValueType || (Nullable.GetUnderlyingType(type) is not null);
