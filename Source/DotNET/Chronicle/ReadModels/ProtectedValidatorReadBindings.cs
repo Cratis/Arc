@@ -19,10 +19,11 @@ internal static class ProtectedValidatorReadBindings
     /// </summary>
     /// <param name="services">The original collection after the call.</param>
     /// <param name="before">Descriptor identities immediately before the call.</param>
-    internal static void RecordClientReaders(IServiceCollection services, IReadOnlySet<ServiceDescriptor> before)
+    /// <param name="applicationBindings">Descriptors added during application callbacks, which cannot gain client origin.</param>
+    internal static void RecordClientReaders(IServiceCollection services, IReadOnlySet<ServiceDescriptor> before, IReadOnlySet<ServiceDescriptor> applicationBindings)
     {
         var origins = ProtectedDecisionRegistrationOrigins.For(services);
-        foreach (var descriptor in services.Where(binding => binding.ServiceType == typeof(IDecisionReads) && !before.Contains(binding)))
+        foreach (var descriptor in services.Where(binding => binding.ServiceType == typeof(IDecisionReads) && !before.Contains(binding) && !applicationBindings.Contains(binding)))
         {
             origins.Record(descriptor, new(IsChronicleClientReader: true));
         }

@@ -13,10 +13,17 @@ Keep your existing Arc and Chronicle configuration. Install Arc's provider facto
 
 ```csharp
 using Cratis.Arc.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
-builder.Host.UseServiceProviderFactory(new ProtectedDecisionServiceProviderFactory());
+builder.Host.UseServiceProviderFactory(new ProtectedDecisionServiceProviderFactory(new ServiceProviderOptions
+{
+    ValidateScopes = builder.Environment.IsDevelopment(),
+    ValidateOnBuild = false
+}));
 ```
+
+Pass DI validation options explicitly: without options, this factory sets both `ValidateScopes` and `ValidateOnBuild` to `false`. It does not inherit the host's environment defaults or earlier `UseDefaultServiceProvider` configuration. The example retains Development-time scope validation and Arc's disabled eager validation.
 
 The same factory works with `IHostBuilder.UseServiceProviderFactory` or `IHostApplicationBuilder.ConfigureContainer`. It must be the host's actual Microsoft DI factory, not a wrapper around another container. Do not build a second root inside a running host.
 
@@ -75,7 +82,7 @@ Arc checks the complete constructor dependency plan before constructing its vali
 
 The effective `IDecisionReads` binding must be the framework's scoped command-aware binding. Every earlier binding must also have a framework-recorded origin; standard `WithChronicle` composition may retain superseded raw readers. Any unrecorded type, factory, instance or copied binding anywhere in that list refuses this construction path. Collections are not allowed to resolve those superseded readers.
 
-Register Chronicle through Arc's `WithChronicle`: client registrations made directly by the application outside that call have no recorded origin and are refused by this new construction path.
+Register Chronicle through Arc's `WithChronicle`: client registrations made directly by the application outside that call have no recorded origin and are refused by this new construction path. Application reader registrations inside either `WithChronicle` configuration callback also remain untrusted.
 
 A closed framework token factory may coexist with Arc's origin-recorded open token convention binding, which is never activated; an application-added open binding is still refused.
 

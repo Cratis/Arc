@@ -8,10 +8,11 @@ namespace Cratis.Arc.DependencyInjection;
 /// <summary>
 /// Builds a Microsoft dependency injection provider whose native child scopes can be attested by Arc.
 /// </summary>
-/// <param name="options">The provider options, copied when the factory is created.</param>
+/// <param name="options">The provider options, copied when the factory is created. If omitted, both validation options are false.</param>
 /// <remarks>
 /// Attestation identifies a provider and its final registrations; it does not certify application code.
 /// The root provider itself is not eligible for protected decision scope attestation.
+/// Host environment defaults and callbacks configured through UseDefaultServiceProvider do not supply these options.
 /// </remarks>
 public sealed class ProtectedDecisionServiceProviderFactory(ServiceProviderOptions? options = null) : IServiceProviderFactory<IServiceCollection>
 {

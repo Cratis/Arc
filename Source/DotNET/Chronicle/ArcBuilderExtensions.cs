@@ -45,18 +45,23 @@ public static class ArcBuilderExtensions
         builder.Services.AddAggregateRoots(builder.Types);
 
         var beforeChronicle = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
+        var applicationBindings = new HashSet<ServiceDescriptor>(ReferenceEqualityComparer.Instance);
         builder.AppBuilder.AddCratisChronicle(
             configureOptions: options =>
             {
                 options.EventStoreNamespaceResolverType = typeof(TenantNamespaceResolver);
+                var beforeCallback = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
                 configureOptions?.Invoke(options);
+                applicationBindings.UnionWith(builder.Services.Where(binding => !beforeCallback.Contains(binding)));
             },
             configure: chronicleBuilder =>
             {
+                var beforeCallback = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
+                applicationBindings.UnionWith(builder.Services.Where(binding => !beforeCallback.Contains(binding)));
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
-        ProtectedValidatorReadBindings.RecordClientReaders(builder.Services, beforeChronicle);
+        ProtectedValidatorReadBindings.RecordClientReaders(builder.Services, beforeChronicle, applicationBindings);
 
         // The event store owns the manager, including its lifecycle policy and namespace.
         // Replace only the convention binding, preserving explicit registrations and later convention passes.
