@@ -21,6 +21,15 @@ internal static partial class MongoDBWatcherLogMessages
     [LoggerMessage(LogLevel.Warning, "Unexpected error occurred in database watcher")]
     internal static partial void UnexpectedError(this ILogger<MongoDBWatcher> logger, Exception ex);
 
+    [LoggerMessage(LogLevel.Warning, "Database watch for '{DatabaseName}' lost its resume token; reopening and refreshing all observations")]
+    internal static partial void DatabaseWatchResumeTokenReset(this ILogger<MongoDBWatcher> logger, string databaseName);
+
+    [LoggerMessage(LogLevel.Warning, "Joined MongoDB snapshot failed; retry {Attempt} in {Delay}s")]
+    internal static partial void SnapshotRetrying(this ILogger<MongoDBWatcher> logger, Exception ex, int attempt, double delay);
+
+    [LoggerMessage(LogLevel.Error, "Joined MongoDB snapshot failed after six attempts; subscription retained, awaiting the next database change")]
+    internal static partial void SnapshotRetriesExhausted(this ILogger<MongoDBWatcher> logger, Exception ex);
+
     [LoggerMessage(LogLevel.Warning, "Database watch for '{DatabaseName}' failed; reconnecting in {Delay}s")]
     internal static partial void DatabaseWatchReconnecting(this ILogger<MongoDBWatcher> logger, string databaseName, double delay);
 }
