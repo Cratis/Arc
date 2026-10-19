@@ -56,6 +56,7 @@ public class protected_plain_models : Specification
             [WellKnownCommandContextKeys.EventSourceId] = (Cratis.Chronicle.Events.EventSourceId)"from"
         });
         accessor.Current.Returns(_ => _context);
+        ReadModelDispatch.Register<Balance>();
         _resolver = new([typeof(Balance)]);
         _services = new ServiceCollection()
             .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>([_resolver]))

@@ -21,6 +21,7 @@ public class when_observing_lookup_metadata : given.a_measure_pipeline
             try
             {
                 var parameter = typeof(CountedDependencies).GetMethod(nameof(CountedDependencies.Handle))!.GetParameters()[0];
+                ReadModelDispatch.Register<Stock>();
                 new ChronicleParameterDependencyResolver([typeof(Stock)]).TryResolve(_services, parameter, out _);
                 ReadParameter(context, "stock");
                 Stage(context);

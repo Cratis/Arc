@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
@@ -73,32 +72,8 @@ public static class ReadModelServiceCollectionExtensions
 
         foreach (var readModelType in readModelTypes)
         {
-            var closedType = typeof(DecisionRead<>).MakeGenericType(readModelType);
-
-            // Close the resolver once per read model at registration rather than on every resolution.
-            var resolve = typeof(ReadModelServiceCollectionExtensions)
-                .GetMethod(nameof(ResolveDecisionRead), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(readModelType);
-
-            // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
-            var descriptor = ServiceDescriptor.Transient(closedType, sp =>
-            {
-                try
-                {
-                    return resolve.Invoke(null, [sp])!;
-                }
-                catch (TargetInvocationException exception) when (exception.InnerException is not null)
-                {
-                    ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-                    throw;
-                }
-            });
-            var count = services.Count;
-            services.TryAdd(descriptor);
-            if (services.Count != count)
-            {
-                ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
-            }
+            // One closed registration per read model; it registers the typed dispatch and the DecisionRead<T> factory.
+            RegisterReadModel(readModelType, services, readModelTypes);
         }
 
         return services;
@@ -181,6 +156,55 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>The injectable read model types.</returns>
     internal static Type[] DiscoverReadModelTypes(IClientArtifactsProvider artifacts) =>
         _discoveryByArtifacts.GetValue(artifacts, _ => new ReadModelDiscovery()).GetTypes(artifacts);
+
+    /// <summary>
+    /// Registers typed dispatch for a read model type that <see cref="AddReadModels"/> did not discover. This and
+    /// <see cref="AddReadModels"/> share the single place that closes the registration over the model type.
+    /// </summary>
+    /// <param name="model">The read model type.</param>
+    /// <returns>Whether dispatch is now registered.</returns>
+    internal static bool TryRegisterDispatch(Type model)
+    {
+        if (!model.IsClass)
+        {
+            return false;
+        }
+
+        try
+        {
+            RegisterReadModel(model, null, []);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or TargetInvocationException)
+        {
+            return false;
+        }
+    }
+
+    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes) =>
+        typeof(ReadModelServiceCollectionExtensions)
+            .GetMethod(nameof(RegisterReadModelOf), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(model)
+            .Invoke(null, [services, readModelTypes]);
+
+    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes)
+        where T : class
+    {
+        ReadModelDispatch.Register<T>();
+        if (services is null)
+        {
+            return;
+        }
+
+        // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
+        var descriptor = ServiceDescriptor.Transient(ResolveDecisionRead<T>);
+        var count = services.Count;
+        services.TryAdd(descriptor);
+        if (services.Count != count)
+        {
+            ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
+        }
+    }
 
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
         where T : class

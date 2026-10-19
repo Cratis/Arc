@@ -345,7 +345,7 @@ internal sealed class ReadProtectionMeasurement
         Record(description.Admission.IsAdmitted && !description.UsesPinnedGenerationDelivery ? "protected_read" : "refused_read", model, description.Admission.IsAdmitted && !description.UsesPinnedGenerationDelivery ? "Would be protected" : Refusal(description));
     }
 
-    DecisionReadDescription Describe(Type model) => (DecisionReadDescription)typeof(IDecisionReads).GetMethod(nameof(IDecisionReads.Describe))!.MakeGenericMethod(model).Invoke(DecisionReads, null)!;
+    DecisionReadDescription Describe(Type model) => ReadModelDispatch.For(model).Describe(DecisionReads);
 
     void AddRead(MeasuredRead read)
     {
