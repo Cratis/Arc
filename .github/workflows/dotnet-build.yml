@@ -104,11 +104,13 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
-      # The shared cache only restores on pull_request_target (its auto mode saves only on push to main, schedule and
-      # workflow_dispatch on main), so pull request code never writes a NuGet cache. warm-caches.yml saves it on main.
+      # This workflow only restores the shared caches, also when it runs on main: warm-caches.yml is the one place
+      # that saves them, so pull request code never writes a cache.
       # It runs before anything adds .props or .targets files (obj, node_modules) that its key hashes.
       - name: Restore NuGet packages
         uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
 
       - name: Setup node
         uses: actions/setup-node@v4
@@ -122,6 +124,8 @@ jobs:
       # Restore only, like the NuGet cache above.
       - name: Restore Yarn cache
         uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
 
       - name: Yarn install
         run: yarn install --immutable
@@ -366,6 +370,8 @@ jobs:
 
       - name: Restore Yarn cache
         uses: Cratis/Workflows/.github/actions/yarn-cache@main
+        with:
+          mode: restore
 
       - name: Yarn install
         run: yarn install --immutable
@@ -445,7 +451,7 @@ jobs:
             fi
             exit 0
           fi
-          last_green=$(gh run list --workflow dotnet-build.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          last_green=$(gh run list --workflow dotnet-build.yml --branch main --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
           if [ -n "$last_green" ]; then
             range="Commits since the last green run on main: ${GITHUB_SERVER_URL}/${GH_REPO}/compare/${last_green}...${SHA}"
           else
