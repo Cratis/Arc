@@ -12,11 +12,7 @@ public class with_the_same_id_on_definition_and_legacy_routes : given.an_events_
     readonly TestEvent _first = new("first");
     readonly TestEvent _second = new("second");
 
-    void Establish()
-    {
-        _id = EventSourceId.New();
-        _eventLog.Append(typeof(Account), _id, _first, "Transactions").Returns(AppendResult.Success(_correlationId, EventSequenceNumber.First));
-    }
+    void Establish() => _id = EventSourceId.New();
 
     async Task Because() => await _handler.Handle(_commandContext, new EventForEventSourceId[]
     {
@@ -24,13 +20,11 @@ public class with_the_same_id_on_definition_and_legacy_routes : given.an_events_
         new(_id, _second) { EventStreamType = new EventStreamType("Transactions") }
     });
 
-    [Fact] void should_append_each_event_separately() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.Append) || _.GetMethodInfo().Name == nameof(_eventLog.AppendThroughEventSource)).ShouldEqual(2);
-    [Fact] void should_preserve_both_routes_without_attaching_scopes() => Received.InOrder(() =>
-    {
-        _eventLog.Append(typeof(Account), _id, _first, "Transactions", concurrencyScope: null);
-        _eventLog.Append(_id, _second, new EventStreamType("Transactions"), concurrencyScope: null);
-    });
-    [Fact] void should_not_append_a_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(0);
+    [Fact] void should_append_both_events_in_one_batch() => _appended.Select(_ => _.Event).ShouldEqual([_first, _second]);
+    [Fact] void should_append_exactly_one_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(1);
+    [Fact] void should_preserve_the_definition_route() => _appended[0].EventSource.ShouldEqual(typeof(Account));
+    [Fact] void should_preserve_the_legacy_route() => _appended[1].EventStreamType.ShouldEqual(new EventStreamType("Transactions"));
+    [Fact] void should_not_append_individual_events() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.Append) || _.GetMethodInfo().Name == nameof(_eventLog.AppendThroughEventSource)).ShouldEqual(0);
 
     class Account;
 }

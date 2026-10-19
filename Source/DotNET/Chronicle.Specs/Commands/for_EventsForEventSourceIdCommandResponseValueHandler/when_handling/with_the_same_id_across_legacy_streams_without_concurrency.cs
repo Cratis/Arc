@@ -3,6 +3,7 @@
 
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.EventSequences;
+using Cratis.Chronicle.EventSequences.Concurrency;
 
 namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandResponseValueHandler.when_handling;
 
@@ -20,11 +21,9 @@ public class with_the_same_id_across_legacy_streams_without_concurrency : given.
         new(_id, _second) { EventStreamType = new EventStreamType("Postings") }
     });
 
-    [Fact] void should_append_each_event_separately() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.Append)).ShouldEqual(2);
-    [Fact] void should_leave_each_route_guard_to_chronicle() => Received.InOrder(() =>
-    {
-        _eventLog.Append(_id, _first, new EventStreamType("Transactions"), concurrencyScope: null);
-        _eventLog.Append(_id, _second, new EventStreamType("Postings"), concurrencyScope: null);
-    });
-    [Fact] void should_not_append_a_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(0);
+    [Fact] void should_append_all_events_in_one_batch() => _appended.Select(_ => _.Event).ShouldEqual([_first, _second]);
+    [Fact] void should_append_exactly_one_batch() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.AppendMany)).ShouldEqual(1);
+    [Fact] void should_preserve_each_route() => _appended.Select(_ => _.EventStreamType).ShouldEqual([new EventStreamType("Transactions"), new EventStreamType("Postings")]);
+    [Fact] void should_leave_the_route_guards_to_chronicle() => _scopes[_id].ShouldEqual(ConcurrencyScope.NotSet);
+    [Fact] void should_not_append_individual_events() => _eventLog.ReceivedCalls().Count(_ => _.GetMethodInfo().Name == nameof(_eventLog.Append)).ShouldEqual(0);
 }

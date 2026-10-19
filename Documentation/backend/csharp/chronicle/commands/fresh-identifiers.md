@@ -52,12 +52,9 @@ including scopes emitted by Stage. A different explicit intent, such as a narrow
 or `ConcurrencyScope.None`, fails the command with `ConflictingConcurrencyScopes` before the batch is
 enrolled or appended.
 
-Without a transaction, Arc keeps each generated source's events in one atomic append. If unrelated legacy
-routes require individual appends, the generated source's events must be contiguous in the returned
-collection. Interleaving them with another source would require splitting the freshness guard or changing
-event order, so Arc rejects that shape with `GeneratedIdentifierEventsCannotBeSplit` before any append.
-Return the generated source's events together, use `EventsWithConcurrencyScopes`, or use a command
-transaction.
+Without a transaction, Arc appends a returned collection as one batch, so a generated source's freshness guard
+stays in the same atomic append as every other event of the command, whatever routes those events use and
+wherever the generated source's events sit in the collection.
 
 An aggregate factory checks whole-source emptiness before constructing, rehydrating or activating the
 aggregate. That read is an early rejection, not the atomic guarantee: mutation still enrolls the whole-source
