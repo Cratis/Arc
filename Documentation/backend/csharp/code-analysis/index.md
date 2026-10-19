@@ -3,11 +3,11 @@ title: Code analysis rules
 description: Core Arc diagnostic inventory, default severities, analyzer packaging, and available editor fixes.
 ---
 
-Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The model-graph generator also reports [ARC0030](ARC0030.md) for composite protected-read keys when Chronicle's accessor registry is referenced. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.
+Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The model-graph generator also reports [ARC0030](ARC0030.md) for composite protected-read keys when Chronicle's accessor registry is referenced, and [ARC0031](ARC0031.md) for commands whose key properties cannot be generated. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0030 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0031 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -41,6 +41,7 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0028](ARC0028.md) | Move inline generation to a generated parameter | Info | `InlineGeneratedValueAnalyzer` |
 | [ARC0029](ARC0029.md) | Non-public static method is not exposed as a query | Warning | `NonPublicQueryAnalyzer` |
 | [ARC0030](ARC0030.md) | Composite key requires accessor registration | Info | `ModelGraphWalkerGenerator` |
+| [ARC0031](ARC0031.md) | Command key properties are read through reflection | Info | `ModelGraphWalkerGenerator` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 

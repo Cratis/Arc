@@ -99,7 +99,20 @@ internal static class ProtectedReadModelKeyGeneration
         }
     }
 
-    static IEnumerable<ISymbol> Members(INamedTypeSymbol type)
+    /// <summary>
+    /// Gets the most derived public instance <c>Id</c> property of a read model, as the read protection lookup finds it.
+    /// </summary>
+    /// <param name="model">The read model type.</param>
+    /// <returns>The property, or <see langword="null"/> when the model has none.</returns>
+    internal static IPropertySymbol? IdProperty(INamedTypeSymbol model) =>
+        Members(model).OfType<IPropertySymbol>().FirstOrDefault(property => property.Name == "Id" && !property.IsStatic && property.Parameters.Length == 0 && property.DeclaredAccessibility == Accessibility.Public);
+
+    /// <summary>
+    /// Gets the members of a type and its base types, most derived first.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The members.</returns>
+    internal static IEnumerable<ISymbol> Members(INamedTypeSymbol type)
     {
         for (var current = type; current is not null; current = current.BaseType)
         {

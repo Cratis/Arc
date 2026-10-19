@@ -30,3 +30,5 @@
   href: ARC0029.md
 - name: ARC0030 - Composite key requires accessor registration
   href: ARC0030.md
+- name: ARC0031 - Command key properties are read through reflection
+  href: ARC0031.md

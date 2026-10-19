@@ -38,12 +38,22 @@ public class ModelGraphWalkerGenerator : IIncrementalGenerator
                     ? MetadataNameOf(readModel) : string.Empty)
             .Collect();
 
+        var validators = context.SyntaxProvider.CreateSyntaxProvider(
+            static (node, _) => node is ClassDeclarationSyntax { BaseList: not null },
+            static (syntax, _) => syntax.SemanticModel.GetDeclaredSymbol(syntax.Node) is INamedTypeSymbol validator && CommandReadModelKeyGeneration.ValidatedType(validator) is not null
+                ? MetadataNameOf(validator) : string.Empty)
+            .Collect();
+
         var walkers = commands.Combine(readModels).Combine(context.CompilationProvider)
             .Select(static (input, cancellationToken) => WalkersFor(input.Left.Left, input.Left.Right, input.Right, cancellationToken));
 
         context.RegisterSourceOutput(
             commands.Combine(readModels).Combine(context.CompilationProvider),
             static (output, input) => ProtectedReadModelKeyGeneration.Emit(output, input.Left.Left, input.Left.Right, input.Right));
+
+        context.RegisterSourceOutput(
+            commands.Combine(validators).Combine(readModels).Combine(context.CompilationProvider),
+            static (output, input) => CommandReadModelKeyGeneration.Emit(output, input.Left.Left.Left, input.Left.Left.Right, input.Left.Right, input.Right));
 
         context.RegisterSourceOutput(walkers, static (output, walkers) =>
         {
