@@ -1,6 +1,6 @@
 ---
 title: 'ARCCHR0017: [EventStreamId] template is invalid'
-description: An [EventStreamId] value with {Property} placeholders names a property the command does not expose, a type that does not convert to a string, or has unbalanced braces.
+description: "ARCCHR0017 reports an [EventStreamId] with {Property} placeholders that name a missing property, a non-string type or unbalanced braces."
 ---
 
 ## Rule

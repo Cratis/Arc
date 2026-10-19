@@ -1,6 +1,6 @@
 ---
 title: Connection resolution
-description: Decide per tenant which server, database and identity a MongoDB or Entity Framework Core connection uses, from configuration, a template, an HTTP endpoint or your own code.
+description: "Choose per tenant which server, database and identity a MongoDB or Entity Framework Core connection uses, from configuration, a template, an endpoint or code."
 ---
 
 Your platform places each tenant's database somewhere: a server, a database name, maybe its own credentials or a short-lived access token. With one configured connection string, Arc cannot follow that placement. MongoDB only appends the tenant to a database name, and Entity Framework Core uses the same connection for everyone.
