@@ -111,6 +111,9 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>These same services for further registrations.</returns>
     public static IServiceCollection AddCommandAwareDecisionReads(this IServiceCollection services)
     {
+        services.AddOptions<ProtectedReadModelKeyOptions>();
+        services.TryAddSingleton<ProtectedReadModelKeyTraversal>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ProtectedReadModelKeyStartup>());
         services.TryAddSingleton<ReadProtectionMeasureQueue>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, ReadProtectionMeasureQueue>(sp => sp.GetRequiredService<ReadProtectionMeasureQueue>()));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ICommandDependencySafety, DecisionDependencySafety>());

@@ -1,0 +1,169 @@
+{
+  "description": "Test shard assignment for .github/workflows/dotnet-build.yml. Every ProxyGenerator.Specs 'for_' namespace and every *.Specs project other than ProxyGenerator.Specs must be in exactly one shard; scripts/ci-test-shards.py check fails the build otherwise. Add a new namespace or project to the shard with the lowest estimate and record its measured seconds when known.",
+  "measurement": {
+    "workflow": "dotnet-build.yml",
+    "runs": [
+      39157422798,
+      39146570472,
+      39141929452,
+      39141536275,
+      39136055653,
+      39135027960
+    ],
+    "statistic": "Median wall time of the per-namespace or per-project 'Test' step across the runs, in seconds. A step is one dotnet test process, so it includes host start-up, discovery and class and collection fixtures; per-job setup (SDK, Node, artifact download and extract) is measured separately and is the same for every shard of a kind.",
+    "collected": "2026-10-18",
+    "setupSeconds": {
+      "proxyShard": 75,
+      "specShard": 52
+    },
+    "setupNote": "Estimated per-job setup after the change: the measured per-job overhead (median 110 s proxy, 80 s spec job) minus SDK 8/9 installs (23 s -> 8 s measured with SDK 10 alone in aot-ratchet.yml), minus gzip extraction replaced by zstd (23 s -> about 10 s, estimate), minus the proxy jobs' post-job yarn cache save (10 s) that restore-only caching removes.",
+    "proxyProcessSeconds": 2,
+    "proxyProcessNote": "Namespaces of one proxy shard share one dotnet test process, so a shard estimate is 2 s of host start-up plus each namespace's measured seconds minus that start-up (at least 0.5 s). Spec projects each keep their own process, so their measured seconds add up as they are."
+  },
+  "measuredSeconds": {
+    "proxyNamespaces": {
+      "Cratis.Arc.ProxyGenerator.ControllerBased.for_CommandExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.ControllerBased.for_MethodInfoExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.ControllerBased.for_ParameterInfoExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.ControllerBased.for_PropertyExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.ControllerBased.for_QueryExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.ModelBound.for_CommandExtensions": 4,
+      "Cratis.Arc.ProxyGenerator.ModelBound.for_QueryExtensions": 3,
+      "Cratis.Arc.ProxyGenerator.ModelBound.for_TypeExtensionsModelBound": 3,
+      "Cratis.Arc.ProxyGenerator.Scenarios.for_Commands": 52,
+      "Cratis.Arc.ProxyGenerator.Scenarios.for_Identity": 5,
+      "Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries": 53,
+      "Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration": 56,
+      "Cratis.Arc.ProxyGenerator.Scenarios.for_Queries": 110,
+      "Cratis.Arc.ProxyGenerator.Specs.ModelBound.for_TypeExtensionsModelBound": 2,
+      "Cratis.Arc.ProxyGenerator.Templates.for_ImportStatementExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.Templates.for_Interface": 2,
+      "Cratis.Arc.ProxyGenerator.for_DescriptorExtensions": 4,
+      "Cratis.Arc.ProxyGenerator.for_FileHeader": 2,
+      "Cratis.Arc.ProxyGenerator.for_FileMetadataScanner": 2,
+      "Cratis.Arc.ProxyGenerator.for_FileNameComparer": 2,
+      "Cratis.Arc.ProxyGenerator.for_GeneratedFileMetadata": 2,
+      "Cratis.Arc.ProxyGenerator.for_Generator": 142,
+      "Cratis.Arc.ProxyGenerator.for_IndexFileManager": 2,
+      "Cratis.Arc.ProxyGenerator.for_MethodInfoExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.for_PathHelpers": 2,
+      "Cratis.Arc.ProxyGenerator.for_PropertyExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.for_SourceFileResolver": 2,
+      "Cratis.Arc.ProxyGenerator.for_StringExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.for_TargetTypeExtensions": 2,
+      "Cratis.Arc.ProxyGenerator.for_TemplateTypes": 59,
+      "Cratis.Arc.ProxyGenerator.for_TypeExtensions": 11,
+      "Cratis.Arc.ProxyGenerator.for_TypeScriptContentCombiner": 6,
+      "Cratis.Arc.ProxyGenerator.for_TypesInvolved": 2,
+      "Cratis.Arc.ProxyGenerator.for_ValidationRulesExtractor": 7,
+      "Cratis.Arc.ProxyGenerator.for_ValidatorTypes": 2,
+      "Cratis.Arc.ProxyGenerator.for_XmlDocumentation": 2
+    },
+    "specProjects": {
+      "Source/DotNET/Arc.Core.CodeAnalysis.Specs": 16,
+      "Source/DotNET/Arc.Core.Generators.Specs": 32,
+      "Source/DotNET/Arc.Core.Specs": 18,
+      "Source/DotNET/Arc.Core.TypeDiscovery.Specs": 2,
+      "Source/DotNET/Arc.Specs": 8,
+      "Source/DotNET/Chronicle.CodeAnalysis.Specs": 24,
+      "Source/DotNET/Chronicle.Specs": 73,
+      "Source/DotNET/Cratis.Specs": 3,
+      "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs": 31,
+      "Source/DotNET/EntityFrameworkCore.Specs": 6,
+      "Source/DotNET/EntityFrameworkCore.SqlServer.Specs": 159,
+      "Source/DotNET/MongoDB.Specs": 8,
+      "Source/DotNET/OpenApi.Specs": 4,
+      "Source/DotNET/Screenplay.Embedded.Specs": 12,
+      "Source/DotNET/Screenplay.Specs": 140,
+      "Source/DotNET/Swagger.Specs": 2,
+      "Source/DotNET/Testing.Specs": 3
+    }
+  },
+  "proxyShards": [
+    {
+      "name": "proxy-1",
+      "namespaces": [
+        "Cratis.Arc.ProxyGenerator.ControllerBased.for_ParameterInfoExtensions",
+        "Cratis.Arc.ProxyGenerator.ControllerBased.for_PropertyExtensions",
+        "Cratis.Arc.ProxyGenerator.Scenarios.for_Identity",
+        "Cratis.Arc.ProxyGenerator.Templates.for_ImportStatementExtensions",
+        "Cratis.Arc.ProxyGenerator.for_DescriptorExtensions",
+        "Cratis.Arc.ProxyGenerator.for_GeneratedFileMetadata",
+        "Cratis.Arc.ProxyGenerator.for_Generator",
+        "Cratis.Arc.ProxyGenerator.for_IndexFileManager",
+        "Cratis.Arc.ProxyGenerator.for_PropertyExtensions",
+        "Cratis.Arc.ProxyGenerator.for_TypeExtensions",
+        "Cratis.Arc.ProxyGenerator.for_TypeScriptContentCombiner",
+        "Cratis.Arc.ProxyGenerator.for_TypesInvolved",
+        "Cratis.Arc.ProxyGenerator.for_ValidationRulesExtractor"
+      ]
+    },
+    {
+      "name": "proxy-2",
+      "namespaces": [
+        "Cratis.Arc.ProxyGenerator.ModelBound.for_CommandExtensions",
+        "Cratis.Arc.ProxyGenerator.ModelBound.for_TypeExtensionsModelBound",
+        "Cratis.Arc.ProxyGenerator.Scenarios.for_ObservableQueries",
+        "Cratis.Arc.ProxyGenerator.Scenarios.for_Queries",
+        "Cratis.Arc.ProxyGenerator.Specs.ModelBound.for_TypeExtensionsModelBound",
+        "Cratis.Arc.ProxyGenerator.Templates.for_Interface",
+        "Cratis.Arc.ProxyGenerator.for_FileHeader",
+        "Cratis.Arc.ProxyGenerator.for_FileMetadataScanner",
+        "Cratis.Arc.ProxyGenerator.for_FileNameComparer",
+        "Cratis.Arc.ProxyGenerator.for_PathHelpers",
+        "Cratis.Arc.ProxyGenerator.for_StringExtensions"
+      ]
+    },
+    {
+      "name": "proxy-3",
+      "namespaces": [
+        "Cratis.Arc.ProxyGenerator.ControllerBased.for_CommandExtensions",
+        "Cratis.Arc.ProxyGenerator.ControllerBased.for_MethodInfoExtensions",
+        "Cratis.Arc.ProxyGenerator.ControllerBased.for_QueryExtensions",
+        "Cratis.Arc.ProxyGenerator.ModelBound.for_QueryExtensions",
+        "Cratis.Arc.ProxyGenerator.Scenarios.for_Commands",
+        "Cratis.Arc.ProxyGenerator.Scenarios.for_ProxyGeneration",
+        "Cratis.Arc.ProxyGenerator.for_MethodInfoExtensions",
+        "Cratis.Arc.ProxyGenerator.for_SourceFileResolver",
+        "Cratis.Arc.ProxyGenerator.for_TargetTypeExtensions",
+        "Cratis.Arc.ProxyGenerator.for_TemplateTypes",
+        "Cratis.Arc.ProxyGenerator.for_ValidatorTypes",
+        "Cratis.Arc.ProxyGenerator.for_XmlDocumentation"
+      ]
+    }
+  ],
+  "specShards": [
+    {
+      "name": "specs-1",
+      "projects": [
+        "Source/DotNET/Arc.Core.TypeDiscovery.Specs",
+        "Source/DotNET/EntityFrameworkCore.Specs",
+        "Source/DotNET/EntityFrameworkCore.SqlServer.Specs",
+        "Source/DotNET/Screenplay.Embedded.Specs",
+        "Source/DotNET/Swagger.Specs"
+      ]
+    },
+    {
+      "name": "specs-2",
+      "projects": [
+        "Source/DotNET/Arc.Core.CodeAnalysis.Specs",
+        "Source/DotNET/Arc.Core.Specs",
+        "Source/DotNET/Cratis.Specs",
+        "Source/DotNET/Screenplay.Specs",
+        "Source/DotNET/Testing.Specs"
+      ]
+    },
+    {
+      "name": "specs-3",
+      "projects": [
+        "Source/DotNET/Arc.Core.Generators.Specs",
+        "Source/DotNET/Arc.Specs",
+        "Source/DotNET/Chronicle.CodeAnalysis.Specs",
+        "Source/DotNET/Chronicle.Specs",
+        "Source/DotNET/EntityFrameworkCore.PostgreSql.Specs",
+        "Source/DotNET/MongoDB.Specs",
+        "Source/DotNET/OpenApi.Specs"
+      ]
+    }
+  ]
+}

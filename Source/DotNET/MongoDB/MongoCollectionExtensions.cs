@@ -383,6 +383,7 @@ public static class MongoCollectionExtensions
             catch (Exception ex)
             {
                 logger.UnexpectedError(ex);
+                subject.OnError(ex);
             }
             finally
             {

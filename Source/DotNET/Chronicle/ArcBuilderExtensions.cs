@@ -1,9 +1,12 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.Arc.Chronicle.Identities;
 using Cratis.Arc.Chronicle.ReadModels;
 using Cratis.Arc.Chronicle.Tenancy;
+using Cratis.Arc.Http;
 using Cratis.Chronicle;
+using Cratis.Chronicle.Identities;
 using Cratis.Chronicle.Transactions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -46,6 +49,7 @@ public static class ArcBuilderExtensions
 
         var beforeChronicle = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
         var applicationBindings = new HashSet<ServiceDescriptor>(ReferenceEqualityComparer.Instance);
+        IChronicleBuilder chronicle = null!;
         builder.AppBuilder.AddCratisChronicle(
             configureOptions: options =>
             {
@@ -56,12 +60,18 @@ public static class ArcBuilderExtensions
             },
             configure: chronicleBuilder =>
             {
+                chronicle = chronicleBuilder;
                 var beforeCallback = new HashSet<ServiceDescriptor>(builder.Services, ReferenceEqualityComparer.Instance);
                 configureChronicleBuilder?.Invoke(chronicleBuilder);
                 applicationBindings.UnionWith(builder.Services.Where(binding => !beforeCallback.Contains(binding)));
                 builder.Services.AddReadModels(chronicleBuilder.ClientArtifactsProvider);
             });
         ProtectedValidatorReadBindings.RecordClientReaders(builder.Services, beforeChronicle, applicationBindings);
+
+        builder.Services.AddArcIdentityProvider(
+            chronicle,
+            services => services.GetService<IIdentityProvider>() ?? new BaseIdentityProvider(),
+            services => services.GetRequiredService<IHttpRequestContextAccessor>().Current is not null);
 
         // The event store owns the manager, including its lifecycle policy and namespace.
         // Replace only the convention binding, preserving explicit registrations and later convention passes.

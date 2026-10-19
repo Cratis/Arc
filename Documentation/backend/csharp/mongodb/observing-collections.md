@@ -65,6 +65,7 @@ A directly owned subscription must be disposed. Example lifecycle fragment in an
 var subject = collection.Observe(author => author.IsActive);
 using var subscription = subject.Subscribe(
     authors => Console.WriteLine($"Active authors: {authors.Count()}"),
+    error => Console.Error.WriteLine($"Author observation failed: {error.Message}"),
     () => Console.WriteLine("Author observation completed"));
 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
 ```
@@ -75,9 +76,11 @@ Arc registers collections as **scoped** services. Register a service that captur
 
 ## Errors and recovery limits
 
-The per-collection implementation catches watch failures, logs them, then completes and disposes the subject. It does **not** forward those failures as `OnError`. Individual change-processing exceptions are logged while iteration can continue. Configuration errors before the background watch starts can still throw synchronously.
+A failure to start or iterate the per-collection watch is logged at Error level and forwarded to subscribers through `OnError` before cleanup disposes the subject and cursor. This includes connection failures when MongoDB is unreachable. Normal cancellation, disposal, and cursor completion still complete quietly; unsubscribing does not produce an error. Individual change-processing exceptions are logged at Error level while iteration can continue. Configuration errors before the background watch starts can still throw synchronously.
 
-Consequently, `.Retry(3)` on the existing subject does not recreate a failed watch, and an `OnError` callback is not a reliable connection-failure signal. Monitor completion and logs. If your application needs reconnection, design and test ownership, fresh scopes/subjects, cancellation, and backoff explicitly; this page does not claim a tested automatic retry recipe.
+Handle `OnError` to distinguish a failed watch from normal completion. Arc's observable query hub forwards this failure to the frontend as a failed query result with `hasExceptions: true` and the error in `exceptionMessages`, rather than leaving it waiting for its first result.
+
+The failed watch does not restart automatically. `.Retry(3)` on the existing subject does not recreate it. If your application needs reconnection, design and test ownership, fresh scopes/subjects, cancellation, and backoff explicitly; this page does not claim a tested automatic retry recipe.
 
 The [shared database watcher](./change-stream-watcher.md) has a different reconnect and error contract. Do not transfer guarantees between the two APIs.
 

@@ -12,9 +12,9 @@ public class when_the_watch_terminates : given.a_controlled_watch
     [InlineData("single", "cancelled")]
     [InlineData("by_id", "cancelled")]
     [InlineData("list", "cancelled")]
-    [InlineData("single", "failed")]
-    [InlineData("by_id", "failed")]
-    [InlineData("list", "failed")]
+    [InlineData("single", "disposed")]
+    [InlineData("by_id", "disposed")]
+    [InlineData("list", "disposed")]
     public async Task should_complete_the_observable_and_stop_its_lifetime(string kind, string termination)
     {
         await StartObserving(kind);
@@ -29,14 +29,33 @@ public class when_the_watch_terminates : given.a_controlled_watch
             case "cancelled":
                 _nextBatch.SetCanceled();
                 break;
-            default:
-                _nextBatch.SetException(new Exception("The change stream failed."));
+            case "disposed":
+                _nextBatch.SetException(new ObjectDisposedException("change stream"));
                 break;
         }
 
-        // Watch has always translated cursor cancellation and failure into observable completion.
-        // Both signals must arrive; a swallowed callback failure or an OnError is not completion.
+        // Normal completion and cancellation must never be reported as an error.
         await Task.WhenAll(_completed.Task, cancelled.Task).WaitAsync(Deadline);
+        _watchToken.IsCancellationRequested.ShouldBeTrue();
+        Catch.Exception(_subscription.Dispose).ShouldBeNull();
+    }
+
+    [Theory]
+    [InlineData("single")]
+    [InlineData("by_id")]
+    [InlineData("list")]
+    public async Task should_error_the_observable_and_stop_its_lifetime(string kind)
+    {
+        await StartObserving(kind);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var registration = _watchToken.Register(() => cancelled.TrySetResult());
+        var failure = new Exception("The change stream failed.");
+
+        _nextBatch.SetException(failure);
+
+        var error = await Catch.Exception(() => _completed.Task.WaitAsync(Deadline));
+        error.ShouldBeSame(failure);
+        await cancelled.Task.WaitAsync(Deadline);
         _watchToken.IsCancellationRequested.ShouldBeTrue();
         Catch.Exception(_subscription.Dispose).ShouldBeNull();
     }

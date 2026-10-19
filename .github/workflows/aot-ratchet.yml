@@ -6,20 +6,11 @@ name: Trim/AOT Ratchet
 # adds a diagnostic or a trim/AOT suppression fails, and one that removes diagnostics has to shrink the baseline
 # with it. See scripts/aot-ratchet.py and #2859.
 
+# Pull requests gate the baseline. main only takes pull requests, so a run on every push repeated a check that had
+# just passed; the nightly run still shows drift from the base (an SDK or package change) within a day.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "Source/DotNET/**"
-      - "Directory.Build.props"
-      - "Directory.Build.targets"
-      - "Directory.Packages*.props"
-      - ".editorconfig"
-      - "**/.editorconfig"
-      - ".globalconfig"
-      - "global.json"
-      - "scripts/aot-ratchet.py"
-      - ".github/workflows/aot-ratchet.yml"
+  schedule:
+    - cron: "46 3 * * *"
   pull_request:
     branches: [main]
     paths:
@@ -68,15 +59,12 @@ jobs:
       - name: Show SDK
         run: dotnet --version
 
-      # Read an existing dependency cache without allowing pull-request code to
-      # save or replace a shared cache entry.
+      # Read the shared NuGet cache warm-caches.yml saves on main. Restore only: this job restores a subset of the
+      # packages, and pull request code must never save or replace a shared cache entry.
       - name: Restore NuGet packages
-        uses: actions/cache/restore@v4
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
         with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+          mode: restore
 
       - name: Self-test the ratchet
         run: python3 scripts/aot-ratchet.py --self-test

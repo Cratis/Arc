@@ -107,22 +107,25 @@ jobs:
             ${{ env.DOTNET9_VERSION }}
             ${{ env.DOTNET10_VERSION }}
 
+      # Publish only restores: warm-caches.yml saves the shared caches on main, so the release job never writes one.
+      - name: NuGet cache
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
+        with:
+          mode: restore
+
       - name: Setup node
         uses: actions/setup-node@v4
         with:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
-      - uses: actions/cache@v4
-        id: yarn-cache
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
         with:
-          path: |
-            .yarn/cache
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+          mode: restore
 
       - name: Yarn install
         run: yarn install --immutable
@@ -195,16 +198,13 @@ jobs:
             }
           "
 
-      - uses: actions/cache@v4
-        id: yarn-cache
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Yarn cache
+        uses: Cratis/Workflows/.github/actions/yarn-cache@main
         with:
-          path: |
-            .yarn/cache
-            **/node_modules
-            **/.eslintcache
-          # Keyed on the lockfile. Never cache yarn.lock itself: a restore would replace the
-          # checked-out lockfile with a stale one before `yarn install --immutable` validates it.
-          key: ${{ runner.os }}-yarn-v2-${{ hashFiles('yarn.lock', '**/package.json', '.yarnrc.yml', '.yarn/releases/yarn-4.5.3.cjs') }}
+          mode: restore
 
       - name: Yarn install
         run: yarn install --immutable

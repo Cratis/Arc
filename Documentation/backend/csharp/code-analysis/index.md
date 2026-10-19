@@ -3,11 +3,11 @@ title: Code analysis rules
 description: Core Arc diagnostic inventory, default severities, analyzer packaging, and available editor fixes.
 ---
 
-Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.
+Arc's Core Roslyn analyzers check command, query, validation, and concept declarations at compile time. They do not require Chronicle. The model-graph generator also reports [ARC0030](ARC0030.md) for composite protected-read keys when Chronicle's accessor registry is referenced. The optional [Chronicle integration rules](../chronicle/code-analysis/index.md) have a separate `ARCCHR` prefix.
 
 ## Rules overview
 
-These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0029 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
+These are the active `ARC` descriptors in the current source, all enabled by default in category `Arc`. Severity is the default before your project's analyzer configuration. The release-tracking file currently lists ARC0001–ARC0030 under **Unshipped**; its Shipped table has no rule entries. This inventory describes the current source, not a claim that every older NuGet version contains every rule.
 
 | Rule ID | Descriptor title | Severity | Analyzer |
 | --- | --- | --- | --- |
@@ -40,6 +40,7 @@ These are the active `ARC` descriptors in the current source, all enabled by def
 | [ARC0027](ARC0027.md) | Generated value implements both generation contracts | Warning | `GeneratedValueAnalyzer` |
 | [ARC0028](ARC0028.md) | Move inline generation to a generated parameter | Info | `InlineGeneratedValueAnalyzer` |
 | [ARC0029](ARC0029.md) | Non-public static method is not exposed as a query | Warning | `NonPublicQueryAnalyzer` |
+| [ARC0030](ARC0030.md) | Composite key requires accessor registration | Info | `ModelGraphWalkerGenerator` |
 
 The individual rule pages contain deliberately invalid **diagnostic examples**, not runnable application checkpoints. Compile each alternative separately; duplicate domain type names are intentional.
 
@@ -184,6 +185,6 @@ The `Cratis.Arc.Core` NuGet package depends on `Cratis.Arc.Core.CodeAnalysis`. I
 dotnet add package Cratis.Arc.Core
 ```
 
-The analyzer package places `Cratis.Arc.Core.CodeAnalysis.dll` and `Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll` under `analyzers/dotnet/cs`. Compiler analysis and workspace-based editor fixes live in separate assemblies. Arc Core's source generators are separate assets, not additional `ARC` rules. Editor support and the installed package version determine which fixes you see.
+The analyzer package places `Cratis.Arc.Core.CodeAnalysis.dll` and `Cratis.Arc.Core.CodeAnalysis.CodeFixes.dll` under `analyzers/dotnet/cs`. Compiler analysis and workspace-based editor fixes live in separate assemblies. Arc Core's source generators are separate assets; `ModelGraphWalkerGenerator` supplies ARC0030 for the optional Chronicle accessor registry. Editor support and the installed package version determine which fixes you see.
 
 For source contributors, the inventory is defined by `Source/DotNET/Arc.Core.CodeAnalysis/DiagnosticDescriptors.cs`, each analyzer's `SupportedDiagnostics`, `AnalyzerReleases.*.md`, and `Arc.Core.CodeAnalysis.Package/Arc.Core.CodeAnalysis.Package.csproj`. Check all four when adding a rule; a descriptor alone does not demonstrate that a diagnostic runs or is packaged.
