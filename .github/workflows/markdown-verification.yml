@@ -33,13 +33,12 @@ jobs:
             9.0.x
             10.0.x
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
+      # Restore only: the snippets restore a fraction of the packages, and a pull request must not save a cache.
+      # warm-caches.yml saves the shared cache on main.
+      - name: Restore NuGet packages
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
         with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+          mode: restore
 
       - name: Compile client snippets
         run: python3 Documentation/validate-client-snippets.py

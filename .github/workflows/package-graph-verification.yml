@@ -44,15 +44,12 @@ jobs:
             9.0.x
             10.0.x
 
-      # Read an existing dependency cache without allowing pull-request code to
-      # save or replace a shared cache entry.
+      # Read the shared NuGet cache warm-caches.yml saves on main. Restore only: this job restores a subset of the
+      # packages, and pull request code must never save or replace a shared cache entry.
       - name: Restore NuGet packages
-        uses: actions/cache/restore@v4
+        uses: Cratis/Workflows/.github/actions/dotnet-cache@main
         with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', '**/Directory.*.targets') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+          mode: restore
 
       - name: Setup node
         uses: actions/setup-node@v4

@@ -1,0 +1,6 @@
+# actionlint 1.7.12 does not know concurrency.queue yet. publish.yml uses `queue: max` on purpose (see the comment
+# there), so ignore exactly that message in exactly that file. Remove this once actionlint accepts the key.
+paths:
+  .github/workflows/publish.yml:
+    ignore:
+      - 'unexpected key "queue" for "concurrency" section'
