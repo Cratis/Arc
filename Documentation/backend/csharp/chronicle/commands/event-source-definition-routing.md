@@ -75,7 +75,7 @@ A scope is the append condition: it names the events the append must not have mi
 | `AmbiguousEventStreamId` | A non-empty `[EventStreamId]` and `ICanProvideEventStreamId` are both declared |
 | `UnknownEventStreamIdTemplateProperty`, `InvalidEventStreamIdTemplate`, `EventStreamIdTemplatePartMissing` | A template names a property that is not a public readable instance property, has malformed braces, or resolves a part or the whole id to blank or the default |
 | `EventStreamDoesNotBelongToEventSource` | A returned wrapper names an undeclared stream by legacy strings on a definition-routed command |
-| `IncompatibleConcurrencyScopesForEventSource` | Returned events for one event source id mix legacy-routed guards with a guard Chronicle derives from a definition |
+| `IncompatibleConcurrencyScopesForEventSource` | Returned events for one event source id mix legacy-routed guards with a guard Chronicle derives from a definition, or need several guards against a Chronicle kernel older than 19.84 |
 | `StreamDecisionRequiresSpecificRoute` | `IStreamReads` was asked to read a route without an event source id, a stream type or a stream id |
 | No conflict where you expected one | The check is the default append check, or the definition declares no dimensions, or the dimensions do not include the one that differs; see [what the definition guards](./event-source-definitions.md#what-the-definition-guards) |
 
