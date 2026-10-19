@@ -16,7 +16,7 @@ namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandRespons
 /// </summary>
 public class same_id_events_with_the_same_legacy_stream_and_an_implicit_guard : given.an_events_for_event_source_id_command_response_value_handler
 {
-    IEventSequence _eventSequence;
+    EventLogWithNamedTags _eventSequence;
     UnitOfWork _unitOfWork;
     Exception _exception;
     KeyValuePair<EventSourceId, ConcurrencyScope>[] _scopes = [];
@@ -29,13 +29,20 @@ public class same_id_events_with_the_same_legacy_stream_and_an_implicit_guard : 
         _commandContext.Values[WellKnownCommandContextKeys.ConcurrencyDimensions] = ConcurrencyDimensions.EventStreamId;
         _commandContext.Values[WellKnownCommandContextKeys.EventStreamId] = new EventStreamId("command-stream");
 
-        _eventSequence = Substitute.For<IEventSequence>();
+        _eventSequence = Substitute.For<EventLogWithNamedTags>();
         _eventSequence.Id.Returns(EventSequenceId.Log);
         _eventSequence
             .AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IEnumerable<KeyValuePair<EventSourceId, ConcurrencyScope>>>())
             .Returns(call =>
             {
                 _scopes = call.Arg<IEnumerable<KeyValuePair<EventSourceId, ConcurrencyScope>>>().ToArray();
+                return Task.FromResult(AppendManyResult.Success(CorrelationId.NotSet, []));
+            });
+        _eventSequence
+            .AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>?>())
+            .Returns(call =>
+            {
+                _scopes = [.. call.Arg<IDictionary<EventSourceId, ConcurrencyScope>?>() ?? new Dictionary<EventSourceId, ConcurrencyScope>()];
                 return Task.FromResult(AppendManyResult.Success(CorrelationId.NotSet, []));
             });
         var eventStore = Substitute.For<IEventStore>();

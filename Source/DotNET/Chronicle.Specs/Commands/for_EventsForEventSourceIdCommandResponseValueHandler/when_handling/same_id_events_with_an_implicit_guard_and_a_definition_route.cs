@@ -17,7 +17,7 @@ namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandRespons
 /// </summary>
 public class same_id_events_with_an_implicit_guard_and_a_definition_route : given.an_events_for_event_source_id_command_response_value_handler
 {
-    IEventSequence _eventSequence;
+    EventLogWithNamedTags _eventSequence;
     UnitOfWork _unitOfWork;
     Exception _exception;
     KeyValuePair<EventSourceId, ConcurrencyScope>[] _scopes = [];
@@ -30,7 +30,7 @@ public class same_id_events_with_an_implicit_guard_and_a_definition_route : give
         _commandContext.Values[WellKnownCommandContextKeys.ConcurrencyDimensions] = ConcurrencyDimensions.EventStreamId;
         _commandContext.Values[WellKnownCommandContextKeys.EventStreamId] = new EventStreamId("command-stream");
 
-        _eventSequence = Substitute.For<IEventSequence>();
+        _eventSequence = Substitute.For<EventLogWithNamedTags>();
         _eventSequence.Id.Returns(EventSequenceId.Log);
         _eventSequence
             .AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IEnumerable<KeyValuePair<EventSourceId, ConcurrencyScope>>>())
