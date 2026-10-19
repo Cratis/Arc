@@ -1,12 +1,20 @@
 name: Chronicle Published
 
+# One constant group: every run force-pushes the same long-lived `chronicle-updates` branch, so
+# two runs must never overlap. Queued, never cancelled - a cancelled run could stop after the
+# branch moved but before the verification comment and auto-merge state were brought in line.
 concurrency:
-  group: chronicle-published-${{ github.event.client_payload.version || github.event.inputs.version }}
+  group: chronicle-update
   cancel-in-progress: false
 
 on:
   repository_dispatch:
     types: [chronicle-published]
+  # Chronicle publishes roughly a dozen releases a day and each would otherwise run the full
+  # CI matrix. Releases arriving inside the debounce window are skipped, and this daily run
+  # picks up whatever the newest stable release is, so nothing is left behind.
+  schedule:
+    - cron: "17 5 * * *"
   workflow_dispatch:
     inputs:
       version:
@@ -48,6 +56,12 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             version="${{ github.event.inputs.version }}"
             bump="${{ github.event.inputs.bump }}"
+          elif [ "${{ github.event_name }}" = "schedule" ]; then
+            # No payload on a schedule: take the highest stable release. Pre-releases carry a
+            # `-` and are never what the daily catch-up should move Arc to.
+            index=$(curl -fsS https://api.nuget.org/v3-flatcontainer/cratis.chronicle/index.json)
+            version=$(jq -r '.versions[]' <<< "$index" | grep -v -- '-' | sort -V | tail -1)
+            bump="patch"
           else
             version="${{ github.event.client_payload.version }}"
             bump="${{ github.event.client_payload.bump }}"
@@ -60,10 +74,49 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "bump=$bump" >> "$GITHUB_OUTPUT"
 
+      # Debounce for the release stream: at most one update pull request a day. A manual run
+      # or the daily schedule always proceeds; a repository_dispatch proceeds only when no
+      # update pull request was opened in the last 24 hours and the open one has not been
+      # pushed to in that time, so a pull request still running CI is not restarted.
+      - name: Debounce
+        id: debounce
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" != "repository_dispatch" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          cutoff=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+
+          # Assigned rather than piped, so that a failing `gh` fails the step instead of
+          # silently looking like "nothing was opened recently".
+          recent=$(gh pr list --repo "$REPOSITORY" --state all --limit 100 \
+            --json number,headRefName,createdAt \
+            --jq ".[] | select(.headRefName == \"chronicle-updates\" or (.headRefName | startswith(\"chronicle-update/\")))
+                      | select(.createdAt > \"$cutoff\") | .number")
+          last_push=$(gh pr list --repo "$REPOSITORY" --state open --head chronicle-updates \
+            --json commits --jq '.[0].commits[-1].committedDate // empty')
+
+          if [ -n "$recent" ]; then
+            echo "::notice::Chronicle update pull request(s) opened in the last 24 hours (PR numbers: $(tr '\n' ' ' <<< "$recent")); the daily run will pick up ${{ steps.inputs.outputs.version }}."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$last_push" ] && [[ "$last_push" > "$cutoff" ]]; then
+            echo "::notice::The open chronicle-updates pull request was pushed to at $last_push, within the last 24 hours; the daily run will pick up ${{ steps.inputs.outputs.version }}."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # Read before the pins are rewritten - it is the lower bound of the range of Chronicle
-      # releases this update picks up, and it tells the supersede step which open pull
+      # releases this update picks up, and it tells the cleanup step which open pull
       # requests main has already moved past.
       - name: Read the currently pinned Chronicle version
+        if: steps.debounce.outputs.proceed == 'true'
         id: pinned
         run: |
           pinned=$(grep -oE 'Include="Cratis\.Chronicle" Version="[^"]+"' Directory.Packages.props \
@@ -73,11 +126,21 @@ jobs:
           echo "Currently pinned at ${pinned:-<unknown>}."
           echo "version=$pinned" >> "$GITHUB_OUTPUT"
 
+      # An out-of-order release or a manually supplied older version must not move the reused
+      # pull request backwards, so anything not newer than the pin is a no-op.
       - name: Update Chronicle package pins
+        if: steps.debounce.outputs.proceed == 'true'
         id: bump
         run: |
           version="${{ steps.inputs.outputs.version }}"
+          pinned="${{ steps.pinned.outputs.version }}"
           file="Directory.Packages.props"
+          if [ -n "$pinned" ] && [ "$version" != "$pinned" ] \
+            && [ "$(printf '%s\n%s\n' "$version" "$pinned" | sort -V | tail -1)" = "$pinned" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Cratis.Chronicle $version is older than the pinned $pinned — not downgrading."
+            exit 0
+          fi
           sed -i -E 's#(Include="Cratis\.Chronicle(\.AspNetCore|\.Testing)?" Version=")[^"]+(")#\1'"$version"'\3#g' "$file"
           if git diff --quiet -- "$file"; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
@@ -91,7 +154,7 @@ jobs:
       # request merges, so it is composed to follow pull_request_template.md and carries
       # nothing about CI - that goes into a comment further down.
       - name: Compose release notes
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
         run: |
@@ -101,7 +164,7 @@ jobs:
             --output "${{ runner.temp }}/release-notes.md"
 
       - name: Setup .Net
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -110,18 +173,18 @@ jobs:
             ${{ env.DOTNET10_VERSION }}
 
       - name: Setup node
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 23.x
           registry-url: "https://registry.npmjs.org"
 
       - name: Yarn install
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         run: yarn install --immutable
 
       - name: Restore
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         run: |
           version="${{ steps.inputs.outputs.version }}"
           log="${RUNNER_TEMP:-/tmp}/restore.log"
@@ -150,13 +213,13 @@ jobs:
           exit 1
 
       - name: Build
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         id: build
         continue-on-error: true
         run: dotnet build --no-restore --configuration Release
 
       - name: Run specs
-        if: steps.bump.outputs.changed == 'true' && steps.build.outcome == 'success'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true' && steps.build.outcome == 'success'
         id: specs
         continue-on-error: true
         run: |
@@ -172,7 +235,7 @@ jobs:
           exit $failed
 
       - name: Determine gate result
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         id: gate
         run: |
           if [ "${{ steps.build.outcome }}" = "success" ] && [ "${{ steps.specs.outcome }}" = "success" ]; then
@@ -181,30 +244,53 @@ jobs:
             echo "verified=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # A fixed branch, so later runs force-update the one pull request instead of opening
+      # another: the commit, title and body are regenerated for the newest version each time.
       - name: Create pull request
-        if: steps.bump.outputs.changed == 'true'
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true'
         id: pr
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.PAT_WORKFLOWS }}
           base: main
-          branch: chronicle-update/${{ steps.inputs.outputs.version }}
+          # Not `chronicle-update`: git cannot hold that ref next to the legacy
+          # `chronicle-update/<version>` branches, so GitHub would refuse the push.
+          branch: chronicle-updates
           delete-branch: true
           commit-message: "Update Cratis.Chronicle to ${{ steps.inputs.outputs.version }}"
           title: "Update Cratis.Chronicle to ${{ steps.inputs.outputs.version }}"
           labels: ${{ steps.inputs.outputs.bump }}
           body-path: ${{ runner.temp }}/release-notes.md
 
-      # Only the newest Chronicle update is worth reviewing - each one pins the same three
-      # packages, so an older one has nothing left to contribute once a newer one exists.
-      # Runs whether or not this run produced a pull request, so that an update landing on
-      # main also clears out the open pull requests it made redundant.
-      - name: Supersede older Chronicle updates
-        id: supersede
+      # The pull request is reused, so a label from an earlier run (say `minor` from a manual
+      # run) would otherwise sit next to this run's; exactly one intent label must remain.
+      - name: Keep a single release label
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+          BUMP: ${{ steps.inputs.outputs.bump }}
+          NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          stale=""
+          for label in major minor patch no-release; do
+            if [ "$label" != "$BUMP" ]; then
+              stale="${stale:+$stale,}$label"
+            fi
+          done
+          # gh ignores labels that are not on the pull request.
+          gh pr edit "$NUMBER" --repo "${{ github.repository }}" --remove-label "$stale"
+
+      # Migration and cleanup. Earlier versions of this workflow opened one pull request per
+      # release on `chronicle-update/<version>`; close any still open, since the single
+      # `chronicle-updates` pull request replaces them, and delete their leftover branches. Also
+      # close that one when main has already caught up with it. Runs whether or not this run produced a pull request.
+      - name: Close replaced and redundant Chronicle updates
+        if: steps.debounce.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
           REPOSITORY: ${{ github.repository }}
           PINNED: ${{ steps.pinned.outputs.version }}
+          CURRENT_PR: ${{ steps.pr.outputs.pull-request-number }}
         run: |
           set -euo pipefail
 
@@ -222,56 +308,49 @@ jobs:
           }
 
           # Assigned rather than piped, so that a failing `gh` fails the step instead of
-          # silently looking like "there is nothing open to supersede".
-          open_updates=$(gh pr list --repo "$REPOSITORY" --state open --limit 100 \
+          # silently looking like "there is nothing open to close".
+          legacy=$(gh pr list --repo "$REPOSITORY" --state open --limit 100 \
             --json number,headRefName \
             --jq '.[] | select(.headRefName | startswith("chronicle-update/"))
-                      | "\(.number) \(.headRefName | sub("^chronicle-update/"; "")) \(.headRefName)"')
+                      | "\(.number) \(.headRefName)"')
 
-          winner_number=""
-          winner_version=""
-          candidates=()
-
-          while read -r number version branch; do
+          while read -r number branch; do
             [ -n "${number:-}" ] || continue
+            close_with_comment "$number" "$branch" \
+              "Replaced by the single \`chronicle-updates\` pull request, which carries the newest Chronicle update. Closing it."
+          done <<< "$legacy"
 
+          # Every open legacy pull request was closed above, so any `chronicle-update/*` branch
+          # still present is a stale leftover. A ref that cannot be deleted must not fail the run.
+          stale=$(gh api "repos/$REPOSITORY/git/matching-refs/heads/chronicle-update/" --paginate --jq '.[].ref')
+          while read -r ref; do
+            [ -n "${ref:-}" ] || continue
+            echo "Deleting stale branch ${ref#refs/heads/}"
+            gh api -X DELETE "repos/$REPOSITORY/git/$ref" >/dev/null 2>&1 || echo "::notice::Could not delete $ref."
+          done <<< "$stale"
+
+          current=$(gh pr list --repo "$REPOSITORY" --state open --head chronicle-updates \
+            --json number,title --jq '.[] | "\(.number) \(.title | sub("^Update Cratis.Chronicle to "; ""))"')
+
+          while read -r number version; do
+            [ -n "${number:-}" ] || continue
+            # This run's own pull request is never closed here.
+            [ "$number" != "$CURRENT_PR" ] || continue
             # main already carries this version or newer, so the pull request has nothing to add.
             if [ -n "$PINNED" ] && ! is_newer_than "$version" "$PINNED"; then
-              close_with_comment "$number" "$branch" \
+              close_with_comment "$number" "chronicle-updates" \
                 "\`Cratis.Chronicle\` is already at \`$PINNED\` on \`main\`, so this update no longer changes anything. Closing it."
-              continue
             fi
-
-            candidates+=("$number $version $branch")
-            if [ -z "$winner_version" ] || is_newer_than "$version" "$winner_version"; then
-              winner_number="$number"
-              winner_version="$version"
-            fi
-          done <<< "$open_updates"
-
-          for candidate in "${candidates[@]:-}"; do
-            [ -n "$candidate" ] || continue
-            read -r number version branch <<< "$candidate"
-            if [ "$number" != "$winner_number" ]; then
-              close_with_comment "$number" "$branch" \
-                "Superseded by #$winner_number, which updates \`Cratis.Chronicle\` to \`$winner_version\` and includes everything this update carried. Closing it so only the newest Chronicle update stays open."
-            fi
-          done
-
-          echo "winner=$winner_number" >> "$GITHUB_OUTPUT"
-          echo "Newest open Chronicle update: ${winner_number:-none} (${winner_version:-n/a})."
+          done <<< "$current"
 
       # The verification result is CI bookkeeping, not release notes - it belongs in a
       # comment so that it never reaches the published Arc release.
       - name: Report the verification gate
-        if: steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
+        if: steps.debounce.outputs.proceed == 'true' && steps.bump.outputs.changed == 'true' && steps.pr.outputs.pull-request-number
         env:
           GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
-          SUPERSEDED: ${{ steps.supersede.outputs.winner != steps.pr.outputs.pull-request-number }}
         run: |
-          if [ "$SUPERSEDED" = "true" ]; then
-            outcome="⏭️ Superseded by a newer Chronicle update — not auto-merged."
-          elif [ "${{ steps.gate.outputs.verified }}" != "true" ]; then
+          if [ "${{ steps.gate.outputs.verified }}" != "true" ]; then
             outcome="⚠️ Requires human review before merging — verification failed."
           elif [ "${{ steps.inputs.outputs.bump }}" = "major" ]; then
             outcome="⚠️ Requires human review before merging — major bump."
@@ -297,9 +376,9 @@ jobs:
 
       - name: Enable auto-merge
         if: >-
+          steps.debounce.outputs.proceed == 'true' &&
           steps.bump.outputs.changed == 'true' &&
           steps.pr.outputs.pull-request-number &&
-          steps.supersede.outputs.winner == steps.pr.outputs.pull-request-number &&
           steps.gate.outputs.verified == 'true' &&
           steps.inputs.outputs.bump != 'major'
         env:
@@ -308,3 +387,22 @@ jobs:
         # one and deletes the branch, leaving the originals unreachable. The repository's history is
         # append-only.
         run: gh pr merge --auto --merge "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }}
+
+      # The pull request is reused across runs and auto-merge survives a force-push, so an
+      # earlier green run's auto-merge would otherwise merge this run's failing or major update.
+      - name: Disable auto-merge
+        if: >-
+          always() &&
+          steps.debounce.outputs.proceed == 'true' &&
+          steps.bump.outputs.changed == 'true' &&
+          steps.pr.outputs.pull-request-number &&
+          (steps.gate.outputs.verified != 'true' || steps.inputs.outputs.bump == 'major')
+        env:
+          GH_TOKEN: ${{ secrets.PAT_WORKFLOWS }}
+        run: |
+          # Auto-merge was usually never enabled on this pull request; that is not a failure.
+          if output=$(gh pr merge --disable-auto "${{ steps.pr.outputs.pull-request-number }}" --repo ${{ github.repository }} 2>&1); then
+            echo "Auto-merge disabled."
+          else
+            echo "::notice::Could not disable auto-merge (likely not enabled): $output"
+          fi
