@@ -21,7 +21,9 @@
         <IsTestProject>false</IsTestProject>
 
         <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-        <IsPackable>true</IsPackable>
+        <!-- Projects under a .Specs directory (spec projects and their fixture projects) are never published. -->
+        <IsPackable Condition="!$(MSBuildProjectDirectory.Contains('.Specs'))">true</IsPackable>
+        <IsPackable Condition="$(MSBuildProjectDirectory.Contains('.Specs'))">false</IsPackable>
         <PackageTags Condition="'$(PackageTags)' == ''">cratis;arc;cqrs;commands;queries;aspnetcore;typescript;proxy-generation;event-sourcing</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <AllowedOutputExtensionsInPackageBuildOutputFolder>$(AllowedOutputExtensionsInPackageBuildOutputFolder);.pdb</AllowedOutputExtensionsInPackageBuildOutputFolder>
