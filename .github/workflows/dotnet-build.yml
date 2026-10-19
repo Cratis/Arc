@@ -6,9 +6,11 @@ name: .NET Build
 # request that lost was left with a cancelled run and no failing job, which reads as though it is still going
 # rather than as though anything is wrong. So the group is the pull request when there is one, and the ref only
 # for the manual runs that have no pull request to name.
+# Runs on main (push and manual) are never cancelled: a burst of merges queues, GitHub keeps only the newest
+# pending run, and that run verifies the latest main. Cancelling would leave main unverified while merges keep coming.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
 
 env:
   DOTNET8_VERSION: "8.0.407"
@@ -27,6 +29,25 @@ on:
         - info
         - warning
         - debug
+  # Pull request runs build the pull request head, not its merge with main, so two pull requests that are each
+  # green can still break main together. The push run builds and specs main itself after every merge, and the
+  # report-main job opens (or updates) one main-broken issue when it fails and closes it when main is green again.
+  push:
+    branches:
+      - main
+    paths:
+      - "Source/DotNET/**"
+      - "Specifications/**"
+      - "Samples/**"
+      - "Directory.Build.props"
+      - "Directory.Packages*.props"
+      - "global.json"
+      - "stylecop.json"
+      - "Arc.slnx"
+      - ".github/workflows/dotnet-build.yml"
+      - ".github/test-shards.json"
+      - "scripts/ci-test-shards.py"
+      - "scripts/viewer-bundle.test.mjs"
   pull_request_target:
     branches:
       - "**"
@@ -389,3 +410,57 @@ jobs:
           path: ${{ runner.temp }}/test-results/*.trx
           retention-days: 7
           if-no-files-found: warn
+
+  # Only for runs on main: a failure opens one main-broken issue (or comments on the open one) naming the commits
+  # since the last green run on main, and the next green run closes it. Pull request runs skip this job.
+  report-main:
+    needs: [dotnet-build, specs, screenplay-end-to-end, proxy-specs]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request_target' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+
+    steps:
+      - name: Open, update or close the main-broken issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          open_issue=$(gh issue list --label main-broken --state open --limit 1 --json number --jq '.[0].number // empty')
+          failed=0
+          for result in $RESULTS; do
+            [ "$result" = success ] || failed=1
+          done
+          if [ "$failed" = 0 ]; then
+            echo "main is green at $SHA (results: $RESULTS)"
+            if [ -n "$open_issue" ]; then
+              gh issue close "$open_issue" --reason completed --comment "main builds and passes its specs again at $SHA: $RUN_URL"
+            fi
+            exit 0
+          fi
+          last_green=$(gh run list --workflow dotnet-build.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // empty')
+          if [ -n "$last_green" ]; then
+            range="Commits since the last green run on main: ${GITHUB_SERVER_URL}/${GH_REPO}/compare/${last_green}...${SHA}"
+          else
+            range="No earlier green run on main was found."
+          fi
+          body=$(printf '%s\n\n%s\n%s\n%s\n' \
+            "The .NET Build on main failed at $SHA (job results: $RESULTS)." \
+            "Run: $RUN_URL" \
+            "$range" \
+            "Two pull requests that were each green can break main together; check the merges in that range.")
+          if [ -n "$open_issue" ]; then
+            gh issue comment "$open_issue" --body "$body"
+          else
+            gh label create main-broken --color B60205 --description "main fails its build or specs after a merge" --force
+            gh issue create --title "main is broken: .NET Build fails after merge" --label main-broken --body "$body"
+          fi
+          echo "::error title=main is broken::.NET Build failed on main at $SHA"
+          exit 1
