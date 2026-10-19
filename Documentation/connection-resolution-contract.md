@@ -1,6 +1,6 @@
 ---
 title: Connection resolution contract
-description: The language-neutral REST contract an HTTP endpoint implements to tell Arc and Chronicle where to connect and which identity to use, for MongoDB and SQL storage alike.
+description: "The language-neutral REST contract an endpoint implements to tell Arc and Chronicle where to connect and which identity to use, for MongoDB and SQL storage."
 ---
 
 This page specifies the endpoint behind the `Http` connection resolver. When Arc or Chronicle needs a storage connection, it calls your endpoint and asks where to connect and who to connect as. The contract is the same for every storage, MongoDB as well as SQL Server, PostgreSQL and SQLite, and it is plain JSON over HTTP, so you can implement the endpoint in any language or platform.

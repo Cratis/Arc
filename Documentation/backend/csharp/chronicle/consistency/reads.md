@@ -1,6 +1,6 @@
 ---
 title: Reads under read protection
-description: Which reads a command can make under On, which are protected, advisory, refused or outside the guard, and how to declare an advisory read or choose the key a parameter reads.
+description: "Learn which command reads are protected, advisory, refused or unguarded under On, and how to declare an advisory read or choose a parameter's key."
 ---
 
 Use this page when you want to know what a read in a command becomes under `On`, how to mark one as advisory, or how to choose which key a parameter reads. Under `Off`, plain read-model parameters remain unguarded; explicit `[ProtectedDecision]` commands with `DecisionRead<T>` still guard their declared decision reads.

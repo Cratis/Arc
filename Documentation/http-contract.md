@@ -1,6 +1,6 @@
 ---
 title: HTTP contract
-description: The language-neutral Arc wire contract - routes, headers, envelopes, statuses, identity, and validation values - plus where the C# and JVM implementations differ.
+description: "The language-neutral Arc wire contract: routes, headers, envelopes, statuses, identity and validation values, and where the C# and JVM implementations differ."
 ---
 
 This page describes the shared wire contract verified for [C# on ASP.NET Core](/arc/backend/csharp/)
