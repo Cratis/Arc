@@ -24,21 +24,24 @@ public class when_subscribing_to_a_string_subject : given.an_observable_query_de
         using var subject = new BehaviorSubject<string>("Initial");
         var results = Channel.CreateUnbounded<QueryResult>();
         using var subscription = _hub.SubscribeToStreamingData(
-            Substitute.For<IHttpRequestContext>(),
-            subject,
-            "query-1",
-            new PagingInfo(2, 10, 73),
-            null,
-            CorrelationId.New(),
-            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
-            (result, _) =>
-            {
-                results.Writer.TryWrite(result);
-                return Task.CompletedTask;
-            },
-            (_, _, _) => Task.CompletedTask,
-            (_, _) => Task.CompletedTask,
-            CancellationToken.None);
+            new ObservableQuerySubscriptionContext(
+                Substitute.For<IHttpRequestContext>(),
+                "query-1",
+                new PagingInfo(2, 10, 73),
+                null,
+                CorrelationId.New(),
+                new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
+                (result, _) =>
+                {
+                    results.Writer.TryWrite(result);
+                    return Task.CompletedTask;
+                },
+                (_, _, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask,
+                () => { },
+                null,
+                CancellationToken.None),
+            subject);
 
         _initial = await results.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
         subject.OnNext("Updated");

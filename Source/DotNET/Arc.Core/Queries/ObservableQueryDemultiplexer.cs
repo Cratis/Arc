@@ -5,7 +5,6 @@ using System.Collections.Concurrent;
 using System.Reactive.Subjects;
 using Cratis.Arc.Http;
 using Cratis.DependencyInjection;
-using Cratis.Execution;
 using Cratis.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -84,145 +83,89 @@ public partial class ObservableQueryDemultiplexer(
     int _nextConnectionId;
 
     /// <summary>
-    /// Subscribes to streaming data without an owning multiplexed operation completion callback.
-    /// </summary>
-    /// <param name="context">The subscribing connection's <see cref="IHttpRequestContext"/>.</param>
-    /// <param name="streamingData">The streaming result to subscribe to.</param>
-    /// <param name="queryId">The id of the query the subscription is for.</param>
-    /// <param name="paging">The <see cref="PagingInfo"/> to report with each result.</param>
-    /// <param name="transferMode">The transfer mode, or null for the default.</param>
-    /// <param name="correlationId">The <see cref="CorrelationId"/> to stamp each result with.</param>
-    /// <param name="identity">The subscription query and caller identity.</param>
-    /// <param name="onNext">Callback invoked for each result.</param>
-    /// <param name="onError">Callback invoked when the subscription errors.</param>
-    /// <param name="onUnauthorized">Callback invoked when an emission guard denies the stream.</param>
-    /// <param name="token">The connection cancellation token.</param>
-    /// <returns>A disposable that stops the subscription, or null when the data is not streamable.</returns>
-    internal IDisposable? SubscribeToStreamingData(
-        IHttpRequestContext context,
-        object streamingData,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        CancellationToken token) =>
-        SubscribeToStreamingData(
-            context,
-            streamingData,
-            queryId,
-            paging,
-            transferMode,
-            correlationId,
-            identity,
-            onNext,
-            onError,
-            onUnauthorized,
-            () => { },
-            token);
-
-    /// <summary>
     /// Subscribes to a streaming query result — an <see cref="ISubject{T}"/> or an <see cref="IAsyncEnumerable{T}"/>
     /// — and returns a disposable that tears the subscription down.
     /// </summary>
-    /// <param name="context">The subscribing connection's <see cref="IHttpRequestContext"/>.</param>
+    /// <param name="subscription">The <see cref="ObservableQuerySubscriptionContext"/> describing the subscription.</param>
     /// <param name="streamingData">The streaming result to subscribe to.</param>
-    /// <param name="queryId">The id of the query the subscription is for.</param>
-    /// <param name="paging">The <see cref="PagingInfo"/> to report with each result.</param>
-    /// <param name="transferMode">The transfer mode (for example delta or full), or null for the default.</param>
-    /// <param name="correlationId">The <see cref="CorrelationId"/> to stamp each result with.</param>
-    /// <param name="identity">The <see cref="ObservableQuerySubscriptionIdentity"/> describing the query and the caller that established the subscription.</param>
-    /// <param name="onNext">Callback invoked with each streamed <see cref="QueryResult"/> and the active subscription token.</param>
-    /// <param name="onError">Callback invoked with the query id, message and active subscription token when the subscription errors.</param>
-    /// <param name="onUnauthorized">Callback invoked with the query id and active subscription token when an emission guard denies the stream, ending the subscription.</param>
-    /// <param name="onCompleted">Callback that terminates the exact owning operation when the stream completes.</param>
-    /// <param name="token">The connection's <see cref="CancellationToken"/>.</param>
     /// <returns>An <see cref="IDisposable"/> that stops the subscription, or null when the data is not streamable.</returns>
-    internal IDisposable? SubscribeToStreamingData(
-        IHttpRequestContext context,
-        object streamingData,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        Action onCompleted,
-        CancellationToken token) =>
-        SubscribeToStreamingData(context, streamingData, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, null, token);
+    internal IDisposable? SubscribeToStreamingData(ObservableQuerySubscriptionContext subscription, object streamingData)
+    {
+        var type = streamingData.GetType();
+
+        if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
+        {
+            return SubscribeToSubject(subscription, streamingData, type);
+        }
+
+        if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
+        {
+            var lifetime = new StreamingQuerySubscription(subscription.Token);
+            var guardScope = CreateEmissionScope(lifetime);
+
+            if (lifetime.TryEnter())
+            {
+                _ = RunStream();
+            }
+
+            return lifetime;
+
+            async Task RunStream()
+            {
+                try
+                {
+                    await StreamAsyncEnumerable(
+                        subscription with { Token = lifetime.Token },
+                        streamingData,
+                        type,
+                        guardScope?.ServiceProvider);
+                }
+                finally
+                {
+                    try
+                    {
+                        subscription.OnCompleted();
+                    }
+                    finally
+                    {
+                        lifetime.Exit();
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Subscribes a connection to a subject of a known element type.
     /// </summary>
     /// <typeparam name="T">The element type of the subject.</typeparam>
-    /// <param name="context">The <see cref="IHttpRequestContext"/> of the connection.</param>
+    /// <param name="subscription">The <see cref="ObservableQuerySubscriptionContext"/> describing the subscription.</param>
     /// <param name="subject">The subject.</param>
     /// <param name="enumerableItemType">The item type when <typeparamref name="T"/> is or implements <see cref="IEnumerable{T}"/>; otherwise <see langword="null"/>.</param>
-    /// <param name="queryId">The client's identifier for the subscription.</param>
-    /// <param name="paging">The <see cref="PagingInfo"/> of the query.</param>
-    /// <param name="transferMode">The requested transfer mode.</param>
-    /// <param name="correlationId">The <see cref="CorrelationId"/> of the query.</param>
-    /// <param name="identity">The <see cref="ObservableQuerySubscriptionIdentity"/>.</param>
-    /// <param name="onNext">Called for each result.</param>
-    /// <param name="onError">Called when the subscription fails.</param>
-    /// <param name="onUnauthorized">Called when the subscription is no longer authorized.</param>
-    /// <param name="onCompleted">Called when the subject completes.</param>
-    /// <param name="authorizedQueryContext">The <see cref="QueryContext"/> the query was authorized with, if any.</param>
-    /// <param name="token">The <see cref="CancellationToken"/> ending the subscription.</param>
     /// <returns>The subscription.</returns>
     /// <remarks>Called by <see cref="ObservableQueryElementOperationsFor{TElement}"/> once the element type is known.</remarks>
     internal IDisposable SubscribeToTypedSubject<T>(
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionContext subscription,
         ISubject<T> subject,
-        Type? enumerableItemType,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        Action onCompleted,
-        QueryContext? authorizedQueryContext,
-        CancellationToken token) =>
-        SubscribeToSubjectOfType(context, subject, enumerableItemType, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token);
+        Type? enumerableItemType) =>
+        SubscribeToSubjectOfType(subscription, subject, enumerableItemType);
 
     /// <summary>
     /// Streams an async enumerable of a known element type to a connection.
     /// </summary>
     /// <typeparam name="T">The element type of the async enumerable.</typeparam>
-    /// <param name="context">The <see cref="IHttpRequestContext"/> of the connection.</param>
+    /// <param name="subscription">The <see cref="ObservableQuerySubscriptionContext"/> describing the stream.</param>
     /// <param name="enumerable">The async enumerable.</param>
-    /// <param name="queryId">The client's identifier for the subscription.</param>
-    /// <param name="paging">The <see cref="PagingInfo"/> of the query.</param>
-    /// <param name="correlationId">The <see cref="CorrelationId"/> of the query.</param>
-    /// <param name="identity">The <see cref="ObservableQuerySubscriptionIdentity"/>.</param>
     /// <param name="guardServiceProvider">The <see cref="IServiceProvider"/> for emission guards, if any are registered.</param>
-    /// <param name="onNext">Called for each result.</param>
-    /// <param name="onError">Called when the stream fails.</param>
-    /// <param name="onUnauthorized">Called when the stream is no longer authorized.</param>
-    /// <param name="token">The <see cref="CancellationToken"/> ending the stream.</param>
     /// <returns>Awaitable task.</returns>
     /// <remarks>Called by <see cref="ObservableQueryElementOperationsFor{TElement}"/> once the element type is known.</remarks>
     internal Task StreamTypedAsyncEnumerable<T>(
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionContext subscription,
         IAsyncEnumerable<T> enumerable,
-        string queryId,
-        PagingInfo paging,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        IServiceProvider? guardServiceProvider,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        CancellationToken token) =>
-        StreamAsyncEnumerableOfType(context, enumerable, queryId, paging, correlationId, identity, guardServiceProvider, onNext, onError, onUnauthorized, token);
+        IServiceProvider? guardServiceProvider) =>
+        StreamAsyncEnumerableOfType(subscription, enumerable, guardServiceProvider);
 
     static bool IsDisconnect(Exception exception, CancellationToken token) =>
         token.IsCancellationRequested &&
@@ -256,75 +199,6 @@ public partial class ObservableQueryDemultiplexer(
         ObservableQuerySubscriptionOperation operation) =>
         subscriptions.Terminate(queryId, operation);
 
-    IDisposable? SubscribeToStreamingData(
-        IHttpRequestContext context,
-        object streamingData,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        Action onCompleted,
-        QueryContext? authorizedQueryContext,
-        CancellationToken token)
-    {
-        var type = streamingData.GetType();
-
-        if (type.ImplementsOpenGeneric(typeof(ISubject<>)))
-        {
-            return SubscribeToSubject(context, streamingData, type, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token);
-        }
-
-        if (type.ImplementsOpenGeneric(typeof(IAsyncEnumerable<>)))
-        {
-            var lifetime = new StreamingQuerySubscription(token);
-            var guardScope = CreateEmissionScope(lifetime);
-
-            if (lifetime.TryEnter())
-            {
-                _ = RunStream();
-            }
-
-            return lifetime;
-
-            async Task RunStream()
-            {
-                try
-                {
-                    await StreamAsyncEnumerable(
-                        context,
-                        streamingData,
-                        type,
-                        queryId,
-                        paging,
-                        correlationId,
-                        identity,
-                        guardScope?.ServiceProvider,
-                        onNext,
-                        onError,
-                        onUnauthorized,
-                        lifetime.Token);
-                }
-                finally
-                {
-                    try
-                    {
-                        onCompleted();
-                    }
-                    finally
-                    {
-                        lifetime.Exit();
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
     IServiceScope? CreateEmissionScope(StreamingQuerySubscription lifetime)
     {
         // Interceptors also resolve scoped collaborators, even if no emission guards are installed.
@@ -342,43 +216,19 @@ public partial class ObservableQueryDemultiplexer(
         }
     }
 
-    IDisposable SubscribeToSubject(
-        IHttpRequestContext context,
-        object subject,
-        Type subjectType,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        Action onCompleted,
-        QueryContext? authorizedQueryContext,
-        CancellationToken token)
+    IDisposable SubscribeToSubject(ObservableQuerySubscriptionContext subscription, object subject, Type subjectType)
     {
         var elementType = ObservableQueryElementOperations.FindElementType(subjectType, typeof(ISubject<>))!;
-        return ObservableQueryElementOperations.For(elementType).SubscribeToSubject(
-            this, context, subject, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token);
+        return ObservableQueryElementOperations.For(elementType).SubscribeToSubject(this, subscription, subject);
     }
 
     StreamingQuerySubscription SubscribeToSubjectOfType<T>(
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionContext subscription,
         ISubject<T> subject,
-        Type? enumerableItemType,
-        string queryId,
-        PagingInfo paging,
-        string? transferMode,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        Action onCompleted,
-        QueryContext? authorizedQueryContext,
-        CancellationToken token)
+        Type? enumerableItemType)
     {
+        var (context, queryId, paging, transferMode, correlationId, identity, onNext, onError, onUnauthorized, onCompleted, authorizedQueryContext, token) = subscription;
+
         // The pipeline's context survives its AsyncLocal boundary. Keep the instance so provider updates to
         // TotalItems remain visible on later emissions; custom pipelines can still use the ambient context.
         var state = new SubjectEmissionState
@@ -550,37 +400,21 @@ public partial class ObservableQueryDemultiplexer(
     }
 
     async Task StreamAsyncEnumerable(
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionContext subscription,
         object enumerable,
         Type enumerableType,
-        string queryId,
-        PagingInfo paging,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        IServiceProvider? guardServiceProvider,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        CancellationToken token)
+        IServiceProvider? guardServiceProvider)
     {
         var elementType = ObservableQueryElementOperations.FindElementType(enumerableType, typeof(IAsyncEnumerable<>))!;
-        await ObservableQueryElementOperations.For(elementType).StreamAsyncEnumerable(
-            this, context, enumerable, queryId, paging, correlationId, identity, guardServiceProvider, onNext, onError, onUnauthorized, token);
+        await ObservableQueryElementOperations.For(elementType).StreamAsyncEnumerable(this, subscription, enumerable, guardServiceProvider);
     }
 
     async Task StreamAsyncEnumerableOfType<T>(
-        IHttpRequestContext context,
+        ObservableQuerySubscriptionContext subscription,
         IAsyncEnumerable<T> enumerable,
-        string queryId,
-        PagingInfo paging,
-        CorrelationId correlationId,
-        ObservableQuerySubscriptionIdentity identity,
-        IServiceProvider? guardServiceProvider,
-        Func<QueryResult, CancellationToken, Task> onNext,
-        Func<string, string, CancellationToken, Task> onError,
-        Func<string, CancellationToken, Task> onUnauthorized,
-        CancellationToken token)
+        IServiceProvider? guardServiceProvider)
     {
+        var (context, queryId, paging, _, correlationId, identity, onNext, onError, onUnauthorized, _, _, token) = subscription;
         var hasDeliveredEmission = false;
         var previousContext = httpRequestContextAccessor.Current;
 

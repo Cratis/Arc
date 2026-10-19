@@ -347,7 +347,9 @@ public partial class ObservableQueryDemultiplexer
             IDisposable? subscription = null;
             try
             {
-                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, callbacks.OnPush, callbacks.OnError, callbacks.OnUnauthorized, callbacks.OnCompleted, queryResult.AuthorizedQueryContext, token);
+                subscription = SubscribeToStreamingData(
+                    new ObservableQuerySubscriptionContext(context, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, callbacks.OnPush, callbacks.OnError, callbacks.OnUnauthorized, callbacks.OnCompleted, queryResult.AuthorizedQueryContext, token),
+                    streamingData);
                 if (TransferScopeToSubscription(subscription, ownedScope))
                 {
                     ownedScope = null;
