@@ -11,8 +11,8 @@
     "dependencies": {
         "@cratis/arc": "1.0.0",
         "@cratis/arc.react": "1.0.0",
-        "react": "^19.3.0",
-        "react-dom": "^19.3.0"
+        "react": "^19.3.1",
+        "react-dom": "^19.3.1"
     },
     "devDependencies": {
         "@types/react": "^19.3.0",

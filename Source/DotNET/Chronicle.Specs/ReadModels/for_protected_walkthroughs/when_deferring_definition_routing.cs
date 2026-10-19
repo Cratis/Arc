@@ -13,7 +13,7 @@ public class when_deferring_definition_routing : given.a_protected_read
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task should_merge_the_definitions_concurrency_with_the_read_at_commit(bool competitor)
+    public async Task should_keep_the_definitions_concurrency_beside_the_read_at_commit(bool competitor)
     {
         await Seed();
         using var policy = DecisionPolicyForSpecs.Begin(typeof(Borrow));
@@ -41,10 +41,15 @@ public class when_deferring_definition_routing : given.a_protected_read
             }
             else
             {
-                var condition = _unit.GetAppendConditions().Single();
-                condition.Label.ShouldEqual("book");
-                condition.EventTypes.ShouldBeEmpty();
-                condition.EventSourceId!.Value.ShouldEqual(_book.Value);
+                var conditions = _unit.GetAppendConditions();
+                conditions.Count.ShouldEqual(2);
+                var read = conditions.Single(condition => condition.EventTypes.Any());
+                read.Label.ShouldEqual("book");
+                read.EventSourceId!.Value.ShouldEqual(_book.Value);
+                var definitionStream = conditions.Single(condition => !condition.EventTypes.Any());
+                definitionStream.Label.ShouldEqual("book");
+                definitionStream.EventSourceId!.Value.ShouldEqual(_book.Value);
+                definitionStream.EventStreamType!.Value.ShouldEqual("loans");
             }
         }
         finally

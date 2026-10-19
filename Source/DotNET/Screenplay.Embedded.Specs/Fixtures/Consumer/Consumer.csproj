@@ -16,6 +16,11 @@
         <ProjectReference Include="../../../Arc.Core/Arc.Core.csproj" />
         <ProjectReference Include="../Interceptors.Generator/Interceptors.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
         <PackageReference Include="Cratis.Chronicle" />
+        <!-- Roslyn brings Microsoft.CodeAnalysis.Analyzers transitively, whose AddAllResxFilesAsAdditionalFiles target
+             depends on PrepareResourceNames and runs before the generated editorconfig. Together with Messages.resx it
+             is the shape an application built against Roslyn has, and the one that once made a cycle of the
+             embedded generation target. -->
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <ProjectReference Include="../../../Tools/Screenplay.Embedded.Build/Screenplay.Embedded.Build.csproj" ReferenceOutputAssembly="false" />
         <ProjectReference Include="../../../Screenplay.Embedded/Screenplay.Embedded.csproj" />
     </ItemGroup>
