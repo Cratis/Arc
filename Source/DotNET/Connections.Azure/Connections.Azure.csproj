@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <AssemblyName>Cratis.Arc.Connections.Azure</AssemblyName>
+        <RootNamespace>Cratis.Arc.Connections.Azure</RootNamespace>
+        <Description>Microsoft Entra ID authentication for the Cratis Arc HTTP connection resolver: bearer tokens from managed identity, workload identity, or the default Azure credential.</Description>
+        <PackageTags>cratis;arc;connection-resolution;azure;entra-id;managed-identity;workload-identity</PackageTags>
+    </PropertyGroup>
+
+    <!-- Held to the trim/AOT analyzer ratchet (#2859); inert unless scripts/aot-ratchet.py switches it on. -->
+    <Import Project="../AotAnalysis.props" />
+
+    <ItemGroup>
+        <PackageReference Include="Azure.Identity" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../Arc.Core/Arc.Core.csproj" />
+    </ItemGroup>
+</Project>
