@@ -371,6 +371,31 @@ internal static class CommandTransactionAppender
             : eventLog.AppendMany(wrappers, concurrencyScopes: concurrencyScopes);
 
     /// <summary>
+    /// Appends resolved wrappers as one batch that requires every supplied guard, including several for one event source id.
+    /// </summary>
+    /// <param name="eventLog">The event log.</param>
+    /// <param name="wrappers">The resolved event wrappers.</param>
+    /// <param name="concurrencyScopes">The ordered guards; an event source id repeats once per distinct predicate.</param>
+    /// <returns>The batch append result.</returns>
+    /// <remarks>
+    /// An id with one scope keeps using the dictionary overload; the ordered one is only needed when a label repeats.
+    /// </remarks>
+    internal static Task<AppendManyResult> AppendRoutedBatch(
+        this IEventLog eventLog,
+        EventForEventSourceId[] wrappers,
+        IReadOnlyList<KeyValuePair<EventSourceId, ConcurrencyScope>> concurrencyScopes)
+    {
+        if (concurrencyScopes.Select(_ => _.Key).Distinct().Count() == concurrencyScopes.Count)
+        {
+            return eventLog.AppendRoutedBatch(wrappers, concurrencyScopes.ToDictionary(_ => _.Key, _ => _.Value));
+        }
+
+        return wrappers.Any(_ => _.NamedTags.Any())
+            ? eventLog.AppendManyWithNamedTags(wrappers, [], null, null, concurrencyScopes)
+            : eventLog.AppendMany(wrappers, null, null, concurrencyScopes);
+    }
+
+    /// <summary>
     /// Creates a routed event without adding legacy types to a definition route.
     /// </summary>
     /// <param name="eventSourceId">The event source id.</param>
