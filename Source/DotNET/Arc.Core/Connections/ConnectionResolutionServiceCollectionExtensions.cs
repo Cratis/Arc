@@ -12,7 +12,8 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ConnectionResolutionServiceCollectionExtensions
 {
     /// <summary>
-    /// Add the services for resolving connections, see <see cref="IConnectionResolvers"/> and <see cref="IConnectionResolverFactory"/>.
+    /// Add the services for resolving connections, see <see cref="IConnectionResolvers"/> and <see cref="IConnectionResolverFactory"/>,
+    /// including the <see cref="ClientCredentialsAccessTokenProvider"/> for authenticating the HTTP resolver.
     /// </summary>
     /// <param name="services"><see cref="IServiceCollection"/> to add to.</param>
     /// <returns><see cref="IServiceCollection"/> for continuation.</returns>
@@ -23,6 +24,8 @@ public static class ConnectionResolutionServiceCollectionExtensions
     {
         services.TryAddSingleton<IConnectionResolverFactory, ConnectionResolverFactory>();
         services.TryAddSingleton<IConnectionResolvers, ConnectionResolvers>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IConnectionResolverAccessTokenProvider, ClientCredentialsAccessTokenProvider>(
+            _ => new ClientCredentialsAccessTokenProvider()));
         return services;
     }
 }

@@ -15,4 +15,5 @@ namespace Cratis.Arc.Connections;
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(HttpConnectionRequest))]
 [JsonSerializable(typeof(ResolvedConnection))]
+[JsonSerializable(typeof(ClientCredentialsTokenResponse))]
 public partial class ConnectionResolutionJsonSerializerContext : JsonSerializerContext;

@@ -22,4 +22,9 @@ public class HttpConnectionResolverOptions
     /// Gets or sets how long to wait for the endpoint to answer.
     /// </summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Gets or sets how to authenticate to the endpoint with a bearer token. No bearer token is sent by default.
+    /// </summary>
+    public HttpConnectionResolverAuthenticationOptions Authentication { get; set; } = new();
 }
