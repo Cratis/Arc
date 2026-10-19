@@ -3,7 +3,6 @@
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.ExceptionServices;
 
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.ReadModels;
@@ -73,32 +72,11 @@ public static class ReadModelServiceCollectionExtensions
 
         foreach (var readModelType in readModelTypes)
         {
-            var closedType = typeof(DecisionRead<>).MakeGenericType(readModelType);
-
-            // Close the resolver once per read model at registration rather than on every resolution.
-            var resolve = typeof(ReadModelServiceCollectionExtensions)
-                .GetMethod(nameof(ResolveDecisionRead), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(readModelType);
-
-            // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
-            var descriptor = ServiceDescriptor.Transient(closedType, sp =>
-            {
-                try
-                {
-                    return resolve.Invoke(null, [sp])!;
-                }
-                catch (TargetInvocationException exception) when (exception.InnerException is not null)
-                {
-                    ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-                    throw;
-                }
-            });
-            var count = services.Count;
-            services.TryAdd(descriptor);
-            if (services.Count != count)
-            {
-                ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
-            }
+            // One closed registration per read model; it registers the typed dispatch and the DecisionRead<T> factory.
+            typeof(ReadModelServiceCollectionExtensions)
+                .GetMethod(nameof(RegisterReadModel), BindingFlags.NonPublic | BindingFlags.Static)!
+                .MakeGenericMethod(readModelType)
+                .Invoke(null, [services, readModelTypes]);
         }
 
         return services;
@@ -181,6 +159,21 @@ public static class ReadModelServiceCollectionExtensions
     /// <returns>The injectable read model types.</returns>
     internal static Type[] DiscoverReadModelTypes(IClientArtifactsProvider artifacts) =>
         _discoveryByArtifacts.GetValue(artifacts, _ => new ReadModelDiscovery()).GetTypes(artifacts);
+
+    static void RegisterReadModel<T>(IServiceCollection services, Type[] readModelTypes)
+        where T : class
+    {
+        ReadModelDispatch.Register<T>();
+
+        // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
+        var descriptor = ServiceDescriptor.Transient(ResolveDecisionRead<T>);
+        var count = services.Count;
+        services.TryAdd(descriptor);
+        if (services.Count != count)
+        {
+            ProtectedValidatorReadBindings.RecordToken(services, descriptor, readModelTypes);
+        }
+    }
 
     static DecisionRead<T> ResolveDecisionRead<T>(IServiceProvider services)
         where T : class

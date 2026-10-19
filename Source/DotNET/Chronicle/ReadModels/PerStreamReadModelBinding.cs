@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using System.Runtime.ExceptionServices;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Chronicle.Streams;
 using Cratis.Arc.Commands;
@@ -40,17 +39,11 @@ internal static class PerStreamReadModelBinding
     {
         try
         {
-            return typeof(PerStreamReadModelBinding).GetMethod(nameof(ResolveModel), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(model).Invoke(null, [context, services, parameter]);
+            return ReadModelDispatch.For(model).ResolveStream(context, services, parameter);
         }
-        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        catch (DecisionReadRefused refused) when (parameter is not null)
         {
-            if (exception.InnerException is DecisionReadRefused refused && parameter is not null)
-            {
-                throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
-            }
-            ExceptionDispatchInfo.Capture(exception.InnerException).Throw();
-            throw;
+            throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
         }
     }
 
@@ -102,10 +95,16 @@ internal static class PerStreamReadModelBinding
         return route;
     }
 
-    static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
-        attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
-
-    static T? ResolveModel<T>(CommandContext context, IServiceProvider services, ParameterInfo? parameter)
+    /// <summary>
+    /// Resolves the model with its concrete type, for typed dispatch.
+    /// </summary>
+    /// <typeparam name="T">The stream model type.</typeparam>
+    /// <param name="context">The command invocation.</param>
+    /// <param name="services">The command services.</param>
+    /// <param name="parameter">The parameter, when resolving a parameter dependency.</param>
+    /// <returns>The model, or null for an absent stream.</returns>
+    /// <exception cref="ProtectedCommandRequiresCommandAwareReader">The reader is not command aware.</exception>
+    internal static T? ResolveModel<T>(CommandContext context, IServiceProvider services, ParameterInfo? parameter)
         where T : class
     {
         var advisory = parameter?.GetCustomAttribute<UnprotectedAttribute>() ?? typeof(T).GetCustomAttribute<UnprotectedAttribute>();
@@ -137,4 +136,7 @@ internal static class PerStreamReadModelBinding
         var instance = models.GetInstanceById<T>(source, route.EventStreamId).GetAwaiter().GetResult();
         return instance is null ? null : models.Release(instance).GetAwaiter().GetResult();
     }
+
+    static CustomAttributeData? Declaration(Type model) => model.GetCustomAttributesData().SingleOrDefault(attribute =>
+        attribute.AttributeType.IsGenericType && attribute.AttributeType.GetGenericTypeDefinition() == typeof(EventStreamAttribute<>));
 }

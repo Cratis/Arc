@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Reflection;
-using System.Runtime.ExceptionServices;
 using Cratis.Arc.Chronicle.Commands;
 using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
@@ -66,30 +65,17 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         return true;
     }
 
-    static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
-    {
-        try
-        {
-            return typeof(ChronicleParameterDependencyResolver).GetMethod(nameof(ResolveModel), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(parameter.ParameterType).Invoke(null, [services, context, key]);
-        }
-        catch (TargetInvocationException exception) when (exception.InnerException is not null)
-        {
-            var failure = exception.InnerException;
-            if (failure is ProtectedReadModelDoesNotExist)
-            {
-                throw new ProtectedReadModelDoesNotExist(parameter.ParameterType, keyText);
-            }
-            if ((failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused) is { } refused)
-            {
-                throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
-            }
-            ExceptionDispatchInfo.Capture(failure).Throw();
-            throw;
-        }
-    }
-
-    static T? ResolveModel<T>(IServiceProvider services, CommandContext context, ReadModelKey key)
+    /// <summary>
+    /// Resolves the model with its concrete type, for typed dispatch.
+    /// </summary>
+    /// <typeparam name="T">The read model type.</typeparam>
+    /// <param name="services">The command services.</param>
+    /// <param name="context">The command invocation.</param>
+    /// <param name="key">The resolved read model key.</param>
+    /// <returns>The model, or null when it does not exist.</returns>
+    /// <exception cref="ProtectedCommandRequiresCommandAwareReader">The reader is not command aware.</exception>
+    /// <exception cref="DecisionReadRefused">The read cannot be protected.</exception>
+    internal static T? ResolveModel<T>(IServiceProvider services, CommandContext context, ReadModelKey key)
         where T : class
     {
         var reader = services.GetRequiredService<IDecisionReads>() as CommandDecisionReads ?? throw new ProtectedCommandRequiresCommandAwareReader();
@@ -101,6 +87,23 @@ internal sealed class ChronicleParameterDependencyResolver(IEnumerable<Type> rea
         }
 
         return reader.GetInstance<T>(key, context.CancellationToken).GetAwaiter().GetResult();
+    }
+
+    static object? ResolveProtected(IServiceProvider services, CommandContext context, ParameterInfo parameter, ReadModelKey key, string keyText)
+    {
+        try
+        {
+            return ReadModelDispatch.For(parameter.ParameterType).ResolveProtected(services, context, key);
+        }
+        catch (ProtectedReadModelDoesNotExist)
+        {
+            throw new ProtectedReadModelDoesNotExist(parameter.ParameterType, keyText);
+        }
+        catch (Exception failure) when ((failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused) is not null)
+        {
+            var refused = (failure as DecisionReadRefused ?? failure.InnerException as DecisionReadRefused)!;
+            throw ReadProtectionRefusals.For(context.Type, parameter, refused.Reason);
+        }
     }
 
     bool IsChronicleCollection(Type type) => type.IsGenericType &&
