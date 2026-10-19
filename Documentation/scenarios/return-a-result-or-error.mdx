@@ -1,6 +1,6 @@
 ---
 title: Return a result or an error
-description: Return ordinary response data or a typed validation failure from a standalone Arc command, and distinguish response handling from optional Chronicle event persistence.
+description: "Return response data or a typed validation failure from a standalone Arc command, and tell response handling apart from optional Chronicle event persistence."
 ---
 
 **Goal:** explicitly write through a database or service, then return a value the caller needs — or a typed rejection. Arc.Core does not append events just because a returned object has an event-like name.

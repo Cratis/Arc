@@ -1,6 +1,6 @@
 ---
 title: CQRS without event sourcing
-description: Arc's CQRS model can run over current-state storage without Chronicle. This page shows the boundary between CQRS and event sourcing, not an argument against event sourcing.
+description: "Arc's CQRS model runs over current-state storage without Chronicle, and this page shows where CQRS ends and event sourcing begins."
 ---
 
 It's easy to assume Arc and [Chronicle](/chronicle/) are a package deal, because they work well together. We think event sourcing is the default architecture for information systems, and Chronicle is the Cratis event-sourcing platform. But Arc itself is CQRS: **commands, queries, and generated TypeScript proxies that keep your React frontend in lockstep with your backend.** Where the data actually lives is a separate decision.
