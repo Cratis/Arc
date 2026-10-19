@@ -3,8 +3,8 @@
 
     <!-- The documents an application embeds are generated from the same inputs the C# compiler is about to be
          given, and embedded by that same compilation. A source generator cannot add a manifest resource and a step
-         after the build would have to rewrite an assembly that already exists, so this runs before resource names
-         are prepared and hands the compiler ordinary EmbeddedResource items. -->
+         after the build would have to rewrite an assembly that already exists, so this runs once resource names
+         are prepared and hands the compiler EmbeddedResource items that already carry their final names. -->
 
     <PropertyGroup>
         <!-- On by default: an application that referenced this package and got no documents would have to be told
@@ -46,14 +46,19 @@
          consumes the resources, so analyzing the whole application there would cost everything and produce
          nothing.
 
-         The resources have to exist before AssignTargetPaths - the first target that reads EmbeddedResource items -
-         because PrepareResourceNames reaches that through its own dependencies, so a target that only promised to
-         run before PrepareResourceNames would add its items after they had already been collected and the compiler
-         would embed nothing. -->
+         The generation reads the analyzer configuration the compiler gets, so it depends on the generated
+         editorconfig, and that file can depend on the resource pipeline: Microsoft.CodeAnalysis.Analyzers, which
+         every project referencing Roslyn gets, adds each .resx as an additional file in a target that depends on
+         PrepareResourceNames and runs before the editorconfig is written. Running this target ahead of
+         AssignTargetPaths, so the resource pipeline would name its items, therefore made a cycle (MSB4006) in any
+         such project with an EmbeddedResource. Resource names are prepared first instead, and the documents are
+         added afterwards - before _GenerateCompileInputs collects what CoreCompile embeds - with the metadata the
+         resource pipeline would have given them: the task names them through LogicalName and
+         ManifestResourceName, and they are neither .resx nor culture specific. -->
     <Target Name="GenerateCratisEmbeddedScreenplayDocuments"
             Condition="'$(CratisEmbeddedScreenplayEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'"
-            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;GenerateMSBuildEditorConfigFile"
-            BeforeTargets="AssignTargetPaths;SplitResourcesByCulture;PrepareResourceNames;CoreCompile">
+            DependsOnTargets="ResolveReferences;FindReferenceAssembliesForReferences;GenerateGlobalUsings;GenerateAssemblyInfo;PrepareResourceNames;GenerateMSBuildEditorConfigFile"
+            BeforeTargets="_GenerateCompileInputs;CoreCompile">
 
         <!-- Resolved here rather than at evaluation time: where the targets of a package are imported from decides
              whether the intermediate output path has been set yet, and a default evaluated too early would write
@@ -84,7 +89,7 @@
         </GenerateEmbeddedScreenplayDocuments>
 
         <ItemGroup>
-            <EmbeddedResource Include="@(CratisEmbeddedScreenplayDocument)" />
+            <EmbeddedResource Include="@(CratisEmbeddedScreenplayDocument)" Type="Non-Resx" WithCulture="false" />
             <FileWrites Include="@(CratisEmbeddedScreenplayDocument)" />
         </ItemGroup>
     </Target>
