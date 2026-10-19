@@ -42,6 +42,8 @@ public class a_protected_read : Specification
             EventSources = [typeof(Library)]
         };
         _store = new EventStoreForTesting(null, artifacts);
+        ReadModelDispatch.Register<BookStock>();
+        ReadModelDispatch.Register<MemberLoans>();
         _resolver = new ChronicleParameterDependencyResolver([typeof(BookStock), typeof(MemberLoans)]);
         var accessor = Substitute.For<ICommandContextAccessor>();
         accessor.Current.Returns(_ => _context);

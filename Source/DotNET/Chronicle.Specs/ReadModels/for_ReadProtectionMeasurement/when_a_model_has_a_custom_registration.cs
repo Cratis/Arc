@@ -21,6 +21,7 @@ public class when_a_model_has_a_custom_registration : given.a_measure_pipeline
         _additionalCommands.Add(typeof(CustomProvide).FullName!);
         _stored = Substitute.For<IReadModels>();
         _services.GetService(typeof(IReadModels)).Returns(_stored);
+        ReadModelDispatch.Register<Stock>();
         _services.GetService(typeof(IInstancesOf<ICanResolveParameterDependency>)).Returns(new KnownInstancesOf<ICanResolveParameterDependency>([new ChronicleParameterDependencyResolver([typeof(Stock)])]));
         _services.GetService(typeof(Stock)).Returns(_ =>
         {
