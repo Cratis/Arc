@@ -12,4 +12,8 @@ namespace Cratis.Arc.Connections;
 /// <param name="ExpiresIn">The lifetime of the token in seconds, if given.</param>
 public record ClientCredentialsTokenResponse(
     [property: JsonPropertyName("access_token")] string? AccessToken,
-    [property: JsonPropertyName("expires_in"), JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] long? ExpiresIn);
+    [property: JsonPropertyName("expires_in"), JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)] long? ExpiresIn)
+{
+    /// <inheritdoc/>
+    public override string ToString() => $"Token response expiring in {ExpiresIn?.ToString() ?? "unknown"} seconds";
+}
