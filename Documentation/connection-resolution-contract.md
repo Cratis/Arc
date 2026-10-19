@@ -14,7 +14,7 @@ For how the resolver is configured on the caller's side, see [connection resolut
 | Method | `POST` |
 | URL | The configured endpoint, used exactly as configured. The caller adds no path or query string. |
 | Request body | `application/json`, UTF-8. See [Request](#request). |
-| Request headers | `Content-Type: application/json; charset=utf-8`, plus every header configured for the resolver, such as an API key or a bearer token. |
+| Request headers | `Content-Type: application/json; charset=utf-8`, plus every header configured for the resolver, such as an API key. With authentication configured, also `Authorization: Bearer <token>`. |
 | Response body | `application/json` on `200 OK`. See [Response](#response). |
 | Timeout | 10 seconds unless configured otherwise. A timeout is a failure. |
 
@@ -122,10 +122,14 @@ A `204` is cached like an answer that changes nothing.
 ## Security
 
 - Serve the endpoint over HTTPS only. Answers contain credentials.
-- Authenticate the caller. Configure an API key or a bearer token as a resolver header, and reject requests without it with `401` or `403`; the caller then fails instead of connecting.
+- Authenticate the caller. Prefer a short-lived bearer token over a static API key: on Azure, have the caller sign in with a managed identity or workload identity and send a Microsoft Entra ID token in `Authorization: Bearer`.
+- Validate every token: its signature, its issuer (your tenant), its audience (your endpoint's application ID URI) and its expiry. Require an app role, and register the endpoint as an enterprise application with assignment required, so only the identities you assigned get a token at all.
+- Answer `401` when the token is missing, expired or invalid, and `403` when it is valid but lacks the role. The caller retries a `401` once with a fresh token and does not retry a `403`; either way it fails instead of connecting.
+- You do not have to write the validation yourself: App Service authentication or the API Management `validate-jwt` policy can do it in front of the endpoint.
+- Network isolation, such as a private endpoint or access restrictions, complements token validation; it does not replace it.
 - Authorize the scope. Only return a connection that the caller may use for the tenant or namespace it asked about. Resolution chooses a destination; it is not an authorization check on the end user.
-- Prefer short-lived access tokens with an `expiresAt` over long-lived passwords.
-- Do not log response bodies. The caller never logs credentials it receives.
+- Prefer short-lived access tokens with an `expiresAt` over long-lived passwords in your answers.
+- Do not log response bodies or tokens. The caller never logs the credentials it receives or the tokens it sends.
 
 ## OpenAPI description
 

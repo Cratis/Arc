@@ -58,7 +58,7 @@ Arc resolves when a connection **opens**, not when a context is created. A poole
 | `Identity.AccessToken` | `SqlConnection.AccessToken` (Entra ID) | Used as the password | Ignored |
 | `Schema` | Not applied | Not applied | Not applied |
 
-For passwordless Entra ID with a managed identity, you need no token at all. Resolve a connection string that carries `Authentication=Active Directory Managed Identity;User Id=<client id>`, and the SQL client signs in on its own.
+For passwordless Entra ID with a managed identity, you need no token at all. Resolve a connection string that carries `Authentication=Active Directory Managed Identity;User Id=<client id>`, and the SQL client signs in on its own. With `Microsoft.Data.SqlClient` 7.x, the `Active Directory` authentication modes need the `Microsoft.Data.SqlClient.Extensions.Azure` package.
 
 :::caution[Do not combine an access token with a password]
 SQL Server refuses an access token on a connection that also has a password or `Integrated Security`. Resolve one or the other.

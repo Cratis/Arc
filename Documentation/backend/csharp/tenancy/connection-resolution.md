@@ -80,6 +80,75 @@ The `Http` resolver posts what it connects for (`storage`, `purpose` and a `scop
 
 Configure static headers, such as an API key, under `Http:Headers`. The default timeout is 10 seconds (`Http:Timeout`).
 
+## Authenticate to the endpoint
+
+The resolver can call your endpoint with an OAuth 2.0 bearer token instead of, or next to, a static API key. Configure it under `Http:Authentication`, and every request carries `Authorization: Bearer <token>`:
+
+| Setting | Description |
+| --- | --- |
+| `Type` | `None` (the default), `ClientCredentials` or `AzureCredential`. |
+| `Scope` | The scope the token is requested for. For Microsoft Entra ID this is the endpoint's application ID URI with `/.default`, such as `api://<app-id>/.default`. |
+| `TokenEndpoint` | The OAuth 2.0 token endpoint, for `ClientCredentials`. |
+| `ClientId` | The client id. For `ClientCredentials` it identifies your application; for `AzureCredential` it selects a user-assigned managed identity or the workload identity application. |
+| `ClientSecret` | The client secret, for `ClientCredentials`. Keep it in a secret store. |
+| `Credential` | For `AzureCredential`: `ManagedIdentity` (the default), `WorkloadIdentity` or `Default`, the default Azure credential chain that also covers a developer sign-in. |
+| `RefreshMargin` | How long before it expires a token is renewed. Five minutes by default. |
+
+Arc keeps the token in memory, reuses it until the refresh margin, and fetches one token at a time however many connections ask for it. When your endpoint answers `401 Unauthorized`, Arc drops the token, gets a fresh one and sends the request once more. A `403 Forbidden` is not retried. Tokens and secrets are never logged.
+
+Configuring both `Authentication` and an `Authorization` header under `Http:Headers` is a configuration error, and so is selecting a `Type` nothing can provide; both fail when the resolver is created rather than on the first connection.
+
+### Client credentials
+
+`ClientCredentials` works with any OAuth 2.0 provider and needs nothing beyond Arc:
+
+```json
+{
+  "Cratis": {
+    "Arc": {
+      "ConnectionResolution": {
+        "Identity": {
+          "Resolver": "Http",
+          "Http": {
+            "Endpoint": "https://platform.example/connections",
+            "Authentication": {
+              "Type": "ClientCredentials",
+              "TokenEndpoint": "https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token",
+              "ClientId": "<client-id>",
+              "ClientSecret": "from-your-secret-store",
+              "Scope": "api://<app-id>/.default"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Microsoft Entra ID with a managed identity
+
+On Azure, let a managed identity or workload identity sign in, so there is no secret to keep. Add the `Cratis.Arc.Connections.Azure` package and register it:
+
+```csharp
+builder.Services.AddAzureConnectionResolverAuthentication();
+```
+
+Then select `AzureCredential`. The client id below selects a user-assigned managed identity; leave it out to use the system-assigned identity. As environment variables:
+
+```bash
+Cratis__Arc__ConnectionResolution__Identity__Resolver=Http
+Cratis__Arc__ConnectionResolution__Identity__Http__Endpoint=https://platform.example/connections
+Cratis__Arc__ConnectionResolution__Identity__Http__Authentication__Type=AzureCredential
+Cratis__Arc__ConnectionResolution__Identity__Http__Authentication__Credential=ManagedIdentity
+Cratis__Arc__ConnectionResolution__Identity__Http__Authentication__ClientId=<managed-identity-client-id>
+Cratis__Arc__ConnectionResolution__Identity__Http__Authentication__Scope=api://<app-id>/.default
+```
+
+Without the package registered, `AzureCredential` fails at startup and tells you to call `AddAzureConnectionResolverAuthentication()`. To get tokens some other way, implement `IConnectionResolverAccessTokenProvider` and register it in the service collection.
+
+Your endpoint must validate the token; see [Security](../../../connection-resolution-contract.md#security) in the contract.
+
 ## Caching and credentials
 
 Arc keeps each resolution **in memory only**, keyed by storage, purpose and tenant. It never keys or logs by credential. An entry lives until its `ExpiresAt`, renewed one minute early, or for `CacheDuration` (five minutes by default) when the resolver gave no expiry. Set `CacheDuration` to `00:00:00` to resolve on every connection.
