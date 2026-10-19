@@ -46,6 +46,9 @@ public static class WellKnownTelemetryNames
     /// <summary>The attribute holding the type the command declares its key as, such as its event source id.</summary>
     public const string CommandKeyType = "cratis.arc.command.key.type";
 
+    /// <summary>The span raised when a changed result of an observable query is pushed to a subscriber.</summary>
+    public const string QueryPushSpan = "cratis.arc.query.push";
+
     /// <summary>The attribute holding the fully qualified name of the query.</summary>
     public const string QueryName = "cratis.arc.query.name";
 
@@ -100,6 +103,12 @@ public static class WellKnownTelemetryNames
     /// <summary>The histogram recording how long a query took, in seconds.</summary>
     public const string QueryDurationMetric = "cratis.arc.query.duration";
 
+    /// <summary>The up-down counter recording the observable query subscriptions that are active.</summary>
+    public const string QuerySubscriptionsMetric = "cratis.arc.query.subscriptions";
+
+    /// <summary>The counter recording the results pushed to observable query subscribers.</summary>
+    public const string QueryPushesMetric = "cratis.arc.query.pushes";
+
     /// <summary>The value recorded for a command type or query name past the cardinality limit, or for a query that is not known.</summary>
     public const string Other = "_other";
 
@@ -111,4 +120,10 @@ public static class WellKnownTelemetryNames
 
     /// <summary>The transport of a query that keeps pushing changes.</summary>
     public const string ObservableTransport = "observable";
+
+    /// <summary>The transport of an observable query delivered over a WebSocket.</summary>
+    public const string WebSocketTransport = "websocket";
+
+    /// <summary>The transport of an observable query delivered as Server-Sent Events.</summary>
+    public const string ServerSentEventsTransport = "sse";
 }

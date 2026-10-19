@@ -24,6 +24,8 @@ internal sealed class PipelineMetrics
     readonly Histogram<double> _commandDuration;
     readonly Counter<long> _commandOutcomes;
     readonly Histogram<double> _queryDuration;
+    readonly UpDownCounter<long> _querySubscriptions;
+    readonly Counter<long> _queryPushes;
     readonly CardinalityLimiter _commandTypes;
     readonly CardinalityLimiter _queryNames;
 
@@ -37,6 +39,8 @@ internal sealed class PipelineMetrics
         _commandDuration = CreateDurationHistogram(meter, WellKnownTelemetryNames.CommandDurationMetric, "How long commands take to run through the command pipeline.");
         _commandOutcomes = meter.CreateCounter<long>(WellKnownTelemetryNames.CommandOutcomesMetric, "{command}", "The number of commands run, by outcome.");
         _queryDuration = CreateDurationHistogram(meter, WellKnownTelemetryNames.QueryDurationMetric, "How long queries take to run through the query pipeline.");
+        _querySubscriptions = meter.CreateUpDownCounter<long>(WellKnownTelemetryNames.QuerySubscriptionsMetric, "{subscription}", "The number of observable query subscriptions that are active, by query.");
+        _queryPushes = meter.CreateCounter<long>(WellKnownTelemetryNames.QueryPushesMetric, "{push}", "The number of results pushed to observable query subscribers, by query.");
         _commandTypes = new(cardinalityLimit);
         _queryNames = new(cardinalityLimit);
     }
@@ -50,6 +54,46 @@ internal sealed class PipelineMetrics
     /// Gets a value indicating whether anything listens to the query metrics.
     /// </summary>
     internal bool QueriesEnabled => _queryDuration.Enabled;
+
+    /// <summary>
+    /// Gets a value indicating whether anything listens to the active subscriptions metric.
+    /// </summary>
+    internal bool SubscriptionsEnabled => _querySubscriptions.Enabled;
+
+    /// <summary>
+    /// Gets a value indicating whether anything listens to the pushes metric.
+    /// </summary>
+    internal bool PushesEnabled => _queryPushes.Enabled;
+
+    /// <summary>
+    /// Gets the query name to record, folding a name past the cardinality limit into <see cref="WellKnownTelemetryNames.Other"/>.
+    /// </summary>
+    /// <param name="queryName">The fully qualified name of a query that is known, or <see cref="WellKnownTelemetryNames.Other"/>.</param>
+    /// <returns>The name to record.</returns>
+    internal string LimitQueryName(string queryName) =>
+        queryName == WellKnownTelemetryNames.Other ? queryName : _queryNames.Limit(queryName);
+
+    /// <summary>
+    /// Records that an observable query subscription started or ended.
+    /// </summary>
+    /// <param name="queryName">The query name, already limited by <see cref="LimitQueryName"/>.</param>
+    /// <param name="transport">The transport the results are delivered over.</param>
+    /// <param name="change">1 when the subscription started; -1 when it ended.</param>
+    internal void RecordSubscription(string queryName, string transport, long change) =>
+        _querySubscriptions.Add(change, QueryTags(queryName, transport));
+
+    /// <summary>
+    /// Records that a result was pushed to an observable query subscriber.
+    /// </summary>
+    /// <param name="queryName">The query name, already limited by <see cref="LimitQueryName"/>.</param>
+    /// <param name="transport">The transport the result was delivered over.</param>
+    internal void RecordPush(string queryName, string transport)
+    {
+        if (_queryPushes.Enabled)
+        {
+            _queryPushes.Add(1, QueryTags(queryName, transport));
+        }
+    }
 
     /// <summary>
     /// Records that a command ran.
@@ -95,6 +139,12 @@ internal sealed class PipelineMetrics
         };
         _queryDuration.Record(elapsed.TotalSeconds, tags);
     }
+
+    static TagList QueryTags(string queryName, string transport) => new()
+    {
+        { WellKnownTelemetryNames.QueryName, queryName },
+        { WellKnownTelemetryNames.QueryTransport, transport }
+    };
 
     static Histogram<double> CreateDurationHistogram(Meter meter, string name, string description) =>
 #if NET9_0_OR_GREATER

@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Cratis.Arc.Authorization;
 using Cratis.Arc.Http;
+using Cratis.Arc.Observability;
 using Cratis.Arc.Tenancy;
 using Cratis.Reflection;
 using Cratis.Strings;
@@ -26,6 +27,11 @@ public partial class ObservableQueryDemultiplexer
             callbacks.OnCompleted();
         }
     }
+
+    static string TransportOf(string protocol) =>
+        string.Equals(protocol, "SSE", StringComparison.OrdinalIgnoreCase)
+            ? WellKnownTelemetryNames.ServerSentEventsTransport
+            : WellKnownTelemetryNames.WebSocketTransport;
 
     static void EnsureAuthorizationDoesNotRequireAsynchronousEvaluation(FullyQualifiedQueryName fullyQualifiedName, IServiceProvider queryServiceProvider)
     {
@@ -154,6 +160,7 @@ public partial class ObservableQueryDemultiplexer
     {
         var operation = session.Operation;
         var previousContext = httpRequestContextAccessor.Current;
+        session.Telemetry = new ObservableQueryTelemetry(serviceProvider, session.Request.QueryName, TransportOf(session.Protocol));
 
         try
         {
@@ -168,6 +175,7 @@ public partial class ObservableQueryDemultiplexer
                     session.Request),
                 new SubscriptionCallbacks(
                     (result, operationToken) => DeliverResult(session, result, operationToken),
+                    (result, operationToken) => DeliverResult(session, result, operationToken, isPush: true),
                     (id, errorMsg, operationToken) => DeliverError(session, id, errorMsg, operationToken),
                     (id, operationToken) => DeliverUnauthorized(session, id, operationToken),
                     () => TerminateSubscription(session.Subscriptions, session.QueryId, operation)),
@@ -192,17 +200,20 @@ public partial class ObservableQueryDemultiplexer
         return session.WasUnauthorized;
     }
 
-    async Task DeliverResult(SubscriptionSession session, QueryResult result, CancellationToken operationToken)
+    async Task DeliverResult(SubscriptionSession session, QueryResult result, CancellationToken operationToken, bool isPush = false)
     {
         if (!IsCurrent(session.Subscriptions, session.QueryId, session.Operation))
         {
             return;
         }
 
+        // Only a result an emission produced is a push; a snapshot or a validation rejection is the answer to the subscribe.
+        using var push = isPush && session.Telemetry is { } telemetry ? telemetry.BeginPush() : default;
         var msg = ObservableQueryHubMessage.CreateQueryResult(session.QueryId, result, session.Operation.Revision);
         if (await session.Send(msg, operationToken) &&
             IsCurrent(session.Subscriptions, session.QueryId, session.Operation))
         {
+            push.Delivered();
             healthTracker.RecordDataServed(session.ConnectionId, session.QueryId);
         }
     }
@@ -243,8 +254,16 @@ public partial class ObservableQueryDemultiplexer
         {
             var metadata = CreateSubscriptionMetadata(session.QueryId, session.Request, session.SubscriptionContext, session.Protocol);
             session.Operation.TryRegister(
-                () => healthTracker.RegisterSubscription(session.ConnectionId, session.Protocol, metadata),
-                () => healthTracker.UnregisterSubscription(session.ConnectionId, session.QueryId));
+                () =>
+                {
+                    healthTracker.RegisterSubscription(session.ConnectionId, session.Protocol, metadata);
+                    session.Telemetry?.Start();
+                },
+                () =>
+                {
+                    healthTracker.UnregisterSubscription(session.ConnectionId, session.QueryId);
+                    session.Telemetry?.Dispose();
+                });
         }
         else if (subscription is null)
         {
@@ -328,7 +347,7 @@ public partial class ObservableQueryDemultiplexer
             IDisposable? subscription = null;
             try
             {
-                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, callbacks.OnNext, callbacks.OnError, callbacks.OnUnauthorized, callbacks.OnCompleted, queryResult.AuthorizedQueryContext, token);
+                subscription = SubscribeToStreamingData(context, streamingData, queryId, queryResult.Paging, request.TransferMode, queryResult.CorrelationId, identity, callbacks.OnPush, callbacks.OnError, callbacks.OnUnauthorized, callbacks.OnCompleted, queryResult.AuthorizedQueryContext, token);
                 if (TransferScopeToSubscription(subscription, ownedScope))
                 {
                     ownedScope = null;
@@ -552,6 +571,7 @@ public partial class ObservableQueryDemultiplexer
 
     readonly record struct SubscriptionCallbacks(
         Func<QueryResult, CancellationToken, Task> OnNext,
+        Func<QueryResult, CancellationToken, Task> OnPush,
         Func<string, string, CancellationToken, Task> OnError,
         Func<string, CancellationToken, Task> OnUnauthorized,
         Action OnCompleted);
@@ -580,5 +600,6 @@ public partial class ObservableQueryDemultiplexer
         public required string Protocol { get; init; }
         public required Func<ObservableQueryHubMessage, CancellationToken, Task<bool>> Send { get; init; }
         public bool WasUnauthorized { get; set; }
+        public ObservableQueryTelemetry? Telemetry { get; set; }
     }
 }
