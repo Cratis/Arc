@@ -58,7 +58,7 @@ public class with_only_application_wide_connection_resolution : Specification
     }
 
     [Fact] void should_not_configure_resolution_on_the_integration() => _options.ConnectionResolution.IsConfigured.ShouldBeFalse();
-    [Fact] void should_open_the_tenants_database() => _dataSource.ShouldEqual(Path.Combine(_directory, "acme.db"));
+    [Fact] void should_open_the_tenants_database() => RealPath.Of(_dataSource).ShouldEqual(RealPath.Of(Path.Combine(_directory, "acme.db")));
 
     public class TenantDbContext(DbContextOptions<TenantDbContext> options) : DbContext(options);
 }

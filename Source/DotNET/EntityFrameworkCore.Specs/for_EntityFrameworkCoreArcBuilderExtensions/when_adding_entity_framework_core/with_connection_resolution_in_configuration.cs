@@ -60,7 +60,7 @@ public class with_connection_resolution_in_configuration : Specification
 
     [Fact] void should_bind_the_connection_string() => _options.ConnectionString.ShouldContain("configured.db");
     [Fact] void should_bind_the_connection_resolution() => _options.ConnectionResolution.Connection.Resolver.ShouldEqual(ConnectionResolverType.Template);
-    [Fact] void should_open_the_tenants_database() => _dataSource.ShouldEqual(Path.Combine(_directory, "acme.db"));
+    [Fact] void should_open_the_tenants_database() => RealPath.Of(_dataSource).ShouldEqual(RealPath.Of(Path.Combine(_directory, "acme.db")));
 
     public class TenantDbContext(DbContextOptions<TenantDbContext> options) : DbContext(options);
 }
