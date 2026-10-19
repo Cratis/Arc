@@ -76,7 +76,7 @@ Arc registers collections as **scoped** services. Register a service that captur
 
 ## Errors and recovery limits
 
-A failure to start or iterate the per-collection watch is logged at Error level and forwarded to subscribers through `OnError` before cleanup disposes the subject and cursor. This includes connection failures when MongoDB is unreachable. Normal cancellation, disposal, and cursor completion still complete quietly; unsubscribing does not produce an error. Individual change-processing exceptions are logged at Error level while iteration can continue. Configuration errors before the background watch starts can still throw synchronously.
+A failure to start or iterate the per-collection watch, or to apply a change to the result, is logged at Error level (naming the collection and document type) and forwarded to subscribers through `OnError` before cleanup disposes the subject and cursor. This includes connection failures when MongoDB is unreachable. Normal cancellation, disposal, and cursor completion still complete quietly; unsubscribing does not produce an error. A failed observation is not resumed: a client resubscribes to get a fresh snapshot. Configuration errors before the background watch starts can still throw synchronously.
 
 Handle `OnError` to distinguish a failed watch from normal completion. Arc's observable query hub forwards this failure to the frontend as a failed query result with `hasExceptions: true` and the error in `exceptionMessages`, rather than leaving it waiting for its first result.
 
