@@ -80,11 +80,13 @@ internal static class GeneratedValueResolution
 
     static async Task Validate(Type commandType, string name, Type type, object value, IServiceProvider services, CancellationToken cancellationToken)
     {
+        await using var activation = new ProtectedValidatorActivationFrame();
         if (services.GetService<IDiscoverableValidators>() is not { } validators || !validators.TryGet(type, services, out var validator))
         {
             return;
         }
 
+        CertifiedProtectedValidatorConstruction.VerifyInvocation(validator, services);
         var failures = (await _validatorInvoker.Invoke(value, validator, name, cancellationToken)).ToArray();
         if (failures.Length > 0)
         {

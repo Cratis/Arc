@@ -38,6 +38,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// <inheritdoc/>
     public async Task<IEnumerable<ValidationResult>> Validate(ModelGraphValidationRequest request, CancellationToken cancellationToken = default)
     {
+        await using var activation = new ProtectedValidatorActivationFrame();
         var results = new List<ValidationResult>();
         var spans = ValidatorSpans.For(request.ServiceProvider?.GetService<IActivitySource<ModelGraphValidator>>());
         await Validate(request, request.Instance, request.RootPath, new HashSet<object>(ReferenceEqualityComparer.Instance), results, spans, cancellationToken);
@@ -163,6 +164,7 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
         IReadOnlySet<string>? ignoredConceptRuleMembers = null;
         if (!skipOwnValidator && TryGetValidator(request.ServiceProvider, instanceType, out var validator))
         {
+            CertifiedProtectedValidatorConstruction.VerifyInvocation(validator, request.ServiceProvider);
             results.AddRange(await Invoke(instance, validator, path, spans, cancellationToken));
 
             // A validator can suppress a cross-cutting concept validator for one of its own properties (see

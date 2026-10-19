@@ -3,6 +3,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Cratis.Arc.Commands;
 using Cratis.Arc.DependencyInjection;
 using Cratis.Types;
@@ -82,7 +83,7 @@ public class DiscoverableValidators : IDiscoverableValidators
     /// <param name="serviceProvider">The executing command's provider.</param>
     /// <param name="validatorType">The validator type.</param>
     /// <returns>The freshly constructed validator.</returns>
-    static object ConstructDependencies(IServiceProvider serviceProvider, Type validatorType)
+    internal static object ConstructDependencies(IServiceProvider serviceProvider, Type validatorType)
     {
         var constructor = ConstructorOf(validatorType);
         var arguments = ResolveArguments(serviceProvider, validatorType, constructor);
@@ -129,24 +130,32 @@ public class DiscoverableValidators : IDiscoverableValidators
     }
 
     /// <summary>
-    /// Constructs a validator for a protected decision command, refusing a validator that takes dependencies or that
-    /// Arc did not construct (Arc#2831).
+    /// Constructs a validator for a protected decision command, certifying supported dependencies only in an
+    /// attested scope and refusing instances Arc did not construct (Arc#2831).
     /// </summary>
     /// <param name="serviceProvider">The executing <see cref="IServiceProvider"/>.</param>
     /// <param name="validatorType">The validator type to construct.</param>
     /// <returns>A validator constructed by Arc.</returns>
-    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The validator takes dependencies, or the provider supplied an instance Arc did not construct.</exception>
+    /// <exception cref="DiscoverableValidatorRefusedInProtectedDecision">The dependency graph cannot be certified, or the provider supplied an instance Arc did not construct.</exception>
     /// <remarks>
-    /// A validator with constructor dependencies is refused before the provider is consulted, so no dependency, factory
-    /// or rule runs. Otherwise the provider's registration still wins, as it does for other commands, so no rule a
-    /// registration adds is silently dropped: the instance it supplies is used only when Arc constructed it, and
-    /// refused otherwise. With no registration, Arc constructs the validator exactly as it does for other commands.
+    /// Constructor dependencies and Arc-owned configuration callbacks require an attested scope and a complete
+    /// dependency preflight before activation. Parameterless validators without such configuration retain their
+    /// existing registration behavior: registered instances must have been constructed by Arc, and unregistered
+    /// validators are constructed directly by Arc.
     /// </remarks>
     static object ConstructForProtectedDecision(IServiceProvider serviceProvider, Type validatorType)
     {
         if (!ProtectedValidatorConstruction.IsDependencyFree(validatorType))
         {
-            throw new DiscoverableValidatorRefusedInProtectedDecision(validatorType);
+            if (!ProtectedDecisionProviderAttestations.TryGetAttestation(serviceProvider, out _))
+            {
+                throw new DiscoverableValidatorRefusedInProtectedDecision(validatorType);
+            }
+            return CertifiedProtectedValidatorConstruction.Construct(serviceProvider, validatorType, RuntimeFeature.IsDynamicCodeSupported);
+        }
+        if (CertifiedProtectedValidatorConstruction.IsConfigured(serviceProvider, validatorType))
+        {
+            return CertifiedProtectedValidatorConstruction.Construct(serviceProvider, validatorType, RuntimeFeature.IsDynamicCodeSupported);
         }
 
         var registered = serviceProvider.GetService(validatorType);

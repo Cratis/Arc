@@ -131,7 +131,9 @@ A validator over a plain read is acceptable only when something else holds the r
 
 ### Commands marked [ProtectedDecision]
 
-A `[ProtectedDecision]` command that is not under `On` keeps the earlier rule: Arc runs a discoverable validator only if it has exactly one public constructor and that constructor has no parameters, and refuses any other, because a plain read there would not be guarded. Under `On`, a validator with read-model parameters is allowed, as described above. If you are moving such a command to `On`, move its state checks from `Handle()` to a validator, and drop `DecisionRead<T>` for a plain parameter.
+By default, a `[ProtectedDecision]` command outside `On` runs a discoverable validator only if it has exactly one public, parameterless constructor. To take `DecisionRead<T>` or the command-aware `IDecisionReads` instead, opt into [certified validator construction](./certified-validators.md). That opt-in requires an attested native Microsoft DI scope and an inspectable, fresh transient dependency graph. It supports an Arc-owned configuration callback, not arbitrary factories or prebuilt instances, and is available only on untrimmed JIT runtimes.
+
+Under `On`, a validator with plain read-model parameters remains allowed as described above, without the provider opt-in. If you are moving a command to `On`, move its state checks from `Handle()` to a validator, and drop `DecisionRead<T>` for a plain parameter.
 
 ### What Arc does not check
 

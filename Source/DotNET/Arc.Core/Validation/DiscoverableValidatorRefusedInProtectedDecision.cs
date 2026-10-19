@@ -19,10 +19,18 @@ public class DiscoverableValidatorRefusedInProtectedDecision : Exception
     {
     }
 
-    DiscoverableValidatorRefusedInProtectedDecision(string message)
-        : base(message)
+    DiscoverableValidatorRefusedInProtectedDecision(string message, Exception? inner = null)
+        : base(message, inner)
     {
     }
+
+    /// <summary>
+    /// Creates a failure after every owned object has been offered cleanup, before transaction completion.
+    /// </summary>
+    /// <param name="failures">The cleanup failures in reverse construction order.</param>
+    /// <returns>The command-stopping cleanup failure.</returns>
+    internal static DiscoverableValidatorRefusedInProtectedDecision CleanupFailed(IEnumerable<Exception> failures) =>
+        new("Releasing a protected decision validator graph failed. The command cannot complete successfully.", new AggregateException(failures));
 
     /// <summary>
     /// Creates the refusal for a registered validator that cannot be constructed fresh through command parameter resolution.
