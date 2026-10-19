@@ -333,6 +333,7 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
                             message.queryId,
                             message.payload,
                         );
+                        this.handleError(message);
                     }
                     break;
             }
@@ -392,6 +393,26 @@ export class ServerSentEventHubConnection implements IObservableQueryHubConnecti
     private handleQueryResult(message: HubMessage): void {
         const result = message.payload as QueryResult<any>;
         this.deliverResult(message, result, result?.isValid === false);
+    }
+
+    private handleError(message: HubMessage): void {
+        const result = new QueryResult(
+            {
+                data: undefined,
+                isSuccess: false,
+                isReady: true,
+                isAuthorized: true,
+                isValid: true,
+                hasExceptions: true,
+                validationResults: [],
+                exceptionMessages: [message.payload as string],
+                exceptionStackTrace: '',
+                paging: { totalItems: 0, totalPages: 0, page: 0, size: 0 },
+            },
+            Object,
+            false,
+        );
+        this.deliverResult(message, result, false);
     }
 
     private handleUnauthorized(message: HubMessage): void {

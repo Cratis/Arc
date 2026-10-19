@@ -25,6 +25,6 @@ internal static partial class MongoCollectionExtensionsLogMessages
     [LoggerMessage(LogLevel.Trace, "Cleaning up")]
     internal static partial void CleaningUp(this ILogger<MongoCollection> logger);
 
-    [LoggerMessage(LogLevel.Warning, "Unexpected error occurred")]
+    [LoggerMessage(LogLevel.Error, "Unexpected error occurred")]
     internal static partial void UnexpectedError(this ILogger<MongoCollection> logger, Exception ex);
 }
