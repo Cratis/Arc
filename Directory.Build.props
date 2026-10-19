@@ -28,6 +28,13 @@
         <Configuration>Debug</Configuration>
     </PropertyGroup>
 
+    <!-- The CI build (.github/workflows/dotnet-build.yml) runs every spec on one framework, so it passes
+         CratisSpecsTargetFramework to compile the spec projects and their fixtures for that framework only.
+         Shipped libraries still build for every framework below, and a build without the property is unchanged. -->
+    <PropertyGroup Condition="'$(Configuration)'=='Release' AND '$(CratisSpecsTargetFramework)'!='' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'=='' AND $(MSBuildProjectDirectory.Contains('.Specs'))">
+        <TargetFrameworks>$(CratisSpecsTargetFramework)</TargetFrameworks>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)'=='Release' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'==''">
         <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     </PropertyGroup>
