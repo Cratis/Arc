@@ -148,6 +148,7 @@
       "projects": [
         "Source/DotNET/Arc.Core.CodeAnalysis.Specs",
         "Source/DotNET/Arc.Core.Specs",
+        "Source/DotNET/Connections.Azure.Specs",
         "Source/DotNET/Cratis.Specs",
         "Source/DotNET/Screenplay.Specs",
         "Source/DotNET/Testing.Specs"
