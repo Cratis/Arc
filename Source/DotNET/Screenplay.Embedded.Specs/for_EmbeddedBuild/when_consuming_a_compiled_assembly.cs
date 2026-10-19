@@ -44,6 +44,7 @@ public class when_consuming_a_compiled_assembly : Specification
     [Fact] void should_embed_documents_without_compiler_warnings() => _documents.Values.SelectMany(_ => new ScreenplayCompiler().Compile(_).Diagnostics)
         .Where(_ => _.Severity == Cratis.Screenplay.Diagnostics.DiagnosticSeverity.Warning).ShouldBeEmpty();
     [Fact] void should_use_actual_manifest_resources_for_every_document() => _catalog.Documents.All(_ => _assembly.GetManifestResourceNames().Contains(_.ResourceName)).ShouldBeTrue();
+    [Fact] void should_embed_the_project_resources_alongside_the_documents() => _assembly.GetManifestResourceNames().ShouldContain("Company.Library.Messages.resources");
 
     string ReadDocument(EmbeddedDocument document)
     {
