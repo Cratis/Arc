@@ -114,6 +114,9 @@ public class a_measure_pipeline : a_read_protection_pipeline
     protected void ReadParameter(CommandContext context, string name)
     {
         var parameter = typeof(Dependencies).GetMethod(nameof(Dependencies.Handle))!.GetParameters().Single(_ => _.Name == name);
+        ReadModelDispatch.Register<Stock>();
+        ReadModelDispatch.Register<JoinedStock>();
+        ReadModelDispatch.Register<AdvisoryStock>();
         var resolver = new ChronicleParameterDependencyResolver([typeof(Stock), typeof(JoinedStock), typeof(AdvisoryStock)]);
         resolver.TryResolve(_services, parameter, out _);
         if (parameter.ParameterType == typeof(Stock))

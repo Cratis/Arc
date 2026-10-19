@@ -41,6 +41,7 @@ public class a_parameter_lookup : Specification
             [WellKnownCommandContextKeys.EventSourceId] = (EventSourceId)"subject"
         });
         accessor.Current.Returns(_ => _context);
+        ReadModelDispatch.Register<Balance>();
         _services = new ServiceCollection()
             .AddSingleton(accessor)
             .AddSingleton(_readModels)
