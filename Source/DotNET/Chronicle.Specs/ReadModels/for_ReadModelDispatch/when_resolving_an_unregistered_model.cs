@@ -3,12 +3,12 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ReadModelDispatch;
 
-public class resolving_an_unregistered_model : Specification
+public class when_resolving_an_unregistered_model : Specification
 {
-    Exception _failure;
+    ReadModelDispatchEntry _entry;
 
-    void Because() => _failure = Catch.Exception(() => ReadModelDispatch.For(typeof(UnregisteredModel)));
+    void Because() => _entry = ReadModelDispatch.For(typeof(UnregisteredModel));
 
-    [Fact] void should_throw_missing_read_model_dispatch() => _failure.ShouldBeOfExactType<MissingReadModelDispatch>();
-    [Fact] void should_name_the_model() => _failure.Message.ShouldContain(nameof(UnregisteredModel));
+    [Fact] void should_register_it_on_first_use() => _entry.ShouldNotBeNull();
+    [Fact] void should_keep_that_registration() => ReadModelDispatch.For(typeof(UnregisteredModel)).ShouldBeSame(_entry);
 }

@@ -3,7 +3,7 @@
 
 namespace Cratis.Arc.Chronicle.ReadModels.for_ReadModelDispatch;
 
-public class registering_twice : Specification
+public class when_registering_twice : Specification
 {
     ReadModelDispatchEntry _first;
     ReadModelDispatchEntry _second;

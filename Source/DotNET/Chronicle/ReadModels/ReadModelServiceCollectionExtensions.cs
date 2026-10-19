@@ -73,10 +73,7 @@ public static class ReadModelServiceCollectionExtensions
         foreach (var readModelType in readModelTypes)
         {
             // One closed registration per read model; it registers the typed dispatch and the DecisionRead<T> factory.
-            typeof(ReadModelServiceCollectionExtensions)
-                .GetMethod(nameof(RegisterReadModel), BindingFlags.NonPublic | BindingFlags.Static)!
-                .MakeGenericMethod(readModelType)
-                .Invoke(null, [services, readModelTypes]);
+            RegisterReadModel(readModelType, services, readModelTypes);
         }
 
         return services;
@@ -160,10 +157,44 @@ public static class ReadModelServiceCollectionExtensions
     internal static Type[] DiscoverReadModelTypes(IClientArtifactsProvider artifacts) =>
         _discoveryByArtifacts.GetValue(artifacts, _ => new ReadModelDiscovery()).GetTypes(artifacts);
 
-    static void RegisterReadModel<T>(IServiceCollection services, Type[] readModelTypes)
+    /// <summary>
+    /// Registers typed dispatch for a read model type that <see cref="AddReadModels"/> did not discover. This and
+    /// <see cref="AddReadModels"/> share the single place that closes the registration over the model type.
+    /// </summary>
+    /// <param name="model">The read model type.</param>
+    /// <returns>Whether dispatch is now registered.</returns>
+    internal static bool TryRegisterDispatch(Type model)
+    {
+        if (!model.IsClass)
+        {
+            return false;
+        }
+
+        try
+        {
+            RegisterReadModel(model, null, []);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or TargetInvocationException)
+        {
+            return false;
+        }
+    }
+
+    static void RegisterReadModel(Type model, IServiceCollection? services, Type[] readModelTypes) =>
+        typeof(ReadModelServiceCollectionExtensions)
+            .GetMethod(nameof(RegisterReadModelOf), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(model)
+            .Invoke(null, [services, readModelTypes]);
+
+    static void RegisterReadModelOf<T>(IServiceCollection? services, Type[] readModelTypes)
         where T : class
     {
         ReadModelDispatch.Register<T>();
+        if (services is null)
+        {
+            return;
+        }
 
         // Transient DI registration: the invocation cache lives in CommandDecisionReads, not in a reused provider.
         var descriptor = ServiceDescriptor.Transient(ResolveDecisionRead<T>);

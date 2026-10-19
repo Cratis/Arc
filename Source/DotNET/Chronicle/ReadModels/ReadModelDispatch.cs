@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
@@ -12,7 +13,9 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// </summary>
 /// <remarks>
 /// <c>AddReadModels</c> registers every Chronicle-backed read model. This registry does not imply
-/// that the rest of Arc supports NativeAOT.
+/// that the rest of Arc supports NativeAOT. A model reached without <c>AddReadModels</c> is registered on first use.
+/// Registrations are process-wide and keep the model <see cref="Type"/> alive, so a collectible
+/// <c>AssemblyLoadContext</c> holding a read model cannot unload.
 /// </remarks>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public static class ReadModelDispatch
@@ -36,7 +39,7 @@ public static class ReadModelDispatch
     /// </summary>
     /// <param name="model">The read model type.</param>
     /// <returns>The typed dispatch.</returns>
-    /// <exception cref="MissingReadModelDispatch">The model was never registered.</exception>
+    /// <exception cref="MissingReadModelDispatch">The model is not a class or cannot be registered.</exception>
     internal static ReadModelDispatchEntry For(Type model)
     {
         if (_entries.TryGetValue(model, out var entry))
@@ -46,6 +49,11 @@ public static class ReadModelDispatch
 
         // The registration may live in a module initializer that has not run yet.
         RuntimeHelpers.RunModuleConstructor(model.Module.ModuleHandle);
-        return _entries.TryGetValue(model, out entry) ? entry : throw new MissingReadModelDispatch(model);
+        if (!_entries.TryGetValue(model, out entry) && ReadModelServiceCollectionExtensions.TryRegisterDispatch(model))
+        {
+            _entries.TryGetValue(model, out entry);
+        }
+
+        return entry ?? throw new MissingReadModelDispatch(model);
     }
 }
