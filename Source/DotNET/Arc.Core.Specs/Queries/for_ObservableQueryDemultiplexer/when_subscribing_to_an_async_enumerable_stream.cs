@@ -27,17 +27,20 @@ public class when_subscribing_to_an_async_enumerable_stream : given.an_observabl
     async Task Because()
     {
         _subscription = _hub.SubscribeToStreamingData(
-            Substitute.For<IHttpRequestContext>(),
-            Stream(),
-            "q1",
-            new PagingInfo(0, 0, 0),
-            null,
-            CorrelationId.New(),
-            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
-            OnNext,
-            OnError,
-            OnUnauthorized,
-            CancellationToken.None);
+            new ObservableQuerySubscriptionContext(
+                Substitute.For<IHttpRequestContext>(),
+                "q1",
+                new PagingInfo(0, 0, 0),
+                null,
+                CorrelationId.New(),
+                new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
+                OnNext,
+                OnError,
+                OnUnauthorized,
+                () => { },
+                null,
+                CancellationToken.None),
+            Stream());
 
         // The stream has emitted its first item and is now parked, so cancelling it exercises a real stop.
         await _firstItemEmitted.Task.WaitAsync(TimeSpan.FromSeconds(2));

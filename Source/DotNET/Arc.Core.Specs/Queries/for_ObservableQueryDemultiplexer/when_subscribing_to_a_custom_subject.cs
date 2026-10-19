@@ -20,25 +20,28 @@ public class when_subscribing_to_a_custom_subject : given.an_observable_query_de
     async Task Because()
     {
         _subscription = _hub.SubscribeToStreamingData(
-            Substitute.For<IHttpRequestContext>(),
-            _subject,
-            "query-1",
-            new PagingInfo(0, 0, 0),
-            null,
-            CorrelationId.New(),
-            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
-            (result, _) =>
-            {
-                lock (_results)
+            new ObservableQuerySubscriptionContext(
+                Substitute.For<IHttpRequestContext>(),
+                "query-1",
+                new PagingInfo(0, 0, 0),
+                null,
+                CorrelationId.New(),
+                new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
+                (result, _) =>
                 {
-                    _results.Add(result);
-                }
-                _signals.Signal();
-                return Task.CompletedTask;
-            },
-            (_, _, _) => Task.CompletedTask,
-            (_, _) => Task.CompletedTask,
-            CancellationToken.None);
+                    lock (_results)
+                    {
+                        _results.Add(result);
+                    }
+                    _signals.Signal();
+                    return Task.CompletedTask;
+                },
+                (_, _, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask,
+                () => { },
+                null,
+                CancellationToken.None),
+            _subject);
 
         _subject.OnNext(new("first"));
         await WaitFor(() => _results.Count == 1);

@@ -52,20 +52,23 @@ public class when_subscribing_to_a_collection_without_identity : given.an_observ
 
     IDisposable Subscribe(string? mode, string queryId, List<QueryResult> results) =>
         _hub.SubscribeToStreamingData(
-            Substitute.For<IHttpRequestContext>(),
-            _subject,
-            queryId,
-            new PagingInfo(0, 0, 0),
-            mode,
-            CorrelationId.New(),
-            new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
-            (result, _) =>
-            {
-                results.Add(result);
-                _signals.Signal();
-                return Task.CompletedTask;
-            },
-            (_, _, _) => Task.CompletedTask,
-            (_, _) => Task.CompletedTask,
-            CancellationToken.None)!;
+            new ObservableQuerySubscriptionContext(
+                Substitute.For<IHttpRequestContext>(),
+                queryId,
+                new PagingInfo(0, 0, 0),
+                mode,
+                CorrelationId.New(),
+                new ObservableQuerySubscriptionIdentity("[TestApp].[TestQuery]", QueryArguments.Empty, null),
+                (result, _) =>
+                {
+                    results.Add(result);
+                    _signals.Signal();
+                    return Task.CompletedTask;
+                },
+                (_, _, _) => Task.CompletedTask,
+                (_, _) => Task.CompletedTask,
+                () => { },
+                null,
+                CancellationToken.None),
+            _subject)!;
 }
