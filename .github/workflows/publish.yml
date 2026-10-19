@@ -140,11 +140,13 @@ jobs:
       - name: Remove any existing artifacts
         run: rm -rf ${{ env.NUGET_OUTPUT }}
 
+      # Spec projects compile for net10.0 only, exactly as in the pull request build (dotnet-build.yml), so a change
+      # that passed there cannot fail here. Libraries still build for net8.0, net9.0 and net10.0 (Directory.Build.props).
       - name: Build
-        run: dotnet build --configuration Release
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0
 
       - name: Create NuGet packages
-        run: dotnet pack --no-build --configuration Release -o ${{ env.NUGET_OUTPUT }} -p:PackageVersion=${{ needs.release.outputs.version }}
+        run: dotnet pack --no-build --configuration Release -p:CratisSpecsTargetFramework=net10.0 -o ${{ env.NUGET_OUTPUT }} -p:PackageVersion=${{ needs.release.outputs.version }}
 
       # Get a short-lived NuGet API key
       - name: NuGet login (OIDC → temp API key)

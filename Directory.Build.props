@@ -28,6 +28,15 @@
         <Configuration>Debug</Configuration>
     </PropertyGroup>
 
+    <!-- Every spec runs on one framework, so the pull request build (dotnet-build.yml) and the release build
+         (publish.yml) pass CratisSpecsTargetFramework to compile the spec projects and their fixtures for that
+         framework only. Passing it in both keeps a pull request from merging spec code that only the release build
+         would have compiled. Shipped libraries still build for every framework below, and a build without the
+         property is unchanged. -->
+    <PropertyGroup Condition="'$(Configuration)'=='Release' AND '$(CratisSpecsTargetFramework)'!='' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'=='' AND $(MSBuildProjectDirectory.Substring($(MSBuildThisFileDirectory.Length)).Contains('.Specs'))">
+        <TargetFrameworks>$(CratisSpecsTargetFramework)</TargetFrameworks>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)'=='Release' AND '$(TargetFramework)'=='' AND '$(TargetFrameworks)'==''">
         <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
     </PropertyGroup>

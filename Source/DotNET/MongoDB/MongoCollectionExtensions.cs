@@ -382,7 +382,7 @@ public static class MongoCollectionExtensions
             }
             catch (Exception ex)
             {
-                logger.UnexpectedError(ex);
+                logger.UnexpectedError(collection.CollectionNamespace.FullName, typeof(TDocument).FullName, ex);
                 subject.OnError(ex);
             }
             finally
@@ -393,39 +393,34 @@ public static class MongoCollectionExtensions
 
         async Task DispatchChange(ChangeStreamDocument<TDocument> changeDocument, IFindFluent<TDocument, TDocument> query)
         {
-            try
+            // A failure here propagates out of the cursor loop and faults the observable in Watch(): a change
+            // that could not be applied would otherwise be lost silently and leave the client on stale data.
+            if (observationContext.Paging.IsPaged)
             {
-                if (observationContext.Paging.IsPaged)
-                {
-                    await HandlePagedChange(
-                        collection,
-                        findCall,
-                        observationContext,
-                        ignoreQueryContext,
-                        onNext,
-                        query,
-                        documents,
-                        subject,
-                        cancellationToken);
-                    return;
-                }
-
-                await HandleChange(
+                await HandlePagedChange(
                     collection,
-                    filter,
+                    findCall,
                     observationContext,
+                    ignoreQueryContext,
                     onNext,
-                    changeDocument,
+                    query,
                     documents,
                     subject,
-                    idProperty,
-                    classMap.IdMemberMap,
                     cancellationToken);
+                return;
             }
-            catch (Exception e)
-            {
-                logger.UnexpectedError(e);
-            }
+
+            await HandleChange(
+                collection,
+                filter,
+                observationContext,
+                onNext,
+                changeDocument,
+                documents,
+                subject,
+                idProperty,
+                classMap.IdMemberMap,
+                cancellationToken);
         }
 
         void CancelWatch()
