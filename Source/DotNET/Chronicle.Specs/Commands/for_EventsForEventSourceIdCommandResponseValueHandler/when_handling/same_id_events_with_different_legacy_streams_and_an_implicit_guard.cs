@@ -12,15 +12,16 @@ using Cratis.Execution;
 namespace Cratis.Arc.Chronicle.Commands.for_EventsForEventSourceIdCommandResponseValueHandler.when_handling;
 
 /// <summary>
-/// A guard derived from the definition is a default, not a choice: two events for one id that would need different
-/// guards fail before anything reaches the unit of work, instead of the first guard silently covering both.
+/// Two events for one id that need different legacy-stream guards enroll both: the unit of work commits one batch that
+/// requires each guard, instead of the first guard silently covering both.
 /// </summary>
 public class same_id_events_with_different_legacy_streams_and_an_implicit_guard : given.an_events_for_event_source_id_command_response_value_handler
 {
     IEventSequence _eventSequence;
     UnitOfWork _unitOfWork;
     Exception _exception;
-    bool _appended;
+    KeyValuePair<EventSourceId, ConcurrencyScope>[] _scopes = [];
+    EventSourceId _id;
 
     void Establish()
     {
@@ -32,10 +33,10 @@ public class same_id_events_with_different_legacy_streams_and_an_implicit_guard 
         _eventSequence = Substitute.For<IEventSequence>();
         _eventSequence.Id.Returns(EventSequenceId.Log);
         _eventSequence
-            .AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IDictionary<EventSourceId, ConcurrencyScope>?>())
-            .Returns(_ =>
+            .AppendMany(Arg.Any<IEnumerable<EventForEventSourceId>>(), Arg.Any<CorrelationId?>(), Arg.Any<IEnumerable<string>?>(), Arg.Any<IEnumerable<KeyValuePair<EventSourceId, ConcurrencyScope>>>())
+            .Returns(call =>
             {
-                _appended = true;
+                _scopes = call.Arg<IEnumerable<KeyValuePair<EventSourceId, ConcurrencyScope>>>().ToArray();
                 return Task.FromResult(AppendManyResult.Success(CorrelationId.NotSet, []));
             });
         var eventStore = Substitute.For<IEventStore>();
@@ -46,13 +47,13 @@ public class same_id_events_with_different_legacy_streams_and_an_implicit_guard 
     async Task Because()
     {
         CommandTransaction.Current = _unitOfWork;
-        var id = EventSourceId.New();
+        _id = EventSourceId.New();
         _exception = await Catch.Exception(() => _handler.Handle(
             _commandContext,
             new object[]
             {
-                new EventForEventSourceId(id, new TestEvent("first")) { EventStreamId = new EventStreamId("stream-a") },
-                new EventForEventSourceId(id, new TestEvent("second")) { EventStreamId = new EventStreamId("stream-b") }
+                new EventForEventSourceId(_id, new TestEvent("first")) { EventStreamId = new EventStreamId("stream-a") },
+                new EventForEventSourceId(_id, new TestEvent("second")) { EventStreamId = new EventStreamId("stream-b") }
             }));
         if (_exception is null)
         {
@@ -62,7 +63,8 @@ public class same_id_events_with_different_legacy_streams_and_an_implicit_guard 
 
     void Destroy() => CommandTransaction.Current = null;
 
-    [Fact] void should_reject_the_incompatible_guards() => _exception.ShouldBeOfExactType<IncompatibleConcurrencyScopesForEventSource>();
-    [Fact] void should_not_stage_any_event() => _unitOfWork.GetEvents().ShouldBeEmpty();
-    [Fact] void should_not_append() => _appended.ShouldBeFalse();
+    [Fact] void should_not_fail() => _exception.ShouldBeNull();
+    [Fact] void should_stage_both_events() => _unitOfWork.GetEvents().Count().ShouldEqual(2);
+    [Fact] void should_commit_one_guard_per_stream() => _scopes.Select(_ => _.Value.EventStreamId).ShouldContainOnly(new EventStreamId("stream-a"), new EventStreamId("stream-b"));
+    [Fact] void should_label_every_guard_with_the_event_source() => _scopes.All(_ => _.Key == _id).ShouldBeTrue();
 }
