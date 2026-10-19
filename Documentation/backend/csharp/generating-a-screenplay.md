@@ -784,6 +784,8 @@ slice StateChange Registration
 - **`when`** is its action: a command it executed, or `when append <EventType>` for an event scenario's append.
 - **`then`** is each event it asserted was appended, **`then error`** a validation or constraint rejection, and **`then denied`** an authorization denial.
 
+A fixture's implicit conversion to a concept must preserve the value you wrote. The generator states a scalar constant or collection element only when it can prove that the conversion operator and its constructor forward the backing value unchanged. An operator that uppercases text, a constructor that changes it, or a conversion whose implementation cannot be proven leaves the whole scenario out with `SP0039`. Expected event values follow the same rule; the generator never removes an element or substitutes the original constant for a transformed value.
+
 ### Literal-case tables
 
 When body-less concrete classes pass literal values to the primary constructor of one abstract scenario, the generator can state the shared steps once. It reads the base symbolically, reads every row with its constants, and folds only when substituting those values reproduces every row's complete model: the same steps, outcomes and caller. Textual similarity is not enough.

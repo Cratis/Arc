@@ -44,7 +44,7 @@ public class an_event_collection_predicate : for_ScreenplayGenerator.given.a_gen
         }
         """;
 
-    protected void GenerateExpectation(string predicate, string fixture = "[Urgent, \"review\"]")
+    protected void GenerateExpectation(string predicate, string fixture = "[Urgent, \"review\"]", string conversion = "new(value)", string backing = "Value")
     {
         var scenario = $$"""
             using System;
@@ -72,7 +72,9 @@ public class an_event_collection_predicate : for_ScreenplayGenerator.given.a_gen
             }
             """;
         Generate(
-            ("Library/Approvals/Requesting/Requesting.cs", Slice),
+            ("Library/Approvals/Requesting/Requesting.cs", Slice
+                .Replace("=> new(value);", $"=> {conversion};", StringComparison.Ordinal)
+                .Replace("ConceptAs<string>(Value)", $"ConceptAs<string>({backing})", StringComparison.Ordinal)),
             ("Library/Approvals/Requesting/when_requesting/and_the_event_matches.cs", scenario),
             ("Library/Testing/Assertions.cs", Assertions),
             (IntegrationTesting.Path, IntegrationTesting.Source));

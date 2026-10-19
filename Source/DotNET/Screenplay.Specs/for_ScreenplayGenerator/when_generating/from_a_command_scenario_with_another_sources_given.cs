@@ -147,7 +147,7 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
 
     [Theory]
     [InlineData("\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\"")]
-    public void should_keep_a_literal_given_matching_a_constructed_concept(string identity)
+    public void should_omit_a_literal_given_matching_an_unproven_concept_conversion(string identity)
     {
         var slice = Slice.Replace("[Key] string Id", "[Key] AuthorId Id", StringComparison.Ordinal) + """
 
@@ -159,7 +159,7 @@ public partial class from_a_command_scenario_with_another_sources_given : a_gene
         GenerateScenario(slice, Scenario
             .Replace("ForEventSource(\"other\")", "ForEventSource(\"6f3c8b47-1938-4d4c-8f26-817e306a10e2\")", StringComparison.Ordinal)
             .Replace("RegisterAuthor(\"current\",", $"RegisterAuthor({identity},", StringComparison.Ordinal));
-        AssertImplicitSource(runtimeIdentity: true);
+        AssertOmitted("conversion");
     }
 
     [Theory]

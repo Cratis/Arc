@@ -217,7 +217,7 @@ internal class SpecificationQueryReader(SemanticModels models, IReadOnlyList<Spe
         }
 
         var draft = new SpecificationDraft();
-        var values = new SpecificationValues(new ScreenplayDiagnostics(), new GeneratedIdentities(models));
+        var values = new SpecificationValues(new ScreenplayDiagnostics(), new GeneratedIdentities(models), models);
         var result = values.ReadQuery(construction.Creation, construction.SemanticModel, expectedType, matched.ReadModel, type.Name, type.ToDisplayString(), draft).ToArray();
         if (!HasEveryExpectedValue(expectedType, result))
         {

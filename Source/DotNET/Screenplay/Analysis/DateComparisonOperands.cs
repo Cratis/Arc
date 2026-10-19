@@ -47,7 +47,7 @@ internal static class DateComparisonOperands
     /// <returns>The canonical text or null.</returns>
     internal static string? Literal(ExpressionSyntax expression, SemanticModel model)
     {
-        if (!DateOperandConversions.Preserves(expression, model))
+        if (!ValuePreservingConversions.Preserves(expression, model))
         {
             return null;
         }

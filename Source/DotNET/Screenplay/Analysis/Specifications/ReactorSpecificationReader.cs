@@ -86,7 +86,7 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
         var steps = SpecificationMembers.StepsOf(type);
         var draft = new SpecificationDraft { EventSources = new(models, _held) };
         var stated = new ScreenplayDiagnostics();
-        var values = new SpecificationValues(stated, new GeneratedIdentities(models));
+        var values = new SpecificationValues(stated, new GeneratedIdentities(models), models);
         var reactions = ReactorReader.ReactionsOf(reactor, models).ToList();
         var observed = ReactorReader.ObservedBy(reactor).ToHashSet(StringComparer.Ordinal);
 
@@ -369,7 +369,7 @@ public class ReactorSpecificationReader(SemanticModels models, ScreenplayDiagnos
                 return;
             }
 
-            if (!SpecificationEventPredicateValues.TryRead(invocation, method, asserted, semanticModel, draft, out var values, out var reason))
+            if (!SpecificationEventPredicateValues.TryRead(invocation, method, asserted, semanticModel, draft, out var values, out var reason, models))
             {
                 draft.CannotRead(reason!);
                 return;

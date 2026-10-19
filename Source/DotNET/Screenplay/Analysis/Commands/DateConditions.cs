@@ -58,7 +58,7 @@ internal static class DateConditions
         DateComparisonOperands.Literal(expression, model) is { } date ? new LiteralSource(date) : null;
 
     static string? ConversionFailure(BinaryExpressionSyntax binary, SemanticModel model) =>
-        DateOperandConversions.Preserves(binary.Left, model) && DateOperandConversions.Preserves(binary.Right, model)
+        ValuePreservingConversions.Preserves(binary.Left, model) && ValuePreservingConversions.Preserves(binary.Right, model)
             ? null : "user-defined operand conversions must forward the date value unchanged";
 
     static string? Failure(BinaryExpressionSyntax binary, SemanticModel model, string? left, string? right) =>
