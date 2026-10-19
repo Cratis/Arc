@@ -13,8 +13,8 @@ public class cancelled_before_the_call : given.an_interceptor
 
     void Establish()
     {
-        // The production pipeline has a retry strategy, and a strategy does not invoke the callback for a token that is
-        // already cancelled.
+        // The constructor accepts any pipeline, and a strategy does not invoke the callback for a token that is already
+        // cancelled.
         var pipeline = new ResiliencePipelineBuilder()
             .AddRetry(new RetryStrategyOptions { MaxRetryAttempts = 5, Delay = TimeSpan.FromMilliseconds(1) })
             .Build();

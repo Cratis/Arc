@@ -14,7 +14,6 @@ using MongoDB.Driver;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Events;
 using Polly;
-using Polly.Retry;
 
 namespace Cratis.Arc.MongoDB;
 
@@ -79,19 +78,12 @@ public class MongoDBClientFactory(
         var client = new MongoClient(settings);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
-        var resiliencePipeline = new ResiliencePipelineBuilder()
-            .AddRetry(new RetryStrategyOptions
-            {
-                ShouldHandle = args => args.Outcome.Exception is not null ? PredicateResult.True() : PredicateResult.False(),
-                UseJitter = true,
-                MaxRetryAttempts = 5,
-                Delay = TimeSpan.FromMilliseconds(500)
-            }).Build();
-
+        // No retry strategy: the collection interceptors complete the caller's task inside the callback for every
+        // outcome, so nothing reaches a strategy and a retry could never trigger.
         var proxyGenerator = new ProxyGenerator();
         var proxyGeneratorOptions = new ProxyGenerationOptions
         {
-            Selector = new MongoClientInterceptorSelector(proxyGenerator, resiliencePipeline, client)
+            Selector = new MongoClientInterceptorSelector(proxyGenerator, ResiliencePipeline.Empty, client)
         };
 
         return proxyGenerator.CreateInterfaceProxyWithTarget<IMongoClient>(client, proxyGeneratorOptions);
