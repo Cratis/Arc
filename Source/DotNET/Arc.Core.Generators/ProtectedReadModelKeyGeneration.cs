@@ -76,6 +76,27 @@ internal static class ProtectedReadModelKeyGeneration
         }
     }
 
+    /// <summary>
+    /// Gets the most derived public instance <c>Id</c> property of a read model, as the read protection lookup finds it.
+    /// </summary>
+    /// <param name="model">The read model type.</param>
+    /// <returns>The property, or <see langword="null"/> when the model has none.</returns>
+    internal static IPropertySymbol? IdProperty(INamedTypeSymbol model) =>
+        Members(model).OfType<IPropertySymbol>().FirstOrDefault(property => property.Name == "Id" && !property.IsStatic && property.Parameters.Length == 0 && property.DeclaredAccessibility == Accessibility.Public);
+
+    /// <summary>
+    /// Gets the members of a type and its base types, most derived first.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The members.</returns>
+    internal static IEnumerable<ISymbol> Members(INamedTypeSymbol type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            foreach (var member in current.GetMembers()) yield return member;
+        }
+    }
+
     static IEnumerable<ITypeSymbol> DeclaredKeys(INamedTypeSymbol command)
     {
         var properties = Members(command).OfType<IPropertySymbol>()
@@ -96,27 +117,6 @@ internal static class ProtectedReadModelKeyGeneration
                 var id = Members(model).OfType<IPropertySymbol>().FirstOrDefault(property => property.Name == "Id");
                 foreach (var property in properties.Where(property => SymbolEqualityComparer.Default.Equals(property.Type, id?.Type))) yield return property.Type;
             }
-        }
-    }
-
-    /// <summary>
-    /// Gets the most derived public instance <c>Id</c> property of a read model, as the read protection lookup finds it.
-    /// </summary>
-    /// <param name="model">The read model type.</param>
-    /// <returns>The property, or <see langword="null"/> when the model has none.</returns>
-    internal static IPropertySymbol? IdProperty(INamedTypeSymbol model) =>
-        Members(model).OfType<IPropertySymbol>().FirstOrDefault(property => property.Name == "Id" && !property.IsStatic && property.Parameters.Length == 0 && property.DeclaredAccessibility == Accessibility.Public);
-
-    /// <summary>
-    /// Gets the members of a type and its base types, most derived first.
-    /// </summary>
-    /// <param name="type">The type.</param>
-    /// <returns>The members.</returns>
-    internal static IEnumerable<ISymbol> Members(INamedTypeSymbol type)
-    {
-        for (var current = type; current is not null; current = current.BaseType)
-        {
-            foreach (var member in current.GetMembers()) yield return member;
         }
     }
 

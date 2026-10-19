@@ -4,6 +4,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Cratis.Arc.Generators;
 
@@ -95,13 +96,13 @@ internal static class CommandReadModelKeyGeneration
 
     static IEnumerable<ITypeSymbol> ModelParameters(INamedTypeSymbol command) =>
         ProtectedReadModelKeyGeneration.Members(command).OfType<IMethodSymbol>()
-            .Where(method => method.Name is "Handle" or "Provide")
+            .Where(method => string.Equals(method.Name, "Handle", StringComparison.Ordinal) || string.Equals(method.Name, "Provide", StringComparison.Ordinal))
             .SelectMany(method => method.Parameters.Select(parameter => parameter.Type));
 
     static bool RenderCommand(StringBuilder source, INamedTypeSymbol command, Compilation compilation, CancellationToken cancellationToken)
     {
         var properties = ModelGraphWalkerTypes.WalkedProperties(command, compilation, cancellationToken, publicGettersOnly: true);
-        if (properties is null || !properties.TrueForAll(property => TypeNaming.CanBeNamed(property.Type, compilation)))
+        if (properties?.TrueForAll(property => TypeNaming.CanBeNamed(property.Type, compilation)) != true)
         {
             return false;
         }
