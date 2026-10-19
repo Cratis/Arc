@@ -108,14 +108,23 @@ internal static class PerStreamReadModelBinding
     static T? ResolveModel<T>(CommandContext context, IServiceProvider services, ParameterInfo? parameter)
         where T : class
     {
+        var advisory = parameter?.GetCustomAttribute<UnprotectedAttribute>() ?? typeof(T).GetCustomAttribute<UnprotectedAttribute>();
+        var keyText = string.Empty;
+        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
+        {
+            var raw = context.GetRawEventSourceKey();
+            keyText = ProtectedReadModelKeys.Display(raw);
+            ProtectedReadModelKeys.ValidateRawKey(ProtectedReadModelKeys.Traversal(services), typeof(T), raw, keyText);
+            ProtectedReadModelKeys.ValidateWireText(typeof(T), context.GetEventSourceIdOrDefault().Value, keyText);
+        }
         var route = Route(typeof(T), context, services, parameter);
         var source = context.GetEventSourceId();
-        var advisory = parameter?.GetCustomAttribute<UnprotectedAttribute>() ?? typeof(T).GetCustomAttribute<UnprotectedAttribute>();
         var reader = services.GetRequiredService<IDecisionReads>();
         if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && advisory is null)
         {
             var commandReader = reader as CommandDecisionReads ?? throw new ProtectedCommandRequiresCommandAwareReader();
-            return commandReader.GetStreamInstance<T>(source, route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+            var protectedInstance = commandReader.GetStreamInstance<T>(source, route.EventStreamType, route.EventStreamId, route.EventSourceType, context.CancellationToken).GetAwaiter().GetResult();
+            return parameter is null ? protectedInstance : (T?)ProtectedReadModelKeys.RequireInstance(protectedInstance, parameter, keyText);
         }
         using var allowance = CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && TransactionalCommandScope.CurrentProtectedUnit is { } unit
             ? unit.AllowReads(ReadAllowance.Advisory, advisory?.Reason ?? "Declared advisory") : null;

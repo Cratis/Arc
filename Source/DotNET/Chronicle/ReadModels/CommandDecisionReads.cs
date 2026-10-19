@@ -149,13 +149,22 @@ internal sealed partial class CommandDecisionReads(IDecisionReads inner, IEventS
     /// <returns>The invocation's decision read.</returns>
     /// <exception cref="DecisionReadCouldNotBeAcquired">The protected read could not be acquired.</exception>
     /// <exception cref="ReadIncomplete">The fresh fold did not reach its probe.</exception>
+    /// <exception cref="ProtectedReadModelDoesNotExist">The protected key has a refused shape.</exception>
     async Task<DecisionRead<T>> Get<T>(ReadModelKey key, StreamScope? streamScope, IUnitOfWork? requestedUnit, CancellationToken cancellationToken)
         where T : class
     {
+        if (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On)
+        {
+            ProtectedReadModelKeys.ValidateWireText(typeof(T), key.Value, key.Value);
+        }
         ReadProtectionMeasurement.Current?.DecisionRead<T>(inner, key.Value, streamScope?.EventStreamType, streamScope?.EventStreamId, streamScope?.EventSourceType);
         try
         {
             return await GetForInvocation<T>(key, streamScope, requestedUnit, cancellationToken);
+        }
+        catch (DecisionReadRefused exception) when (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && exception.Reason == DecisionReadRefusalReason.InvalidKey)
+        {
+            throw new ProtectedReadModelDoesNotExist(typeof(T), key.Value);
         }
         catch (DecisionReadRefused exception) when (CommandDecisionPolicy.ReadProtection == ReadProtectionMode.On && exception.Reason == DecisionReadRefusalReason.FoldIncomplete)
         {

@@ -44,6 +44,7 @@ public class a_parameter_lookup : Specification
         _services = new ServiceCollection()
             .AddSingleton(accessor)
             .AddSingleton(_readModels)
+            .AddProtectedKeyTraversal()
             .AddTransient(_ => _subject)
             .AddSingleton<IInstancesOf<ICanResolveParameterDependency>>(new KnownInstancesOf<ICanResolveParameterDependency>(
                 [new ChronicleParameterDependencyResolver([typeof(Balance)])]))
