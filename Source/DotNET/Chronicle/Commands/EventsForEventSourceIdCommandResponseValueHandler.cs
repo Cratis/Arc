@@ -28,10 +28,8 @@ namespace Cratis.Arc.Chronicle.Commands;
 /// is appended to the command's event source id.
 /// <para>
 /// Without an active command transaction, a collection is appended as one batch, so a refusal appends nothing.
-/// The exception is an event source id with no resolved concurrency guard whose events target several routes:
-/// those events append one at a time because Chronicle carries only one guard per event source id in a batch.
-/// Generated sources still append atomically in that fallback; an interleaved generated source is rejected
-/// before any effect rather than splitting its freshness guard or changing event order.
+/// That includes several events for one event source id that target different routes: the batch carries every
+/// guard those routes need (Chronicle 19.84 and later), and a violation of any of them refuses the whole batch.
 /// </para>
 /// </remarks>
 [method: ActivatorUtilitiesConstructor]
@@ -98,7 +96,6 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
     /// <inheritdoc/>
     /// <exception cref="EventStreamDoesNotBelongToEventSource">A legacy wrapper route names a known definition and an undeclared stream on a definition-routed command.</exception>
-    /// <exception cref="GeneratedIdentifierEventsCannotBeSplit">An immediate fallback cannot keep a generated source atomic without reordering events.</exception>
     public async Task<CommandResult> Handle(CommandContext commandContext, object value)
     {
         // Resolve every event's routing and guard first. Events for one event source id share one scope, so guards that
@@ -108,7 +105,7 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         // A scope carries the expected tail of one stream, so it cannot be shared across the streams a
         // cross-stream command writes to - each target gets its own, resolved once however many events it takes.
         var concurrencyScopes = CommandConcurrencyScopes.Resolve(derivedGuards);
-        var appendAsBatch = targets.Count > 1 && CanAppendAsBatch(targets, concurrencyScopes);
+        var appendAsBatch = targets.Count > 1;
 
         foreach (var target in targets)
         {
@@ -120,20 +117,11 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
 
             return appendAsBatch
                 ? await AppendAsBatch(commandContext, targets, concurrencyScopes)
-                : await AppendImmediately(commandContext, targets, concurrencyScopes);
+                : await AppendSingle(commandContext, targets[0], concurrencyScopes);
         }
 
         return CommandResult.Success(commandContext.CorrelationId);
     }
-
-    static bool CanAppendAsBatch(IEnumerable<CommandAppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> concurrencyScopes) =>
-        targets.GroupBy(_ => _.EventSourceId).All(group =>
-            concurrencyScopes[group.Key] is not null || group.Select(_ => RouteKey(_.Routing)).Distinct().Count() == 1);
-
-    static (Type? EventSource, string? EventStream, EventStreamType? EventStreamType, EventStreamId? EventStreamId, EventSourceType? EventSourceType) RouteKey(EventRouting routing) =>
-        routing.EventSource is not null
-            ? (routing.EventSource, routing.EventStream, null, routing.EventStreamId, null)
-            : (null, null, routing.EventStreamType, routing.EventStreamId, routing.EventSourceType);
 
     async Task<(List<CommandAppendTarget> Targets, List<(EventSourceId EventSourceId, DerivedConcurrencyScope Derived)> DerivedGuards)> ResolveTargets(CommandContext commandContext, IEnumerable value)
     {
@@ -174,20 +162,10 @@ public class EventsForEventSourceIdCommandResponseValueHandler(
         return result.IsSuccess ? CommandResult.Success(commandContext.CorrelationId) : result.ToCommandResult(commandContext, eventLog.Id);
     }
 
-    async Task<CommandResult> AppendImmediately(CommandContext context, List<CommandAppendTarget> targets, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> scopes)
+    async Task<CommandResult> AppendSingle(CommandContext context, CommandAppendTarget target, IReadOnlyDictionary<EventSourceId, ConcurrencyScope?> scopes)
     {
-        foreach (var batch in ImmediateCommandAppendBatches.Create(targets, FreshIdentifierScopes.For(context), eventLog.Id))
-        {
-            var target = batch[0];
-            var result = batch.Length > 1
-                ? await AppendAsBatch(context, batch, scopes)
-                : (await eventLog.AppendForCommand(target.EventSourceId, target.Event, target.Routing, scopes[target.EventSourceId], target.Tags, target.Occurred, target.NamedTags)).ToCommandResult(context, eventLog.Id);
-            if (!result.IsSuccess)
-            {
-                return result;
-            }
-        }
+        var result = await eventLog.AppendForCommand(target.EventSourceId, target.Event, target.Routing, scopes[target.EventSourceId], target.Tags, target.Occurred, target.NamedTags);
 
-        return CommandResult.Success(context.CorrelationId);
+        return result.IsSuccess ? CommandResult.Success(context.CorrelationId) : result.ToCommandResult(context, eventLog.Id);
     }
 }
