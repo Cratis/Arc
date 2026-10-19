@@ -14,7 +14,6 @@ env:
   DOTNET8_VERSION: "8.0.407"
   DOTNET9_VERSION: "9.0.x"
   DOTNET10_VERSION: "10.0.x"
-  DOTNET_OBJ_CACHE: "dotnet-obj-${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}"
 
 on:
   workflow_dispatch:
@@ -90,14 +89,6 @@ jobs:
       - name: Restore NuGet packages
         uses: Cratis/Workflows/.github/actions/dotnet-cache@main
 
-      - name: Restore obj cache
-        uses: actions/cache@v6
-        with:
-          path: ./**/obj
-          key: ${{ env.DOTNET_OBJ_CACHE }}
-          restore-keys: |
-            dotnet-obj-
-
       - name: Setup node
         uses: actions/setup-node@v4
         with:
@@ -123,8 +114,10 @@ jobs:
           npm run build
           node --test ../../../scripts/viewer-bundle.test.mjs
 
+      # Every spec job below runs net10.0 only, so the spec projects and their fixtures are compiled for net10.0 only
+      # (Directory.Build.props). The libraries still build for net8.0, net9.0 and net10.0.
       - name: Build
-        run: dotnet build --configuration Release
+        run: dotnet build --configuration Release -p:CratisSpecsTargetFramework=net10.0
 
       # Hand off the compiled binaries AND the JavaScript dist output to the spec jobs
       # via an artifact rather than actions/cache. This is an intra-run handoff, not
