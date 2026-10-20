@@ -94,7 +94,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "A command expresses appends by returning events from Handle. Under On, immediate appends are refused even in an Unprotected method body; return the events or use IEventLog.Transactional. To close a stream, return CompleteStream.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0007");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0007/");
 
     /// <summary>
     /// ARCCHR0008: Command key marked with the data annotations Key attribute.
@@ -143,7 +143,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "Under Off, plain Chronicle state dependencies are advisory rather than guarded. Enable On and take the model as a parameter, preferably in a CommandValidator constructor for state-dependent rules. Explicit Unprotected declarations acknowledge advisory reads. Measure and On are not reported by this Off-only rule.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0011");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0011/");
 
     /// <summary>
     /// ARCCHR0012: An immediate append cannot be covered by the command's decision guard.
@@ -156,7 +156,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "Immediate Chronicle appends bypass the owning command's guarded commit. This rule is Info for explicit protected decisions and Warning under On. Transactional appends are excluded; method-level Unprotected permits advisory reads, not immediate appends.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0012");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0012/");
 
     /// <summary>
     /// ARCCHR0013: A legacy event source type attribute spells out a declared event source definition.
@@ -169,7 +169,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "A string naming an event source or stream type can drift from the definition. The code fix uses the uniquely matching definition in this compilation, retaining a declared stream. Unmatched names are left alone.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0013");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0013/");
 
     /// <summary>
     /// ARCCHR0014: A reactor or reducer is filtered to a stream its event source definition does not declare.
@@ -302,7 +302,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "On selects a unique property of the model key type and refuses ambiguity. Off and Measure keep the command key unless LookUpBy redirects it. Explicit LookUpBy is not reported; repeated inferred keys are advisory. Runtime dataflow is not proven.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0023");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0023/");
 
     /// <summary>
     /// ARCCHR0025: A keyless event-producing command depends on Chronicle state.
@@ -327,7 +327,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "IMongoCollection of a Chronicle-backed model is Info outside On and Warning under On, where runtime parameter admission refuses it. This recognizes model-bound metadata and source-declared backing without inspecting MongoDB queries.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0026");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0026/");
 
     /// <summary>
     /// ARCCHR0029: Conflicting protected and advisory command declarations.
@@ -340,7 +340,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Protected decisions cannot also be declared advisory on the same command, including inherited declarations.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0029");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0029/");
 
     /// <summary>
     /// ARCCHR0029: Explicit read protection conflicts with a command opt-out.
@@ -353,7 +353,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "An explicit command-level On or Measure declaration cannot be combined with a command-level advisory opt-out. An assembly rollout may be overridden by Unprotected.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0029");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0029/");
 
     /// <summary>
     /// ARCCHR0031: Lookup refers to a missing command property.
@@ -366,7 +366,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "LookUpBy must name an existing public instance command property. A suggested property can be converted to nameof by the code fix.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0031");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0031/");
 
     /// <summary>
     /// ARCCHR0031: Lookup is declared on a parameter proven not to be a read model.
@@ -379,7 +379,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Only provably non-model types are reported; backing declared in another project need not be visible to the analyzer.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0031");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0031/");
 
     /// <summary>
     /// ARCCHR0031: Lookup property and model key types differ.
@@ -392,7 +392,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "When the model key is statically known, the explicit lookup property must have the same type.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0031");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0031/");
 
     /// <summary>
     /// ARCCHR0032: A declaration is inert or redundant.
@@ -405,7 +405,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "ReadProtection on a sealed non-command type and Unprotected on a provably non-model parameter have no effect. Off is redundant only when the assembly is already Off.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0032");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0032/");
 
     /// <summary>
     /// ARCCHR0024: A statically known model shape cannot be protected.
@@ -418,7 +418,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "In Measure or On, statically refused projection and reducer shapes need a different protected model or an explicit advisory declaration. Unfiltered reducers without constructor dependencies are admitted. Runtime registration and delivery choices not visible in source are not inferred.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0024");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0024/");
 
     /// <summary>
     /// ARCCHR0028: An On command reaches an unguarded Chronicle API.
@@ -431,7 +431,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Raw Chronicle reads, detached reads and explicit read allowances in application On commands bypass automatic protected parameter resolution. Advisory method bodies are excluded, but AllowReads itself remains an explicit, reviewable bypass.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0028");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0028/");
 
     /// <summary>
     /// ARCCHR0033: An aggregate and a plain read use the same command key.
@@ -444,7 +444,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "On refuses an aggregate and a protected plain read of the same source. Only automatic dependencies whose command key is statically the same are reported; explicit providers and advisory reads are excluded.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0033");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0033/");
 
     /// <summary>
     /// ARCCHR0034: Method-level Unprotected does not cover injected parameters.
@@ -457,7 +457,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "A method-level advisory declaration covers only the method body. It never changes the protection of read-model parameters resolved before invocation.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0034");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0034/");
 
     /// <summary>
     /// ARCCHR0035: Aggregate commit completes protection too early.
@@ -470,7 +470,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "In On, aggregate Commit completes the unit. A nested command must leave completion to its owner; reads or appends after Commit in the same straight-line block are refused. Opaque helpers and arbitrary control flow are not inferred.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0035",
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0035/",
         customTags: WellKnownDiagnosticTags.CompilationEnd);
 
     /// <summary>
@@ -484,7 +484,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Measure and On commands returning exact concurrency scopes must cover the source, types, dimensions and read boundary of every protected read on that source. This signature heuristic reports only automatic reads on the command source; explicit providers and advisory parameters are excluded.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0036");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0036/");
 
     /// <summary>
     /// ARCCHR0037: A stream model does not belong to the command's route.
@@ -497,7 +497,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description: "Per-stream model parameters, including validator constructor parameters, bind only to the command's own source and stream. LookUpBy cannot redirect a stream model. This applies in Off, Measure and On.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0037");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0037/");
 
     /// <summary>
     /// ARCCHR0038: Combining reads or declared routing can widen a stream guard.
@@ -510,7 +510,7 @@ static class DiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Info,
         isEnabledByDefault: true,
         description: "Under Measure or On, a whole-source read on the command source, a read on another stream, or effective declared Concurrency without both stream dimensions can widen a stream read guard. Widening causes extra conflicts, not missed changes.",
-        helpLinkUri: "https://cratis.io/arc/code-analysis/arcchr0038");
+        helpLinkUri: "https://www.cratis.io/arc/backend/csharp/chronicle/code-analysis/arcchr0038/");
 
     const string Category = "Arc.Chronicle";
 }

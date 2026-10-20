@@ -8,6 +8,7 @@
              as opposed to the 'Cratis.CodeAnalysis' umbrella - see no change from the split. -->
         <PackageId>Cratis.Arc.Core.CodeAnalysis</PackageId>
         <AssemblyName>Cratis.Arc.Core.CodeAnalysis.Package</AssemblyName>
+        <Description>Roslyn analyzers (ARC*) for Cratis Arc commands, queries, and application conventions in CQRS applications on ASP.NET Core.</Description>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IncludeSymbols>false</IncludeSymbols>
         <IncludeSource>false</IncludeSource>
