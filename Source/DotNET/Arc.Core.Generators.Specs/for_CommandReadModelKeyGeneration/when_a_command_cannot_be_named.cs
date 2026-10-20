@@ -20,7 +20,7 @@ public class when_a_command_cannot_be_named : Specification
     void Because() => (_source, _diagnostics, _) = CommandKeyCompilation.Compile("UnnamedCommand", Models);
 
     [Fact] void should_skip_the_command() => _source.ShouldNotContain("Unnamed.Partial");
-    [Fact] void should_report_the_command_as_info() => _diagnostics.Where(diagnostic => diagnostic.Id == "ARC0031" && diagnostic.Severity == DiagnosticSeverity.Info).Count().ShouldEqual(1);
+    [Fact] void should_report_the_command_as_info() => _diagnostics.Count(diagnostic => diagnostic.Id == "ARC0031" && diagnostic.Severity == DiagnosticSeverity.Info).ShouldEqual(1);
     [Fact] void should_name_the_command_in_the_diagnostic() => _diagnostics.Single(diagnostic => diagnostic.Id == "ARC0031").GetMessage().ShouldContain("Unnamed.Partial");
     [Fact] void should_not_report_anything_else() => _diagnostics.Count(diagnostic => diagnostic.Id != "ARC0031").ShouldEqual(0);
     [Fact] void should_still_register_other_commands() => _source.ShouldContain(".RegisterCommand(typeof(global::Unnamed.Named)");

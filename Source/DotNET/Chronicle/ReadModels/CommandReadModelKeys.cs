@@ -70,7 +70,10 @@ public static class CommandReadModelKeys
         return _models.TryGetValue(model, out keyType);
     }
 
-    // A module initializer only runs when its module is first touched, which merely holding a type does not do.
+    /// <summary>
+    /// Runs the module initializer of a type's module; a module initializer only runs when its module is first touched, which merely holding a type does not do.
+    /// </summary>
+    /// <param name="type">The type whose module to initialize.</param>
     static void RunModuleConstructor(Type type)
     {
         if (_initialized.TryAdd(type.Module, true))
