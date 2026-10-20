@@ -4,6 +4,7 @@
 using Cratis.Arc.Commands;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
@@ -13,10 +14,12 @@ namespace Cratis.Arc.Chronicle.ReadModels;
 /// <param name="handlers">The discovered command handlers.</param>
 /// <param name="configuration">The host's operational read-protection configuration.</param>
 /// <param name="traversal">The key coverage checker.</param>
+/// <param name="logger">The fallback warning logger.</param>
 internal sealed class ProtectedReadModelKeyStartup(
     ICommandHandlerProviders handlers,
     IConfiguration configuration,
-    ProtectedReadModelKeyTraversal traversal) : IHostedService
+    ProtectedReadModelKeyTraversal traversal,
+    ILogger<ProtectedReadModelKeyStartup>? logger = null) : IHostedService
 {
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken)
@@ -25,6 +28,7 @@ internal sealed class ProtectedReadModelKeyStartup(
         foreach (var command in handlers.Handlers.Select(handler => handler.CommandType).Distinct()
             .Where(command => CommandAttributePolicy.ResolveCommand(command).ReadProtection == (int)ReadProtectionMode.On))
         {
+            CommandReadModelKeys.EnsureCommandCoverage(command, configuration, logger);
             foreach (var keyType in ProtectedReadModelKeyAccessors.DeclaredFor(command))
             {
                 traversal.EnsureCoverage(keyType);
