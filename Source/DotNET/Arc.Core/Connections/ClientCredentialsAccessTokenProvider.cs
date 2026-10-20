@@ -30,9 +30,16 @@ public class ClientCredentialsAccessTokenProvider(HttpClient httpClient, TimePro
         options.Type == HttpConnectionResolverAuthenticationType.ClientCredentials;
 
     /// <inheritdoc/>
+    /// <exception cref="ConnectionResolverTokenEndpointMustUseHttps">The token endpoint does not use HTTPS or HTTP on a loopback host.</exception>
     public async ValueTask<ConnectionResolverAccessToken> GetToken(HttpConnectionResolverAuthenticationOptions options, CancellationToken cancellationToken)
     {
         var tokenEndpoint = options.TokenEndpoint ?? throw NotConfigured(nameof(options.TokenEndpoint));
+        if (!tokenEndpoint.IsAbsoluteUri ||
+            (tokenEndpoint.Scheme != Uri.UriSchemeHttps && !(tokenEndpoint.Scheme == Uri.UriSchemeHttp && tokenEndpoint.IsLoopback)))
+        {
+            throw new ConnectionResolverTokenEndpointMustUseHttps();
+        }
+
         var clientId = string.IsNullOrEmpty(options.ClientId) ? throw NotConfigured(nameof(options.ClientId)) : options.ClientId;
         var clientSecret = string.IsNullOrEmpty(options.ClientSecret) ? throw NotConfigured(nameof(options.ClientSecret)) : options.ClientSecret;
 
