@@ -1,6 +1,6 @@
 ---
 title: Generating a Screenplay
-description: How Arc reads the source of your application and writes the event model it already describes — what a .play file is, what it buys you, and exactly what it does and does not say.
+description: "Arc reads your application's source and writes the event model it already describes as a .play file; this page says what the file contains and what it omits."
 ---
 
 An [event model](/event-modeling/) is the picture of your system: which commands change state, which events they produce, which read models those events build, and which reactors turn one thing into another. Teams draw it on a whiteboard at the start, and then the code moves on without it. Six months later the picture is fiction and nobody trusts it enough to open.

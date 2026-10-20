@@ -1,6 +1,6 @@
 ---
 title: Less idiomatic Arc
-description: Shapes that work in Arc but are not guarded by themselves, such as an injected IEventLog, IReadModels in Handle, several event sources and the earlier DecisionRead form, and how to bring each one back to the idiomatic form.
+description: "Shapes that work in Arc but are not guarded by themselves, such as an injected IEventLog or several event sources, and how to return each to the idiomatic form."
 ---
 
 Use this page when your command is not a plain `[Command]` that returns events. These shapes work, and Arc supports them. Under read protection `On`, some are refused. Each section says what the shape does and how to move it to the [idiomatic form](./index.md#fully-idiomatic-arc).

@@ -1,6 +1,6 @@
 ---
 title: Route a command through an event source definition
-description: Declare the event source and stream a command appends to with [EventSource<TSource>], choose the stream id, and know which concurrency boundary the definition gives the append.
+description: "Declare the event source and stream a command appends to with [EventSource<TSource>], and learn which concurrency boundary the definition gives the append."
 ---
 
 An event source definition is a class that names a kind of event source and the streams it owns. A command that declares `[EventSource<TSource>(stream)]` appends its events through that definition instead of through loose strings. The definition supplies the event source type, the stream type and the concurrency dimensions, and Arc rejects a stream the definition does not declare.

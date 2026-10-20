@@ -3,6 +3,8 @@ title: Glossary
 description: One precise line per Arc term, stated once so it means the same thing in every backend language and on the frontend.
 ---
 
+Cratis Arc is an opinionated CQRS application framework with commands, queries, validation, authorization and generated TypeScript proxies for ASP.NET Core, Spring Boot and the TypeScript source preview.
+
 Arc is implemented for more than one backend language, and the same idea
 sometimes carries a different spelling in each. This page defines the idea. Where
 the spellings differ it names them, so a term you meet in one implementation is
