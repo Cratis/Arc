@@ -100,6 +100,8 @@ Configuring both `Authentication` and an `Authorization` header under `Http:Head
 
 ### Client credentials
 
+`TokenEndpoint` must use HTTPS; HTTP is allowed only for loopback hosts (`localhost`, `127.0.0.1` or `::1`) during local development.
+
 `ClientCredentials` works with any OAuth 2.0 provider and needs nothing beyond Arc:
 
 ```json
