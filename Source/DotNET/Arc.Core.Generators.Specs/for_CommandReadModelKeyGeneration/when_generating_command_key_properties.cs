@@ -31,7 +31,7 @@ public class when_generating_command_key_properties : Specification
 
     [Fact] void should_emit_compilable_registrations() => _diagnostics.ShouldBeEmpty();
     [Fact] void should_register_the_command() => _source.ShouldContain(".RegisterCommand(typeof(global::Keys.Change)");
-    [Fact] void should_include_own_properties_with_their_types() => _source.ShouldContain("(\"Part\", typeof(global::System.String), static instance => (global::Keys.Change)instance).@Part");
+    [Fact] void should_include_own_properties_with_their_types() => _source.ShouldContain("(\"Part\", typeof(string), static instance => ((global::Keys.Change)instance).@Part");
     [Fact] void should_include_nullable_value_types() => _source.ShouldContain("typeof(int?)");
     [Fact] void should_include_inherited_properties() => _source.ShouldContain("(global::Keys.Base)(global::Keys.Change)instance).@Inherited");
     [Fact] void should_exclude_non_public_getters() => _source.ShouldNotContain(".@Hidden");

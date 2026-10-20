@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Generators.Specs.for_ModelGraphWalkerGenerator;
+using Microsoft.CodeAnalysis;
 
 namespace Cratis.Arc.Generators.Specs.for_CommandReadModelKeyGeneration;
 
@@ -16,7 +17,9 @@ public class when_chronicle_is_not_referenced : Specification
 
     void Because()
     {
-        var (_, _, output) = ModelGraphWalkerCompilation.Compile("KeysWithoutChronicle", Models, true);
+        var (_, diagnostics, output) = ModelGraphWalkerCompilation.Compile("KeysWithoutChronicle", Models, true);
+        diagnostics.ShouldBeEmpty();
+        output.GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
         _emitted = output.SyntaxTrees.Any(tree => tree.FilePath.EndsWith("CommandReadModelKeys.g.cs", StringComparison.Ordinal));
     }
 

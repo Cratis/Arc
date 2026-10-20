@@ -5,6 +5,7 @@ using System.Collections;
 using System.Reflection;
 using Cratis.Arc.Generators.Specs.for_ModelGraphWalkerGenerator;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace Cratis.Arc.Generators.Specs.for_CommandReadModelKeyGeneration;
 
@@ -26,7 +27,13 @@ internal static class CommandKeyCompilation
 
     internal static (string Source, Diagnostic[] Diagnostics, Compilation Output) Compile(string name, string models)
     {
-        var (_, diagnostics, output) = ModelGraphWalkerCompilation.Compile(name, Registry + models, true);
+        var (_, _, compilation) = ModelGraphWalkerCompilation.Compile(name, models, false);
+        compilation = compilation.AddSyntaxTrees(CSharpSyntaxTree.ParseText(Registry));
+        CSharpGeneratorDriver.Create(new ModelGraphWalkerGenerator().AsSourceGenerator())
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
+        var compilationDiagnostics = output.GetDiagnostics();
+        compilationDiagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).ShouldBeEmpty();
+        Diagnostic[] diagnostics = [.. generatorDiagnostics, .. compilationDiagnostics.Where(diagnostic => diagnostic.Severity >= DiagnosticSeverity.Warning)];
         var generated = output.SyntaxTrees.FirstOrDefault(tree => tree.FilePath.EndsWith("CommandReadModelKeys.g.cs", StringComparison.Ordinal));
 
         return (generated?.ToString() ?? string.Empty, diagnostics, output);
