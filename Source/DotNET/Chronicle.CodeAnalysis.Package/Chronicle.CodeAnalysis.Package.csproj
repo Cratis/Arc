@@ -8,6 +8,7 @@
              as opposed to the 'Cratis.CodeAnalysis' umbrella - see no change from the split. -->
         <PackageId>Cratis.Arc.Chronicle.CodeAnalysis</PackageId>
         <AssemblyName>Cratis.Arc.Chronicle.CodeAnalysis.Package</AssemblyName>
+        <Description>Roslyn analyzers (ARCCHR*) for the Cratis Arc Chronicle event-sourcing integration.</Description>
         <IncludeBuildOutput>false</IncludeBuildOutput>
         <IncludeSymbols>false</IncludeSymbols>
         <IncludeSource>false</IncludeSource>
