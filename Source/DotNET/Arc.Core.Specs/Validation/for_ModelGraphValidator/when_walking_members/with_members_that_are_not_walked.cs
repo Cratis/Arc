@@ -9,10 +9,23 @@ namespace Cratis.Arc.Validation.for_ModelGraphValidator.when_walking_members;
 /// </summary>
 public class with_members_that_are_not_walked : given.a_recording_model_graph_validator
 {
-    void Because() => Walk(new Model());
+    System.Reflection.PropertyInfo[] _publicGetterProperties;
+    System.Reflection.PropertyInfo[] _readableProperties;
+
+    void Because()
+    {
+        Walk(new Model());
+        _publicGetterProperties = ModelGraphValidator.ReadablePropertiesThroughReflection(typeof(Model), publicGettersOnly: true);
+        _readableProperties = ModelGraphValidator.ReadablePropertiesThroughReflection(typeof(Model));
+    }
 
     [Fact] void should_walk_only_readable_public_instance_properties() =>
         Traversal.ShouldEqual("Model@ | String@visible | String@privatelyRead");
+
+    [Fact] void should_preserve_readable_property_order() => _readableProperties.Select(property => property.Name).ShouldEqual(["Visible", "PrivatelyRead"]);
+    [Fact] void should_optionally_require_public_getters() => _publicGetterProperties.Select(property => property.Name).ShouldEqual(["Visible"]);
+    [Fact] void should_preserve_declared_types() => _publicGetterProperties.Single().PropertyType.ShouldEqual(typeof(string));
+    [Fact] void should_preserve_the_getter() => _publicGetterProperties.Single().GetValue(new Model()).ShouldEqual("visible");
 
 #pragma warning disable CA1822, CA1044, IDE0051, IDE0052, RCS1085, RCS1213, MA0041, CA1051, RCS1169, IDE0044, RCS1170, IDE0032
     class Model

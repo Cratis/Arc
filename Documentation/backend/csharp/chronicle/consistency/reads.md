@@ -48,6 +48,14 @@ A protected key is treated as missing if it is empty, whitespace-only, exactly `
 
 These rules apply to protected reads, not advisory reads. `Off` and `Measure` retain their existing lookup, nullability, messages and validation reasons. Other read-protection refusals retain their existing outcomes.
 
+## Require generated key metadata
+
+Arc uses generated command property getters and read-model key types for command key lookup. Applications without that metadata retain reflection compatibility by default. Arc logs one warning per missing type, without key values, explaining how to enable the source generator.
+
+Set `ReadProtection:RequireGeneratedMetadata` to `true` to reject missing metadata with `CommandReadModelKeysMissing` instead of reflecting. Discovered commands running under `On` are checked at startup; command and model metadata used by lookup is also checked at resolution. Missing, invalid or `false` settings retain compatibility. Runtimes where `RuntimeFeature.IsDynamicCodeSupported` is `false` always require generated metadata; this does not make all of Arc NativeAOT-compatible.
+
+This setting is separate from `ProtectedReadModelKeyOptions.Strict`, which requires accessor coverage for composite key parts. Neither setting changes which property or key a lookup selects.
+
 ## Declare an advisory read
 
 `[Unprotected("why")]` is the opt-out. Write the reason as a sentence a reviewer can judge. The reason goes to telemetry as `advisory_read`.

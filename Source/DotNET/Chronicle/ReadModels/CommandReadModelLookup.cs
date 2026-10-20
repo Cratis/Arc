@@ -7,6 +7,9 @@ using Cratis.Arc.Commands;
 using Cratis.Arc.Queries;
 using Cratis.Chronicle.Events;
 using Cratis.Chronicle.ReadModels;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Cratis.Arc.Chronicle.ReadModels;
 
@@ -47,15 +50,15 @@ internal static class CommandReadModelLookup
         var protect = mode == ReadProtectionMode.On &&
             !Attribute.IsDefined(parameter, typeof(UnprotectedAttribute)) && !Attribute.IsDefined(parameter.ParameterType, typeof(UnprotectedAttribute));
         var lookup = Attribute.GetCustomAttributes(parameter, true).OfType<LookUpByAttribute>().FirstOrDefault();
-        var properties = context.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(_ => _.GetMethod is { IsPublic: true } && _.GetIndexParameters().Length == 0)
-            .ToArray();
+        var configuration = context.ServiceProvider?.GetService<IConfiguration>();
+        var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
+        var properties = CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger);
         if (lookup is not null)
         {
             var property = properties.FirstOrDefault(_ => _.Name == lookup.Property)
                 ?? throw new InvalidLookUpBy(context.Type, lookup.Property);
 
-            return KeyFor(property.GetValue(context.Command), parameter.ParameterType, traversal, protect, out keyText);
+            return KeyFor(property.Read(context.Command), parameter.ParameterType, traversal, protect, out keyText);
         }
 
         if (mode != ReadProtectionMode.On)
@@ -71,7 +74,7 @@ internal static class CommandReadModelLookup
             return commandKey;
         }
 
-        var keyType = parameter.ParameterType.GetProperty("Id")?.PropertyType;
+        var keyType = CommandReadModelKeys.KeyTypeFor(parameter.ParameterType, configuration, logger);
         var candidates = properties.Where(_ => _.PropertyType == keyType).ToArray();
         if (candidates.Length > 1)
         {
@@ -80,7 +83,7 @@ internal static class CommandReadModelLookup
 
         if (candidates is [{ } selected])
         {
-            return KeyFor(selected.GetValue(context.Command), parameter.ParameterType, traversal, protect, out keyText);
+            return KeyFor(selected.Read(context.Command), parameter.ParameterType, traversal, protect, out keyText);
         }
 
         var source = context.GetEventSourceId();
@@ -107,15 +110,20 @@ internal static class CommandReadModelLookup
     {
         try
         {
-            var keyType = model.GetProperty("Id")?.PropertyType;
-            var candidates = context.Type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(_ => _.PropertyType == keyType && _.GetMethod is { IsPublic: true } && _.GetIndexParameters().Length == 0)
-                .ToArray();
-            if (candidates is [{ } candidate] && candidate.GetValue(context.Command) is { } value &&
+            var configuration = context.ServiceProvider?.GetService<IConfiguration>();
+            var logger = context.ServiceProvider?.GetService<ILoggerFactory>()?.CreateLogger(typeof(CommandReadModelLookup).FullName!);
+            var keyType = CommandReadModelKeys.KeyTypeFor(model, configuration, logger);
+            var candidates = CommandReadModelKeys.PropertiesFor(context.Type, configuration, logger)
+                .Where(_ => _.PropertyType == keyType).ToArray();
+            if (candidates is [{ } candidate] && candidate.Read(context.Command) is { } value &&
                 GeneratedIdentifierCanonicalizer.Canonicalize(value) is { } key && key != commandKey.Value)
             {
                 ReadProtectionTelemetry.Record(context.Type, "redirect", model);
             }
+        }
+        catch (CommandReadModelKeysMissing)
+        {
+            throw;
         }
         catch (Exception failure)
         {
