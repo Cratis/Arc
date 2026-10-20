@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Collections.Concurrent;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Connections;
 
@@ -16,6 +17,7 @@ namespace Cratis.Arc.Connections;
 /// <param name="inner">The <see cref="IConnectionResolver"/> to resolve through.</param>
 /// <param name="cacheDuration">How long to keep a resolution without an expiry.</param>
 /// <param name="timeProvider">The <see cref="TimeProvider"/> for the current time.</param>
+[IgnoreConvention]
 public class CachingConnectionResolver(IConnectionResolver inner, TimeSpan cacheDuration, TimeProvider timeProvider) : ICachingConnectionResolver
 {
     /// <summary>

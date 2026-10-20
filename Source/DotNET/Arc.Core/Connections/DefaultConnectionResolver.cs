@@ -1,11 +1,14 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.DependencyInjection;
+
 namespace Cratis.Arc.Connections;
 
 /// <summary>
 /// Represents an <see cref="IConnectionResolver"/> that leaves the configured connection as it is.
 /// </summary>
+[IgnoreConvention]
 public class DefaultConnectionResolver : IConnectionResolver
 {
     /// <inheritdoc/>
