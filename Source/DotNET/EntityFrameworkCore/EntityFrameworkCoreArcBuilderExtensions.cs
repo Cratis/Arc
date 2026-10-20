@@ -89,9 +89,11 @@ public static class EntityFrameworkCoreArcBuilderExtensions
         // Decided when the first context is configured, so the application-wide resolution configured in code through
         // ArcOptions applies as well as configuration does.
         services.AddConnectionResolution();
-        services.TryAddSingleton(sp => new EntityFrameworkCoreConnectionResolution(
+
+        // This integration owns the factory: an earlier self-binding must not bypass its configured resolver.
+        services.Replace(ServiceDescriptor.Singleton(sp => new EntityFrameworkCoreConnectionResolution(
             sp.GetRequiredService<IConnectionResolvers>().For(options) is { } resolver
                 ? new ConnectionResolutionInterceptor(resolver, sp.GetRequiredService<ITenantIdAccessor>())
-                : null));
+                : null)));
     }
 }

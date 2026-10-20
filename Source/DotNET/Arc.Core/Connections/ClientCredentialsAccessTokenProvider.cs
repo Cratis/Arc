@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Net.Http.Json;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Connections;
 
@@ -15,6 +16,7 @@ namespace Cratis.Arc.Connections;
 /// </remarks>
 /// <param name="httpClient">The <see cref="HttpClient"/> to call the token endpoint with.</param>
 /// <param name="timeProvider">The <see cref="TimeProvider"/> expiry is computed from.</param>
+[IgnoreConvention]
 public class ClientCredentialsAccessTokenProvider(HttpClient httpClient, TimeProvider timeProvider) : IConnectionResolverAccessTokenProvider
 {
     /// <summary>

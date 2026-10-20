@@ -4,6 +4,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Connections;
 
@@ -32,6 +33,7 @@ namespace Cratis.Arc.Connections;
 /// <exception cref="HttpConnectionResolverEndpointNotConfigured">No endpoint is configured.</exception>
 /// <exception cref="HttpConnectionResolverAuthorizationHeaderConflict">Both an <c>Authorization</c> header and authentication are configured.</exception>
 /// <exception cref="HttpConnectionResolverAuthenticationNotSupported">No provider can provide tokens for the configured authentication.</exception>
+[IgnoreConvention]
 public class HttpConnectionResolver(
     HttpConnectionResolverOptions options,
     HttpClient httpClient,

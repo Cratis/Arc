@@ -1,6 +1,8 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using Cratis.DependencyInjection;
+
 namespace Cratis.Arc.Connections;
 
 /// <summary>
@@ -10,6 +12,7 @@ namespace Cratis.Arc.Connections;
 /// A part set by a later resolver wins over the same part from an earlier one, see <see cref="ResolvedConnection.Merge"/>.
 /// </remarks>
 /// <param name="resolvers">The resolvers, in the order they apply.</param>
+[IgnoreConvention]
 public class CompositeConnectionResolver(IEnumerable<IConnectionResolver> resolvers) : IConnectionResolver
 {
     readonly IConnectionResolver[] _resolvers = [.. resolvers];

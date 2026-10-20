@@ -5,6 +5,7 @@ using System.Data.Common;
 using System.Runtime.CompilerServices;
 using Cratis.Arc.Connections;
 using Cratis.Arc.Tenancy;
+using Cratis.DependencyInjection;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
@@ -29,6 +30,7 @@ namespace Cratis.Arc.EntityFrameworkCore.Connections;
 /// </remarks>
 /// <param name="resolver">The <see cref="ICachingConnectionResolver"/> to resolve through.</param>
 /// <param name="tenantIdAccessor">The <see cref="ITenantIdAccessor"/> for the current tenant.</param>
+[IgnoreConvention]
 public class ConnectionResolutionInterceptor(ICachingConnectionResolver resolver, ITenantIdAccessor tenantIdAccessor) : DbConnectionInterceptor
 {
     /// <summary>

@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System.Text.RegularExpressions;
+using Cratis.DependencyInjection;
 
 namespace Cratis.Arc.Connections;
 
@@ -14,6 +15,7 @@ namespace Cratis.Arc.Connections;
 /// are always available. A placeholder without a value fails rather than producing a connection to the wrong database.
 /// </remarks>
 /// <param name="options">The <see cref="TemplateConnectionResolverOptions"/>.</param>
+[IgnoreConvention]
 public partial class TemplateConnectionResolver(TemplateConnectionResolverOptions options) : IConnectionResolver
 {
     /// <inheritdoc/>

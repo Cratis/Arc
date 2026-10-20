@@ -2,6 +2,7 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc.Connections;
+using Cratis.DependencyInjection;
 using MongoDB.Driver;
 using MongoDB.Driver.Authentication.Oidc;
 using MongoDB.Driver.Core.Configuration;
@@ -29,6 +30,7 @@ namespace Cratis.Arc.MongoDB;
 /// <param name="resolver">The <see cref="ICachingConnectionResolver"/> to resolve through.</param>
 /// <param name="request">The <see cref="ConnectionRequest"/> to resolve.</param>
 /// <param name="timeProvider">The <see cref="TimeProvider"/> for the current time.</param>
+[IgnoreConvention]
 public class MongoDBConnectionResolutionHooks(ICachingConnectionResolver resolver, ConnectionRequest request, TimeProvider timeProvider) : IOidcCallback
 {
     /// <inheritdoc/>
