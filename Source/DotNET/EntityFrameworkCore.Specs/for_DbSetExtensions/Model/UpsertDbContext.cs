@@ -10,6 +10,9 @@ public class UpsertDbContext(DbContextOptions<UpsertDbContext> options) : Micros
     public DbSet<UpsertItem> Items => Set<UpsertItem>();
     public DbSet<KeyOnlyItem> Keys => Set<KeyOnlyItem>();
     public DbSet<GeneratedKeyItem> Generated => Set<GeneratedKeyItem>();
+    public DbSet<UpsertBlog> Blogs => Set<UpsertBlog>();
+    public DbSet<UpsertPost> Posts => Set<UpsertPost>();
+    public DbSet<ShadowPropertyItem> ShadowItems => Set<ShadowPropertyItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -21,5 +24,10 @@ public class UpsertDbContext(DbContextOptions<UpsertDbContext> options) : Micros
         item.Property(_ => _.Value).HasColumnName("select").HasConversion(_ => _.Value, _ => new UpsertValue(_));
         modelBuilder.Entity<KeyOnlyItem>().ToTable("Key", "upsert-tests");
         modelBuilder.Entity<GeneratedKeyItem>().ToTable("Generated", "upsert-tests");
+        modelBuilder.Entity<UpsertBlog>().Property(_ => _.Id).ValueGeneratedNever();
+        modelBuilder.Entity<UpsertPost>().Property(_ => _.Id).ValueGeneratedNever();
+        modelBuilder.Entity<UpsertPost>().HasOne(_ => _.Blog).WithMany().HasForeignKey("BlogId");
+        modelBuilder.Entity<ShadowPropertyItem>().Property(_ => _.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ShadowPropertyItem>().Property<string>("Extra");
     }
 }

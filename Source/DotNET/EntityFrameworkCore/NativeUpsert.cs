@@ -60,7 +60,8 @@ internal static class NativeUpsert
         var entityType = entry.Metadata;
         if (!entry.IsKeySet || entityType.BaseType is not null || entityType.GetDerivedTypes().Any() ||
             entityType.GetTableMappings().Count() != 1 || entityType.GetComplexProperties().Any() ||
-            entityType.IsOwned() || entityType.GetNavigations().Any(_ => _.TargetEntityType.IsOwned()))
+            entityType.IsOwned() || entityType.GetNavigations().Any() || entityType.GetSkipNavigations().Any() ||
+            entityType.GetProperties().Any(_ => _.IsShadowProperty()))
         {
             return false;
         }

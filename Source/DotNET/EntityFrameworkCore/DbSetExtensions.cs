@@ -37,7 +37,7 @@ public static class DbSetExtensions
     /// <remarks>
     /// SQL Server, PostgreSQL, and SQLite execute immediately, bypassing change tracking. Tracked instances
     /// and generated values are not refreshed. Other providers and mappings requiring tracked persistence
-    /// (including generated keys, owned entities, inheritance, and multiple tables) fall back to
+    /// (including generated keys, navigations, shadow properties, owned entities, inheritance, and multiple tables) fall back to
     /// <see cref="Upsert{TEntity}"/> and require SaveChanges. Use an application-assigned key for atomic upserts.
     /// </remarks>
     /// <exception cref="EntityDoesNotHavePrimaryKey">Thrown if the entity does not have a primary key.</exception>

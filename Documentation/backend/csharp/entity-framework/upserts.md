@@ -44,7 +44,8 @@ instances before relying on their values. Pending tracked changes are not flushe
 
 Use application-assigned keys and single-table scalar mappings for native
 execution. Other providers, unset generated keys, SQL Server identity columns,
-owned or complex properties, inheritance, and multi-table mappings fall back to
+navigations (including owned and many-to-many relationships), shadow or complex
+properties, inheritance, and multi-table mappings fall back to
 the tracked upsert and **require `SaveChangesAsync`**. Properties whose generated
 value is still unset also use the tracked fallback so EF can apply database defaults.
 The fallback does not provide the native path's concurrency guarantee. Choose the
