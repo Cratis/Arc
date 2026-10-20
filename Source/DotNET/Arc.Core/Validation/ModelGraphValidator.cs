@@ -76,10 +76,18 @@ public class ModelGraphValidator(IDiscoverableValidators discoverableValidators,
     /// </para>
     /// </remarks>
     internal static WalkableMember[] GetWalkablePropertiesThroughReflection(Type type, bool publicGettersOnly) =>
+        [.. ReadablePropertiesThroughReflection(type, publicGettersOnly).Select(WalkableMember.For)];
+
+    /// <summary>
+    /// Gets readable public instance properties, preserving reflection order and excluding indexers.
+    /// </summary>
+    /// <param name="type">The type to inspect.</param>
+    /// <param name="publicGettersOnly">Whether to exclude properties whose getter is not public.</param>
+    /// <returns>The readable properties, including their declared types and getters.</returns>
+    internal static PropertyInfo[] ReadablePropertiesThroughReflection(Type type, bool publicGettersOnly = false) =>
         [.. type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(property => property.GetIndexParameters().Length == 0 && property.CanRead &&
-                (!publicGettersOnly || property.GetMethod is { IsPublic: true }))
-            .Select(WalkableMember.For)];
+                (!publicGettersOnly || property.GetMethod is { IsPublic: true }))];
 
     /// <summary>
     /// Gets the ordinary validation members, preserving the existing getter visibility contract.
