@@ -15,4 +15,5 @@ public class and_resolver_returns_null : given.a_tenant_id_accessor
     void Because() => _result = _accessor.Current;
 
     [Fact] void should_return_not_set_tenant_id() => _result.ShouldEqual(TenantId.NotSet);
+    [Fact] void should_leave_the_tenant_uncached() => _accessor.Cached.ShouldBeNull();
 }

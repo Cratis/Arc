@@ -50,6 +50,8 @@ builder.AddCratisArc(options =>
 
 Default claim type: `tenant_id`
 
+Run `app.UseAuthentication()` before middleware that needs a claim-based tenant. Middleware added through `IStartupFilter` can run before authentication configured in `Program.cs`; an early read without a tenant claim returns `TenantId.NotSet` but is not cached, so a later read after authentication can resolve the tenant. Resolved tenants remain cached for the execution flow. This does not defer work already performed without a tenant, so tenant-dependent work must still wait until authentication has run.
+
 ### Subdomain Resolver
 
 Resolves the tenant ID from the subdomain of a configured base domain, and falls back to the configured HTTP header for every host that does not carry one.

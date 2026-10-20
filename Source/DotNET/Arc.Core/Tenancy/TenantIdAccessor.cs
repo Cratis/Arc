@@ -32,7 +32,10 @@ public class TenantIdAccessor(ITenantIdResolver tenantIdResolver) : ITenantIdAcc
 
             var tenantId = tenantIdResolver.Resolve();
             var result = string.IsNullOrEmpty(tenantId) ? TenantId.NotSet : new TenantId(tenantId);
-            _current.Value = result;
+            if (result != TenantId.NotSet)
+            {
+                _current.Value = result;
+            }
             return result;
         }
     }
