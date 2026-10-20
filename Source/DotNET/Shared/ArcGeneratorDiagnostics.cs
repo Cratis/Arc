@@ -26,4 +26,15 @@ internal static class ArcGeneratorDiagnostics
         "Arc",
         DiagnosticSeverity.Info,
         isEnabledByDefault: true);
+
+    /// <summary>
+    /// Explains when a command's key properties cannot be generated and read protection reads them through reflection.
+    /// </summary>
+    internal static readonly DiagnosticDescriptor CommandKeysNotGenerated = new(
+        "ARC0031",
+        "Command key properties are read through reflection",
+        "Command '{0}' cannot be named from generated code; read protection uses reflection to read its key properties",
+        "Arc",
+        DiagnosticSeverity.Info,
+        isEnabledByDefault: true);
 }

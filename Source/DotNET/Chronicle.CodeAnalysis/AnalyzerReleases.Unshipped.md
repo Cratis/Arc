@@ -40,3 +40,4 @@ ARCCHR0037|Arc.Chronicle|Error|Per-stream read model does not match the command 
 ARCCHR0038|Arc.Chronicle|Info|Per-stream read guard widens to the whole source
 ARC0026|Arc|Error|Invalid explicit query declaration
 ARC0030|Arc|Info|Composite key requires accessor registration
+ARC0031|Arc|Info|Command key properties are read through reflection
