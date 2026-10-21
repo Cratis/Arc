@@ -16,6 +16,8 @@ Use this page when you have commands that work today and want read protection wi
 
 You can mix modes. A command-level `[ReadProtection(ReadProtectionMode.Off)]` keeps one command off while its project is `On`, and `[ReadProtection(ReadProtectionMode.On)]` turns one command on in an `Off` project. A command-level `[Unprotected]` means `Off` for that command.
 
+The next major version of Arc makes `On` the default for projects that do not set `<CratisReadProtection>`. A project that sets the property keeps its mode through the upgrade. See [The default changes in the next major version](./index.md#the-default-changes-in-the-next-major-version).
+
 ## What Measure does
 
 Under `Measure`, reads, lookups, scopes, results and status codes stay as they are. Arc looks at each command and records what `On` would do. It never changes the outcome, and a failure inside the measurement never fails the command.
