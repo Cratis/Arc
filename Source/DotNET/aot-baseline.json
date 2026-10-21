@@ -337,7 +337,6 @@
     "IL2091|Source/DotNET/EntityFrameworkCore/DbContextServiceCollectionExtensions.cs|net10.0": 2,
     "IL2091|Source/DotNET/EntityFrameworkCore/DbContextServiceCollectionExtensions.cs|net8.0": 1,
     "IL2091|Source/DotNET/EntityFrameworkCore/DbContextServiceCollectionExtensions.cs|net9.0": 2,
-    "IL2091|Source/DotNET/EntityFrameworkCore/DbSetExtensions.cs|net8.0": 2,
     "IL2091|Source/DotNET/EntityFrameworkCore/Json/JsonConversion.cs|net10.0": 2,
     "IL2091|Source/DotNET/EntityFrameworkCore/Json/JsonConversion.cs|net8.0": 1,
     "IL2091|Source/DotNET/EntityFrameworkCore/Json/JsonConversion.cs|net9.0": 2,

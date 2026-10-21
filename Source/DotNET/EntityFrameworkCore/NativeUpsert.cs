@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -23,7 +24,7 @@ internal static class NativeUpsert
     /// <param name="cancellationToken">The cancellation token.</param>
     /// <returns>Whether the mapping supports native execution.</returns>
     /// <exception cref="EntityDoesNotHavePrimaryKey">The entity has no primary key.</exception>
-    internal static async Task<bool> TryExecute<TEntity>(DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken)
+    internal static async Task<bool> TryExecute<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken)
         where TEntity : class
     {
         var context = dbSet.GetService<ICurrentDbContext>().Context;

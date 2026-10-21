@@ -1,6 +1,7 @@
 // Copyright (c) Cratis. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
+using System.Diagnostics.CodeAnalysis;
 using Cratis.Arc.EntityFrameworkCore;
 
 namespace Microsoft.EntityFrameworkCore;
@@ -23,7 +24,7 @@ public static class DbSetExtensions
     /// It will check the local tracked entities first before querying the database.
     /// </remarks>
     /// <exception cref="EntityDoesNotHavePrimaryKey">Thrown if the entity does not have a primary key.</exception>
-    public static Task Upsert<TEntity>(this DbSet<TEntity> dbSet, TEntity item)
+    public static Task Upsert<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity item)
         where TEntity : class => dbSet.UpsertTracked(item, CancellationToken.None);
 
     /// <summary>
@@ -41,7 +42,7 @@ public static class DbSetExtensions
     /// <see cref="Upsert{TEntity}"/> and require SaveChanges. Use an application-assigned key for atomic upserts.
     /// </remarks>
     /// <exception cref="EntityDoesNotHavePrimaryKey">Thrown if the entity does not have a primary key.</exception>
-    public static async Task UpsertAsync<TEntity>(this DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken = default)
+    public static async Task UpsertAsync<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken = default)
         where TEntity : class
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -51,7 +52,7 @@ public static class DbSetExtensions
         }
     }
 
-    static async Task UpsertTracked<TEntity>(this DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken)
+    static async Task UpsertTracked<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity item, CancellationToken cancellationToken)
         where TEntity : class
     {
         var entityType = dbSet.EntityType;
@@ -82,7 +83,7 @@ public static class DbSetExtensions
         }
     }
 
-    static void UpdateExisting<TEntity>(this DbSet<TEntity> dbSet, TEntity newEntity, TEntity existingEntity)
+    static void UpdateExisting<[DynamicallyAccessedMembers(EntityTypeMembers.Required)] TEntity>(this DbSet<TEntity> dbSet, TEntity newEntity, TEntity existingEntity)
         where TEntity : class
     {
         var entry = dbSet.Entry(existingEntity);
