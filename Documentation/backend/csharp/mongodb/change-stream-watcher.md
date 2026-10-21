@@ -3,7 +3,9 @@ title: Watch multiple collections with a shared change stream
 description: Join live results through Arc's per-database MongoDB watcher.
 ---
 
-The `IMongoDBWatcher` provides a single, process-wide MongoDB change stream connection per database. Instead of opening one change stream per collection, you share one connection and funnel events from multiple collections through it. This reduces the number of open cursors and network connections, which matters when you observe many collections simultaneously.
+The `IMongoDBWatcher` provides a single, process-wide MongoDB change stream connection per database. Instead of opening one change stream per collection, every observation shares one connection and funnels events from multiple collections through it. This reduces the number of open cursors and network connections, which matters when you observe many collections simultaneously.
+
+The `Observe()`, `ObserveSingle()` and `ObserveById()` [collection extensions](./observing-collections.md) use this shared stream too, so you do not have to inject the watcher to benefit from it. Inject it when you want to join several collections into one result.
 
 ## How it works
 
@@ -112,9 +114,9 @@ public class CatalogController(IMongoDBWatcher watcher) : Controller
 
 Individual subjects returned by `Select()` run a background loop that is tied to the subject itself — the loop stops when the subject completes or errors. Unsubscribing all observers from a subject causes it to complete and cleans up its internal resources automatically.
 
-Joined result fetching or selector failures are delivered through `OnError` and terminate that result subject. This differs from the per-collection `Observe()` implementation, which logs watch failures and completes. Reusing a terminated subject does not create a new joined observation. Keep tenant-specific results inside their intended lifetime even though the watcher itself is singleton.
+Joined result fetching or selector failures are delivered through `OnError` and terminate that result subject. This differs from the [collection `Observe()` extensions](./observing-collections.md#errors-and-recovery-limits), which log failures and complete. Reusing a terminated subject does not create a new joined observation. Keep tenant-specific results inside their intended lifetime even though the watcher itself is singleton.
 
 ## See also
 
-- [Observing Collections](observing-collections.md) — Per-collection `IMongoCollection.Observe()` extension methods for single-collection scenarios.
+- [Observing Collections](observing-collections.md) — `IMongoCollection.Observe()` extension methods for single-collection scenarios, which share the same stream.
 - [Getting Started](getting-started.md) — How to register the MongoDB integration, including `IMongoDBWatcher`.

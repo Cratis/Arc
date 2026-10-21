@@ -20,7 +20,7 @@ Follow [getting started](./getting-started.md) to install the package, configure
 
 ## Add live reads and tenancy
 
-- [Observe collections](./observing-collections.md): per-collection change streams, lifetime, and errors.
+- [Observe collections](./observing-collections.md): observations over the shared change stream, lifetime, and errors.
 - [Watch multiple collections](./change-stream-watcher.md): shared database change streams and joined results.
 - [Tenancy](./tenancy.md): database naming and scope boundaries.
 
