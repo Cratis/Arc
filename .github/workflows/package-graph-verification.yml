@@ -2,6 +2,8 @@ name: Package Graph Verification
 
 on:
   pull_request:
+    # Draft PRs wait until they are marked ready for review.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - "Source/DotNET/**"
@@ -22,6 +24,7 @@ concurrency:
 
 jobs:
   package-graph:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
