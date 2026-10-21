@@ -19,7 +19,7 @@ When two requests read the same state, both decide it is fine, and both write, a
 | The caller supplies the revision it saw | An explicit scope |
 | A rare violation to be acceptable | The default append, and a reactor that repairs |
 
-Under **Off**, which is the default, nothing changes: an injected read model is a plain read, it returns a snapshot, and it guards nothing.
+Under **Off**, which is the default, nothing changes: an injected read model is a plain read, it returns a snapshot, and it guards nothing. The next major version of Arc makes `On` the default. See [The default changes in the next major version](#the-default-changes-in-the-next-major-version).
 
 ## Three concepts
 
@@ -141,6 +141,16 @@ Read protection is chosen per project or per command, and `Off` is the default.
 - A guarded read costs more than a plain one, and a team should accept that where the rule needs it.
 
 [Adopting read protection](./adopting.md) is the path that keeps existing commands working while you move.
+
+### The default changes in the next major version
+
+The next major version of Arc turns read protection `On` by default. You can still turn it off where a command or a read must stay plain:
+
+- for one command, with `[ReadProtection(ReadProtectionMode.Off)]` or `[Unprotected("why")]` on the command;
+- for one read, with `[Unprotected("why")]` on the parameter, the read-model type, or the `Handle()` or `Provide()` method;
+- for a project, with `<CratisReadProtection>Off</CratisReadProtection>`.
+
+To keep today's behaviour through the upgrade, set `<CratisReadProtection>` explicitly in each project now. To prepare for `On`, run `Measure` and fix what it reports. The change is tracked in [Cratis/Arc#3255](https://github.com/Cratis/Arc/issues/3255).
 
 ## Costs
 

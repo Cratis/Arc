@@ -6,7 +6,7 @@ description: Take a Chronicle read model as a dependency in a CommandValidator, 
 A command can take the read model Arc resolved for its key in three places: the constructor of a `CommandValidator<TCommand>`, a `Provide()` method, and a `Handle()` method. All three resolve from the same command scope, so all three see the same instance.
 
 :::caution[A plain read guards nothing under Off]
-Under read protection `Off`, the default, an injected read model is a **plain read**: it returns a snapshot, captures no boundary and guards nothing, in a validator, in `Provide()` and in `Handle()` alike. Under `On`, the same parameter is read fresh and guarded. Use a constraint for uniqueness. See [Choosing how a command's rule holds](../consistency/index.md) and [Getting started with read protection](../consistency/getting-started.md).
+Under read protection `Off`, the default, an injected read model is a **plain read**: it returns a snapshot, captures no boundary and guards nothing, in a validator, in `Provide()` and in `Handle()` alike. Under `On`, the same parameter is read fresh and guarded. The next major version of Arc makes `On` the default; see [The default changes in the next major version](../consistency/index.md#the-default-changes-in-the-next-major-version). Use a constraint for uniqueness. See [Choosing how a command's rule holds](../consistency/index.md) and [Getting started with read protection](../consistency/getting-started.md).
 :::
 
 Which one to use is a question about *what the state is for*. These are focused dependency fragments using application read models, events, and commands; declarations without `Handle()` show only the validator's input shape, not complete runnable commands.
