@@ -4,7 +4,6 @@
 using System.Linq.Expressions;
 using System.Reactive.Subjects;
 using System.Reflection;
-using System.Threading.Channels;
 using Cratis.Arc;
 using Cratis.Arc.MongoDB;
 using Cratis.Arc.Queries;
@@ -337,19 +336,20 @@ public static class MongoCollectionExtensions
                 query = AddPaging(observationContext, query);
 
                 // Every observation of the database shares one change stream, so this costs no connection of its own.
-                // Subscribe before the initial query so a change made while it runs is buffered, not missed, and
-                // handle changes one at a time, in order, on this task.
-                var changes = Channel.CreateUnbounded<ChangeStreamDocument<BsonDocument>>(new() { SingleReader = true });
+                // Subscribe before the initial query so a change made while it runs is held, not missed, and apply
+                // changes on this task. What is held is collapsed while this task is busy (one change per document,
+                // or one read again), so a slow query cannot make it grow with the write rate.
+                var changes = new PendingChanges(observationContext.Paging.IsPaged);
                 using var subscription = watcher.GetChanges(collection.Database.DatabaseNamespace.DatabaseName).Subscribe(
                     change =>
                     {
                         if (IsRelevantChange(change, collectionNamespace))
                         {
-                            changes.Writer.TryWrite(change);
+                            changes.Add(change, RequiresResynchronization(change, collectionNamespace));
                         }
                     },
-                    error => changes.Writer.TryComplete(error),
-                    () => changes.Writer.TryComplete());
+                    changes.Complete,
+                    () => changes.Complete());
 
                 if (!ignoreQueryContext)
                 {
@@ -360,9 +360,9 @@ public static class MongoCollectionExtensions
                 // The initial emission is a whole snapshot, not a delta - there is no previous state to state a
                 // change against, so it carries no changes and downstream treats it as the baseline.
                 onNext(documents, null, subject);
-                await foreach (var changeDocument in changes.Reader.ReadAllAsync(cancellationToken))
+                while (await changes.WaitForChanges(cancellationToken))
                 {
-                    await DispatchChange(changeDocument, query);
+                    await DispatchChanges(changes.Take(), query);
                 }
 
                 logger.IteratingChangeStreamCursorCompleted();
@@ -386,13 +386,14 @@ public static class MongoCollectionExtensions
             }
         }
 
-        async Task DispatchChange(ChangeStreamDocument<BsonDocument> changeDocument, IFindFluent<TDocument, TDocument> query)
+        async Task DispatchChanges((bool ReadAgain, IReadOnlyList<ChangeStreamDocument<BsonDocument>> Changes) pending, IFindFluent<TDocument, TDocument> query)
         {
             // A failure here propagates out of the cursor loop and faults the observable in Watch(): a change
             // that could not be applied would otherwise be lost silently and leave the client on stale data.
             // A paged observation re-reads its page after any change. Any observation re-reads after a resynchronization,
-            // since the shared stream was reopened, or a collection was dropped or renamed, and changes may be missing.
-            if (observationContext.Paging.IsPaged || RequiresResynchronization(changeDocument, collectionNamespace))
+            // since the shared stream was reopened, or a collection was dropped or renamed, and changes may be missing,
+            // and after more documents changed than are held. One read again answers every change held.
+            if (pending.ReadAgain)
             {
                 await HandlePagedChange(
                     collection,
@@ -407,18 +408,21 @@ public static class MongoCollectionExtensions
                 return;
             }
 
-            await HandleChange(
-                collection,
-                filter,
-                matchesEverything,
-                observationContext,
-                onNext,
-                changeDocument,
-                documents,
-                subject,
-                idProperty,
-                classMap.IdMemberMap,
-                cancellationToken);
+            foreach (var changeDocument in pending.Changes)
+            {
+                await HandleChange(
+                    collection,
+                    filter,
+                    matchesEverything,
+                    observationContext,
+                    onNext,
+                    changeDocument,
+                    documents,
+                    subject,
+                    idProperty,
+                    classMap.IdMemberMap,
+                    cancellationToken);
+            }
         }
 
         void CancelWatch()
@@ -567,7 +571,7 @@ public static class MongoCollectionExtensions
     /// <remarks>
     /// A paged set holds the current page only, so a single change event cannot say whether the document belongs
     /// before, on or after the page, whether it was counted, or where it now sorts. One count and one page read per
-    /// change answers all of it, the same trade the Entity Framework Core provider makes.
+    /// batch of held changes answers all of it, the same trade the Entity Framework Core provider makes.
     /// </remarks>
     static async Task HandlePagedChange<TDocument, TResult>(
         IMongoCollection<TDocument> collection,
