@@ -50,7 +50,7 @@ When the cost of the violation is lower than the cost of the guard and a reactor
 
 ### What are Off, Measure and On?
 
-`Off` is today's behaviour and the default. `Measure` changes nothing and reports what `On` would do. `On` guards read-model parameters and refuses reads it cannot guard. See [Adopting read protection](./adopting.md).
+`Off` is today's behaviour and the default. The next major version of Arc makes `On` the default. `Measure` changes nothing and reports what `On` would do. `On` guards read-model parameters and refuses reads it cannot guard. See [Adopting read protection](./adopting.md).
 
 ### Where do I set the mode?
 
@@ -62,7 +62,11 @@ Only lower it, with `ReadProtection:MaximumMode`. See [Cap the mode at run time]
 
 ### Why is protection opt-in?
 
-A protected command fails closed, and existing commands read plain models in many places. Turning it on by default would turn commands that work into errors. See [Why protection is opt-in](./index.md#why-protection-is-opt-in).
+A protected command fails closed, and existing commands read plain models in many places. Turning it on by default would turn commands that work into errors, which is why the change waits for a major version. See [Why protection is opt-in](./index.md#why-protection-is-opt-in).
+
+### Will the default change?
+
+Yes. The next major version of Arc turns read protection `On` by default, because a decision that holds is the safer starting point. You can turn it off for one command with `[ReadProtection(ReadProtectionMode.Off)]` or `[Unprotected("why")]`, for one read with `[Unprotected("why")]`, and for a project with `<CratisReadProtection>Off</CratisReadProtection>`. Set the property explicitly now to keep today's behaviour through the upgrade. See [The default changes in the next major version](./index.md#the-default-changes-in-the-next-major-version) and [Cratis/Arc#3255](https://github.com/Cratis/Arc/issues/3255).
 
 ### What does Measure cost?
 
