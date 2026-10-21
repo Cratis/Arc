@@ -2,7 +2,6 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using Cratis.Arc;
-using Cratis.Chronicle;
 using Cratis.Chronicle.Transactions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +14,6 @@ public class and_an_explicit_manager_is_registered_after_chronicle : given.a_chr
     IUnitOfWorkManager _explicitManager;
     IUnitOfWorkManager _resolvedManager;
     IUnitOfWorkManager[] _all;
-    IEventStore _eventStore;
 
     void Establish()
     {
@@ -33,10 +31,12 @@ public class and_an_explicit_manager_is_registered_after_chronicle : given.a_chr
     {
         using var scope = _host.Services.CreateScope();
         _resolvedManager = scope.ServiceProvider.GetRequiredService<IUnitOfWorkManager>();
-        _eventStore = scope.ServiceProvider.GetRequiredService<IEventStore>();
+
         _all = scope.ServiceProvider.GetServices<IUnitOfWorkManager>().ToArray();
     }
 
     [Fact] void should_resolve_the_explicit_manager_for_a_single_service() => ReferenceEquals(_resolvedManager, _explicitManager).ShouldBeTrue();
-    [Fact] void should_resolve_the_event_stores_manager_and_the_explicit_manager_from_all_services() => _all.ShouldContainOnly(_eventStore.UnitOfWorkManager, _explicitManager);
+    [Fact] void should_resolve_both_managers_from_all_services() => _all.Length.ShouldEqual(2);
+    [Fact] void should_preserve_the_explicit_manager_in_all_services() => _all.ShouldContain(_explicitManager);
+    [Fact] void should_preserve_the_deferred_request_manager_in_all_services() => _all.Single(_ => !ReferenceEquals(_, _explicitManager)).ShouldBeOfExactType<UnitOfWorkManager>();
 }
