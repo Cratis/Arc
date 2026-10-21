@@ -134,7 +134,7 @@ Choose something else when:
 
 ### Why protection is opt-in
 
-Read protection is chosen per project or per command, and `Off` is the default.
+Read protection is chosen per project or per command, and `Off` is the default today.
 
 - A protected command fails closed. It refuses a read it cannot guard, an immediate append, and a read outside a parameter. Making that the default would turn commands that work today into errors.
 - Existing code reads plain models in validators and handlers in many places. Moving them is a change to the rule, not a flag.
@@ -147,7 +147,7 @@ Read protection is chosen per project or per command, and `Off` is the default.
 The next major version of Arc turns read protection `On` by default. You can still turn it off where a command or a read must stay plain:
 
 - for one command, with `[ReadProtection(ReadProtectionMode.Off)]` or `[Unprotected("why")]` on the command;
-- for one read, with `[Unprotected("why")]` on the parameter, the read-model type, or the `Handle()` or `Provide()` method;
+- for one read, with `[Unprotected("why")]` on the parameter, the read-model type, or, for reads in its body, the `Handle()` or `Provide()` method;
 - for a project, with `<CratisReadProtection>Off</CratisReadProtection>`.
 
 To keep today's behaviour through the upgrade, set `<CratisReadProtection>` explicitly in each project now. To prepare for `On`, run `Measure` and fix what it reports. The change is tracked in [Cratis/Arc#3255](https://github.com/Cratis/Arc/issues/3255).

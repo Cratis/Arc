@@ -62,7 +62,7 @@ Only lower it, with `ReadProtection:MaximumMode`. See [Cap the mode at run time]
 
 ### Why is protection opt-in?
 
-A protected command fails closed, and existing commands read plain models in many places. Turning it on by default would turn commands that work into errors. See [Why protection is opt-in](./index.md#why-protection-is-opt-in).
+A protected command fails closed, and existing commands read plain models in many places. Turning it on by default would turn commands that work into errors, which is why the change waits for a major version. See [Why protection is opt-in](./index.md#why-protection-is-opt-in).
 
 ### Will the default change?
 
