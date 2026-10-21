@@ -548,9 +548,13 @@ public class TransactionalCommandScope : ICommandOperationExecutionScope, IComma
         }
     }
 
-    // The append observable raises on the appender's own flow. An append without correlation made from inside this command (its handler, or a task it
-    // started) has the command's frame on its chain; one made by anything else in the process - another request, a background writer - does not, and a
-    // concurrency violation of a stream this command never touched must not fail it.
+    /// <summary>
+    /// The append observable raises on the appender's own flow. An append without correlation made from inside this command (its handler, or a task it
+    /// started) has the command's frame on its chain; one made by anything else in the process - another request, a background writer - does not, and a
+    /// concurrency violation of a stream this command never touched must not fail it.
+    /// </summary>
+    /// <param name="frame">The command's transaction frame.</param>
+    /// <returns>Whether the current flow contains the command's transaction frame.</returns>
     static bool IsWithin(TransactionFrame frame)
     {
         for (var current = _frames.Value; current is not null; current = current.Previous)
