@@ -266,11 +266,12 @@ public static class DbSetObserveExtensions
 
         IDisposable? changeSubscription = null;
         IDatabaseChangeNotifier? databaseNotifier = null;
+        var faulted = 0;
 
         // Common callback for both in-process and database-level changes
         void OnChangeDetected()
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1)
             {
                 return;
             }
@@ -282,9 +283,10 @@ public static class DbSetObserveExtensions
                 return;
             }
 
+            Exception? failure = null;
             try
             {
-                if (cancellationToken.IsCancellationRequested)
+                if (cancellationToken.IsCancellationRequested || Volatile.Read(ref faulted) == 1)
                 {
                     return;
                 }
@@ -310,10 +312,50 @@ public static class DbSetObserveExtensions
             catch (Exception ex)
             {
                 logger.UnexpectedError(typeof(TEntity).Name, ex);
+
+                // A failure during teardown is expected and stays quiet; anything else must fault the observable.
+                if (!cancellationToken.IsCancellationRequested && ex is not (OperationCanceledException or ObjectDisposedException))
+                {
+                    failure = ex;
+
+                    // Terminal while still holding the semaphore, so no later change can emit after the error.
+                    Volatile.Write(ref faulted, 1);
+                }
             }
             finally
             {
                 queryExecutionSemaphore.Release();
+            }
+
+            // Fault outside the semaphore: ending the observation runs Cleanup, which waits for it.
+            if (failure is not null)
+            {
+                Fault(failure);
+            }
+        }
+
+        void Fault(Exception exception)
+        {
+            try
+            {
+                subject.OnError(exception);
+            }
+            catch (Exception ex)
+            {
+                // A throwing observer must never reach the SaveChanges caller.
+                logger.UnexpectedError(typeof(TEntity).Name, ex);
+            }
+            finally
+            {
+                try
+                {
+                    // Cancelling ends Watch, which runs Cleanup; later change notifications are ignored.
+                    cancellationTokenSource.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Cleanup already ran.
+                }
             }
         }
 
